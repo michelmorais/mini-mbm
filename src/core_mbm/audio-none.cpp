@@ -35,8 +35,13 @@
 
 namespace mbm
 {
+    struct AUDIO::BackendData
+    {
+    };
+
 	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
-    onEndStreamCallBack(nullptr)
+    onEndStreamCallBack(nullptr),
+    backend(std::make_unique<BackendData>())
     {
         #if defined(_MSC_VER)
         #pragma message("Audio engine NONE is used, all functions are disabled")
@@ -129,6 +134,28 @@ namespace mbm
     void AUDIO::setOnEndstream(OnEndStreamCallBack ptrOnEndStreamCallBack)
     {
         this->onEndStreamCallBack = ptrOnEndStreamCallBack;
+    }
+
+    AUDIO::OnEndStreamCallBack AUDIO::getOnEndstream() const
+    {
+        return this->onEndStreamCallBack;
+    }
+
+    bool AUDIO::updateBackend()
+    {
+        return false;
+    }
+
+    void AUDIO_MANAGER::initializeBackend()
+    {
+    }
+
+    void AUDIO_MANAGER::finalizeBackend()
+    {
+    }
+
+    void AUDIO_MANAGER::updateBackend()
+    {
     }
 
     const char* AUDIO_ENGINE_version()

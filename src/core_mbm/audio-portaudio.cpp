@@ -37,8 +37,14 @@
 
 namespace mbm
 {
+    struct AUDIO::BackendData
+    {
+        std::unique_ptr<PA_INTERFACE> pa_audio;
+    };
+
     AUDIO::AUDIO(const int newIdScene) : AUDIO_INTERFACE(newIdScene),
-        onEndStreamCallBack(nullptr)
+        onEndStreamCallBack(nullptr),
+        backend(std::make_unique<BackendData>())
     {}
 
     AUDIO::~AUDIO() = default;
@@ -73,7 +79,7 @@ namespace mbm
             if (ret)
             {
                 ogg->setLoop(bLoop);
-                this->pa_audio = std::move(ogg);
+                this->backend->pa_audio = std::move(ogg);
             }
         }
         else
@@ -83,12 +89,12 @@ namespace mbm
             if (ret)
             {
                 wav->setLoop(bLoop);
-                this->pa_audio = std::move(wav);
+                this->backend->pa_audio = std::move(wav);
             }
         }
 
         if (!ret)
-            this->pa_audio.reset();
+            this->backend->pa_audio.reset();
         else
             this->fileName = path;
 
@@ -97,8 +103,8 @@ namespace mbm
 
     bool AUDIO::play(const bool bLoop)
     {
-        if (!this->pa_audio) return false;
-        if (this->pa_audio->play(bLoop))
+        if (!this->backend->pa_audio) return false;
+        if (this->backend->pa_audio->play(bLoop))
         {
             state = AUDIO_PLAYING;
             return true;
@@ -108,8 +114,8 @@ namespace mbm
 
     bool AUDIO::stop()
     {
-        if (!this->pa_audio) return false;
-        if (this->pa_audio->stop())
+        if (!this->backend->pa_audio) return false;
+        if (this->backend->pa_audio->stop())
         {
             state = AUDIO_STOPPED;
             return true;
@@ -119,8 +125,8 @@ namespace mbm
 
     bool AUDIO::pause()
     {
-        if (!this->pa_audio) return false;
-        if (this->pa_audio->pause())
+        if (!this->backend->pa_audio) return false;
+        if (this->backend->pa_audio->pause())
         {
             state = AUDIO_PAUSED;
             return true;
@@ -130,8 +136,8 @@ namespace mbm
 
     bool AUDIO::resume()
     {
-        if (!this->pa_audio || state != AUDIO_PAUSED) return false;
-        if (this->pa_audio->start())
+        if (!this->backend->pa_audio || state != AUDIO_PAUSED) return false;
+        if (this->backend->pa_audio->start())
         {
             state = AUDIO_PLAYING;
             return true;
@@ -141,15 +147,15 @@ namespace mbm
 
     bool AUDIO::setVolume(const float volume)
     {
-        if (!this->pa_audio) return false;
-        this->pa_audio->setVolume(static_cast<double>(volume));
+        if (!this->backend->pa_audio) return false;
+        this->backend->pa_audio->setVolume(static_cast<double>(volume));
         return true;
     }
 
     bool AUDIO::setPan(const float pan)
     {
-        if (!this->pa_audio) return false;
-        this->pa_audio->setPan(static_cast<double>(pan));
+        if (!this->backend->pa_audio) return false;
+        this->backend->pa_audio->setPan(static_cast<double>(pan));
         return true;
     }
 
@@ -161,40 +167,40 @@ namespace mbm
 
     bool AUDIO::setPosition(const int positionMs)
     {
-        if (!this->pa_audio) return false;
-        const int len = this->pa_audio->getLength();
+        if (!this->backend->pa_audio) return false;
+        const int len = this->backend->pa_audio->getLength();
         if (len <= 0) return false;
         const double pos = static_cast<double>(positionMs) / static_cast<double>(len);
-        this->pa_audio->setPosition(pos);
+        this->backend->pa_audio->setPosition(pos);
         return true;
     }
 
     bool AUDIO::isPlaying()
     {
-        if (!this->pa_audio) return false;
+        if (!this->backend->pa_audio) return false;
         // m_finished is polled in AUDIO_MANAGER::update(); just query the stream state here
         if (state != AUDIO_PLAYING) return false;
-        if (!this->pa_audio->isPlaying() && !this->pa_audio->isPaused())
+        if (!this->backend->pa_audio->isPlaying() && !this->backend->pa_audio->isPaused())
         {
             state = AUDIO_STOPPED;
             return false;
         }
-        return !this->pa_audio->isPaused();
+        return !this->backend->pa_audio->isPaused();
     }
 
     bool AUDIO::isPaused()
     {
-        return this->pa_audio && this->pa_audio->isPaused();
+        return this->backend->pa_audio && this->backend->pa_audio->isPaused();
     }
 
     float AUDIO::getVolume()
     {
-        return this->pa_audio ? static_cast<float>(this->pa_audio->getVolume()) : 0.0f;
+        return this->backend->pa_audio ? static_cast<float>(this->backend->pa_audio->getVolume()) : 0.0f;
     }
 
     float AUDIO::getPan()
     {
-        return this->pa_audio ? static_cast<float>(this->pa_audio->getPan()) : 0.0f;
+        return this->backend->pa_audio ? static_cast<float>(this->backend->pa_audio->getPan()) : 0.0f;
     }
 
     float AUDIO::getPitch()
@@ -204,19 +210,19 @@ namespace mbm
 
     int AUDIO::getLength()
     {
-        return this->pa_audio ? this->pa_audio->getLength() : 0;
+        return this->backend->pa_audio ? this->backend->pa_audio->getLength() : 0;
     }
 
     bool AUDIO::reset()
     {
-        if (!this->pa_audio) return false;
-        this->pa_audio->setPosition(0.0);
+        if (!this->backend->pa_audio) return false;
+        this->backend->pa_audio->setPosition(0.0);
         return true;
     }
 
     bool AUDIO::isLoaded()
     {
-        return this->pa_audio != nullptr;
+        return this->backend->pa_audio != nullptr;
     }
 
     void AUDIO::setOnEndstream(OnEndStreamCallBack cb)
@@ -234,6 +240,33 @@ namespace mbm
     const char* AUDIO::getFileName() const noexcept
     {
         return this->fileName.c_str();
+    }
+
+    bool AUDIO::updateBackend()
+    {
+        if (this->backend->pa_audio && this->backend->pa_audio->isFinished())
+        {
+            this->backend->pa_audio->clearFinished();
+            this->state = mbm::STATE_AUDIO::AUDIO_STOPPED;
+            if (this->onEndStreamCallBack)
+                this->onEndStreamCallBack(this);
+            return true;
+        }
+        return false;
+    }
+
+    void AUDIO_MANAGER::initializeBackend()
+    {
+    }
+
+    void AUDIO_MANAGER::finalizeBackend()
+    {
+    }
+
+    void AUDIO_MANAGER::updateBackend()
+    {
+        for (AUDIO* my_audio : this->audios)
+            my_audio->updateBackend();
     }
 
     const char* AUDIO_ENGINE_version()

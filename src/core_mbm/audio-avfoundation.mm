@@ -110,10 +110,10 @@ extern "C" void avfoundation_audio_resume(void)
 }
 
 // ---------------------------------------------------------------------------
-// AVFAudioData — per-instance data (ObjC++ PIMPL; defined here, forward-
-// declared in audio.h so the C++ header stays ObjC-free)
+// BackendData — per-instance data (ObjC++ PIMPL; defined here so the C++
+// header stays ObjC-free)
 // ---------------------------------------------------------------------------
-struct mbm::AUDIO::AVFAudioData
+struct mbm::AUDIO::BackendData
 {
     AVAudioPlayerNode  *node     = nil;
     AVAudioPCMBuffer   *buffer   = nil;
@@ -132,14 +132,16 @@ namespace mbm
 {
 
 AUDIO::AUDIO(const int newIdScene)
-    : AUDIO_INTERFACE(newIdScene), onEndStreamCallBack(nullptr)
+    : AUDIO_INTERFACE(newIdScene),
+      onEndStreamCallBack(nullptr),
+      backend(std::make_unique<BackendData>())
 {}
 
 AUDIO::~AUDIO()
 {
-    if (avf_data && avf_data->node && g_avf_engine) {
-        [avf_data->node stop];
-        [g_avf_engine detachNode:avf_data->node];
+    if (backend && backend->node && g_avf_engine) {
+        [backend->node stop];
+        [g_avf_engine detachNode:backend->node];
     }
 }
 
@@ -161,8 +163,6 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
         ERROR_LOG("file not found: %s", filenameSound);
         return false;
     }
-
-    avf_data = std::make_unique<AVFAudioData>();
 
     NSString *nsPath = [NSString stringWithUTF8String:fullPath];
 
@@ -193,11 +193,9 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
             const char *wavFullPath = util::getFullPath([wavPath UTF8String], &wavFound);
             if (wavFound && wavFullPath) {
                 NSLog(@"[mini-mbm] OGG Opus not supported natively; falling back to %s", wavFullPath);
-                avf_data.reset();
                 return load(wavFullPath, false, false);
             } else {
                 ERROR_LOG("OGG Opus not supported and no .wav fallback found for: %s", filenameSound);
-                avf_data.reset();
                 return false;
             }
         }
@@ -221,7 +219,6 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
 
         if (totalSamples <= 0 || !samples) {
             ERROR_LOG("stb_vorbis failed to decode: %s", filenameSound);
-            avf_data.reset();
             return false;
         }
 
@@ -257,7 +254,6 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
             ERROR_LOG("AVAudioFile could not open: %s  (%s)",
                       filenameSound,
                       error ? [error.localizedDescription UTF8String] : "unknown error");
-            avf_data.reset();
             return false;
         }
 
@@ -270,7 +266,6 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
             ERROR_LOG("AVAudioFile read failed: %s  (%s)",
                       filenameSound,
                       error ? [error.localizedDescription UTF8String] : "unknown error");
-            avf_data.reset();
             return false;
         }
     }
@@ -279,12 +274,12 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
     // Wrapped in @try/@catch: AVAudioEngine graph mutations can throw ObjC
     // exceptions on audio route changes or hardware permission errors; catching
     // them here prevents propagation through the C++ Lua call stack.
-    avf_data->buffer = pcmBuffer;
-    avf_data->node   = [[AVAudioPlayerNode alloc] init];
+    backend->buffer = pcmBuffer;
+    backend->node   = [[AVAudioPlayerNode alloc] init];
 
     @try {
-        [g_avf_engine attachNode:avf_data->node];
-        [g_avf_engine connect:avf_data->node
+        [g_avf_engine attachNode:backend->node];
+        [g_avf_engine connect:backend->node
                            to:g_avf_engine.mainMixerNode
                        format:format];
 
@@ -296,19 +291,21 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
             if (![g_avf_engine startAndReturnError:&startError]) {
                 ERROR_LOG("AVAudioEngine failed to start: %s",
                           startError ? [startError.localizedDescription UTF8String] : "unknown");
-                [g_avf_engine detachNode:avf_data->node];
-                avf_data.reset();
+                [g_avf_engine detachNode:backend->node];
+                backend->node = nil;
+                backend->buffer = nil;
                 return false;
             }
         }
     } @catch (NSException *ex) {
         ERROR_LOG("AVAudioEngine graph setup threw exception: %s",
                   [ex.reason UTF8String] ? [ex.reason UTF8String] : "unknown");
-        avf_data.reset();
+        backend->node = nil;
+        backend->buffer = nil;
         return false;
     }
 
-    avf_data->loaded = true;
+    backend->loaded = true;
     const char *baseName = util::getBaseName(fullPath);
     this->fileName = baseName ? baseName : "";
     return true;
@@ -318,15 +315,15 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
 
 bool AUDIO::play(const bool loop)
 {
-    if (!avf_data || !avf_data->buffer || !avf_data->node)
+    if (!backend || !backend->buffer || !backend->node)
         return false;
 
-    [avf_data->node stop];
-    avf_data->finished = false;   // reset for this playback
+    [backend->node stop];
+    backend->finished = false;   // reset for this playback
 
     if (loop) {
         // Looping buffers run until stop() is called — no completion needed.
-        [avf_data->node scheduleBuffer:avf_data->buffer
+        [backend->node scheduleBuffer:backend->buffer
                                 atTime:nil
                                options:AVAudioPlayerNodeBufferLoops
                      completionHandler:nil];
@@ -336,9 +333,9 @@ bool AUDIO::play(const bool loop)
         // Without this, AVAudioPlayerNode.isPlaying stays true after the buffer
         // ends (it tracks the node's play-state, not active rendering), causing
         // isPlaying() to return true forever and starving the sound pool.
-        AVFAudioData *rawData = avf_data.get();   // raw ptr safe: [node stop] in dtor cancels the handler
-        AUDIO        *self    = this;
-        [avf_data->node scheduleBuffer:avf_data->buffer
+        BackendData *rawData = backend.get();   // raw ptr safe: [node stop] in dtor cancels the handler
+        AUDIO      *self    = this;
+        [backend->node scheduleBuffer:backend->buffer
                                 atTime:nil
                                options:0
                      completionHandler:^{
@@ -352,7 +349,7 @@ bool AUDIO::play(const bool loop)
         }];
     }
 
-    [avf_data->node play];
+    [backend->node play];
     state = AUDIO_PLAYING;
     return true;
 }
@@ -361,9 +358,9 @@ bool AUDIO::play(const bool loop)
 
 bool AUDIO::pause()
 {
-    if (avf_data && avf_data->node && avf_data->node.isPlaying) {
+    if (backend && backend->node && backend->node.isPlaying) {
         state = AUDIO_PLAYING;   // remember we were playing for resume()
-        [avf_data->node pause];
+        [backend->node pause];
         return true;
     }
     return false;
@@ -371,8 +368,8 @@ bool AUDIO::pause()
 
 bool AUDIO::resume()
 {
-    if (avf_data && avf_data->node && state == AUDIO_PLAYING) {
-        [avf_data->node play];
+    if (backend && backend->node && state == AUDIO_PLAYING) {
+        [backend->node play];
         return true;
     }
     return false;
@@ -380,8 +377,8 @@ bool AUDIO::resume()
 
 bool AUDIO::stop()
 {
-    if (avf_data && avf_data->node) {
-        [avf_data->node stop];
+    if (backend && backend->node) {
+        [backend->node stop];
         state = AUDIO_STOPPED;
         return true;
     }
@@ -390,9 +387,9 @@ bool AUDIO::stop()
 
 bool AUDIO::setVolume(const float volume)
 {
-    if (avf_data && avf_data->node) {
-        avf_data->node.volume = volume;
-        avf_data->volume      = volume;
+    if (backend && backend->node) {
+        backend->node.volume = volume;
+        backend->volume      = volume;
         return true;
     }
     return false;
@@ -400,8 +397,8 @@ bool AUDIO::setVolume(const float volume)
 
 bool AUDIO::setPan(const float pan)
 {
-    if (avf_data && avf_data->node) {
-        avf_data->node.pan = pan;
+    if (backend && backend->node) {
+        backend->node.pan = pan;
         return true;
     }
     return false;
@@ -425,11 +422,11 @@ bool AUDIO::setPosition(const int)
 
 bool AUDIO::isPlaying()
 {
-    if (!avf_data || !avf_data->loaded || state != AUDIO_PLAYING)
+    if (!backend || !backend->loaded || state != AUDIO_PLAYING)
         return false;
     // Once the render thread signals the buffer is done, transition state so
     // repeated calls don't need to re-read the atomic.
-    if (avf_data->finished) {
+    if (backend->finished) {
         state = AUDIO_STOPPED;
         return false;
     }
@@ -439,25 +436,25 @@ bool AUDIO::isPlaying()
 bool AUDIO::isPaused()
 {
     // Paused = in AUDIO_PLAYING state but node is not actively rendering.
-    return avf_data && avf_data->node &&
+    return backend && backend->node &&
            state == AUDIO_PLAYING &&
-           !avf_data->finished &&
-           !avf_data->node.isPlaying;
+           !backend->finished &&
+           !backend->node.isPlaying;
 }
 
 bool AUDIO::isLoaded()
 {
-    return avf_data && avf_data->loaded;
+    return backend && backend->loaded;
 }
 
 float AUDIO::getVolume()
 {
-    return (avf_data && avf_data->node) ? (float)avf_data->node.volume : 0.0f;
+    return (backend && backend->node) ? (float)backend->node.volume : 0.0f;
 }
 
 float AUDIO::getPan()
 {
-    return (avf_data && avf_data->node) ? (float)avf_data->node.pan : 0.0f;
+    return (backend && backend->node) ? (float)backend->node.pan : 0.0f;
 }
 
 float AUDIO::getPitch()
@@ -467,14 +464,14 @@ float AUDIO::getPitch()
 
 int AUDIO::getLength()
 {
-    return (avf_data && avf_data->buffer)
-               ? (int)avf_data->buffer.frameLength
+    return (backend && backend->buffer)
+               ? (int)backend->buffer.frameLength
                : 0;
 }
 
 bool AUDIO::reset()
 {
-    if (avf_data && avf_data->buffer) {
+    if (backend && backend->buffer) {
         stop();
         return play(false);
     }
@@ -494,6 +491,25 @@ AUDIO::OnEndStreamCallBack AUDIO::getOnEndstream() const
 const char *AUDIO::getFileName() const noexcept
 {
     return this->fileName.c_str();
+}
+
+bool AUDIO::updateBackend()
+{
+    return false;
+}
+
+void AUDIO_MANAGER::initializeBackend()
+{
+    avfoundation_audio_init();
+}
+
+void AUDIO_MANAGER::finalizeBackend()
+{
+    avfoundation_audio_release();
+}
+
+void AUDIO_MANAGER::updateBackend()
+{
 }
 
 // -------------------------------------------------------------------- version
