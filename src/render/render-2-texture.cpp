@@ -233,8 +233,7 @@ namespace mbm
     {
         if (ptr == nullptr)
             return false;
-        if (ptr->isRender2Texture)
-            return true;
+        // isRender2Texture is shared state across render targets; membership must be checked against this target's list.
         if (ptr->is3D)
         {
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
@@ -268,8 +267,7 @@ namespace mbm
     {
         if (ptr == nullptr)
             return false;
-        if (ptr->isRender2Texture)
-            return true;
+        // isRender2Texture is shared state across render targets; membership must be checked against this target's list.
         if (ptr->is3D)
         {
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)

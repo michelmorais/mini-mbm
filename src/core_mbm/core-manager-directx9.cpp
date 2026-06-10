@@ -389,6 +389,11 @@ namespace mbm
         {
             if (!renderTarget->isObjectOnFrustum)
                 continue;
+            // DX9 cannot safely render into a texture that is still bound as an input sampler
+            // from a previous draw. OpenGL explicitly unbinds after render-to-texture; do the
+            // equivalent here before switching the texture into render-target mode.
+            for (DWORD stage = 0; stage < 8; ++stage)
+                pd3dDevice->SetTexture(stage, nullptr);
             RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderTarget->specificConfig);
             HRESULT hr = pd3dDevice->SetRenderTarget(0, sf->pRenderSurface);
 

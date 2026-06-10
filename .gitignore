@@ -80,3 +80,4 @@ platform-msvs/steam/Debug/
 .vscode/
 bin/
 build/
+imgui.ini
