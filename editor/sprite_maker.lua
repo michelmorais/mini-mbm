@@ -2027,25 +2027,25 @@ function showFrameEdit()
         resetFrameAndSubsetsScale(tFrame)
         if tPivotShape.visible then
             if tFrame.bCompositeFrame then
-                tShape:setPos(tFrame.tPivot.x,tFrame.tPivot.y)
+                tShape:setPos(tFrame.tPivot.x,tFrame.tPivot.y,0)
             else
-                tShape:setPos(0,0) --reset pos
+                tShape:setPos(0,0,0) --reset pos
             end
             setShapeToRender(tShape,tFrame)
             for i=1, #tFrame.tSubsetList do
                 local tSubset = tFrame.tSubsetList[i]
                 tSubset.tShape.visible = true
                 tSubset.tShape:onRender(nil)
-                tSubset.tShape:setPos(-tSubset.tPivot.x + tFrame.tPivot.x,-tSubset.tPivot.y + tFrame.tPivot.y)
+                tSubset.tShape:setPos(-tSubset.tPivot.x + tFrame.tPivot.x,-tSubset.tPivot.y + tFrame.tPivot.y,getFrameSubsetZForDynamicPreview(i))
             end
         else
-            tShape:setPos(-tFrame.tPivot.x,-tFrame.tPivot.y) -- position shape considering pivot
+            tShape:setPos(-tFrame.tPivot.x,-tFrame.tPivot.y,0) -- position shape considering pivot
             setShapeToRender(tShape,tFrame)
             for i=1, #tFrame.tSubsetList do
                 local tSubset = tFrame.tSubsetList[i]
                 tSubset.tShape.visible = true
                 tSubset.tShape:onRender(nil)
-                tSubset.tShape:setPos(-tSubset.tPivot.x,-tSubset.tPivot.y)
+                tSubset.tShape:setPos(-tSubset.tPivot.x,-tSubset.tPivot.y,getFrameSubsetZForDynamicPreview(i))
             end
         end
 
@@ -3347,6 +3347,7 @@ function getShapeViewForAnim(tFrame)
         local nickName = getUniqueNickName()
         local tShape   = shape:new('2dw')
         tShape:createIndexed(tVertex,tIndex,tUv,nickName)
+        tShape:setPos(0,0,0)
         tShape.bRender2TexturePreview = true
         tShape.sPreviewTextureNick = nil
         tAnimationOptions.tShapeAnimations[sTexHash] = tShape
@@ -3663,6 +3664,7 @@ function showAnimationAdd(delta)
             end
             
             tShapeAnimations:setScale(tAnimationOptions.tScaleAnim.sx,tAnimationOptions.tScaleAnim.sy)
+            tShapeAnimations:setPos(0,0,0)
 
             tImGui.Separator()
             tImGui.Text(tLang.L("scale_of_preview"))
