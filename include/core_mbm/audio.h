@@ -62,7 +62,7 @@ namespace mbm
 		std::string fileName;
 	private:
 		struct BackendData;
-		std::unique_ptr<BackendData> backend;
+		std::unique_ptr<BackendData> backend; // PIMPL-style.
 		bool updateBackend();
     };
 
