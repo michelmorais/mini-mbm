@@ -12,7 +12,7 @@
   <PropertyGroup Label="MbmBackendDefaults">
     <!-- Keep current solution convention: Debug|Win32 defaults to DirectX9, everything else defaults to OpenGLES -->
     <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)|$(Platform)'=='Debug|Win32'">DirectX9</MbmBackend>
-    <MbmBackend Condition="'$(MbmBackend)'==''">OpenGLES</MbmBackend>
+    <MbmBackend Condition="'$(MbmBackend)'==''">DirectX9</MbmBackend>
   </PropertyGroup>
 
   <ItemDefinitionGroup>

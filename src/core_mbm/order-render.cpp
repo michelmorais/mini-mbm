@@ -20,13 +20,15 @@
 #include <order-render.h>
 
 namespace mbm
-	// take a look into CAMERA::updateCam for 2d zNear and zFar usage
 {
+	// take a look into CAMERA::updateCam for 2d zNear and zFar usage
+	//That gives about 100,000 ordered 2D slots
+	constexpr float z2dIncrement = {0.001f};
     ORDER_RENDER::ORDER_RENDER() noexcept : nextZOrderControl3d(0.0f),
                                         nextZOrderControl2d(0.0f),
                                         nextZOrderControl2dBackground(100.0f),
                                         Z2dsFont(-9.0f),
-                                        Z2ds(0.1f),
+                                        Z2ds(z2dIncrement),
                                         Z2dw(0.0f)
     {
     }
@@ -36,7 +38,7 @@ namespace mbm
         this->nextZOrderControl2d           = 0.0f;
         this->nextZOrderControl2dBackground = 100.0f;
         this->Z2dsFont                      = -9.0f;
-        this->Z2ds                          = 0.1f;
+        this->Z2ds                          = z2dIncrement;
         this->Z2dw                          = 0.0f;
     }
     float ORDER_RENDER::getNextZOrderControl3d() noexcept
@@ -48,23 +50,23 @@ namespace mbm
     {
         if (is2dS && isFont)
         {
-            this->Z2dsFont += 0.1f;
+            this->Z2dsFont += z2dIncrement;
             return Z2dsFont;
         }
         else if (is2dS)
         {
-            this->Z2ds -= 0.1f;
+            this->Z2ds -= z2dIncrement;
             return this->Z2ds;
         }
         else
         {
-            this->Z2dw -= 0.1f;
+            this->Z2dw -= z2dIncrement;
             return this->Z2dw;
         }
     }
     float ORDER_RENDER::getNextZOrderControl2dBackground() noexcept
     {
-        this->nextZOrderControl2dBackground -= 0.1f;
+        this->nextZOrderControl2dBackground -= z2dIncrement;
         return this->nextZOrderControl2dBackground;
     }
 
