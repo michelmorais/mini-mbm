@@ -24,22 +24,6 @@
 #include <util-interface.h>
 #include <algorithm>
 
-#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-    #if defined (USE_OPENGL_ES)
-        #include <specific-opengl_es.h>
-    #elif defined (USE_DIRECTX9)
-        #include <specific-directx9.h>
-    #elif defined (USE_DUMMY_BACK_END_ENGINE)
-        #include <specific-dummy.h>
-    #endif
-#endif
-
-// Forward-declarations for AVFoundation audio engine helpers defined in audio-avfoundation.mm
-#if defined(AUDIO_ENGINE_AVFOUNDATION)
-extern "C" void avfoundation_audio_init(void);
-extern "C" void avfoundation_audio_release(void);
-#endif
-
 namespace mbm
 {
     AUDIO_MANAGER* AUDIO_MANAGER::getInstance()
@@ -52,27 +36,7 @@ namespace mbm
     AUDIO_MANAGER::AUDIO_MANAGER():pauseAudioOnPauseGame(true)
     {
         mbm::DEVICE *device = mbm::DEVICE::getInstance();
-        #if defined(AUDIO_ENGINE_AVFOUNDATION)
-        avfoundation_audio_init();
-        #elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
-        m_directSound = nullptr;
-        if (FAILED(DirectSoundCreate8(nullptr, &m_directSound, nullptr )))
-        {
-            m_directSound = nullptr;
-            ERROR_LOG("Failed calling DirectSoundCreate8");
-        }
-        else
-        {
-            HWND hwnd = mbm::DEVICE::getInstance()->specificContextDevice->window.getHwnd();
-            if FAILED(m_directSound->SetCooperativeLevel(hwnd, DSSCL_PRIORITY))
-            {
-                ERROR_LOG("Failed calling m_directSound->SetCooperativeLevel");
-                if(m_directSound!=nullptr)
-                    m_directSound->Release();
-                m_directSound = nullptr;
-            }
-        }
-        #endif
+        initializeBackend();
         device->setAudioManagerInterface(this);
     }
 
@@ -86,13 +50,7 @@ namespace mbm
             delete my_audio;
         }
         audios.clear();
-        #if defined(AUDIO_ENGINE_DIRECT_SOUND_8)
-        if(m_directSound != nullptr)
-            m_directSound->Release();
-        m_directSound = nullptr;
-        #elif defined(AUDIO_ENGINE_AVFOUNDATION)
-        avfoundation_audio_release();
-        #endif
+        finalizeBackend();
     }
 
     AUDIO* AUDIO_MANAGER::load(const char *fileNameSound, const bool loop, const bool inMemory)
@@ -219,18 +177,7 @@ namespace mbm
                 }
             }
         }
-        #if defined(AUDIO_ENGINE_PORT_AUDIO)
-        for (AUDIO* my_audio : AUDIO_MANAGER::instance->audios)
-        {
-            if (my_audio->pa_audio && my_audio->pa_audio->isFinished())
-            {
-                my_audio->pa_audio->clearFinished();
-                my_audio->state = mbm::STATE_AUDIO::AUDIO_STOPPED;
-                if (my_audio->onEndStreamCallBack)
-                    my_audio->onEndStreamCallBack(my_audio);
-            }
-        }
-        #endif
+        updateBackend();
     }
 
     void AUDIO_MANAGER::setPersist(AUDIO* audio, bool bValue)

@@ -24,6 +24,20 @@
 #include <core-manager.h>
 #include <util-interface.h>
 #include <comdef.h>
+#include <dsound.h>
+#include <mmreg.h>
+#include <WAVE.h>
+#include <cmath>
+
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+    #if defined (USE_OPENGL_ES)
+        #include <specific-opengl_es.h>
+    #elif defined (USE_DIRECTX9)
+        #include <specific-directx9.h>
+    #elif defined (USE_DUMMY_BACK_END_ENGINE)
+        #include <specific-dummy.h>
+    #endif
+#endif
 
     
 #pragma comment(lib, "dsound.lib")
@@ -32,28 +46,43 @@
 
 namespace mbm
 {
-	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene)
+    struct AUDIO::BackendData
+    {
+        bool dFirstBuffer = false;
+        std::unique_ptr<WaveFile> wave_reader;
+        LPDIRECTSOUNDBUFFER direct_sound_buffer = nullptr;
+        DWORD dwDataWaveLength = 0;
+        DWORD dwDirectSoundBufferSize = 0;
+        DWORD dwCurrentOffsetBuffer = 0;
+        DWORD dwSizeOneBuffer = 0;
+        bool bLoop = false;
+
+        ~BackendData()
+        {
+            if (direct_sound_buffer)
+                direct_sound_buffer->Release();
+            direct_sound_buffer = nullptr;
+        }
+
+        bool fillBufferWithSound(AUDIO *owner, void *buffer, const size_t iSizeBuffer, const bool bRepeatWavIfBufferLarger, bool &bEndOfStream);
+        bool rewindAndfillBufferWithSilence();
+        bool restoreBuffer(bool &pbWasRestored);
+        bool update(AUDIO *owner);
+    };
+
+    static LPDIRECTSOUND8 g_directSound = nullptr;
+
+	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
+        backend(std::make_unique<BackendData>())
     {
         onEndStreamCallBack     = nullptr;
-        direct_sound_buffer     = nullptr;
-        dwDataWaveLength        = 0;
-        dwDirectSoundBufferSize = 0;
-        dFirstBuffer            = false;//always begin from second buffer because the first was filled already
-        bLoop                   = false;
-        dwSizeOneBuffer         = 0;
-        dwCurrentOffsetBuffer   = 0;
     }
 
-    AUDIO::~AUDIO()
-    {
-        if(this->direct_sound_buffer)
-            this->direct_sound_buffer->Release();
-        this->direct_sound_buffer = nullptr;
-    }
+    AUDIO::~AUDIO() = default;
 
     bool AUDIO::setVolume(const float volume)
     {
-        if(this->direct_sound_buffer)
+        if(this->backend->direct_sound_buffer)
         {
             LONG Dsvol = 0;
             if(volume <= 0)
@@ -65,7 +94,7 @@ namespace mbm
                 double decibels = 20.0 * std::log10(static_cast<double>(volume/100.0));
                 Dsvol = static_cast<LONG>(decibels * 100.0);
             }
-            if(SUCCEEDED(this->direct_sound_buffer->SetVolume(Dsvol)))
+            if(SUCCEEDED(this->backend->direct_sound_buffer->SetVolume(Dsvol)))
                 return true;
         }
 		return false;
@@ -73,9 +102,9 @@ namespace mbm
     
     bool AUDIO::setPan(const float pan)
     {
-        if(this->direct_sound_buffer)
+        if(this->backend->direct_sound_buffer)
         {
-            if(SUCCEEDED(this->direct_sound_buffer->SetPan(static_cast<LONG>(pan))))
+            if(SUCCEEDED(this->backend->direct_sound_buffer->SetPan(static_cast<LONG>(pan))))
                 return true;
         }
 		return false;
@@ -83,10 +112,10 @@ namespace mbm
     
     bool AUDIO::pause()
     {
-		if(this->direct_sound_buffer)
+		if(this->backend->direct_sound_buffer)
         {
             DWORD dwStatus = 0;
-            HRESULT hr = direct_sound_buffer->GetStatus(&dwStatus);
+            HRESULT hr = this->backend->direct_sound_buffer->GetStatus(&dwStatus);
             if(FAILED(hr))
             {
                 _com_error err(hr);
@@ -97,7 +126,7 @@ namespace mbm
                 state = AUDIO_PAUSED;
             else
                 state = AUDIO_STOPPED;
-            if(SUCCEEDED(this->direct_sound_buffer->Stop()))
+            if(SUCCEEDED(this->backend->direct_sound_buffer->Stop()))
                 return true;
         }
 		return false;
@@ -105,9 +134,9 @@ namespace mbm
     
     bool AUDIO::resume()
     {
-        if(this->direct_sound_buffer && state == AUDIO_PAUSED)
+        if(this->backend->direct_sound_buffer && state == AUDIO_PAUSED)
         {
-            if(SUCCEEDED(this->direct_sound_buffer->Play(0, 0, bLoop || this->wave_reader ? DSBPLAY_LOOPING : 0)))
+            if(SUCCEEDED(this->backend->direct_sound_buffer->Play(0, 0, (this->backend->bLoop || this->backend->wave_reader) ? DSBPLAY_LOOPING : 0)))
             {
                 state = AUDIO_PLAYING;
                 return true;
@@ -119,13 +148,13 @@ namespace mbm
     bool AUDIO::stop()
     {
         state = AUDIO_STOPPED;
-        if(this->direct_sound_buffer)
+        if(this->backend->direct_sound_buffer)
         {
-            if(FAILED(this->direct_sound_buffer->SetCurrentPosition(0)))
+            if(FAILED(this->backend->direct_sound_buffer->SetCurrentPosition(0)))
                 return false;
-            if(SUCCEEDED(this->direct_sound_buffer->Stop()))
+            if(SUCCEEDED(this->backend->direct_sound_buffer->Stop()))
             {
-                this->rewindAndfillBufferWithSilence();
+                this->backend->rewindAndfillBufferWithSilence();
                 return true;
             }
         }
@@ -139,31 +168,30 @@ namespace mbm
     
     bool AUDIO::load(const char *filenameSound, const bool loop, const bool inMemory)
     {
-        mbm::AUDIO_MANAGER * audio_man = mbm::AUDIO_MANAGER::getInstance();
-        if(audio_man->m_directSound == nullptr)
+        if(g_directSound == nullptr)
         {
             ERROR_AT(__LINE__,__FILE__,"Direct sound is not initialized");
             return false;
         }
         HRESULT hr =0;
-        this->wave_reader = std::make_unique<WaveFile>();
-        if(this->wave_reader->OpenRead(filenameSound) == false)
+        this->backend->wave_reader = std::make_unique<WaveFile>();
+        if(this->backend->wave_reader->OpenRead(filenameSound) == false)
         {
-            ERROR_AT(__LINE__,__FILE__,"Error for %s -> %s",util::getBaseName(filenameSound), this->wave_reader->GetError());
+            ERROR_AT(__LINE__,__FILE__,"Error for %s -> %s",util::getBaseName(filenameSound), this->backend->wave_reader->GetError());
             return false;
         }
-        this->dwDataWaveLength = this->wave_reader->GetDataLength();
+        this->backend->dwDataWaveLength = this->backend->wave_reader->GetDataLength();
         //more info http://soundfile.sapp.org/doc/WaveFormat/
         WAVEFORMATEX waveformatex;
         memset(&waveformatex,0,sizeof(waveformatex));
-        int formatType = this->wave_reader->GetFormatType();
+        int formatType = this->backend->wave_reader->GetFormatType();
         if(formatType == 1)
             waveformatex.wFormatTag  = WAVE_FORMAT_PCM;
         else
             waveformatex.wFormatTag  = WAVE_FORMAT_IEEE_FLOAT;//IEEE float
-        waveformatex.nChannels       = this->wave_reader->GetNumChannels(); // number of channels (i.e. mono, stereo...)
-        waveformatex.nSamplesPerSec  = this->wave_reader->GetSampleRate(); // sample rate 22050
-        waveformatex.wBitsPerSample  = this->wave_reader->GetBitsPerChannel(); // number of bits per sample of mono data
+        waveformatex.nChannels       = this->backend->wave_reader->GetNumChannels(); // number of channels (i.e. mono, stereo...)
+        waveformatex.nSamplesPerSec  = this->backend->wave_reader->GetSampleRate(); // sample rate 22050
+        waveformatex.wBitsPerSample  = this->backend->wave_reader->GetBitsPerChannel(); // number of bits per sample of mono data
         waveformatex.nBlockAlign     = waveformatex.wBitsPerSample / 8 * waveformatex.nChannels; // block size of data
         waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * waveformatex.nBlockAlign; // for buffer estimation
         waveformatex.cbSize          = 0; // the count in bytes of the size of extra information (after cbSize)
@@ -174,72 +202,72 @@ namespace mbm
 	    bufferdesc.dwFlags         = DSBCAPS_GLOBALFOCUS|DSBCAPS_CTRLVOLUME|DSBCAPS_CTRLPAN|DSBCAPS_CTRLFREQUENCY|DSBCAPS_GETCURRENTPOSITION2;//DSBCAPS_CTRLPOSITIONNOTIFY
         if(inMemory)
         {
-	        bufferdesc.dwBufferBytes   = this->dwDataWaveLength;
+	        bufferdesc.dwBufferBytes   = this->backend->dwDataWaveLength;
         }
         else
         {
-            dwSizeOneBuffer            = waveformatex.nAvgBytesPerSec;
+            this->backend->dwSizeOneBuffer            = waveformatex.nAvgBytesPerSec;
             bufferdesc.dwBufferBytes   = 2 * waveformatex.nAvgBytesPerSec;
         }
-        dwDirectSoundBufferSize    = bufferdesc.dwBufferBytes;
+        this->backend->dwDirectSoundBufferSize    = bufferdesc.dwBufferBytes;
         bufferdesc.guid3DAlgorithm = GUID_NULL;
         bufferdesc.lpwfxFormat     = &waveformatex;
-        hr = audio_man->m_directSound->CreateSoundBuffer( &bufferdesc, &this->direct_sound_buffer, nullptr );
+        hr = g_directSound->CreateSoundBuffer( &bufferdesc, &this->backend->direct_sound_buffer, nullptr );
         if(FAILED(hr))
         {
             bufferdesc.dwFlags = DSBCAPS_GLOBALFOCUS|DSBCAPS_CTRLVOLUME|DSBCAPS_CTRLPAN|DSBCAPS_GETCURRENTPOSITION2;//DSBCAPS_CTRLPOSITIONNOTIFY
-            hr = audio_man->m_directSound->CreateSoundBuffer( &bufferdesc, &this->direct_sound_buffer, nullptr );
+            hr = g_directSound->CreateSoundBuffer( &bufferdesc, &this->backend->direct_sound_buffer, nullptr );
             if(FAILED(hr))
             {
                 _com_error err(hr);
                 ERROR_AT(__LINE__,__FILE__,"Failure creating sound buffer directsound\n%s",err.ErrorMessage());
-                this->wave_reader.reset();
+                this->backend->wave_reader.reset();
                 return false;
             }
         }
         void * buffer = nullptr;
         DWORD bufferSize = 0;
         bool bEndOfStream = false;
-        hr = this->direct_sound_buffer->Lock( 0, dwDirectSoundBufferSize,&buffer, &bufferSize,nullptr, nullptr, 0L );
+        hr = this->backend->direct_sound_buffer->Lock( 0, this->backend->dwDirectSoundBufferSize,&buffer, &bufferSize,nullptr, nullptr, 0L );
         if(FAILED(hr))
         {
             _com_error err(hr);
             ERROR_AT(__LINE__,__FILE__,"Failure locking buffer directsound\n%s",err.ErrorMessage());
-            this->wave_reader.reset();
+            this->backend->wave_reader.reset();
             return false;
         }
-        if(bufferSize != dwDirectSoundBufferSize)
+        if(bufferSize != this->backend->dwDirectSoundBufferSize)
         {
-            this->direct_sound_buffer->Unlock( buffer, bufferSize,nullptr, 0L );
-            ERROR_AT(__LINE__,__FILE__,"The unexpected size of the lock [%u] differs from required[%u]\n%s",bufferSize,dwDirectSoundBufferSize);
-            this->wave_reader.reset();
+            this->backend->direct_sound_buffer->Unlock( buffer, bufferSize,nullptr, 0L );
+            ERROR_AT(__LINE__,__FILE__,"The unexpected size of the lock [%u] differs from required[%u]\n%s",bufferSize,this->backend->dwDirectSoundBufferSize);
+            this->backend->wave_reader.reset();
             return false;
         }
         if(inMemory == false)
         {
-            bufferSize = dwSizeOneBuffer; // only 1 buffer
+            bufferSize = this->backend->dwSizeOneBuffer; // only 1 buffer
         }
-        if(this->fillBufferWithSound(buffer,bufferSize ,loop,bEndOfStream) == false)
+        if(this->backend->fillBufferWithSound(this,buffer,bufferSize ,loop,bEndOfStream) == false)
         {
-            ERROR_AT(__LINE__,__FILE__,"Failure fillBufferWithSound wave [%s]\n%s",util::getBaseName(filenameSound),this->wave_reader ? this->wave_reader->GetError() : "?");
-            this->wave_reader.reset();
+            ERROR_AT(__LINE__,__FILE__,"Failure fillBufferWithSound wave [%s]\n%s",util::getBaseName(filenameSound),this->backend->wave_reader ? this->backend->wave_reader->GetError() : "?");
+            this->backend->wave_reader.reset();
             return false;
         }
-        hr = this->direct_sound_buffer->Unlock( buffer, dwDirectSoundBufferSize,nullptr, 0L );
+        hr = this->backend->direct_sound_buffer->Unlock( buffer, this->backend->dwDirectSoundBufferSize,nullptr, 0L );
         if(FAILED(hr))
         {
             _com_error err(hr);
             ERROR_AT(__LINE__,__FILE__,"Failure unlocking buffer directsound\n%s",err.ErrorMessage());
-            this->wave_reader.reset();
+            this->backend->wave_reader.reset();
             return false;
         }
         if(inMemory || bEndOfStream)
-            this->wave_reader.reset();
-        bLoop = loop;
+            this->backend->wave_reader.reset();
+        this->backend->bLoop = loop;
         return true;
     }
 
-    bool AUDIO::restoreBuffer(bool & pbWasRestored)
+    bool AUDIO::BackendData::restoreBuffer(bool & pbWasRestored)
     {
         if( direct_sound_buffer == nullptr )
             return false;
@@ -267,9 +295,9 @@ namespace mbm
         }
     }
 
-    bool AUDIO::rewindAndfillBufferWithSilence()
+    bool AUDIO::BackendData::rewindAndfillBufferWithSilence()
     {
-        if(this->wave_reader)
+        if(this->wave_reader && this->direct_sound_buffer)
         {
             this->wave_reader->ResetToStart();
             this->wave_reader->ClearError();
@@ -297,14 +325,14 @@ namespace mbm
     }
 
 
-    bool AUDIO::fillBufferWithSound(void * buffer,const size_t iSizeBuffer,const bool bRepeatWavIfBufferLarger,bool & bEndOfStream)
+    bool AUDIO::BackendData::fillBufferWithSound(AUDIO *owner, void * buffer,const size_t iSizeBuffer,const bool bRepeatWavIfBufferLarger,bool & bEndOfStream)
     {
         if(this->wave_reader)
         {
             size_t iTotalRead = 0;
             if(this->wave_reader->ReadRaw(static_cast<char*>(buffer),iSizeBuffer,iTotalRead) == false)
             {
-                PRINT_IF_DEBUG(" %s:%d Failure reading from wave [%s]\n%s",__LINE__,__FILE__,util::getBaseName(this->fileName.c_str()),this->wave_reader->GetError());
+                PRINT_IF_DEBUG(" %s:%d Failure reading from wave [%s]\n%s",__LINE__,__FILE__,util::getBaseName(owner->fileName.c_str()),this->wave_reader->GetError());
                 return false;
             }
             if(iTotalRead < iSizeBuffer)
@@ -315,11 +343,11 @@ namespace mbm
                 {
                     if(this->wave_reader->ResetToStart() == false)
                     {
-                        ERROR_AT(__LINE__,__FILE__,"ResetFile wave [%s]\n%s",util::getBaseName(this->fileName.c_str()),this->wave_reader->GetError());
+                        ERROR_AT(__LINE__,__FILE__,"ResetFile wave [%s]\n%s",util::getBaseName(owner->fileName.c_str()),this->wave_reader->GetError());
                         return false;
                     }
                     bool dontCare_is_loop = false;
-                    return fillBufferWithSound(addressToRead,remainToRead,bRepeatWavIfBufferLarger,dontCare_is_loop);
+                    return fillBufferWithSound(owner,addressToRead,remainToRead,bRepeatWavIfBufferLarger,dontCare_is_loop);
                 }
                 else
                 {
@@ -333,7 +361,7 @@ namespace mbm
         return false;
     }
 
-    bool AUDIO::update()
+    bool AUDIO::BackendData::update(AUDIO *owner)
     {
         bool pbWasRestored = false;
         if(this->direct_sound_buffer == nullptr)
@@ -380,7 +408,7 @@ namespace mbm
                             ERROR_AT(__LINE__,__FILE__,"Lock\n%s",err.ErrorMessage());
                             return false;
                         }
-                        if(fillBufferWithSound(pDSLockedBuffer,dwDSLockedBufferSize,bLoop,bEndOfStream) == false)
+                        if(fillBufferWithSound(owner,pDSLockedBuffer,dwDSLockedBufferSize,bLoop,bEndOfStream) == false)
                         {
                             bEndOfStream = true;//we assume that the stream ended
                         }
@@ -406,7 +434,7 @@ namespace mbm
                             ERROR_AT(__LINE__,__FILE__,"Lock\n%s",err.ErrorMessage());
                             return false;
                         }
-                        if(fillBufferWithSound(pDSLockedBuffer,dwDSLockedBufferSize,bLoop,bEndOfStream) == false)
+                        if(fillBufferWithSound(owner,pDSLockedBuffer,dwDSLockedBufferSize,bLoop,bEndOfStream) == false)
                         {
                             bEndOfStream = true;//we assume that the stream ended
                         }
@@ -435,13 +463,13 @@ namespace mbm
                 return true;
             }
         }
-        else if(state == AUDIO_PLAYING)
+        else if(owner->state == AUDIO_PLAYING)
         {
             //fprintf(stdout,"CallBack for %s\n",this->fileName.c_str());
-            state = AUDIO_STOPPED;
+            owner->state = AUDIO_STOPPED;
             this->rewindAndfillBufferWithSilence();
-            if(this->onEndStreamCallBack)
-                this->onEndStreamCallBack(this);
+            if(owner->onEndStreamCallBack)
+                owner->onEndStreamCallBack(owner);
             return true;
         }
         return false;
@@ -449,10 +477,10 @@ namespace mbm
     
     bool AUDIO::play(const bool loop)
     {
-        if(this->direct_sound_buffer)
+        if(this->backend->direct_sound_buffer)
         {
-            bLoop = loop;
-            if(SUCCEEDED(this->direct_sound_buffer->Play(0, 0, bLoop || this->wave_reader ? DSBPLAY_LOOPING : 0)))
+            this->backend->bLoop = loop;
+            if(SUCCEEDED(this->backend->direct_sound_buffer->Play(0, 0, (this->backend->bLoop || this->backend->wave_reader) ? DSBPLAY_LOOPING : 0)))
             {
                 state = AUDIO_PLAYING;
                 return true;
@@ -464,10 +492,10 @@ namespace mbm
     
     bool AUDIO::isPlaying()
     {
-		if(this->direct_sound_buffer)
+		if(this->backend->direct_sound_buffer)
         {
             DWORD lpdwStatus = 0;
-            if(FAILED(this->direct_sound_buffer->GetStatus(&lpdwStatus)))
+            if(FAILED(this->backend->direct_sound_buffer->GetStatus(&lpdwStatus)))
                 return false;
             return (lpdwStatus & DSBSTATUS_PLAYING);
         }
@@ -476,10 +504,10 @@ namespace mbm
     
     bool AUDIO::isPaused()
     {
-		if(this->direct_sound_buffer)
+		if(this->backend->direct_sound_buffer)
         {
             DWORD lpdwStatus = 0;
-            if(FAILED(this->direct_sound_buffer->GetStatus(&lpdwStatus)))
+            if(FAILED(this->backend->direct_sound_buffer->GetStatus(&lpdwStatus)))
                 return false;
             if (((lpdwStatus & DSBSTATUS_PLAYING) == 0) && state == AUDIO_PLAYING)
                 return true;
@@ -489,10 +517,10 @@ namespace mbm
     
     float AUDIO::getVolume()//TODO: getVolume should be set volume calc
     {
-		if(this->direct_sound_buffer)
+		if(this->backend->direct_sound_buffer)
         {
             LONG volume = 0;
-            if(FAILED(this->direct_sound_buffer->GetVolume(&volume)))
+            if(FAILED(this->backend->direct_sound_buffer->GetVolume(&volume)))
                 return 0.0f;
             return static_cast<float>(volume);
         }
@@ -501,10 +529,10 @@ namespace mbm
     
     float AUDIO::getPan()
     {
-        if(this->direct_sound_buffer)
+        if(this->backend->direct_sound_buffer)
         {
             LONG pan = 0;
-            if(FAILED(this->direct_sound_buffer->GetPan(&pan)))
+            if(FAILED(this->backend->direct_sound_buffer->GetPan(&pan)))
                 return 0.0f;
             return static_cast<float>(pan);
         }
@@ -518,23 +546,23 @@ namespace mbm
     
     int AUDIO::getLength()
     {
-        if(this->direct_sound_buffer)
+        if(this->backend->direct_sound_buffer)
         {
-            return static_cast<int>(this->dwDataWaveLength);
+            return static_cast<int>(this->backend->dwDataWaveLength);
         }
 		return 0;
     }
 
     bool AUDIO::reset() 
     {
-		if(this->direct_sound_buffer)
+		if(this->backend->direct_sound_buffer)
         {
             bool bRestored = false;
-            this->restoreBuffer(bRestored);
-            if(SUCCEEDED(this->direct_sound_buffer->Play(0, 0, bLoop || this->wave_reader ? DSBPLAY_LOOPING : 0)) && SUCCEEDED(this->direct_sound_buffer->SetCurrentPosition(0)))
+            this->backend->restoreBuffer(bRestored);
+            if(SUCCEEDED(this->backend->direct_sound_buffer->Play(0, 0, (this->backend->bLoop || this->backend->wave_reader) ? DSBPLAY_LOOPING : 0)) && SUCCEEDED(this->backend->direct_sound_buffer->SetCurrentPosition(0)))
             {
-                if(this->wave_reader)
-                    rewindAndfillBufferWithSilence();
+                if(this->backend->wave_reader)
+                    this->backend->rewindAndfillBufferWithSilence();
                 state = AUDIO_PLAYING;
                 return true;
             }
@@ -545,14 +573,14 @@ namespace mbm
 
     bool AUDIO::setPosition(const int pos)
     {
-		if(this->direct_sound_buffer)
+		if(this->backend->direct_sound_buffer)
         {
-            if(this->wave_reader)
+            if(this->backend->wave_reader)
             {
                 ERROR_LOG("AUDIO::setPosition not implemented for stream.");
                 return false;
             }
-            if(SUCCEEDED(this->direct_sound_buffer->SetCurrentPosition(pos)))
+            if(SUCCEEDED(this->backend->direct_sound_buffer->SetCurrentPosition(pos)))
                 return true;
         }
 		return false;
@@ -570,10 +598,49 @@ namespace mbm
 
     bool AUDIO::isLoaded()
 	{
-        if(this->direct_sound_buffer)
+        if(this->backend->direct_sound_buffer)
             return true;
 		return false;
 	}
+
+    bool AUDIO::updateBackend()
+    {
+        return this->backend->update(this);
+    }
+
+    void AUDIO_MANAGER::initializeBackend()
+    {
+        g_directSound = nullptr;
+        if (FAILED(DirectSoundCreate8(nullptr, &g_directSound, nullptr )))
+        {
+            g_directSound = nullptr;
+            ERROR_LOG("Failed calling DirectSoundCreate8");
+        }
+        else
+        {
+            HWND hwnd = mbm::DEVICE::getInstance()->specificContextDevice->window.getHwnd();
+            if (FAILED(g_directSound->SetCooperativeLevel(hwnd, DSSCL_PRIORITY)))
+            {
+                ERROR_LOG("Failed calling DirectSound::SetCooperativeLevel");
+                if(g_directSound != nullptr)
+                    g_directSound->Release();
+                g_directSound = nullptr;
+            }
+        }
+    }
+
+    void AUDIO_MANAGER::finalizeBackend()
+    {
+        if(g_directSound != nullptr)
+            g_directSound->Release();
+        g_directSound = nullptr;
+    }
+
+    void AUDIO_MANAGER::updateBackend()
+    {
+        for (AUDIO* my_audio : this->audios)
+            my_audio->updateBackend();
+    }
 
 	const char* AUDIO_ENGINE_version()
 	{

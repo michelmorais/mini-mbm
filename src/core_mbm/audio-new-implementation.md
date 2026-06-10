@@ -12,8 +12,8 @@ exact checklist to follow when adding a new backend (e.g. Xbox/PlayStation).
 | File | Purpose |
 |---|---|
 | `include/core_mbm/audio-interface.h` | `AUDIO_INTERFACE` base class + `AUDIO_MANAGER_INTERFACE` base class |
-| `include/core_mbm/audio.h` | `AUDIO` concrete class declaration + `AUDIO_MANAGER` class declaration. All per-engine private members are declared here under `#if defined(AUDIO_ENGINE_*)` guards. |
-| `src/core_mbm/audio-manager.cpp` | Platform-agnostic lifecycle: `load()`, `destroy()`, `destroyNow()`, `update()`, `release()`. **Never holds any engine-specific code.** |
+| `include/core_mbm/audio.h` | Backend-neutral `AUDIO` concrete class declaration + `AUDIO_MANAGER` class declaration. Backend state is hidden behind `AUDIO::BackendData` and implemented only in the selected `audio-*.cpp`. |
+| `src/core_mbm/audio-manager.cpp` | Platform-agnostic lifecycle: `load()`, `destroy()`, `destroyNow()`, `update()`, `release()`. It delegates backend init/final/update through private hooks implemented by the selected backend. |
 | `src/core_mbm/audio-interface.cpp` | `AUDIO_INTERFACE` constructor/destructor (tiny). |
 | `src/core_mbm/audio-direct-sound.cpp` | Backend: DirectSound 8 (Windows). Guard: `AUDIO_ENGINE_DIRECT_SOUND_8` |
 | `src/core_mbm/audio-portaudio.cpp` | Backend: PortAudio (Linux default / cross-platform). Guard: `AUDIO_ENGINE_PORT_AUDIO` |
@@ -33,11 +33,13 @@ AUDIO_MANAGER_INTERFACE   (abstract — interface only)
     └── AUDIO_MANAGER     (audio-manager.cpp — platform-neutral lifecycle)
 
 AUDIO_INTERFACE           (abstract — interface only)
-    └── AUDIO             (audio.h declared, one of the audio-*.cpp implemented)
+    └── AUDIO             (audio.h declared, selected audio-*.cpp implements methods and BackendData)
 ```
 
 `AUDIO_MANAGER` owns a `std::vector<AUDIO*> audios` (live) and
 `std::vector<AUDIO*> audiosToDelete` (deferred deletion queue).
+Backend-specific manager setup/teardown and per-frame polling live behind
+`AUDIO_MANAGER::initializeBackend()`, `finalizeBackend()`, and `updateBackend()`.
 
 ---
 
@@ -70,7 +72,7 @@ Lua: audio:new(file, inMemory, play, loop)
       → AUDIO_MANAGER::load(file, loop, inMemory)
           → searches audios[] for a stopped, same-filename instance (reuse)
           → searches audiosToDelete[] for a stopped, same-filename instance (resurrect)
-          → if none: new AUDIO(idScene)  ← constructor calls backend init
+          → if none: new AUDIO(idScene)  ← constructor initializes per-instance backend state
           → calls AUDIO::load(file, loop, inMemory)
               → returns false  →  delete my_audio  ← ~AUDIO() frees backend resource
               → returns true   →  audios.push_back(my_audio)
@@ -190,13 +192,15 @@ Lua: tSound:destroy()
   available memory.
 - WAV, AIFF, CAF, AU, MP3, AAC/M4A, FLAC are native. OGG/Vorbis uses
   `stb_vorbis` to decode to PCM, then wraps in `AVAudioPCMBuffer`.
-- No ref-counted engine singleton — each `AUDIO` instance holds its own
-  `std::unique_ptr<AVFAudioData>`. `~AUDIO()` destroys it via the unique_ptr.
+- Shared `AVAudioEngine` lifecycle is handled by the backend manager hooks.
+  Each `AUDIO` instance stores its `AVAudioPlayerNode` and buffer inside
+  `AUDIO::BackendData` in `audio-avfoundation.mm`.
 - No EOF rewind issue — `AVAudioPlayerNode` handles seek internally.
 
 ### 6.3 PortAudio (Linux / Windows — `audio-portaudio.cpp`)
 
-- Each `AUDIO` instance holds a `std::unique_ptr<PA_INTERFACE>`.
+- Each `AUDIO` instance holds a `std::unique_ptr<PA_INTERFACE>` inside
+  `AUDIO::BackendData` in `audio-portaudio.cpp`.
 - Format dispatch in `load()` by file extension:
   - `.ogg` / `.oga` → `PA_OGG` (decodes via `stb_vorbis_decode_filename`, always in-memory)
   - everything else → `PA_WAVE` (WAV, supports `inMemory` flag for streaming vs RAM)
@@ -207,17 +211,21 @@ Lua: tSound:destroy()
   1. Correct byte-count in stream callbacks (`m_bytesPerSample * frameCount`, not `* channels * frameCount`)
   2. Type-safe volume scaling per `PaSampleFormat`
   3. Linear stereo pan model via `applyPan()`
-  4. `m_finished` atomic set before `paComplete`; polled in `AUDIO_MANAGER::update()` (main thread) to fire `onEndStreamCallBack`
+  4. `m_finished` atomic set before `paComplete`; polled from the backend
+     `updateBackend()` hook on the main thread to fire `onEndStreamCallBack`
   5. `stop()` always rewinds via `setPosition(0.0)` before returning
   6. `PA_DATA_FILE::setPosition` / `getPosition` fully implemented (seek by byte offset from `m_dataStart`)
   7. `PA_DATA_MEMORY::setPosition` corrected: `m_index = pos * size` (was inverted)
-- `~AUDIO()` destroys the `PA_INTERFACE` unique_ptr.
+- `~AUDIO()` destroys `BackendData`, which destroys the `PA_INTERFACE` unique_ptr.
 
 ### 6.4 DirectSound 8 (Windows legacy — `audio-direct-sound.cpp`)
 
-- Each `AUDIO` holds a `std::unique_ptr<WaveFile>` and a double-buffer stream.
+- Each `AUDIO` holds a `std::unique_ptr<WaveFile>` and DirectSound buffer inside
+  `AUDIO::BackendData` in `audio-direct-sound.cpp`.
+- The backend `updateBackend()` hook drives the double-buffer stream pump.
 - WAV only.
-- `~AUDIO()` destroys the wave reader.
+- `~AUDIO()` destroys `BackendData`, which releases the DirectSound buffer and
+  wave reader.
 
 ### 6.5 JNI / MediaPlayer (removed)
 
@@ -322,7 +330,7 @@ The complete set required by `audio.h`:
 
 | Method | Notes |
 |---|---|
-| `AUDIO(int idScene)` | Constructor — init or acquire backend resource. If resource cannot be acquired, set a flag so all methods are no-ops. |
+| `AUDIO(int idScene)` | Constructor — create `BackendData` and initialize per-instance defaults. If a required resource cannot be acquired, set a flag so all methods are no-ops. |
 | `~AUDIO()` | **Destructor — the ONLY place to free backend resources.** Must be safe to call even if constructor failed / load() never called. |
 | `bool load(file, loop, inMemory)` | Loads the audio asset. Return `false` on any error — DO NOT call any teardown here; `~AUDIO()` handles it. Set `fileName` on success. |
 | `bool play(loop)` | Start or restart playback. Handle the EOF-after-first-play problem if your API has it (see Section 6.1). |
@@ -344,16 +352,34 @@ The complete set required by `audio.h`:
 | `const char* getFileName()` | Return `fileName.c_str()`. |
 | `void setOnEndstream(cb)` | Store `cb` in `onEndStreamCallBack`. |
 | `OnEndStreamCallBack getOnEndstream()` | Return `onEndStreamCallBack`. |
+| `bool updateBackend()` | Backend per-frame hook. Return whether the backend performed work. Use it for stream pumps or main-thread completion callbacks. |
 | `const char* AUDIO_ENGINE_version()` | Return a short identifier string. |
 
-### Step 4 — Per-instance state in `audio.h`
+### Step 4 — Per-instance state in the backend `.cpp`
 
-Add a private member under a new guard block in `audio.h`:
+Define `AUDIO::BackendData` inside `src/core_mbm/audio-<name>.cpp`:
 ```cpp
-#elif defined(AUDIO_ENGINE_<NAME>)
-    std::unique_ptr<MyBackendData> backend_data;  // or struct/handle
+struct AUDIO::BackendData
+{
+    // Backend handles, readers, buffers, counters, etc.
+};
 ```
-Keep one member only — complexity belongs in the `.cpp` file.
+Do not add backend-specific includes, fields, or `#if defined(AUDIO_ENGINE_*)`
+blocks to `include/core_mbm/audio.h`.
+
+### Step 4.1 — Manager backend hooks
+
+Every backend source must implement these private `AUDIO_MANAGER` hooks, even if
+they are no-ops:
+
+```cpp
+void AUDIO_MANAGER::initializeBackend();
+void AUDIO_MANAGER::finalizeBackend();
+void AUDIO_MANAGER::updateBackend();
+```
+
+Use them for shared backend state such as a DirectSound device, AVFoundation
+engine pre-warm/release, or main-thread polling of finished streams.
 
 ### Step 5 — Handle resource limits
 
@@ -395,11 +421,13 @@ In the root `CMakeLists.txt`:
 - Add a default assignment under the target platform block if appropriate.
 - Update the help message string at the `message("-DAUDIO=...")` line.
 
-### Step 9 — audio-interface.h additions (if needed)
+### Step 9 — async end-of-stream handling
 
 If your backend needs an async end-of-stream callback:
-- Add a virtual to `AUDIO_MANAGER_INTERFACE` under your own guard macro.
-- Implement it in `audio-manager.cpp` to forward to the correct `AUDIO` instance.
+- Do not add backend-specific virtuals or guard macros to `audio-interface.h`.
+- Store thread-visible completion state inside `AUDIO::BackendData`.
+- Poll that state from `AUDIO::updateBackend()` or `AUDIO_MANAGER::updateBackend()`
+  on the main thread, then call `onEndStreamCallBack`.
 
 ### Step 10 — Test with the engine's `destroyNow()` path
 

@@ -22,24 +22,9 @@
 
 #include "core-exports.h"
 #include "audio-interface.h"
+#include <memory>
 #include <string>
 #include <vector>
-
-#if defined(AUDIO_ENGINE_PORT_AUDIO)
-		#include <pa-audio-interface.h>
-		#include <memory>
-#elif defined(AUDIO_ENGINE_AVFOUNDATION)
-		#include <memory>
-#elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
-	#include <dsound.h>
-	#include <mmreg.h>
-	#include <WAVE.h>
-	#include <memory>
-#elif defined(AUDIO_X_AUDIO_2) // XAudio2 for Windows + Xbox
-	#error XAudio2 for Windows + Xbox NOT implemented yet
-
-#endif
-
 
 namespace mbm
 {
@@ -72,31 +57,13 @@ namespace mbm
 		API_IMPL OnEndStreamCallBack getOnEndstream() const;
 		API_IMPL const char* getFileName() const noexcept override;
         OnEndStreamCallBack onEndStreamCallBack;
-	#if defined (AUDIO_ENGINE_PORT_AUDIO) //  AUDIO_ENGINE_PORT_AUDIO -----------------------------------------------------
-		std::unique_ptr<PA_INTERFACE> pa_audio;
-	#elif defined(AUDIO_ENGINE_ANDROID_OPENSL) //  AUDIO_ENGINE_ANDROID_OPENSL -----------------------------------------------
-		void* oslPlayer = nullptr; // OSLPlayer*, defined in audio-opensl-android.cpp
-	#elif defined(AUDIO_ENGINE_AVFOUNDATION) //  AUDIO_ENGINE_AVFOUNDATION ---------------------------------------------------
-		struct AVFAudioData;  // defined in audio-avfoundation.mm (Objective-C++)
-		std::unique_ptr<AVFAudioData> avf_data;
-	#elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)//  AUDIO_ENGINE_DIRECT_SOUND_8 -----------------------------------------------
-		bool update();
-	private:
-		bool fillBufferWithSound(void * buffer,const size_t iSizeBuffer,const bool bRepeatWavIfBufferLarger,bool & bEndOfStream);
-		bool rewindAndfillBufferWithSilence();
-		bool dFirstBuffer;
-		std::unique_ptr<WaveFile> wave_reader;
-		LPDIRECTSOUNDBUFFER direct_sound_buffer;
-		bool restoreBuffer(bool & pbWasRestored);
-		DWORD dwDataWaveLength;
-		DWORD dwDirectSoundBufferSize;
-		DWORD dwCurrentOffsetBuffer;
-		DWORD dwSizeOneBuffer;
-		bool bLoop;
-	#endif
 
 	protected:
 		std::string fileName;
+	private:
+		struct BackendData;
+		std::unique_ptr<BackendData> backend; // PIMPL-style.
+		bool updateBackend();
     };
 
 	class AUDIO_MANAGER: public AUDIO_MANAGER_INTERFACE
@@ -120,12 +87,11 @@ namespace mbm
 		void pauseAll(const int idScene) override;
 		void resumeAll(const int idScene) override;
 	private:
+		void initializeBackend();
+		void finalizeBackend();
+		void updateBackend();
 		std::vector<AUDIO*> audios;
 		std::vector<AUDIO*> audiosToDelete;
-	public:
-#if defined(AUDIO_ENGINE_DIRECT_SOUND_8)
-		LPDIRECTSOUND8		m_directSound; //for DSBCAPS_CTRL3D , DSBCAPS_PRIMARYBUFFER  must be present and must be used with LPDIRECTSOUND instead of LPDIRECTSOUND8
-#endif
 	};
 }
 

@@ -260,7 +260,7 @@ All plugins link against `plugin-helper`. It provides:
 | `renderizable.h` | `RENDERIZABLE` base class, `TYPE_CLASS` enum |
 | `animation.h` | `ANIMATION_MANAGER`, `ANIMATION`, `EFFECT_SHADER` |
 | `shader.h` | `FVF_PROVIDE_BY_ENGINE`, `TYPE_ANIMATION`, `BUFFER_GL` |
-| `audio.h` | `AUDIO`, `AUDIO_MANAGER_INTERFACE` |
+| `audio.h` | `AUDIO`, `AUDIO_MANAGER` |
 | `physics.h` | `PHYSICS` abstract base, `INFO_PHYSICS` |
 | `plugin-callback.h` | `PLUGIN` interface |
 | `primitives.h` | `VEC2`, `VEC3`, `MATRIX`, `COLOR`, `CUBE`, `SPHERE`, etc. |
