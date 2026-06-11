@@ -59,7 +59,7 @@ The strongest PIMPL candidate is backend-owned rendering state. These fields sho
 | Header | Exposed backend state | Suggested destination |
 |---|---|---|
 | `include/core_mbm/device.h` | `SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice` | Done: stored in `DEVICE::Impl`, with backend helper functions in `.cpp` files. |
-| `include/core_mbm/shader.h` | `BUFFER_GL::BUFFER_SPECIFIC *bs` | `BUFFER_GL::BackendData`. |
+| `include/core_mbm/shader.h` | `BUFFER_GL::BUFFER_SPECIFIC *bs` | Done: stored in `BUFFER_GL::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/shader.h` | `SHADER::void *ptrShaderSpecific` | `SHADER::BackendData`. |
 | `include/core_mbm/texture-manager.h` | `TEXTURE::idTexture/ptrTexture` union | Done: stored in `TEXTURE::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/renderizable.h` | `RENDERIZABLE_TO_TARGET::void *specificConfig` | `RENDERIZABLE_TO_TARGET::BackendData`. |
@@ -510,12 +510,18 @@ Milestone 45 implementation note:
 - Revisited the Milestone 44 render-path migration to follow the accessor reuse rule: repeated `pBufferId->getBackendBuffer()` use is now localized once per render function.
 - Remaining direct `BUFFER_GL::bs` code-side access is limited to the compatibility helper implementation and the public compatibility member declaration.
 
+Milestone 46 implementation note:
+
+- Moved the `BUFFER_GL::bs` compatibility member out of the public header and into private `BUFFER_GL::BackendData`.
+- `BUFFER_GL::getBackendBuffer()` and `BUFFER_GL::setBackendBuffer()` remain the only backend-buffer access path, so backend destructors still own and delete their concrete `BUFFER_SPECIFIC` allocation exactly as before.
+- Used a custom private deleter for the incomplete `BackendData` holder so backend-specific `BUFFER_GL` destructor definitions do not need the private storage definition.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
 
 1. `TEXTURE::idTexture/ptrTexture` - done
-2. `BUFFER_GL::bs` - helper migration complete; storage move pending
+2. `BUFFER_GL::bs` - done
 3. `SHADER::ptrShaderSpecific`
 4. `RENDERIZABLE_TO_TARGET::specificConfig`
 5. `DEVICE::specificContextDevice`

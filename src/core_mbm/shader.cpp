@@ -26,6 +26,20 @@
 
 namespace mbm
 {
+    struct BUFFER_GL::BackendData
+    {
+        BUFFER_SPECIFIC *buffer;
+
+        BackendData() noexcept :
+            buffer(nullptr)
+        {
+        }
+    };
+
+    void BUFFER_GL::BackendDataDeleter::operator()(BackendData *data) const noexcept
+    {
+        delete data;
+    }
 
     bool BUFFER_GL::isLoadedBuffer() const
     {
@@ -155,12 +169,16 @@ namespace mbm
 
     BUFFER_SPECIFIC * BUFFER_GL::getBackendBuffer() const noexcept
     {
-        return bs;
+        return backendData ? backendData->buffer : nullptr;
     }
 
     void BUFFER_GL::setBackendBuffer(BUFFER_SPECIFIC *backendBuffer) noexcept
     {
-        bs = backendBuffer;
+        if (!backendData)
+        {
+            backendData.reset(new BackendData());
+        }
+        backendData->buffer = backendBuffer;
     }
 
     BASE_SHADER::BASE_SHADER() noexcept {}

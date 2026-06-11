@@ -331,8 +331,8 @@ All functions call `release()` first, so they are safe to call multiple times.
 
 Backend code that needs the concrete `BUFFER_SPECIFIC` object should go through
 `BUFFER_GL::getBackendBuffer()` / `setBackendBuffer()` instead of reading or writing
-`BUFFER_GL::bs` directly.  The public member still exists for compatibility during the
-PIMPL migration, but new backend code should use the helper path.
+`BUFFER_GL::bs` directly.  The old public member no longer exists; the storage is private
+`BUFFER_GL::BackendData`.
 If a function needs the backend buffer more than once, store the accessor result in a
 local `BUFFER_SPECIFIC *backendBuffer` for that function scope.
 

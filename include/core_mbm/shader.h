@@ -23,6 +23,7 @@
 #include "core-exports.h"
 #include "primitives.h"
 #include "particle-control.h"
+#include <memory>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -134,8 +135,14 @@ namespace mbm
         inline bool isIndexBuffer() const noexcept { return initializedIndexBuffer; }
         uint32_t totalSubset;   // Total of subset of this buffer
 
-        BUFFER_SPECIFIC* bs; //Array of structure specific to be implemented by specific backend engine (needed by backend)
       private:
+        struct BackendData;
+        struct BackendDataDeleter
+        {
+            void operator()(BackendData *data) const noexcept;
+        };
+
+        std::unique_ptr<BackendData, BackendDataDeleter> backendData;
         bool     initializedIndexBuffer;
         
         void initializeVertexBufferControl(const uint32_t totalSubsets,
