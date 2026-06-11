@@ -369,13 +369,13 @@ namespace mbm
                 if (this->is3D)
                 {
                     device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
                 }
                 else
                 {
                     const VEC3 positionWorld(this->position.x, this->position.y, this->position.z);
                     MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
                 }
                 this->blend.set(animation->blendState);
                 animation->fx.shader.update(); // glUseProgram
@@ -398,12 +398,12 @@ namespace mbm
                 if (this->is3D)
                 {
                     device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
                 }
                 else
                 {
                     MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
                 }
                 this->blend.set(animation->blendState);
                 animation->fx.shader.update(); // glUseProgram
@@ -426,12 +426,12 @@ namespace mbm
                 if (this->is3D)
                 {
                     device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
                 }
                 else
                 {
                     MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
                 }
                 this->blend.set(animation->blendState);
                 animation->fx.shader.update(); // glUseProgram
@@ -515,10 +515,10 @@ namespace mbm
                                     SHADER::modelView._41 += curWidthLetter;
                                     if (this->is3D)
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &device->camera.matrixPerspective);
+                                                       &device->getCamera().matrixPerspective);
                                     else
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &device->camera.matrixPerspective2d);
+                                                       &device->getCamera().matrixPerspective2d);
                                     animation->fx.shader.update(); // glUseProgram
                                     animation->fx.setBlendOp();
                                     if (animation->fx.textureOverrideStage2)

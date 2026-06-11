@@ -51,12 +51,12 @@ namespace mbm
         friend class RENDERIZABLE;
         friend class CORE_MANAGER;
       public:
-        CAMERA camera;
-    
         API_IMPL static DEVICE *     getInstance();
         API_IMPL void initializeSpecificContext();
         API_IMPL void destroySpecificContext();
         API_IMPL SPECIFIC_AUX_CONTEXT_DEVICE * getSpecificContextDevice() const noexcept;
+        API_IMPL CAMERA & getCamera() noexcept;
+        API_IMPL const CAMERA & getCamera() const noexcept;
         API_IMPL void setScene(SCENE *scene) noexcept;
         API_IMPL SCENE * getScene() const noexcept;
         API_IMPL void setAppReturnCode(const int returnCode) noexcept;

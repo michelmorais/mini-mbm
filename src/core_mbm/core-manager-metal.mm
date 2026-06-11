@@ -203,7 +203,7 @@ namespace mbm
         {
             // Restore the camera to main backbuffer dimensions in case render2Texture()
             // updated it for the off-screen target.
-            this->device->camera.updateCam(
+            this->device->getCamera().updateCam(
                 true,
                 static_cast<float>(device->getBackBufferWidth()),
                 static_cast<float>(device->getBackBufferHeight()));

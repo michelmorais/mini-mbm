@@ -109,18 +109,18 @@ namespace mbm
         if (height > 0)
             setBackBufferHeight(height);
         if (width > 0 && height > 0)
-            this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+            this->getCamera().updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
         if (is3D)
         {
-            const D3DMATRIX* matrixView = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixView);
-            const D3DMATRIX* matrixProj = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixProj);
+            const D3DMATRIX* matrixView = reinterpret_cast<const D3DMATRIX*>(&this->getCamera().matrixView);
+            const D3DMATRIX* matrixProj = reinterpret_cast<const D3DMATRIX*>(&this->getCamera().matrixProj);
             pd3dDevice->SetTransform(D3DTS_VIEW, matrixView);
             pd3dDevice->SetTransform(D3DTS_PROJECTION, matrixProj);
         }
         else
         {
-            const D3DMATRIX* matrixView2d = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixView2d);
-            const D3DMATRIX* matrixOrtho  = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixOrtho);
+            const D3DMATRIX* matrixView2d = reinterpret_cast<const D3DMATRIX*>(&this->getCamera().matrixView2d);
+            const D3DMATRIX* matrixOrtho  = reinterpret_cast<const D3DMATRIX*>(&this->getCamera().matrixOrtho);
             pd3dDevice->SetTransform(D3DTS_VIEW, matrixView2d);
             pd3dDevice->SetTransform(D3DTS_PROJECTION, matrixOrtho);
         }

@@ -868,7 +868,7 @@ namespace mbm
         anim->fx.shader.update();
         //only 2dw
         MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
         bool result = false;
         switch (render_what)
         {
@@ -968,7 +968,7 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
 
             MatrixTranslationRotationScale(&SHADER::modelView, &backGroundPosition, &this->angle, &backGround_scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             if(shader->render(&this->backGroundMap) == false)
                 return false;
         }
@@ -1010,7 +1010,7 @@ namespace mbm
             line_tileSetPreview->scale.x = this->scale_tile.x;
             line_tileSetPreview->scale.y = this->scale_tile.y;
             MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &tex_scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             if(shader->render(&this->tileSetPreview) == false)
                 return false;
             return true;
@@ -1074,7 +1074,7 @@ namespace mbm
 
                         SHADER::modelView._41 = position.x;
                         SHADER::modelView._42 = position.y;
-                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->camera.matrixPerspective2d);
+                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->getCamera().matrixPerspective2d);
 
                         brick->render(&anim->fx.shader,0);
                         position.x += (brick->width * this->scale.x) + 5;
@@ -1328,7 +1328,7 @@ namespace mbm
             {
                 const VEC3 empty_scale(width_tile,height_tile,1.0f);
                 MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &empty_scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
                 if(renderEmptyBrick(&anim_normal->fx.shader,iLastIndexBrickOver == index,selectedBrick[index]) == false)
                     return false;
             }
@@ -1336,7 +1336,7 @@ namespace mbm
         else
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             const bool bSelected  = enable_highlights && selectedBrick[index];
             const bool bOverBrick = enable_highlights && iLastIndexBrickOver == index;
             if(bOverBrick)//only one

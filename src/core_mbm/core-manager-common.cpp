@@ -161,8 +161,8 @@ namespace mbm
             initEnableRenders();
             this->_updateDimFrustum();
             impl->loopVariablesInitialized = true;
-            this->device->camera.expectedScreen.x = this->device->getBackBufferWidth();
-            this->device->camera.expectedScreen.y = this->device->getBackBufferHeight();
+            this->device->getCamera().expectedScreen.x = this->device->getBackBufferWidth();
+            this->device->getCamera().expectedScreen.y = this->device->getBackBufferHeight();
         }
         while (device->isRunning())
         {
@@ -218,7 +218,7 @@ namespace mbm
                         // Update viewport
                         // Update projection and camera
                         device->setProjectionMode(true, event.x, event.y);
-                        this->device->camera.updateCam(true, event.x, event.y);
+                        this->device->getCamera().updateCam(true, event.x, event.y);
                         this->_updateDimFrustum();
 
                         // Notify scene and plugins
@@ -421,8 +421,8 @@ namespace mbm
         if (!device->isRunning())
             return;
         this->device->updateFps();
-        this->device->setCamera2dScaleCache(1.0f / this->device->camera.scale2d.x,
-                                            1.0f / this->device->camera.scale2d.y);
+        this->device->setCamera2dScaleCache(1.0f / this->device->getCamera().scale2d.x,
+                                            1.0f / this->device->getCamera().scale2d.y);
         this->adjustScaleScreen2d();
         this->logic();
         this->updatePhysis();
@@ -509,7 +509,7 @@ namespace mbm
                 if (ptr->isObjectOnFrustum)
                 {
                     lsRenderOnFrustum3d.push_back(ptr);
-                    const VEC3 distFromCam(ptr->position - device->camera.position);
+                    const VEC3 distFromCam(ptr->position - device->getCamera().position);
                     ptr->__distFromView = distFromCam.length();
                 }
             }
@@ -569,11 +569,11 @@ namespace mbm
         {
             device->clearDepthColored();
         }
-        device->updateFrustum(&this->device->camera.matrixView, &this->device->camera.matrixProj);
-        device->camera.updateNormalsRelativeCam();
-        device->camera.calculateAzimuthFromCamera();
-        this->device->camera.matrixBillboard = this->device->camera.matrixView; // Obtemos a Matrix De Vista Do Vista 3D
-        MatrixInverse(&this->device->camera.matrixBillboard, nullptr, &this->device->camera.matrixBillboard);
+        device->updateFrustum(&this->device->getCamera().matrixView, &this->device->getCamera().matrixProj);
+        device->getCamera().updateNormalsRelativeCam();
+        device->getCamera().calculateAzimuthFromCamera();
+        this->device->getCamera().matrixBillboard = this->device->getCamera().matrixView; // Obtemos a Matrix De Vista Do Vista 3D
+        MatrixInverse(&this->device->getCamera().matrixBillboard, nullptr, &this->device->getCamera().matrixBillboard);
         device->setTotalObjectsIsRendering3D(0);
         if (this->beginRender())
         {
@@ -618,8 +618,8 @@ namespace mbm
         VEC3 point(0, 0, 50);
         this->device->setNearFrustumDimension(VEC3(0, 0, 20));
         this->device->setFarFrustumDimension(VEC3(0, 0, 980));
-        this->device->camera.updateCam(true, this->device->getBackBufferWidth(), this->device->getBackBufferHeight());
-        this->device->updateFrustum(&this->device->camera.matrixView, &this->device->camera.matrixProj);
+        this->device->getCamera().updateCam(true, this->device->getBackBufferWidth(), this->device->getBackBufferHeight());
+        this->device->updateFrustum(&this->device->getCamera().matrixView, &this->device->getCamera().matrixProj);
         while (this->device->isPointAtTheFrustum(point))
         {
             point.x += 0.5f;
@@ -650,63 +650,63 @@ namespace mbm
     
     void CORE_MANAGER::adjustScaleScreen2d()
     {
-        if (this->device->camera.expectedScreen.x != 0.0f && this->device->camera.expectedScreen.y != 0.0f) //-V550
+        if (this->device->getCamera().expectedScreen.x != 0.0f && this->device->getCamera().expectedScreen.y != 0.0f) //-V550
         {
-            const float percx = this->device->getBackBufferWidth() / this->device->camera.expectedScreen.x;
-            const float percy = this->device->getBackBufferHeight() / this->device->camera.expectedScreen.y;
+            const float percx = this->device->getBackBufferWidth() / this->device->getCamera().expectedScreen.x;
+            const float percy = this->device->getBackBufferHeight() / this->device->getCamera().expectedScreen.y;
             if (percx != 0.0f && percy != 0.0f) //-V550
             {
-                if (this->device->camera.stretch[0])
+                if (this->device->getCamera().stretch[0])
                 {
-                    if (strcmp(this->device->camera.stretch, "x") == 0)
+                    if (strcmp(this->device->getCamera().stretch, "x") == 0)
                     {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percx;
-                        this->device->camera.scale2d.x = percx;
-                        this->device->camera.scale2d.y = percx;
+                        this->device->getCamera().scaleScreen2d.x = percx;
+                        this->device->getCamera().scaleScreen2d.y = percx;
+                        this->device->getCamera().scale2d.x = percx;
+                        this->device->getCamera().scale2d.y = percx;
                     }
-                    else if (strcmp(this->device->camera.stretch, "y") == 0)
+                    else if (strcmp(this->device->getCamera().stretch, "y") == 0)
                     {
-                        this->device->camera.scaleScreen2d.x = percy;
-                        this->device->camera.scaleScreen2d.y = percy;
-                        this->device->camera.scale2d.x = percy;
-                        this->device->camera.scale2d.y = percy;
+                        this->device->getCamera().scaleScreen2d.x = percy;
+                        this->device->getCamera().scaleScreen2d.y = percy;
+                        this->device->getCamera().scale2d.x = percy;
+                        this->device->getCamera().scale2d.y = percy;
                     }
-                    else if (strcmp(this->device->camera.stretch, "xy") == 0)
+                    else if (strcmp(this->device->getCamera().stretch, "xy") == 0)
                     {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percy;
-                        this->device->camera.scale2d.x = percx;
-                        this->device->camera.scale2d.y = percy;
+                        this->device->getCamera().scaleScreen2d.x = percx;
+                        this->device->getCamera().scaleScreen2d.y = percy;
+                        this->device->getCamera().scale2d.x = percx;
+                        this->device->getCamera().scale2d.y = percy;
                     }
                     else if (percx < percy)
                     {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percx;
-                        this->device->camera.scale2d.x = percx;
-                        this->device->camera.scale2d.y = percx;
+                        this->device->getCamera().scaleScreen2d.x = percx;
+                        this->device->getCamera().scaleScreen2d.y = percx;
+                        this->device->getCamera().scale2d.x = percx;
+                        this->device->getCamera().scale2d.y = percx;
                     }
                     else
                     {
-                        this->device->camera.scaleScreen2d.x = percy;
-                        this->device->camera.scaleScreen2d.y = percy;
-                        this->device->camera.scale2d.x = percy;
-                        this->device->camera.scale2d.y = percy;
+                        this->device->getCamera().scaleScreen2d.x = percy;
+                        this->device->getCamera().scaleScreen2d.y = percy;
+                        this->device->getCamera().scale2d.x = percy;
+                        this->device->getCamera().scale2d.y = percy;
                     }
                 }
                 else if (percx < percy)
                 {
-                    this->device->camera.scaleScreen2d.x = percx;
-                    this->device->camera.scaleScreen2d.y = percx;
-                    this->device->camera.scale2d.x = percx;
-                    this->device->camera.scale2d.y = percx;
+                    this->device->getCamera().scaleScreen2d.x = percx;
+                    this->device->getCamera().scaleScreen2d.y = percx;
+                    this->device->getCamera().scale2d.x = percx;
+                    this->device->getCamera().scale2d.y = percx;
                 }
                 else
                 {
-                    this->device->camera.scaleScreen2d.x = percy;
-                    this->device->camera.scaleScreen2d.y = percy;
-                    this->device->camera.scale2d.x = percy;
-                    this->device->camera.scale2d.y = percy;
+                    this->device->getCamera().scaleScreen2d.x = percy;
+                    this->device->getCamera().scaleScreen2d.y = percy;
+                    this->device->getCamera().scale2d.x = percy;
+                    this->device->getCamera().scale2d.y = percy;
                 }
             }
         }
@@ -979,9 +979,9 @@ namespace mbm
             WARN_LOG("onLostDevice step %d", impl->stepRestore);
 #endif
             // Save 2D scaling state
-            const VEC2 expectedScreenBefore = this->device->camera.expectedScreen;
-            char stretchBefore[sizeof(this->device->camera.stretch)] = {};
-            strncpy(stretchBefore, this->device->camera.stretch, sizeof(stretchBefore) - 1);
+            const VEC2 expectedScreenBefore = this->device->getCamera().expectedScreen;
+            char stretchBefore[sizeof(this->device->getCamera().stretch)] = {};
+            strncpy(stretchBefore, this->device->getCamera().stretch, sizeof(stretchBefore) - 1);
 
             constexpr bool wasLostDevice = true;
             this->ReleaseGraphics(wasLostDevice);
@@ -989,19 +989,19 @@ namespace mbm
             if (initGraphics(this->getNameApplication(), width, height, px, py, this->windowBorder, this->enableResizeWindow))
             {
                 // Reapply previous 2D scaling
-                this->device->camera.expectedScreen = expectedScreenBefore;
+                this->device->getCamera().expectedScreen = expectedScreenBefore;
                 this->device->scaleToScreen(expectedScreenBefore.x, expectedScreenBefore.y, stretchBefore);
 
 #if defined _DEBUG
                 WARN_LOG("After restore - scale2d.x: %f, scale2d.y: %f, expectedScreen.x: %f, expectedScreen.y: %f",
-                    this->device->camera.scale2d.x,
-                    this->device->camera.scale2d.y,
-                    this->device->camera.expectedScreen.x,
-                    this->device->camera.expectedScreen.y);
+                    this->device->getCamera().scale2d.x,
+                    this->device->getCamera().scale2d.y,
+                    this->device->getCamera().expectedScreen.x,
+                    this->device->getCamera().expectedScreen.y);
 #endif
 
-                this->device->setCamera2dScaleCache(1.0f / this->device->camera.scale2d.x,
-                                                    1.0f / this->device->camera.scale2d.y);
+                this->device->setCamera2dScaleCache(1.0f / this->device->getCamera().scale2d.x,
+                                                    1.0f / this->device->getCamera().scale2d.y);
                 this->adjustScaleScreen2d();
 
                 impl->stepRestore = STEP_RES_DRAW_HOURGLASS;
@@ -1238,24 +1238,24 @@ namespace mbm
 
      void CORE_MANAGER::onTouchDown(int key, float x, float y)
      {
-         x /= this->device->camera.scale2d.x;
-         y /= this->device->camera.scale2d.y;
+         x /= this->device->getCamera().scale2d.x;
+         y /= this->device->getCamera().scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHDOWN);
          this->pushEvent(&ev);
      }
 
      void CORE_MANAGER::onTouchUp(int key, float x, float y)
      {
-         x /= this->device->camera.scale2d.x;
-         y /= this->device->camera.scale2d.y;
+         x /= this->device->getCamera().scale2d.x;
+         y /= this->device->getCamera().scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHUP);
          this->pushEvent(&ev);
      }
 
      void CORE_MANAGER::onTouchMove(int key, float x, float y)
      {
-         x /= this->device->camera.scale2d.x;
-         y /= this->device->camera.scale2d.y;
+         x /= this->device->getCamera().scale2d.x;
+         y /= this->device->getCamera().scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHMOVE);
          this->pushEvent(&ev);
      }
@@ -1281,8 +1281,8 @@ namespace mbm
 
      void CORE_MANAGER::onDoubleClick(float x, float y, int key)
      {
-         x /= this->device->camera.scale2d.x;
-         y /= this->device->camera.scale2d.y;
+         x /= this->device->getCamera().scale2d.x;
+         y /= this->device->getCamera().scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONDOUBLECLICK);
          this->pushEvent(&ev);
      }

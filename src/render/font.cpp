@@ -703,10 +703,10 @@ namespace mbm
                                     SHADER::modelView._42 += infoFont->letterDiffY[index];
                                     if (this->is3D)
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &device->camera.matrixPerspective);
+                                                       &device->getCamera().matrixPerspective);
                                     else
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &device->camera.matrixPerspective2d);
+                                                       &device->getCamera().matrixPerspective2d);
                                     SHADER::modelView._41 -= infoFont->letterDiffX[index];
                                     SHADER::modelView._42 -= infoFont->letterDiffY[index];
                                     if (doRender)

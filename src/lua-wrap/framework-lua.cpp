@@ -609,7 +609,7 @@ namespace mbm
     int onGetAzimute(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        lua_pushnumber(lua, ((float)((const float)(device->camera.azimuthFromCamera))));
+        lua_pushnumber(lua, ((float)((const float)(device->getCamera().azimuthFromCamera))));
         return 1;
     }
 

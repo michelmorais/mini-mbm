@@ -130,8 +130,8 @@ void MY_SCENE::endLoading()
 void MY_SCENE::onInitScene()
 {
     mbm::DEVICE* device    = mbm::DEVICE::getInstance();
-    device->camera.position = mbm::VEC3(0, 280, -900);
-    device->camera.focus    = mbm::VEC3(0, 280, 0);
+    device->getCamera().position = mbm::VEC3(0, 280, -900);
+    device->getCamera().focus    = mbm::VEC3(0, 280, 0);
     mbm::COLOR backgroundColor = device->getColorClearBackGround();
     backgroundColor.b = 0.5f;
     device->setColorClearBackGround(backgroundColor);
@@ -168,8 +168,8 @@ void MY_SCENE::onLoop()
         statusText->setText(
             "Mouse(%.0f,%.0f)  Cam2D(%.0f,%.0f)  Cam3D(%.0f,%.0f,%.0f)",
             mouseScreenX, mouseScreenY,
-            device->camera.position2d.x, device->camera.position2d.y,
-            device->camera.position.x, device->camera.position.y, device->camera.position.z);
+            device->getCamera().position2d.x, device->getCamera().position2d.y,
+            device->getCamera().position.x, device->getCamera().position.y, device->getCamera().position.z);
     }
     if (notificationTimer > 0.0f)
     {
@@ -483,13 +483,13 @@ void MY_SCENE::onKeyDown(int key)
     }
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     if (key == 39)      // right
-        device->camera.position2d.x += 10;
+        device->getCamera().position2d.x += 10;
     else if (key == 37) // left
-        device->camera.position2d.x -= 10;
+        device->getCamera().position2d.x -= 10;
     else if (key == 38) // up
-        device->camera.position2d.y += 10;
+        device->getCamera().position2d.y += 10;
     else if (key == 40) // down
-        device->camera.position2d.y -= 10;
+        device->getCamera().position2d.y -= 10;
 }
 
 void MY_SCENE::onKeyUp(int)

@@ -97,7 +97,7 @@ namespace mbm
         if (height > 0)
             setBackBufferHeight(height);
         if (width > 0 && height > 0)
-            this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+            this->getCamera().updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
         if (is3D)
         {
             

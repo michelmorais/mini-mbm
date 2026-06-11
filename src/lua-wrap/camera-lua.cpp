@@ -269,7 +269,7 @@ namespace mbm
         if (top > 1)
         {
             DEVICE *device = DEVICE::getInstance();
-            CAMERA *     camera = &device->camera;
+            CAMERA *     camera = &device->getCamera();
             if(lua_type(lua, 2) == LUA_TTABLE)
             {
                 VEC2 *vec = getVec2FromRawTable(lua, 1, 2);
@@ -305,7 +305,7 @@ namespace mbm
     int onGetPos2dCameraLua(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        CAMERA *     camera = &device->camera;
+        CAMERA *     camera = &device->getCamera();
         return onNewVec2LuaNoGC(lua, &camera->position2d);
     }
 
@@ -315,7 +315,7 @@ namespace mbm
         if (top > 1)
         {
             DEVICE *device = DEVICE::getInstance();
-            CAMERA *     camera = &device->camera;
+            CAMERA *     camera = &device->getCamera();
             if(lua_type(lua, 2) == LUA_TTABLE)
             {
                 VEC3 *vec = getVec3FromRawTable(lua, 1, 2);
@@ -355,7 +355,7 @@ namespace mbm
     int onSetUp3dCameraLua(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        CAMERA *     camera = &device->camera;
+        CAMERA *     camera = &device->getCamera();
         if(lua_type(lua, 2) == LUA_TTABLE)
         {
             VEC3 *vec = getVec3FromRawTable(lua, 1, 2);
@@ -373,21 +373,21 @@ namespace mbm
     int onGetPos3dCameraLua(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        CAMERA *     camera = &device->camera;
+        CAMERA *     camera = &device->getCamera();
         return onNewVec3LuaNoGC(lua, &camera->position);
     }
 
     int onGetFocusCameraLua(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        CAMERA *     camera = &device->camera;
+        CAMERA *     camera = &device->getCamera();
         return onNewVec3LuaNoGC(lua, &camera->focus);
     }
 
     int onGetNormalDirectionCameraLua(lua_State *lua)
     {
         DEVICE *device          = DEVICE::getInstance();
-        CAMERA *     camera     = &device->camera;
+        CAMERA *     camera     = &device->getCamera();
         const char* direction   = lua_tostring(lua, 2);
         switch(direction[0])
         {
@@ -439,7 +439,7 @@ namespace mbm
         if (top > 1)
         {
             DEVICE *device = DEVICE::getInstance();
-            CAMERA *     camera = &device->camera;
+            CAMERA *     camera = &device->getCamera();
             if(lua_type(lua, 2) == LUA_TTABLE)
             {
                 VEC3 *vec = getVec3FromRawTable(lua, 1, 2);
@@ -488,7 +488,7 @@ namespace mbm
         */
         DEVICE *        device    = DEVICE::getInstance();
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
-        CAMERA *             camera    = &device->camera;
+        CAMERA *             camera    = &device->getCamera();
         const char *         what      = luaL_checkstring(lua, 2);
         const int            len       = static_cast<int>(strlen(what));
         switch (len)
@@ -541,7 +541,7 @@ namespace mbm
         */
         DEVICE *        device    = DEVICE::getInstance();
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
-        CAMERA *             camera    = &device->camera;
+        CAMERA *             camera    = &device->getCamera();
         const char *         what      = luaL_checkstring(lua, 2);
         const int            len       = static_cast<int>(strlen(what));
         switch (len)
@@ -598,7 +598,7 @@ namespace mbm
         */
         DEVICE *        device    = DEVICE::getInstance();
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
-        CAMERA *             camera    = &device->camera;
+        CAMERA *             camera    = &device->getCamera();
         const char *         what      = luaL_checkstring(lua, 2);
         const int            len       = static_cast<int>(strlen(what));
         switch (len)
@@ -650,7 +650,7 @@ namespace mbm
         */
         DEVICE *        device    = DEVICE::getInstance();
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
-        CAMERA *             camera    = &device->camera;
+        CAMERA *             camera    = &device->getCamera();
         const char *         what      = luaL_checkstring(lua, 2);
         const int            len       = static_cast<int>(strlen(what));
         switch (len)
@@ -699,7 +699,7 @@ namespace mbm
     int onMoveCamera2d(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        CAMERA *     camera = &device->camera;
+        CAMERA *     camera = &device->getCamera();
         const int    top    = lua_gettop(lua);
         switch (top)
         {
@@ -736,7 +736,7 @@ namespace mbm
     int onMoveCamera3d(lua_State *lua)
     {
         DEVICE *device      = DEVICE::getInstance();
-        CAMERA *     camera = &device->camera;
+        CAMERA *     camera = &device->getCamera();
         VEC3* position      = &camera->position;
         const float delta   = device->delta;
         const int    top    = lua_gettop(lua);
@@ -855,7 +855,7 @@ namespace mbm
     {
         const float  angle  = luaL_checknumber(lua, 2);
         DEVICE *device = DEVICE::getInstance();
-        device->camera.angleOfView = angle;
+        device->getCamera().angleOfView = angle;
         return 0;
     }
 
@@ -863,7 +863,7 @@ namespace mbm
     {
         const float  ffar   = luaL_checknumber(lua, 2);
         DEVICE *device      = DEVICE::getInstance();
-        device->camera.zFar = ffar;
+        device->getCamera().zFar = ffar;
         return 0;
     }
 
@@ -872,7 +872,7 @@ namespace mbm
         const float  zNear  = luaL_checknumber(lua, 2);
         DEVICE *device      = DEVICE::getInstance();
         device->zNear       = zNear;
-        device->camera.zNear       = zNear;
+        device->getCamera().zNear       = zNear;
         return 0;
     }
 

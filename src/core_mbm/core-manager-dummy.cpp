@@ -127,14 +127,14 @@ namespace mbm
             if (!renderTarget->render2Texture())
             {
                 ERROR_AT(__LINE__, __FILE__, "Error render2Texture!");
-                this->device->camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+                this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             oneRender = true;
         }
         if (oneRender)
         {
-            this->device->camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+            this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }

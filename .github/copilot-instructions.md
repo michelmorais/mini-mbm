@@ -157,8 +157,8 @@ int main() {
 ### Accessing the device / camera
 ```cpp
 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-device->camera.position = mbm::VEC3(0, 280, -900);
-device->camera.focus    = mbm::VEC3(0, 280, 0);
+device->getCamera().position = mbm::VEC3(0, 280, -900);
+device->getCamera().focus    = mbm::VEC3(0, 280, 0);
 ```
 
 ### Debug path helper

@@ -46,16 +46,16 @@ namespace mbm
         MatrixIdentity(&this->matrixView);
         MatrixTranslationRotationScale(&SHADER::modelView, &posCam, &this->angle, &this->scale);
         MatrixOrthoLH(&this->matrixOrtho, width, height, zNear2d, zFar2d);
-        MatrixMultiply(&device->camera.matrixPerspective2d, &this->matrixView, &this->matrixOrtho);
+        MatrixMultiply(&device->getCamera().matrixPerspective2d, &this->matrixView, &this->matrixOrtho);
     }
     
     void CAMERA_TARGET::enableMode3D(mbm::DEVICE *device, const float width, const float height)
     {
         const float aspect = width / height;
-        const auto Scale  = static_cast<const float>(1.0f / tan(device->camera.angleOfView * 0.5f * static_cast<const float>(M_PI) / 180.0f));
+        const auto Scale  = static_cast<const float>(1.0f / tan(device->getCamera().angleOfView * 0.5f * static_cast<const float>(M_PI) / 180.0f));
         MatrixPerspectiveFovLH(&this->matrixProj, Scale, aspect, zNear, zFar);
         MatrixLookAtLH(&this->matrixView, &this->position, &this->focus, &this->up);
-        MatrixMultiply(&device->camera.matrixPerspective, &this->matrixView, &this->matrixProj);
+        MatrixMultiply(&device->getCamera().matrixPerspective, &this->matrixView, &this->matrixProj);
     }
     
     RENDER_2_TEXTURE::RENDER_2_TEXTURE(const SCENE *scene, const bool _is3d, const bool _is2dScreen) :
@@ -303,20 +303,20 @@ namespace mbm
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
-                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                VEC3 positionScreen(this->position.x * device->getCamera().scaleScreen2d.x,
+                                    this->position.y * device->getCamera().scaleScreen2d.y, this->position.z);
                 device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             }
             mbm::ANIMATION *anim = this->getAnimation();
             if (anim)

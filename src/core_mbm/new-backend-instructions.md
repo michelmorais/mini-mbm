@@ -188,7 +188,7 @@ MVP = modelView × projection
 In code this looks like:
 ```cpp
 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
 ```
 
 ### Passing matrices to the GPU

@@ -55,6 +55,7 @@ namespace mbm
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
         SCENE *scene = nullptr;
+        CAMERA camera;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
         uint32_t totalObjectsIsRendering3D = 0;
@@ -110,6 +111,16 @@ namespace mbm
     SPECIFIC_AUX_CONTEXT_DEVICE * DEVICE::getSpecificContextDevice() const noexcept
     {
         return impl->specificContextDevice;
+    }
+
+    CAMERA & DEVICE::getCamera() noexcept
+    {
+        return impl->camera;
+    }
+
+    const CAMERA & DEVICE::getCamera() const noexcept
+    {
+        return impl->camera;
     }
 
     void DEVICE::setScene(SCENE *scene) noexcept
@@ -315,12 +326,12 @@ namespace mbm
     
     float DEVICE::getScaleBackBufferWidth() const noexcept
     {
-        return static_cast<float>(impl->backBufferWidth / this->camera.scale2d.x);
+        return static_cast<float>(impl->backBufferWidth / this->getCamera().scale2d.x);
     }
     
     float DEVICE::getScaleBackBufferHeight() const noexcept
     {
-        return static_cast<float>(impl->backBufferHeight / this->camera.scale2d.y);
+        return static_cast<float>(impl->backBufferHeight / this->getCamera().scale2d.y);
     }
 
     uint32_t DEVICE::getTotalObjectsOnFrustum3D() const noexcept
@@ -443,52 +454,52 @@ namespace mbm
             const float percy = impl->backBufferHeight / heightScreen;
             if (percx != 0.0f && percy != 0.0f)
             {
-                this->camera.expectedScreen.x = widthScreen;
-                this->camera.expectedScreen.y = heightScreen;
+                this->getCamera().expectedScreen.x = widthScreen;
+                this->getCamera().expectedScreen.y = heightScreen;
                 if (stretch)
                 {
                     if (strcmp(stretch, "x") == 0)
                     {
-                        this->camera.scale2d.x = percx;
-                        this->camera.scale2d.y = percx;
-                        strncpy(this->camera.stretch, "x",sizeof(this->camera.stretch)-1);
+                        this->getCamera().scale2d.x = percx;
+                        this->getCamera().scale2d.y = percx;
+                        strncpy(this->getCamera().stretch, "x",sizeof(this->getCamera().stretch)-1);
                     }
                     else if (strcmp(stretch, "y") == 0)
                     {
-                        this->camera.scale2d.x = percy;
-                        this->camera.scale2d.y = percy;
-                        strncpy(this->camera.stretch, "y",sizeof(this->camera.stretch)-1);
+                        this->getCamera().scale2d.x = percy;
+                        this->getCamera().scale2d.y = percy;
+                        strncpy(this->getCamera().stretch, "y",sizeof(this->getCamera().stretch)-1);
                     }
                     else if (strcmp(stretch, "xy") == 0)
                     {
-                        this->camera.scale2d.x = percx;
-                        this->camera.scale2d.y = percy;
-                        strncpy(this->camera.stretch, "xy",sizeof(this->camera.stretch));
+                        this->getCamera().scale2d.x = percx;
+                        this->getCamera().scale2d.y = percy;
+                        strncpy(this->getCamera().stretch, "xy",sizeof(this->getCamera().stretch));
                     }
                     else if (percx < percy)
                     {
-                        this->camera.scale2d.x = percx;
-                        this->camera.scale2d.y = percx;
-                        strncpy(this->camera.stretch, "x",sizeof(this->camera.stretch)-1);
+                        this->getCamera().scale2d.x = percx;
+                        this->getCamera().scale2d.y = percx;
+                        strncpy(this->getCamera().stretch, "x",sizeof(this->getCamera().stretch)-1);
                     }
                     else
                     {
-                        this->camera.scale2d.x = percy;
-                        this->camera.scale2d.y = percy;
-                        strncpy(this->camera.stretch, "y",sizeof(this->camera.stretch)-1);
+                        this->getCamera().scale2d.x = percy;
+                        this->getCamera().scale2d.y = percy;
+                        strncpy(this->getCamera().stretch, "y",sizeof(this->getCamera().stretch)-1);
                     }
                 }
                 else if (percx < percy)
                 {
-                    this->camera.scale2d.x = percx;
-                    this->camera.scale2d.y = percx;
-                    strncpy(this->camera.stretch, "x",sizeof(this->camera.stretch)-1);
+                    this->getCamera().scale2d.x = percx;
+                    this->getCamera().scale2d.y = percx;
+                    strncpy(this->getCamera().stretch, "x",sizeof(this->getCamera().stretch)-1);
                 }
                 else
                 {
-                    this->camera.scale2d.x = percy;
-                    this->camera.scale2d.y = percy;
-                    strncpy(this->camera.stretch, "y",sizeof(this->camera.stretch)-1);
+                    this->getCamera().scale2d.x = percy;
+                    this->getCamera().scale2d.y = percy;
+                    strncpy(this->getCamera().stretch, "y",sizeof(this->getCamera().stretch)-1);
                 }
             }
         }
@@ -726,6 +737,7 @@ namespace mbm
     bool DEVICE::rayCast(const float sx, const float sy, VEC3 *rayOriginOut, VEC3 *rayDir) const
     {
         // two ways to do it ...
+        const CAMERA &camera = impl->camera;
         const float vx = (sx /  impl->backBufferWidth - 0.5f) * 2.0f / camera.matrixProj._11;
         const float vy = -(sy / impl->backBufferHeight - 0.5f) * 2.0f / camera.matrixProj._22;
         const float vz = 1.0f;
@@ -765,8 +777,8 @@ namespace mbm
                                                          const float howFarZFromCamera) const
     {
         VEC3        rayOriginOut, rayDirOut;
-        const float newX = x * this->camera.scaleScreen2d.x;
-        const float newY = y * this->camera.scaleScreen2d.y;
+        const float newX = x * this->getCamera().scaleScreen2d.x;
+        const float newY = y * this->getCamera().scaleScreen2d.y;
         if (this->rayCast(newX, newY, &rayOriginOut, &rayDirOut))
         {
             out->x = rayDirOut.x * howFarZFromCamera + rayOriginOut.x;
@@ -781,15 +793,15 @@ namespace mbm
     {
         //original
         const VEC2 middle(impl->backBufferWidth * 0.5f, impl->backBufferHeight * 0.5f);
-        out.x = (x * this->camera.scaleScreen2d.x) - middle.x + this->camera.position2d.x;
-        out.y = -((y * this->camera.scaleScreen2d.y) - middle.y) + this->camera.position2d.y;
+        out.x = (x * this->getCamera().scaleScreen2d.x) - middle.x + this->getCamera().position2d.x;
+        out.y = -((y * this->getCamera().scaleScreen2d.y) - middle.y) + this->getCamera().position2d.y;
         out.x *= impl->percXcam2dScale;
         out.y *= impl->percYcam2dScale;
 
         // x, y are already in expected screen coordinates (divided by scale2d by caller)
-        //const VEC2 middle(this->camera.expectedScreen.x * 0.5f, this->camera.expectedScreen.y * 0.5f);
-        //out.x = x - middle.x + this->camera.position2d.x;
-        //out.y = -(y - middle.y) + this->camera.position2d.y;
+        //const VEC2 middle(this->getCamera().expectedScreen.x * 0.5f, this->getCamera().expectedScreen.y * 0.5f);
+        //out.x = x - middle.x + this->getCamera().position2d.x;
+        //out.y = -(y - middle.y) + this->getCamera().position2d.y;
         //out.x *= impl->percXcam2dScale;
         //out.y *= impl->percYcam2dScale;
     }
@@ -807,16 +819,16 @@ namespace mbm
         //original
         const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
         const VEC2 middle(impl->backBufferWidth * 0.5f, impl->backBufferHeight * 0.5f);
-        out.x = newIn.x + middle.x - this->camera.position2d.x;
-        out.y = impl->backBufferHeight - ((newIn.y + middle.y) - this->camera.position2d.y);
-        out.x /= this->camera.scaleScreen2d.x;
-        out.y /= this->camera.scaleScreen2d.y; 
+        out.x = newIn.x + middle.x - this->getCamera().position2d.x;
+        out.y = impl->backBufferHeight - ((newIn.y + middle.y) - this->getCamera().position2d.y);
+        out.x /= this->getCamera().scaleScreen2d.x;
+        out.y /= this->getCamera().scaleScreen2d.y;
 
         //const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
-        //const VEC2 middle(this->camera.expectedScreen.x * 0.5f, this->camera.expectedScreen.y * 0.5f);
+        //const VEC2 middle(this->getCamera().expectedScreen.x * 0.5f, this->getCamera().expectedScreen.y * 0.5f);
         //// Output in expected screen coordinates (caller should multiply by scale2d if actual pixels needed)
-        //out.x = newIn.x + middle.x - this->camera.position2d.x;
-        //out.y = this->camera.expectedScreen.y - ((newIn.y + middle.y) - this->camera.position2d.y);
+        //out.x = newIn.x + middle.x - this->getCamera().position2d.x;
+        //out.y = this->getCamera().expectedScreen.y - ((newIn.y + middle.y) - this->getCamera().position2d.y);
     }
     
     bool DEVICE::isPointWorld2dOnScreen2D(const float x, const float y) const noexcept
@@ -836,8 +848,8 @@ namespace mbm
     
     bool DEVICE::isCircleScreen2dOnScreen2D_scaled(const float x, const float y, const float ray) const noexcept
     {
-        const float newX = this->camera.scaleScreen2d.x * x;
-        const float newY = this->camera.scaleScreen2d.y * y;
+        const float newX = this->getCamera().scaleScreen2d.x * x;
+        const float newY = this->getCamera().scaleScreen2d.y * y;
         if ((newX + ray) < 0)
             return false;
         else if ((newX - ray) > impl->backBufferWidth)
@@ -1036,7 +1048,7 @@ namespace mbm
         if (out)
         {
             MATRIX matrixAux;
-            *out = this->camera.matrixBillboard;
+            *out = this->getCamera().matrixBillboard;
             if (scale)
             {
                 MatrixScaling(&matrixAux, scale->x, scale->y, scale->z);
