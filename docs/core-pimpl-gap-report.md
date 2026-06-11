@@ -300,6 +300,13 @@ Milestone 16 implementation note:
 - OpenGL ES Windows, DirectX9, Metal manager/shader/texture/render-target, and remaining non-Android call sites are left for later backend-specific milestones.
 - `specificContextDevice` remains public for compatibility; `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 17 implementation note:
+
+- OpenGL ES Windows `CORE_MANAGER` paths now use `DEVICE::getSpecificContextDevice()` instead of reading `DEVICE::specificContextDevice` directly.
+- Migrated Win32 window event handling, EGL display/surface/context setup, joystick callback wiring, texture filter cache reads, and OpenGL ES Windows release paths.
+- DirectX9, Metal manager/shader/texture/render-target, and remaining non-OpenGL ES call sites are left for later backend-specific milestones.
+- `specificContextDevice` remains public for compatibility; `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
