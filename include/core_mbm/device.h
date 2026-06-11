@@ -142,8 +142,6 @@ namespace mbm
         std::vector<RENDERIZABLE *>           lsObjectRender2DS;
         std::vector<PHYSICS *>                lsPhysics;
         std::vector<RENDERIZABLE_TO_TARGET *> lsObjectRenderToTarget;
-        float                                 __percXcam2dScale;
-        float                                 __percYcam2dScale;
         bool                                 _pixelPerfectRenderingActive = false;
         struct Impl;
         struct ImplDeleter
@@ -154,6 +152,7 @@ namespace mbm
         DEVICE();
         virtual ~DEVICE();
         void setProjectionMode(const bool is3D, const float width, const float height);
+        void setCamera2dScaleCache(const float percX, const float percY) noexcept;
     };
 }
 #endif

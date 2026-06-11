@@ -37,6 +37,8 @@ namespace mbm
         int                      returnCodeApp = 0;
         AUDIO_MANAGER_INTERFACE* audioInterface = nullptr;
         bool                     isGamePaused = false;
+        float                    percXcam2dScale = 1.0f;
+        float                    percYcam2dScale = 1.0f;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -74,11 +76,15 @@ namespace mbm
         totalObjects2D             = 0;
         dimFarFrustum3d            = VEC3(0, 0, 0);
         dimNearFrustum3d           = VEC3(0, 0, 0);
-        __percXcam2dScale          = 1.0f;
-        __percYcam2dScale          = 1.0f;
         __swapBackBufferStep	   = 3;
         windowPositionX            = 0;
         windowPositionY            = 0;
+    }
+
+    void DEVICE::setCamera2dScaleCache(const float percX, const float percY) noexcept
+    {
+        impl->percXcam2dScale = percX;
+        impl->percYcam2dScale = percY;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
@@ -460,15 +466,15 @@ namespace mbm
         const VEC2 middle(this->backBufferWidth * 0.5f, this->backBufferHeight * 0.5f);
         out.x = (x * this->camera.scaleScreen2d.x) - middle.x + this->camera.position2d.x;
         out.y = -((y * this->camera.scaleScreen2d.y) - middle.y) + this->camera.position2d.y;
-        out.x *= this->__percXcam2dScale;
-        out.y *= this->__percYcam2dScale;
+        out.x *= impl->percXcam2dScale;
+        out.y *= impl->percYcam2dScale;
 
         // x, y are already in expected screen coordinates (divided by scale2d by caller)
         //const VEC2 middle(this->camera.expectedScreen.x * 0.5f, this->camera.expectedScreen.y * 0.5f);
         //out.x = x - middle.x + this->camera.position2d.x;
         //out.y = -(y - middle.y) + this->camera.position2d.y;
-        //out.x *= this->__percXcam2dScale;
-        //out.y *= this->__percYcam2dScale;
+        //out.x *= impl->percXcam2dScale;
+        //out.y *= impl->percYcam2dScale;
     }
     
     void DEVICE::transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC3 &out) const noexcept
@@ -482,14 +488,14 @@ namespace mbm
     void DEVICE::transformeWorld2dToScreen2d_scaled(const float x, const float y, VEC2 &out) const noexcept
     {
         //original
-        const VEC2 newIn(x / this->__percXcam2dScale, y / this->__percYcam2dScale);
+        const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
         const VEC2 middle(this->backBufferWidth * 0.5f, this->backBufferHeight * 0.5f);
         out.x = newIn.x + middle.x - this->camera.position2d.x;
         out.y = this->backBufferHeight - ((newIn.y + middle.y) - this->camera.position2d.y);
         out.x /= this->camera.scaleScreen2d.x;
         out.y /= this->camera.scaleScreen2d.y; 
 
-        //const VEC2 newIn(x / this->__percXcam2dScale, y / this->__percYcam2dScale);
+        //const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
         //const VEC2 middle(this->camera.expectedScreen.x * 0.5f, this->camera.expectedScreen.y * 0.5f);
         //// Output in expected screen coordinates (caller should multiply by scale2d if actual pixels needed)
         //out.x = newIn.x + middle.x - this->camera.position2d.x;
@@ -502,11 +508,11 @@ namespace mbm
         this->transformeWorld2dToScreen2d_scaled(x, y, onScreen);
         if (onScreen.x < 0)
             return false;
-        else if (onScreen.x > this->backBufferWidth * this->__percXcam2dScale)
+        else if (onScreen.x > this->backBufferWidth * impl->percXcam2dScale)
             return false;
         else if (onScreen.y < 0)
             return false;
-        else if (onScreen.y > this->backBufferHeight * this->__percYcam2dScale)
+        else if (onScreen.y > this->backBufferHeight * impl->percYcam2dScale)
             return false;
         return true;
     }
@@ -545,11 +551,11 @@ namespace mbm
         this->transformeWorld2dToScreen2d_scaled(x, y, onScreen);
         if ((onScreen.x + ray) < 0)
             return false;
-        else if ((onScreen.x - ray) > this->backBufferWidth * this->__percXcam2dScale)
+        else if ((onScreen.x - ray) > this->backBufferWidth * impl->percXcam2dScale)
             return false;
         else if ((onScreen.y + ray) < 0)
             return false;
-        else if ((onScreen.y - ray) > this->backBufferHeight * this->__percYcam2dScale)
+        else if ((onScreen.y - ray) > this->backBufferHeight * impl->percYcam2dScale)
             return false;
         return true;
     }

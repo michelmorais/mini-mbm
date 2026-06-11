@@ -422,8 +422,8 @@ namespace mbm
         if (!device->run)
             return;
         this->device->updateFps();
-        this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
-        this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
+        this->device->setCamera2dScaleCache(1.0f / this->device->camera.scale2d.x,
+                                            1.0f / this->device->camera.scale2d.y);
         this->adjustScaleScreen2d();
         this->logic();
         this->updatePhysis();
@@ -998,8 +998,8 @@ namespace mbm
                     this->device->camera.expectedScreen.y);
 #endif
 
-                this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
-                this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
+                this->device->setCamera2dScaleCache(1.0f / this->device->camera.scale2d.x,
+                                                    1.0f / this->device->camera.scale2d.y);
                 this->adjustScaleScreen2d();
 
                 impl->stepRestore = STEP_RES_DRAW_HOURGLASS;

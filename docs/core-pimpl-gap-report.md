@@ -228,6 +228,13 @@ Milestone 6 implementation note:
 - `CORE_MANAGER` uses `DEVICE::getAudioManagerInterface()` instead of reading the audio interface pointer directly.
 - Render lists, `specificContextDevice`, camera, scene, pixel-perfect backend state, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 7 implementation note:
+
+- `DEVICE::Impl` now owns the private 2D camera scale cache used by screen/world coordinate helpers.
+- `CORE_MANAGER` updates that cache through a private `DEVICE::setCamera2dScaleCache()` helper instead of writing hidden fields directly.
+- The scale calculation timing remains unchanged in the normal update path and lost-device restore path.
+- Render lists, `specificContextDevice`, camera, scene, pixel-perfect backend state, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
