@@ -131,7 +131,7 @@ namespace mbm
 
     void CORE_MANAGER::setScene(SCENE *currentScene)
     {
-        this->device->scene = currentScene;
+        this->device->setScene(currentScene);
     }
 
     int CORE_MANAGER::onLoop(const bool singleLoop, const bool doSwapBuffers)
@@ -141,7 +141,7 @@ namespace mbm
         //if (loopCallCount <= 3)
         //    INFO_LOG("CORE_MANAGER::onLoop() call #%d singleLoop=%d doSwap=%d device=%p scene=%p",
         //             loopCallCount, (int)singleLoop, (int)doSwapBuffers, (void*)device,
-        //             device ? (void*)device->scene : nullptr);
+        //             device ? (void*)device->getScene() : nullptr);
         if (!device)
             return -1;
         if (!impl->loopVariablesInitialized)
@@ -176,8 +176,8 @@ namespace mbm
             INFO_JOYSTICK_INIT_PLAYER info;
             while (this->popEvent(&info))
             {
-                if (this->device->scene && this->__sceneWasInit)
-                    this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
+                if (this->device->getScene() && this->__sceneWasInit)
+                    this->device->getScene()->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
                         info.extraInfo.c_str());
             }
             
@@ -222,8 +222,8 @@ namespace mbm
                         this->_updateDimFrustum();
 
                         // Notify scene and plugins
-                        if (this->device->scene)
-                            this->device->scene->onResizeWindow();
+                        if (this->device->getScene())
+                            this->device->getScene()->onResizeWindow();
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -233,8 +233,8 @@ namespace mbm
                     break;
                     case ONTOUCHDOWN:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchDown(event.key, event.x, event.y);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onTouchDown(event.key, event.x, event.y);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -244,8 +244,8 @@ namespace mbm
                     break;
                     case ONTOUCHUP:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchUp(event.key, event.x, event.y);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onTouchUp(event.key, event.x, event.y);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -255,8 +255,8 @@ namespace mbm
                     break;
                     case ONTOUCHMOVE:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchMove(event.key, event.x, event.y);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onTouchMove(event.key, event.x, event.y);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -266,8 +266,8 @@ namespace mbm
                     break;
                     case ONTOUCHZOOM:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchZoom((float)event.key);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onTouchZoom((float)event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -277,8 +277,8 @@ namespace mbm
                     break;
                     case ONKEYDOWN:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDown(event.key);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onKeyDown(event.key);
                         #if defined(_WIN32) || defined(__MINGW32__)
                         if (event.key == VK_CAPITAL)
                         {
@@ -299,8 +299,8 @@ namespace mbm
                     break;
                     case ONKEYUP:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUp(event.key);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onKeyUp(event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -310,8 +310,8 @@ namespace mbm
                     break;
                     case ONDOUBLECLICK:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onDoubleClick(event.x, event.y, event.key);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onDoubleClick(event.x, event.y, event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -327,8 +327,8 @@ namespace mbm
                                            break;
                     case ONKEYDOWNJOYSTICK:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDownJoystick(event.player, event.key);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onKeyDownJoystick(event.player, event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -338,8 +338,8 @@ namespace mbm
                     break;
                     case ONKEYUPJOYSTICK:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUpJoystick(event.player, event.key);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onKeyUpJoystick(event.player, event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -349,8 +349,8 @@ namespace mbm
                     break;
                     case ONMOVEJOYSTICK:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
+                        if (this->device->getScene() && this->__sceneWasInit)
+                            this->device->getScene()->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
                             PLUGIN* plugin = this->getPlugin(i);
@@ -715,15 +715,15 @@ namespace mbm
     void CORE_MANAGER::updateAudio()
     {
         if(this->device->getAudioManagerInterface())
-            this->device->getAudioManagerInterface()->update(this,this->device->scene->getIdScene());
+            this->device->getAudioManagerInterface()->update(this,this->device->getScene()->getIdScene());
     }
     
     void CORE_MANAGER::updatePhysis()
     {
-        if (!this->device->scene)
+        if (!this->device->getScene())
             return;
         const float        fps            = this->device->delta == 0.0f ? 0.0f : this->device->fps; //-V550
-        const int          idCurrentScene = this->device->scene->getIdScene();
+        const int          idCurrentScene = this->device->getScene()->getIdScene();
         const uint32_t     s              = this->device->getTotalPhysics();
         for (uint32_t i = 0; i < s; ++i)
         {
@@ -762,34 +762,34 @@ namespace mbm
     
     void CORE_MANAGER::logic()
     {
-        if (this->device->scene != nullptr)
+        if (this->device->getScene() != nullptr)
         {
-            if (this->device->scene->endScene)
+            if (this->device->getScene()->endScene)
             {
-                this->device->scene->onFinalizeScene();
-                this->device->scene->wasUnloadedScene = true;
-                disableRender(this->device->scene->getIdScene());
+                this->device->getScene()->onFinalizeScene();
+                this->device->getScene()->wasUnloadedScene = true;
+                disableRender(this->device->getScene()->getIdScene());
                 for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
                 {
                     PLUGIN * plugin = this->getPlugin(i);
                     plugin->onDestroy();
                 }
                 this->clearPlugins();
-                if (this->device->scene->goToNextScene && this->device->scene->nextScene == nullptr)
+                if (this->device->getScene()->goToNextScene && this->device->getScene()->nextScene == nullptr)
                 {
                     this->device->setRun(false);
                     this->device->setClearBackGround(false);
                 }
                 else
                 {
-                    if (this->device->scene->goToNextScene)
-                        this->device->scene       = this->device->scene->nextScene;
-                    if(this->device->scene)
-                        this->device->scene->endScene = false;
+                    if (this->device->getScene()->goToNextScene)
+                        this->device->setScene(this->device->getScene()->nextScene);
+                    if(this->device->getScene())
+                        this->device->getScene()->endScene = false;
                     changeScene                   = true;
                     this->device->setClearBackGround(true);
-                    if(this->device->scene)
-                        this->device->scene->startLoading();
+                    if(this->device->getScene())
+                        this->device->getScene()->startLoading();
                 }
                 this->__sceneWasInit = false;
             }
@@ -804,17 +804,17 @@ namespace mbm
                     INFO_LOG("CORE_MANAGER::logic() calling scene->init()");
                     #endif
                     this->reinitTimers();
-                    enableRender(this->device->scene->getIdScene());
-                    this->device->scene->wasUnloadedScene = false;
+                    enableRender(this->device->getScene()->getIdScene());
+                    this->device->getScene()->wasUnloadedScene = false;
                     this->device->getOrderRender().reInit();
-                    this->device->scene->onInitScene();
+                    this->device->getScene()->onInitScene();
                     this->device->setFakeFps(120,60);
                     this->device->resumeTimer();
                     this->__sceneWasInit          = true;
                     changeScene                   = false;
                     this->device->setClearBackGround(true);
-                    if(this->device->scene)
-                        this->device->scene->endLoading();
+                    if(this->device->getScene())
+                        this->device->getScene()->endLoading();
                 }
                 else
                 {
@@ -824,7 +824,7 @@ namespace mbm
             }
             else
             {
-                this->device->scene->onLoop();
+                this->device->getScene()->onLoop();
             }
         }
     }
@@ -1025,8 +1025,8 @@ namespace mbm
                 device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
                 device->setDepthTest(false);
                 device->clearDepthColored();
-                if (device->scene)
-                    device->scene->onRestore(0); //true means: no call restore,  just to prepare the screen.
+                if (device->getScene())
+                    device->getScene()->onRestore(0); //true means: no call restore,  just to prepare the screen.
                 impl->stepRestore = STEP_RES_OBJ;
                 impl->whichFor = WFOR_INITIAL;
                 this->endRender();
@@ -1093,8 +1093,8 @@ namespace mbm
                         if (++j >= impl->totalForByLoop)
                         {
                             impl->percentRestoreInfo += impl->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
+                            if (device->getScene())
+                                device->getScene()->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1139,8 +1139,8 @@ namespace mbm
                         if (++j >= impl->totalForByLoop)
                         {
                             impl->percentRestoreInfo += impl->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
+                            if (device->getScene())
+                                device->getScene()->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1185,8 +1185,8 @@ namespace mbm
                         if (++j >= impl->totalForByLoop)
                         {
                             impl->percentRestoreInfo += impl->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
+                            if (device->getScene())
+                                device->getScene()->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1218,8 +1218,8 @@ namespace mbm
             device->setClearBackGround(true);
             if(impl->wasGamePausedBeforeOnStop == false)
                 this->device->resumeGame();
-            if (device->scene)
-                device->scene->onRestore(100);
+            if (device->getScene())
+                device->getScene()->onRestore(100);
             return true;
         }
         return false;
@@ -1331,7 +1331,7 @@ namespace mbm
      
      void CORE_MANAGER::pushEvent(EVENT_KEY* event)
      {
-         if (event && this->device->scene && this->__sceneWasInit)
+         if (event && this->device->getScene() && this->__sceneWasInit)
          {
              impl->mutexEvents.lock();
              if (event->eventType == impl->lastEvent.eventType)
@@ -1485,7 +1485,7 @@ namespace mbm
      void CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER* info)
      {
          impl->mutexEvents.lock();
-         if (this->device->scene && this->__sceneWasInit)
+         if (this->device->getScene() && this->__sceneWasInit)
          {
              impl->joystickInfoEvents.push_back(*info);
          }

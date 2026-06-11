@@ -486,11 +486,11 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_mini_mbm_MbmActivity_nativeOnCallBackCommands(
     JNIEnv *env, jobject /*obj*/, jstring param1, jstring param2)
 {
-    if (!s_game || !s_game->device || !s_game->device->scene)
+    if (!s_game || !s_game->device || !s_game->device->getScene())
         return;
     const char *p1 = param1 ? env->GetStringUTFChars(param1, nullptr) : nullptr;
     const char *p2 = param2 ? env->GetStringUTFChars(param2, nullptr) : nullptr;
-    s_game->device->scene->onCallBackCommands(p1 ? p1 : "", p2 ? p2 : "");
+    s_game->device->getScene()->onCallBackCommands(p1 ? p1 : "", p2 ? p2 : "");
     if (p1) env->ReleaseStringUTFChars(param1, p1);
     if (p2) env->ReleaseStringUTFChars(param2, p2);
 }

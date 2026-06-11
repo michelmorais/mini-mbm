@@ -44,7 +44,7 @@ namespace mbm
     {
         DEVICE * device = DEVICE::getInstance();
         this->particleSystem =  nullptr;
-        this->steered_particle = new STEERED_PARTICLE(device->scene,is3d,is2dScreen,segmented,_scale_physics_engine);
+        this->steered_particle = new STEERED_PARTICLE(device->getScene(),is3d,is2dScreen,segmented,_scale_physics_engine);
     }
 
     INFO_FLUID::~INFO_FLUID()noexcept

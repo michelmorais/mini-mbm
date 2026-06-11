@@ -151,7 +151,7 @@ namespace mbm
         PRINT_IF_DEBUG( "free tile [%s] [%d]\n", fileName ? fileName : "NULL", num++);
 #endif
         DEVICE *             device = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(tile);
         delete tile;
         return 0;
@@ -740,7 +740,7 @@ namespace mbm
         PRINT_IF_DEBUG( "free tile_obj [%s] [%d]\n", fileName ? fileName : "NULL", num++);
 #endif
         DEVICE * device = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(tileObj);
         return 0;
     }
@@ -813,7 +813,7 @@ namespace mbm
         lua_setmetatable(lua, -2);
         DEVICE *         device = DEVICE::getInstance();
         auto **           udata = static_cast<TILE **>(lua_newuserdata(lua, sizeof(TILE *)));
-        auto               tile = new TILE(device->scene, is3d, is2ds);
+        auto               tile = new TILE(device->getScene(), is3d, is2ds);
         auto tableLuaMbm        = new USER_DATA_RENDER_LUA();
         tile->userData          = tableLuaMbm;
         *udata = tile;

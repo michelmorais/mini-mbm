@@ -487,7 +487,7 @@ namespace mbm
         **********************************
         */
         DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         CAMERA *             camera    = &device->camera;
         const char *         what      = luaL_checkstring(lua, 2);
         const int            len       = static_cast<int>(strlen(what));
@@ -540,7 +540,7 @@ namespace mbm
         **********************************
         */
         DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         CAMERA *             camera    = &device->camera;
         const char *         what      = luaL_checkstring(lua, 2);
         const int            len       = static_cast<int>(strlen(what));
@@ -597,7 +597,7 @@ namespace mbm
         **********************************
         */
         DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         CAMERA *             camera    = &device->camera;
         const char *         what      = luaL_checkstring(lua, 2);
         const int            len       = static_cast<int>(strlen(what));
@@ -649,7 +649,7 @@ namespace mbm
         **********************************
         */
         DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         CAMERA *             camera    = &device->camera;
         const char *         what      = luaL_checkstring(lua, 2);
         const int            len       = static_cast<int>(strlen(what));

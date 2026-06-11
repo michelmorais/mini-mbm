@@ -60,7 +60,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",mesh->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(mesh);
         delete mesh;
         return 0;
@@ -82,7 +82,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",mesh->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(mesh);
         return 0;
     }
@@ -201,7 +201,7 @@ namespace mbm
 
         auto **      udata  = static_cast<MESH **>(lua_newuserdata(lua, sizeof(MESH *)));
         DEVICE *device = DEVICE::getInstance();
-        auto        mesh   = new MESH(device->scene, is3d, is2ds);
+        auto        mesh   = new MESH(device->getScene(), is3d, is2ds);
         mesh->userData      = new USER_DATA_RENDER_LUA();
         *udata              = mesh;
         if (position.x != 0.0f) //-V550

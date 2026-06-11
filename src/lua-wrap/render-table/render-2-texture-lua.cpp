@@ -68,7 +68,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",render2texture->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(render2texture);
         delete render2texture;
         return 0;
@@ -499,7 +499,7 @@ namespace mbm
         lua_setmetatable(lua, -2);
         DEVICE *      device              = DEVICE::getInstance();
         auto **udata                      = static_cast<RENDER_2_TEXTURE **>(lua_newuserdata(lua, sizeof(RENDER_2_TEXTURE *)));
-        auto  render2texture              = new RENDER_2_TEXTURE(device->scene, is3d, is2ds);
+        auto  render2texture              = new RENDER_2_TEXTURE(device->getScene(), is3d, is2ds);
         render2texture->userData          = new USER_DATA_RENDER_LUA();
         *udata                            = render2texture;
         if (position.x != 0.0f) //-V550

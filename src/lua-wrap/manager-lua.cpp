@@ -126,7 +126,7 @@ namespace mbm
             auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
             if (luaManager)
             {
-                auto *curScene = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+                auto *curScene = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
                 if(curScene && curScene->splashRenderizable)
                 {
                     auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(curScene->splashRenderizable->userData);
@@ -519,9 +519,9 @@ namespace mbm
                     auto newScene     = new SCENE_SCRIPT(this->getSceneName(), true, this->splashRenderizable);
                     auto *luaManager  = static_cast<LUA_MANAGER *>(device->getCoreManager());
                     luaManager->lsScene.push_back(newScene);
-                    device->scene->nextScene     = newScene;
-                    device->scene->goToNextScene = true;
-                    device->scene->endScene      = true;
+                    device->getScene()->nextScene     = newScene;
+                    device->getScene()->goToNextScene = true;
+                    device->getScene()->endScene      = true;
                     this->time_resize_window           = 0.0f;
                 }
             }*/
@@ -1369,7 +1369,7 @@ namespace mbm
         int LUA_MANAGER::run()
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            if (device->scene && this->lsScene.size()) // is there an initial scene?
+            if (device->getScene() && this->lsScene.size()) // is there an initial scene?
             {
                 SCENE_SCRIPT *newScene = this->lsScene[0];
                 this->setScene(newScene);
@@ -1764,7 +1764,7 @@ namespace mbm
                 std::string nameSceneTmp(nameScene);
                 log_util::replaceString(nameSceneTmp,"\\\\","/");
                 log_util::replaceString(nameSceneTmp,"\\","/");
-                auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+                auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
                 curScene->loadSceneOnFirstLoop        = true;
                 curScene->strNameSceneLoadOnFirtLoop = std::move(nameSceneTmp);
                 lua_pushboolean(lua, 1);
@@ -1772,14 +1772,14 @@ namespace mbm
             }
             
             const std::string newSceneName(nameScene ? nameScene : "");
-            if (device->scene && access_file(newSceneName.c_str(), 0) == 0)
+            if (device->getScene() && access_file(newSceneName.c_str(), 0) == 0)
             {
-                auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+                auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
                 auto newScene = new SCENE_SCRIPT(newSceneName.c_str(), false, curScene->splashRenderizable);
                 luaManager->lsScene.push_back(newScene);
-                device->scene->nextScene     = newScene;
-                device->scene->goToNextScene = true;
-                device->scene->endScene      = true;
+                device->getScene()->nextScene     = newScene;
+                device->getScene()->goToNextScene = true;
+                device->getScene()->endScene      = true;
 
                 if (tSplash == LUA_TTABLE)//add or replace renderizable
                 {
@@ -1855,17 +1855,17 @@ namespace mbm
                         const char *  nameScene = util::getFullPath(nameMainScene,nullptr);
                         if (access_file(nameScene, 0) == 0)
                         {
-                            auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+                            auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
                             auto newScene = new SCENE_SCRIPT(nameScene, luaManager->noSplash,curScene->splashRenderizable);
                             luaManager->lsScene.push_back(newScene);
-                            luaManager->device->scene->nextScene     = newScene;
-                            luaManager->device->scene->goToNextScene = true;
-                            luaManager->device->scene->endScene      = true;
+                            luaManager->device->getScene()->nextScene     = newScene;
+                            luaManager->device->getScene()->goToNextScene = true;
+                            luaManager->device->getScene()->endScene      = true;
                         }
                         else
                         {
                             ERROR_LOG("Scene not found:[%s]", nameScene);
-                            luaManager->device->scene->endScene = true;
+                            luaManager->device->getScene()->endScene = true;
                         }
                     }
                 }
@@ -1912,7 +1912,7 @@ namespace mbm
         auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
         if(luaManager)
         {
-            auto *curScene   = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+            auto *curScene   = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
             if(curScene)
             {
                 lua_print_line(curScene->getLuaState() ,TYPE_LOG_ERROR,"Attempt to get root cause...");
@@ -1925,7 +1925,7 @@ namespace mbm
         auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
         if(luaManager)
         {
-            auto *curScene   = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+            auto *curScene   = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
             if(curScene)
             {
                 lua_State* lua = curScene->getLuaState();

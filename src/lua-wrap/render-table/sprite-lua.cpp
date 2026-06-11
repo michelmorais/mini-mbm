@@ -59,7 +59,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",sprite->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(sprite);
         delete sprite;
         return 0;
@@ -81,7 +81,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",sprite->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(sprite);
         return 0;
     }
@@ -154,7 +154,7 @@ namespace mbm
         lua_setmetatable(lua, -2);
         DEVICE *         device      = DEVICE::getInstance();
         auto **             udata       = static_cast<SPRITE **>(lua_newuserdata(lua, sizeof(SPRITE *)));
-        auto               sprite      = new SPRITE(device->scene, is3d, is2ds);
+        auto               sprite      = new SPRITE(device->getScene(), is3d, is2ds);
         auto tableLuaMbm = new USER_DATA_RENDER_LUA();
         sprite->userData                  = tableLuaMbm;
         *udata                            = sprite;

@@ -61,7 +61,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",gifView->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(gifView);
         delete gifView;
         return 0;
@@ -83,7 +83,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",gifView->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(gifView);
         return 0;
     }
@@ -219,7 +219,7 @@ namespace mbm
         lua_setmetatable(lua, -2);
 
 		auto **   udata     = static_cast<GIF_VIEW **>(lua_newuserdata(lua, sizeof(void *)));
-        auto gifView			= new GIF_VIEW(device->scene, is3d, is2ds);
+        auto gifView			= new GIF_VIEW(device->getScene(), is3d, is2ds);
         gifView->userData       = new USER_DATA_RENDER_LUA();
         *udata                    = gifView;
         if (position.x != 0.0f) //-V550

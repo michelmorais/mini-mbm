@@ -97,7 +97,7 @@ namespace mbm
     void lua_box2d_onBox2dDestroyBodyFromList(RENDERIZABLE* ptr)
     {
         DEVICE * device = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         lua_State * lua = userScene->lua;
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         //if we have animation callback we dont want to take off the reference
@@ -1830,7 +1830,7 @@ namespace mbm
         lua_setmetatable(lua, -2);
         auto **udata     = static_cast<PHYSICS_BOX2D **>(lua_newuserdata(lua, sizeof(PHYSICS_BOX2D *)));
         DEVICE *   device		  = DEVICE::getInstance();
-        auto  box2d				  = new PHYSICS_BOX2D(device->scene);
+        auto  box2d				  = new PHYSICS_BOX2D(device->getScene());
         box2d->userData           = new USER_DATA_PHYSICS_2D();
         *udata                    = box2d;
         box2d->setScale(scaleWorld);
@@ -1878,7 +1878,7 @@ namespace mbm
             auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->ptr->userData);
             auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->ptr->userData);
             DEVICE *             device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
             lua_State *               lua       = userScene->lua;
             USER_DATA_PHYSICS_2D *    uData     = box2d->userData;
             switch (idEvent)

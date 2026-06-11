@@ -245,8 +245,8 @@ void MiniMbmEngine_onInfoDeviceJoystick(JNIEnv *env, jobject obj, int player, in
 
 /*void MiniMbmEngine_onEndSceneByQuiting(JNIEnv *env, jobject obj)
 {
-    if (game && game->device->scene && game->__sceneWasInit && game->device->scene->wasUnloadedScene == false)
-        game->device->scene->onFinalizeScene();
+    if (game && game->device->getScene() && game->__sceneWasInit && game->device->getScene()->wasUnloadedScene == false)
+        game->device->getScene()->onFinalizeScene();
 }*/
 
 bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint height)
@@ -303,32 +303,32 @@ void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
 
 void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, jstring param2)
 {
-    if (env && game && game->device && game->device->scene && game->device->scene->userData)
+    if (env && game && game->device && game->device->getScene() && game->device->getScene()->userData)
     {
         if (param1 && param2)
         {
             const char *p1 = env->GetStringUTFChars(param1, nullptr);
             const char *p2 = env->GetStringUTFChars(param2, nullptr);
-            game->device->scene->onCallBackCommands(p1, p2);
+            game->device->getScene()->onCallBackCommands(p1, p2);
             env->ReleaseStringUTFChars(param1, p1);
             env->ReleaseStringUTFChars(param2, p2);
         }
         else if (param1)
         {
             const char *p1 = env->GetStringUTFChars(param1, nullptr);
-            game->device->scene->onCallBackCommands(p1, "NULL");
+            game->device->getScene()->onCallBackCommands(p1, "NULL");
             env->ReleaseStringUTFChars(param1, p1);
         }
         else if (param2)
         {
             const char *p2 = env->GetStringUTFChars(param2, nullptr);
-            game->device->scene->onCallBackCommands("NULL", p2);
+            game->device->getScene()->onCallBackCommands("NULL", p2);
             env->ReleaseStringUTFChars(param2, p2);
         }
         else
         {
             ERROR_AT(__LINE__,__FILE__,"Call back expected command [%d] [%s] [%s]",__LINE__,"NULL","NULL");
-            game->device->scene->onCallBackCommands("NULL", "NULL");
+            game->device->getScene()->onCallBackCommands("NULL", "NULL");
         }
     }
     else 
@@ -341,13 +341,13 @@ void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, 
         {
             ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device is null!");
         }
-        else if(game->device->scene == nullptr)
+        else if(game->device->getScene() == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device->scene is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device->getScene() is null!");
         }
-        else if(game->device->scene->userData == nullptr)
+        else if(game->device->getScene()->userData == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device->scene->userData is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device->getScene()->userData is null!");
         }
         else if(env == nullptr)
         {

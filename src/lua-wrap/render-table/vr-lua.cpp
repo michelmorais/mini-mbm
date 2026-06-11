@@ -63,7 +63,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",vr->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(vr);
         delete vr;
         return 0;
@@ -93,7 +93,7 @@ namespace mbm
         lua_setmetatable(lua, -2);
         DEVICE *device = DEVICE::getInstance();
         auto **       udata  = static_cast<HMD **>(lua_newuserdata(lua, sizeof(HMD *)));
-        auto         vr     = new HMD(device->scene);
+        auto         vr     = new HMD(device->getScene());
         
         *udata = vr;
         vr->load();

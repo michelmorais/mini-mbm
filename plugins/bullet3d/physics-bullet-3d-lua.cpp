@@ -381,7 +381,7 @@ struct USER_DATA_PHYSICS_3D
         if (uData->szBeginContact[0])
         {
             DEVICE *             device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
             lua_State *               lua       = userScene->lua;
             auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
             auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
@@ -402,7 +402,7 @@ struct USER_DATA_PHYSICS_3D
         if (uData->szEndContact[0])
         {
             DEVICE *             device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
             lua_State *               lua       = userScene->lua;
             auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
             auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
@@ -423,7 +423,7 @@ struct USER_DATA_PHYSICS_3D
         if (uData->szKeepContact[0])
         {
             DEVICE *             device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
             lua_State *               lua       = userScene->lua;
             auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
             auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
@@ -555,7 +555,7 @@ struct USER_DATA_PHYSICS_3D
         lua_setmetatable(lua, -2);
         auto **udata    = static_cast<PHYSICS_BULLET **>(lua_newuserdata(lua, sizeof(PHYSICS_BULLET *)));
         DEVICE *    device        = DEVICE::getInstance();
-        auto  bullet3d            = new PHYSICS_BULLET(device->scene);
+        auto  bullet3d            = new PHYSICS_BULLET(device->getScene());
         bullet3d->userData3d      = new USER_DATA_PHYSICS_3D();
         *udata                    = bullet3d;
         bullet3d->scale           = scale;

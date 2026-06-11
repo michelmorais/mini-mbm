@@ -80,7 +80,7 @@ namespace mbm
         #endif
         
         mbm::DEVICE *device = mbm::DEVICE::getInstance();
-        const int idScene = device->scene ? device->scene->getIdScene() : -1;
+        const int idScene = device->getScene() ? device->getScene()->getIdScene() : -1;
         const size_t s1 = impl->audios.size();
         // Only reuse an existing instance if it is NOT currently playing.
         // Reusing a playing instance would interrupt it — causing the "muted"
@@ -212,7 +212,7 @@ namespace mbm
         }
         else if(audio)
         {
-            auto scene = mbm::DEVICE::getInstance()->scene;
+            auto scene = mbm::DEVICE::getInstance()->getScene();
             if(audio->idScene != scene->getIdScene())
                 this->destroy(audio);
         }

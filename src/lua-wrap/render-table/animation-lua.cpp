@@ -128,7 +128,7 @@ namespace mbm
         {
             auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(renderer->userData);
             DEVICE *         device    = DEVICE::getInstance();
-            auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
             lua_State *           lua       = sceneData->lua;
             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_CallBackAnimation);
             if (lua_isfunction(lua, -1))
@@ -151,7 +151,7 @@ namespace mbm
         {
             auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->userData);
             DEVICE *         device = DEVICE::getInstance();
-            auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
             lua_State *           lua = sceneData->lua;
             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_CallBackEffectShader);
             if (lua_isfunction(lua, -1))

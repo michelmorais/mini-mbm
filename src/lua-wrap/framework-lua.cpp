@@ -408,7 +408,7 @@ namespace mbm
             RENDERIZABLE * ptr  = getRenderizableFromRawTable(lua, 1, 1);
             auto *    userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
             DEVICE *  device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
             bool inTheList = false;
             for (auto ptr2 : userScene->lsLuaCallBackOnTouchAsynchronous)
             {
@@ -1712,7 +1712,7 @@ namespace mbm
     int onGetSceneName(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        lua_pushstring(lua, device->scene->getSceneName());
+        lua_pushstring(lua, device->getScene()->getSceneName());
         return 1;
     }
    
@@ -2552,7 +2552,7 @@ namespace mbm
             {"lua_gc", onLuaGC},
             {nullptr, nullptr}};
         DEVICE *device = DEVICE::getInstance();
-        device->scene       = scene;
+        device->setScene(scene);
 
         lua_newtable(lua);
         luaL_setfuncs(lua, regMbmFrameworkMethods, 0);
@@ -2644,7 +2644,7 @@ namespace mbm
         const int len_searchers = luaL_len(lua,-1);
         lua_pushcfunction(lua, __luaB_searchLuaModule);
         lua_rawseti(lua, -2,len_searchers + 1);
-        auto *userScene  = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene  = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->oldPanicFunction     = lua_atpanic(lua, onPanic);
         lua_settop(lua,0);
     }

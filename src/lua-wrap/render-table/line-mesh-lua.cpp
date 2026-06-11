@@ -63,7 +63,7 @@ namespace mbm
         PRINT_IF_DEBUG( "free lineMesh [%s] [%d]\n", fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(lineMesh);
         delete lineMesh;
         return 0;
@@ -284,7 +284,7 @@ namespace mbm
 
         auto **      udata    = static_cast<void **>(lua_newuserdata(lua, sizeof(void *)));
         DEVICE *device   = DEVICE::getInstance();
-        auto   lineMesh = new LINE_MESH(device->scene, is3d, is2ds);
+        auto   lineMesh = new LINE_MESH(device->getScene(), is3d, is2ds);
         lineMesh->userData    = new USER_DATA_RENDER_LUA();
         *udata                = lineMesh;
         if (position.x != 0.0f) //-V550

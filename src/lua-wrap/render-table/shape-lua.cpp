@@ -75,7 +75,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",shape->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         userScene->remove(shape);
         delete shape;
         return 0;
@@ -577,7 +577,7 @@ namespace mbm
 	{
         auto *userData   = static_cast<USER_DATA_SHAPE_LUA *>(shape->userData);
 		DEVICE * device  = DEVICE::getInstance();
-        auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         lua_State * lua  = sceneData->lua;
         lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_CallBackEditVertexBuffer);
         if (lua_isfunction(lua, -1))
@@ -734,7 +734,7 @@ namespace mbm
 
         auto **udata  = static_cast<SHAPE_MESH **>(lua_newuserdata(lua, sizeof(SHAPE_MESH *)));
         DEVICE *device = DEVICE::getInstance();
-        auto  shape  = new SHAPE_MESH(device->scene, is3d, is2ds);
+        auto  shape  = new SHAPE_MESH(device->getScene(), is3d, is2ds);
 		auto userDataShape  = new USER_DATA_SHAPE_LUA();
         shape->userData     = userDataShape;
         *udata              = shape;

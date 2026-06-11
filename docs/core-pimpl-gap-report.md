@@ -36,7 +36,7 @@ High-impact examples:
 
 | Header | Public state that blocks strict PIMPL |
 |---|---|
-| `include/core_mbm/device.h` | `camera`, `scene`. |
+| `include/core_mbm/device.h` | `camera`. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`, `changeScene`, `__sceneWasInit`, key/window flags. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
@@ -462,6 +462,13 @@ Milestone 39 implementation note:
 - Dynamic variable ownership cleanup remains in `DEVICE::~DEVICE()`, now deleting entries from the hidden `Impl` map.
 - `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, run flag, backbuffer size, core manager pointer, shader config, render order, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 40 implementation note:
+
+- `DEVICE::scene` is now stored behind `DEVICE::Impl` instead of being a public `DEVICE` data member.
+- Added `DEVICE::setScene()` and `DEVICE::getScene()` so core scene transitions, event dispatch, audio scene lookup, Lua scene/user-data access, render constructors, plugin physics wrappers, and Android/iOS native callback routing no longer depend on direct `DEVICE` layout access.
+- `CORE_MANAGER::setScene()` remains the main lifecycle entry point and now delegates to the hidden `DEVICE` scene slot.
+- `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, run flag, backbuffer size, core manager pointer, shader config, render order, dynamic globals, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -490,7 +497,7 @@ This mainly improves header hygiene and ABI layout.
 
 Before hiding public fields, add and use methods for:
 
-- `DEVICE`: camera, screen size, dynamic globals, scene pointer, render ordering, and other remaining gameplay-facing state.
+- `DEVICE`: camera and any remaining compatibility wrappers around gameplay-facing state.
 - `RENDERIZABLE`: transform, visibility, blend, user data, dynamic vars.
 - `SCENE`: scene transition state and user data.
 - `ANIMATION_MANAGER`: animation list/index/callback access.

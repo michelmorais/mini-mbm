@@ -66,8 +66,8 @@ static MbmCommandBridge* s_commandBridge = nil;
 extern "C" void mbm_ios_onCallBackCommands(const char * _Nonnull cmdName,
                                            const char * _Nonnull result)
 {
-    if (s_game && s_game->device && s_game->device->scene)
-        s_game->device->scene->onCallBackCommands(cmdName, result);
+    if (s_game && s_game->device && s_game->device->getScene())
+        s_game->device->getScene()->onCallBackCommands(cmdName, result);
 }
 
 /// Registered as LUA_MANAGER::onDoNativeCommand.

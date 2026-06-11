@@ -598,7 +598,7 @@ namespace mbm
         const int    top              = lua_gettop(lua);
         const char * fileName         = luaL_checkstring(lua, 2);
         DEVICE *device                = DEVICE::getInstance();
-        auto   font                   = new FONT_DRAW(device->scene);
+        auto   font                   = new FONT_DRAW(device->getScene());
         const float  heightFont       = top > 2 ? luaL_checknumber(lua, 3) : 50.0f;
         const short  spaceWidth       = top > 3 ? (short)luaL_checkinteger(lua, 4) : (const short)(heightFont*0.1f);
         const short  spaceHeight      = top > 4 ? (short)luaL_checkinteger(lua, 5) : 0;

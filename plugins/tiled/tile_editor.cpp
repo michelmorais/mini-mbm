@@ -770,7 +770,7 @@ namespace mbm
                 if (line_tileSetPreview == nullptr)
                 {
                     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                    line_tileSetPreview = new mbm::LINE_MESH(device->scene, false, false);
+                    line_tileSetPreview = new mbm::LINE_MESH(device->getScene(), false, false);
                 }
 
                 line_tileSetPreview->release();

@@ -197,7 +197,7 @@ namespace mbm
 		const int   top		= lua_gettop(lua);
         device->setRun(false);
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
-        device->scene->onFinalizeScene();
+        device->getScene()->onFinalizeScene();
     #ifdef ANDROID
         device->getSpecificContextDevice()->callQuit();
     #endif
@@ -1319,7 +1319,7 @@ namespace mbm
     int onPanic(lua_State *lua)
     {
         DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
         const char *    error     = lua_tostring(lua, -1);
         std::string               strErr(error ? error : "undefined");
         ERROR_LOG("%s",strErr.c_str());

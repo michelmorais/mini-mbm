@@ -1879,7 +1879,7 @@ int onNewTileEditorLua(lua_State *lua)
     lua_setmetatable(lua, -2);
     mbm::DEVICE* device       = mbm::DEVICE::getInstance();
     mbm::TILE_EDITOR **udata  = static_cast<mbm::TILE_EDITOR **>(lua_newuserdata(lua, sizeof(mbm::TILE_EDITOR*)));
-    mbm::TILE_EDITOR * that   = new mbm::TILE_EDITOR(device->scene); // always 2dw
+    mbm::TILE_EDITOR * that   = new mbm::TILE_EDITOR(device->getScene()); // always 2dw
     *udata                    = that;
 
     /* Make our class as plugin mbm compatible to the engine. */

@@ -53,11 +53,12 @@ namespace mbm
       public:
         CAMERA camera;
     
-        SCENE *             scene;
         API_IMPL static DEVICE *     getInstance();
         API_IMPL void initializeSpecificContext();
         API_IMPL void destroySpecificContext();
         API_IMPL SPECIFIC_AUX_CONTEXT_DEVICE * getSpecificContextDevice() const noexcept;
+        API_IMPL void setScene(SCENE *scene) noexcept;
+        API_IMPL SCENE * getScene() const noexcept;
         API_IMPL void setAppReturnCode(const int returnCode) noexcept;
         API_IMPL int getAppReturnCode() const noexcept;
         API_IMPL static void quit();

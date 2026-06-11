@@ -54,6 +54,7 @@ namespace mbm
         mbm::ORDER_RENDER orderRender;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
+        SCENE *scene = nullptr;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
         uint32_t totalObjectsIsRendering3D = 0;
@@ -88,7 +89,6 @@ namespace mbm
     DEVICE::DEVICE()
         : impl(new Impl())
     {
-        scene                      = nullptr;
     }
 
     void DEVICE::setCamera2dScaleCache(const float percX, const float percY) noexcept
@@ -110,6 +110,16 @@ namespace mbm
     SPECIFIC_AUX_CONTEXT_DEVICE * DEVICE::getSpecificContextDevice() const noexcept
     {
         return impl->specificContextDevice;
+    }
+
+    void DEVICE::setScene(SCENE *scene) noexcept
+    {
+        impl->scene = scene;
+    }
+
+    SCENE * DEVICE::getScene() const noexcept
+    {
+        return impl->scene;
     }
 
     void DEVICE::setTotalObjectsOnFrustum3D(const uint32_t total) noexcept
@@ -499,7 +509,7 @@ namespace mbm
         impl->isGamePaused = true;
         this->pauseTimer();
         if(impl->audioInterface)
-            impl->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
+            impl->audioInterface->pauseAll(impl->scene ? impl->scene->getIdScene() : 0);
     }
     
     void DEVICE::resumeGame()
@@ -507,7 +517,7 @@ namespace mbm
         impl->isGamePaused = false;
         this->resumeTimer();
         if (impl->audioInterface)
-            impl->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);
+            impl->audioInterface->resumeAll(impl->scene ? impl->scene->getIdScene() : 0);
     }
     
     void DEVICE::addPhysics(PHYSICS *physics)
@@ -1058,8 +1068,8 @@ namespace mbm
 
     void * DEVICE::get_lua_state()//if we are using lua we should be able to retrieve the current state
     {
-        if(this->scene)
-            return this->scene->get_lua_state();
+        if(impl->scene)
+            return impl->scene->get_lua_state();
         return nullptr;
     }
 
