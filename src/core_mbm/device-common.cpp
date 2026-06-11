@@ -45,6 +45,7 @@ namespace mbm
         std::vector<RENDERIZABLE *> render3D;
         std::vector<RENDERIZABLE *> render2DW;
         std::vector<RENDERIZABLE *> render2DS;
+        SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -100,12 +101,12 @@ namespace mbm
 
     void DEVICE::setSpecificContextDevice(SPECIFIC_AUX_CONTEXT_DEVICE *context) noexcept
     {
-        specificContextDevice = context;
+        impl->specificContextDevice = context;
     }
 
     SPECIFIC_AUX_CONTEXT_DEVICE * DEVICE::getSpecificContextDevice() const noexcept
     {
-        return specificContextDevice;
+        return impl->specificContextDevice;
     }
 
     uint32_t DEVICE::getTotalPhysics() const noexcept

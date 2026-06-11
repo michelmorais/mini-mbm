@@ -22,7 +22,7 @@ The current codebase is not designed this way yet. It is mostly a public-data en
 |---|---|---|
 | `AUDIO` | Partly converted | `include/core_mbm/audio.h` uses `struct BackendData; std::unique_ptr<BackendData> backend;`. Backend state is now in backend implementation files. |
 | `AUDIO_MANAGER` | Partly converted | Shared manager code delegates setup, teardown, and update through private backend hooks. |
-| `DEVICE::specificContextDevice` | Opaque by type only | The concrete type is forward-declared in `device.h`, but the pointer is public and engine/platform code reaches through it directly. |
+| `DEVICE::specificContextDevice` | Converted | The pointer is now stored behind `DEVICE::Impl`; backend code reaches it through `DEVICE::getSpecificContextDevice()`. |
 | Shader resources | Partly hidden | Built-in shader code is hidden behind functions, but runtime shader/buffer objects still expose backend handles. |
 | Manager caches | Private but not PIMPL | Several managers keep private containers in public headers. That hides access, but still exposes layout and forces container includes. |
 
@@ -36,7 +36,7 @@ High-impact examples:
 
 | Header | Public state that blocks strict PIMPL |
 |---|---|
-| `include/core_mbm/device.h` | `verbose`, `run`, `backBufferWidth`, `backBufferHeight`, `colorClearBackGround`, `camera`, render counters, `cfg`, global dynamic vars, `specificContextDevice`, `scene`, `orderRender`, window position. |
+| `include/core_mbm/device.h` | `verbose`, `run`, `backBufferWidth`, `backBufferHeight`, `colorClearBackGround`, `camera`, render counters, `cfg`, global dynamic vars, `scene`, `orderRender`, window position. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`, `changeScene`, `__sceneWasInit`, key/window flags. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
@@ -57,7 +57,7 @@ The strongest PIMPL candidate is backend-owned rendering state. These fields sho
 
 | Header | Exposed backend state | Suggested destination |
 |---|---|---|
-| `include/core_mbm/device.h` | `SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice` | `DEVICE::BackendData` or `DEVICE::Impl`, with backend helper functions in `.cpp` files. |
+| `include/core_mbm/device.h` | `SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice` | Done: stored in `DEVICE::Impl`, with backend helper functions in `.cpp` files. |
 | `include/core_mbm/shader.h` | `BUFFER_GL::BUFFER_SPECIFIC *bs` | `BUFFER_GL::BackendData`. |
 | `include/core_mbm/shader.h` | `SHADER::void *ptrShaderSpecific` | `SHADER::BackendData`. |
 | `include/core_mbm/texture-manager.h` | `TEXTURE::idTexture/ptrTexture` union | `TEXTURE::BackendData`, with backend-only accessors in implementation files. |
@@ -355,6 +355,13 @@ Milestone 24 implementation note:
 - Migrated ImGui Metal frame setup and draw-data rendering context lookups, and updated bridge/backend instruction comments to document the accessor path.
 - This completes the currently identified direct `specificContextDevice` call-site migration; the pointer remains public until it is moved behind `DEVICE::Impl` in a later milestone.
 - `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
+Milestone 25 implementation note:
+
+- `DEVICE::specificContextDevice` is now stored behind `DEVICE::Impl` instead of being a public `DEVICE` data member.
+- `DEVICE::setSpecificContextDevice()` and `DEVICE::getSpecificContextDevice()` preserve the existing backend ownership boundary for context creation, release, and lookup.
+- Updated the current-state report and backend instructions so new backend code does not depend on direct `DEVICE` layout access.
+- `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
 ### Phase 3 - Hide renderer backend handles
 

@@ -68,7 +68,6 @@ namespace mbm
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         VEC3                dimFarFrustum3d, dimNearFrustum3d;
         CORE_MANAGER *      ptrManager;
-        SPECIFIC_AUX_CONTEXT_DEVICE* specificContextDevice = nullptr;
         SCENE *             scene;
         bool                clearBackGround;
         
