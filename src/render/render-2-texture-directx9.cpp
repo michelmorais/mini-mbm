@@ -91,7 +91,7 @@ namespace mbm
         // they are GPU - exclusive.You need to use GetRenderTargetData() to copy from GPU to system memory first.
         const int channel = this->texture->useAlphaChannel ? 4 : 3;
         const int sizeImage = _width * _height * channel;
-        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         D3DSURFACE_DESC	descSurfaceDest;
         std::vector<uint8_t> imageData(sizeImage);
 

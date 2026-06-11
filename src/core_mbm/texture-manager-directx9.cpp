@@ -143,7 +143,7 @@ namespace mbm
                                 const uint32_t width, const uint32_t height,
                                 const uint16_t channel, const bool hasAlpha)
     {
-        auto pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        auto pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         D3DFORMAT requested_format = D3DFMT_A8R8G8B8;
         PIXELS_FROM_3_DEPTH_TO_4 pixels_from_3_depth_to_4;
         IDirect3DSurface9* surfaceDest = nullptr;
@@ -369,7 +369,7 @@ namespace mbm
         D3DXIMAGE_INFO infoTexture;
         infoTexture.Width = 0;
         infoTexture.Height = 0;
-        auto pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        auto pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         if (SUCCEEDED(D3DXGetImageInfoFromFileA(fileName, &infoTexture)))
         {
             tex->width = infoTexture.Width;
@@ -429,7 +429,7 @@ namespace mbm
         std::string fileNameBase    = util::getBaseName(nickName);
         const auto width            = static_cast<int>(renderToTarget->widthTexture);
         const auto height           = static_cast<int>(renderToTarget->heightTexture);
-        auto pd3dDevice             = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        auto pd3dDevice             = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
 
         if (fileNameBase.size() == 0)
             return nullptr;

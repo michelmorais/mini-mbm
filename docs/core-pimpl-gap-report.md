@@ -314,6 +314,13 @@ Milestone 18 implementation note:
 - DirectX9 shader, texture, and render-target implementation files are left for later backend-specific milestones.
 - `specificContextDevice` remains public for compatibility; `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 19 implementation note:
+
+- DirectX9 texture-manager and render-to-texture implementation files now use `DEVICE::getSpecificContextDevice()` instead of reading `DEVICE::specificContextDevice` directly.
+- Migrated DirectX9 dynamic texture creation, file texture loading, render-target texture creation, and render-target pixel readback device access.
+- The larger DirectX9 shader implementation remains separate for a later backend-specific milestone.
+- `specificContextDevice` remains public for compatibility; `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
