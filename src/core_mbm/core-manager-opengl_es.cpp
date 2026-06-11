@@ -136,8 +136,12 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     bool CORE_MANAGER::renderToTargets()
     {
         bool oneRender = false;
-        for (auto renderTarget : this->device->lsObjectRenderToTarget)
+        const uint32_t totalRenderTargets = this->device->getTotalRenderTargets();
+        for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
+            auto renderTarget = this->device->getRenderTarget(i);
+            if (!renderTarget)
+                continue;
             if (!renderTarget->isObjectOnFrustum)
                 continue;
             const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTarget->specificConfig);

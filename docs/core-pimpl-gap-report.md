@@ -249,6 +249,14 @@ Milestone 9 implementation note:
 - `CORE_MANAGER::updatePhysis()` iterates through private `DEVICE` helpers instead of reading the vector layout directly.
 - Render lists, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 10 implementation note:
+
+- `DEVICE::Impl` now owns the private render-to-texture target list.
+- `DEVICE::addObjectRender2Texture()`, `DEVICE::removeObjectRender2Texture()`, and `DEVICE::stopRender2Texture2()` use the hidden target list internally.
+- OpenGL ES, DirectX9, Metal, and dummy `CORE_MANAGER::renderToTargets()` implementations iterate through private `DEVICE` helpers instead of reading the vector layout directly.
+- `src/core_mbm/new-backend-instructions.md` now documents the helper-based render-target iteration pattern.
+- Main 2D/3D render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

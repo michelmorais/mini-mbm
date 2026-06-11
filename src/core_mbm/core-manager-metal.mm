@@ -155,8 +155,12 @@ namespace mbm
         if (!ctx || !ctx->mtlDevice || !ctx->commandQueue) return true;
 
         bool oneRender = false;
-        for (auto renderTarget : this->device->lsObjectRenderToTarget)
+        const uint32_t totalRenderTargets = this->device->getTotalRenderTargets();
+        for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
+            auto renderTarget = this->device->getRenderTarget(i);
+            if (!renderTarget)
+                continue;
             if (!renderTarget->isObjectOnFrustum)
                 continue;
             RENDER2TARGET_METAL* rf =

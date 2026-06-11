@@ -373,8 +373,12 @@ namespace mbm
             ERROR_AT(__LINE__, __FILE__, "failed to backup backbuffer before render to target");
             return false;
         }
-        for (auto renderTarget : this->device->lsObjectRenderToTarget)
+        const uint32_t totalRenderTargets = this->device->getTotalRenderTargets();
+        for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
+            auto renderTarget = this->device->getRenderTarget(i);
+            if (!renderTarget)
+                continue;
             if (!renderTarget->isObjectOnFrustum)
                 continue;
             // DX9 cannot safely render into a texture that is still bound as an input sampler

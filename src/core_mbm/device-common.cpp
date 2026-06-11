@@ -41,6 +41,7 @@ namespace mbm
         float                    percYcam2dScale = 1.0f;
         bool                     pixelPerfectRenderingActive = false;
         std::vector<PHYSICS *>   physics;
+        std::vector<RENDERIZABLE_TO_TARGET *> renderTargets;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -102,6 +103,16 @@ namespace mbm
     PHYSICS * DEVICE::getPhysics(const uint32_t index) const noexcept
     {
         return index < impl->physics.size() ? impl->physics[index] : nullptr;
+    }
+
+    uint32_t DEVICE::getTotalRenderTargets() const noexcept
+    {
+        return static_cast<uint32_t>(impl->renderTargets.size());
+    }
+
+    RENDERIZABLE_TO_TARGET * DEVICE::getRenderTarget(const uint32_t index) const noexcept
+    {
+        return index < impl->renderTargets.size() ? impl->renderTargets[index] : nullptr;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
@@ -276,7 +287,7 @@ namespace mbm
     {
         if (ObjectRenderTarget != nullptr)
         {
-            lsObjectRenderToTarget.push_back(ObjectRenderTarget);
+            impl->renderTargets.push_back(ObjectRenderTarget);
         }
         else
         {
@@ -286,16 +297,16 @@ namespace mbm
     
     void DEVICE::removeObjectRender2Texture(RENDERIZABLE_TO_TARGET *object)
     {
-        for (std::vector<RENDERIZABLE_TO_TARGET *>::size_type i = 0; i < lsObjectRenderToTarget.size(); ++i)
+        for (std::vector<RENDERIZABLE_TO_TARGET *>::size_type i = 0; i < impl->renderTargets.size(); ++i)
         {
-            RENDERIZABLE_TO_TARGET *ptr = lsObjectRenderToTarget[i];
+            RENDERIZABLE_TO_TARGET *ptr = impl->renderTargets[i];
             if (ptr == object)
             {
                 for (auto ph : impl->physics)
                 {
                     ph->removeObject(ptr);
                 }
-                lsObjectRenderToTarget.erase(lsObjectRenderToTarget.begin() + std::vector<RENDERIZABLE_TO_TARGET *>::difference_type(i));
+                impl->renderTargets.erase(impl->renderTargets.begin() + std::vector<RENDERIZABLE_TO_TARGET *>::difference_type(i));
                 break;
             }
         }
@@ -355,7 +366,7 @@ namespace mbm
     
     void DEVICE::stopRender2Texture2(RENDERIZABLE *ptr)
     {
-        for (auto r : this->lsObjectRenderToTarget)
+        for (auto r : impl->renderTargets)
         {
             r->removeFromRender2Texture(ptr);
         }

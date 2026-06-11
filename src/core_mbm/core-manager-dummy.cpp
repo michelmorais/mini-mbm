@@ -114,8 +114,12 @@ namespace mbm
     {
         bool oneRender                 = false;
         REMINDER_TODO
-        for (auto renderTarget : this->device->lsObjectRenderToTarget)
+        const uint32_t totalRenderTargets = this->device->getTotalRenderTargets();
+        for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
+            auto renderTarget = this->device->getRenderTarget(i);
+            if (!renderTarget)
+                continue;
             if (!renderTarget->isObjectOnFrustum)
                 continue;
             

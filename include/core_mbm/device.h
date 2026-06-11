@@ -140,7 +140,6 @@ namespace mbm
         std::vector<RENDERIZABLE *>           lsObjectRender3D;
         std::vector<RENDERIZABLE *>           lsObjectRender2DW;
         std::vector<RENDERIZABLE *>           lsObjectRender2DS;
-        std::vector<RENDERIZABLE_TO_TARGET *> lsObjectRenderToTarget;
         struct Impl;
         struct ImplDeleter
         {
@@ -154,6 +153,8 @@ namespace mbm
         void setPixelPerfectRenderingActive(const bool active) noexcept;
         uint32_t getTotalPhysics() const noexcept;
         PHYSICS * getPhysics(const uint32_t index) const noexcept;
+        uint32_t getTotalRenderTargets() const noexcept;
+        RENDERIZABLE_TO_TARGET * getRenderTarget(const uint32_t index) const noexcept;
     };
 }
 #endif
