@@ -503,12 +503,19 @@ Milestone 44 implementation note:
 - Migrated non-owner backend consumers from direct `pBufferId->bs` / `pGl->bs` access to `getBackendBuffer()`, covering shader render paths and mesh-debug readback helpers.
 - The public `BUFFER_GL::bs` member remains in place for source compatibility in this milestone; remaining direct code-side access is isolated to `BUFFER_GL` owner implementation methods and will be the next cleanup before moving storage behind `BackendData`.
 
+Milestone 45 implementation note:
+
+- Cleaned up owner-side `BUFFER_GL::bs` usage in OpenGL ES, DirectX9, Metal, and dummy backend `BUFFER_GL` methods.
+- Constructor/destructor paths now use `setBackendBuffer()` / `getBackendBuffer()`, and functions that use the backend buffer more than once store it in a local `BUFFER_SPECIFIC *backendBuffer` first.
+- Revisited the Milestone 44 render-path migration to follow the accessor reuse rule: repeated `pBufferId->getBackendBuffer()` use is now localized once per render function.
+- Remaining direct `BUFFER_GL::bs` code-side access is limited to the compatibility helper implementation and the public compatibility member declaration.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
 
 1. `TEXTURE::idTexture/ptrTexture` - done
-2. `BUFFER_GL::bs` - helper migration in progress
+2. `BUFFER_GL::bs` - helper migration complete; storage move pending
 3. `SHADER::ptrShaderSpecific`
 4. `RENDERIZABLE_TO_TARGET::specificConfig`
 5. `DEVICE::specificContextDevice`

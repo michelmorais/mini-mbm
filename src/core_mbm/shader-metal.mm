@@ -373,16 +373,17 @@ namespace mbm
         initializedIndexBuffer(false),
         texture1(nullptr)
     {
-        bs = new BUFFER_SPECIFIC();
+        setBackendBuffer(new BUFFER_SPECIFIC());
     }
 
     BUFFER_GL::~BUFFER_GL()
     {
-        if (bs)
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (backendBuffer)
         {
-            delete static_cast<BUFFER_SPECIFIC*>(bs);
+            delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
-        bs       = nullptr;
+        setBackendBuffer(nullptr);
         texture1 = nullptr;
         texture0.clear();
     }
@@ -391,7 +392,8 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
-        if (bs) bs->release();
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (backendBuffer) backendBuffer->release();
         totalSubset = 0;
     }
 
@@ -425,8 +427,9 @@ namespace mbm
         id<MTLBuffer> vbuf = [ctx->mtlDevice newBufferWithBytes:data length:bufSize options:opts];
         delete[] data;
         if (!vbuf) return false;
-        bs->vertexBuffer = vbuf;
-        bs->vertexCount  = sizeOfArrayVertex;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->vertexBuffer = vbuf;
+        backendBuffer->vertexCount  = sizeOfArrayVertex;
         return true;
     }
 
@@ -471,10 +474,11 @@ namespace mbm
                                                          length:maxEnd * sizeof(uint16_t)
                                                         options:MTLResourceStorageModeShared];
         if (!ibuf) return false;
-        bs->vertexBuffer = vbuf;
-        bs->indexBuffer  = ibuf;
-        bs->vertexCount  = sizeOfArrayVertex;
-        bs->indexCount   = maxEnd;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->vertexBuffer = vbuf;
+        backendBuffer->indexBuffer  = ibuf;
+        backendBuffer->vertexCount  = sizeOfArrayVertex;
+        backendBuffer->indexCount   = maxEnd;
         return true;
     }
 
@@ -534,10 +538,11 @@ namespace mbm
                                                          options:MTLResourceStorageModeShared];
         if (!vbuf) return false;
 
-        bs->vertexBuffer = vbuf;
-        bs->indexBuffer  = ibuf;
-        bs->indexCount   = maxEnd;
-        bs->vertexCount  = this->sizeOfArrayVertex;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->vertexBuffer = vbuf;
+        backendBuffer->indexBuffer  = ibuf;
+        backendBuffer->indexCount   = maxEnd;
+        backendBuffer->vertexCount  = this->sizeOfArrayVertex;
         return true;
     }
 
@@ -545,10 +550,11 @@ namespace mbm
                                   const int* vertexStartSubset, const int* vertexCountSubset)
     {
         if (!vertex || !vertexStartSubset || !vertexCountSubset) return false;
-        if (!bs || !bs->vertexBuffer) return false;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (!backendBuffer || !backendBuffer->vertexBuffer) return false;
 
         const NSUInteger stride = strideForFVF(this->fvf);
-        uint8_t* dst = reinterpret_cast<uint8_t*>(bs->vertexBuffer.contents);
+        uint8_t* dst = reinterpret_cast<uint8_t*>(backendBuffer->vertexBuffer.contents);
         if (!dst) return false; // buffer not CPU-accessible
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
@@ -584,8 +590,9 @@ namespace mbm
                                                          length:sizeof(indices)
                                                         options:MTLResourceStorageModeShared];
         if (!ibuf) return false;
-        bs->indexBuffer = ibuf;
-        bs->indexCount  = 6;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->indexBuffer = ibuf;
+        backendBuffer->indexCount  = 6;
         return true;
     }
 
@@ -747,7 +754,9 @@ namespace mbm
 
     bool SHADER::render(const BUFFER_GL* pBufferId) const
     {
-        if (!ptrShaderSpecific || !pBufferId || !pBufferId->getBackendBuffer()) return false;
+        if (!ptrShaderSpecific || !pBufferId) return false;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer) return false;
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->currentEncoder) return false;
 
@@ -827,8 +836,8 @@ namespace mbm
 
             if (pBufferId->isIndexBuffer())
             {
-                if (!pBufferId->getBackendBuffer()->vertexBuffer || !pBufferId->getBackendBuffer()->indexBuffer) return false;
-                [enc setVertexBuffer:pBufferId->getBackendBuffer()->vertexBuffer offset:0 atIndex:0];
+                if (!backendBuffer->vertexBuffer || !backendBuffer->indexBuffer) return false;
+                [enc setVertexBuffer:backendBuffer->vertexBuffer offset:0 atIndex:0];
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
@@ -840,13 +849,13 @@ namespace mbm
                     [enc drawIndexedPrimitives:prim
                                     indexCount:(NSUInteger)pBufferId->indexCountIB[i]
                                      indexType:MTLIndexTypeUInt16
-                                   indexBuffer:pBufferId->getBackendBuffer()->indexBuffer
+                                   indexBuffer:backendBuffer->indexBuffer
                              indexBufferOffset:off];
                 }
             }
             else
             {
-                if (!pBufferId->getBackendBuffer()->vertexBuffer) return false;
+                if (!backendBuffer->vertexBuffer) return false;
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
@@ -855,7 +864,7 @@ namespace mbm
                         ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
-                    [enc setVertexBuffer:pBufferId->getBackendBuffer()->vertexBuffer offset:off atIndex:0];
+                    [enc setVertexBuffer:backendBuffer->vertexBuffer offset:off atIndex:0];
                     [enc drawPrimitives:prim
                             vertexStart:0
                             vertexCount:(NSUInteger)pBufferId->vertexCountVB[i]];
@@ -958,7 +967,7 @@ namespace mbm
 
             if (pBufferId->isIndexBuffer())
             {
-                if (!pBufferId->getBackendBuffer() || !pBufferId->getBackendBuffer()->indexBuffer) return false;
+                if (!backendBuffer->indexBuffer) return false;
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
@@ -970,7 +979,7 @@ namespace mbm
                     [enc drawIndexedPrimitives:prim
                                     indexCount:(NSUInteger)pBufferId->indexCountIB[i]
                                      indexType:MTLIndexTypeUInt16
-                                   indexBuffer:pBufferId->getBackendBuffer()->indexBuffer
+                                   indexBuffer:backendBuffer->indexBuffer
                              indexBufferOffset:off];
                 }
             }
@@ -998,7 +1007,8 @@ namespace mbm
                                 const PARTICLE_CONTROL* particleControl) const
     {
         if (!ptrShaderSpecific || !pBufferId || !particleControl) return false;
-        if (!pBufferId->getBackendBuffer() || !pBufferId->getBackendBuffer()->indexBuffer) return false;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer || !backendBuffer->indexBuffer) return false;
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->currentEncoder) return false;
 
@@ -1076,7 +1086,7 @@ namespace mbm
                 [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:6
                                  indexType:MTLIndexTypeUInt16
-                               indexBuffer:pBufferId->getBackendBuffer()->indexBuffer
+                               indexBuffer:backendBuffer->indexBuffer
                          indexBufferOffset:0];
             }
         }
@@ -1087,7 +1097,8 @@ namespace mbm
                                 const FLUID_GROUP* pGroup) const
     {
         if (!ptrShaderSpecific || !pBufferId || !pGroup) return false;
-        if (!pBufferId->getBackendBuffer() || !pBufferId->getBackendBuffer()->indexBuffer) return false;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer || !backendBuffer->indexBuffer) return false;
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->currentEncoder) return false;
 
@@ -1171,7 +1182,7 @@ namespace mbm
                 [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:6
                                  indexType:MTLIndexTypeUInt16
-                               indexBuffer:pBufferId->getBackendBuffer()->indexBuffer
+                               indexBuffer:backendBuffer->indexBuffer
                          indexBufferOffset:0];
             }
         }

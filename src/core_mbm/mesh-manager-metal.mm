@@ -47,8 +47,8 @@ namespace mbm
                 "No buffer for frame %d [%s]", currentFrame, meshMemory->getFilenameMesh());
 
         const BUFFER_GL*  pGl = pBufferMesh->pBufferGL;
-        BUFFER_SPECIFIC*  bs  = pGl->getBackendBuffer();
-        if (!bs)
+        BUFFER_SPECIFIC *backendBuffer = pGl->getBackendBuffer();
+        if (!backendBuffer)
             return log_util::onFailed(nullptr, __FILE__, __LINE__,
                 "No BUFFER_SPECIFIC for frame %d [%s]", currentFrame, meshMemory->getFilenameMesh());
 
@@ -62,13 +62,13 @@ namespace mbm
         // ------------------------------------------------------------------
         if (headerFrame->sizeIndexBuffer && strcmp(headerFrame->typeBuffer, "IB") == 0)
         {
-            if (!bs->indexBuffer)
+            if (!backendBuffer->indexBuffer)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__,
                     "No Metal index buffer for frame %d [%s]",
                     currentFrame, meshMemory->getFilenameMesh());
 
             const uint16_t* metalIdx =
-                static_cast<const uint16_t*>(bs->indexBuffer.contents);
+                static_cast<const uint16_t*>(backendBuffer->indexBuffer.contents);
             if (!metalIdx)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__,
                     "Metal index buffer has no CPU contents [%s]",
@@ -147,13 +147,13 @@ namespace mbm
         else
         {
             // Static meshes: read from MTLBuffer (.contents is valid for Shared storage).
-            if (!bs->vertexBuffer)
+            if (!backendBuffer->vertexBuffer)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__,
                     "No Metal vertex buffer for frame %d [%s]",
                     currentFrame, meshMemory->getFilenameMesh());
 
             const uint8_t* raw =
-                static_cast<const uint8_t*>(bs->vertexBuffer.contents);
+                static_cast<const uint8_t*>(backendBuffer->vertexBuffer.contents);
             if (!raw)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__,
                     "Metal vertex buffer has no CPU contents [%s]",

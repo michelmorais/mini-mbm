@@ -48,6 +48,9 @@ namespace mbm
         {
             const BUFFER_MESH* pBufferMesh = meshMemory->getBuffer(currentFrame);
             const BUFFER_GL* pGl           = pBufferMesh->pBufferGL;
+            BUFFER_SPECIFIC *backendBuffer = pGl ? pGl->getBackendBuffer() : nullptr;
+            if (!backendBuffer)
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "backend buffer is null");
             auto* extensionString          = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
             if (strstr(extensionString, "GL_OES_mapbuffer") == nullptr)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [GL_OES_mapbuffer] not supported!");
@@ -79,7 +82,7 @@ namespace mbm
                     pSubset->indexCount = pGl->indexCountIB[i];
                     pBuffer->subset[i]->indexStart = pSubset->indexStart;
                     pBuffer->subset[i]->indexCount = pSubset->indexCount;
-                    GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->getBackendBuffer()->vboIndexSubsetIB[i]);
+                    GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
                     auto* indexBuffer = static_cast<uint16_t*>(glMapBufferOES(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
                     if (indexBuffer == nullptr)
                         return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get index at [glMapBufferOES] ");
@@ -147,7 +150,7 @@ namespace mbm
             
             if (is_dynamic_shape == false)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pGl->getBackendBuffer()->vboVertNorTexIB[0]);
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
                 pPosition = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
             }
             if (pPosition == nullptr)
@@ -198,7 +201,7 @@ namespace mbm
             {
                 if (is_dynamic_shape == false)
                 {
-                    GLBindBuffer(GL_ARRAY_BUFFER, pGl->getBackendBuffer()->vboVertNorTexIB[1]);
+                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[1]);
                     pNormal = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
                 }
                 if (pNormal == nullptr)
@@ -213,7 +216,7 @@ namespace mbm
             }
             if (is_dynamic_shape == false)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pGl->getBackendBuffer()->vboVertNorTexIB[2]);
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[2]);
                 pTexture = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
             }
             if (pTexture == nullptr)

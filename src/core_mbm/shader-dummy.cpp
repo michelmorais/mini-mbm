@@ -55,17 +55,18 @@ namespace mbm
     {
         REMINDER_TODO
         //we initialize this at the moment (just once)
-        bs = new BUFFER_SPECIFIC();
+        setBackendBuffer(new BUFFER_SPECIFIC());
     }
 
     BUFFER_GL::~BUFFER_GL()
     {
-        if(bs)
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if(backendBuffer)
         {
             // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-            delete static_cast<BUFFER_SPECIFIC*>(bs);
+            delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
-        bs = nullptr;
+        setBackendBuffer(nullptr);
         texture1 = nullptr;
         texture0.clear();
         REMINDER_TODO
@@ -75,7 +76,8 @@ namespace mbm
     {
         REMINDER_TODO
         //we do not delete bs
-        bs->release();
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->release();
         totalSubset   = 0;
     }
 

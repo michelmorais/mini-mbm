@@ -333,6 +333,8 @@ Backend code that needs the concrete `BUFFER_SPECIFIC` object should go through
 `BUFFER_GL::getBackendBuffer()` / `setBackendBuffer()` instead of reading or writing
 `BUFFER_GL::bs` directly.  The public member still exists for compatibility during the
 PIMPL migration, but new backend code should use the helper path.
+If a function needs the backend buffer more than once, store the accessor result in a
+local `BUFFER_SPECIFIC *backendBuffer` for that function scope.
 
 For `loadBufferDynamic` + `updateDynamic` the key insight is that the vertex buffer must be
 CPU-writable every frame.  On Metal use `MTLResourceStorageModeShared`; on Vulkan use a
@@ -1118,7 +1120,7 @@ needed to read back vertex data.
 ### Implementation
 
 ```objc
-const uint8_t* raw = static_cast<const uint8_t*>(bs->vertexBuffer.contents);
+const uint8_t* raw = static_cast<const uint8_t*>(backendBuffer->vertexBuffer.contents);
 ```
 
 The interleaved layout (built by `buildInterleavedVB` in `shader-metal.mm`) is:
@@ -1138,8 +1140,8 @@ expects.
 
 | Case | How handled |
 |---|---|
-| Index Buffer meshes (3D models) | Copies indices from `bs->indexBuffer.contents`; scans each subset to find `maxIndex`, derives `vertexCount` |
-| Vertex Buffer meshes (2D quads, lines) | Reads from `bs->vertexBuffer.contents` directly |
+| Index Buffer meshes (3D models) | Copies indices from `backendBuffer->indexBuffer.contents`; scans each subset to find `maxIndex`, derives `vertexCount` |
+| Vertex Buffer meshes (2D quads, lines) | Reads from `backendBuffer->vertexBuffer.contents` directly |
 | Dynamic shapes (fonts, skinned meshes) | Uses CPU-side `infoShape->dynamicVertex` / `dynamicUV` arrays — no GPU readback needed |
 | Font letter offsets | Applies per-frame `letterDiffX` / `letterDiffY` offsets after copying position data |
 
