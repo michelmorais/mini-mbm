@@ -20,6 +20,7 @@
 #include <device.h>
 #include <renderizable.h>
 #include <specific-metal.h>
+#include "specific-metal-render-target.h"
 #include <util-interface.h>
 #include <cr-static-local.h>
 #include <plugin-callback.h>

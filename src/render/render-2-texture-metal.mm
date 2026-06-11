@@ -12,6 +12,7 @@
 #if defined(USE_METAL)
 
 #include <specific-metal.h>
+#include "../core_mbm/specific-metal-render-target.h"
 #include <scene.h>
 #include <render-2-texture.h>
 #include <texture-manager.h>

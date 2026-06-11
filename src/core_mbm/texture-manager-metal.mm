@@ -8,6 +8,7 @@
 #if defined(USE_METAL)
 
 #include <specific-metal.h>
+#include "specific-metal-render-target.h"
 #include <texture-manager.h>
 #include <util-interface.h>
 #include <image-resource.h>
