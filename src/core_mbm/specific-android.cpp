@@ -268,7 +268,7 @@ namespace mbm
         if (strcmp(fileName, util::getDecompressModelFileName()) == 0)
             return 0;
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if (!cJni->assetManager)
             return this->onFailExistFile(__LINE__, __FILE__, "assetManager is null!");
         AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_STREAMING);
@@ -281,7 +281,7 @@ namespace mbm
     const char * SPECIFIC_AUX_CONTEXT_DEVICE::copyFileFromAsset(const char *fileName, const char * /*mode*/)
     {
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if (!cJni->assetManager || cJni->absPath.empty())
             return fileName;
         AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_BUFFER);
@@ -329,7 +329,7 @@ namespace mbm
             return nullptr;
         }
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if (!cJni->assetManager)
         {
             ERROR_LOG("assetManager is null in getImageDataFromDroid!");
@@ -372,7 +372,7 @@ namespace mbm
     FILE * SPECIFIC_AUX_CONTEXT_DEVICE::fopenAsset(const char *fileName, const char * /*mode*/)
     {
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if (!cJni->assetManager)
             return onFailOpenFile(__LINE__, __FILE__, "assetManager is null!");
         AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_STREAMING);
@@ -452,7 +452,7 @@ int access_file(const char *fileName, int)
         return 0;
     // Fall back to AAssetManager for files still inside the APK.
     mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-    mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
     return cJni->existFileOnAssets(fileName);
 }
 

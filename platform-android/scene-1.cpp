@@ -101,7 +101,7 @@ void MY_SCENE::onResizeWindow()
 
 MY_GAME::MY_GAME(JNIEnv *env, jobject obj)
 {
-	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = this->device->specificContextDevice;
+	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = this->device->getSpecificContextDevice();
 	cJni->jenv = env;
     this->setScene(&myScene);
 }

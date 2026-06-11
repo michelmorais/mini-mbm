@@ -410,7 +410,7 @@ namespace mbm
         return false;
 #else
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         int              wint   = 0;
         int              hint   = 0;
         uint8_t *  pixels = cJni->getImageDataFromDroid(_fileName, &wint, &hint);

@@ -172,7 +172,7 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
     if (!opensl_init_engine()) return false;
 
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    AAssetManager* mgr  = device->specificContextDevice->assetManager;
+    AAssetManager* mgr  = device->getSpecificContextDevice()->assetManager;
     if (!mgr) { OPENSL_ERR("AAssetManager is null"); return false; }
 
     // Strip leading slashes if present; AAssetManager_open expects a relative path.

@@ -105,7 +105,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     if (game != nullptr)
     {
         INFO_LOG("lib mini-mbm resized\n width: %d height: %d", width, height);
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
         cJni->jenv            = env;
         cJni->absPath         = _absPath ? _absPath : "";
         cJni->apkPath         = _apkPath ? _apkPath : "";
@@ -143,7 +143,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
             game->device->ptrManager       = game;
             game->device->backBufferWidth  = static_cast<float>(width);
             game->device->backBufferHeight = static_cast<float>(height);
-            mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+            mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
             cJni->jenv        = env;
             cJni->absPath     = _absPath ? _absPath : "";
             cJni->apkPath     = _apkPath ? _apkPath : "";
@@ -258,7 +258,7 @@ bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint he
     if (game)
     {
         //maybe need this in future
-        //mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        //mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
         //cJni->jenv            = env;
         //cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
         return game->onLostDevice(doSwapBuffers, static_cast<int>(width), static_cast<int>(height), px, py);
@@ -269,7 +269,7 @@ bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint he
 void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
 {
     INFO_LOG("OnStop Called.");
-	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
     JavaVM *         jvm        = nullptr;
     JNIEnv *         oldJenv    = cJni->jenv;
     int              getEnvStat = JNI_OK;

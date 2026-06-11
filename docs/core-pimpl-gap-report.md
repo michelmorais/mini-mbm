@@ -286,6 +286,13 @@ Milestone 14 implementation note:
 - `specificContextDevice` remains public in this milestone to avoid a breaking source change; `CORE_MANAGER`, texture, shader, platform, and render-target call sites can migrate backend-by-backend before the pointer moves behind `DEVICE::Impl`.
 - `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 15 implementation note:
+
+- Android-specific core and platform call sites now use `DEVICE::getSpecificContextDevice()` instead of reading `DEVICE::specificContextDevice` directly.
+- Migrated Android file/asset helpers, Android texture loading, OpenSL asset loading, GLES Android manager context access, and Android platform entry points.
+- `specificContextDevice` remains public for compatibility while the remaining non-Android backend, texture, shader, and render-target call sites migrate in later milestones.
+- `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

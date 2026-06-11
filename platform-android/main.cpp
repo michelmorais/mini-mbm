@@ -69,7 +69,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
             game->device->backBufferWidth = static_cast<float>(width);
         if (height > 0)
             game->device->backBufferHeight = static_cast<float>(height);
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
         cJni->absPath         = _absPath ? _absPath : "";
         cJni->apkPath         = _apkPath ? _apkPath : "";
     }
@@ -83,7 +83,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
 			game->device->ptrManager       = game;
             game->device->backBufferWidth  = static_cast<float>(width);
             game->device->backBufferHeight = static_cast<float>(height);
-            mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+            mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
             cJni->jenv        = env;
             cJni->absPath     = _absPath ? _absPath : "";
             cJni->apkPath     = _apkPath ? _apkPath : "";
@@ -193,7 +193,7 @@ bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint he
 void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
 {
     INFO_LOG("OnStop Called.");
-	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
     JavaVM *         jvm        = nullptr;
     JNIEnv *         oldJenv    = cJni->jenv;
     int              getEnvStat = JNI_OK;

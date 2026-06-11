@@ -204,7 +204,7 @@ static void android_command_handler(const char *cmd, const char *param,
 {
     if (!s_activityInstance || !result || maxSize <= 0)
         return;
-    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = mbm::DEVICE::getInstance()->specificContextDevice;
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = mbm::DEVICE::getInstance()->getSpecificContextDevice();
     JNIEnv *jenv = ctx->jenv;
     if (!jenv)
         return;
@@ -262,7 +262,7 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
             {
                 // Window was re-created after resume — restore device.
                 INFO_LOG("mini-mbm: window re-created %d x %d", w, h);
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx = s_game->device->specificContextDevice;
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx = s_game->device->getSpecificContextDevice();
                 ctx->absPath = absPath;
                 ctx->apkPath = apkPath;
                 ctx->nativeWindow = app->window;
@@ -297,7 +297,7 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
                 s_game->device->ptrManager       = s_game;
 
                 // Store the AAssetManager and native window in the platform context.
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx = s_game->device->specificContextDevice;
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx = s_game->device->getSpecificContextDevice();
                 ctx->absPath     = absPath;
                 ctx->apkPath     = apkPath;
                 ctx->assetManager = app->activity->assetManager;
@@ -353,7 +353,7 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
             if (s_game)
             {
                 // Release GL resources — device is lost.
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx = s_game->device->specificContextDevice;
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx = s_game->device->getSpecificContextDevice();
                 ctx->nativeWindow = nullptr;
                 constexpr bool wasDeviceLost = true;
                 ctx->release(wasDeviceLost);
@@ -430,7 +430,7 @@ void android_main(struct android_app* app)
                 if (s_activityInstance)
                 {
                     mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = s_game
-                        ? s_game->device->specificContextDevice
+                        ? s_game->device->getSpecificContextDevice()
                         : nullptr;
                     JNIEnv *jenv = ctx ? ctx->jenv : nullptr;
                     if (jenv)

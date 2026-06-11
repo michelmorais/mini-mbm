@@ -303,7 +303,7 @@ namespace util
                 return false;
             #elif defined          ANDROID
                 mbm::DEVICE *device                     = mbm::DEVICE::getInstance();
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni  = device->specificContextDevice;
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni  = device->getSpecificContextDevice();
                 const char *     currentPath            = cJni->absPath.c_str();
                 char template_name[255]                 = "";
                 if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
@@ -416,7 +416,7 @@ namespace util
                     return false;
                 #elif defined          ANDROID
                 mbm::DEVICE *device                     = mbm::DEVICE::getInstance();
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE*  cJni = device->specificContextDevice;
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE*  cJni = device->getSpecificContextDevice();
                 const char *     currentPath  = cJni->absPath.c_str();
                 if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
                     snprintf(dir_name,sizeof(dir_name),"%s%s",currentPath,folder_base_name);
@@ -483,7 +483,7 @@ namespace util
         if (mode && strchr(mode, 'w'))
         {
             mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-            mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+            mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
             const char *currentPath                = cJni->absPath.c_str();
             if (currentPath)
             {
@@ -629,7 +629,7 @@ namespace util
 		if(strlen(fileName) == 0)
 			return fileName;
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if(strstr(fileName,util::getDecompressModelFileName()) != nullptr)
         {
             const char *currentPath = cJni->absPath.c_str();
@@ -800,7 +800,7 @@ namespace util
             REMINDER_TODO                
     #elif defined ANDROID // add anyway bacause we are going to search in the files of Android
             mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-            mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+            mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
             cJni->addPathDroid(path);
             for (uint32_t i = 0; i < lsPath.size(); ++i)
             {
