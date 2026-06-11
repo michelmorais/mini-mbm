@@ -370,6 +370,13 @@ Milestone 26 implementation note:
 - Migrated Lua render-stat reads and backend guide snippets to the accessor/helper path.
 - `specificContextDevice`, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 27 implementation note:
+
+- `DEVICE` 3D frustum dimension cache is now stored behind `DEVICE::Impl` instead of being public `DEVICE` data members.
+- `CORE_MANAGER::_updateDimFrustum()` writes the cache through private `DEVICE` helpers, while existing external reads continue through `DEVICE::getDimFromFrustum()`.
+- Render code already used `getDimFromFrustum()`, so no render surface or `RENDERIZABLE` behavior changed.
+- `specificContextDevice`, render counters, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

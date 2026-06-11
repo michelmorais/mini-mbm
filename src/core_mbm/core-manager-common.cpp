@@ -617,36 +617,36 @@ namespace mbm
     void CORE_MANAGER::_updateDimFrustum()
     {
         VEC3 point(0, 0, 50);
-        this->device->dimNearFrustum3d = VEC3(0, 0, 20);
-        this->device->dimFarFrustum3d  = VEC3(0, 0, 980);
+        this->device->setNearFrustumDimension(VEC3(0, 0, 20));
+        this->device->setFarFrustumDimension(VEC3(0, 0, 980));
         this->device->camera.updateCam(true, this->device->backBufferWidth, this->device->backBufferHeight);
         this->device->updateFrustum(&this->device->camera.matrixView, &this->device->camera.matrixProj);
         while (this->device->isPointAtTheFrustum(point))
         {
             point.x += 0.5f;
         }
-        this->device->dimNearFrustum3d.x = point.x * 2.0f;
+        this->device->setNearFrustumDimensionX(point.x * 2.0f);
 
         point = VEC3(0, 0, 50);
         while (this->device->isPointAtTheFrustum(point))
         {
             point.y += 0.5f;
         }
-        this->device->dimNearFrustum3d.y = point.y * 2.0f;
+        this->device->setNearFrustumDimensionY(point.y * 2.0f);
 
         point = VEC3(0, 0, 980);
         while (this->device->isPointAtTheFrustum(point))
         {
             point.x += 0.5f;
         }
-        this->device->dimFarFrustum3d.x = point.x * 2.0f;
+        this->device->setFarFrustumDimensionX(point.x * 2.0f);
 
         point = VEC3(0, 0, 980);
         while (this->device->isPointAtTheFrustum(point))
         {
             point.y += 0.5f;
         }
-        this->device->dimFarFrustum3d.y = point.y * 2.0f;
+        this->device->setFarFrustumDimensionY(point.y * 2.0f);
     }
     
     void CORE_MANAGER::adjustScaleScreen2d()

@@ -60,7 +60,6 @@ namespace mbm
     
         SHADER_CFG_LOADER cfg;                       // CFG files
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
-        VEC3                dimFarFrustum3d, dimNearFrustum3d;
         CORE_MANAGER *      ptrManager;
         SCENE *             scene;
         bool                clearBackGround;
@@ -157,6 +156,12 @@ namespace mbm
         void incrementTotalObjectsIsRendering2D() noexcept;
         void setTotalObjects3D(uint32_t total) noexcept;
         void setTotalObjects2D(uint32_t total) noexcept;
+        void setNearFrustumDimension(const VEC3 &dimension) noexcept;
+        void setFarFrustumDimension(const VEC3 &dimension) noexcept;
+        void setNearFrustumDimensionX(float value) noexcept;
+        void setNearFrustumDimensionY(float value) noexcept;
+        void setFarFrustumDimensionX(float value) noexcept;
+        void setFarFrustumDimensionY(float value) noexcept;
         uint32_t getTotalPhysics() const noexcept;
         PHYSICS * getPhysics(const uint32_t index) const noexcept;
         uint32_t getTotalRenderTargets() const noexcept;

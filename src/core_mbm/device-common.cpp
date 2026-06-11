@@ -52,6 +52,8 @@ namespace mbm
         uint32_t totalObjectsIsRendering2D = 0;
         uint32_t totalObjects3D = 0;
         uint32_t totalObjects2D = 0;
+        VEC3 dimFarFrustum3d = VEC3(0, 0, 0);
+        VEC3 dimNearFrustum3d = VEC3(0, 0, 0);
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -81,8 +83,6 @@ namespace mbm
         backBufferWidth            = 0;
         backBufferHeight           = 0;
         colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
-        dimFarFrustum3d            = VEC3(0, 0, 0);
-        dimNearFrustum3d           = VEC3(0, 0, 0);
         __swapBackBufferStep	   = 3;
         windowPositionX            = 0;
         windowPositionY            = 0;
@@ -147,6 +147,36 @@ namespace mbm
     void DEVICE::setTotalObjects2D(const uint32_t total) noexcept
     {
         impl->totalObjects2D = total;
+    }
+
+    void DEVICE::setNearFrustumDimension(const VEC3 &dimension) noexcept
+    {
+        impl->dimNearFrustum3d = dimension;
+    }
+
+    void DEVICE::setFarFrustumDimension(const VEC3 &dimension) noexcept
+    {
+        impl->dimFarFrustum3d = dimension;
+    }
+
+    void DEVICE::setNearFrustumDimensionX(const float value) noexcept
+    {
+        impl->dimNearFrustum3d.x = value;
+    }
+
+    void DEVICE::setNearFrustumDimensionY(const float value) noexcept
+    {
+        impl->dimNearFrustum3d.y = value;
+    }
+
+    void DEVICE::setFarFrustumDimensionX(const float value) noexcept
+    {
+        impl->dimFarFrustum3d.x = value;
+    }
+
+    void DEVICE::setFarFrustumDimensionY(const float value) noexcept
+    {
+        impl->dimFarFrustum3d.y = value;
     }
 
     uint32_t DEVICE::getTotalPhysics() const noexcept
@@ -837,8 +867,8 @@ namespace mbm
 
     void DEVICE::getDimFromFrustum(VEC3 *dimNear, VEC3 *dimFar) const noexcept
     {
-        *dimNear = this->dimNearFrustum3d;
-        *dimFar  = this->dimFarFrustum3d;
+        *dimNear = impl->dimNearFrustum3d;
+        *dimFar  = impl->dimFarFrustum3d;
     }
     
     void DEVICE::setBillboard(MATRIX *out, VEC3 *position , VEC3 *scale)
