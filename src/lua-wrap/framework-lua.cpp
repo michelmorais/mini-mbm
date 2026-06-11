@@ -860,7 +860,7 @@ namespace mbm
     {
         const bool   clear      = lua_toboolean(lua, 1) ? true : false;
         DEVICE *device          = DEVICE::getInstance();
-        device->clearBackGround = clear;
+        device->setClearBackGround(clear);
         return 0;
     }
 

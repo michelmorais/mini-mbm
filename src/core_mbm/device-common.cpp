@@ -54,6 +54,7 @@ namespace mbm
         uint32_t totalObjects2D = 0;
         VEC3 dimFarFrustum3d = VEC3(0, 0, 0);
         VEC3 dimNearFrustum3d = VEC3(0, 0, 0);
+        bool clearBackGround = true;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -75,7 +76,6 @@ namespace mbm
         : impl(new Impl())
     {
         bOnErrorStopScript         = false;
-        clearBackGround            = true;
         ptrManager                 = nullptr;
         scene                      = nullptr;
         run                        = true;
@@ -272,6 +272,16 @@ namespace mbm
     uint32_t DEVICE::getTotalObjects2D() const noexcept
     {
         return impl->totalObjects2D;
+    }
+
+    void DEVICE::setClearBackGround(const bool clear) noexcept
+    {
+        impl->clearBackGround = clear;
+    }
+
+    bool DEVICE::isClearBackGroundEnabled() const noexcept
+    {
+        return impl->clearBackGround;
     }
     
     void DEVICE::scaleToScreen(const float widthScreen, const float heightScreen,

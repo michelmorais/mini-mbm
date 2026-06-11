@@ -566,7 +566,7 @@ namespace mbm
         if (!this->renderToTargets())
             return;
         
-        if (device->clearBackGround)
+        if (device->isClearBackGroundEnabled())
         {
             device->clearDepthColored();
         }
@@ -779,7 +779,7 @@ namespace mbm
                 if (this->device->scene->goToNextScene && this->device->scene->nextScene == nullptr)
                 {
                     this->device->run             = false;
-                    this->device->clearBackGround = false;
+                    this->device->setClearBackGround(false);
                 }
                 else
                 {
@@ -788,7 +788,7 @@ namespace mbm
                     if(this->device->scene)
                         this->device->scene->endScene = false;
                     changeScene                   = true;
-                    this->device->clearBackGround = true;
+                    this->device->setClearBackGround(true);
                     if(this->device->scene)
                         this->device->scene->startLoading();
                 }
@@ -813,13 +813,13 @@ namespace mbm
                     this->device->resumeTimer();
                     this->__sceneWasInit          = true;
                     changeScene                   = false;
-                    this->device->clearBackGround = true;
+                    this->device->setClearBackGround(true);
                     if(this->device->scene)
                         this->device->scene->endLoading();
                 }
                 else
                 {
-                    this->device->clearBackGround = false;
+                    this->device->setClearBackGround(false);
                     this->device->__swapBackBufferStep++;
                 }
             }
@@ -1216,7 +1216,7 @@ namespace mbm
             WARN_LOG("onLostDevice step %d resumeGame", impl->stepRestore);
 #endif
             impl->stepRestore = STEP_RES_INIT_GL;
-            device->clearBackGround = true;
+            device->setClearBackGround(true);
             if(impl->wasGamePausedBeforeOnStop == false)
                 this->device->resumeGame();
             if (device->scene)

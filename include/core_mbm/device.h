@@ -62,7 +62,6 @@ namespace mbm
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         CORE_MANAGER *      ptrManager;
         SCENE *             scene;
-        bool                clearBackGround;
         
         mbm::ORDER_RENDER   orderRender;
         int                 __swapBackBufferStep;
@@ -83,6 +82,8 @@ namespace mbm
         API_IMPL uint32_t getTotalObjectsIsRendering2D() const noexcept;
         API_IMPL uint32_t getTotalObjects3D() const noexcept;
         API_IMPL uint32_t getTotalObjects2D() const noexcept;
+        API_IMPL void setClearBackGround(bool clear) noexcept;
+        API_IMPL bool isClearBackGroundEnabled() const noexcept;
         API_IMPL void scaleToScreen(const float widthScreen, const float heightScreen,const char *stretch) noexcept; // stretch: x, y xy nullptr
         API_IMPL void pauseGame();
         API_IMPL void resumeGame();

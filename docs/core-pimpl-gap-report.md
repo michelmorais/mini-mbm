@@ -377,6 +377,13 @@ Milestone 27 implementation note:
 - Render code already used `getDimFromFrustum()`, so no render surface or `RENDERIZABLE` behavior changed.
 - `specificContextDevice`, render counters, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 28 implementation note:
+
+- `DEVICE::clearBackGround` is now stored behind `DEVICE::Impl` instead of being a public `DEVICE` data member.
+- Added public `DEVICE::setClearBackGround()` / `DEVICE::isClearBackGroundEnabled()` so Lua and core render logic no longer mutate/read the layout directly.
+- Migrated scene-transition clear-state writes, render clear checks, and the Lua `mbm.enableClearBackGround` path to the accessor methods.
+- `specificContextDevice`, render counters, frustum dimension cache, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
