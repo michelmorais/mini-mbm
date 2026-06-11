@@ -335,6 +335,13 @@ Milestone 21 implementation note:
 - This completes the currently identified Metal direct context-access migration; `specificContextDevice` remains public until remaining compatibility users are migrated.
 - `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 22 implementation note:
+
+- Remaining non-Lua/non-plugin compatibility users now use `DEVICE::getSpecificContextDevice()` instead of reading `DEVICE::specificContextDevice` directly.
+- Migrated DirectSound cooperative-level window lookup, dummy backend release, Win32 icon/dialog helpers, a stale launcher comment, and the Metal backend instructions snippet.
+- Remaining direct users are intentionally isolated to Lua framework wrappers and the ImGui Metal bridge for later compatibility-focused milestones.
+- `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

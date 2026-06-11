@@ -618,7 +618,8 @@ namespace mbm
         }
         else
         {
-            HWND hwnd = mbm::DEVICE::getInstance()->specificContextDevice->window.getHwnd();
+            auto *context = mbm::DEVICE::getInstance()->getSpecificContextDevice();
+            HWND hwnd = context->window.getHwnd();
             if (FAILED(g_directSound->SetCooperativeLevel(hwnd, DSSCL_PRIORITY)))
             {
                 ERROR_LOG("Failed calling DirectSound::SetCooperativeLevel");

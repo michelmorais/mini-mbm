@@ -55,7 +55,7 @@ namespace mbm
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->release(wasDeviceLost);
+        this->device->getSpecificContextDevice()->release(wasDeviceLost);
         REMINDER_TODO
     }
     

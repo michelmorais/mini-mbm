@@ -1044,8 +1044,9 @@ This covers the two modes used by all current engine content.
    void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
    {
        auto* dev = mbm::DEVICE::getInstance();
-       if (dev && dev->specificContextDevice)
-           dev->specificContextDevice->currentBlendState = static_cast<int>(blendState);
+       auto* context = dev ? dev->getSpecificContextDevice() : nullptr;
+       if (context)
+           context->currentBlendState = static_cast<int>(blendState);
    }
    ```
 
