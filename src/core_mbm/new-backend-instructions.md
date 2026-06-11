@@ -21,6 +21,29 @@ Each backend is selected by a preprocessor define, e.g.:
 - `USE_METAL`     — Apple Metal (macOS / iOS)
 - `USE_DUMMY_BACK_END_ENGINE` — stub template for new backends (start here)
 
+### Public/private header rule
+
+The existing `include/core_mbm/specific-*.h` headers are legacy compatibility headers.
+They still expose concrete backend structs and platform SDK types because older backend,
+platform, plugin, and Lua-wrapper code includes them directly.
+
+For new backend work, prefer this boundary:
+
+- Public headers may forward-declare opaque backend context types when a public signature
+  really needs a type name.
+- Backend-only resource structs, such as buffer objects, shader objects, render-target
+  attachments, pipeline state, swap-chain state, and command objects, should live in the
+  backend implementation file or a private backend header.
+- Public engine classes should expose backend state through narrow helper methods, following
+  the existing `TEXTURE::BackendData`, `BUFFER_GL::BackendData`, `SHADER::BackendData`,
+  `RENDERIZABLE_TO_TARGET::BackendData`, and `DEVICE::getSpecificContextDevice()` pattern.
+- Do not add broad accessors to strongly typed gameplay/core fields only because they are
+  public. Add accessors when they hide layout, preserve invariants, provide compatibility
+  while moving storage, or avoid repeated accessor-backed object lookup inside one function.
+
+If a platform entry point still needs native handles during bootstrapping, keep that bridge
+narrow and document it. Do not make general render-resource structs public for convenience.
+
 ---
 
 ## 2. Getting started

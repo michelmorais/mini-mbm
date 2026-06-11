@@ -67,6 +67,28 @@ The strongest PIMPL candidate is backend-owned rendering state. These fields sho
 
 This can follow the audio pattern: public class owns `std::unique_ptr<BackendData>`, the incomplete struct is defined in the active backend `.cpp/.mm`, and common code talks through narrow private hooks.
 
+#### Backend header leakage audit
+
+The backend handle fields above are now hidden from the main public class layouts, but backend implementation headers still live under `include/core_mbm/`. That means code outside `src/core_mbm/` can still include concrete backend types and platform SDK headers.
+
+This is now the most useful next cleanup direction because it matches the real PIMPL goal: isolate platform-specific implementation details without forcing accessor churn for every strongly typed gameplay field.
+
+| Header | What leaks today | Current external consumers | Cleanup direction |
+|---|---|---|---|
+| `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, `BUFFER_SPECIFIC`, `RENDER2TARGET_GLES`, `GLES_PS_VS`, GL debug macros. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Split backend-only structs and GL helper macros into a private backend header first. Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
+| `include/core_mbm/specific-directx9.h` | D3D9/COM types, Win32 window context, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `RENDER2TARGET_DIRECTX9`, DirectX helper functions. | DirectX9 backend files and Win32 platform helper files. | Good candidate for private move after Win32 platform helper ownership is clarified, because non-backend consumers are already limited. |
+| `include/core_mbm/specific-metal.h` | Metal/Cocoa/UIKit types, `RENDER2TARGET_METAL`, `BUFFER_SPECIFIC`, and full Metal `SPECIFIC_AUX_CONTEXT_DEVICE` layout. | Metal backend files and the ImGui Metal bridge plugin. | Move render-target and buffer structs private first. Keep a minimal bridge for ImGui or replace plugin access with a small Metal frame context API. |
+| `include/core_mbm/specific-dummy.h` | Dummy backend context, buffer, and render-target structs. | Dummy backend and dummy Lua wrappers. | Keep as a template for now, but update it to model the private-header pattern once a real backend split is proven. |
+| `include/core_mbm/platform-win32.h` and `include/core_mbm/d3dx9-mingw.h` | Win32 window/event and DirectX compatibility types. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat separately from renderer PIMPL. They are platform integration headers, not render-resource ownership, but they still block a fully clean public boundary. |
+
+Recommended order:
+
+1. Do not add accessors for public gameplay/core flags only because they are public and strongly typed. Accessors are useful when they hide layout, preserve invariants, or replace repeated direct backend access.
+2. Move backend-only render resource structs private first: `BUFFER_SPECIFIC`, `GLES_PS_VS`, `D3D_PS_VS`, `RENDER2TARGET_GLES`, `RENDER2TARGET_DIRECTX9`, and `RENDER2TARGET_METAL`.
+3. Leave `SPECIFIC_AUX_CONTEXT_DEVICE` visible where platform entry points still need concrete fields, especially Android asset/window/JNI setup and plugin render-device bridging.
+4. Add narrow platform bridge methods before hiding `SPECIFIC_AUX_CONTEXT_DEVICE` completely. Examples: Android asset manager lookup, native window update, X11 display/window lookup, Win32 native window lookup, and Metal drawable/pass access.
+5. After those bridges exist, move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers.
+
 ### 3. Public headers include too much implementation detail
 
 Many headers pull STL containers or subsystem headers only because private layout is visible.
@@ -550,6 +572,14 @@ Milestone 51 implementation note:
 - `RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig()` and `RENDERIZABLE_TO_TARGET::setRenderTargetSpecificConfig()` remain the only render-target backend config access path, so backend destructors still own and release their concrete config objects exactly as before.
 - Used a custom private deleter for the incomplete `BackendData` holder so backend-specific `RENDERIZABLE_TO_TARGET` destructor definitions do not need the private storage definition.
 - This milestone still avoids gameplay-facing `RENDERIZABLE` fields.
+
+Milestone 52 implementation note:
+
+- Added a backend header leakage audit to separate the PIMPL goal from broad accessor churn.
+- Confirmed the next useful boundary is the public `specific-*.h` header set, not gameplay-facing `RENDERIZABLE` state or strongly typed public flags by default.
+- Classified each public backend header by leaked platform/resource types, current non-backend consumers, and likely cleanup direction.
+- Updated backend-porting guidance so new backend work treats public `specific-*.h` layouts as legacy compatibility and keeps backend-only structs in backend implementation/private headers when practical.
+- This milestone is documentation-only and does not change engine code, object layout, or `RENDERIZABLE`.
 
 ### Phase 3 - Hide renderer backend handles
 
