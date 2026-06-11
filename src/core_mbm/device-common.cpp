@@ -40,6 +40,7 @@ namespace mbm
         float                    percXcam2dScale = 1.0f;
         float                    percYcam2dScale = 1.0f;
         bool                     pixelPerfectRenderingActive = false;
+        std::vector<PHYSICS *>   physics;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -91,6 +92,16 @@ namespace mbm
     void DEVICE::setPixelPerfectRenderingActive(const bool active) noexcept
     {
         impl->pixelPerfectRenderingActive = active;
+    }
+
+    uint32_t DEVICE::getTotalPhysics() const noexcept
+    {
+        return static_cast<uint32_t>(impl->physics.size());
+    }
+
+    PHYSICS * DEVICE::getPhysics(const uint32_t index) const noexcept
+    {
+        return index < impl->physics.size() ? impl->physics[index] : nullptr;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
@@ -212,17 +223,17 @@ namespace mbm
     void DEVICE::addPhysics(PHYSICS *physics)
     {
         if (physics)
-            lsPhysics.push_back(physics);
+            impl->physics.push_back(physics);
     }
     
     void DEVICE::removePhysics(PHYSICS *physics)
     {
-        for (std::vector<PHYSICS *>::size_type i = 0; i < this->lsPhysics.size(); ++i)
+        for (std::vector<PHYSICS *>::size_type i = 0; i < impl->physics.size(); ++i)
         {
-            PHYSICS *ptrPhysics = this->lsPhysics[i];
+            PHYSICS *ptrPhysics = impl->physics[i];
             if (ptrPhysics == physics)
             {
-                this->lsPhysics.erase(this->lsPhysics.begin() + std::vector<PHYSICS *>::difference_type(i));
+                impl->physics.erase(impl->physics.begin() + std::vector<PHYSICS *>::difference_type(i));
                 break;
             }
         }
@@ -280,7 +291,7 @@ namespace mbm
             RENDERIZABLE_TO_TARGET *ptr = lsObjectRenderToTarget[i];
             if (ptr == object)
             {
-                for (auto ph : this->lsPhysics)
+                for (auto ph : impl->physics)
                 {
                     ph->removeObject(ptr);
                 }
@@ -309,7 +320,7 @@ namespace mbm
     
     void DEVICE::removeObjectByIdSceneScene(const int idScene)
     {
-        for (auto ph : this->lsPhysics)
+        for (auto ph : impl->physics)
         {
             ph->removeObjectByIdSceneScene(idScene);
         }
@@ -354,7 +365,7 @@ namespace mbm
     {
         if (object == nullptr)
             return;
-        for (auto ph : this->lsPhysics)
+        for (auto ph : impl->physics)
         {
             ph->removeObject(object);
         }
@@ -369,7 +380,7 @@ namespace mbm
                 RENDERIZABLE *ptr = lsObjectRender3D[i];
                 if (ptr == object)
                 {
-                    for (auto ph : this->lsPhysics)
+                    for (auto ph : impl->physics)
                     {
                         ph->removeObject(ptr);
                     }
@@ -385,7 +396,7 @@ namespace mbm
                 RENDERIZABLE *ptr = lsObjectRender2DW[i];
                 if (ptr == object)
                 {
-                    for (auto ph : this->lsPhysics)
+                    for (auto ph : impl->physics)
                     {
                         ph->removeObject(ptr);
                     }
@@ -401,7 +412,7 @@ namespace mbm
                 RENDERIZABLE *ptr = lsObjectRender2DS[i];
                 if (ptr == object)
                 {
-                    for (auto ph : this->lsPhysics)
+                    for (auto ph : impl->physics)
                     {
                         ph->removeObject(ptr);
                     }

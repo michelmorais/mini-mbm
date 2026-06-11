@@ -722,10 +722,10 @@ namespace mbm
             return;
         const float        fps            = this->device->delta == 0.0f ? 0.0f : this->device->fps; //-V550
         const int          idCurrentScene = this->device->scene->getIdScene();
-        const std::vector<PHYSICS*>::size_type s = this->device->lsPhysics.size();
-        for (std::vector<PHYSICS*>::size_type i = 0; i < s; ++i)
+        const uint32_t     s              = this->device->getTotalPhysics();
+        for (uint32_t i = 0; i < s; ++i)
         {
-            PHYSICS *ptr = this->device->lsPhysics[i];
+            PHYSICS *ptr = this->device->getPhysics(i);
             if (ptr && ptr->enablePhysics && ptr->idScene == idCurrentScene)
             {
                 ptr->update(fps,this->device->delta);

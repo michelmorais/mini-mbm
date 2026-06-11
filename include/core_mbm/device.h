@@ -140,7 +140,6 @@ namespace mbm
         std::vector<RENDERIZABLE *>           lsObjectRender3D;
         std::vector<RENDERIZABLE *>           lsObjectRender2DW;
         std::vector<RENDERIZABLE *>           lsObjectRender2DS;
-        std::vector<PHYSICS *>                lsPhysics;
         std::vector<RENDERIZABLE_TO_TARGET *> lsObjectRenderToTarget;
         struct Impl;
         struct ImplDeleter
@@ -153,6 +152,8 @@ namespace mbm
         void setProjectionMode(const bool is3D, const float width, const float height);
         void setCamera2dScaleCache(const float percX, const float percY) noexcept;
         void setPixelPerfectRenderingActive(const bool active) noexcept;
+        uint32_t getTotalPhysics() const noexcept;
+        PHYSICS * getPhysics(const uint32_t index) const noexcept;
     };
 }
 #endif

@@ -242,6 +242,13 @@ Milestone 8 implementation note:
 - The public `DEVICE::isPixelPerfectRendering()` behavior remains unchanged.
 - Render lists, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 9 implementation note:
+
+- `DEVICE::Impl` now owns the private physics list.
+- `DEVICE::addPhysics()`, `DEVICE::removePhysics()`, and object-removal cleanup paths use the hidden physics list internally.
+- `CORE_MANAGER::updatePhysis()` iterates through private `DEVICE` helpers instead of reading the vector layout directly.
+- Render lists, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
