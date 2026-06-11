@@ -23,6 +23,7 @@ The current codebase is not designed this way yet. It is mostly a public-data en
 | `AUDIO` | Partly converted | `include/core_mbm/audio.h` uses `struct BackendData; std::unique_ptr<BackendData> backend;`. Backend state is now in backend implementation files. |
 | `AUDIO_MANAGER` | Partly converted | Shared manager code delegates setup, teardown, and update through private backend hooks. |
 | `DEVICE::specificContextDevice` | Converted | The pointer is now stored behind `DEVICE::Impl`; backend code reaches it through `DEVICE::getSpecificContextDevice()`. |
+| `TEXTURE` backend handle | Converted | `TEXTURE` stores the GPU handle behind `BackendData`; backend code uses helper methods for integer or pointer handles. |
 | Shader resources | Partly hidden | Built-in shader code is hidden behind functions, but runtime shader/buffer objects still expose backend handles. |
 | Manager caches | Private but not PIMPL | Several managers keep private containers in public headers. That hides access, but still exposes layout and forces container includes. |
 
@@ -60,7 +61,7 @@ The strongest PIMPL candidate is backend-owned rendering state. These fields sho
 | `include/core_mbm/device.h` | `SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice` | Done: stored in `DEVICE::Impl`, with backend helper functions in `.cpp` files. |
 | `include/core_mbm/shader.h` | `BUFFER_GL::BUFFER_SPECIFIC *bs` | `BUFFER_GL::BackendData`. |
 | `include/core_mbm/shader.h` | `SHADER::void *ptrShaderSpecific` | `SHADER::BackendData`. |
-| `include/core_mbm/texture-manager.h` | `TEXTURE::idTexture/ptrTexture` union | `TEXTURE::BackendData`, with backend-only accessors in implementation files. |
+| `include/core_mbm/texture-manager.h` | `TEXTURE::idTexture/ptrTexture` union | Done: stored in `TEXTURE::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/renderizable.h` | `RENDERIZABLE_TO_TARGET::void *specificConfig` | `RENDERIZABLE_TO_TARGET::BackendData`. |
 | `include/core_mbm/specific-*.h` | GL/EGL/X11, D3D9, Metal/Cocoa public headers | Move to private backend include area or `src/core_mbm/` once public users no longer need these concrete structs. |
 
@@ -490,11 +491,17 @@ Milestone 42 implementation note:
 - The public `TEXTURE::idTexture/ptrTexture` union remains in place for source compatibility in this milestone; remaining direct code-side handle access is isolated to the helper implementation and the compatibility union declaration.
 - Updated backend-porting guidance so new code uses the helper path instead of direct union access.
 
+Milestone 43 implementation note:
+
+- Moved the `TEXTURE::idTexture/ptrTexture` compatibility union out of the public header and into private `TEXTURE::BackendData`.
+- `TEXTURE` now follows the same public-header shape as the audio precedent: an incomplete `BackendData` plus `std::unique_ptr<BackendData>`.
+- Existing backend helpers remain the only handle access path, so OpenGL ES still gets a `uint32_t *` for `GLGenTextures()` / `GLDeleteTextures()` and pointer-backed backends still get `void *` / `void **`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
 
-1. `TEXTURE::idTexture/ptrTexture`
+1. `TEXTURE::idTexture/ptrTexture` - done
 2. `BUFFER_GL::bs`
 3. `SHADER::ptrShaderSpecific`
 4. `RENDERIZABLE_TO_TARGET::specificConfig`

@@ -58,12 +58,10 @@ namespace mbm
         API_IMPL void ** getBackendTexturePointerAddress() noexcept;
         API_IMPL static void EnablePixelPerfectTexture(bool value) noexcept;
 
-        union {
-            uint32_t idTexture; // DO NOT use in 64-bit. Use ptrTexture instead.
-			void*    ptrTexture;
-        };
         bool     useAlphaChannel;
       private:
+        struct BackendData;
+        std::unique_ptr<BackendData> backend;
         static bool isPixelPerfectTextureEnabled;
         std::string  fileName;
         uint32_t width;

@@ -368,38 +368,38 @@ there — choose the approach that fits your backend.
 
 ## 11. Texture upload
 
-`TEXTURE` currently keeps a compatibility union for the GPU handle:
+`TEXTURE` stores the GPU handle behind private `TEXTURE::BackendData`. The current
+implementation still uses an internal split between integer and pointer handles:
 ```cpp
 union { uint32_t idTexture; void* ptrTexture; };
 ```
 
-- New backend/core code should use `getBackendTextureId()` / `setBackendTextureId()` /
+- Backend/core code must use `getBackendTextureId()` / `setBackendTextureId()` /
   `getBackendTextureIdAddress()` for OpenGL-style integer handles.
-- New backend/core code should use `getBackendTexturePointer()` /
+- Backend/core code must use `getBackendTexturePointer()` /
   `setBackendTexturePointer()` / `getBackendTexturePointerAddress()` for pointer-backed
   handles.
 - OpenGL ES uses the texture-id helper path (GLuint texture object).
 - Metal/Vulkan/D3D12 use the pointer helper path (store a retained pointer / descriptor, cast via
   `(__bridge_retained void*)` on Metal, via raw pointer on others).
 
-> **CRITICAL — 64-bit platforms: always use `ptrTexture`, never `idTexture`**  
+> **CRITICAL — 64-bit platforms: always use the pointer helper path, never the id helper path**
 > On 32-bit platforms `sizeof(void*) == sizeof(uint32_t)` so both union members alias
 > cleanly.  On **64-bit** platforms (macOS, Linux x86_64, Windows x64) `sizeof(void*)` is
 > 8 bytes, but `sizeof(uint32_t)` is only 4 bytes.  Storing a Metal/Vulkan/D3D12 pointer
-> in `ptrTexture` and then reading it back through `idTexture` silently truncates the
+> in the pointer slot and then reading it back through the id slot silently truncates the
 > upper 32 bits, yielding a garbage or null value that will crash when used as a pointer.
 >
 > - **OpenGL ES (any bitness):** use the texture-id helpers exclusively.  `GLGenTextures`
 >   and `GLDeleteTextures` take a `GLuint*` (4 bytes), so use `getBackendTextureIdAddress()`.
->   Widening `idTexture`
->   to 64 bits would corrupt those calls because the GL functions only write/read 4 bytes.
->   The union is intentionally split by backend for this reason — never widen `idTexture`.
+>   Widening the id storage to 64 bits would corrupt those calls because the GL functions
+>   only write/read 4 bytes.
 > - **Metal / Vulkan / D3D12 on 64-bit:** use the texture-pointer helpers everywhere.
->   Never read or compare `idTexture` in these backends, not even for null checks.
+>   Never use the texture-id helpers in these backends, not even for null checks.
 >
 > **Real crash (macOS/Metal, tilemap plugin):** a code path checked `texture->idTexture`
 > to test whether a Metal texture was loaded.  The Metal texture had a valid non-null
-> `ptrTexture`, but the lower 32 bits of the pointer happened to be zero, so the equality
+> the pointer slot, but the lower 32 bits of the pointer happened to be zero, so the equality
 > test returned `true` and the texture was treated as missing — causing a null dereference
 > one call later.  The fix: use `getBackendTexturePointer()` exclusively in all Metal
 > code paths.

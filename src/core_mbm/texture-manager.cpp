@@ -51,9 +51,23 @@ namespace mbm
 {
     bool TEXTURE::isPixelPerfectTextureEnabled = false;
 
-    TEXTURE::TEXTURE() noexcept
+    struct TEXTURE::BackendData
     {
-        setBackendTexturePointer(nullptr);
+        union
+        {
+            uint32_t idTexture; // DO NOT use in 64-bit. Use ptrTexture instead.
+            void *ptrTexture;
+        };
+
+        BackendData() noexcept
+            : ptrTexture(nullptr)
+        {
+        }
+    };
+
+    TEXTURE::TEXTURE() noexcept
+        : backend(std::make_unique<BackendData>())
+    {
         fileName[0]     = 0;
         width           = 0;
         height          = 0;
@@ -402,32 +416,32 @@ namespace mbm
 
     uint32_t TEXTURE::getBackendTextureId() const noexcept
     {
-        return this->idTexture;
+        return this->backend->idTexture;
     }
 
     void TEXTURE::setBackendTextureId(uint32_t textureId) noexcept
     {
-        this->idTexture = textureId;
+        this->backend->idTexture = textureId;
     }
 
     uint32_t * TEXTURE::getBackendTextureIdAddress() noexcept
     {
-        return &this->idTexture;
+        return &this->backend->idTexture;
     }
 
     void * TEXTURE::getBackendTexturePointer() const noexcept
     {
-        return this->ptrTexture;
+        return this->backend->ptrTexture;
     }
 
     void TEXTURE::setBackendTexturePointer(void *texturePointer) noexcept
     {
-        this->ptrTexture = texturePointer;
+        this->backend->ptrTexture = texturePointer;
     }
 
     void ** TEXTURE::getBackendTexturePointerAddress() noexcept
     {
-        return &this->ptrTexture;
+        return &this->backend->ptrTexture;
     }
     
 #if defined ANDROID
