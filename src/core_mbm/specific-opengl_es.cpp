@@ -19,6 +19,7 @@
 #if defined (USE_OPENGL_ES)
 
 #include <specific-opengl_es.h>
+#include "specific-opengl_es-render-target.h"
 #include <util-interface.h>
 
 namespace mbm

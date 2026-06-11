@@ -22,6 +22,7 @@
 #if defined(USE_OPENGL_ES)
 
 #include <specific-opengl_es.h>
+#include "../core_mbm/specific-opengl_es-render-target.h"
 #include <lodepng/lodepng.h>
 #include <texture-manager.h>
 #include <util-interface.h>

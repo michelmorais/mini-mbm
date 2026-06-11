@@ -24,6 +24,7 @@
 #include <device.h>
 #include <renderizable.h>
 #include <specific-opengl_es.h>
+#include "specific-opengl_es-render-target.h"
 #include <util-interface.h>
 #include <cr-static-local.h>
 #include <plugin-callback.h>

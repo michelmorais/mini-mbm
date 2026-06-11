@@ -795,16 +795,6 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         void release();
     };
 
-    struct RENDER2TARGET_GLES
-    {
-        GLuint  idFrameBuffer;
-        GLuint  idDepthRenderbuffer;
-        GLuint  idTextureDynamic;
-        void     release();
-        RENDER2TARGET_GLES();
-        ~RENDER2TARGET_GLES();
-    };
-
     struct GLES_PS_VS
     {
         GLint positionHandle;
