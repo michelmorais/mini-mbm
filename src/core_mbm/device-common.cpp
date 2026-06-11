@@ -39,6 +39,7 @@ namespace mbm
         bool                     isGamePaused = false;
         float                    percXcam2dScale = 1.0f;
         float                    percYcam2dScale = 1.0f;
+        bool                     pixelPerfectRenderingActive = false;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -85,6 +86,11 @@ namespace mbm
     {
         impl->percXcam2dScale = percX;
         impl->percYcam2dScale = percY;
+    }
+
+    void DEVICE::setPixelPerfectRenderingActive(const bool active) noexcept
+    {
+        impl->pixelPerfectRenderingActive = active;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
@@ -184,7 +190,7 @@ namespace mbm
 
     bool DEVICE::isPixelPerfectRendering() const noexcept
     {
-        return _pixelPerfectRenderingActive;
+        return impl->pixelPerfectRenderingActive;
     }
     
     void DEVICE::pauseGame()

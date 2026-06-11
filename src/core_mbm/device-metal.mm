@@ -145,14 +145,14 @@ namespace mbm
 
     void DEVICE::disableFilteringForPixelPerfect() noexcept
     {
-        _pixelPerfectRenderingActive = true;
+        setPixelPerfectRenderingActive(true);
         if (specificContextDevice)
             specificContextDevice->useNearestSampler = true;
     }
 
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept
     {
-        _pixelPerfectRenderingActive = false;
+        setPixelPerfectRenderingActive(false);
         if (specificContextDevice)
             specificContextDevice->useNearestSampler = false;
     }

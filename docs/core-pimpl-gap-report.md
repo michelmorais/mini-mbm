@@ -235,6 +235,13 @@ Milestone 7 implementation note:
 - The scale calculation timing remains unchanged in the normal update path and lost-device restore path.
 - Render lists, `specificContextDevice`, camera, scene, pixel-perfect backend state, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 8 implementation note:
+
+- `DEVICE::Impl` now owns the private pixel-perfect rendering active flag.
+- OpenGL ES, DirectX9, Metal, and dummy backend filtering methods toggle that flag through a private `DEVICE::setPixelPerfectRenderingActive()` helper.
+- The public `DEVICE::isPixelPerfectRendering()` behavior remains unchanged.
+- Render lists, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

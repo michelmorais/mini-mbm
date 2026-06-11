@@ -130,7 +130,7 @@ namespace mbm
 
     void DEVICE::disableFilteringForPixelPerfect() noexcept//backend specific way to disable texture filtering for pixel perfect rendering
     {
-        _pixelPerfectRenderingActive = true;
+        setPixelPerfectRenderingActive(true);
         IDirect3DDevice9* pd3dDevice = this->specificContextDevice->pd3dDevice;
 		for (int i = 0; i < 2; ++i)
         {
@@ -148,7 +148,7 @@ namespace mbm
 
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept
     {
-        _pixelPerfectRenderingActive = false;
+        setPixelPerfectRenderingActive(false);
         IDirect3DDevice9* pd3dDevice = this->specificContextDevice->pd3dDevice;
         for (int i = 0; i < 2; ++i)
         {
