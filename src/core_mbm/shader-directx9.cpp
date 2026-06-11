@@ -679,28 +679,32 @@ namespace mbm
     }
 
     SHADER::SHADER() : 
-        ptrShaderSpecific(new D3D_PS_VS()),
         pShader(nullptr),
         vShader(nullptr)
     {
+        setBackendShaderSpecific(new D3D_PS_VS());
     }
 
     SHADER::~SHADER()
     {
+        void *backendShaderSpecific = getBackendShaderSpecific();
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        delete static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        delete static_cast<D3D_PS_VS*>(backendShaderSpecific);
+        setBackendShaderSpecific(nullptr);
     }
 
     void SHADER::onRestore()
     {
-        static_cast<D3D_PS_VS*>(ptrShaderSpecific)->release();
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        static_cast<D3D_PS_VS*>(backendShaderSpecific)->release();
         this->pShader = nullptr;
         this->vShader = nullptr;
     }
 
     void SHADER::releaseShader()
     {
-        static_cast<D3D_PS_VS*>(ptrShaderSpecific)->release();
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        static_cast<D3D_PS_VS*>(backendShaderSpecific)->release();
         this->pShader         = nullptr;
         this->vShader         = nullptr;
     }
@@ -747,7 +751,8 @@ namespace mbm
         ID3DXBuffer* bufferVS       = nullptr;
         ID3DXBuffer* errorBuffer    = nullptr;
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
 
         const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs.c_str();
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs.c_str();
@@ -869,7 +874,8 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -913,9 +919,9 @@ namespace mbm
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
-            this->pShader->update(this->ptrShaderSpecific);
+            this->pShader->update(backendShaderSpecific);
         if (this->vShader)
-            this->vShader->update(this->ptrShaderSpecific);
+            this->vShader->update(backendShaderSpecific);
         #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
@@ -1198,7 +1204,8 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -1242,9 +1249,9 @@ namespace mbm
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
-            this->pShader->update(this->ptrShaderSpecific);
+            this->pShader->update(backendShaderSpecific);
         if (this->vShader)
-            this->vShader->update(this->ptrShaderSpecific);
+            this->vShader->update(backendShaderSpecific);
         #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
@@ -1486,7 +1493,8 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -1530,9 +1538,9 @@ namespace mbm
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
-            this->pShader->update(this->ptrShaderSpecific);
+            this->pShader->update(backendShaderSpecific);
         if (this->vShader)
-            this->vShader->update(this->ptrShaderSpecific);
+            this->vShader->update(backendShaderSpecific);
         #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 

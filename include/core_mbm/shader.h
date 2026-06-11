@@ -190,7 +190,7 @@ namespace mbm
       public:
         static MATRIX modelView;
         static MATRIX mvpMatrix; // ModelView x projection
-        void* ptrShaderSpecific;  // Our shader specific by the backend engine
+        void* ptrShaderSpecific = nullptr;  // Our shader specific by the backend engine
         SHADER();
         virtual ~SHADER();
         void * getBackendShaderSpecific() const noexcept;

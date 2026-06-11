@@ -631,7 +631,7 @@ namespace mbm
 
     // ---- SHADER ----
 
-    SHADER::SHADER() : ptrShaderSpecific(nullptr),
+    SHADER::SHADER() :
         pShader(nullptr),
         vShader(nullptr)
     {
@@ -639,11 +639,12 @@ namespace mbm
 
     SHADER::~SHADER()
     {
-        if (ptrShaderSpecific)
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (backendShaderSpecific)
         {
             // Release the retained MTLRenderPipelineState CFBridging object.
-            CFRelease(ptrShaderSpecific);
-            ptrShaderSpecific = nullptr;
+            CFRelease(backendShaderSpecific);
+            setBackendShaderSpecific(nullptr);
         }
     }
 
@@ -654,10 +655,11 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
-        if (ptrShaderSpecific)
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (backendShaderSpecific)
         {
-            CFRelease(ptrShaderSpecific);
-            ptrShaderSpecific = nullptr;
+            CFRelease(backendShaderSpecific);
+            setBackendShaderSpecific(nullptr);
         }
         pShader = nullptr;
         vShader = nullptr;
@@ -665,14 +667,16 @@ namespace mbm
 
     bool SHADER::isLoad() const noexcept
     {
-        return ptrShaderSpecific != nullptr;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        return backendShaderSpecific != nullptr;
     }
 
     bool SHADER::compileShader(BASE_SHADER* ptrPshader, BASE_SHADER* ptrVshader,
                                FVF_PROVIDE_BY_ENGINE fvf)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE) return false;
-        if (ptrShaderSpecific) return true;  // already compiled
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (backendShaderSpecific) return true;  // already compiled
 
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->mtlDevice || !ctx->metalLayer) return false;
@@ -747,14 +751,15 @@ namespace mbm
                                                 vtxDesc, colorFmt, /*additive=*/true);
             if (!pair.standardPSO || !pair.additivePSO)
                 return false;
-            ptrShaderSpecific = (__bridge_retained void*)pair;
+            setBackendShaderSpecific((__bridge_retained void*)pair);
         }
         return true;
     }
 
     bool SHADER::render(const BUFFER_GL* pBufferId) const
     {
-        if (!ptrShaderSpecific || !pBufferId) return false;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (!backendShaderSpecific || !pBufferId) return false;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer) return false;
         auto* ctx = getMetalCtx();
@@ -774,7 +779,7 @@ namespace mbm
             }
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            MBMPSOPair* pair = (__bridge MBMPSOPair*)ptrShaderSpecific;
+            MBMPSOPair* pair = (__bridge MBMPSOPair*)backendShaderSpecific;
 
             // Select PSO based on blend state set by RENDER_STATE::set().
             // BLEND_ONE (2) = additive (src_alpha*src + 1*dst); all others = standard alpha.
@@ -877,7 +882,8 @@ namespace mbm
     bool SHADER::renderDynamic(const BUFFER_GL* pBufferId, const VEC3* vertex,
                                const VEC3* normal, const VEC2* uv) const
     {
-        if (!ptrShaderSpecific || !pBufferId || !vertex) return false;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (!backendShaderSpecific || !pBufferId || !vertex) return false;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer) return false;
         auto* ctx = getMetalCtx();
@@ -906,7 +912,7 @@ namespace mbm
             uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            MBMPSOPair* pairD = (__bridge MBMPSOPair*)ptrShaderSpecific;
+            MBMPSOPair* pairD = (__bridge MBMPSOPair*)backendShaderSpecific;
 
             // Select PSO based on blend state set by RENDER_STATE::set().
             // BLEND_ONE (2) = additive (src_alpha*src + 1*dst); all others = standard alpha.
@@ -1008,7 +1014,8 @@ namespace mbm
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId,
                                 const PARTICLE_CONTROL* particleControl) const
     {
-        if (!ptrShaderSpecific || !pBufferId || !particleControl) return false;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (!backendShaderSpecific || !pBufferId || !particleControl) return false;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer || !backendBuffer->indexBuffer) return false;
         auto* ctx = getMetalCtx();
@@ -1020,7 +1027,7 @@ namespace mbm
         @autoreleasepool
         {
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            MBMPSOPair* pairP = (__bridge MBMPSOPair*)ptrShaderSpecific;
+            MBMPSOPair* pairP = (__bridge MBMPSOPair*)backendShaderSpecific;
 
             // Match OpenGL: renderParticle() does not force additive blend — respect the
             // blend state last set by RENDER_STATE::set() so that particles such as the
@@ -1098,7 +1105,8 @@ namespace mbm
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId,
                                 const FLUID_GROUP* pGroup) const
     {
-        if (!ptrShaderSpecific || !pBufferId || !pGroup) return false;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (!backendShaderSpecific || !pBufferId || !pGroup) return false;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer || !backendBuffer->indexBuffer) return false;
         auto* ctx = getMetalCtx();
@@ -1110,7 +1118,7 @@ namespace mbm
         @autoreleasepool
         {
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            MBMPSOPair* pairF = (__bridge MBMPSOPair*)ptrShaderSpecific;
+            MBMPSOPair* pairF = (__bridge MBMPSOPair*)backendShaderSpecific;
 
             [enc setRenderPipelineState:pairF.additivePSO];  // BLEND_ONE: src*alpha + dst*1
             [enc setFrontFacingWinding:MTLWindingCounterClockwise];

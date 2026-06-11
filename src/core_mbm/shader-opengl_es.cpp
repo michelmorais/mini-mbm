@@ -538,35 +538,41 @@ namespace mbm
         programObject  = 0;
     }
 
-    SHADER::SHADER() : ptrShaderSpecific(new GLES_PS_VS()),
+    SHADER::SHADER() :
         pShader(nullptr),
         vShader(nullptr)
     {
+        setBackendShaderSpecific(new GLES_PS_VS());
     }
 
     SHADER::~SHADER()
     {
+        void *backendShaderSpecific = getBackendShaderSpecific();
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        delete static_cast<GLES_PS_VS*>(ptrShaderSpecific);
+        delete static_cast<GLES_PS_VS*>(backendShaderSpecific);
+        setBackendShaderSpecific(nullptr);
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
     {
-        static_cast<GLES_PS_VS*>(ptrShaderSpecific)->release();//TODO: check this: maybe only attribute 0 is enough
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        static_cast<GLES_PS_VS*>(backendShaderSpecific)->release();//TODO: check this: maybe only attribute 0 is enough
         this->pShader            = nullptr;
         this->vShader            = nullptr;
     }
 
     void SHADER::releaseShader()
     {
-        static_cast<GLES_PS_VS*>(ptrShaderSpecific)->release();
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        static_cast<GLES_PS_VS*>(backendShaderSpecific)->release();
         this->pShader            = nullptr;
         this->vShader            = nullptr;
     }
 
     bool SHADER::isLoad() const noexcept
     {
-        return static_cast<const GLES_PS_VS*>(ptrShaderSpecific)->programObject != 0;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        return static_cast<const GLES_PS_VS*>(backendShaderSpecific)->programObject != 0;
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
@@ -600,7 +606,8 @@ namespace mbm
         defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
-        GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(backendShaderSpecific);
         if (gles_shaderSpecific->programObject)
         {
             PRINT_IF_DEBUG("programObject already has a value [%d]", gles_shaderSpecific->programObject);
@@ -608,22 +615,22 @@ namespace mbm
         }
         if (this->pShader == nullptr && this->vShader == nullptr)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs.c_str(), defaultCodePs.c_str()))
+            if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, defaultCodeVs.c_str(), defaultCodePs.c_str()))
                 return false;
         }
         else if (this->pShader == nullptr && this->vShader)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, this->vShader->getCode(), defaultCodePs.c_str()))
+            if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, this->vShader->getCode(), defaultCodePs.c_str()))
                 return false;
         }
         else if (this->pShader && this->vShader == nullptr)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs.c_str(), this->pShader->getCode()))
+            if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, defaultCodeVs.c_str(), this->pShader->getCode()))
                 return false;
         }
         else if (this->pShader && this->vShader)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, this->vShader->getCode(), this->pShader->getCode()))
+            if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, this->vShader->getCode(), this->pShader->getCode()))
                 return false;
         }
 
@@ -677,7 +684,8 @@ namespace mbm
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
@@ -800,7 +808,8 @@ namespace mbm
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
@@ -907,7 +916,8 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const
     {
-        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         constexpr uint32_t index_subset = 0;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer)
@@ -1008,7 +1018,8 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
-        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         constexpr uint32_t index_subset = 0;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer)

@@ -523,13 +523,20 @@ Milestone 47 implementation note:
 - `SHADER::update()` now stores the backend shader-specific pointer once in a local variable before updating pixel and vertex shader variables, following the accessor reuse rule.
 - The public `SHADER::ptrShaderSpecific` member remains in place for source compatibility in this milestone; remaining direct code-side access is isolated to backend owner implementation methods and the compatibility helper implementation.
 
+Milestone 48 implementation note:
+
+- Cleaned up owner-side `SHADER::ptrShaderSpecific` usage in OpenGL ES, DirectX9, and Metal backend `SHADER` methods.
+- Constructors now initialize backend shader-specific objects through `setBackendShaderSpecific()` where a backend allocation is needed, while the public compatibility field has a default `nullptr` initializer.
+- Destructors, restore/release paths, compile paths, load checks, and render paths now store `getBackendShaderSpecific()` once in a local `void *backendShaderSpecific` before casting or passing it on.
+- Remaining direct `ptrShaderSpecific` code-side access is limited to parameter names, comments, the compatibility helper implementation, and the public compatibility member declaration.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
 
 1. `TEXTURE::idTexture/ptrTexture` - done
 2. `BUFFER_GL::bs` - done
-3. `SHADER::ptrShaderSpecific` - helper migration started; owner-side cleanup pending
+3. `SHADER::ptrShaderSpecific` - helper and owner migration complete; storage move pending
 4. `RENDERIZABLE_TO_TARGET::specificConfig`
 5. `DEVICE::specificContextDevice`
 
