@@ -15,7 +15,7 @@ list categories** inside `DEVICE`:
 | Category | Objects |
 |------|---------|
 | 3-D render list | Objects with `is3D == true` |
-| `lsObjectRender2DW` | 2-D world-space objects (`is3D == false`, `is2dS == false`) |
+| 2-D world render list | 2-D world-space objects (`is3D == false`, `is2dS == false`) |
 | `lsObjectRender2DS` | 2-D screen-space objects (`is2dS == true`) |
 
 An object is added to the correct list automatically by
