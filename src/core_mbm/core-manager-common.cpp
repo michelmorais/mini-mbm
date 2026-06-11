@@ -389,8 +389,8 @@ namespace mbm
                 plugin->onDestroy();
             }
 
-            if (this->device->audioInterface)
-                this->device->audioInterface->stopAll();
+            if (this->device->getAudioManagerInterface())
+                this->device->getAudioManagerInterface()->stopAll();
         }
         return 0;
     }
@@ -712,8 +712,8 @@ namespace mbm
     
     void CORE_MANAGER::updateAudio()
     {
-        if(this->device->audioInterface)
-            this->device->audioInterface->update(this,this->device->scene->getIdScene());
+        if(this->device->getAudioManagerInterface())
+            this->device->getAudioManagerInterface()->update(this,this->device->scene->getIdScene());
     }
     
     void CORE_MANAGER::updatePhysis()

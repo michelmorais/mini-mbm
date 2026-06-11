@@ -32,6 +32,17 @@
 
 namespace mbm
 {
+    struct DEVICE::Impl
+    {
+        int                      returnCodeApp = 0;
+        AUDIO_MANAGER_INTERFACE* audioInterface = nullptr;
+        bool                     isGamePaused = false;
+    };
+
+    void DEVICE::ImplDeleter::operator()(Impl *ptr) const
+    {
+        delete ptr;
+    }
 
     DEVICE * DEVICE::getInstance()
     {
@@ -44,6 +55,7 @@ namespace mbm
     }
 
     DEVICE::DEVICE()
+        : impl(new Impl())
     {
         bOnErrorStopScript         = false;
         clearBackGround            = true;
@@ -65,21 +77,18 @@ namespace mbm
         __percXcam2dScale          = 1.0f;
         __percYcam2dScale          = 1.0f;
         __swapBackBufferStep	   = 3;
-        returnCodeApp              = 0;
         windowPositionX            = 0;
         windowPositionY            = 0;
-        _isGamePaused              = false;
-        audioInterface			   = nullptr;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
     {
-        returnCodeApp = returnCode;
+        impl->returnCodeApp = returnCode;
     }
 
     int DEVICE::getAppReturnCode() const noexcept
     {
-        return returnCodeApp;
+        return impl->returnCodeApp;
     }
 
     float DEVICE::getBackBufferWidth() const noexcept
@@ -164,7 +173,7 @@ namespace mbm
 
     bool DEVICE::isGamePaused() const noexcept
     {
-        return _isGamePaused;
+        return impl->isGamePaused;
     }
 
     bool DEVICE::isPixelPerfectRendering() const noexcept
@@ -174,18 +183,18 @@ namespace mbm
     
     void DEVICE::pauseGame()
     {
-        _isGamePaused = true;
+        impl->isGamePaused = true;
         this->pauseTimer();
-        if(this->audioInterface)
-            this->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
+        if(impl->audioInterface)
+            impl->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
     }
     
     void DEVICE::resumeGame()
     {
-        _isGamePaused = false;
+        impl->isGamePaused = false;
         this->resumeTimer();
-        if (this->audioInterface)
-            this->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);
+        if (impl->audioInterface)
+            impl->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);
     }
     
     void DEVICE::addPhysics(PHYSICS *physics)
@@ -726,12 +735,12 @@ namespace mbm
     
     void DEVICE::setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface)
     {
-        this->audioInterface = _audioInterface;
+        impl->audioInterface = _audioInterface;
     }
 
     AUDIO_MANAGER_INTERFACE* DEVICE::getAudioManagerInterface() const noexcept
     {
-        return this->audioInterface;
+        return impl->audioInterface;
     }
 
     void * DEVICE::get_lua_state()//if we are using lua we should be able to retrieve the current state

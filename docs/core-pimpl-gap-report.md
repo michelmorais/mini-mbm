@@ -222,6 +222,12 @@ Milestone 5 implementation note:
 - Native window initialization still receives the original `initGraphics()` argument where it did before.
 - Public compatibility flags, `RENDERIZABLE`, and `DEVICE` remain untouched by this milestone.
 
+Milestone 6 implementation note:
+
+- `DEVICE::Impl` now owns private accessor-backed state: app return code, audio manager interface pointer, and paused-state flag.
+- `CORE_MANAGER` uses `DEVICE::getAudioManagerInterface()` instead of reading the audio interface pointer directly.
+- Render lists, `specificContextDevice`, camera, scene, pixel-perfect backend state, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

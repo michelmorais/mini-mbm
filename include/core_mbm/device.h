@@ -27,6 +27,7 @@
 #include "frustum.h"
 #include "camera.h"
 #include "time-control.h"
+#include <memory>
 
 namespace mbm
 {
@@ -135,18 +136,21 @@ namespace mbm
         int                                   windowPositionY;
 
     private:
-        int	                                  returnCodeApp;
         static DEVICE *                       instanceDevice;
         std::vector<RENDERIZABLE *>           lsObjectRender3D;
         std::vector<RENDERIZABLE *>           lsObjectRender2DW;
         std::vector<RENDERIZABLE *>           lsObjectRender2DS;
         std::vector<PHYSICS *>                lsPhysics;
-        AUDIO_MANAGER_INTERFACE*			  audioInterface;
         std::vector<RENDERIZABLE_TO_TARGET *> lsObjectRenderToTarget;
         float                                 __percXcam2dScale;
         float                                 __percYcam2dScale;
         bool                                 _pixelPerfectRenderingActive = false;
-        bool                                 _isGamePaused;
+        struct Impl;
+        struct ImplDeleter
+        {
+            void operator()(Impl *ptr) const;
+        };
+        std::unique_ptr<Impl, ImplDeleter> impl;
         DEVICE();
         virtual ~DEVICE();
         void setProjectionMode(const bool is3D, const float width, const float height);
