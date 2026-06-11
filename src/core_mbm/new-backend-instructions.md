@@ -840,7 +840,8 @@ void DEVICE::clearDepth()
 ```cpp
 void DEVICE::clearDepth()
 {
-    specificContextDevice->pd3dDevice->Clear(0, NULL,
+    auto* ctx = getSpecificContextDevice();
+    ctx->pd3dDevice->Clear(0, NULL,
         D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL,  // NOT D3DCLEAR_TARGET
         D3DCOLOR_XRGB(0,0,0), 1.0f, 0);
 }
@@ -855,7 +856,7 @@ new one.  To preserve the 3D scene in the colour attachment, open the new pass w
 ```objc
 void DEVICE::clearDepth()
 {
-    auto* ctx = specificContextDevice.get();
+    auto* ctx = getSpecificContextDevice();
     if (!ctx->currentEncoder || !ctx->currentCommandBuffer) return;
 
     [ctx->currentEncoder endEncoding];
@@ -894,7 +895,8 @@ two states and switch between them at draw time.
    ```objc
    void DEVICE::setDepthTest(const bool enable)
    {
-       specificContextDevice->depthTestEnabled = enable;
+       auto* ctx = getSpecificContextDevice();
+       ctx->depthTestEnabled = enable;
    }
    ```
 
@@ -1420,7 +1422,7 @@ extern "C" void mbm_ios_setMetalLayer(CAMetalLayer* layer) {
 
 void CORE_MANAGER::initGraphics() {
     // initializeSpecificContext() was called inside initializeSceneLua()
-    auto* ctx = specificContextDevice.get();
+    auto* ctx = this->device->getSpecificContextDevice();
     ctx->metalLayer = s_pendingMetalLayer;   // read back after context reset
     ...
 }

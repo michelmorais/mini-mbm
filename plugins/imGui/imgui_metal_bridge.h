@@ -20,11 +20,11 @@ struct ImDrawData;
 void ImGui_Metal_Init(void* mtlDevice);
 
 // Calls ImGui_ImplMetal_NewFrame() with the current MTLRenderPassDescriptor
-// fetched from DEVICE::getInstance()->specificContextDevice->currentPassDescriptor.
+// fetched from DEVICE::getInstance()->getSpecificContextDevice()->currentPassDescriptor.
 void ImGui_Metal_NewFrame();
 
 // Calls ImGui_ImplMetal_RenderDrawData() with the current MTLCommandBuffer
-// and MTLRenderCommandEncoder from DEVICE::getInstance()->specificContextDevice.
+// and MTLRenderCommandEncoder from DEVICE::getInstance()->getSpecificContextDevice().
 void ImGui_Metal_RenderDrawData(ImDrawData* drawData);
 
 void ImGui_Metal_Shutdown();

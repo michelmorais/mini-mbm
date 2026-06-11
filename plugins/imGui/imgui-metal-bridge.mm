@@ -23,7 +23,7 @@ void ImGui_Metal_Init(void* mtlDevice)
 void ImGui_Metal_NewFrame()
 {
     mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx =
-        mbm::DEVICE::getInstance()->specificContextDevice;
+        mbm::DEVICE::getInstance()->getSpecificContextDevice();
 
     // currentPassDescriptor is valid between CORE_MANAGER::beginRender and swapBuffers.
     ImGui_ImplMetal_NewFrame(ctx->currentPassDescriptor);
@@ -48,7 +48,7 @@ void ImGui_Metal_NewFrame()
 void ImGui_Metal_RenderDrawData(ImDrawData* drawData)
 {
     mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx =
-        mbm::DEVICE::getInstance()->specificContextDevice;
+        mbm::DEVICE::getInstance()->getSpecificContextDevice();
 
     ImGui_ImplMetal_RenderDrawData(drawData,
                                    ctx->currentCommandBuffer,
