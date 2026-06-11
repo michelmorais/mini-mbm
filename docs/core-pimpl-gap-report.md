@@ -257,6 +257,13 @@ Milestone 10 implementation note:
 - `src/core_mbm/new-backend-instructions.md` now documents the helper-based render-target iteration pattern.
 - Main 2D/3D render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 11 implementation note:
+
+- `DEVICE::Impl` now owns the private 3-D render object list.
+- `DEVICE::addRenderizable()`, `DEVICE::removeRenderizable()`, `DEVICE::removeObjectByIdSceneScene()`, and `DEVICE::disableAllButThis()` use the hidden 3-D list internally.
+- `CORE_MANAGER` render preparation, render enable/disable, stop, and lost-device restore paths access the 3-D list through a private `DEVICE::getRender3DList()` helper.
+- 2-D world/HUD render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

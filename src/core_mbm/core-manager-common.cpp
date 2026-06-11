@@ -408,7 +408,7 @@ namespace mbm
         {
             ptr->onStop();
         }
-        for (auto ptr : this->device->lsObjectRender3D)
+        for (auto ptr : this->device->getRender3DList())
         {
             ptr->onStop();
         }
@@ -534,7 +534,8 @@ namespace mbm
         // prepara para renderizar os objeto --
         device->totalObjectsIsRendering3D = 0;
         device->totalObjectsOnFrustum3D   = 0;
-        device->totalObjects3D            = static_cast<uint32_t>(this->device->lsObjectRender3D.size());
+        auto &render3DList                = this->device->getRender3DList();
+        device->totalObjects3D            = static_cast<uint32_t>(render3DList.size());
         device->totalObjectsIsRendering2D = 0;
         device->totalObjectsOnFrustum2D   = 0;
         const auto total2ds       = static_cast<uint32_t>(this->device->lsObjectRender2DS.size());
@@ -544,7 +545,7 @@ namespace mbm
 #if defined USE_THREAD
         std::thread thread2ds(prepareRender2d, std::ref(this->device->lsObjectRender2DS), std::ref(lsRender2ds));
         std::thread thread2dw(prepareRender2d, std::ref(this->device->lsObjectRender2DW), std::ref(lsRender2dw));
-        std::thread thread3d(prepareRender3d, std::ref(this->device->lsObjectRender3D), std::ref(lsRender3d));
+        std::thread thread3d(prepareRender3d, std::ref(render3DList), std::ref(lsRender3d));
         if (thread2ds.joinable())
             thread2ds.join();
         if (thread2dw.joinable())
@@ -554,7 +555,7 @@ namespace mbm
 #else
         prepareRender2d(std::ref(this->device->lsObjectRender2DS), std::ref(lsRender2ds)); //-V525
         prepareRender2d(std::ref(this->device->lsObjectRender2DW), std::ref(lsRender2dw));
-        prepareRender3d(std::ref(this->device->lsObjectRender3D), std::ref(lsRender3d));
+        prepareRender3d(std::ref(render3DList), std::ref(lsRender3d));
 #endif
 
         device->totalObjectsOnFrustum2D = static_cast<uint32_t>(lsRender2ds.size() + lsRender2dw.size());
@@ -735,7 +736,7 @@ namespace mbm
     
     void CORE_MANAGER::initEnableRenders()
     {
-        for (auto ptr : this->device->lsObjectRender3D)
+        for (auto ptr : this->device->getRender3DList())
         {
             if (ptr != nullptr)
             {
@@ -835,7 +836,7 @@ namespace mbm
 
     void CORE_MANAGER::enableRender(const int idScene)
     {
-        for (auto ptr : this->device->lsObjectRender3D)
+        for (auto ptr : this->device->getRender3DList())
         {
             if (ptr != nullptr)
             {
@@ -863,7 +864,7 @@ namespace mbm
     
     void CORE_MANAGER::disableRender(const int idScene)
     {
-        for (auto ptr : this->device->lsObjectRender3D)
+        for (auto ptr : this->device->getRender3DList())
         {
             if (ptr != nullptr)
             {
@@ -1047,7 +1048,7 @@ namespace mbm
 #if defined _DEBUG
                 WARN_LOG("onLostDevice step %d restoring objs.", impl->stepRestore);
 #endif
-                const auto t = static_cast<float>(this->device->lsObjectRender2DW.size() + this->device->lsObjectRender2DS.size() + this->device->lsObjectRender3D.size());
+                const auto t = static_cast<float>(this->device->lsObjectRender2DW.size() + this->device->lsObjectRender2DS.size() + this->device->getRender3DList().size());
                 if (t > 0.0f)
                 {
                     impl->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
@@ -1158,9 +1159,10 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    for (uint32_t i = impl->indexOnRestore, j = 0; i < this->device->lsObjectRender3D.size(); ++i)
+                    auto &render3DList = this->device->getRender3DList();
+                    for (uint32_t i = impl->indexOnRestore, j = 0; i < render3DList.size(); ++i)
                     {
-                        RENDERIZABLE* ptr = this->device->lsObjectRender3D[i];
+                        RENDERIZABLE* ptr = render3DList[i];
                         const bool    alwaysRenderize = ptr->alwaysRenderize;
                         const bool    enableRender = ptr->enableRender;
                         ptr->alwaysRenderize = false;
@@ -1190,7 +1192,7 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (impl->indexOnRestore >= this->device->lsObjectRender3D.size())
+                    if (impl->indexOnRestore >= this->device->getRender3DList().size())
                     {
                         impl->indexOnRestore = 0;
                         impl->whichFor = WFOR_DONE;

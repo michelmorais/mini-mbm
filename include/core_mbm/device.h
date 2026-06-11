@@ -137,7 +137,6 @@ namespace mbm
 
     private:
         static DEVICE *                       instanceDevice;
-        std::vector<RENDERIZABLE *>           lsObjectRender3D;
         std::vector<RENDERIZABLE *>           lsObjectRender2DW;
         std::vector<RENDERIZABLE *>           lsObjectRender2DS;
         struct Impl;
@@ -155,6 +154,7 @@ namespace mbm
         PHYSICS * getPhysics(const uint32_t index) const noexcept;
         uint32_t getTotalRenderTargets() const noexcept;
         RENDERIZABLE_TO_TARGET * getRenderTarget(const uint32_t index) const noexcept;
+        std::vector<RENDERIZABLE *> & getRender3DList() noexcept;
     };
 }
 #endif

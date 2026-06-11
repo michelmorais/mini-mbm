@@ -10,11 +10,11 @@ including every corner case.
 
 `mbm::RENDERIZABLE` (`include/core_mbm/renderizable.h`) is the abstract base class
 for every object that can be drawn on screen.  The engine maintains three **render
-lists** inside `DEVICE` (private members):
+list categories** inside `DEVICE`:
 
-| List | Objects |
+| Category | Objects |
 |------|---------|
-| `lsObjectRender3D` | Objects with `is3D == true` |
+| 3-D render list | Objects with `is3D == true` |
 | `lsObjectRender2DW` | 2-D world-space objects (`is3D == false`, `is2dS == false`) |
 | `lsObjectRender2DS` | 2-D screen-space objects (`is2dS == true`) |
 

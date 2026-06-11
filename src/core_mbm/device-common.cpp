@@ -42,6 +42,7 @@ namespace mbm
         bool                     pixelPerfectRenderingActive = false;
         std::vector<PHYSICS *>   physics;
         std::vector<RENDERIZABLE_TO_TARGET *> renderTargets;
+        std::vector<RENDERIZABLE *> render3D;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -113,6 +114,11 @@ namespace mbm
     RENDERIZABLE_TO_TARGET * DEVICE::getRenderTarget(const uint32_t index) const noexcept
     {
         return index < impl->renderTargets.size() ? impl->renderTargets[index] : nullptr;
+    }
+
+    std::vector<RENDERIZABLE *> & DEVICE::getRender3DList() noexcept
+    {
+        return impl->render3D;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
@@ -258,7 +264,7 @@ namespace mbm
             {
                 if (renderizable->position.z == 0.0f)
                     renderizable->position.z = this->orderRender.getNextZOrderControl3d();
-                this->lsObjectRender3D.push_back(renderizable);
+                impl->render3D.push_back(renderizable);
             }
             else if (renderizable->is2dS)
             {
@@ -314,7 +320,7 @@ namespace mbm
     
     void DEVICE::disableAllButThis(mbm::RENDERIZABLE *draw)
     {
-        for (auto ptr : lsObjectRender3D)
+        for (auto ptr : impl->render3D)
         {
             ptr->enableRender = false;
         }
@@ -335,12 +341,12 @@ namespace mbm
         {
             ph->removeObjectByIdSceneScene(idScene);
         }
-        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender3D.size(); ++i)
+        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render3D.size(); ++i)
         {
-            RENDERIZABLE *ptr = lsObjectRender3D[i];
+            RENDERIZABLE *ptr = impl->render3D[i];
             if (ptr->idScene == idScene)
             {
-                lsObjectRender3D.erase(lsObjectRender3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                impl->render3D.erase(impl->render3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                 i--;
             }
         }
@@ -386,16 +392,16 @@ namespace mbm
 
         if (object->is3D)
         {
-            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender3D.size(); ++i)
+            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render3D.size(); ++i)
             {
-                RENDERIZABLE *ptr = lsObjectRender3D[i];
+                RENDERIZABLE *ptr = impl->render3D[i];
                 if (ptr == object)
                 {
                     for (auto ph : impl->physics)
                     {
                         ph->removeObject(ptr);
                     }
-                    lsObjectRender3D.erase(lsObjectRender3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                    impl->render3D.erase(impl->render3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                     return;
                 }
             }
