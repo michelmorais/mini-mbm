@@ -47,6 +47,8 @@ namespace mbm
         std::vector<RENDERIZABLE *> render2DS;
         bool verbose = true;
         bool run = true;
+        float backBufferWidth = 0.0f;
+        float backBufferHeight = 0.0f;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
@@ -84,8 +86,6 @@ namespace mbm
     {
         ptrManager                 = nullptr;
         scene                      = nullptr;
-        backBufferWidth            = 0;
-        backBufferHeight           = 0;
     }
 
     void DEVICE::setCamera2dScaleCache(const float percX, const float percY) noexcept
@@ -234,24 +234,40 @@ namespace mbm
         return impl->run;
     }
 
+    void DEVICE::setBackBufferSize(const float width, const float height) noexcept
+    {
+        impl->backBufferWidth = width;
+        impl->backBufferHeight = height;
+    }
+
+    void DEVICE::setBackBufferWidth(const float width) noexcept
+    {
+        impl->backBufferWidth = width;
+    }
+
+    void DEVICE::setBackBufferHeight(const float height) noexcept
+    {
+        impl->backBufferHeight = height;
+    }
+
     float DEVICE::getBackBufferWidth() const noexcept
     {
-        return backBufferWidth;
+        return impl->backBufferWidth;
     }
     
     float DEVICE::getBackBufferHeight() const noexcept
     {
-        return backBufferHeight;
+        return impl->backBufferHeight;
     }
     
     float DEVICE::getScaleBackBufferWidth() const noexcept
     {
-        return static_cast<float>(backBufferWidth / this->camera.scale2d.x);
+        return static_cast<float>(impl->backBufferWidth / this->camera.scale2d.x);
     }
     
     float DEVICE::getScaleBackBufferHeight() const noexcept
     {
-        return static_cast<float>(backBufferHeight / this->camera.scale2d.y);
+        return static_cast<float>(impl->backBufferHeight / this->camera.scale2d.y);
     }
 
     uint32_t DEVICE::getTotalObjectsOnFrustum3D() const noexcept
@@ -370,8 +386,8 @@ namespace mbm
     {
         if (widthScreen != 0.0f && heightScreen != 0.0f)
         {
-            const float percx = this->backBufferWidth / widthScreen;
-            const float percy = this->backBufferHeight / heightScreen;
+            const float percx = impl->backBufferWidth / widthScreen;
+            const float percy = impl->backBufferHeight / heightScreen;
             if (percx != 0.0f && percy != 0.0f)
             {
                 this->camera.expectedScreen.x = widthScreen;
@@ -657,8 +673,8 @@ namespace mbm
     bool DEVICE::rayCast(const float sx, const float sy, VEC3 *rayOriginOut, VEC3 *rayDir) const
     {
         // two ways to do it ...
-        const float vx = (sx /  backBufferWidth - 0.5f) * 2.0f / camera.matrixProj._11;
-        const float vy = -(sy / backBufferHeight - 0.5f) * 2.0f / camera.matrixProj._22;
+        const float vx = (sx /  impl->backBufferWidth - 0.5f) * 2.0f / camera.matrixProj._11;
+        const float vy = -(sy / impl->backBufferHeight - 0.5f) * 2.0f / camera.matrixProj._22;
         const float vz = 1.0f;
         MATRIX      m;
         if (MatrixInverse(&m, nullptr, &camera.matrixView) == nullptr)
@@ -672,8 +688,8 @@ namespace mbm
         rayOriginOut->z = m._43;
         return true;
         /*
-        const float vx =  (sx/backBufferWidth  - 0.5f) * 2.0f; // [0,1024] -> [-1,1]
-        const float vy = -(sy/backBufferHeight - 0.5f) * 2.0f; // [0, 768] -> [-1,1]
+        const float vx =  (sx/impl->backBufferWidth  - 0.5f) * 2.0f; // [0,1024] -> [-1,1]
+        const float vy = -(sy/impl->backBufferHeight - 0.5f) * 2.0f; // [0, 768] -> [-1,1]
         VEC3 origin(vx,vy,0.0f);
         VEC3 Far(vx,vy,1.0f);
         MATRIX inverseviewproj;
@@ -711,7 +727,7 @@ namespace mbm
     void DEVICE::transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC2 &out) const noexcept
     {
         //original
-        const VEC2 middle(this->backBufferWidth * 0.5f, this->backBufferHeight * 0.5f);
+        const VEC2 middle(impl->backBufferWidth * 0.5f, impl->backBufferHeight * 0.5f);
         out.x = (x * this->camera.scaleScreen2d.x) - middle.x + this->camera.position2d.x;
         out.y = -((y * this->camera.scaleScreen2d.y) - middle.y) + this->camera.position2d.y;
         out.x *= impl->percXcam2dScale;
@@ -737,9 +753,9 @@ namespace mbm
     {
         //original
         const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
-        const VEC2 middle(this->backBufferWidth * 0.5f, this->backBufferHeight * 0.5f);
+        const VEC2 middle(impl->backBufferWidth * 0.5f, impl->backBufferHeight * 0.5f);
         out.x = newIn.x + middle.x - this->camera.position2d.x;
-        out.y = this->backBufferHeight - ((newIn.y + middle.y) - this->camera.position2d.y);
+        out.y = impl->backBufferHeight - ((newIn.y + middle.y) - this->camera.position2d.y);
         out.x /= this->camera.scaleScreen2d.x;
         out.y /= this->camera.scaleScreen2d.y; 
 
@@ -756,11 +772,11 @@ namespace mbm
         this->transformeWorld2dToScreen2d_scaled(x, y, onScreen);
         if (onScreen.x < 0)
             return false;
-        else if (onScreen.x > this->backBufferWidth * impl->percXcam2dScale)
+        else if (onScreen.x > impl->backBufferWidth * impl->percXcam2dScale)
             return false;
         else if (onScreen.y < 0)
             return false;
-        else if (onScreen.y > this->backBufferHeight * impl->percYcam2dScale)
+        else if (onScreen.y > impl->backBufferHeight * impl->percYcam2dScale)
             return false;
         return true;
     }
@@ -771,11 +787,11 @@ namespace mbm
         const float newY = this->camera.scaleScreen2d.y * y;
         if ((newX + ray) < 0)
             return false;
-        else if ((newX - ray) > this->backBufferWidth)
+        else if ((newX - ray) > impl->backBufferWidth)
             return false;
         else if ((newY + ray) < 0)
             return false;
-        else if ((newY - ray) > this->backBufferHeight)
+        else if ((newY - ray) > impl->backBufferHeight)
             return false;
         return true;
     }
@@ -784,11 +800,11 @@ namespace mbm
     {
         if ((x + ray) < 0)
             return false;
-        else if ((x - ray) > this->backBufferWidth)
+        else if ((x - ray) > impl->backBufferWidth)
             return false;
         else if ((y + ray) < 0)
             return false;
-        else if ((y - ray) > this->backBufferHeight)
+        else if ((y - ray) > impl->backBufferHeight)
             return false;
         return true;
     }
@@ -799,11 +815,11 @@ namespace mbm
         this->transformeWorld2dToScreen2d_scaled(x, y, onScreen);
         if ((onScreen.x + ray) < 0)
             return false;
-        else if ((onScreen.x - ray) > this->backBufferWidth * impl->percXcam2dScale)
+        else if ((onScreen.x - ray) > impl->backBufferWidth * impl->percXcam2dScale)
             return false;
         else if ((onScreen.y + ray) < 0)
             return false;
-        else if ((onScreen.y - ray) > this->backBufferHeight * impl->percYcam2dScale)
+        else if ((onScreen.y - ray) > impl->backBufferHeight * impl->percYcam2dScale)
             return false;
         return true;
     }
@@ -842,11 +858,11 @@ namespace mbm
         const VEC2 onScreen(x, y);
         if (onScreen.x < 0)
             return false;
-        else if (onScreen.x > this->backBufferWidth)
+        else if (onScreen.x > impl->backBufferWidth)
             return false;
         else if (onScreen.y < 0)
             return false;
-        else if (onScreen.y > this->backBufferHeight)
+        else if (onScreen.y > impl->backBufferHeight)
             return false;
         return true;
     }
@@ -1018,9 +1034,9 @@ namespace mbm
     void DEVICE::refreshDevice()
     {
         //force refresh window by sending resize event
-        const int newWidth     = static_cast<int>(this->backBufferWidth) ;
-        const int newHeight    = static_cast<int>(this->backBufferHeight);
-        this->backBufferWidth  = static_cast<float>(newWidth + 1);
+        const int newWidth     = static_cast<int>(impl->backBufferWidth);
+        const int newHeight    = static_cast<int>(impl->backBufferHeight);
+        impl->backBufferWidth  = static_cast<float>(newWidth + 1);
         this->ptrManager->onResizeWindow(newWidth, newHeight);
     }
 }

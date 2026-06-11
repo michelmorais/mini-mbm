@@ -68,8 +68,8 @@ namespace mbm
     int onGetDisplayMetrics(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        const int width  = static_cast<int>(device->backBufferWidth);
-        const int height = static_cast<int>(device->backBufferHeight);
+        const int width  = static_cast<int>(device->getBackBufferWidth());
+        const int height = static_cast<int>(device->getBackBufferHeight());
         lua_pushnumber(lua, width);
         lua_pushnumber(lua, height);
         return 2;

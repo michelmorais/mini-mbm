@@ -49,8 +49,6 @@ namespace mbm
         friend class RENDERIZABLE;
         friend class CORE_MANAGER;
       public:
-        float  backBufferWidth;
-        float  backBufferHeight;
         CAMERA camera;
     
         SHADER_CFG_LOADER cfg;                       // CFG files
@@ -68,6 +66,9 @@ namespace mbm
         API_IMPL static void quit();
         API_IMPL void setRun(bool run) noexcept;
         API_IMPL bool isRunning() const noexcept;
+        API_IMPL void setBackBufferSize(float width, float height) noexcept;
+        API_IMPL void setBackBufferWidth(float width) noexcept;
+        API_IMPL void setBackBufferHeight(float height) noexcept;
         API_IMPL float getBackBufferWidth() const noexcept;
         API_IMPL float getBackBufferHeight() const noexcept;
         API_IMPL float getScaleBackBufferWidth() const noexcept;

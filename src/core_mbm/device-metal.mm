@@ -132,7 +132,7 @@ namespace mbm
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)
     {
-        // In the Metal backend, backBufferWidth/Height and drawableSize are managed
+        // In the Metal backend, backbuffer size and drawableSize are managed
         // by initGraphics() and resetDeviceWithNewDimensions() only.
         // Here we just rebuild the camera matrices for the given dimensions.
         if (width > 0 && height > 0)

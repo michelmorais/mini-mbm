@@ -161,8 +161,7 @@ static void ios_command_handler(const char *cmd, const char *param,
 
     // 6. Create the engine manager.
     s_game = new mbm::LUA_MANAGER(args);
-    s_game->device->backBufferWidth  = static_cast<float>(w);
-    s_game->device->backBufferHeight = static_cast<float>(h);
+    s_game->device->setBackBufferSize(static_cast<float>(w), static_cast<float>(h));
     // print the resolution to the console for debugging (Lua's print goes to Xcode's console).
     NSLog(@"[mini-mbm] view size: %d x %d scale %f ", w, h, scale);
 
@@ -201,8 +200,7 @@ static void ios_command_handler(const char *cmd, const char *param,
 
     // 6. Create the engine manager (setScene is called in GAME constructor).
     s_game = new GAME();
-    s_game->device->backBufferWidth  = static_cast<float>(w);
-    s_game->device->backBufferHeight = static_cast<float>(h);
+    s_game->device->setBackBufferSize(static_cast<float>(w), static_cast<float>(h));
 
     // 7. Initialise graphics + scene.
     constexpr bool border = false;
@@ -260,8 +258,8 @@ static void ios_command_handler(const char *cmd, const char *param,
     const int newH = static_cast<int>(_metalView.bounds.size.height * scale);
 
     if (newW > 0 && newH > 0 &&
-        (newW != static_cast<int>(s_game->device->backBufferWidth) ||
-         newH != static_cast<int>(s_game->device->backBufferHeight)))
+        (newW != static_cast<int>(s_game->device->getBackBufferWidth()) ||
+         newH != static_cast<int>(s_game->device->getBackBufferHeight())))
     {
         s_game->onResizeWindow(newW, newH);
     }

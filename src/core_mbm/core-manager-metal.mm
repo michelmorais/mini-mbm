@@ -63,8 +63,7 @@ namespace mbm
         // for the Metal drawable (so Retina displays render at full resolution).
         const CGFloat sc = ctx->metalLayer.contentsScale > 0.0 ? ctx->metalLayer.contentsScale : 1.0;
         ctx->metalLayer.drawableSize = CGSizeMake(newWidth * sc, newHeight * sc);
-        this->device->backBufferWidth  = static_cast<float>(newWidth);
-        this->device->backBufferHeight = static_cast<float>(newHeight);
+        this->device->setBackBufferSize(static_cast<float>(newWidth), static_cast<float>(newHeight));
         return true;
     }
 
@@ -206,8 +205,8 @@ namespace mbm
             // updated it for the off-screen target.
             this->device->camera.updateCam(
                 true,
-                static_cast<float>(device->backBufferWidth),
-                static_cast<float>(device->backBufferHeight));
+                static_cast<float>(device->getBackBufferWidth()),
+                static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
@@ -230,8 +229,8 @@ namespace mbm
             void* handle = (__bridge void*)ctx->window;
 #endif
             plugin->onSubscribe(
-                static_cast<int>(this->device->backBufferWidth),
-                static_cast<int>(this->device->backBufferHeight),
+                static_cast<int>(this->device->getBackBufferWidth()),
+                static_cast<int>(this->device->getBackBufferHeight()),
                 handle,
                 (__bridge void*)ctx->mtlDevice);
             return indexPlugin;

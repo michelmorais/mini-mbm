@@ -184,9 +184,9 @@ namespace mbm
         GLClearDepthf(1.0f);
         GLEnable(GL_BLEND);
         if (x > 0)
-            device->backBufferWidth = static_cast<float>(x);
+            device->setBackBufferWidth(static_cast<float>(x));
         if (y > 0)
-            device->backBufferHeight = static_cast<float>(y);
+            device->setBackBufferHeight(static_cast<float>(y));
 
         TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
         GLint maxTextureSize = 0;

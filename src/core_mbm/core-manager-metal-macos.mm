@@ -343,8 +343,8 @@ namespace mbm
         // cap the window; we must use those capped dimensions as the backbuffer
         // size so that expectedScreen == backBufferSize and scaleScreen2d == 1.0.
         NSRect actualBounds = [ctx->window contentView].bounds;
-        this->device->backBufferWidth  = static_cast<float>(actualBounds.size.width);
-        this->device->backBufferHeight = static_cast<float>(actualBounds.size.height);
+        this->device->setBackBufferSize(static_cast<float>(actualBounds.size.width),
+                                        static_cast<float>(actualBounds.size.height));
         ctx->metalLayer.drawableSize   = CGSizeMake(actualBounds.size.width  * scale,
                                                      actualBounds.size.height * scale);
 
@@ -382,16 +382,16 @@ namespace mbm
             SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
             if (!ctx || !ctx->window) return;
 
-            // backBufferWidth/Height are in logical points (not scaled).
+            // The backbuffer size is in logical points (not scaled).
             // NSEvent coordinates arrive in logical points — no scale needed.
 
             // Converts a logical-point NSPoint (origin bottom-left) to engine coords
             // (origin top-left, physical pixels).
             // NSEvent coordinates are already in logical points (same space as
-            // backBufferWidth/Height).  No scale multiplication needed.
+            // the backbuffer size).  No scale multiplication needed.
             auto toEngineXY = [&](NSPoint p, float& ex, float& ey) {
                 ex = static_cast<float>(p.x);
-                ey = static_cast<float>(this->device->backBufferHeight) -
+                ey = static_cast<float>(this->device->getBackBufferHeight()) -
                      static_cast<float>(p.y);
             };
 
@@ -525,15 +525,15 @@ namespace mbm
                     {
                         // Window geometry may have changed; check actual content size.
                         // Use logical points (not physical pixels) to stay consistent
-                        // with backBufferWidth/Height and the end-of-frame poll below.
+                        // with the logical backbuffer size and the end-of-frame poll below.
                         if (ctx->window)
                         {
                             NSRect bounds = [ctx->window contentView].bounds;
                             int newW = static_cast<int>(bounds.size.width);
                             int newH = static_cast<int>(bounds.size.height);
                             if (newW > 0 && newH > 0 &&
-                                (newW != static_cast<int>(device->backBufferWidth) ||
-                                 newH != static_cast<int>(device->backBufferHeight)))
+                                (newW != static_cast<int>(device->getBackBufferWidth()) ||
+                                 newH != static_cast<int>(device->getBackBufferHeight())))
                             {
                                 this->onResizeWindow(newW, newH);
                             }
@@ -556,12 +556,12 @@ namespace mbm
             if (ctx->window && ctx->metalLayer)
             {
                 NSRect bounds = [ctx->window contentView].bounds;
-                // Logical point size — consistent with backBufferWidth/Height.
+                // Logical point size, consistent with the backbuffer size.
                 int newW = static_cast<int>(bounds.size.width);
                 int newH = static_cast<int>(bounds.size.height);
                 if (newW > 0 && newH > 0 &&
-                    (newW != static_cast<int>(device->backBufferWidth) ||
-                     newH != static_cast<int>(device->backBufferHeight)))
+                    (newW != static_cast<int>(device->getBackBufferWidth()) ||
+                     newH != static_cast<int>(device->getBackBufferHeight())))
                 {
                     this->onResizeWindow(newW, newH);
                 }

@@ -66,9 +66,9 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     if (game != nullptr)
     {
         if (width > 0)
-            game->device->backBufferWidth = static_cast<float>(width);
+            game->device->setBackBufferWidth(static_cast<float>(width));
         if (height > 0)
-            game->device->backBufferHeight = static_cast<float>(height);
+            game->device->setBackBufferHeight(static_cast<float>(height));
         mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
         cJni->absPath         = _absPath ? _absPath : "";
         cJni->apkPath         = _apkPath ? _apkPath : "";
@@ -79,10 +79,9 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
         if (game)
         {
             INFO_LOG("lib mini-mbm initialized\n width: %d height: %d", width, height);
-            const char *nameApplication = "Hello-world";
+			const char *nameApplication = "Hello-world";
 			game->device->ptrManager       = game;
-            game->device->backBufferWidth  = static_cast<float>(width);
-            game->device->backBufferHeight = static_cast<float>(height);
+            game->device->setBackBufferSize(static_cast<float>(width), static_cast<float>(height));
             mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
             cJni->jenv        = env;
             cJni->absPath     = _absPath ? _absPath : "";

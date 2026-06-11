@@ -147,7 +147,7 @@ namespace mbm
         if (!impl->loopVariablesInitialized)
         {
             #if defined _DEBUG || defined DEBUG
-            INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->backBufferWidth, device->backBufferHeight);
+            INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->getBackBufferWidth(), device->getBackBufferHeight());
             #endif
             // Cfg shader from resource----
             if (!this->device->cfg.parserCFGFromResource())
@@ -156,13 +156,13 @@ namespace mbm
                 return -1;
             }
             this->device->cfg.sortShader();
-            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
+            device->setProjectionMode(true, device->getBackBufferWidth(), device->getBackBufferHeight());
             this->device->updateFps();
             initEnableRenders();
             this->_updateDimFrustum();
             impl->loopVariablesInitialized = true;
-            this->device->camera.expectedScreen.x = this->device->backBufferWidth;
-            this->device->camera.expectedScreen.y = this->device->backBufferHeight;
+            this->device->camera.expectedScreen.x = this->device->getBackBufferWidth();
+            this->device->camera.expectedScreen.y = this->device->getBackBufferHeight();
         }
         while (device->isRunning())
         {
@@ -198,8 +198,8 @@ namespace mbm
                     break;
                     case ONRESIZEWINDOW:
                     {
-                        if( static_cast<int>(event.x) == static_cast<int>(this->device->backBufferWidth) &&
-                            static_cast<int>(event.y) == static_cast<int>(this->device->backBufferHeight))
+                        if( static_cast<int>(event.x) == static_cast<int>(this->device->getBackBufferWidth()) &&
+                            static_cast<int>(event.y) == static_cast<int>(this->device->getBackBufferHeight()))
                         {
                             #if defined _DEBUG || defined DEBUG
                             WARN_LOG("CORE_MANAGER::onLoop() - ONRESIZEWINDOW event with same dimensions %dx%d, ignoring.", static_cast<int>(event.x), static_cast<int>(event.y));
@@ -209,8 +209,7 @@ namespace mbm
                         #if defined _DEBUG || defined DEBUG
                         WARN_LOG("CORE_MANAGER::onLoop() - ONRESIZEWINDOW event with dimensions %dx%d.", static_cast<int>(event.x), static_cast<int>(event.y));
                         #endif
-                        this->device->backBufferWidth  = event.x;
-                        this->device->backBufferHeight = event.y;
+                        this->device->setBackBufferSize(event.x, event.y);
                         if (resetDeviceWithNewDimensions(static_cast<int>(event.x), static_cast<int>(event.y)) == false)
                         {
                             // trigger full restore
@@ -530,7 +529,7 @@ namespace mbm
         std::vector<RENDERIZABLE *> lsRender3d;
         // Atualiza a camera de acordo com a
         // projeção----
-        device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
+        device->setProjectionMode(true, device->getBackBufferWidth(), device->getBackBufferHeight());
         // prepara para renderizar os objeto --
         device->setTotalObjectsIsRendering3D(0);
         device->setTotalObjectsOnFrustum3D(0);
@@ -584,7 +583,7 @@ namespace mbm
                     device->incrementTotalObjectsIsRendering3D();
             }
 
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+            device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
             device->setTotalObjectsIsRendering2D(0);
             // Clear the depth buffer so 3D perspective depth values do not occlude 2dw
             // objects whose depth comes from the orthographic projection. On Metal this
@@ -619,7 +618,7 @@ namespace mbm
         VEC3 point(0, 0, 50);
         this->device->setNearFrustumDimension(VEC3(0, 0, 20));
         this->device->setFarFrustumDimension(VEC3(0, 0, 980));
-        this->device->camera.updateCam(true, this->device->backBufferWidth, this->device->backBufferHeight);
+        this->device->camera.updateCam(true, this->device->getBackBufferWidth(), this->device->getBackBufferHeight());
         this->device->updateFrustum(&this->device->camera.matrixView, &this->device->camera.matrixProj);
         while (this->device->isPointAtTheFrustum(point))
         {
@@ -653,8 +652,8 @@ namespace mbm
     {
         if (this->device->camera.expectedScreen.x != 0.0f && this->device->camera.expectedScreen.y != 0.0f) //-V550
         {
-            const float percx = this->device->backBufferWidth / this->device->camera.expectedScreen.x;
-            const float percy = this->device->backBufferHeight / this->device->camera.expectedScreen.y;
+            const float percx = this->device->getBackBufferWidth() / this->device->camera.expectedScreen.x;
+            const float percy = this->device->getBackBufferHeight() / this->device->camera.expectedScreen.y;
             if (percx != 0.0f && percy != 0.0f) //-V550
             {
                 if (this->device->camera.stretch[0])
@@ -1023,7 +1022,7 @@ namespace mbm
 #endif
             if (this->beginRender())
             {
-                device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+                device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
                 device->setDepthTest(false);
                 device->clearDepthColored();
                 if (device->scene)
@@ -1040,7 +1039,7 @@ namespace mbm
         }
         else if (impl->stepRestore == STEP_RES_OBJ)
         {
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+            device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
             device->setDepthTest(false);
             device->clearDepthColored();
             switch (impl->whichFor)
@@ -1231,8 +1230,8 @@ namespace mbm
         // Call onStop and forceRestore to ensure all resources are reloaded
         this->onStopCoreManager();
         while (!this->onLostDevice(doSwapBuffers, 
-            static_cast<int>(this->device->backBufferWidth),
-            static_cast<int>(this->device->backBufferHeight),
+            static_cast<int>(this->device->getBackBufferWidth()),
+            static_cast<int>(this->device->getBackBufferHeight()),
             this->device->getWindowPositionX(),
             this->device->getWindowPositionY()));
     }

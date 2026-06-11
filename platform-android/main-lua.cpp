@@ -138,11 +138,10 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
 
             #if defined MBM_ENABLE_MESH_LEGACY_V7
 			INFO_LOG("legacy mesh and deprecated features enabled MBM_ENABLE_MESH_LEGACY_V7");
-			#endif
+            #endif
 
             game->device->ptrManager       = game;
-            game->device->backBufferWidth  = static_cast<float>(width);
-            game->device->backBufferHeight = static_cast<float>(height);
+            game->device->setBackBufferSize(static_cast<float>(width), static_cast<float>(height));
             mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
             cJni->jenv        = env;
             cJni->absPath     = _absPath ? _absPath : "";

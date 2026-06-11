@@ -119,8 +119,8 @@ namespace mbm
         // Update dimensions with actual window size
         x = window_attrs.width;
         y = window_attrs.height;
-        device->backBufferWidth = static_cast<float>(window_attrs.width);
-        device->backBufferHeight = static_cast<float>(window_attrs.height);
+        device->setBackBufferSize(static_cast<float>(window_attrs.width),
+                                  static_cast<float>(window_attrs.height));
         
         // Now process all pending events including ConfigureNotify
         this->handleEventFromWindow();
@@ -156,9 +156,9 @@ namespace mbm
         GLClearDepthf(1.0f);
         GLEnable(GL_BLEND);
         if (x > 0)
-            device->backBufferWidth = static_cast<float>(x);
+            device->setBackBufferWidth(static_cast<float>(x));
         if (y > 0)
-            device->backBufferHeight = static_cast<float>(y);
+            device->setBackBufferHeight(static_cast<float>(y));
 
         TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
         GLint maxTextureSize = 0;
@@ -378,8 +378,8 @@ namespace mbm
                     device->setWindowPosition(abs_x, abs_y);
                     
                     // Update viewport if size changed
-                    if (xconfig.width != static_cast<int>(device->backBufferWidth) ||
-                        xconfig.height != static_cast<int>(device->backBufferHeight))
+                    if (xconfig.width != static_cast<int>(device->getBackBufferWidth()) ||
+                        xconfig.height != static_cast<int>(device->getBackBufferHeight()))
                     {
                         this->onResizeWindow(xconfig.width, xconfig.height);
                         if(needMoveEvent)
@@ -405,8 +405,8 @@ namespace mbm
                                          0, 0, &abs_x, &abs_y, &child_return);
 //
                     device->setWindowPosition(abs_x, abs_y);
-                    if((device->backBufferWidth != static_cast<float>(xexpose.width) ||
-                       device->backBufferHeight != static_cast<float>(xexpose.height)) &&
+                    if((device->getBackBufferWidth() != static_cast<float>(xexpose.width) ||
+                       device->getBackBufferHeight() != static_cast<float>(xexpose.height)) &&
                        xexpose.width > 0 && xexpose.height > 0)
                     {
                         //this->onResizeWindow(xexpose.width, xexpose.height);
@@ -429,11 +429,10 @@ namespace mbm
                                         EGL_HEIGHT, &surfaceHeight);
                         
                         // Use actual surface dimensions
-                        if (surfaceWidth > 0 && surfaceHeight > 0 && (device->backBufferWidth != static_cast<float>(surfaceWidth) ||
-                            device->backBufferHeight != static_cast<float>(surfaceHeight)))
+                        if (surfaceWidth > 0 && surfaceHeight > 0 && (device->getBackBufferWidth() != static_cast<float>(surfaceWidth) ||
+                            device->getBackBufferHeight() != static_cast<float>(surfaceHeight)))
                         {
-                            //this->device->backBufferWidth = static_cast<float>(surfaceWidth);
-                            //this->device->backBufferHeight = static_cast<float>(surfaceHeight);
+                            //this->device->setBackBufferSize(static_cast<float>(surfaceWidth), static_cast<float>(surfaceHeight));
                             this->onResizeWindow(surfaceWidth, surfaceHeight);
                         }
                     }*/

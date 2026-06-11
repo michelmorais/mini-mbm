@@ -292,8 +292,7 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
                     break;
                 }
 
-                s_game->device->backBufferWidth  = static_cast<float>(w);
-                s_game->device->backBufferHeight = static_cast<float>(h);
+                s_game->device->setBackBufferSize(static_cast<float>(w), static_cast<float>(h));
                 s_game->device->ptrManager       = s_game;
 
                 // Store the AAssetManager and native window in the platform context.

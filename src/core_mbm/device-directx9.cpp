@@ -105,9 +105,9 @@ namespace mbm
 			pd3dDevice->SetViewport(&view_port);
         }
         if (width > 0)
-            backBufferWidth = width;
+            setBackBufferWidth(width);
         if (height > 0)
-            backBufferHeight = height;
+            setBackBufferHeight(height);
         if (width > 0 && height > 0)
             this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
         if (is3D)

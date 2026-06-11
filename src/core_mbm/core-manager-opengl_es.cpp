@@ -112,8 +112,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         {
             newWidth = surfaceWidth;
             newHeight = surfaceHeight;
-            this->device->backBufferWidth = static_cast<float>(newWidth);
-            this->device->backBufferHeight = static_cast<float>(newHeight);
+            this->device->setBackBufferSize(static_cast<float>(newWidth), static_cast<float>(newHeight));
         }
         #endif
         
@@ -157,15 +156,15 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             if (status != GL_FRAMEBUFFER_COMPLETE)
             {
                 GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-                GLViewport(0, 0, static_cast<GLsizei>(device->backBufferWidth), static_cast<GLsizei>(device->backBufferHeight));
-                this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+                GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
+                this->device->camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             if (!renderTarget->render2Texture())
             {
                 GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-                GLViewport(0, 0, static_cast<GLsizei>(device->backBufferWidth), static_cast<GLsizei>(device->backBufferHeight));
-                this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+                GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
+                this->device->camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             GLBindTexture(GL_TEXTURE_2D, 0);
@@ -175,8 +174,8 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         }
         if (oneRender)
         {
-            GLViewport(0, 0, static_cast<GLsizei>(device->backBufferWidth), static_cast<GLsizei>(device->backBufferHeight));
-            this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+            GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
+            this->device->camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
@@ -206,7 +205,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             #else
                 #error "Platform not supported"
             #endif
-            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle, nullptr);
+            plugin->onSubscribe(static_cast<int>(this->device->getBackBufferWidth()),static_cast<int>(this->device->getBackBufferHeight()),handle, nullptr);
             return indexPlugin;
         }
         return 0xffffffff;
@@ -234,10 +233,10 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         xsize.max_height    = static_cast<int>(max_y);
         xsize.min_width     = static_cast<int>(min_x);
         xsize.min_height    = static_cast<int>(min_y);
-        if(static_cast<int32_t>(this->device->backBufferWidth) <= max_x && static_cast<int32_t>(this->device->backBufferWidth) >= min_x)
+        if(static_cast<int32_t>(this->device->getBackBufferWidth()) <= max_x && static_cast<int32_t>(this->device->getBackBufferWidth()) >= min_x)
         {
-            xsize.base_width    = static_cast<int>(this->device->backBufferWidth);
-            xsize.width         = static_cast<int>(this->device->backBufferWidth);
+            xsize.base_width    = static_cast<int>(this->device->getBackBufferWidth());
+            xsize.width         = static_cast<int>(this->device->getBackBufferWidth());
         }
         else
         {
@@ -245,10 +244,10 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             xsize.width         = static_cast<int>(min_x);
         }
 
-        if(static_cast<int32_t>(this->device->backBufferHeight) <= max_y && static_cast<int32_t>(this->device->backBufferHeight) >= min_y)
+        if(static_cast<int32_t>(this->device->getBackBufferHeight()) <= max_y && static_cast<int32_t>(this->device->getBackBufferHeight()) >= min_y)
         {
-            xsize.base_height   = static_cast<int>(this->device->backBufferHeight);
-            xsize.height        = static_cast<int>(this->device->backBufferHeight);
+            xsize.base_height   = static_cast<int>(this->device->getBackBufferHeight());
+            xsize.height        = static_cast<int>(this->device->getBackBufferHeight());
         }
         else
         {

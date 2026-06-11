@@ -36,7 +36,7 @@ High-impact examples:
 
 | Header | Public state that blocks strict PIMPL |
 |---|---|
-| `include/core_mbm/device.h` | `backBufferWidth`, `backBufferHeight`, `camera`, `cfg`, global dynamic vars, `scene`, `orderRender`. |
+| `include/core_mbm/device.h` | `camera`, `cfg`, global dynamic vars, `scene`, `orderRender`. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`, `changeScene`, `__sceneWasInit`, key/window flags. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
@@ -425,6 +425,14 @@ Milestone 34 implementation note:
 - Added `DEVICE::setRun()` and `DEVICE::isRunning()` so core loops, backend close handlers, Lua quit paths, and mobile platform loops no longer depend on direct `DEVICE` layout access.
 - Updated the macOS Metal quit/menu and window delegate helpers to store a `DEVICE *` and call `setRun(false)` instead of retaining a raw pointer to the hidden boolean.
 - `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
+Milestone 35 implementation note:
+
+- `DEVICE::backBufferWidth` and `DEVICE::backBufferHeight` are now stored behind `DEVICE::Impl` instead of being public `DEVICE` data members.
+- Added `DEVICE::setBackBufferSize()`, `DEVICE::setBackBufferWidth()`, and `DEVICE::setBackBufferHeight()` while keeping the existing read getters.
+- Migrated core render/resize/restore logic, backend projection/init paths, Metal/macOS and Metal/iOS size handling, Android platform setup, Lua display metrics, and `testLib` layout reads to the accessor methods.
+- Mesh file header fields named `backBufferWidth` / `backBufferHeight` remain unchanged because they are serialized asset metadata, not `DEVICE` state.
+- `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, run flag, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
 ### Phase 3 - Hide renderer backend handles
 

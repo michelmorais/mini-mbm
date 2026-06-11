@@ -446,11 +446,11 @@ Required steps:
 
 1. Process OS events (window messages, input callbacks).
 2. Translate pointer/touch coordinates from OS units to **logical points** before pushing
-   events.  `backBufferWidth/Height` is always in **logical points** — the coordinate
+   events.  `DEVICE::getBackBufferWidth()` / `DEVICE::getBackBufferHeight()` always return **logical points** — the coordinate
    space the game scene uses.  The rendering-surface size (swapchain extent,
    `drawableSize`, EGL surface, etc.) uses *physical* pixels (`logical × scale`), but
    that is a separate value the game loop never reads directly.  Do **not** multiply
-   input coordinates by the scale factor before comparing with `backBufferWidth/Height`.
+   input coordinates by the scale factor before comparing with the backbuffer size.
 3. Push events through the `CORE_MANAGER::onTouch*`, `onKey*`, `onResizeWindow`,
    `onMoveWindow`, and joystick callback methods. These methods enqueue `EVENT_KEY`
    internally; do not access the event queue storage directly.
@@ -459,15 +459,15 @@ Required steps:
 Mouse/touch Y origin: the engine origin is **bottom-left** (Y increases upward), matching
 OpenGL convention.  Most desktop OSes put Y=0 at the top of the window.  Apply Y-flip:
 ```cpp
-float ey = backBufferHeight - os_y;  // both in logical points — no scale factor
+float ey = device->getBackBufferHeight() - os_y;  // both in logical points — no scale factor
 ```
 
-> **CRITICAL — `backBufferWidth/Height` = logical points, rendering surface = physical pixels**  
-> Storing physical pixels (e.g. `width * retinaScale`) in `backBufferWidth/Height` makes
+> **CRITICAL — backbuffer size = logical points, rendering surface = physical pixels**
+> Storing physical pixels (e.g. `width * retinaScale`) with `DEVICE::setBackBufferSize()` makes
 > the orthographic camera span physical pixels, so every 2-D object appears at *half*
 > the expected size on a 2× Retina / HiDPI display compared with a non-Retina machine.  
 > Rule of thumb:
-> - `backBufferWidth/Height` — logical points (what the programmer thinks of as screen size)
+> - `DEVICE::getBackBufferWidth()` / `DEVICE::getBackBufferHeight()` — logical points (what the programmer thinks of as screen size)
 > - `drawableSize` / swapchain extent — physical pixels = logical × `contentsScale` / DPI scale  
 > - Input event coordinates — logical points (no multiplication needed on macOS/Windows)
 
@@ -477,16 +477,16 @@ float ey = backBufferHeight - os_y;  // both in logical points — no scale fact
 > `ShowWindow` / `XMapWindow`, **not** when you create the window object.  Reading
 > `contentView.bounds` (macOS) or the equivalent before the window is visible gives the
 > *requested* size, not the *actual* size.  This creates a mismatch: `expectedScreen` is
-> set once on the first `onLoop()` tick from `backBufferWidth/Height`, and if those values
+> set once on the first `onLoop()` tick from the backbuffer size, and if those values
 > are wrong (e.g. 1 600 instead of 1 470) then `adjustScaleScreen2d()` computes a scale
 > ≠ 1 every frame, offsetting every `is2dS` object.  
 > Fix: pump the run-loop for ≥ 50 ms after showing the window, then read the actual
-> bounds and assign both `backBufferWidth/Height` **and** the native surface size from them.
+> bounds and assign both `DEVICE::setBackBufferSize()` **and** the native surface size from them.
 
 > **CRITICAL — `setProjectionMode` must only rebuild camera matrices**  
 > `setProjectionMode` is called every frame from inside the render loop.  It must contain
 > **only** a call to `updateCam` (or equivalent matrix rebuild).  Never reassign
-> `backBufferWidth/Height` or the native surface size (e.g. `drawableSize`) from inside
+> the backbuffer size or the native surface size (e.g. `drawableSize`) from inside
 > this function.  Doing so overwrites the values set by `initGraphics()` and
 > `resetDeviceWithNewDimensions()` every frame, corrupting the coordinate system
 > (sub-pixel gaps, wrong scale, lost Retina resolution).  Those values belong exclusively
@@ -775,7 +775,7 @@ platform (64-bit struct sizes, endianness) before enabling them.
 - [ ] `DisplayFramebufferScale` (or equivalent HiDPI scale) must be set explicitly;
       default `{1, 1}` produces half-size UI on Retina / HiDPI displays.
 - [ ] Event-handler resize paths must use **logical points**, not physical pixels, when
-      updating `backBufferWidth/Height`.  See §13.
+      updating the backbuffer size. See §13.
 
 ---
 
@@ -811,7 +811,7 @@ Call `device->clearDepth()` immediately after `setProjectionMode(false)` and bef
 first `setDepthTest(true)` / 2dw draw loop:
 
 ```cpp
-device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
 device->setTotalObjectsIsRendering2D(0);
 // Clear the depth buffer so 3D perspective depth values do not occlude 2dw
 // objects whose depth comes from the orthographic projection.

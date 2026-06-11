@@ -98,12 +98,15 @@ namespace mbm
         }
 
         // -- Backbuffer dimensions -------------------------------------------
-        // MetalViewController sets backBufferWidth/Height from the view's logical
+        // MetalViewController sets the backbuffer size from the view's logical
         // point size before calling initializeSceneLua, so we trust those values.
-        if (this->device->backBufferWidth  <= 0)
-            this->device->backBufferWidth  = static_cast<float>(width  > 0 ? width  : 375);
-        if (this->device->backBufferHeight <= 0)
-            this->device->backBufferHeight = static_cast<float>(height > 0 ? height : 667);
+        float backBufferWidth = this->device->getBackBufferWidth();
+        float backBufferHeight = this->device->getBackBufferHeight();
+        if (backBufferWidth <= 0)
+            backBufferWidth = static_cast<float>(width > 0 ? width : 375);
+        if (backBufferHeight <= 0)
+            backBufferHeight = static_cast<float>(height > 0 ? height : 667);
+        this->device->setBackBufferSize(backBufferWidth, backBufferHeight);
 
         // -- CAMetalLayer pixel format + drawable size -----------------------
         const CGFloat scale = [[UIScreen mainScreen] scale];
@@ -118,8 +121,8 @@ namespace mbm
 
         INFO_LOG("iOS Metal device: %s", [ctx->mtlDevice.name UTF8String]);
         INFO_LOG("Backbuffer: %.1f x %.1f | Retina scale: %.2f | Drawable: %.0f x %.0f",
-                 this->device->backBufferWidth,
-                 this->device->backBufferHeight,
+                 this->device->getBackBufferWidth(),
+                 this->device->getBackBufferHeight(),
                  scale,
                  ctx->metalLayer.drawableSize.width,
                  ctx->metalLayer.drawableSize.height);

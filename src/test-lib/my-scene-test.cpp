@@ -576,7 +576,7 @@ void MY_SCENE::buildMenu()
     float hw = 0.0f, hh = 0.0f;
     hintsText->getAABB(&hw, &hh);
     hintsText->position.x      = 10.0f;
-    hintsText->position.y      = static_cast<float>(device->backBufferHeight) - hh - 5.0f;
+    hintsText->position.y      = static_cast<float>(device->getBackBufferHeight()) - hh - 5.0f;
     hintsText->position.z      = -1.0f;
     hintsText->alwaysRenderize = true;
     hintsText->enableRender    = true;
@@ -843,8 +843,8 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             render2Texture      = new mbm::RENDER_2_TEXTURE(this, is3d, is2dS);
-            const uint32_t widthFrame = static_cast<uint32_t>(device->backBufferWidth * 0.60f);
-            const uint32_t heightFrame = static_cast<uint32_t>(device->backBufferHeight * 0.60f);
+            const uint32_t widthFrame = static_cast<uint32_t>(device->getBackBufferWidth() * 0.60f);
+            const uint32_t heightFrame = static_cast<uint32_t>(device->getBackBufferHeight() * 0.60f);
             if (render2Texture->load(widthFrame, heightFrame, widthFrame, heightFrame, "my-render", true))
             {
                 if (gif)
@@ -1105,7 +1105,7 @@ void MY_SCENE::buildPosMenu()
     {
         if (posMenuTexts[j])
         {
-            posMenuTexts[j]->position.x = static_cast<float>(device->backBufferWidth) - maxWidth - 10.0f;
+            posMenuTexts[j]->position.x = static_cast<float>(device->getBackBufferWidth()) - maxWidth - 10.0f;
             posMenuTexts[j]->position.y = 10.0f + static_cast<float>(j) * (maxHeight + 5.0f);
         }
     }
@@ -1114,7 +1114,7 @@ void MY_SCENE::buildPosMenu()
     float hw = 0.0f, hh = 0.0f;
     if (hintsText)
         hintsText->getAABB(&hw, &hh);
-    const float statusY = static_cast<float>(device->backBufferHeight) - hh * 2.0f - 12.0f;
+    const float statusY = static_cast<float>(device->getBackBufferHeight()) - hh * 2.0f - 12.0f;
     statusText = this->fontDrawNoShader->addText(
         "Mouse(0,0)  Cam2D(0,0)  Cam3D(0,0,0)", mbm::VEC2(10.0f, statusY), IS_2D_FONT, IS_SCREEN);
     statusText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
@@ -1184,12 +1184,12 @@ void MY_SCENE::buildWorldMenu()
     float widthM = 0;
     float heightM = 0;
     btn3d->getWidthHeightString(&widthM, &heightM,"M");
-    const float defaultPosY = device->backBufferHeight - maxHeight;
-    btn2dS->position.x  = device->backBufferWidth - (maxWidth * 3) - widthM;
+    const float defaultPosY = device->getBackBufferHeight() - maxHeight;
+    btn2dS->position.x  = device->getBackBufferWidth() - (maxWidth * 3) - widthM;
     btn2dS->position.y  = defaultPosY;
-    btn2dW->position.x  = device->backBufferWidth - (maxWidth * 2) - widthM;
+    btn2dW->position.x  = device->getBackBufferWidth() - (maxWidth * 2) - widthM;
     btn2dW->position.y  = defaultPosY;
-    btn3d->position.x   = device->backBufferWidth - maxWidth;
+    btn3d->position.x   = device->getBackBufferWidth() - maxWidth;
     btn3d->position.y   = defaultPosY;
 }
 
@@ -1242,8 +1242,8 @@ void MY_SCENE::applyPosPreset(int idx)
     trackMouse = nullptr;
     // Compute desired screen-space anchor
     float sx = 0.0f, sy = 0.0f;
-    float backBufferHeight = static_cast<float>(device->backBufferHeight);
-    float backBufferWidth = static_cast<float>(device->backBufferWidth);
+    float backBufferHeight = static_cast<float>(device->getBackBufferHeight());
+    float backBufferWidth = static_cast<float>(device->getBackBufferWidth());
     if(render2Texture && row.object != render2Texture)
     {
         // If the object is inside render2Texture, use its dimensions instead of the device backbuffer for positioning
@@ -1285,8 +1285,8 @@ void MY_SCENE::applyPosPreset(int idx)
             // calls transformeScreen2dToWorld2d_scaled(position) at draw time, then applies
             // matrixPerspective2d. We need world = (sx - tw/2, -(sy - th/2)), so store the
             // main-screen-equivalent pixel coords that produce those world coords.
-            row.object->position.x = device->backBufferWidth * 0.5f + sx - backBufferWidth * 0.5f;
-            row.object->position.y = device->backBufferHeight * 0.5f - backBufferHeight * 0.5f + sy;
+            row.object->position.x = device->getBackBufferWidth() * 0.5f + sx - backBufferWidth * 0.5f;
+            row.object->position.y = device->getBackBufferHeight() * 0.5f - backBufferHeight * 0.5f + sy;
         }
         else
         {
@@ -1376,8 +1376,8 @@ void MY_SCENE::randomSteeredParticlePositions()
         {
             static std::random_device rd;
             static std::mt19937 gen(rd());
-            std::uniform_real_distribution<float> disX(-static_cast<float>(device->backBufferWidth) * 0.25f, static_cast<float>(device->backBufferWidth) * 0.25f);
-            std::uniform_real_distribution<float> disY(-static_cast<float>(device->backBufferHeight) * 0.25f, static_cast<float>(device->backBufferHeight) * 0.25f);
+            std::uniform_real_distribution<float> disX(-static_cast<float>(device->getBackBufferWidth()) * 0.25f, static_cast<float>(device->getBackBufferWidth()) * 0.25f);
+            std::uniform_real_distribution<float> disY(-static_cast<float>(device->getBackBufferHeight()) * 0.25f, static_cast<float>(device->getBackBufferHeight()) * 0.25f);
 
             for (uint32_t i = 0; i < group->size_particle_array; i++)
             {
@@ -1461,13 +1461,13 @@ void MY_SCENE::buildShaderMenu()
     if (pauseH > rowH) rowH = pauseH;
 
     const float gap       = 8.0f;
-    const float rightEdge = static_cast<float>(device->backBufferWidth) - 10.0f;
+    const float rightEdge = static_cast<float>(device->getBackBufferWidth()) - 10.0f;
     const float labelX    = rightEdge - nextW - gap - prevW - gap - maxLabelW;
     const float prevX     = rightEdge - nextW - gap - prevW;
     const float nextX     = rightEdge - nextW;
 
     const float spacing    = rowH + 8.0f;
-    //float rowY = static_cast<float>(device->backBufferHeight) / 2.0f - totalMenuH / 2.0f;
+    //float rowY = static_cast<float>(device->getBackBufferHeight()) / 2.0f - totalMenuH / 2.0f;
     float rowY = 510.0f;
 
     shaderRowPS.labelText->position.x = labelX;

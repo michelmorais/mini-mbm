@@ -81,9 +81,9 @@ namespace mbm
 
         // device->setProjectionMode set viewport and other initial states for ANY
         if (x > 0)
-            device->backBufferWidth = static_cast<float>(x);
+            device->setBackBufferWidth(static_cast<float>(x));
         if (y > 0)
-            device->backBufferHeight = static_cast<float>(y);
+            device->setBackBufferHeight(static_cast<float>(y));
         return true;
     }
 
@@ -127,14 +127,14 @@ namespace mbm
             if (!renderTarget->render2Texture())
             {
                 ERROR_AT(__LINE__, __FILE__, "Error render2Texture!");
-                this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+                this->device->camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             oneRender = true;
         }
         if (oneRender)
         {
-            this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+            this->device->camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
@@ -154,7 +154,7 @@ namespace mbm
             const unsigned int indexPlugin = this->appendPlugin(plugin);
             REMINDER_TODO
             void * handle = nullptr;
-            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight), handle, nullptr);
+            plugin->onSubscribe(static_cast<int>(this->device->getBackBufferWidth()),static_cast<int>(this->device->getBackBufferHeight()), handle, nullptr);
             return indexPlugin;
         }
         return 0xffffffff;
