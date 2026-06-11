@@ -201,6 +201,13 @@ Milestone 2 implementation note:
 - Public `CORE_MANAGER` flags such as `__sceneWasInit`, `keyCapsLockState`, `windowBorder`, and `enableResizeWindow` remain public for compatibility.
 - `RENDERIZABLE` and `DEVICE` remain untouched by this milestone.
 
+Milestone 3 implementation note:
+
+- `CORE_MANAGER::Impl` now owns the private plugin list.
+- Backend `addPlugin()` implementations use private helper methods (`getTotalPlugins()`, `getPlugin()`, `appendPlugin()`) instead of reading the plugin vector directly.
+- Plugin subscribe/destroy ordering remains unchanged.
+- `RENDERIZABLE` and `DEVICE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

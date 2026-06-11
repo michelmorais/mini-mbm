@@ -242,6 +242,10 @@ namespace mbm
         bool popEvent(INFO_JOYSTICK_INIT_PLAYER *info);
         void moveWindow(int x, int y);//specific function to handle window move event depending on OS windowing system
         void initializeImpl();
+        uint32_t getTotalPlugins() const noexcept;
+        PLUGIN *getPlugin(const uint32_t index) const noexcept;
+        unsigned int appendPlugin(PLUGIN *plugin);
+        void clearPlugins();
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;
@@ -267,7 +271,6 @@ namespace mbm
       private:
         bool                                    wasGamePausedBeforeOnStop;
         bool                                    loopVariablesInitialized;
-        std::vector<PLUGIN*>                    lsPlugins;
         std::string  nameApplication;
         WHICH_FOR    which_for;
         STEP_RETORE  stepRestore;

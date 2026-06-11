@@ -217,14 +217,14 @@ namespace mbm
 
     unsigned int CORE_MANAGER::addPlugin(PLUGIN* plugin)
     {
-        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
         {
-            if (this->lsPlugins[i] == plugin)
+            if (this->getPlugin(i) == plugin)
                 return i;
         }
         if (plugin)
         {
-            this->lsPlugins.push_back(plugin);
+            const unsigned int indexPlugin = this->appendPlugin(plugin);
             // Provide the window/view as the platform handle (cast to void*).
 #if TARGET_OS_IOS
             void* handle = (__bridge void*)this->device->specificContextDevice->metalView;
@@ -236,7 +236,7 @@ namespace mbm
                 static_cast<int>(this->device->backBufferHeight),
                 handle,
                 (__bridge void*)this->device->specificContextDevice->mtlDevice);
-            return static_cast<unsigned int>(this->lsPlugins.size() - 1);
+            return indexPlugin;
         }
         return 0xffffffff;
     }

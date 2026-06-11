@@ -187,9 +187,9 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
-        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
+        for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
         {
-            const PLUGIN * thatPlugin = this->lsPlugins[i];
+            const PLUGIN * thatPlugin = this->getPlugin(i);
             if(plugin == thatPlugin)
             {
                 return i;
@@ -197,7 +197,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         }
         if(plugin != nullptr)
         {
-            this->lsPlugins.push_back(plugin);
+            const unsigned int indexPlugin = this->appendPlugin(plugin);
             void * handle = nullptr;
             #if defined _WIN32
                 handle = device->specificContextDevice->window.getHwnd();
@@ -211,7 +211,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
                 #error "Platform not supported"
             #endif
             plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle, nullptr);
-            return this->lsPlugins.size() - 1;
+            return indexPlugin;
         }
         return 0xffffffff;
     }

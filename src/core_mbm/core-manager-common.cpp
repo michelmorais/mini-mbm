@@ -61,6 +61,7 @@ namespace mbm
         std::list<INFO_JOYSTICK_INIT_PLAYER> joystickInfoEvents;
         std::mutex                           mutexEvents;
         EVENT_KEY                            lastEvent;
+        std::vector<PLUGIN*>                 plugins;
     };
 
     void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
@@ -76,6 +77,27 @@ namespace mbm
     CORE_MANAGER::~CORE_MANAGER()
     {
         DEVICE::quit();
+    }
+
+    uint32_t CORE_MANAGER::getTotalPlugins() const noexcept
+    {
+        return static_cast<uint32_t>(impl->plugins.size());
+    }
+
+    PLUGIN *CORE_MANAGER::getPlugin(const uint32_t index) const noexcept
+    {
+        return index < impl->plugins.size() ? impl->plugins[index] : nullptr;
+    }
+
+    unsigned int CORE_MANAGER::appendPlugin(PLUGIN *plugin)
+    {
+        impl->plugins.push_back(plugin);
+        return static_cast<unsigned int>(impl->plugins.size() - 1);
+    }
+
+    void CORE_MANAGER::clearPlugins()
+    {
+        impl->plugins.clear();
     }
 
     void CORE_MANAGER::setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept
@@ -121,9 +143,9 @@ namespace mbm
         while (device->run)
         {
             handleEventFromWindow();
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
             {
-                PLUGIN* plugin = this->lsPlugins[i];
+                PLUGIN* plugin = this->getPlugin(i);
                 plugin->onPrepare();
             }
 
@@ -179,9 +201,9 @@ namespace mbm
                         // Notify scene and plugins
                         if (this->device->scene)
                             this->device->scene->onResizeWindow();
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onResizeWindow(static_cast<int>(event.x), static_cast<int>(event.y));
                         }
                     }
@@ -190,9 +212,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onTouchDown(event.key, event.x, event.y);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onTouchDown(event.key, event.x, event.y);
                         }
                     }
@@ -201,9 +223,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onTouchUp(event.key, event.x, event.y);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onTouchUp(event.key, event.x, event.y);
                         }
                     }
@@ -212,9 +234,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onTouchMove(event.key, event.x, event.y);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onTouchMove(event.key, event.x, event.y);
                         }
                     }
@@ -223,9 +245,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onTouchZoom((float)event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onTouchZoom((float)event.key);
                         }
                     }
@@ -245,9 +267,9 @@ namespace mbm
                         #elif defined(__linux__) || defined(__APPLE__)
                         //TODO: implement CapsLock state detection for linux and macOS
                         #endif
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onKeyDown(event.key);
                         }
                     }
@@ -256,9 +278,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onKeyUp(event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onKeyUp(event.key);
                         }
                     }
@@ -267,9 +289,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onDoubleClick(event.x, event.y, event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onDoubleClick(event.x, event.y, event.key);
                         }
                     }
@@ -284,9 +306,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onKeyDownJoystick(event.player, event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onKeyDownJoystick(event.player, event.key);
                         }
                     }
@@ -295,9 +317,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onKeyUpJoystick(event.player, event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onKeyUpJoystick(event.player, event.key);
                         }
                     }
@@ -306,9 +328,9 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
                         }
                     }
@@ -337,9 +359,9 @@ namespace mbm
         if(singleLoop == false)
         {
             // Cleanup plugins on exit only if not single loop
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
             {
-                PLUGIN* plugin = this->lsPlugins[i];
+                PLUGIN* plugin = this->getPlugin(i);
                 plugin->onDestroy();
             }
 
@@ -382,9 +404,9 @@ namespace mbm
         this->logic();
         this->updatePhysis();
         this->updateAudio();
-        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
         {
-            PLUGIN* plugin = this->lsPlugins[i];
+            PLUGIN* plugin = this->getPlugin(i);
             plugin->onLoop(this->device->delta);
         }
     }
@@ -556,9 +578,9 @@ namespace mbm
             }
             device->setDepthTest(true);
 
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
             {
-                PLUGIN* plugin = this->lsPlugins[i];
+                PLUGIN* plugin = this->getPlugin(i);
                 plugin->onRender();
             }
             this->endRender();
@@ -721,12 +743,12 @@ namespace mbm
                 this->device->scene->onFinalizeScene();
                 this->device->scene->wasUnloadedScene = true;
                 disableRender(this->device->scene->getIdScene());
-                for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
+                for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
                 {
-                    PLUGIN * plugin = this->lsPlugins[i];
+                    PLUGIN * plugin = this->getPlugin(i);
                     plugin->onDestroy();
                 }
-                this->lsPlugins.clear();
+                this->clearPlugins();
                 if (this->device->scene->goToNextScene && this->device->scene->nextScene == nullptr)
                 {
                     this->device->run             = false;
