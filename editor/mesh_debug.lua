@@ -2037,10 +2037,12 @@ function showBlenderImportDialog()
         tLang.L('blender_import_large_mesh_fail'),
         tLang.L('blender_import_large_mesh_vb_only'),
     }
+    tImGui.PushItemWidth(300)
     local largeChanged, newLargeIdx = tImGui.Combo(tLang.L('blender_import_large_mesh_mode'), st.iLargeMeshMode or 1, largeMeshOpts, -1)
     if largeChanged and newLargeIdx then
         st.iLargeMeshMode = newLargeIdx
     end
+    tImGui.PopItemWidth()
     if (st.iLargeMeshMode or 1) == 2 then
         tImGui.TextDisabled(tLang.L('blender_import_large_mesh_vb_only_note'))
     end
@@ -2050,7 +2052,7 @@ function showBlenderImportDialog()
     st.bImportInvertU = tImGui.Checkbox(tLang.L('blender_import_invert_u'), st.bImportInvertU)
     tImGui.SameLine()
     st.bImportInvertV = tImGui.Checkbox(tLang.L('blender_import_invert_v'), st.bImportInvertV)
-    tUtil.pushResponsiveItemWidth(90)
+    tImGui.PushItemWidth(120)
     local rxChanged, newRx = tImGui.InputFloat(tLang.L('blender_import_rotation_x'), st.nImportAngleX, 1, 15, '%.1f', 0)
     if rxChanged and newRx then st.nImportAngleX = newRx end
     tImGui.SameLine()
@@ -2061,10 +2063,12 @@ function showBlenderImportDialog()
     if rzChanged and newRz then st.nImportAngleZ = newRz end
     tImGui.PopItemWidth()
     tImGui.EndDisabled()
+    tImGui.PushItemWidth(120)
     local toChanged, newTo = tImGui.InputInt(tLang.L('blender_import_timeout_secs'), st.iTimeoutSecs, 10, 60)
     if toChanged and newTo and newTo >= 10 then
         st.iTimeoutSecs = newTo
     end
+    tImGui.PopItemWidth()
 
     if blender and not blender.found then
         local key = 'blender_import_missing_' .. osName
