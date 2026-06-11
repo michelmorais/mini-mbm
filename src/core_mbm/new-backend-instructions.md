@@ -373,8 +373,8 @@ there — choose the approach that fits your backend.
 
 Backend code that needs the concrete shader-specific object should go through
 `SHADER::getBackendShaderSpecific()` / `setBackendShaderSpecific()` instead of reading or
-writing `SHADER::ptrShaderSpecific` directly. During the staged PIMPL migration, the
-public member may still exist for compatibility; new code should use the helper path.
+writing `SHADER::ptrShaderSpecific` directly. The old public member no longer exists; the
+storage is private `SHADER::BackendData`.
 If a function needs the shader-specific object more than once, store the accessor result in
 a local `void *backendShaderSpecific` for that function scope.
 

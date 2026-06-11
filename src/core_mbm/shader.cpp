@@ -181,6 +181,21 @@ namespace mbm
         backendData->buffer = backendBuffer;
     }
 
+    struct SHADER::BackendData
+    {
+        void *shaderSpecific;
+
+        BackendData() noexcept :
+            shaderSpecific(nullptr)
+        {
+        }
+    };
+
+    void SHADER::BackendDataDeleter::operator()(BackendData *data) const noexcept
+    {
+        delete data;
+    }
+
     BASE_SHADER::BASE_SHADER() noexcept {}
 
     BASE_SHADER::~BASE_SHADER()
@@ -278,12 +293,16 @@ namespace mbm
 
     void * SHADER::getBackendShaderSpecific() const noexcept
     {
-        return ptrShaderSpecific;
+        return backendData ? backendData->shaderSpecific : nullptr;
     }
 
     void SHADER::setBackendShaderSpecific(void *backendShaderSpecific) noexcept
     {
-        ptrShaderSpecific = backendShaderSpecific;
+        if (!backendData)
+        {
+            backendData.reset(new BackendData());
+        }
+        backendData->shaderSpecific = backendShaderSpecific;
     }
 
     mbm::MATRIX mbm::SHADER::modelView; // Matrix do modelo (ModelView)

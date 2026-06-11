@@ -190,7 +190,6 @@ namespace mbm
       public:
         static MATRIX modelView;
         static MATRIX mvpMatrix; // ModelView x projection
-        void* ptrShaderSpecific = nullptr;  // Our shader specific by the backend engine
         SHADER();
         virtual ~SHADER();
         void * getBackendShaderSpecific() const noexcept;
@@ -205,6 +204,13 @@ namespace mbm
         bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
         void update();
       private:
+        struct BackendData;
+        struct BackendDataDeleter
+        {
+            void operator()(BackendData *data) const noexcept;
+        };
+
+        std::unique_ptr<BackendData, BackendDataDeleter> backendData;
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
     };

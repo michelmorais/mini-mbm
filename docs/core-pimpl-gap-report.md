@@ -60,7 +60,7 @@ The strongest PIMPL candidate is backend-owned rendering state. These fields sho
 |---|---|---|
 | `include/core_mbm/device.h` | `SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice` | Done: stored in `DEVICE::Impl`, with backend helper functions in `.cpp` files. |
 | `include/core_mbm/shader.h` | `BUFFER_GL::BUFFER_SPECIFIC *bs` | Done: stored in `BUFFER_GL::BackendData`, with helper accessors for backend code. |
-| `include/core_mbm/shader.h` | `SHADER::void *ptrShaderSpecific` | `SHADER::BackendData`. |
+| `include/core_mbm/shader.h` | `SHADER::void *ptrShaderSpecific` | Done: stored in `SHADER::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/texture-manager.h` | `TEXTURE::idTexture/ptrTexture` union | Done: stored in `TEXTURE::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/renderizable.h` | `RENDERIZABLE_TO_TARGET::void *specificConfig` | `RENDERIZABLE_TO_TARGET::BackendData`. |
 | `include/core_mbm/specific-*.h` | GL/EGL/X11, D3D9, Metal/Cocoa public headers | Move to private backend include area or `src/core_mbm/` once public users no longer need these concrete structs. |
@@ -530,13 +530,19 @@ Milestone 48 implementation note:
 - Destructors, restore/release paths, compile paths, load checks, and render paths now store `getBackendShaderSpecific()` once in a local `void *backendShaderSpecific` before casting or passing it on.
 - Remaining direct `ptrShaderSpecific` code-side access is limited to parameter names, comments, the compatibility helper implementation, and the public compatibility member declaration.
 
+Milestone 49 implementation note:
+
+- Moved the `SHADER::ptrShaderSpecific` compatibility member out of the public header and into private `SHADER::BackendData`.
+- `SHADER::getBackendShaderSpecific()` and `SHADER::setBackendShaderSpecific()` remain the only shader-specific backend access path, so backend destructors still own and release their concrete objects exactly as before.
+- Used a custom private deleter for the incomplete `BackendData` holder so backend-specific `SHADER` destructor definitions do not need the private storage definition.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
 
 1. `TEXTURE::idTexture/ptrTexture` - done
 2. `BUFFER_GL::bs` - done
-3. `SHADER::ptrShaderSpecific` - helper and owner migration complete; storage move pending
+3. `SHADER::ptrShaderSpecific` - done
 4. `RENDERIZABLE_TO_TARGET::specificConfig`
 5. `DEVICE::specificContextDevice`
 
