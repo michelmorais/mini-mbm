@@ -46,7 +46,6 @@ function onInitScene()
     tLineCenterY:add({0,-9999999, 0,9999999})
     tLineCenterX:setColor(1,0,0)
     tLineCenterY:setColor(0,1,0)
-    ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
     tUtil.bRightSide            = true
     tUtil.sMessageOverlay       = 'Welcome to Texture Packer Editor!'
     tClicked = {x = 0, y = 0}
@@ -3266,7 +3265,7 @@ function showTextureOptions()
         local max_width = 220
         local tSizeBtnAddSet   = {x=43,y=0} 
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_texture_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_texture_options), true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_texture_options), true, 0)
         if is_opened then
             
             local step       =  1
@@ -3711,7 +3710,7 @@ function showOverlapTextureOptions()
     tUtil.setInitialWindowPositionLeft(tLang.L("overlap_texture_position"), 224, 0, 220, 220)
     local title = string.format('%s [%s]', tLang.L("overlap_texture_position"),
                                 tUtil.getShortName(tTexture.file_name))
-    local is_opened, closed_clicked = tImGui.Begin(title, true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(title, true, 0)
     if is_opened then
         local step      = 1
         local step_fast = 10
@@ -3972,16 +3971,6 @@ function main_menu_texture_packer()
                 tTextureOptions.bFilter = checked
             end
 
-            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
-            if pressed then
-                bEnableMoveWindow = checked
-                if bEnableMoveWindow then
-                    ImGuiWindowFlags_NoMove = 0
-                else
-                    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
-                end
-            end
-
             tLang.renderLanguageSubmenu()
 
             if tImGui.BeginMenu(tLang.L("background_color")) then
@@ -4196,7 +4185,7 @@ function onLoop(delta)
     main_menu_texture_packer()
 
     if bTextureViewOpened then
-        local closed_clicked = tUtil.showTextureAssets(tWindowsTitle.title_image_selector,tTexturesToEditor,0,0,ImGuiWindowFlags_NoMove == 0)
+        local closed_clicked = tUtil.showTextureAssets(tWindowsTitle.title_image_selector,tTexturesToEditor,0,0)
         if closed_clicked then
             bTextureViewOpened = false
         end

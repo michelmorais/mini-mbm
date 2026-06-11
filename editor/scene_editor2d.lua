@@ -102,7 +102,6 @@ local camera2d
 local tLineCenterX, tLineCenterY, tLineScreen2d
 local tex_alpha_pattern
 local tWindowsArea
-local ImGuiWindowFlags_NoMove
 local ImGuiTreeNodeFlags_Selected
 local ImGuiTreeNodeFlags_DefaultOpen
 
@@ -125,7 +124,6 @@ local bEnableMoveWorld    = true
 local tDragObj            = nil   -- object being dragged in panel browser
 local tDropTarget         = nil   -- panel (or sentinel) hovered during drag
 local FREE_ZONE_SENTINEL  = {}    -- unique sentinel meaning "drop to Free"
-local bEnableMoveWindow   = false
 local bClickedOverAnyMesh = false
 local bMovingAnyMesh      = false
 local isClickedMouseLeft  = false
@@ -1102,8 +1100,7 @@ showPanelBrowser = function()
     local width = 300
     local iW, iH = mbm.getSizeScreen()
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_panel_browser, 0, iH*0.45, width, width + 50, iH * 0.45)
-    local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_browser"), true, flags)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_browser"), true, 0)
     if is_opened then
         -- Root-level buttons
         if tImGui.Button(tLang.L("add_root_panel"), {x=-1, y=0}) then
@@ -1233,8 +1230,7 @@ showPanelProperties = function()
     local width = 300
     local iW, iH = mbm.getSizeScreen()
     tUtil.setInitialWindowPositionRight(tWindowsTitle.title_panel_props, 0, 0, width, width + 50, iH * 0.45)
-    local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_properties"), true, flags)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_properties"), true, 0)
     if is_opened then
         local panel = tSelectedPanel
         local step = 0.01
@@ -1467,7 +1463,7 @@ showTransformQuick = function()
 
     local iW, iH = mbm.getRealSizeScreen()
     tUtil.setInitialWindowPositionRight(tWindowsTitle.title_transform_quick, 0, iH * 0.48, 300, 350, iH * 0.45)
-    local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
+    local flags = 0
 
     -- Detect 3D: getAABB(true) returns depth only for 3D objects (same logic as setShapeToMesh)
     local _, _, d_aabb = tObj:getAABB(true)
@@ -1480,7 +1476,7 @@ showTransformQuick = function()
 
     local is_opened = tImGui.Begin(tLang.L("quick_transform"), false, flags)
     if is_opened then
-        tImGui.PushItemWidth(240)
+        tUtil.pushResponsiveItemWidth(240)
 
         -- ── World Type ────────────────────────────────────────────────────────
         tImGui.TextDisabled(tLang.L("world_type"))
@@ -2222,8 +2218,7 @@ showMeshList = function()
     local width = 300
     local iW, iH = mbm.getSizeScreen()
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_meshes, 0, 0, width, width + 50, iH * 0.45)
-    local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_meshes), true, flags)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_meshes), true, 0)
     if is_opened then
         -- Filter section
         if tImGui.TreeNodeEx(string.format(tLang.L("filter"), #tAllMesh), 0, '##FilterMesh') then
@@ -2298,7 +2293,7 @@ showMeshList = function()
 
                         -- Anchor display for panel-assigned objects
                         if tObj.panelRef and tObj.anchorX then
-                            tImGui.PushItemWidth(150)
+                            tUtil.pushResponsiveItemWidth(150)
 
                             -- Anchor type selector
                             tImGui.Text(tLang.L("anchor_type"))
@@ -2403,7 +2398,7 @@ showAddingMeshOptions = function()
     local width = 300
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_adding_mesh, 0, 0, width, width + 50)
     local is_opened, closed_clicked = tImGui.Begin(
-        tLang.L(tWindowsTitle.title_adding_mesh), true, ImGuiWindowFlags_NoMove)
+        tLang.L(tWindowsTitle.title_adding_mesh), true, 0)
     if is_opened then
         -- Target panel info
         if tSelectedPanel then
@@ -2417,7 +2412,7 @@ showAddingMeshOptions = function()
         if #tSelectedObjs > 0 then
             title_duplicated = tLang.L("duplicate_all_mesh_selected")
         end
-        if tImGui.Button(title_duplicated, {x=200, y=0}) then
+        if tImGui.Button(title_duplicated, tUtil.getResponsiveItemSize(200)) then
             onDuplicated()
         end
     end
@@ -2544,7 +2539,7 @@ local function treeNodePosition(tObj)
         local step_fast = 10.0
         local format    = "%.3f"
         local inputFlags = 0
-        tImGui.PushItemWidth(150)
+        tUtil.pushResponsiveItemWidth(150)
 
         local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##Mesh(s)', tObj.x, step, step_fast, format, inputFlags)
         tObj.isBlockedX = drawBlockButton(tObj.isBlockedX, 'X')
@@ -2601,7 +2596,7 @@ local function treeNodeScale(tObj)
         local step_fast = 0.1
         local format    = "%.3f"
         local inputFlags = 0
-        tImGui.PushItemWidth(150)
+        tUtil.pushResponsiveItemWidth(150)
 
         local atype      = tObj.anchorType or "center"
         local hasPanelR  = tObj.panelRef and tObj.panelRef._rect
@@ -2761,7 +2756,7 @@ local function treeNodeAngle(tObj)
         local step_fast = 5.0
         local format    = "%.2f"
         local inputFlags = 0
-        tImGui.PushItemWidth(150)
+        tUtil.pushResponsiveItemWidth(150)
 
         local result, fValue = tImGui.InputFloat(tLang.L("angle_ax") .. '##Mesh(s)', math.deg(tObj.ax), step, step_fast, format, inputFlags)
         if result then
@@ -4357,16 +4352,6 @@ local function main_menu_scene_editor_2d()
         if tImGui.BeginMenu(tLang.L("menu_options")) then
             local pressed, checked
 
-            pressed, checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
-            if pressed then
-                bEnableMoveWindow = checked
-                if bEnableMoveWindow then
-                    ImGuiWindowFlags_NoMove = 0
-                else
-                    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
-                end
-            end
-
             pressed, checked = tImGui.MenuItem(tLang.L("show_alpha_pattern"), true, tex_alpha_pattern.visible)
             if pressed then tex_alpha_pattern.visible = checked end
 
@@ -4437,7 +4422,7 @@ local function main_menu_scene_editor_2d()
                 tOptionsLaunch.iIndexResolution = current_item
             end
 
-            if tImGui.Button(tLang.L("play"), {x = 200, y = 0}) then
+            if tImGui.Button(tLang.L("play"), tUtil.getResponsiveItemSize(200)) then
                 onPlay()
             end
             tImGui.SameLine()
@@ -4455,7 +4440,7 @@ local function main_menu_scene_editor_2d()
 
             if tOptionsEditor.sCurrentScriptExecution:len() == 0 then
                 tImGui.SameLine()
-                if tImGui.Button(tLang.L("create_it_for_me"), {x = 160, y = 0}) then
+                if tImGui.Button(tLang.L("create_it_for_me"), tUtil.getResponsiveItemSize(160)) then
                     if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
                         createBasicScriptForScene(tOptionsEditor.sCurrentScriptExecution)
                     elseif sLastEditorFileName and sLastEditorFileName:len() > 0 then
@@ -4559,7 +4544,6 @@ function onInitScene()
 
     v1 = vec2:new()
 
-    ImGuiWindowFlags_NoMove        = tImGui.Flags('ImGuiWindowFlags_NoMove')
     ImGuiTreeNodeFlags_Selected    = tImGui.Flags('ImGuiTreeNodeFlags_Selected')
     ImGuiTreeNodeFlags_DefaultOpen = tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')
 
@@ -4800,10 +4784,9 @@ showInlineTextEdit = function()
     local winW, winH = 320, 120
     local px = math.min(math.max(tInlineTextEdit.sx - winW * 0.5, 0), iW - winW)
     local py = math.min(math.max(tInlineTextEdit.sy - winH - 8, tImGui.GetMainMenuBarHeight()), iH - winH)
-    tImGui.SetNextWindowPos({x = px, y = py}, tImGui.Flags('ImGuiCond_Always'))
-    tImGui.SetNextWindowSize({x = winW, y = winH}, tImGui.Flags('ImGuiCond_Always'))
-    local wflags = tImGui.Flags('ImGuiWindowFlags_NoMove', 'ImGuiWindowFlags_NoResize',
-                                'ImGuiWindowFlags_NoCollapse', 'ImGuiWindowFlags_NoSavedSettings',
+    tImGui.SetNextWindowPos({x = px, y = py}, tImGui.Flags('ImGuiCond_Appearing'))
+    tImGui.SetNextWindowSize({x = winW, y = winH}, tImGui.Flags('ImGuiCond_Appearing'))
+    local wflags = tImGui.Flags('ImGuiWindowFlags_NoCollapse', 'ImGuiWindowFlags_NoSavedSettings',
                                 'ImGuiWindowFlags_NoBringToFrontOnFocus')
     local title = (tObj.fileName and tUtil.getShortName(tObj.fileName) or "text") .. "##inlineedit"
     local is_opened, closed_clicked = tImGui.Begin(title, true, wflags)

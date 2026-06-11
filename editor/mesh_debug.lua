@@ -1892,7 +1892,14 @@ function showBlenderImportDialog()
         st.bOpenPopup = false
     end
 
-    local flags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
+    local iW, iH = mbm.getRealSizeScreen()
+    local maxW = math.max(420, iW - 40)
+    local maxH = math.max(260, iH - 60)
+    local initialW = math.min(720, maxW)
+    local initialH = math.min(560, maxH)
+    tImGui.SetNextWindowSizeConstraints({x=420, y=260}, {x=maxW, y=maxH})
+    tImGui.SetNextWindowSize({x=initialW, y=initialH}, tImGui.Flags('ImGuiCond_Appearing'))
+    local flags = 0
     local isOpen, _ = tImGui.BeginPopupModal(tLang.L('blender_import_modal_title') .. '###blender_import_modal', false, flags)
     if not isOpen then return end
 
@@ -1974,7 +1981,7 @@ function showBlenderImportDialog()
         end
 
         local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
-        if tImGui.BeginTable('blenderImportFilesTable', 4, tableFlags, {x=760, y=180}) then
+        if tImGui.BeginTable('blenderImportFilesTable', 4, tableFlags, {x=-1, y=180}) then
             tImGui.TableSetupScrollFreeze(0, 1)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_enable'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_file'))
@@ -2030,10 +2037,12 @@ function showBlenderImportDialog()
         tLang.L('blender_import_large_mesh_fail'),
         tLang.L('blender_import_large_mesh_vb_only'),
     }
+    tImGui.PushItemWidth(300)
     local largeChanged, newLargeIdx = tImGui.Combo(tLang.L('blender_import_large_mesh_mode'), st.iLargeMeshMode or 1, largeMeshOpts, -1)
     if largeChanged and newLargeIdx then
         st.iLargeMeshMode = newLargeIdx
     end
+    tImGui.PopItemWidth()
     if (st.iLargeMeshMode or 1) == 2 then
         tImGui.TextDisabled(tLang.L('blender_import_large_mesh_vb_only_note'))
     end
@@ -2043,7 +2052,7 @@ function showBlenderImportDialog()
     st.bImportInvertU = tImGui.Checkbox(tLang.L('blender_import_invert_u'), st.bImportInvertU)
     tImGui.SameLine()
     st.bImportInvertV = tImGui.Checkbox(tLang.L('blender_import_invert_v'), st.bImportInvertV)
-    tImGui.PushItemWidth(90)
+    tImGui.PushItemWidth(120)
     local rxChanged, newRx = tImGui.InputFloat(tLang.L('blender_import_rotation_x'), st.nImportAngleX, 1, 15, '%.1f', 0)
     if rxChanged and newRx then st.nImportAngleX = newRx end
     tImGui.SameLine()
@@ -2054,10 +2063,12 @@ function showBlenderImportDialog()
     if rzChanged and newRz then st.nImportAngleZ = newRz end
     tImGui.PopItemWidth()
     tImGui.EndDisabled()
+    tImGui.PushItemWidth(120)
     local toChanged, newTo = tImGui.InputInt(tLang.L('blender_import_timeout_secs'), st.iTimeoutSecs, 10, 60)
     if toChanged and newTo and newTo >= 10 then
         st.iTimeoutSecs = newTo
     end
+    tImGui.PopItemWidth()
 
     if blender and not blender.found then
         local key = 'blender_import_missing_' .. osName
@@ -2117,7 +2128,7 @@ function showBlenderImportDialog()
         tImGui.Separator()
         tImGui.Text(tLang.L('blender_import_results_title'))
         local resultFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
-        if tImGui.BeginTable('blenderImportResultsTable', 3, resultFlags, {x=640, y=150}) then
+        if tImGui.BeginTable('blenderImportResultsTable', 3, resultFlags, {x=-1, y=150}) then
             tImGui.TableSetupScrollFreeze(0, 1)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_file'))
             tImGui.TableSetupColumn(tLang.L('blender_import_col_status'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
@@ -4607,7 +4618,7 @@ function showMeshOptions(tEntry, index)
         if index == iSelectedMeshIndex and tPreviewMesh then
             local okSh, tShader = dpCall(function() return tPreviewMesh:getShader() end)
             if okSh and tShader then
-                tImGui.PushItemWidth(180)
+                tUtil.pushResponsiveItemWidth(180)
                 local sAnim, iCurAnim = tPreviewMesh:getAnim()
                 local nTotalAnim = (tPreviewMesh.getTotalAnim and tPreviewMesh:getTotalAnim()) or 1
                 if nTotalAnim > 1 then
@@ -5732,7 +5743,7 @@ function showMeshTreeWindow()
     local width = 350
     local iW, iH = mbm.getSizeScreen()
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_mesh_tree, 0, 0, width, width + 100, iH * 0.8)
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_tree), true, tImGui.Flags('ImGuiWindowFlags_NoMove'))
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_tree), true, 0)
 
     if is_opened then
         if tImGui.BeginMenuBar() then
@@ -5798,9 +5809,8 @@ end
 function showCameraWindow()
     local iW = mbm.getSizeScreen()
     local winW = 240
-    tImGui.SetNextWindowPos({x = iW - winW - 5, y = 25}, tImGui.Flags('ImGuiCond_Always'))
-    local wFlags = tImGui.Flags('ImGuiWindowFlags_NoMove', 'ImGuiWindowFlags_AlwaysAutoResize',
-                                'ImGuiWindowFlags_NoCollapse')
+    tImGui.SetNextWindowPos({x = iW - winW - 5, y = 25}, tImGui.Flags('ImGuiCond_Once'))
+    local wFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoCollapse')
     local opened = tImGui.Begin(tLang.L('camera_panel') .. '##camWin', false, wFlags)
     if opened then
         -- Mode toggle: 2D / 3D radio buttons
@@ -5841,7 +5851,7 @@ function showCameraWindow()
             if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
                 local c = tLoadedMeshes[iSelectedMeshIndex].cam3d
                 local px, py, pz = cam3dGetPos(c)
-                tImGui.PushItemWidth(72)
+                tUtil.pushResponsiveItemWidth(72)
 
                 -- Position (editable; back-computes spherical coords on change)
                 tImGui.Text(tLang.L('cam_position'))
@@ -5890,7 +5900,7 @@ function showCameraWindow()
                 tImGui.TextDisabled(tLang.L('cam_no_mesh'))
             end
         else
-            tImGui.PushItemWidth(72)
+            tUtil.pushResponsiveItemWidth(72)
             local rx, nx = tImGui.DragFloat('X##c2dx', camera2d.x, 5.0, 0, 0, '%.1f', 0)
             local ry, ny = tImGui.DragFloat('Y##c2dy', camera2d.y, 5.0, 0, 0, '%.1f', 0)
             if rx or ry then
