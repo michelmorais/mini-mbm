@@ -342,6 +342,13 @@ Milestone 22 implementation note:
 - Remaining direct users are intentionally isolated to Lua framework wrappers and the ImGui Metal bridge for later compatibility-focused milestones.
 - `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 23 implementation note:
+
+- Lua framework wrappers now use `DEVICE::getSpecificContextDevice()` instead of reading `DEVICE::specificContextDevice` directly.
+- Migrated Android and DirectX Lua wrapper context lookups for quit, path/include handling, key code/name helpers, idiom/user-name queries, file dialogs, message boxes, and folder dialogs.
+- Remaining direct users are intentionally isolated to the ImGui Metal bridge plugin for a later plugin-focused milestone.
+- `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

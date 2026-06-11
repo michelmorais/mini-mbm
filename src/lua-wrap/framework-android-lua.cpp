@@ -82,7 +82,7 @@ namespace mbm
         device->run         = false;
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
         device->scene->onFinalizeScene();
-        device->specificContextDevice->callQuit();
+        device->getSpecificContextDevice()->callQuit();
         return 0;
     }
 
@@ -104,7 +104,7 @@ namespace mbm
                               : (top >= 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
         char             dir[255]   = "";
         dir[0]                      = 0;
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         const char *     currentPath = cJni->absPath.c_str();
         if (currentPath)
             strncpy(dir, currentPath,sizeof(dir)-1);
@@ -124,7 +124,7 @@ namespace mbm
         {
             bool             sucess = false;
     #if defined              ANDROID
-            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
             const char *     newPath = util::getFullPath(cJni->copyFileFromAsset(fileName, "rt"),nullptr);
     #else
             const char *  newPath = util::getFullPath(fileName, nullptr);
@@ -157,7 +157,7 @@ namespace mbm
     int getKeyCode(const char *key)
     {
     
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         if (!cJni->jclassKeyCodeJniEngine) return 0;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyCode", "(Ljava/lang/String;)I");
@@ -180,7 +180,7 @@ namespace mbm
     const char *getKeyName(const int key)
     {
     
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         if (!cJni->jclassKeyCodeJniEngine) return nullptr;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyName", "(I)Ljava/lang/String;");
@@ -204,7 +204,7 @@ namespace mbm
     int onGetIdiom(lua_State *lua)
     {
         // Pure C++ implementation using AConfiguration — no JNI required.
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         if (cJni->assetManager)
         {
             AConfiguration* config = AConfiguration_new();
@@ -226,7 +226,7 @@ namespace mbm
     {
         const char *     methodName = "getUserName";
         const char *     signature  = "()Ljava/lang/String;"; //(string) void
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         JNIEnv *         jenv       = cJni->jenv;
         jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
         if (mid == NULL)
@@ -283,7 +283,7 @@ namespace mbm
 
         const char *     methodName = "saveFile";
         const char *     signature  = "(Ljava/lang/String;)Ljava/lang/String;"; // String (string)
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         JNIEnv *         jenv       = cJni->jenv;
         jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
         if (mid == NULL)
@@ -393,7 +393,7 @@ namespace mbm
 
         const char *     methodName = allowMultipleSelects ? "openMultFile" : "getImage";
         const char *     signature  = "(Ljava/lang/String;)V"; // void (string)
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         JNIEnv *         jenv       = cJni->jenv;
         jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
         if (mid == NULL)
@@ -452,7 +452,7 @@ namespace mbm
     {
         const char *methodName = "messageBox";
         const char *signature = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z"; // boolean (string,string,string)
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         if (!cJni->jclassFileJniEngine) return false;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
@@ -516,7 +516,7 @@ namespace mbm
         const char *const defaultPath = top > 1 && lua_type(lua, 2) == LUA_TSTRING ? lua_tostring(lua, 2) : "";
         const char *      methodName = "openFolder";
         const char *      signature  = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"; // String (string)
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
         if (!cJni->jclassFileJniEngine) { lua_pushnil(lua); return 1; }
         JNIEnv *          jenv       = cJni->jenv;
         jmethodID         mid        = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
