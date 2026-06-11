@@ -51,7 +51,6 @@ namespace mbm
       public:
         bool   verbose;
         bool   run;
-        bool   bOnErrorStopScript;
         float  backBufferWidth;
         float  backBufferHeight;
         //Using GL_SRC_ALPHA / GL_ONE_MINUS_SRC_ALPHA (or GL_SRC_ALPHA, GL_ONE for additive) makes particle visibility depend on the particle alpha value, not on whatever was previously written into the destination alpha.
@@ -84,6 +83,8 @@ namespace mbm
         API_IMPL uint32_t getTotalObjects2D() const noexcept;
         API_IMPL void setClearBackGround(bool clear) noexcept;
         API_IMPL bool isClearBackGroundEnabled() const noexcept;
+        API_IMPL void setStopScriptOnError(bool stop) noexcept;
+        API_IMPL bool isStopScriptOnErrorEnabled() const noexcept;
         API_IMPL void scaleToScreen(const float widthScreen, const float heightScreen,const char *stretch) noexcept; // stretch: x, y xy nullptr
         API_IMPL void pauseGame();
         API_IMPL void resumeGame();

@@ -1237,7 +1237,7 @@ namespace mbm
     int onStopFlag(lua_State *lua)
     {
         DEVICE *        device      = DEVICE::getInstance();
-        device->bOnErrorStopScript  = lua_toboolean(lua, 1) ? true : false;
+        device->setStopScriptOnError(lua_toboolean(lua, 1) ? true : false);
         return 0;
     }
 

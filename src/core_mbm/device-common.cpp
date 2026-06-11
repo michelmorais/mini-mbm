@@ -55,6 +55,7 @@ namespace mbm
         VEC3 dimFarFrustum3d = VEC3(0, 0, 0);
         VEC3 dimNearFrustum3d = VEC3(0, 0, 0);
         bool clearBackGround = true;
+        bool stopScriptOnError = false;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -75,7 +76,6 @@ namespace mbm
     DEVICE::DEVICE()
         : impl(new Impl())
     {
-        bOnErrorStopScript         = false;
         ptrManager                 = nullptr;
         scene                      = nullptr;
         run                        = true;
@@ -282,6 +282,16 @@ namespace mbm
     bool DEVICE::isClearBackGroundEnabled() const noexcept
     {
         return impl->clearBackGround;
+    }
+
+    void DEVICE::setStopScriptOnError(const bool stop) noexcept
+    {
+        impl->stopScriptOnError = stop;
+    }
+
+    bool DEVICE::isStopScriptOnErrorEnabled() const noexcept
+    {
+        return impl->stopScriptOnError;
     }
     
     void DEVICE::scaleToScreen(const float widthScreen, const float heightScreen,

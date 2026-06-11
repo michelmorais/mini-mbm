@@ -384,6 +384,13 @@ Milestone 28 implementation note:
 - Migrated scene-transition clear-state writes, render clear checks, and the Lua `mbm.enableClearBackGround` path to the accessor methods.
 - `specificContextDevice`, render counters, frustum dimension cache, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 29 implementation note:
+
+- `DEVICE::bOnErrorStopScript` is now stored behind `DEVICE::Impl` instead of being a public `DEVICE` data member.
+- Added public `DEVICE::setStopScriptOnError()` / `DEVICE::isStopScriptOnErrorEnabled()` as the compatibility path for this script-error behavior flag.
+- Migrated the Lua `mbm.stopFlag` path to the setter; no current engine read path was changed.
+- `specificContextDevice`, render counters, frustum dimension cache, clear-background state, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
