@@ -43,7 +43,7 @@ void addPathToEngine(const char * sPath)
 {
     #if defined ANDROID
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->getSpecificContextDevice();
         cJni->addPathDroid(sPath);
     #endif
     paths.push_back(sPath);
@@ -183,7 +183,7 @@ const char * createRandomPath(sqlite3_context *context)
 
     #if defined          ANDROID
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->getSpecificContextDevice();
         const char *     currentPath  = cJni->absPath.c_str();
         char template_name[255]       = "";
         snprintf(template_name,sizeof(template_name),"%s/asset_XXXXXX",currentPath);
@@ -441,7 +441,7 @@ static void addAssetFolderFunc(sqlite3_context *context,int argc,sqlite3_value *
             {
             #if defined          ANDROID
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->getSpecificContextDevice();
                 const char *     currentPath  = cJni->absPath.c_str();
                 sPath                         = currentPath;
                 cJni->addPathDroid(currentPath);
@@ -465,7 +465,7 @@ static void addAssetFolderFunc(sqlite3_context *context,int argc,sqlite3_value *
                 char dir_name[255]            = "";
                 #if defined          ANDROID
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->getSpecificContextDevice();
                 const char *     currentPath  = cJni->absPath.c_str();
                 if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
                     snprintf(dir_name,sizeof(dir_name),"%s%s",currentPath,sPath);
@@ -513,7 +513,7 @@ static void addAssetFolderFunc(sqlite3_context *context,int argc,sqlite3_value *
         {
             #if defined          ANDROID
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->getSpecificContextDevice();
                 const char *     currentPath  = cJni->absPath.c_str();
                 char template_name[255]       = "";
                 if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
