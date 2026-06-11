@@ -63,7 +63,6 @@ namespace mbm
         SCENE *             scene;
         
         mbm::ORDER_RENDER   orderRender;
-        int                 __swapBackBufferStep;
         API_IMPL static DEVICE *     getInstance();
         API_IMPL void initializeSpecificContext();
         API_IMPL void destroySpecificContext();
@@ -85,6 +84,9 @@ namespace mbm
         API_IMPL bool isClearBackGroundEnabled() const noexcept;
         API_IMPL void setStopScriptOnError(bool stop) noexcept;
         API_IMPL bool isStopScriptOnErrorEnabled() const noexcept;
+        API_IMPL void resetSwapBackBufferStep() noexcept;
+        API_IMPL void incrementSwapBackBufferStep() noexcept;
+        API_IMPL int getSwapBackBufferStep() const noexcept;
         API_IMPL void scaleToScreen(const float widthScreen, const float heightScreen,const char *stretch) noexcept; // stretch: x, y xy nullptr
         API_IMPL void pauseGame();
         API_IMPL void resumeGame();

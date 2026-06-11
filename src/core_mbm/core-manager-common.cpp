@@ -367,7 +367,7 @@ namespace mbm
             }
             //if (loopCallCount <= 3)
             //    INFO_LOG("CORE_MANAGER::onLoop() about to update/render (frame %d) changeScene=%d swapStep=%d",
-            //             loopCallCount, (int)this->changeScene, this->device->__swapBackBufferStep);
+            //             loopCallCount, (int)this->changeScene, this->device->getSwapBackBufferStep());
             this->update();
             this->render();
             if(doSwapBuffers)// some backend engines need to control when swap buffers is done
@@ -797,9 +797,9 @@ namespace mbm
             else if (changeScene)
             {
                 #if defined _DEBUG || defined DEBUG
-                INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", this->device->__swapBackBufferStep);
+                INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", this->device->getSwapBackBufferStep());
                 #endif
-                if (this->device->__swapBackBufferStep == 3)
+                if (this->device->getSwapBackBufferStep() == 3)
                 {
                     #if defined _DEBUG || defined DEBUG
                     INFO_LOG("CORE_MANAGER::logic() calling scene->init()");
@@ -820,7 +820,7 @@ namespace mbm
                 else
                 {
                     this->device->setClearBackGround(false);
-                    this->device->__swapBackBufferStep++;
+                    this->device->incrementSwapBackBufferStep();
                 }
             }
             else

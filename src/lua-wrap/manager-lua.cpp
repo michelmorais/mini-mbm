@@ -252,7 +252,7 @@ namespace mbm
                     luaFile += touchKeyExit;
                     luaFile += tmpEndSceneScript;
                     device->disableAllButThis(this->textureLogo);
-                    device->__swapBackBufferStep = 3;
+                    device->resetSwapBackBufferStep();
                     
                     if (luaL_dostring(this->lua, luaFile.c_str()))
                     {

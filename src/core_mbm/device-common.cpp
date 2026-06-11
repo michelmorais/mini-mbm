@@ -56,6 +56,7 @@ namespace mbm
         VEC3 dimNearFrustum3d = VEC3(0, 0, 0);
         bool clearBackGround = true;
         bool stopScriptOnError = false;
+        int swapBackBufferStep = 3;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -83,7 +84,6 @@ namespace mbm
         backBufferWidth            = 0;
         backBufferHeight           = 0;
         colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
-        __swapBackBufferStep	   = 3;
         windowPositionX            = 0;
         windowPositionY            = 0;
     }
@@ -292,6 +292,21 @@ namespace mbm
     bool DEVICE::isStopScriptOnErrorEnabled() const noexcept
     {
         return impl->stopScriptOnError;
+    }
+
+    void DEVICE::resetSwapBackBufferStep() noexcept
+    {
+        impl->swapBackBufferStep = 3;
+    }
+
+    void DEVICE::incrementSwapBackBufferStep() noexcept
+    {
+        ++impl->swapBackBufferStep;
+    }
+
+    int DEVICE::getSwapBackBufferStep() const noexcept
+    {
+        return impl->swapBackBufferStep;
     }
     
     void DEVICE::scaleToScreen(const float widthScreen, const float heightScreen,
