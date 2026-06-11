@@ -50,6 +50,7 @@ namespace mbm
         float backBufferWidth = 0.0f;
         float backBufferHeight = 0.0f;
         CORE_MANAGER *ptrManager = nullptr;
+        SHADER_CFG_LOADER cfg;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
@@ -242,6 +243,16 @@ namespace mbm
     CORE_MANAGER * DEVICE::getCoreManager() const noexcept
     {
         return impl->ptrManager;
+    }
+
+    SHADER_CFG_LOADER & DEVICE::getShaderConfig() noexcept
+    {
+        return impl->cfg;
+    }
+
+    const SHADER_CFG_LOADER & DEVICE::getShaderConfig() const noexcept
+    {
+        return impl->cfg;
     }
 
     void DEVICE::setBackBufferSize(const float width, const float height) noexcept

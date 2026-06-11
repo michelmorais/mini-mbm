@@ -65,7 +65,7 @@ namespace mbm
 			FX * fx                                   = getSafeFxFromRenderizable(lua, renderizable);
             if (pixelShaderFileName)
             {
-                pShaderCfg = device->cfg.getShader(pixelShaderFileName);
+                pShaderCfg = device->getShaderConfig().getShader(pixelShaderFileName);
                 if (pShaderCfg == nullptr)
                 {
                     return lua_error_debug(lua, "pixel shader not found: %s", pixelShaderFileName);
@@ -73,7 +73,7 @@ namespace mbm
             }
             if (vertexShaderFileName)
             {
-                vShaderCfg = device->cfg.getShader(vertexShaderFileName);
+                vShaderCfg = device->getShaderConfig().getShader(vertexShaderFileName);
                 if (vShaderCfg == nullptr)
                 {
                     return lua_error_debug(lua, "vertex shader not found: %s", vertexShaderFileName);

@@ -1877,7 +1877,7 @@ namespace mbm
         {
             auto anim = new mbm::ANIMATION();
             this->lsAnimation.push_back(anim);
-            auto pShaderCfg = device->cfg.getShader("color it.ps");
+            auto pShaderCfg = device->getShaderConfig().getShader("color it.ps");
             if(anim->fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
             {
                 if(i == 0) // normal
@@ -1930,7 +1930,7 @@ namespace mbm
         }
         auto anim = new mbm::ANIMATION();
         this->lsAnimation.push_back(anim);
-        auto pShaderCfg = device->cfg.getShader("transparent.ps");
+        auto pShaderCfg = device->getShaderConfig().getShader("transparent.ps");
         if(anim->fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
         {
             constexpr float alpha[4] = {0.7f,0,0,0};
@@ -2141,7 +2141,7 @@ namespace mbm
                         if(anim->effectShader->dataPS && anim->effectShader->dataPS->fileNameShader)
                         {
                             sPsShaderName = anim->effectShader->dataPS->fileNameShader;
-                            psShaderCfg   = mbm::DEVICE::getInstance()->cfg.getShader(anim->effectShader->dataPS->fileNameShader);
+                            psShaderCfg   = mbm::DEVICE::getInstance()->getShaderConfig().getShader(anim->effectShader->dataPS->fileNameShader);
                             psTypeAnim    = (TYPE_ANIMATION)anim->effectShader->dataPS->typeAnimation;
                             fTimePs       = anim->effectShader->dataPS->timeAnimation;
                             if(anim->effectShader->dataPS->fileNameTextureStage2)
@@ -2152,7 +2152,7 @@ namespace mbm
                         if(anim->effectShader->dataVS && anim->effectShader->dataVS->fileNameShader)
                         {
                             sVsShaderName = anim->effectShader->dataVS->fileNameShader;
-                            vsShaderCfg   = mbm::DEVICE::getInstance()->cfg.getShader(anim->effectShader->dataVS->fileNameShader);
+                            vsShaderCfg   = mbm::DEVICE::getInstance()->getShaderConfig().getShader(anim->effectShader->dataVS->fileNameShader);
                             vsTypeAnim    = (TYPE_ANIMATION)anim->effectShader->dataVS->typeAnimation;
                             fTimeVs       = anim->effectShader->dataVS->timeAnimation;
                             if(anim->effectShader->dataVS->fileNameTextureStage2)

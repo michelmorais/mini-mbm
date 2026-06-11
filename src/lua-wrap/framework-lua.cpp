@@ -1850,18 +1850,18 @@ namespace mbm
             bool isVs = false;
             if (strFilter == nullptr || strcasecmp(strFilter, "ps") == 0 || strcasecmp(strFilter, "fs") == 0)
             {
-                fillTableShaderList(lua, device->cfg.lsPs, bMin, bMax,bCode);
+                fillTableShaderList(lua, device->getShaderConfig().lsPs, bMin, bMax,bCode);
                 isPs = true;
             }
             if (strFilter == nullptr || strcasecmp(strFilter, "vs") == 0)
             {
-                fillTableShaderList(lua, device->cfg.lsVs, bMin, bMax,bCode);
+                fillTableShaderList(lua, device->getShaderConfig().lsVs, bMin, bMax,bCode);
                 isVs = true;
             }
             if (isPs == false && isVs == false && strFilter)
             {
                 std::vector<SHADER_CFG *> lsShader;
-                for (auto shader : device->cfg.lsPs)
+                for (auto shader : device->getShaderConfig().lsPs)
                 {
                     if (shader->fileName.compare(strFilter) == 0)
                     {
@@ -1871,7 +1871,7 @@ namespace mbm
                 }
                 if (lsShader.size() == 0)
                 {
-                    for (auto shader : device->cfg.lsVs)
+                    for (auto shader : device->getShaderConfig().lsVs)
                     {
                         if (shader->fileName.compare(strFilter) == 0)
                         {
@@ -1892,9 +1892,9 @@ namespace mbm
         {
             if (strFilter == nullptr || strcasecmp(strFilter, "ps") == 0)
             {
-                for (unsigned int i = 0, j = 1; i < device->cfg.lsPs.size(); ++i, ++j)
+                for (unsigned int i = 0, j = 1; i < device->getShaderConfig().lsPs.size(); ++i, ++j)
                 {
-                    SHADER_CFG *shader     = device->cfg.lsPs[i];
+                    SHADER_CFG *shader     = device->getShaderConfig().lsPs[i];
                     const char *     shaderName = shader->fileName.c_str();
                     lua_pushstring(lua, shaderName);
                     lua_rawseti(lua, -2, j);
@@ -1902,9 +1902,9 @@ namespace mbm
             }
             if (strFilter == nullptr || strcasecmp(strFilter, "vs") == 0)
             {
-                for (unsigned int i = 0, j = 1; i < device->cfg.lsVs.size(); ++i, ++j)
+                for (unsigned int i = 0, j = 1; i < device->getShaderConfig().lsVs.size(); ++i, ++j)
                 {
-                    SHADER_CFG *shader     = device->cfg.lsVs[i];
+                    SHADER_CFG *shader     = device->getShaderConfig().lsVs[i];
                     const char *     shaderName = shader->fileName.c_str();
                     lua_pushstring(lua, shaderName);
                     lua_rawseti(lua, -2, j);
@@ -1918,7 +1918,7 @@ namespace mbm
     {
         DEVICE *     device     = DEVICE::getInstance();
         const char *const shaderName = luaL_checkstring(lua, 1);
-        for (auto shader : device->cfg.lsPs)
+        for (auto shader : device->getShaderConfig().lsPs)
         {
             if (shader->fileName.compare(shaderName) == 0)
             {
@@ -1926,7 +1926,7 @@ namespace mbm
                 return 1;
             }
         }
-        for (auto shader : device->cfg.lsVs)
+        for (auto shader : device->getShaderConfig().lsVs)
         {
             if (shader->fileName.compare(shaderName) == 0)
             {
@@ -1978,7 +1978,7 @@ namespace mbm
     int onSortShader(lua_State *)
     {
         DEVICE *    device = DEVICE::getInstance();
-        device->cfg.sortShader();
+        device->getShaderConfig().sortShader();
         return 0;
     }
 
@@ -2010,7 +2010,7 @@ namespace mbm
                     if (validName)
                     {
                         DEVICE *    device = DEVICE::getInstance();
-                        SHADER_CFG *shader = device->cfg.getShader(pName);
+                        SHADER_CFG *shader = device->getShaderConfig().getShader(pName);
                         if (shader)
                         {
                             lua_print_line(lua,TYPE_LOG_ERROR,"shader [%s] already exist!", pName);
@@ -2156,9 +2156,9 @@ namespace mbm
                                 return lua_error_debug(lua, "error adding 'var' from table shader [%s]", pName);
                             }
                             if (isPS)
-                                device->cfg.lsPs.push_back(shader);
+                                device->getShaderConfig().lsPs.push_back(shader);
                             else
-                                device->cfg.lsVs.push_back(shader);
+                                device->getShaderConfig().lsVs.push_back(shader);
 
                             lua_pushboolean(lua, 1);
                             return 1;

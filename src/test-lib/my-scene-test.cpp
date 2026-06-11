@@ -1430,7 +1430,7 @@ void MY_SCENE::buildShaderMenu()
 
     // Measure the widest possible label across all ps/vs shader names
     float maxLabelW = 0.0f;
-    for (auto* s : device->cfg.lsPs)
+    for (auto* s : device->getShaderConfig().lsPs)
     {
         shaderRowPS.labelText->setText("[X] %s", s->fileName.c_str());
         shaderRowPS.labelText->forceCalcSize();
@@ -1438,7 +1438,7 @@ void MY_SCENE::buildShaderMenu()
         shaderRowPS.labelText->getAABB(&w, &h);
         if (w > maxLabelW) maxLabelW = w;
     }
-    for (auto* s : device->cfg.lsVs)
+    for (auto* s : device->getShaderConfig().lsVs)
     {
         shaderRowPS.labelText->setText("[X] %s", s->fileName.c_str());
         shaderRowPS.labelText->forceCalcSize();
@@ -1498,16 +1498,16 @@ void MY_SCENE::updateShaderMenu()
     mbm::DEVICE* device  = mbm::DEVICE::getInstance();
     const bool   visible = shaderMenuVisible;
 
-    if (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->cfg.lsPs.size()))
-        shaderRowPS.labelText->setText("[X] %s", device->cfg.lsPs[static_cast<size_t>(currentPsShaderIdx)]->fileName.c_str());
+    if (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->getShaderConfig().lsPs.size()))
+        shaderRowPS.labelText->setText("[X] %s", device->getShaderConfig().lsPs[static_cast<size_t>(currentPsShaderIdx)]->fileName.c_str());
     else
         shaderRowPS.labelText->setText("[ ] (PS none)");
     shaderRowPS.labelText->enableRender = visible;
     shaderRowPS.btnPrev->enableRender   = visible;
     shaderRowPS.btnNext->enableRender   = visible;
 
-    if (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->cfg.lsVs.size()))
-        shaderRowVS.labelText->setText("[X] %s", device->cfg.lsVs[static_cast<size_t>(currentVsShaderIdx)]->fileName.c_str());
+    if (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->getShaderConfig().lsVs.size()))
+        shaderRowVS.labelText->setText("[X] %s", device->getShaderConfig().lsVs[static_cast<size_t>(currentVsShaderIdx)]->fileName.c_str());
     else
         shaderRowVS.labelText->setText("[ ] (VS none)");
     shaderRowVS.labelText->enableRender = visible;
@@ -1556,10 +1556,10 @@ void MY_SCENE::applyCurrentShaders()
     }
 
     mbm::DEVICE*     device = mbm::DEVICE::getInstance();
-    mbm::SHADER_CFG* psCfg  = (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->cfg.lsPs.size()))
-                               ? device->cfg.lsPs[static_cast<size_t>(currentPsShaderIdx)] : nullptr;
-    mbm::SHADER_CFG* vsCfg  = (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->cfg.lsVs.size()))
-                               ? device->cfg.lsVs[static_cast<size_t>(currentVsShaderIdx)] : nullptr;
+    mbm::SHADER_CFG* psCfg  = (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->getShaderConfig().lsPs.size()))
+                               ? device->getShaderConfig().lsPs[static_cast<size_t>(currentPsShaderIdx)] : nullptr;
+    mbm::SHADER_CFG* vsCfg  = (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->getShaderConfig().lsVs.size()))
+                               ? device->getShaderConfig().lsVs[static_cast<size_t>(currentVsShaderIdx)] : nullptr;
 
     fx->loadNewShader(psCfg, vsCfg,
                       mbm::TYPE_ANIMATION_GROWING_LOOP, 1.0f,
@@ -1574,8 +1574,8 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         return false;
 
     mbm::DEVICE* device  = mbm::DEVICE::getInstance();
-    const int    psCount = static_cast<int>(device->cfg.lsPs.size());
-    const int    vsCount = static_cast<int>(device->cfg.lsVs.size());
+    const int    psCount = static_cast<int>(device->getShaderConfig().lsPs.size());
+    const int    vsCount = static_cast<int>(device->getShaderConfig().lsVs.size());
 
     if (shaderRowPS.btnPrev->enableRender && shaderRowPS.btnPrev->isOver2ds(device, x, y))
     {

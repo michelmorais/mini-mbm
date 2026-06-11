@@ -841,7 +841,7 @@ namespace mbm
                 anim->fx.blendOperation          = infoShaderStep->blendOperation;
                 if (data->fileNameTextureStage2)
                     anim->fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
-                SHADER_CFG *cfgShader              = device->cfg.getShader(data->fileNameShader);
+                SHADER_CFG *cfgShader              = device->getShaderConfig().getShader(data->fileNameShader);
                 if (cfgShader)
                 {
                     if (!anim->fx.fxPS->loadEffect(data->fileNameShader,
@@ -865,7 +865,7 @@ namespace mbm
                 anim->fx.blendOperation          = infoShaderStep->blendOperation;
                 if (data->fileNameTextureStage2)
                     anim->fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
-                SHADER_CFG *cfgShader              = device->cfg.getShader(data->fileNameShader);
+                SHADER_CFG *cfgShader              = device->getShaderConfig().getShader(data->fileNameShader);
                 if (cfgShader)
                 {
                     if (!anim->fx.fxVS->loadEffect(data->fileNameShader,
@@ -899,7 +899,7 @@ namespace mbm
                     util::INFO_SHADER_DATA *data  = infoShaderStep->dataPS;
                     anim->fx.fxPS->timeAnimation = data->timeAnimation;
                     anim->fx.fxPS->typeAnim      = static_cast<TYPE_ANIMATION>(data->typeAnimation);
-                    SHADER_CFG *cfgShader          = device->cfg.getShader(data->fileNameShader);
+                    SHADER_CFG *cfgShader          = device->getShaderConfig().getShader(data->fileNameShader);
                     if (cfgShader)
                     {
                         for (auto var : cfgShader->lsVar)
@@ -949,7 +949,7 @@ namespace mbm
                     util::INFO_SHADER_DATA *data  = infoShaderStep->dataVS;
                     anim->fx.fxVS->timeAnimation = data->timeAnimation;
                     anim->fx.fxVS->typeAnim      = static_cast<TYPE_ANIMATION>(data->typeAnimation);
-                    SHADER_CFG *cfgShader          = device->cfg.getShader(data->fileNameShader);
+                    SHADER_CFG *cfgShader          = device->getShaderConfig().getShader(data->fileNameShader);
                     if (cfgShader)
                     {
                         for (auto var : cfgShader->lsVar)

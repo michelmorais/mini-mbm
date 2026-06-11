@@ -51,7 +51,6 @@ namespace mbm
       public:
         CAMERA camera;
     
-        SHADER_CFG_LOADER cfg;                       // CFG files
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         SCENE *             scene;
         
@@ -67,6 +66,8 @@ namespace mbm
         API_IMPL bool isRunning() const noexcept;
         API_IMPL void setCoreManager(CORE_MANAGER *manager) noexcept;
         API_IMPL CORE_MANAGER * getCoreManager() const noexcept;
+        API_IMPL SHADER_CFG_LOADER & getShaderConfig() noexcept;
+        API_IMPL const SHADER_CFG_LOADER & getShaderConfig() const noexcept;
         API_IMPL void setBackBufferSize(float width, float height) noexcept;
         API_IMPL void setBackBufferWidth(float width) noexcept;
         API_IMPL void setBackBufferHeight(float height) noexcept;

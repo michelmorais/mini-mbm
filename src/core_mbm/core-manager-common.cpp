@@ -150,12 +150,12 @@ namespace mbm
             INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->getBackBufferWidth(), device->getBackBufferHeight());
             #endif
             // Cfg shader from resource----
-            if (!this->device->cfg.parserCFGFromResource())
+            if (!this->device->getShaderConfig().parserCFGFromResource())
             {
                 ERROR_LOG("CORE_MANAGER::onLoop() parserCFGFromResource FAILED");
                 return -1;
             }
-            this->device->cfg.sortShader();
+            this->device->getShaderConfig().sortShader();
             device->setProjectionMode(true, device->getBackBufferWidth(), device->getBackBufferHeight());
             this->device->updateFps();
             initEnableRenders();
