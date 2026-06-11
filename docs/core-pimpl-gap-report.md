@@ -307,6 +307,13 @@ Milestone 17 implementation note:
 - DirectX9, Metal manager/shader/texture/render-target, and remaining non-OpenGL ES call sites are left for later backend-specific milestones.
 - `specificContextDevice` remains public for compatibility; `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 18 implementation note:
+
+- DirectX9 `CORE_MANAGER` paths now use `DEVICE::getSpecificContextDevice()` instead of reading `DEVICE::specificContextDevice` directly.
+- Migrated Win32 event/window handling, Direct3D device creation/reset, render begin/end/present, render-to-target backbuffer access, plugin subscription handles, and min/max window sizing.
+- DirectX9 shader, texture, and render-target implementation files are left for later backend-specific milestones.
+- `specificContextDevice` remains public for compatibility; `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
