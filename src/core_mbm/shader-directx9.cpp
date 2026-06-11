@@ -846,7 +846,7 @@ namespace mbm
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-        if (pBufferId->bs == nullptr || pBufferId->bs->pVertexBuffer == nullptr)
+        if (pBufferId->getBackendBuffer() == nullptr || pBufferId->getBackendBuffer()->pVertexBuffer == nullptr)
         {
             ERROR_AT(__LINE__, __FILE__, "IDirect3DVertexBuffer9 is null, you must load the object first");
             return false;
@@ -945,22 +945,22 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->getBackendBuffer()->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
             };
 
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
-                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                pBufferId->getBackendBuffer()->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
                 0,		//Position in bytes of start stream
-                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+                pBufferId->getBackendBuffer()->sizeStructVertexInBytes)))//Size of structure vertex
             {
                 ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
                 return false;
             };
 
-            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            if (FAILED(pd3dDevice->SetIndices(pBufferId->getBackendBuffer()->pIndexBuffer)))
             {
                 ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
                 return false;
@@ -1064,11 +1064,11 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->bs->FVF));
+            pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->getBackendBuffer()->FVF));
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
-                pBufferId->bs->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
+                pBufferId->getBackendBuffer()->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
                 0,		//Posicao Em Bytes Do inicio  Do Stream Atual
-                pBufferId->bs->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
+                pBufferId->getBackendBuffer()->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
                 return false;
 
             // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
@@ -1152,19 +1152,19 @@ namespace mbm
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-        if (pBufferId && vertex && pBufferId->bs && pBufferId->bs->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
+        if (pBufferId && vertex && pBufferId->getBackendBuffer() && pBufferId->getBackendBuffer()->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
         {
             const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, pBufferId->sizeOfArrayVertex);
             void* pvertex = nullptr;
             // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
             // If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-            if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+            if (FAILED(pBufferId->getBackendBuffer()->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                 return false;
             }
             d3d_converter.copyTod3dVertexBuffer(pvertex);
-            pBufferId->bs->pVertexBuffer->Unlock();
+            pBufferId->getBackendBuffer()->pVertexBuffer->Unlock();
 
             return render(pBufferId);
         }
@@ -1269,22 +1269,22 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->getBackendBuffer()->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
             };
 
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
-                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                pBufferId->getBackendBuffer()->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
                 0,		//Position in bytes of start stream
-                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+                pBufferId->getBackendBuffer()->sizeStructVertexInBytes)))//Size of structure vertex
             {
                 ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
                 return false;
             };
 
-            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            if (FAILED(pd3dDevice->SetIndices(pBufferId->getBackendBuffer()->pIndexBuffer)))
             {
                 ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
                 return false;
@@ -1370,13 +1370,13 @@ namespace mbm
                                 void* pvertex = nullptr;
                                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                                 //•	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                if (FAILED(pBufferId->getBackendBuffer()->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                                 {
                                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                                     return false;
                                 }
                                 memcpy(pvertex, vertex, sizeof(VERTEX_UV) * 4);
-                                pBufferId->bs->pVertexBuffer->Unlock();
+                                pBufferId->getBackendBuffer()->pVertexBuffer->Unlock();
 
                                 d3dPsVs->constantTablePS->SetFloatArray(pd3dDevice, handleVarColor, particle->color, 4);
 
@@ -1401,13 +1401,13 @@ namespace mbm
                                 void* pvertex = nullptr;
                                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                                 //•	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                if (FAILED(pBufferId->getBackendBuffer()->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                                 {
                                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                                     return false;
                                 }
                                 memcpy(pvertex, vertex, sizeof(VERTEX_UV) * 4);
-                                pBufferId->bs->pVertexBuffer->Unlock();
+                                pBufferId->getBackendBuffer()->pVertexBuffer->Unlock();
 
                                 if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
                                     vertexStartVB,
@@ -1554,22 +1554,22 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->getBackendBuffer()->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
             };
 
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
-                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                pBufferId->getBackendBuffer()->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
                 0,		//Position in bytes of start stream
-                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+                pBufferId->getBackendBuffer()->sizeStructVertexInBytes)))//Size of structure vertex
             {
                 ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
                 return false;
             };
 
-            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            if (FAILED(pd3dDevice->SetIndices(pBufferId->getBackendBuffer()->pIndexBuffer)))
             {
                 ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
                 return false;
@@ -1678,13 +1678,13 @@ namespace mbm
                                 void* pvertex = nullptr;
                                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                                 //	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                if (FAILED(pBufferId->getBackendBuffer()->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                                 {
                                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                                     return false;
                                 }
                                 memcpy(pvertex, vertex, sizeof(vertex));
-                                pBufferId->bs->pVertexBuffer->Unlock();
+                                pBufferId->getBackendBuffer()->pVertexBuffer->Unlock();
 
 
                                 if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
@@ -1733,13 +1733,13 @@ namespace mbm
                                 void* pvertex = nullptr;
                                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                                 //	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                if (FAILED(pBufferId->getBackendBuffer()->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                                 {
                                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                                     return false;
                                 }
                                 memcpy(pvertex, vertex, sizeof(vertex));
-                                pBufferId->bs->pVertexBuffer->Unlock();
+                                pBufferId->getBackendBuffer()->pVertexBuffer->Unlock();
 
 
                                 if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,

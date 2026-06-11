@@ -116,6 +116,8 @@ namespace mbm
 
         API_IMPL TEXTURE* getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const;// common implemenmtation
         API_IMPL void setTextureByStage(TEXTURE* texture,const uint32_t index_stage,const uint32_t index_subset);// common implemenmtation
+        API_IMPL BUFFER_SPECIFIC * getBackendBuffer() const noexcept;
+        API_IMPL void setBackendBuffer(BUFFER_SPECIFIC *backendBuffer) noexcept;
 
         int32_t* indexStartIB;      // index start subset IB
         int32_t* indexCountIB;      // index count subset IB

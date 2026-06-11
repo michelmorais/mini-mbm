@@ -153,6 +153,16 @@ namespace mbm
         }
     }
 
+    BUFFER_SPECIFIC * BUFFER_GL::getBackendBuffer() const noexcept
+    {
+        return bs;
+    }
+
+    void BUFFER_GL::setBackendBuffer(BUFFER_SPECIFIC *backendBuffer) noexcept
+    {
+        bs = backendBuffer;
+    }
+
     BASE_SHADER::BASE_SHADER() noexcept {}
 
     BASE_SHADER::~BASE_SHADER()

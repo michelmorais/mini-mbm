@@ -497,12 +497,18 @@ Milestone 43 implementation note:
 - `TEXTURE` now follows the same public-header shape as the audio precedent: an incomplete `BackendData` plus `std::unique_ptr<BackendData>`.
 - Existing backend helpers remain the only handle access path, so OpenGL ES still gets a `uint32_t *` for `GLGenTextures()` / `GLDeleteTextures()` and pointer-backed backends still get `void *` / `void **`.
 
+Milestone 44 implementation note:
+
+- Added `BUFFER_GL::getBackendBuffer()` and `BUFFER_GL::setBackendBuffer()` as the compatibility helper path for `BUFFER_GL::bs`.
+- Migrated non-owner backend consumers from direct `pBufferId->bs` / `pGl->bs` access to `getBackendBuffer()`, covering shader render paths and mesh-debug readback helpers.
+- The public `BUFFER_GL::bs` member remains in place for source compatibility in this milestone; remaining direct code-side access is isolated to `BUFFER_GL` owner implementation methods and will be the next cleanup before moving storage behind `BackendData`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
 
 1. `TEXTURE::idTexture/ptrTexture` - done
-2. `BUFFER_GL::bs`
+2. `BUFFER_GL::bs` - helper migration in progress
 3. `SHADER::ptrShaderSpecific`
 4. `RENDERIZABLE_TO_TARGET::specificConfig`
 5. `DEVICE::specificContextDevice`

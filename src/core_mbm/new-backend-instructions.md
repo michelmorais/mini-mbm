@@ -329,6 +329,11 @@ the source string at compile time based on the FVF.
 
 All functions call `release()` first, so they are safe to call multiple times.
 
+Backend code that needs the concrete `BUFFER_SPECIFIC` object should go through
+`BUFFER_GL::getBackendBuffer()` / `setBackendBuffer()` instead of reading or writing
+`BUFFER_GL::bs` directly.  The public member still exists for compatibility during the
+PIMPL migration, but new backend code should use the helper path.
+
 For `loadBufferDynamic` + `updateDynamic` the key insight is that the vertex buffer must be
 CPU-writable every frame.  On Metal use `MTLResourceStorageModeShared`; on Vulkan use a
 host-visible + host-coherent memory type; on D3D use `D3DUSAGE_DYNAMIC | D3DPOOL_DEFAULT`

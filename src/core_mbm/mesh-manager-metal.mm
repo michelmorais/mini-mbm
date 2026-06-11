@@ -47,7 +47,7 @@ namespace mbm
                 "No buffer for frame %d [%s]", currentFrame, meshMemory->getFilenameMesh());
 
         const BUFFER_GL*  pGl = pBufferMesh->pBufferGL;
-        BUFFER_SPECIFIC*  bs  = pGl->bs;
+        BUFFER_SPECIFIC*  bs  = pGl->getBackendBuffer();
         if (!bs)
             return log_util::onFailed(nullptr, __FILE__, __LINE__,
                 "No BUFFER_SPECIFIC for frame %d [%s]", currentFrame, meshMemory->getFilenameMesh());

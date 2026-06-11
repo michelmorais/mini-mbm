@@ -677,24 +677,24 @@ namespace mbm
         
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
-            if (!pBufferId->bs->vboVertNorTexIB[0])
+            if (!pBufferId->getBackendBuffer()->vboVertNorTexIB[0])
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
-            GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[0]);
+            GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboVertNorTexIB[0]);
             GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
             GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
             //-----------------------------------------------------------------------------------------------------------
             if (gles_shaderSpecific->normalHandle != -1) // Normal (nem sempre temos normal nos shaders)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[1]);
+                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboVertNorTexIB[1]);
                 GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
             }
             //-----------------------------------------------------------------------------------------------------------
             if (gles_shaderSpecific->texCoordHandle != -1)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[2]);
+                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboVertNorTexIB[2]);
                 GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             }
@@ -710,7 +710,7 @@ namespace mbm
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
+                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboIndexSubsetIB[i]);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
@@ -729,25 +729,25 @@ namespace mbm
         }
         else // Vertex buffer
         {
-            if (!pBufferId->bs->vboVertexSubsetVB)
+            if (!pBufferId->getBackendBuffer()->vboVertexSubsetVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertexSubsetVB[i]);
+                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboVertexSubsetVB[i]);
                 GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 //-----------------------------------------------------------------------------------------------------------
-                if (gles_shaderSpecific->normalHandle != -1 && pBufferId->bs->vboNormalSubsetVB && pBufferId->bs->vboNormalSubsetVB[i] != 0)
+                if (gles_shaderSpecific->normalHandle != -1 && pBufferId->getBackendBuffer()->vboNormalSubsetVB && pBufferId->getBackendBuffer()->vboNormalSubsetVB[i] != 0)
                 {
-                    GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboNormalSubsetVB[i]);
+                    GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboNormalSubsetVB[i]);
                     GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
                     GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                if (gles_shaderSpecific->texCoordHandle != -1 && pBufferId->bs->vboTextureSubsetVB && pBufferId->bs->vboTextureSubsetVB[i] != 0)
+                if (gles_shaderSpecific->texCoordHandle != -1 && pBufferId->getBackendBuffer()->vboTextureSubsetVB && pBufferId->getBackendBuffer()->vboTextureSubsetVB[i] != 0)
                 {
-                    GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboTextureSubsetVB[i]);
+                    GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboTextureSubsetVB[i]);
                     GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
                     GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
                 }
@@ -775,9 +775,9 @@ namespace mbm
                 }
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1)
-                    && pBufferId->bs->vboNormalSubsetVB && pBufferId->bs->vboNormalSubsetVB[i] != 0;
+                    && pBufferId->getBackendBuffer()->vboNormalSubsetVB && pBufferId->getBackendBuffer()->vboNormalSubsetVB[i] != 0;
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1)
-                    && pBufferId->bs->vboTextureSubsetVB && pBufferId->bs->vboTextureSubsetVB[i] != 0;
+                    && pBufferId->getBackendBuffer()->vboTextureSubsetVB && pBufferId->getBackendBuffer()->vboTextureSubsetVB[i] != 0;
                 disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
                 GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
@@ -797,7 +797,7 @@ namespace mbm
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
-            if (!pBufferId->bs->vboIndexSubsetIB)
+            if (!pBufferId->getBackendBuffer()->vboIndexSubsetIB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
@@ -822,7 +822,7 @@ namespace mbm
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
+                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboIndexSubsetIB[i]);
 
                 const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
                 GLActiveTexture(GL_TEXTURE1);
@@ -938,7 +938,7 @@ namespace mbm
         // to avoid GL_INVALID_OPERATION on strict GLES drivers (ANGLE, Mesa).
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
         disableUnusedVertexAttribs(gles_shaderSpecific, false, gles_shaderSpecific->texCoordHandle >= 0);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
             ? this->pShader->getVarByName("color")
             : nullptr;
@@ -1037,7 +1037,7 @@ namespace mbm
         // to avoid GL_INVALID_OPERATION on strict GLES drivers (ANGLE, Mesa).
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
         disableUnusedVertexAttribs(gles_shaderSpecific, false, gles_shaderSpecific->texCoordHandle >= 0);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->getBackendBuffer()->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
             ? this->pShader->getVarByName("color")
             : nullptr;
