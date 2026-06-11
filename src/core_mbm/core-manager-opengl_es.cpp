@@ -78,13 +78,13 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         this->__sceneWasInit            = false;
         this->keyCapsLockState          = false;
     #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-        this->device->specificContextDevice->initializeWi32Callbacks(this);
+        this->device->getSpecificContextDevice()->initializeWi32Callbacks(this);
     #endif
     }
     
     void CORE_MANAGER::swapBuffers()
     {
-        eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
+        eglSwapBuffers(this->device->getSpecificContextDevice()->eglDisplay, this->device->getSpecificContextDevice()->eglSurface);
     }
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
@@ -92,7 +92,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         // On X11/EGL, the EGL surface doesn't automatically resize with the window
         // We need to recreate the surface to match the new window dimensions
-        if (!this->device->specificContextDevice->recreateEGLSurface())
+        if (!this->device->getSpecificContextDevice()->recreateEGLSurface())
         {
             return false;  // Trigger full restore if surface recreation fails
         }
@@ -100,11 +100,11 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         // Query the actual EGL surface dimensions after recreation
         EGLint surfaceWidth = 0;
         EGLint surfaceHeight = 0;
-        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
-                        this->device->specificContextDevice->eglSurface, 
+        eglQuerySurface(this->device->getSpecificContextDevice()->eglDisplay, 
+                        this->device->getSpecificContextDevice()->eglSurface, 
                         EGL_WIDTH, &surfaceWidth);
-        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
-                        this->device->specificContextDevice->eglSurface, 
+        eglQuerySurface(this->device->getSpecificContextDevice()->eglDisplay, 
+                        this->device->getSpecificContextDevice()->eglSurface, 
                         EGL_HEIGHT, &surfaceHeight);
         
         // Use actual surface dimensions
@@ -196,11 +196,11 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             const unsigned int indexPlugin = this->appendPlugin(plugin);
             void * handle = nullptr;
             #if defined _WIN32
-                handle = device->specificContextDevice->window.getHwnd();
+                handle = device->getSpecificContextDevice()->window.getHwnd();
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-                handle = this->device->specificContextDevice->display_x11;
+                handle = this->device->getSpecificContextDevice()->display_x11;
             #elif defined(ANDROID)
-                SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+                SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
                 JNIEnv *     jenv                 = cJni->jenv;
                 handle                            = jenv;
             #else
@@ -215,8 +215,8 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     #if defined _WIN32
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
-        device->specificContextDevice->window.setMinSizeAllowed(min_x,min_y);
-        device->specificContextDevice->window.setMaxSizeAllowed(max_x,max_y);
+        device->getSpecificContextDevice()->window.setMinSizeAllowed(min_x,min_y);
+        device->getSpecificContextDevice()->window.setMaxSizeAllowed(max_x,max_y);
     }
     #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
@@ -259,7 +259,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         xsize.height_inc    = 0;
         xsize.x             = 0;
         xsize.y             = 0;
-        XSetWMNormalHints(this->device->specificContextDevice->display_x11,this->device->specificContextDevice->window_x11,&xsize);
+        XSetWMNormalHints(this->device->getSpecificContextDevice()->display_x11,this->device->getSpecificContextDevice()->window_x11,&xsize);
     }
     #elif defined(ANDROID)
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)

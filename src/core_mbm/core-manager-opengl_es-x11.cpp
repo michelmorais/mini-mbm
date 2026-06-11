@@ -61,29 +61,29 @@ namespace mbm
           // Initialize window position
         device->windowPositionX = px;
         device->windowPositionY = py;
-        if(initializeWindowx11(this->device->specificContextDevice) == false)
+        if(initializeWindowx11(this->device->getSpecificContextDevice()) == false)
         {
             INFO_LOG("Failed to initialize X11 window");
             return false;
         }
     #ifdef __APPLE__
-        this->device->specificContextDevice->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        this->device->getSpecificContextDevice()->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
         #pragma message("Check if this is correct for MacOS")
     #else
-        this->device->specificContextDevice->eglDisplay = eglGetDisplay((EGLNativeDisplayType) this->device->specificContextDevice->display_x11);
+        this->device->getSpecificContextDevice()->eglDisplay = eglGetDisplay((EGLNativeDisplayType) this->device->getSpecificContextDevice()->display_x11);
     #endif
-        if (!this->device->specificContextDevice->eglDisplay)
+        if (!this->device->getSpecificContextDevice()->eglDisplay)
         {
             printf("Error: eglGetDisplay() failed\n");
             return false;
         }
 
-        if (!eglInitialize(this->device->specificContextDevice->eglDisplay, &egl_major, &egl_minor))
+        if (!eglInitialize(this->device->getSpecificContextDevice()->eglDisplay, &egl_major, &egl_minor))
         {
             printf("Error: eglInitialize() failed\n");
             return false;
         }
-        Screen *screen = DefaultScreenOfDisplay(this->device->specificContextDevice->display_x11);
+        Screen *screen = DefaultScreenOfDisplay(this->device->getSpecificContextDevice()->display_x11);
         if (border && (height + 60) >= screen->height)
         {
             height -= 60;
@@ -91,9 +91,9 @@ namespace mbm
         }
         
         // Check if we're reusing an existing window (lost device recovery)
-        const bool reusingWindow = (this->device->specificContextDevice->window_x11 != 0);
+        const bool reusingWindow = (this->device->getSpecificContextDevice()->window_x11 != 0);
         
-        this->device->specificContextDevice->make_x_window(nameApplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->windowBorder, this->enableResizeWindow);
+        this->device->getSpecificContextDevice()->make_x_window(nameApplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->windowBorder, this->enableResizeWindow);
 
       
         
@@ -102,19 +102,19 @@ namespace mbm
         if (!reusingWindow)
         {
             XEvent event;
-            XIfEvent(this->device->specificContextDevice->display_x11, &event,
+            XIfEvent(this->device->getSpecificContextDevice()->display_x11, &event,
                     [](Display*, XEvent* ev, XPointer) -> Bool {
                         return ev->type == MapNotify;
                     }, nullptr);
         }
         
         // Sync with X server to ensure all events are processed
-        XSync(this->device->specificContextDevice->display_x11, False);
+        XSync(this->device->getSpecificContextDevice()->display_x11, False);
         
         // Get actual window geometry after mapping
         XWindowAttributes window_attrs;
-        XGetWindowAttributes(this->device->specificContextDevice->display_x11, 
-                           this->device->specificContextDevice->window_x11, 
+        XGetWindowAttributes(this->device->getSpecificContextDevice()->display_x11, 
+                           this->device->getSpecificContextDevice()->window_x11, 
                            &window_attrs);
         
         // Update dimensions with actual window size
@@ -126,7 +126,7 @@ namespace mbm
         // Now process all pending events including ConfigureNotify
         this->handleEventFromWindow();
 
-        if (!eglMakeCurrent(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglContext))
+        if (!eglMakeCurrent(this->device->getSpecificContextDevice()->eglDisplay, this->device->getSpecificContextDevice()->eglSurface, this->device->getSpecificContextDevice()->eglSurface, this->device->getSpecificContextDevice()->eglContext))
         {
             printf("Error: eglMakeCurrent() failed\n");
             return false;
@@ -138,7 +138,7 @@ namespace mbm
             printGLString("vendor:\n", GL_VENDOR);
             printGLString("renderer:\n", GL_RENDERER);
             //printGLStringNewLine("Extensions:\n", GL_EXTENSIONS, ' ');
-            //printEGLStringNewLine(this->device->specificContextDevice->display,' ');
+            //printEGLStringNewLine(this->device->getSpecificContextDevice()->display,' ');
             MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
         }
@@ -179,10 +179,10 @@ namespace mbm
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
 
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &device->specificContextDevice->filter_GL_TEXTURE_WRAP_S);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &device->specificContextDevice->filter_GL_TEXTURE_WRAP_T);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &device->specificContextDevice->filter_GL_TEXTURE_MIN_FILTER);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &device->specificContextDevice->filter_GL_TEXTURE_MAG_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &device->getSpecificContextDevice()->filter_GL_TEXTURE_WRAP_S);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &device->getSpecificContextDevice()->filter_GL_TEXTURE_WRAP_T);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &device->getSpecificContextDevice()->filter_GL_TEXTURE_MIN_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &device->getSpecificContextDevice()->filter_GL_TEXTURE_MAG_FILTER);
 
         return true;
     }
@@ -192,8 +192,8 @@ namespace mbm
     int getX11DisplayFd() noexcept
     {
         DEVICE* dev = DEVICE::getInstance();
-        if (dev && dev->specificContextDevice && dev->specificContextDevice->display_x11)
-            return ConnectionNumber(dev->specificContextDevice->display_x11);
+        if (dev && dev->getSpecificContextDevice() && dev->getSpecificContextDevice()->display_x11)
+            return ConnectionNumber(dev->getSpecificContextDevice()->display_x11);
         return -1;
     }
 
@@ -255,10 +255,10 @@ namespace mbm
 
     void CORE_MANAGER::handleEventFromWindow()
     {
-        while (XPending(this->device->specificContextDevice->display_x11))
+        while (XPending(this->device->getSpecificContextDevice()->display_x11))
         {
             XEvent xevent;
-            XNextEvent(this->device->specificContextDevice->display_x11, &xevent);
+            XNextEvent(this->device->getSpecificContextDevice()->display_x11, &xevent);
             switch (xevent.type)
             {
                 case KeyPress:
@@ -365,9 +365,9 @@ namespace mbm
                     Window child_return;
                     int abs_x = 0;
                     int abs_y = 0;
-                    XTranslateCoordinates(this->device->specificContextDevice->display_x11,
-                                         this->device->specificContextDevice->window_x11,
-                                         DefaultRootWindow(this->device->specificContextDevice->display_x11),
+                    XTranslateCoordinates(this->device->getSpecificContextDevice()->display_x11,
+                                         this->device->getSpecificContextDevice()->window_x11,
+                                         DefaultRootWindow(this->device->getSpecificContextDevice()->display_x11),
                                          0, 0, &abs_x, &abs_y, &child_return);
                     
                     // Store absolute window position for coordinate transformations
@@ -401,9 +401,9 @@ namespace mbm
                     Window child_return;
                     int abs_x = 0;
                     int abs_y = 0;
-                    XTranslateCoordinates(this->device->specificContextDevice->display_x11,
-                                         this->device->specificContextDevice->window_x11,
-                                         DefaultRootWindow(this->device->specificContextDevice->display_x11),
+                    XTranslateCoordinates(this->device->getSpecificContextDevice()->display_x11,
+                                         this->device->getSpecificContextDevice()->window_x11,
+                                         DefaultRootWindow(this->device->getSpecificContextDevice()->display_x11),
                                          0, 0, &abs_x, &abs_y, &child_return);
 //
                     device->windowPositionX = abs_x;
@@ -416,7 +416,7 @@ namespace mbm
 
                         // On X11/EGL, the EGL surface doesn't automatically resize with the window
                         // We need to recreate the surface to match the new window dimensions
-                        if (!this->device->specificContextDevice->recreateEGLSurface())
+                        if (!this->device->getSpecificContextDevice()->recreateEGLSurface())
                         {
                             break;  // Trigger full restore if surface recreation fails
                         }
@@ -424,11 +424,11 @@ namespace mbm
                         // Query the actual EGL surface dimensions after recreation
                         EGLint surfaceWidth = 0;
                         EGLint surfaceHeight = 0;
-                        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
-                                        this->device->specificContextDevice->eglSurface, 
+                        eglQuerySurface(this->device->getSpecificContextDevice()->eglDisplay, 
+                                        this->device->getSpecificContextDevice()->eglSurface, 
                                         EGL_WIDTH, &surfaceWidth);
-                        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
-                                        this->device->specificContextDevice->eglSurface, 
+                        eglQuerySurface(this->device->getSpecificContextDevice()->eglDisplay, 
+                                        this->device->getSpecificContextDevice()->eglSurface, 
                                         EGL_HEIGHT, &surfaceHeight);
                         
                         // Use actual surface dimensions
@@ -453,7 +453,7 @@ namespace mbm
 
     void CORE_MANAGER::getScreenSize(int *width,int *height)
     {
-        Screen * screen = DefaultScreenOfDisplay(this->device->specificContextDevice->display_x11);
+        Screen * screen = DefaultScreenOfDisplay(this->device->getSpecificContextDevice()->display_x11);
         if(screen)
         {
             *width  = screen->width;
@@ -463,32 +463,32 @@ namespace mbm
 
     void CORE_MANAGER::moveWindow(int x, int y)
     {
-        if(this->device->specificContextDevice->display_x11 != nullptr && 
-           this->device->specificContextDevice->window_x11 != 0)
+        if(this->device->getSpecificContextDevice()->display_x11 != nullptr && 
+           this->device->getSpecificContextDevice()->window_x11 != 0)
         {
-            XMoveWindow(this->device->specificContextDevice->display_x11, 
-                       this->device->specificContextDevice->window_x11, 
+            XMoveWindow(this->device->getSpecificContextDevice()->display_x11, 
+                       this->device->getSpecificContextDevice()->window_x11, 
                        x, y);
-            XFlush(this->device->specificContextDevice->display_x11);
+            XFlush(this->device->getSpecificContextDevice()->display_x11);
         }
     }
 
     //void CORE_MANAGER::getWindowPosition(int *x, int *y)
     //{
-    //    if(this->device->specificContextDevice->display_x11 != nullptr && 
-    //       this->device->specificContextDevice->window_x11 != 0)
+    //    if(this->device->getSpecificContextDevice()->display_x11 != nullptr && 
+    //       this->device->getSpecificContextDevice()->window_x11 != 0)
     //    {
     //        Window root, child;
     //        int root_x, root_y, win_x, win_y;
     //        unsigned int mask;
     //        
-    //        XQueryPointer(this->device->specificContextDevice->display_x11,
-    //                     this->device->specificContextDevice->window_x11,
+    //        XQueryPointer(this->device->getSpecificContextDevice()->display_x11,
+    //                     this->device->getSpecificContextDevice()->window_x11,
     //                     &root, &child, &root_x, &root_y, &win_x, &win_y, &mask);
     //        
     //        XWindowAttributes attrs;
-    //        XGetWindowAttributes(this->device->specificContextDevice->display_x11,
-    //                           this->device->specificContextDevice->window_x11,
+    //        XGetWindowAttributes(this->device->getSpecificContextDevice()->display_x11,
+    //                           this->device->getSpecificContextDevice()->window_x11,
     //                           &attrs);
     //        
     //        *x = attrs.x;
@@ -755,7 +755,7 @@ namespace mbm
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->release(wasDeviceLost);
+        this->device->getSpecificContextDevice()->release(wasDeviceLost);
     }
 
 }
