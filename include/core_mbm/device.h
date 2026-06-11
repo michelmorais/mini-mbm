@@ -87,6 +87,11 @@ namespace mbm
         API_IMPL void resetSwapBackBufferStep() noexcept;
         API_IMPL void incrementSwapBackBufferStep() noexcept;
         API_IMPL int getSwapBackBufferStep() const noexcept;
+        API_IMPL void setWindowPosition(const int x, const int y) noexcept;
+        API_IMPL void setWindowPositionX(const int x) noexcept;
+        API_IMPL void setWindowPositionY(const int y) noexcept;
+        API_IMPL int getWindowPositionX() const noexcept;
+        API_IMPL int getWindowPositionY() const noexcept;
         API_IMPL void scaleToScreen(const float widthScreen, const float heightScreen,const char *stretch) noexcept; // stretch: x, y xy nullptr
         API_IMPL void pauseGame();
         API_IMPL void resumeGame();
@@ -134,9 +139,6 @@ namespace mbm
         API_IMPL void enableFilteringAfterPixelPerfect() noexcept;//backend specific way to restore texture filtering
         API_IMPL bool isPixelPerfectRendering() const noexcept;// true while tile (etc.) is drawing; used to skip UV inset on D3D9
         API_IMPL bool isGamePaused() const noexcept;
-
-        int                                   windowPositionX;
-        int                                   windowPositionY;
 
     private:
         static DEVICE *                       instanceDevice;

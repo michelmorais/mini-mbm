@@ -122,8 +122,7 @@ namespace mbm
         int y = height;
         DEVICE* device = DEVICE::getInstance();
         // Initialize window position
-        device->windowPositionX = px;
-        device->windowPositionY = py;
+        device->setWindowPosition(px, py);
         this->setNameApplication(nameApplication);
         device->getSpecificContextDevice()->window.setNameAplication(nameApplication);
         if (!device->getSpecificContextDevice()->window.init(nameApplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,

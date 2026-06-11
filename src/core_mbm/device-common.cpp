@@ -57,6 +57,8 @@ namespace mbm
         bool clearBackGround = true;
         bool stopScriptOnError = false;
         int swapBackBufferStep = 3;
+        int windowPositionX = 0;
+        int windowPositionY = 0;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -84,8 +86,6 @@ namespace mbm
         backBufferWidth            = 0;
         backBufferHeight           = 0;
         colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
-        windowPositionX            = 0;
-        windowPositionY            = 0;
     }
 
     void DEVICE::setCamera2dScaleCache(const float percX, const float percY) noexcept
@@ -307,6 +307,32 @@ namespace mbm
     int DEVICE::getSwapBackBufferStep() const noexcept
     {
         return impl->swapBackBufferStep;
+    }
+
+    void DEVICE::setWindowPosition(const int x, const int y) noexcept
+    {
+        impl->windowPositionX = x;
+        impl->windowPositionY = y;
+    }
+
+    void DEVICE::setWindowPositionX(const int x) noexcept
+    {
+        impl->windowPositionX = x;
+    }
+
+    void DEVICE::setWindowPositionY(const int y) noexcept
+    {
+        impl->windowPositionY = y;
+    }
+
+    int DEVICE::getWindowPositionX() const noexcept
+    {
+        return impl->windowPositionX;
+    }
+
+    int DEVICE::getWindowPositionY() const noexcept
+    {
+        return impl->windowPositionY;
     }
     
     void DEVICE::scaleToScreen(const float widthScreen, const float heightScreen,

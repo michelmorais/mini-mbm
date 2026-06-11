@@ -36,7 +36,7 @@ High-impact examples:
 
 | Header | Public state that blocks strict PIMPL |
 |---|---|
-| `include/core_mbm/device.h` | `verbose`, `run`, `backBufferWidth`, `backBufferHeight`, `colorClearBackGround`, `camera`, `cfg`, global dynamic vars, `scene`, `orderRender`, window position. |
+| `include/core_mbm/device.h` | `verbose`, `run`, `backBufferWidth`, `backBufferHeight`, `colorClearBackGround`, `camera`, `cfg`, global dynamic vars, `scene`, `orderRender`. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`, `changeScene`, `__sceneWasInit`, key/window flags. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
@@ -397,6 +397,13 @@ Milestone 30 implementation note:
 - Added `DEVICE::resetSwapBackBufferStep()`, `DEVICE::incrementSwapBackBufferStep()`, and `DEVICE::getSwapBackBufferStep()` for the scene-transition flow.
 - Migrated `CORE_MANAGER::logic()` and Lua loading reset code to the helper methods.
 - `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
+Milestone 31 implementation note:
+
+- `DEVICE::windowPositionX` and `DEVICE::windowPositionY` are now stored behind `DEVICE::Impl` instead of being public `DEVICE` data members.
+- Added public `DEVICE::setWindowPosition()`, axis-specific setters, and read-only getters so platform backends and Lua startup argument parsing keep the same behavior without direct layout access.
+- Migrated DirectX9, OpenGL ES, Metal, X11 move tracking, forced device restore, and Lua initialization paths to the accessor methods.
+- `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
 ### Phase 3 - Hide renderer backend handles
 

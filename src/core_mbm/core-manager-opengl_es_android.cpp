@@ -169,8 +169,7 @@ namespace mbm
         int x = width;
         int y = height;
         // Initialize window position
-        device->windowPositionX = px;
-        device->windowPositionY = py;
+        device->setWindowPosition(px, py);
         this->setNameApplication(nameApplication);
         GLViewport(0, 0, x <= 0 ? 800 : x, y <= 0 ? 600 : y);
         GLClearColor(0.0f, 0.0f, 0.0f, 0.0f);

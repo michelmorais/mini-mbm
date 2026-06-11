@@ -59,8 +59,7 @@ namespace mbm
         EGLint egl_major = 0;
         EGLint egl_minor = 0;
           // Initialize window position
-        device->windowPositionX = px;
-        device->windowPositionY = py;
+        device->setWindowPosition(px, py);
         if(initializeWindowx11(this->device->getSpecificContextDevice()) == false)
         {
             INFO_LOG("Failed to initialize X11 window");
@@ -372,12 +371,11 @@ namespace mbm
                     
                     // Store absolute window position for coordinate transformations
                     bool needMoveEvent = false;
-                    if(abs_x != device->windowPositionX || abs_y != device->windowPositionY)
+                    if(abs_x != device->getWindowPositionX() || abs_y != device->getWindowPositionY())
                     {
                         needMoveEvent = true;
                     }
-                    device->windowPositionX = abs_x;
-                    device->windowPositionY = abs_y;
+                    device->setWindowPosition(abs_x, abs_y);
                     
                     // Update viewport if size changed
                     if (xconfig.width != static_cast<int>(device->backBufferWidth) ||
@@ -406,8 +404,7 @@ namespace mbm
                                          DefaultRootWindow(this->device->getSpecificContextDevice()->display_x11),
                                          0, 0, &abs_x, &abs_y, &child_return);
 //
-                    device->windowPositionX = abs_x;
-                    device->windowPositionY = abs_y;
+                    device->setWindowPosition(abs_x, abs_y);
                     if((device->backBufferWidth != static_cast<float>(xexpose.width) ||
                        device->backBufferHeight != static_cast<float>(xexpose.height)) &&
                        xexpose.width > 0 && xexpose.height > 0)

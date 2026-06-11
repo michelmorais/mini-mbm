@@ -324,8 +324,7 @@ namespace mbm
         // OS has had a chance to constrain the window to the screen.
         ctx->metalLayer.drawableSize = CGSizeMake(width * scale, height * scale);
 
-        this->device->windowPositionX  = px;
-        this->device->windowPositionY  = py;
+        this->device->setWindowPosition(px, py);
 
         // ---- Show window ----
         [ctx->window makeKeyAndOrderFront:nil];

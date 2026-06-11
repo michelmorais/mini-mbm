@@ -1344,7 +1344,7 @@ namespace mbm
             getExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch);
             setExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch.c_str());
 
-            if (this->initGraphics(this->nameApplication.c_str(), this->widthWindow, this->heightWindow, device->windowPositionX, device->windowPositionY, border,this->enableResizeWindow))
+            if (this->initGraphics(this->nameApplication.c_str(), this->widthWindow, this->heightWindow, device->getWindowPositionX(), device->getWindowPositionY(), border,this->enableResizeWindow))
             {
                 if (this->fileNameInitialLua.size())
                 {
@@ -1592,13 +1592,13 @@ namespace mbm
                                     break;
                                     case POSITION_X_SCREEN:
                                     {
-                                        this->device->windowPositionX = std::atoi(arg);
+                                        this->device->setWindowPositionX(std::atoi(arg));
                                         nextArg               = POSITION_X_SCREEN;
                                     }
                                     break;
                                     case POSITION_Y_SCREEN:
                                     {
-                                        this->device->windowPositionY = std::atoi(arg);
+                                        this->device->setWindowPositionY(std::atoi(arg));
                                         nextArg               = POSITION_Y_SCREEN;
                                     }
                                     break;
@@ -1701,9 +1701,9 @@ namespace mbm
                             }
                         }
                         break;
-                        case POSITION_X_SCREEN: { this->device->windowPositionX = std::atoi(arg);}
+                        case POSITION_X_SCREEN: { this->device->setWindowPositionX(std::atoi(arg));}
                         break;
-                        case POSITION_Y_SCREEN: { this->device->windowPositionY = std::atoi(arg);}
+                        case POSITION_Y_SCREEN: { this->device->setWindowPositionY(std::atoi(arg));}
                         break;
                         case MAXIMIZED_WINDOW: { this->maximizedWindow = std::atoi(arg) ? true : false;}
                         break;

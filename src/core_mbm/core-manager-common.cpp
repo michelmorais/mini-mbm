@@ -1233,8 +1233,8 @@ namespace mbm
         while (!this->onLostDevice(doSwapBuffers, 
             static_cast<int>(this->device->backBufferWidth),
             static_cast<int>(this->device->backBufferHeight),
-            this->device->windowPositionX, 
-            this->device->windowPositionY));
+            this->device->getWindowPositionX(),
+            this->device->getWindowPositionY()));
     }
 
      void CORE_MANAGER::onTouchDown(int key, float x, float y)

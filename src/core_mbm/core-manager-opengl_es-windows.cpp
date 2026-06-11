@@ -88,8 +88,7 @@ namespace mbm
         this->setNameApplication(nameApplication);
         DEVICE* device = DEVICE::getInstance();
         // Initialize window position
-        device->windowPositionX = px;
-        device->windowPositionY = py;
+        device->setWindowPosition(px, py);
         device->getSpecificContextDevice()->window.setNameAplication(nameApplication);
         if (!device->getSpecificContextDevice()->window.init(nameApplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
             this->device->getSpecificContextDevice()->idIcon,false))
