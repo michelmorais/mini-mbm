@@ -282,7 +282,8 @@ namespace mbm
             const float defaultVar[4] = { p_color->r, p_color->g, p_color->b, p_color->a };
             if (anim->fx.fxPS->ptrCurrentShader)
             {
-                if (anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar, anim->fx.shader.ptrShaderSpecific, true) == false)
+                void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
+                if (anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar, backendShaderSpecific, true) == false)
                 {
                     PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
                 }
@@ -453,4 +454,3 @@ namespace mbm
         return infoPhysics.clone(new_info_physics);
     }
 }
-

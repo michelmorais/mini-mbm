@@ -371,6 +371,13 @@ floats).  You can extend the uniform struct or use a separate uniform buffer per
 variables.  However, on Metal everything is pushed inline at draw time so this is a no-op
 there — choose the approach that fits your backend.
 
+Backend code that needs the concrete shader-specific object should go through
+`SHADER::getBackendShaderSpecific()` / `setBackendShaderSpecific()` instead of reading or
+writing `SHADER::ptrShaderSpecific` directly. During the staged PIMPL migration, the
+public member may still exist for compatibility; new code should use the helper path.
+If a function needs the shader-specific object more than once, store the accessor result in
+a local `void *backendShaderSpecific` for that function scope.
+
 ---
 
 ## 11. Texture upload

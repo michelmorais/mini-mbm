@@ -269,10 +269,21 @@ namespace mbm
 
     void SHADER::update()
     {
+        void *backendShaderSpecific = this->getBackendShaderSpecific();
         if (this->pShader)
-            this->pShader->update(this->ptrShaderSpecific);
+            this->pShader->update(backendShaderSpecific);
         if (this->vShader)
-            this->vShader->update(this->ptrShaderSpecific);
+            this->vShader->update(backendShaderSpecific);
+    }
+
+    void * SHADER::getBackendShaderSpecific() const noexcept
+    {
+        return ptrShaderSpecific;
+    }
+
+    void SHADER::setBackendShaderSpecific(void *backendShaderSpecific) noexcept
+    {
+        ptrShaderSpecific = backendShaderSpecific;
     }
 
     mbm::MATRIX mbm::SHADER::modelView; // Matrix do modelo (ModelView)

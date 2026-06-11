@@ -379,7 +379,8 @@ namespace mbm
         else
         {
             float c[4] = { 1, 0, 0, 1 };
-            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c, anim->fx.shader.ptrShaderSpecific, true))
+            void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
+            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c, backendShaderSpecific, true))
             {
 #if defined _DEBUG
                 PRINT_IF_DEBUG("failed to included variable %s shader %s!", "color", fileNamePs);

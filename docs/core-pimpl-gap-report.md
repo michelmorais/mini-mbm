@@ -516,13 +516,20 @@ Milestone 46 implementation note:
 - `BUFFER_GL::getBackendBuffer()` and `BUFFER_GL::setBackendBuffer()` remain the only backend-buffer access path, so backend destructors still own and delete their concrete `BUFFER_SPECIFIC` allocation exactly as before.
 - Used a custom private deleter for the incomplete `BackendData` holder so backend-specific `BUFFER_GL` destructor definitions do not need the private storage definition.
 
+Milestone 47 implementation note:
+
+- Added `SHADER::getBackendShaderSpecific()` and `SHADER::setBackendShaderSpecific()` as the compatibility helper path for `SHADER::ptrShaderSpecific`.
+- Migrated non-owner shader-variable registration paths in animation, shader effects, line mesh, particle, and steered particle code to use the helper.
+- `SHADER::update()` now stores the backend shader-specific pointer once in a local variable before updating pixel and vertex shader variables, following the accessor reuse rule.
+- The public `SHADER::ptrShaderSpecific` member remains in place for source compatibility in this milestone; remaining direct code-side access is isolated to backend owner implementation methods and the compatibility helper implementation.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
 
 1. `TEXTURE::idTexture/ptrTexture` - done
 2. `BUFFER_GL::bs` - done
-3. `SHADER::ptrShaderSpecific`
+3. `SHADER::ptrShaderSpecific` - helper migration started; owner-side cleanup pending
 4. `RENDERIZABLE_TO_TARGET::specificConfig`
 5. `DEVICE::specificContextDevice`
 

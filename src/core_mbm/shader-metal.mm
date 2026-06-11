@@ -878,6 +878,8 @@ namespace mbm
                                const VEC3* normal, const VEC2* uv) const
     {
         if (!ptrShaderSpecific || !pBufferId || !vertex) return false;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer) return false;
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->currentEncoder) return false;
 

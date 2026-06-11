@@ -193,6 +193,8 @@ namespace mbm
         void* ptrShaderSpecific;  // Our shader specific by the backend engine
         SHADER();
         virtual ~SHADER();
+        void * getBackendShaderSpecific() const noexcept;
+        void setBackendShaderSpecific(void *backendShaderSpecific) noexcept;
         void releaseShader();
         void onRestore();
         bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);

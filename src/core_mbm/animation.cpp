@@ -902,10 +902,11 @@ namespace mbm
                     SHADER_CFG *cfgShader          = device->getShaderConfig().getShader(data->fileNameShader);
                     if (cfgShader)
                     {
+                        void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
                         for (auto var : cfgShader->lsVar)
                         {
                             if (!anim->fx.fxPS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default,
-                                                                            anim->fx.shader.ptrShaderSpecific, true))
+                                                                            backendShaderSpecific, true))
                             {
                                 ERROR_LOG( "failed to include variable %s shader %s!",var->name.c_str(), data->fileNameShader);
                                 return false;
@@ -952,10 +953,11 @@ namespace mbm
                     SHADER_CFG *cfgShader          = device->getShaderConfig().getShader(data->fileNameShader);
                     if (cfgShader)
                     {
+                        void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
                         for (auto var : cfgShader->lsVar)
                         {
                             if (!anim->fx.fxVS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default,
-                                                                            anim->fx.shader.ptrShaderSpecific, false))
+                                                                            backendShaderSpecific, false))
                             {
                                 ERROR_LOG( "failed to include variable [%s] shader [%s]!",var->name.c_str(), data->fileNameShader);
                                 return false;

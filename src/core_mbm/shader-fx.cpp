@@ -67,13 +67,14 @@ namespace mbm
         const bool ret = shader.compileShader(basePixelShader, baseVertexShader, fvf);
         if (!ret)
             return false;
+        void *backendShaderSpecific = shader.getBackendShaderSpecific();
         if (pShaderCfg)
         {
             for (uint32_t i = 0; i < pShaderCfg->lsVar.size(); ++i)
             {
                 VAR_CFG *var = pShaderCfg->lsVar[i];
                 if (!fxPS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default, //-V522
-                                                               shader.ptrShaderSpecific, true))
+                                                               backendShaderSpecific, true))
                 {
 #if defined _DEBUG
                     PRINT_IF_DEBUG( "failed to included variable %s shader %s!", var->name.c_str(),
@@ -98,7 +99,7 @@ namespace mbm
             {
                 VAR_CFG *var = vShaderCfg->lsVar[i];
                 if (!fxVS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default, //-V522
-                                                               shader.ptrShaderSpecific, false))
+                                                               backendShaderSpecific, false))
                 {
 #if defined _DEBUG
                     PRINT_IF_DEBUG( "failed to included variable %s shader %s!", var->name.c_str(),
