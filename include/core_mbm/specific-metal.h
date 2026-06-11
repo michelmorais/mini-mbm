@@ -66,7 +66,7 @@ namespace mbm
         void release();
     };
 
-    // Window + Metal device context — stored as DEVICE::specificContextDevice.
+    // Window + Metal device context, accessed through DEVICE::getSpecificContextDevice().
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
         SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;

@@ -42,7 +42,7 @@ namespace mbm
     {
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
             if (!ctx) return;
             if (ctx->currentCommandBuffer && ctx->currentDrawable)
             {
@@ -56,7 +56,7 @@ namespace mbm
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
         if (!ctx || !ctx->metalLayer) return true;
 
         // newWidth/newHeight are in logical points; scale up to physical pixels
@@ -72,7 +72,7 @@ namespace mbm
     {
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
             if (!ctx || !ctx->commandQueue || !ctx->metalLayer) return false;
 
             ctx->currentDrawable = [ctx->metalLayer nextDrawable];
@@ -139,7 +139,7 @@ namespace mbm
 
     void CORE_MANAGER::endRender()
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
         if (!ctx) return;
         if (ctx->currentEncoder)
         {
@@ -151,7 +151,7 @@ namespace mbm
 
     bool CORE_MANAGER::renderToTargets()
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
         if (!ctx || !ctx->mtlDevice || !ctx->commandQueue) return true;
 
         bool oneRender = false;
@@ -221,17 +221,18 @@ namespace mbm
         if (plugin)
         {
             const unsigned int indexPlugin = this->appendPlugin(plugin);
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
             // Provide the window/view as the platform handle (cast to void*).
 #if TARGET_OS_IOS
-            void* handle = (__bridge void*)this->device->specificContextDevice->metalView;
+            void* handle = (__bridge void*)ctx->metalView;
 #else
-            void* handle = (__bridge void*)this->device->specificContextDevice->window;
+            void* handle = (__bridge void*)ctx->window;
 #endif
             plugin->onSubscribe(
                 static_cast<int>(this->device->backBufferWidth),
                 static_cast<int>(this->device->backBufferHeight),
                 handle,
-                (__bridge void*)this->device->specificContextDevice->mtlDevice);
+                (__bridge void*)ctx->mtlDevice);
             return indexPlugin;
         }
         return 0xffffffff;
@@ -243,7 +244,8 @@ namespace mbm
         (void)min_x; (void)min_y; (void)max_x; (void)max_y;
         // iOS windows are always full-screen; min/max size is not applicable.
 #else
-        NSWindow* win = this->device->specificContextDevice->window;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        NSWindow* win = ctx->window;
         if (!win) return;
 
         NSSize minSize = NSMakeSize(min_x > 0 ? min_x : 100, min_y > 0 ? min_y : 100);

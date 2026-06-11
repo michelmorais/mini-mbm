@@ -67,7 +67,7 @@ namespace mbm
         this->setNameApplication(nameApplication);
 
         this->device->initializeSpecificContext();
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
 
         // -- Attach the pre-registered CAMetalLayer ---------------------------
         ctx->metalLayer = s_pendingMetalLayer;
@@ -157,7 +157,8 @@ namespace mbm
     {
         mbm::TEXTURE_MANAGER::getInstance()->release();
         mbm::MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->release(wasDeviceLost);
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        ctx->release(wasDeviceLost);
     }
 
 } // namespace mbm

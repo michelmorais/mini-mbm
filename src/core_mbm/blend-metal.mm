@@ -36,8 +36,9 @@ namespace mbm
         // BLEND_ONE (2) → additivePSO   (src_alpha × src + 1 × dst)
         // all others    → standardPSO  (src_alpha × src + (1−src_alpha) × dst)
         auto* dev = mbm::DEVICE::getInstance();
-        if (dev && dev->specificContextDevice)
-            dev->specificContextDevice->currentBlendState = static_cast<int>(blendState);
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = dev ? dev->getSpecificContextDevice() : nullptr;
+        if (ctx)
+            ctx->currentBlendState = static_cast<int>(blendState);
     }
 
     void FX::setBlendDefaultOp()

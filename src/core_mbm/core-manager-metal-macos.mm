@@ -185,7 +185,7 @@ namespace mbm
         }
 
         this->device->initializeSpecificContext();
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
 
         // ---- Metal device + command queue ----
         ctx->mtlDevice = MTLCreateSystemDefaultDevice();
@@ -380,7 +380,7 @@ namespace mbm
 
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
             if (!ctx || !ctx->window) return;
 
             // backBufferWidth/Height are in logical points (not scaled).
@@ -579,7 +579,8 @@ namespace mbm
 
     void CORE_MANAGER::moveWindow(int x, int y)
     {
-        NSWindow* win = this->device->specificContextDevice->window;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        NSWindow* win = ctx->window;
         if (!win) return;
         NSRect screenFrame = [[NSScreen mainScreen] frame];
         CGFloat macY = screenFrame.size.height - y - win.frame.size.height;
@@ -592,7 +593,8 @@ namespace mbm
         [NSApp setPresentationOptions:NSApplicationPresentationDefault];
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->release(wasDeviceLost);
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        ctx->release(wasDeviceLost);
     }
 
 } // namespace mbm

@@ -73,10 +73,11 @@ namespace mbm
                                   widthTexture, heightTexture, x, y, _width, _height);
 
         mbm::DEVICE* dev = mbm::DEVICE::getInstance();
-        if (!dev || !dev->specificContextDevice)
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = dev ? dev->getSpecificContextDevice() : nullptr;
+        if (!ctx)
             return log_util::fail(__LINE__, __FILE__, "Metal device not available");
-        id<MTLDevice>       mtlDevice = dev->specificContextDevice->mtlDevice;
-        id<MTLCommandQueue> cmdQueue  = dev->specificContextDevice->commandQueue;
+        id<MTLDevice>       mtlDevice = ctx->mtlDevice;
+        id<MTLCommandQueue> cmdQueue  = ctx->commandQueue;
         if (!mtlDevice || !cmdQueue)
             return log_util::fail(__LINE__, __FILE__, "Metal device/queue not ready");
 

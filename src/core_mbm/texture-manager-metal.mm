@@ -21,7 +21,8 @@ namespace mbm
     static id<MTLDevice> getMetalDevice()
     {
         DEVICE* dev = DEVICE::getInstance();
-        return (dev && dev->specificContextDevice) ? dev->specificContextDevice->mtlDevice : nil;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = dev ? dev->getSpecificContextDevice() : nullptr;
+        return ctx ? ctx->mtlDevice : nil;
     }
     void TEXTURE::release()
     {

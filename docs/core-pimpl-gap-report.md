@@ -328,6 +328,13 @@ Milestone 20 implementation note:
 - This completes the currently identified DirectX9 direct context-access migration; `specificContextDevice` remains public until remaining non-DirectX backends and compatibility users are migrated.
 - `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 21 implementation note:
+
+- Metal manager, shader, blend-state, texture-manager, and render-to-texture implementation files now use `DEVICE::getSpecificContextDevice()` instead of reading `DEVICE::specificContextDevice` directly.
+- Migrated macOS/iOS Metal manager context lookup and release, plugin subscription handles, Metal device lookup, blend-state tracking, and render-target Metal device/command queue access.
+- This completes the currently identified Metal direct context-access migration; `specificContextDevice` remains public until remaining compatibility users are migrated.
+- `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

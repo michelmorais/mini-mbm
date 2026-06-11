@@ -27,7 +27,7 @@
 static mbm::SPECIFIC_AUX_CONTEXT_DEVICE* getMetalCtx()
 {
     mbm::DEVICE* dev = mbm::DEVICE::getInstance();
-    return dev ? dev->specificContextDevice : nullptr;
+    return dev ? dev->getSpecificContextDevice() : nullptr;
 }
 
 static NSUInteger strideForFVF(mbm::FVF_PROVIDE_BY_ENGINE fvf)
