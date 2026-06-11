@@ -164,7 +164,7 @@ namespace mbm
             this->device->camera.expectedScreen.x = this->device->backBufferWidth;
             this->device->camera.expectedScreen.y = this->device->backBufferHeight;
         }
-        while (device->run)
+        while (device->isRunning())
         {
             handleEventFromWindow();
             for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
@@ -360,7 +360,7 @@ namespace mbm
                     }
                     break;
                 }
-                if (!this->device->run)
+                if (!this->device->isRunning())
                 {
                     break;
                 }
@@ -419,7 +419,7 @@ namespace mbm
 
     void CORE_MANAGER::update()
     {
-        if (!device->run)
+        if (!device->isRunning())
             return;
         this->device->updateFps();
         this->device->setCamera2dScaleCache(1.0f / this->device->camera.scale2d.x,
@@ -523,7 +523,7 @@ namespace mbm
     {
         if (!device)
             return;
-        if (!device->run)
+        if (!device->isRunning())
             return;
         std::vector<RENDERIZABLE *> lsRender2ds;
         std::vector<RENDERIZABLE *> lsRender2dw;
@@ -778,7 +778,7 @@ namespace mbm
                 this->clearPlugins();
                 if (this->device->scene->goToNextScene && this->device->scene->nextScene == nullptr)
                 {
-                    this->device->run             = false;
+                    this->device->setRun(false);
                     this->device->setClearBackGround(false);
                 }
                 else

@@ -40,20 +40,20 @@
 
 // ---------------------------------------------------------------------------
 // MBMQuitHandler — handles the "Quit" menu item action.
-// Sets device->run = false so the engine loop exits cleanly and main()
+// Calls DEVICE::setRun(false) so the engine loop exits cleanly and main()
 // returns 0, instead of calling exit() from inside AppKit (which bypasses
 // C++ destructors and produces a non-zero exit code in Xcode).
 // ---------------------------------------------------------------------------
 @interface MBMQuitHandler : NSObject
-@property (nonatomic, assign) bool* runFlag;
+@property (nonatomic, assign) mbm::DEVICE* device;
 - (void)quit:(id)sender;
 @end
 @implementation MBMQuitHandler
 - (void)quit:(id)sender
 {
     (void)sender;
-    if (_runFlag)
-        *_runFlag = false;
+    if (_device)
+        _device->setRun(false);
 }
 @end
 
@@ -64,15 +64,15 @@ static MBMQuitHandler* s_quitHandler = nil;
 // MBMWindowDelegate — forwards macOS window events into the engine.
 // ---------------------------------------------------------------------------
 @interface MBMWindowDelegate : NSObject <NSWindowDelegate>
-@property (nonatomic, assign) bool* runFlag;
+@property (nonatomic, assign) mbm::DEVICE* device;
 @end
 
 @implementation MBMWindowDelegate
 
 - (BOOL)windowShouldClose:(NSWindow*)__unused sender
 {
-    if (_runFlag)
-        *_runFlag = false;
+    if (_device)
+        _device->setRun(false);
     return YES;
 }
 
@@ -167,11 +167,11 @@ namespace mbm
             [menuBar addItem:appItem];
 
             // Route Quit through MBMQuitHandler so the engine loop exits
-            // cleanly (device->run = false) instead of calling exit() from
+            // cleanly (DEVICE::setRun(false)) instead of calling exit() from
             // inside AppKit, which produces a non-zero exit code in Xcode.
             if (!s_quitHandler)
                 s_quitHandler = [[MBMQuitHandler alloc] init];
-            s_quitHandler.runFlag = &this->device->run;
+            s_quitHandler.device = this->device;
 
             NSMenu     *appMenu   = [[NSMenu alloc] initWithTitle:appName];
             NSString   *quitTitle = [@"Quit " stringByAppendingString:appName];
@@ -302,7 +302,7 @@ namespace mbm
 
         // Window delegate — handles close / resize notifications.
         MBMWindowDelegate* delegate = [[MBMWindowDelegate alloc] init];
-        delegate.runFlag = &this->device->run;
+        delegate.device = this->device;
         [ctx->window setDelegate:delegate];
         ctx->windowDelegate = delegate;
 
@@ -349,7 +349,7 @@ namespace mbm
                                                      actualBounds.size.height * scale);
 
         // Mark device as running.
-        this->device->run = true;
+        this->device->setRun(true);
 
         // Log so any OS-imposed size difference is immediately visible.
         INFO_LOG("Metal device: %s", [ctx->mtlDevice.name UTF8String]);
@@ -550,7 +550,7 @@ namespace mbm
 
             // If the window was closed by the delegate, stop the engine.
             if (ctx->window && ![ctx->window isVisible])
-                this->device->run = false;
+                this->device->setRun(false);
 
             // Poll for window resize every frame (catches programmatic resizes too).
             if (ctx->window && ctx->metalLayer)

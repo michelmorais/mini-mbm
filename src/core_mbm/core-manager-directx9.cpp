@@ -65,7 +65,7 @@ namespace mbm
         }
         else
         {
-            this->device->run = false;
+            this->device->setRun(false);
         }
     }
 

@@ -162,7 +162,7 @@ namespace mbm
             {
                 if (this->createSceneLua() == false)
                 {
-                    device->run = false;
+                    device->setRun(false);
                     return;
                 }
             }

@@ -49,7 +49,6 @@ namespace mbm
         friend class RENDERIZABLE;
         friend class CORE_MANAGER;
       public:
-        bool   run;
         float  backBufferWidth;
         float  backBufferHeight;
         CAMERA camera;
@@ -67,6 +66,8 @@ namespace mbm
         API_IMPL void setAppReturnCode(const int returnCode) noexcept;
         API_IMPL int getAppReturnCode() const noexcept;
         API_IMPL static void quit();
+        API_IMPL void setRun(bool run) noexcept;
+        API_IMPL bool isRunning() const noexcept;
         API_IMPL float getBackBufferWidth() const noexcept;
         API_IMPL float getBackBufferHeight() const noexcept;
         API_IMPL float getScaleBackBufferWidth() const noexcept;

@@ -46,6 +46,7 @@ namespace mbm
         std::vector<RENDERIZABLE *> render2DW;
         std::vector<RENDERIZABLE *> render2DS;
         bool verbose = true;
+        bool run = true;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
@@ -83,7 +84,6 @@ namespace mbm
     {
         ptrManager                 = nullptr;
         scene                      = nullptr;
-        run                        = true;
         backBufferWidth            = 0;
         backBufferHeight           = 0;
     }
@@ -222,6 +222,16 @@ namespace mbm
     int DEVICE::getAppReturnCode() const noexcept
     {
         return impl->returnCodeApp;
+    }
+
+    void DEVICE::setRun(const bool run) noexcept
+    {
+        impl->run = run;
+    }
+
+    bool DEVICE::isRunning() const noexcept
+    {
+        return impl->run;
     }
 
     float DEVICE::getBackBufferWidth() const noexcept

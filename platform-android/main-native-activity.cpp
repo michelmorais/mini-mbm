@@ -173,7 +173,7 @@ static int32_t onInputEvent(struct android_app* app, AInputEvent* event)
         {
             const int32_t action = AKeyEvent_getAction(event);
             if (action == AKEY_EVENT_ACTION_UP && s_game)
-                s_game->device->run = false;
+                s_game->device->setRun(false);
             return 1;
         }
         const int32_t action  = AKeyEvent_getAction(event);
@@ -449,10 +449,10 @@ void android_main(struct android_app* app)
         // Render one frame when the window is ready and the engine is running.
         if (s_game && s_windowReady && s_running)
         {
-            if (!s_game->device->run)
+            if (!s_game->device->isRunning())
             {
                 // mbm.quit() was called from Lua or C++.
-                INFO_LOG("mini-mbm: device->run is false — exiting");
+                INFO_LOG("mini-mbm: device is not running — exiting");
                 ANativeActivity_finish(app->activity);
                 s_running = false;
                 continue;

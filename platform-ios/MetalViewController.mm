@@ -234,7 +234,7 @@ static void ios_command_handler(const char *cmd, const char *param,
     (void)link;
     if (!s_game) return;
 
-    if (!s_game->device->run)
+    if (!s_game->device->isRunning())
     {
         [_displayLink invalidate];
         _displayLink = nil;
@@ -351,7 +351,7 @@ static void ios_command_handler(const char *cmd, const char *param,
 
 - (void)resumeRendering
 {
-    if (s_game && s_game->device->run)
+    if (s_game && s_game->device->isRunning())
         _displayLink.paused = NO;
 }
 

@@ -36,7 +36,7 @@ High-impact examples:
 
 | Header | Public state that blocks strict PIMPL |
 |---|---|
-| `include/core_mbm/device.h` | `run`, `backBufferWidth`, `backBufferHeight`, `camera`, `cfg`, global dynamic vars, `scene`, `orderRender`. |
+| `include/core_mbm/device.h` | `backBufferWidth`, `backBufferHeight`, `camera`, `cfg`, global dynamic vars, `scene`, `orderRender`. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`, `changeScene`, `__sceneWasInit`, key/window flags. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
@@ -419,6 +419,13 @@ Milestone 33 implementation note:
 - Kept the external launcher method `set_verbose()` unchanged; it still maps to the existing command-line behavior.
 - `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 34 implementation note:
+
+- `DEVICE::run` is now stored behind `DEVICE::Impl` instead of being a public `DEVICE` data member.
+- Added `DEVICE::setRun()` and `DEVICE::isRunning()` so core loops, backend close handlers, Lua quit paths, and mobile platform loops no longer depend on direct `DEVICE` layout access.
+- Updated the macOS Metal quit/menu and window delegate helpers to store a `DEVICE *` and call `setRun(false)` instead of retaining a raw pointer to the hidden boolean.
+- `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -447,7 +454,7 @@ This mainly improves header hygiene and ABI layout.
 
 Before hiding public fields, add and use methods for:
 
-- `DEVICE`: camera, screen size, run/error flags, dynamic globals, render stats, background clear color.
+- `DEVICE`: camera, screen size, dynamic globals, scene pointer, render ordering, and other remaining gameplay-facing state.
 - `RENDERIZABLE`: transform, visibility, blend, user data, dynamic vars.
 - `SCENE`: scene transition state and user data.
 - `ANIMATION_MANAGER`: animation list/index/callback access.

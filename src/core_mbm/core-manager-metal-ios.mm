@@ -114,7 +114,7 @@ namespace mbm
             ctx->metalLayer.bounds.size.height * scale);
 
         // -- Mark device as running ------------------------------------------
-        this->device->run = true;
+        this->device->setRun(true);
 
         INFO_LOG("iOS Metal device: %s", [ctx->mtlDevice.name UTF8String]);
         INFO_LOG("Backbuffer: %.1f x %.1f | Retina scale: %.2f | Drawable: %.0f x %.0f",

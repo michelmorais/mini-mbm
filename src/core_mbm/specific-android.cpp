@@ -436,7 +436,7 @@ namespace mbm
         // Signal the android_main loop to stop via the engine's run flag.
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if (device)
-            device->run = false;
+            device->setRun(false);
     }
 
     
