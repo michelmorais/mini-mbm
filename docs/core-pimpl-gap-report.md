@@ -481,6 +481,7 @@ Milestone 41 review cleanup note:
 - Replaced repeated line-by-line `getCamera()` use inside hot/core functions with local `CAMERA &camera` or `const CAMERA &camera` references.
 - This keeps the `DEVICE` layout hidden while preserving the old direct-camera ergonomics inside a function scope.
 - The local reference is intentionally scoped to the current function only; no code should cache the `DEVICE` camera reference as persistent object state.
+- Project coding rules now generalize this pattern: repeated accessor-backed object use in one function should be stored once in a local variable/reference.
 
 ### Phase 3 - Hide renderer backend handles
 
