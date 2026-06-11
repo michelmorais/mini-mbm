@@ -49,7 +49,6 @@ namespace mbm
         friend class RENDERIZABLE;
         friend class CORE_MANAGER;
       public:
-        bool   verbose;
         bool   run;
         float  backBufferWidth;
         float  backBufferHeight;
@@ -78,6 +77,8 @@ namespace mbm
         API_IMPL uint32_t getTotalObjectsIsRendering2D() const noexcept;
         API_IMPL uint32_t getTotalObjects3D() const noexcept;
         API_IMPL uint32_t getTotalObjects2D() const noexcept;
+        API_IMPL void setVerbose(bool verbose) noexcept;
+        API_IMPL bool isVerbose() const noexcept;
         API_IMPL void setColorClearBackGround(const COLOR &color) noexcept;
         API_IMPL const COLOR & getColorClearBackGround() const noexcept;
         API_IMPL void setClearBackGround(bool clear) noexcept;

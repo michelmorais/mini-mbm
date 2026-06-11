@@ -260,7 +260,7 @@ namespace mbm
             mbm::setTheme(22, true);
         #endif
         mbm::LUA_MANAGER luaCore(args);
-        if(luaCore.device && luaCore.device->verbose)
+        if(luaCore.device && luaCore.device->isVerbose())
             log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
     
         luaCore.onDoNativeCommand = externalDoNativeCommand;

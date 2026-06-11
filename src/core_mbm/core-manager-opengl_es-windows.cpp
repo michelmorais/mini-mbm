@@ -138,7 +138,7 @@ namespace mbm
             ERROR_LOG(" EGL could not be initialized");
             return false;
         }
-        if (device->verbose)
+        if (device->isVerbose())
         {
             INFO_LOG("EGL version %d.%d", eglVersionMajor, eglVersionMinor);
         }
@@ -188,7 +188,7 @@ namespace mbm
             }
         }
 
-        if (device->verbose)
+        if (device->isVerbose())
         {
             EGLint cfgId = 0;
             EGLint depthBits = 0;
@@ -231,7 +231,7 @@ namespace mbm
         }
 
         device->getSpecificContextDevice()->window.disableRender(mNativeWindow);
-        if (device->verbose)
+        if (device->isVerbose())
         {
             printGLString("\nversion:\n", GL_VERSION);
             printGLString("vendor:\n", GL_VENDOR);

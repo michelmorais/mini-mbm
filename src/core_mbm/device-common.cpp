@@ -45,6 +45,7 @@ namespace mbm
         std::vector<RENDERIZABLE *> render3D;
         std::vector<RENDERIZABLE *> render2DW;
         std::vector<RENDERIZABLE *> render2DS;
+        bool verbose = true;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
@@ -83,7 +84,6 @@ namespace mbm
         ptrManager                 = nullptr;
         scene                      = nullptr;
         run                        = true;
-        verbose					   = true;
         backBufferWidth            = 0;
         backBufferHeight           = 0;
     }
@@ -272,6 +272,16 @@ namespace mbm
     uint32_t DEVICE::getTotalObjects2D() const noexcept
     {
         return impl->totalObjects2D;
+    }
+
+    void DEVICE::setVerbose(const bool verbose) noexcept
+    {
+        impl->verbose = verbose;
+    }
+
+    bool DEVICE::isVerbose() const noexcept
+    {
+        return impl->verbose;
     }
 
     void DEVICE::setColorClearBackGround(const COLOR &color) noexcept

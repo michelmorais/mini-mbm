@@ -1216,7 +1216,7 @@ namespace mbm
             
             this->hasValueTextureLogo = false;
             this->parserArgs(args);
-            if(pLuaManager->device->verbose)
+            if(pLuaManager->device->isVerbose())
                 INFO_LOG("%s", this->nameApplication.c_str());
         }
 
@@ -1259,7 +1259,7 @@ namespace mbm
                 lsArg.emplace_back(argv[i]);
             }
             this->parserArgs(lsArg);
-            if(device->verbose)
+            if(device->isVerbose())
                 INFO_LOG("%s", this->nameApplication.c_str());
         }
     #endif // !ANDROID
@@ -1430,12 +1430,12 @@ namespace mbm
                     nextArg = ENABLE_RESIZE_WINDOW;
                 else if (strcasecmp(arg, "-notverbose") == 0 || strcasecmp(arg, "--notverbose") == 0)
                 {
-                    device->verbose = false;
+                    device->setVerbose(false);
                     nextArg = NONE;
                 }
                 else if (strcasecmp(arg, "-verbose") == 0 || strcasecmp(arg, "--verbose") == 0)
                 {
-                    device->verbose = true;
+                    device->setVerbose(true);
                     nextArg = NONE;
                 }
                 else if (strcasecmp(arg, "--noborder") == 0 || strcasecmp(arg, "-noborder") == 0)
@@ -1741,7 +1741,7 @@ namespace mbm
             }
             if(this->fileNameInitialLua.size() == 0)
             {
-                if(device->verbose)
+                if(device->isVerbose())
                     WARN_LOG("\nScene not set... setting it to main.lua");
                 this->fileNameInitialLua = "main.lua";
             }
@@ -1759,8 +1759,8 @@ namespace mbm
             nameScene               = util::getFullPath(nameScene,nullptr);
             if (luaManager->__sceneWasInit == false)
             {
-                if(luaManager->device->verbose)
-                lua_print_line(lua,TYPE_LOG_WARN,"The scene [%s] will be load in the main loop!", nameScene);
+                if(luaManager->device->isVerbose())
+                    lua_print_line(lua,TYPE_LOG_WARN,"The scene [%s] will be load in the main loop!", nameScene);
                 std::string nameSceneTmp(nameScene);
                 log_util::replaceString(nameSceneTmp,"\\\\","/");
                 log_util::replaceString(nameSceneTmp,"\\","/");
@@ -1847,7 +1847,7 @@ namespace mbm
                 {
                     if (luaManager->__sceneWasInit == false)
                     {
-                        if(device->verbose)
+                        if(device->isVerbose())
                             WARN_LOG("Scene [%s] cannot be loaded in the function", nameMainScene);
                     }
                     else

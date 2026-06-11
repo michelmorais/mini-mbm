@@ -278,7 +278,7 @@ namespace mbm
         device->getSpecificContextDevice()->window.disableRender(mNativeWindow);
         //TODO: set real version from DirectX
         INFO_LOG("\nDIRECTX Version: %s\n", "9");
-        if (device->verbose)
+        if (device->isVerbose())
         {
             MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());

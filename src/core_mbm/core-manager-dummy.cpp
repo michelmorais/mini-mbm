@@ -69,7 +69,7 @@ namespace mbm
         
         //TODO: set version from your backend engine
         INFO_LOG("\nDUMMY Version: %s\n", "1");
-        if (device->verbose)
+        if (device->isVerbose())
         {
             MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());

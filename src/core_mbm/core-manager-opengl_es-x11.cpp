@@ -131,7 +131,7 @@ namespace mbm
             return false;
         }
 
-        if (device->verbose)
+        if (device->isVerbose())
         {
             printGLString("\nversion:\n", GL_VERSION);
             printGLString("vendor:\n", GL_VENDOR);
