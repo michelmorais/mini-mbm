@@ -271,6 +271,13 @@ Milestone 12 implementation note:
 - `CORE_MANAGER` render preparation, render enable/disable, stop, and lost-device restore paths access the 2-D world list through a private `DEVICE::getRender2DWList()` helper.
 - 2-D screen/HUD render list, `RENDERIZABLE_TO_TARGET::specificConfig`, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 13 implementation note:
+
+- `DEVICE::Impl` now owns the private 2-D screen/HUD render object list.
+- `DEVICE::addRenderizable()`, `DEVICE::removeRenderizable()`, `DEVICE::removeObjectByIdSceneScene()`, and `DEVICE::disableAllButThis()` use the hidden 2-D screen list internally.
+- `CORE_MANAGER` render preparation, render enable/disable, stop, and lost-device restore paths access the 2-D screen list through a private `DEVICE::getRender2DSList()` helper.
+- All three main render lists are now outside the visible `DEVICE` layout; `RENDERIZABLE_TO_TARGET::specificConfig`, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

@@ -44,6 +44,7 @@ namespace mbm
         std::vector<RENDERIZABLE_TO_TARGET *> renderTargets;
         std::vector<RENDERIZABLE *> render3D;
         std::vector<RENDERIZABLE *> render2DW;
+        std::vector<RENDERIZABLE *> render2DS;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -125,6 +126,11 @@ namespace mbm
     std::vector<RENDERIZABLE *> & DEVICE::getRender2DWList() noexcept
     {
         return impl->render2DW;
+    }
+
+    std::vector<RENDERIZABLE *> & DEVICE::getRender2DSList() noexcept
+    {
+        return impl->render2DS;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
@@ -277,7 +283,7 @@ namespace mbm
                 if (renderizable->position.z == 0.0f)
                     renderizable->position.z = this->orderRender.getNextZOrderControl2d(
                         renderizable->is2dS, renderizable->typeClass == TYPE_CLASS_TEXT);
-                this->lsObjectRender2DS.push_back(renderizable);
+                impl->render2DS.push_back(renderizable);
             }
             else
             {
@@ -330,7 +336,7 @@ namespace mbm
         {
             ptr->enableRender = false;
         }
-        for (auto ptr : lsObjectRender2DS)
+        for (auto ptr : impl->render2DS)
         {
             ptr->enableRender = false;
         }
@@ -365,12 +371,12 @@ namespace mbm
                 i--;
             }
         }
-        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender2DS.size(); ++i)
+        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DS.size(); ++i)
         {
-            RENDERIZABLE *ptr = lsObjectRender2DS[i];
+            RENDERIZABLE *ptr = impl->render2DS[i];
             if (ptr->idScene == idScene)
             {
-                lsObjectRender2DS.erase(lsObjectRender2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                impl->render2DS.erase(impl->render2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                 i--;
             }
         }
@@ -430,16 +436,16 @@ namespace mbm
         }
         else
         {
-            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender2DS.size(); ++i)
+            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DS.size(); ++i)
             {
-                RENDERIZABLE *ptr = lsObjectRender2DS[i];
+                RENDERIZABLE *ptr = impl->render2DS[i];
                 if (ptr == object)
                 {
                     for (auto ph : impl->physics)
                     {
                         ph->removeObject(ptr);
                     }
-                    lsObjectRender2DS.erase(lsObjectRender2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                    impl->render2DS.erase(impl->render2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                     break;
                 }
             }

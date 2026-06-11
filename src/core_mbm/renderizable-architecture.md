@@ -16,7 +16,7 @@ list categories** inside `DEVICE`:
 |------|---------|
 | 3-D render list | Objects with `is3D == true` |
 | 2-D world render list | 2-D world-space objects (`is3D == false`, `is2dS == false`) |
-| `lsObjectRender2DS` | 2-D screen-space objects (`is2dS == true`) |
+| 2-D screen render list | 2-D screen-space objects (`is2dS == true`) |
 
 An object is added to the correct list automatically by
 `DEVICE::addRenderizable(this)` — call this in your constructor.

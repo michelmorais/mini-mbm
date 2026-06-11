@@ -137,7 +137,6 @@ namespace mbm
 
     private:
         static DEVICE *                       instanceDevice;
-        std::vector<RENDERIZABLE *>           lsObjectRender2DS;
         struct Impl;
         struct ImplDeleter
         {
@@ -155,6 +154,7 @@ namespace mbm
         RENDERIZABLE_TO_TARGET * getRenderTarget(const uint32_t index) const noexcept;
         std::vector<RENDERIZABLE *> & getRender3DList() noexcept;
         std::vector<RENDERIZABLE *> & getRender2DWList() noexcept;
+        std::vector<RENDERIZABLE *> & getRender2DSList() noexcept;
     };
 }
 #endif
