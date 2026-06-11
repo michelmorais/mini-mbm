@@ -499,6 +499,7 @@ namespace mbm
         if (this->mesh && this->isLoaded() && this->indexCurrentAnimation < this->lsAnimation.size())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            const CAMERA &camera = device->getCamera();
             ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
             if (doRender)
                 anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
@@ -703,10 +704,10 @@ namespace mbm
                                     SHADER::modelView._42 += infoFont->letterDiffY[index];
                                     if (this->is3D)
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &device->getCamera().matrixPerspective);
+                                                       &camera.matrixPerspective);
                                     else
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &device->getCamera().matrixPerspective2d);
+                                                       &camera.matrixPerspective2d);
                                     SHADER::modelView._41 -= infoFont->letterDiffX[index];
                                     SHADER::modelView._42 -= infoFont->letterDiffY[index];
                                     if (doRender)

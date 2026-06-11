@@ -2064,8 +2064,9 @@ public:
             
             // Update scaling
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            sx = device->getCamera().scale2d.x;
-            sy = device->getCamera().scale2d.y;
+            const mbm::CAMERA &camera = device->getCamera();
+            sx = camera.scale2d.x;
+            sy = camera.scale2d.y;
             
             beginRenderWasCalled = true;
         }

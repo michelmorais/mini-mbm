@@ -34,8 +34,9 @@ MY_SCENE::~MY_SCENE()
 void MY_SCENE::init() 
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    device->getCamera().position = mbm::VEC3(0, 280, -900);
-    device->getCamera().focus    = mbm::VEC3(0, 280, 0);
+    mbm::CAMERA &camera = device->getCamera();
+    camera.position = mbm::VEC3(0, 280, -900);
+    camera.focus    = mbm::VEC3(0, 280, 0);
     this->texBox                  = new mbm::TEXTURE_VIEW(this, false, true);
 	util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     this->texBox->load("../src/test-lib/wooden-box.jpg",200,200);

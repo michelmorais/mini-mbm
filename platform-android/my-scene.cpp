@@ -34,8 +34,9 @@ MY_SCENE::~MY_SCENE()
 void MY_SCENE::onInitScene()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    device->getCamera().position = mbm::VEC3(0, 280, -900);
-    device->getCamera().focus    = mbm::VEC3(0, 280,    0);
+    mbm::CAMERA &camera = device->getCamera();
+    camera.position = mbm::VEC3(0, 280, -900);
+    camera.focus    = mbm::VEC3(0, 280,    0);
     texBox = new mbm::TEXTURE_VIEW(this, false, true);
     texBox->load("wooden-box.jpg", 200, 200);
 }

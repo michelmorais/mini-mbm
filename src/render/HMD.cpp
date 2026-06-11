@@ -132,10 +132,11 @@ namespace mbm
     bool HMD::isOnFrustum()
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        this->camera2d.position.x = device->getCamera().position2d.x;
-        this->camera2d.position.y = device->getCamera().position2d.y;
-        this->camera3d.position   = device->getCamera().position;
-        this->camera3d.focus      = device->getCamera().focus;
+        const CAMERA &camera = device->getCamera();
+        this->camera2d.position.x = camera.position2d.x;
+        this->camera2d.position.y = camera.position2d.y;
+        this->camera3d.position   = camera.position;
+        this->camera3d.focus      = camera.focus;
         return RENDER_2_TEXTURE::isOnFrustum();
     }
     
@@ -144,10 +145,11 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if (this->alwaysRenderize)
         {
-            this->camera2d.position.x = device->getCamera().position2d.x;
-            this->camera2d.position.y = device->getCamera().position2d.y;
-            this->camera3d.position   = device->getCamera().position;
-            this->camera3d.focus      = device->getCamera().focus;
+            const CAMERA &camera = device->getCamera();
+            this->camera2d.position.x = camera.position2d.x;
+            this->camera2d.position.y = camera.position2d.y;
+            this->camera3d.position   = camera.position;
+            this->camera3d.focus      = camera.focus;
         }
         this->position.x = device->getScaleBackBufferWidth() * 0.25f;
         this->position.y = device->getScaleBackBufferHeight() * 0.5f;
@@ -166,23 +168,24 @@ namespace mbm
             if (this->modeTextureOnly)
                 return true;
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            const CAMERA &camera = device->getCamera();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * device->getCamera().scaleScreen2d.x,
-                                    this->position.y * device->getCamera().scaleScreen2d.y, this->position.z);
+                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
+                                    this->position.y * camera.scaleScreen2d.y, this->position.z);
                 device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             ANIMATION *anim = this->getAnimation();
             if (anim)

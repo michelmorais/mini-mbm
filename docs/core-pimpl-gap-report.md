@@ -476,6 +476,12 @@ Milestone 41 implementation note:
 - Updated C++ usage examples and platform-port templates from `device->camera` to `device->getCamera()`.
 - `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, run flag, backbuffer size, core manager pointer, shader config, render order, dynamic globals, scene pointer, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 41 review cleanup note:
+
+- Replaced repeated line-by-line `getCamera()` use inside hot/core functions with local `CAMERA &camera` or `const CAMERA &camera` references.
+- This keeps the `DEVICE` layout hidden while preserving the old direct-camera ergonomics inside a function scope.
+- The local reference is intentionally scoped to the current function only; no code should cache the `DEVICE` camera reference as persistent object state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

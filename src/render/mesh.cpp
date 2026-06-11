@@ -96,24 +96,25 @@ namespace mbm
         {
             ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            const CAMERA &camera = device->getCamera();
             anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * device->getCamera().scaleScreen2d.x,
-                                    this->position.y * device->getCamera().scaleScreen2d.y, this->position.z);
+                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
+                                    this->position.y * camera.scaleScreen2d.y, this->position.z);
                 device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             this->blend.set(anim->blendState);
             anim->fx.shader.update();
@@ -217,5 +218,4 @@ namespace mbm
     }
 
 }
-
 

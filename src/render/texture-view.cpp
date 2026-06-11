@@ -252,24 +252,25 @@ namespace mbm
         if (this->bufferGL.isLoadedBuffer())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            const CAMERA &camera = device->getCamera();
             ANIMATION *anim = this->getAnimation();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
                 VEC3 positionScreen(this->position.x, this->position.y, this->position.z);
                 device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
                 const VEC3 positionWorld(this->position.x, this->position.y, this->position.z);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             this->blend.set(anim->blendState);
             anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
@@ -371,5 +372,4 @@ namespace mbm
         return this->bufferGL.isLoadedBuffer() && this->texture && this->lsAnimation.size() > 0;
     }
 }
-
 

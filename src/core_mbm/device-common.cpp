@@ -326,12 +326,12 @@ namespace mbm
     
     float DEVICE::getScaleBackBufferWidth() const noexcept
     {
-        return static_cast<float>(impl->backBufferWidth / this->getCamera().scale2d.x);
+        return static_cast<float>(impl->backBufferWidth / impl->camera.scale2d.x);
     }
     
     float DEVICE::getScaleBackBufferHeight() const noexcept
     {
-        return static_cast<float>(impl->backBufferHeight / this->getCamera().scale2d.y);
+        return static_cast<float>(impl->backBufferHeight / impl->camera.scale2d.y);
     }
 
     uint32_t DEVICE::getTotalObjectsOnFrustum3D() const noexcept
@@ -454,52 +454,53 @@ namespace mbm
             const float percy = impl->backBufferHeight / heightScreen;
             if (percx != 0.0f && percy != 0.0f)
             {
-                this->getCamera().expectedScreen.x = widthScreen;
-                this->getCamera().expectedScreen.y = heightScreen;
+                CAMERA &camera = impl->camera;
+                camera.expectedScreen.x = widthScreen;
+                camera.expectedScreen.y = heightScreen;
                 if (stretch)
                 {
                     if (strcmp(stretch, "x") == 0)
                     {
-                        this->getCamera().scale2d.x = percx;
-                        this->getCamera().scale2d.y = percx;
-                        strncpy(this->getCamera().stretch, "x",sizeof(this->getCamera().stretch)-1);
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percx;
+                        strncpy(camera.stretch, "x",sizeof(camera.stretch)-1);
                     }
                     else if (strcmp(stretch, "y") == 0)
                     {
-                        this->getCamera().scale2d.x = percy;
-                        this->getCamera().scale2d.y = percy;
-                        strncpy(this->getCamera().stretch, "y",sizeof(this->getCamera().stretch)-1);
+                        camera.scale2d.x = percy;
+                        camera.scale2d.y = percy;
+                        strncpy(camera.stretch, "y",sizeof(camera.stretch)-1);
                     }
                     else if (strcmp(stretch, "xy") == 0)
                     {
-                        this->getCamera().scale2d.x = percx;
-                        this->getCamera().scale2d.y = percy;
-                        strncpy(this->getCamera().stretch, "xy",sizeof(this->getCamera().stretch));
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percy;
+                        strncpy(camera.stretch, "xy",sizeof(camera.stretch));
                     }
                     else if (percx < percy)
                     {
-                        this->getCamera().scale2d.x = percx;
-                        this->getCamera().scale2d.y = percx;
-                        strncpy(this->getCamera().stretch, "x",sizeof(this->getCamera().stretch)-1);
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percx;
+                        strncpy(camera.stretch, "x",sizeof(camera.stretch)-1);
                     }
                     else
                     {
-                        this->getCamera().scale2d.x = percy;
-                        this->getCamera().scale2d.y = percy;
-                        strncpy(this->getCamera().stretch, "y",sizeof(this->getCamera().stretch)-1);
+                        camera.scale2d.x = percy;
+                        camera.scale2d.y = percy;
+                        strncpy(camera.stretch, "y",sizeof(camera.stretch)-1);
                     }
                 }
                 else if (percx < percy)
                 {
-                    this->getCamera().scale2d.x = percx;
-                    this->getCamera().scale2d.y = percx;
-                    strncpy(this->getCamera().stretch, "x",sizeof(this->getCamera().stretch)-1);
+                    camera.scale2d.x = percx;
+                    camera.scale2d.y = percx;
+                    strncpy(camera.stretch, "x",sizeof(camera.stretch)-1);
                 }
                 else
                 {
-                    this->getCamera().scale2d.x = percy;
-                    this->getCamera().scale2d.y = percy;
-                    strncpy(this->getCamera().stretch, "y",sizeof(this->getCamera().stretch)-1);
+                    camera.scale2d.x = percy;
+                    camera.scale2d.y = percy;
+                    strncpy(camera.stretch, "y",sizeof(camera.stretch)-1);
                 }
             }
         }
@@ -777,8 +778,9 @@ namespace mbm
                                                          const float howFarZFromCamera) const
     {
         VEC3        rayOriginOut, rayDirOut;
-        const float newX = x * this->getCamera().scaleScreen2d.x;
-        const float newY = y * this->getCamera().scaleScreen2d.y;
+        const CAMERA &camera = impl->camera;
+        const float newX = x * camera.scaleScreen2d.x;
+        const float newY = y * camera.scaleScreen2d.y;
         if (this->rayCast(newX, newY, &rayOriginOut, &rayDirOut))
         {
             out->x = rayDirOut.x * howFarZFromCamera + rayOriginOut.x;
@@ -792,16 +794,17 @@ namespace mbm
     void DEVICE::transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC2 &out) const noexcept
     {
         //original
+        const CAMERA &camera = impl->camera;
         const VEC2 middle(impl->backBufferWidth * 0.5f, impl->backBufferHeight * 0.5f);
-        out.x = (x * this->getCamera().scaleScreen2d.x) - middle.x + this->getCamera().position2d.x;
-        out.y = -((y * this->getCamera().scaleScreen2d.y) - middle.y) + this->getCamera().position2d.y;
+        out.x = (x * camera.scaleScreen2d.x) - middle.x + camera.position2d.x;
+        out.y = -((y * camera.scaleScreen2d.y) - middle.y) + camera.position2d.y;
         out.x *= impl->percXcam2dScale;
         out.y *= impl->percYcam2dScale;
 
         // x, y are already in expected screen coordinates (divided by scale2d by caller)
-        //const VEC2 middle(this->getCamera().expectedScreen.x * 0.5f, this->getCamera().expectedScreen.y * 0.5f);
-        //out.x = x - middle.x + this->getCamera().position2d.x;
-        //out.y = -(y - middle.y) + this->getCamera().position2d.y;
+        //const VEC2 middle(camera.expectedScreen.x * 0.5f, camera.expectedScreen.y * 0.5f);
+        //out.x = x - middle.x + camera.position2d.x;
+        //out.y = -(y - middle.y) + camera.position2d.y;
         //out.x *= impl->percXcam2dScale;
         //out.y *= impl->percYcam2dScale;
     }
@@ -817,18 +820,19 @@ namespace mbm
     void DEVICE::transformeWorld2dToScreen2d_scaled(const float x, const float y, VEC2 &out) const noexcept
     {
         //original
+        const CAMERA &camera = impl->camera;
         const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
         const VEC2 middle(impl->backBufferWidth * 0.5f, impl->backBufferHeight * 0.5f);
-        out.x = newIn.x + middle.x - this->getCamera().position2d.x;
-        out.y = impl->backBufferHeight - ((newIn.y + middle.y) - this->getCamera().position2d.y);
-        out.x /= this->getCamera().scaleScreen2d.x;
-        out.y /= this->getCamera().scaleScreen2d.y;
+        out.x = newIn.x + middle.x - camera.position2d.x;
+        out.y = impl->backBufferHeight - ((newIn.y + middle.y) - camera.position2d.y);
+        out.x /= camera.scaleScreen2d.x;
+        out.y /= camera.scaleScreen2d.y;
 
         //const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
-        //const VEC2 middle(this->getCamera().expectedScreen.x * 0.5f, this->getCamera().expectedScreen.y * 0.5f);
+        //const VEC2 middle(camera.expectedScreen.x * 0.5f, camera.expectedScreen.y * 0.5f);
         //// Output in expected screen coordinates (caller should multiply by scale2d if actual pixels needed)
-        //out.x = newIn.x + middle.x - this->getCamera().position2d.x;
-        //out.y = this->getCamera().expectedScreen.y - ((newIn.y + middle.y) - this->getCamera().position2d.y);
+        //out.x = newIn.x + middle.x - camera.position2d.x;
+        //out.y = camera.expectedScreen.y - ((newIn.y + middle.y) - camera.position2d.y);
     }
     
     bool DEVICE::isPointWorld2dOnScreen2D(const float x, const float y) const noexcept
@@ -848,8 +852,9 @@ namespace mbm
     
     bool DEVICE::isCircleScreen2dOnScreen2D_scaled(const float x, const float y, const float ray) const noexcept
     {
-        const float newX = this->getCamera().scaleScreen2d.x * x;
-        const float newY = this->getCamera().scaleScreen2d.y * y;
+        const CAMERA &camera = impl->camera;
+        const float newX = camera.scaleScreen2d.x * x;
+        const float newY = camera.scaleScreen2d.y * y;
         if ((newX + ray) < 0)
             return false;
         else if ((newX - ray) > impl->backBufferWidth)
@@ -1048,7 +1053,7 @@ namespace mbm
         if (out)
         {
             MATRIX matrixAux;
-            *out = this->getCamera().matrixBillboard;
+            *out = impl->camera.matrixBillboard;
             if (scale)
             {
                 MatrixScaling(&matrixAux, scale->x, scale->y, scale->z);

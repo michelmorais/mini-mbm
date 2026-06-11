@@ -197,8 +197,9 @@ namespace mbm
             if (SCENE_SCRIPT::logo_was_init == false && this->noSplash == false)
             {
                 device->setColorClearBackGround(COLOR(1.0f,1.0f,1.0f,1.0f));
-                device->getCamera().position2d.x  = 0;
-                device->getCamera().position2d.y  = 0;
+                CAMERA &camera = device->getCamera();
+                camera.position2d.x  = 0;
+                camera.position2d.y  = 0;
                 bool        exitsFile              = false;
                 this->textureLogo = new TEXTURE_VIEW(this, true, true);
                 if (this->textureLogo && this->textureLogo->load(&resource_mini_mbm_logo))

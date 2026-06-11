@@ -407,23 +407,24 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if (this->control.getTotalAlive())
         {
+            const CAMERA &camera = device->getCamera();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * device->getCamera().scaleScreen2d.x,
-                    this->position.y * device->getCamera().scaleScreen2d.y, this->position.z);
+                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
+                    this->position.y * camera.scaleScreen2d.y, this->position.z);
                 device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             
             const util::STAGE_PARTICLE* sPart = control.getStageParticle();

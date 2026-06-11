@@ -288,23 +288,24 @@ namespace mbm
         TEXTURE* idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2 : nullptr;
         VEC3 thePosBrick(renderPos);
         const MATRIX *matrixPerspective = nullptr;
+        const CAMERA &camera = device->getCamera();
         if (this->is3D)
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &this->angle, &this->scale);
-            matrixPerspective = &device->getCamera().matrixPerspective;
+            matrixPerspective = &camera.matrixPerspective;
         }
         else if(this->is2dS)
         {
-            thePosBrick = VEC3(this->position.x * device->getCamera().scaleScreen2d.x,
-                                    this->position.y * device->getCamera().scaleScreen2d.y, z_value);
+            thePosBrick = VEC3(this->position.x * camera.scaleScreen2d.x,
+                                    this->position.y * camera.scaleScreen2d.y, z_value);
             device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, thePosBrick);
             MatrixTranslationRotationScale(&SHADER::modelView, &thePosBrick, &this->angle, &this->scale);
-            matrixPerspective = &device->getCamera().matrixPerspective2d;
+            matrixPerspective = &camera.matrixPerspective2d;
         }
         else
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &this->angle, &scale);
-            matrixPerspective = &device->getCamera().matrixPerspective2d;
+            matrixPerspective = &camera.matrixPerspective2d;
         }
         const bool render_left_to_right = ptr_TileInfo->map.renderDirection[0] == 1; // render_left_to_right == 1
         const bool render_top_to_down   = ptr_TileInfo->map.renderDirection[1] == 1; // render_top_to_down == 1
@@ -1184,24 +1185,25 @@ namespace mbm
             this->blend.set(anim->blendState);
             anim->fx.setBlendOp();
             auto * device = DEVICE::getInstance();
+            const CAMERA &camera = device->getCamera();
             
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * device->getCamera().scaleScreen2d.x,
-                                    this->position.y * device->getCamera().scaleScreen2d.y, this->position.z);
+                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
+                                    this->position.y * camera.scaleScreen2d.y, this->position.z);
                 device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
 
             return this->ptr_Mesh->render(brickID, &anim->fx.shader, anim->fx.textureOverrideStage2);
