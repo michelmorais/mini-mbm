@@ -171,7 +171,7 @@ namespace mbm
         // Initialize window position
         device->windowPositionX = px;
         device->windowPositionY = py;
-        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
+        this->setNameApplication(nameApplication);
         GLViewport(0, 0, x <= 0 ? 800 : x, y <= 0 ? 600 : y);
         GLClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         GLDepthRangef(0.0f, 1.0f);

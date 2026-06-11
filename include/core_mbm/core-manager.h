@@ -246,6 +246,8 @@ namespace mbm
         PLUGIN *getPlugin(const uint32_t index) const noexcept;
         unsigned int appendPlugin(PLUGIN *plugin);
         void clearPlugins();
+        void setNameApplication(const char *nameApplication);
+        const char *getNameApplication() const noexcept;
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;
@@ -269,7 +271,6 @@ namespace mbm
         bool enableResizeWindow;
         API_IMPL STEP_RETORE getStepRestore() const noexcept;
       private:
-        std::string  nameApplication;
         struct Impl;
         struct ImplDeleter
         {

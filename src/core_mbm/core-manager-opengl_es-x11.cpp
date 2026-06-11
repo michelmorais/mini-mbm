@@ -52,7 +52,7 @@ namespace mbm
     {
         int x = width;
         int y = height;
-        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
+        this->setNameApplication(nameApplication);
         this->windowBorder = border;
         this->enableResizeWindow = enable_resize;
         //char * dpyName = nullptr;

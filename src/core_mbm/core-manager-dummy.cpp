@@ -64,7 +64,7 @@ namespace mbm
         int x = width;
         int y = height;
         DEVICE* device = DEVICE::getInstance();
-        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
+        this->setNameApplication(nameApplication);
         REMINDER_TODO
         
         //TODO: set version from your backend engine

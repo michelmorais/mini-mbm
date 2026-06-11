@@ -146,7 +146,7 @@ namespace mbm
                                      const int px, const int py,
                                      const bool border, const bool enable_resize)
     {
-        this->nameApplication       = nameApplication ? nameApplication : "Mini-mbm";
+        this->setNameApplication(nameApplication);
         this->windowBorder         = border;
         this->enableResizeWindow   = enable_resize;
 
@@ -160,7 +160,7 @@ namespace mbm
         // skeletal menu bar when NSApplicationActivationPolicyRegular is set,
         // leaving the app-name item present but with an empty submenu.
         {
-            NSString   *appName  = [NSString stringWithUTF8String:this->nameApplication.c_str()];
+            NSString   *appName  = [NSString stringWithUTF8String:this->getNameApplication()];
             NSMenu     *menuBar  = [[NSMenu alloc] initWithTitle:@"MainMenu"];
             // The first item's title is shown as the app name in the menu bar.
             NSMenuItem *appItem  = [[NSMenuItem alloc] initWithTitle:appName action:nil keyEquivalent:@""];
@@ -282,7 +282,7 @@ namespace mbm
             ERROR_LOG("Metal: failed to create NSWindow.");
             return false;
         }
-        [ctx->window setTitle:[NSString stringWithUTF8String:this->nameApplication.c_str()]];
+        [ctx->window setTitle:[NSString stringWithUTF8String:this->getNameApplication()]];
         // Disable AppKit's automatic release-on-close so non-ARC code controls the
         // window lifetime explicitly via [window release] in release().
         // Without this, [window close] calls [self release] while autoreleased

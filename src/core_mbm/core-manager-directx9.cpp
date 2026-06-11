@@ -124,7 +124,7 @@ namespace mbm
         // Initialize window position
         device->windowPositionX = px;
         device->windowPositionY = py;
-        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
+        this->setNameApplication(nameApplication);
         device->specificContextDevice->window.setNameAplication(nameApplication);
         if (!device->specificContextDevice->window.init(nameApplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
             this->device->specificContextDevice->idIcon, false))

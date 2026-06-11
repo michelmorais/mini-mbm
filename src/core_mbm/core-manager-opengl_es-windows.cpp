@@ -85,7 +85,7 @@ namespace mbm
     {
         int x = width;
         int y = height;
-        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
+        this->setNameApplication(nameApplication);
         DEVICE* device = DEVICE::getInstance();
         // Initialize window position
         device->windowPositionX = px;

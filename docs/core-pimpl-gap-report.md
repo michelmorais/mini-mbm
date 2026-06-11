@@ -215,6 +215,13 @@ Milestone 4 implementation note:
 - Backend constructors rely on `Impl` defaults instead of repeating restore-state initialization.
 - `nameApplication`, public compatibility flags, `RENDERIZABLE`, and `DEVICE` remain untouched by this milestone.
 
+Milestone 5 implementation note:
+
+- `CORE_MANAGER::Impl` now owns the stored application name.
+- Backend `initGraphics()` implementations call the private `setNameApplication()` helper, and restore paths read it through `getNameApplication()`.
+- Native window initialization still receives the original `initGraphics()` argument where it did before.
+- Public compatibility flags, `RENDERIZABLE`, and `DEVICE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
