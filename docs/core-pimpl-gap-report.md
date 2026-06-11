@@ -194,6 +194,13 @@ Milestone 1 implementation note:
 - `pauseAudioOnPauseGame` remains public.
 - `AUDIO`, `RENDERIZABLE`, `DEVICE`, and `CORE_MANAGER` remain untouched by this milestone.
 
+Milestone 2 implementation note:
+
+- `CORE_MANAGER::Impl` now owns the private event queue state: key pressed map, event list, joystick-info event list, event mutex, and last event.
+- The duplicated backend destructors moved to the common implementation so `CORE_MANAGER::Impl` can be destroyed where the type is complete.
+- Public `CORE_MANAGER` flags such as `__sceneWasInit`, `keyCapsLockState`, `windowBorder`, and `enableResizeWindow` remain public for compatibility.
+- `RENDERIZABLE` and `DEVICE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

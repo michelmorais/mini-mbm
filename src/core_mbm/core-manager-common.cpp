@@ -37,6 +37,10 @@
 #include <dynamic-var.h>
 #include <shader-resource.h>
 #include <util-interface.h>
+#include <list>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <thread>
 #if (defined(__linux__) || (defined(__APPLE__) && !defined(USE_METAL))) && !defined(ANDROID)
 #  include <spawn.h>
@@ -50,6 +54,30 @@
 
 namespace mbm
 {
+    struct CORE_MANAGER::Impl
+    {
+        std::map<int, bool>                  keyPressed;
+        std::list<EVENT_KEY>                 events;
+        std::list<INFO_JOYSTICK_INIT_PLAYER> joystickInfoEvents;
+        std::mutex                           mutexEvents;
+        EVENT_KEY                            lastEvent;
+    };
+
+    void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
+    {
+        delete ptr;
+    }
+
+    void CORE_MANAGER::initializeImpl()
+    {
+        impl.reset(new Impl());
+    }
+
+    CORE_MANAGER::~CORE_MANAGER()
+    {
+        DEVICE::quit();
+    }
+
     void CORE_MANAGER::setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept
     {
         _setUsageOfDefaultPS_VS_WhenNoShader(_useDeafultPSwhenNoPsShader, _useDeafultVSwhenNoVSShader);
@@ -1254,49 +1282,49 @@ namespace mbm
      {
          if (event && this->device->scene && this->__sceneWasInit)
          {
-             mutexEvents.lock();
-             if (event->eventType == this->lastEvent.eventType)
+             impl->mutexEvents.lock();
+             if (event->eventType == impl->lastEvent.eventType)
              {
                  switch (event->eventType)
                  {
                     case UNKNOWN: 
                     {
-                        mutexEvents.unlock();
+                        impl->mutexEvents.unlock();
                         return;
                     }
                     break;
                     case ONRESIZEWINDOW:
                     {
-                        EVENT_KEY* event_onresize = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                        EVENT_KEY* event_onresize = impl->events.size() > 0 ? &impl->events.back() : nullptr;
                         if (event_onresize)
                         {
                             //update resize event only
                             *event_onresize = *event;
                         }
-                        mutexEvents.unlock();
+                        impl->mutexEvents.unlock();
                         return;
                     }
                     break;
                     case ONMOVEWINDOW:
                     {
-                        EVENT_KEY* event_onmove = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                        EVENT_KEY* event_onmove = impl->events.size() > 0 ? &impl->events.back() : nullptr;
                         if (event_onmove)
                         {
                             //update move event only
                             *event_onmove = *event;
                         }
-                        mutexEvents.unlock();
+                        impl->mutexEvents.unlock();
                         return;
                     }
                     break;
                     case ONTOUCHMOVE:
                     {
-                        if (event->key == this->lastEvent.key &&
-                            (static_cast<int>(event->x) == static_cast<int>(this->lastEvent.x) &&
-                            static_cast<int>(event->y) == static_cast<int>(this->lastEvent.y)))
+                        if (event->key == impl->lastEvent.key &&
+                            (static_cast<int>(event->x) == static_cast<int>(impl->lastEvent.x) &&
+                            static_cast<int>(event->y) == static_cast<int>(impl->lastEvent.y)))
                         {
                             //ignore move event with same position only
-                            mutexEvents.unlock();
+                            impl->mutexEvents.unlock();
                             return;
                         }
                     }
@@ -1305,14 +1333,14 @@ namespace mbm
                     case ONTOUCHUP:
                     case ONDOUBLECLICK:
                     {
-                        if (event->key == this->lastEvent.key)
+                        if (event->key == impl->lastEvent.key)
                         {
-                            EVENT_KEY* event_touch = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                            EVENT_KEY* event_touch = impl->events.size() > 0 ? &impl->events.back() : nullptr;
                             if (event_touch)
                             {
                                 *event_touch = *event;
                             }
-                            mutexEvents.unlock();
+                            impl->mutexEvents.unlock();
                             return;
                         }
                     }
@@ -1320,18 +1348,18 @@ namespace mbm
                     case ONKEYDOWN:
                     case ONKEYUP:
                     {
-                        if (event->key == this->lastEvent.key)
+                        if (event->key == impl->lastEvent.key)
                         {
-                            mutexEvents.unlock();
+                            impl->mutexEvents.unlock();
                             return;
                         }
                     }
                     break;
                     case ONTOUCHZOOM: 
                     {
-                        if (event->key == this->lastEvent.key)
+                        if (event->key == impl->lastEvent.key)
                         {
-                            EVENT_KEY* event_zoom = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                            EVENT_KEY* event_zoom = impl->events.size() > 0 ? &impl->events.back() : nullptr;
                             if (event_zoom)
                             {
                                 *event_zoom = *event;
@@ -1339,10 +1367,10 @@ namespace mbm
                             else
                             {
                                 // Queue empty: coalescing would drop the event. Add it instead.
-                                this->lastEvent = *event;
-                                this->lsEvents.push_back(*event);
+                                impl->lastEvent = *event;
+                                impl->events.push_back(*event);
                             }
-                            mutexEvents.unlock();
+                            impl->mutexEvents.unlock();
                             return;
                         }
                     }
@@ -1351,82 +1379,82 @@ namespace mbm
                     {
                     }
                     break;
-                 }
+                  }
              }
-             this->lastEvent = *event;
+             impl->lastEvent = *event;
 
              switch (event->eventType)
              {
                 case ONKEYDOWN:
                 {
-                    if (this->__keyPressed[event->key] == false)
-                        this->lsEvents.push_back(*event);
-                    this->__keyPressed[event->key] = true;
+                    if (impl->keyPressed[event->key] == false)
+                        impl->events.push_back(*event);
+                    impl->keyPressed[event->key] = true;
                 }
                 break;
                 case ONKEYUP:
                 {
-                    if (this->__keyPressed[event->key])
-                        this->lsEvents.push_back(*event);
-                    this->__keyPressed[event->key] = false;
+                    if (impl->keyPressed[event->key])
+                        impl->events.push_back(*event);
+                    impl->keyPressed[event->key] = false;
                 }
                 break;
                 case ONRESIZEWINDOW:
                 {
-                    this->lsEvents.push_back(*event);
+                    impl->events.push_back(*event);
                 }
                 break;
                 default: 
                 {
-                    this->lsEvents.push_back(*event);
+                    impl->events.push_back(*event);
                 }
                 break;
              }
-             mutexEvents.unlock();
+             impl->mutexEvents.unlock();
          }
      }
 
      bool CORE_MANAGER::popEvent(EVENT_KEY* event)
      {
-         mutexEvents.lock();
-         if (this->lsEvents.size() > 0 && event)
+         impl->mutexEvents.lock();
+         if (impl->events.size() > 0 && event)
          {
-             *event = this->lsEvents.front();
-             this->lsEvents.pop_front();
-             mutexEvents.unlock();
+             *event = impl->events.front();
+             impl->events.pop_front();
+             impl->mutexEvents.unlock();
              return true;
          }
          else
          {
-             mutexEvents.unlock();
+             impl->mutexEvents.unlock();
              return false;
          }
      }
 
      void CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER* info)
      {
-         mutexEvents.lock();
+         impl->mutexEvents.lock();
          if (this->device->scene && this->__sceneWasInit)
          {
-             this->lsInfoJoystick.push_back(*info);
+             impl->joystickInfoEvents.push_back(*info);
          }
-         mutexEvents.unlock();
+         impl->mutexEvents.unlock();
      }
 
      bool CORE_MANAGER::popEvent(INFO_JOYSTICK_INIT_PLAYER* info)
      {
-         mutexEvents.lock();
-         if (this->lsInfoJoystick.size() > 0 && info)
+         impl->mutexEvents.lock();
+         if (impl->joystickInfoEvents.size() > 0 && info)
          {
 
-             *info = this->lsInfoJoystick.front();
-             this->lsInfoJoystick.pop_front();
-             mutexEvents.unlock();
+             *info = impl->joystickInfoEvents.front();
+             impl->joystickInfoEvents.pop_front();
+             impl->mutexEvents.unlock();
              return true;
          }
          else
          {
-             mutexEvents.unlock();
+             impl->mutexEvents.unlock();
              return false;
          }
      }

@@ -72,6 +72,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
 
     CORE_MANAGER::CORE_MANAGER()
     {
+        this->initializeImpl();
         this->device           = DEVICE::getInstance();
         this->indexOnRestore   = 0;
         this->totalForByLoop   = 0;
@@ -89,11 +90,6 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     #endif
     }
     
-    CORE_MANAGER::~CORE_MANAGER()
-    {
-        DEVICE::quit();
-    }
-
     void CORE_MANAGER::swapBuffers()
     {
         eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);

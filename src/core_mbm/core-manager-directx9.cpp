@@ -92,6 +92,7 @@ namespace mbm
 
     CORE_MANAGER::CORE_MANAGER()
     {
+        this->initializeImpl();
         this->device           = DEVICE::getInstance();
         this->indexOnRestore   = 0;
         this->totalForByLoop   = 0;
@@ -109,11 +110,6 @@ namespace mbm
 #endif
     }
     
-    CORE_MANAGER::~CORE_MANAGER()
-    {
-        DEVICE::quit();
-    }
-
     void CORE_MANAGER::moveWindow(int x, int y)
     {
         // nothing to do here for directx9

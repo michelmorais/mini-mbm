@@ -22,9 +22,7 @@
 
 #include <vector>
 #include <string>
-#include <map>
-#include <list>
-#include <mutex>
+#include <memory>
 #include <cstdint>
 #include "core-exports.h"
 #include <core_mbm/joystick-base.h>
@@ -243,6 +241,7 @@ namespace mbm
         void pushEvent(INFO_JOYSTICK_INIT_PLAYER *info);
         bool popEvent(INFO_JOYSTICK_INIT_PLAYER *info);
         void moveWindow(int x, int y);//specific function to handle window move event depending on OS windowing system
+        void initializeImpl();
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;
@@ -268,19 +267,20 @@ namespace mbm
       private:
         bool                                    wasGamePausedBeforeOnStop;
         bool                                    loopVariablesInitialized;
-        std::map<int, bool>                     __keyPressed;
-        std::list<EVENT_KEY>                    lsEvents;
-        std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
         std::vector<PLUGIN*>                    lsPlugins;
-        std::mutex mutexEvents;
         std::string  nameApplication;
-        EVENT_KEY    lastEvent;
         WHICH_FOR    which_for;
         STEP_RETORE  stepRestore;
         uint32_t     indexOnRestore;
         uint32_t     totalForByLoop;
         float        stepRestoreInfo;
         float        percentRestoreInfo;
+        struct Impl;
+        struct ImplDeleter
+        {
+            void operator()(Impl *ptr) const;
+        };
+        std::unique_ptr<Impl, ImplDeleter> impl;
     };
 
     

@@ -449,7 +449,9 @@ Required steps:
    `drawableSize`, EGL surface, etc.) uses *physical* pixels (`logical × scale`), but
    that is a separate value the game loop never reads directly.  Do **not** multiply
    input coordinates by the scale factor before comparing with `backBufferWidth/Height`.
-3. Push events into `CORE_MANAGER::lsEvents` using `EVENT_KEY` structs.
+3. Push events through the `CORE_MANAGER::onTouch*`, `onKey*`, `onResizeWindow`,
+   `onMoveWindow`, and joystick callback methods. These methods enqueue `EVENT_KEY`
+   internally; do not access the event queue storage directly.
 4. Call `CORE_MANAGER::onLoop(singleLoop, doSwapBuffers)` to drive the game loop.
 
 Mouse/touch Y origin: the engine origin is **bottom-left** (Y increases upward), matching

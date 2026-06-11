@@ -43,6 +43,7 @@ namespace mbm
 
     CORE_MANAGER::CORE_MANAGER()
     {
+        this->initializeImpl();
         this->device           = DEVICE::getInstance();
         this->indexOnRestore   = 0;
         this->totalForByLoop   = 0;
@@ -56,12 +57,6 @@ namespace mbm
         this->keyCapsLockState          = false;
         this->wasGamePausedBeforeOnStop  = false;
         REMINDER_TODO
-    }
-    
-    CORE_MANAGER::~CORE_MANAGER()
-    {
-        REMINDER_TODO
-        DEVICE::quit();
     }
     
     void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)
