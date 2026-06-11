@@ -46,6 +46,12 @@ namespace mbm
         std::vector<RENDERIZABLE *> render2DW;
         std::vector<RENDERIZABLE *> render2DS;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
+        uint32_t totalObjectsOnFrustum3D = 0;
+        uint32_t totalObjectsOnFrustum2D = 0;
+        uint32_t totalObjectsIsRendering3D = 0;
+        uint32_t totalObjectsIsRendering2D = 0;
+        uint32_t totalObjects3D = 0;
+        uint32_t totalObjects2D = 0;
     };
 
     void DEVICE::ImplDeleter::operator()(Impl *ptr) const
@@ -75,12 +81,6 @@ namespace mbm
         backBufferWidth            = 0;
         backBufferHeight           = 0;
         colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
-        totalObjectsOnFrustum3D    = 0;
-        totalObjectsOnFrustum2D    = 0;
-        totalObjectsIsRendering3D  = 0;
-        totalObjectsIsRendering2D  = 0;
-        totalObjects3D             = 0;
-        totalObjects2D             = 0;
         dimFarFrustum3d            = VEC3(0, 0, 0);
         dimNearFrustum3d           = VEC3(0, 0, 0);
         __swapBackBufferStep	   = 3;
@@ -107,6 +107,46 @@ namespace mbm
     SPECIFIC_AUX_CONTEXT_DEVICE * DEVICE::getSpecificContextDevice() const noexcept
     {
         return impl->specificContextDevice;
+    }
+
+    void DEVICE::setTotalObjectsOnFrustum3D(const uint32_t total) noexcept
+    {
+        impl->totalObjectsOnFrustum3D = total;
+    }
+
+    void DEVICE::setTotalObjectsOnFrustum2D(const uint32_t total) noexcept
+    {
+        impl->totalObjectsOnFrustum2D = total;
+    }
+
+    void DEVICE::setTotalObjectsIsRendering3D(const uint32_t total) noexcept
+    {
+        impl->totalObjectsIsRendering3D = total;
+    }
+
+    void DEVICE::setTotalObjectsIsRendering2D(const uint32_t total) noexcept
+    {
+        impl->totalObjectsIsRendering2D = total;
+    }
+
+    void DEVICE::incrementTotalObjectsIsRendering3D() noexcept
+    {
+        ++impl->totalObjectsIsRendering3D;
+    }
+
+    void DEVICE::incrementTotalObjectsIsRendering2D() noexcept
+    {
+        ++impl->totalObjectsIsRendering2D;
+    }
+
+    void DEVICE::setTotalObjects3D(const uint32_t total) noexcept
+    {
+        impl->totalObjects3D = total;
+    }
+
+    void DEVICE::setTotalObjects2D(const uint32_t total) noexcept
+    {
+        impl->totalObjects2D = total;
     }
 
     uint32_t DEVICE::getTotalPhysics() const noexcept
@@ -172,6 +212,36 @@ namespace mbm
     float DEVICE::getScaleBackBufferHeight() const noexcept
     {
         return static_cast<float>(backBufferHeight / this->camera.scale2d.y);
+    }
+
+    uint32_t DEVICE::getTotalObjectsOnFrustum3D() const noexcept
+    {
+        return impl->totalObjectsOnFrustum3D;
+    }
+
+    uint32_t DEVICE::getTotalObjectsOnFrustum2D() const noexcept
+    {
+        return impl->totalObjectsOnFrustum2D;
+    }
+
+    uint32_t DEVICE::getTotalObjectsIsRendering3D() const noexcept
+    {
+        return impl->totalObjectsIsRendering3D;
+    }
+
+    uint32_t DEVICE::getTotalObjectsIsRendering2D() const noexcept
+    {
+        return impl->totalObjectsIsRendering2D;
+    }
+
+    uint32_t DEVICE::getTotalObjects3D() const noexcept
+    {
+        return impl->totalObjects3D;
+    }
+
+    uint32_t DEVICE::getTotalObjects2D() const noexcept
+    {
+        return impl->totalObjects2D;
     }
     
     void DEVICE::scaleToScreen(const float widthScreen, const float heightScreen,

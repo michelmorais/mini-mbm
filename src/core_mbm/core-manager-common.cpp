@@ -532,17 +532,17 @@ namespace mbm
         // projeção----
         device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
         // prepara para renderizar os objeto --
-        device->totalObjectsIsRendering3D = 0;
-        device->totalObjectsOnFrustum3D   = 0;
+        device->setTotalObjectsIsRendering3D(0);
+        device->setTotalObjectsOnFrustum3D(0);
         auto &render3DList                = this->device->getRender3DList();
-        device->totalObjects3D            = static_cast<uint32_t>(render3DList.size());
-        device->totalObjectsIsRendering2D = 0;
-        device->totalObjectsOnFrustum2D   = 0;
+        device->setTotalObjects3D(static_cast<uint32_t>(render3DList.size()));
+        device->setTotalObjectsIsRendering2D(0);
+        device->setTotalObjectsOnFrustum2D(0);
         auto &render2DSList               = this->device->getRender2DSList();
         const auto total2ds       = static_cast<uint32_t>(render2DSList.size());
         auto &render2DWList               = this->device->getRender2DWList();
         const auto total2dw       = static_cast<uint32_t>(render2DWList.size());
-        device->totalObjects2D            = total2ds + total2dw;
+        device->setTotalObjects2D(total2ds + total2dw);
 
 #if defined USE_THREAD
         std::thread thread2ds(prepareRender2d, std::ref(render2DSList), std::ref(lsRender2ds));
@@ -560,8 +560,8 @@ namespace mbm
         prepareRender3d(std::ref(render3DList), std::ref(lsRender3d));
 #endif
 
-        device->totalObjectsOnFrustum2D = static_cast<uint32_t>(lsRender2ds.size() + lsRender2dw.size());
-        device->totalObjectsOnFrustum3D = static_cast<uint32_t>(lsRender3d.size());
+        device->setTotalObjectsOnFrustum2D(static_cast<uint32_t>(lsRender2ds.size() + lsRender2dw.size()));
+        device->setTotalObjectsOnFrustum3D(static_cast<uint32_t>(lsRender3d.size()));
         
         if (!this->renderToTargets())
             return;
@@ -575,17 +575,17 @@ namespace mbm
         device->camera.calculateAzimuthFromCamera();
         this->device->camera.matrixBillboard = this->device->camera.matrixView; // Obtemos a Matrix De Vista Do Vista 3D
         MatrixInverse(&this->device->camera.matrixBillboard, nullptr, &this->device->camera.matrixBillboard);
-        device->totalObjectsIsRendering3D = 0;
+        device->setTotalObjectsIsRendering3D(0);
         if (this->beginRender())
         {
             for (auto ptrRender : lsRender3d)
             {
                 if (ptrRender->render())
-                    ++device->totalObjectsIsRendering3D;
+                    device->incrementTotalObjectsIsRendering3D();
             }
 
             device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-            device->totalObjectsIsRendering2D = 0;
+            device->setTotalObjectsIsRendering2D(0);
             // Clear the depth buffer so 3D perspective depth values do not occlude 2dw
             // objects whose depth comes from the orthographic projection. On Metal this
             // ends the current command encoder and starts a new one that preserves the
@@ -595,13 +595,13 @@ namespace mbm
             for (auto ptrRender : lsRender2dw)
             {
                 if (ptrRender->render())
-                    device->totalObjectsIsRendering2D++;
+                    device->incrementTotalObjectsIsRendering2D();
             }
             device->setDepthTest(false);
             for (auto ptrRender : lsRender2ds)
             {
                 if (ptrRender->render())
-                    ++device->totalObjectsIsRendering2D;
+                    device->incrementTotalObjectsIsRendering2D();
             }
             device->setDepthTest(true);
 

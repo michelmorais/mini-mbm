@@ -382,15 +382,16 @@ namespace mbm
         const char * type_obj = top >= 1 ? luaL_checkstring(lua,1) : "all";
         if (type_obj == nullptr || strcasecmp(type_obj,"all") == 0 )
         {
-            lua_pushnumber(lua,static_cast<lua_Number>( device->totalObjectsIsRendering3D + device->totalObjectsIsRendering2D));
+            lua_pushnumber(lua,static_cast<lua_Number>(
+                device->getTotalObjectsIsRendering3D() + device->getTotalObjectsIsRendering2D()));
         }
         else if (strcasecmp(type_obj,"2d") == 0)
         {
-            lua_pushnumber(lua,static_cast<lua_Number>( device->totalObjectsIsRendering2D));
+            lua_pushnumber(lua,static_cast<lua_Number>(device->getTotalObjectsIsRendering2D()));
         }
         else if (strcasecmp(type_obj,"3d") == 0)
         {
-            lua_pushnumber(lua,static_cast<lua_Number>( device->totalObjectsIsRendering3D));
+            lua_pushnumber(lua,static_cast<lua_Number>(device->getTotalObjectsIsRendering3D()));
         }
         else
         {

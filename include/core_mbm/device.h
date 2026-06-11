@@ -58,12 +58,6 @@ namespace mbm
         COLOR  colorClearBackGround; //	Clear the back buffer alpha to 1.0 , this make the ALPHA operation work
         CAMERA camera;
     
-        uint32_t      totalObjectsOnFrustum3D;
-        uint32_t      totalObjectsOnFrustum2D;
-        uint32_t      totalObjectsIsRendering3D;
-        uint32_t      totalObjectsIsRendering2D;
-        uint32_t      totalObjects3D;
-        uint32_t      totalObjects2D;
         SHADER_CFG_LOADER cfg;                       // CFG files
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         VEC3                dimFarFrustum3d, dimNearFrustum3d;
@@ -84,6 +78,12 @@ namespace mbm
         API_IMPL float getBackBufferHeight() const noexcept;
         API_IMPL float getScaleBackBufferWidth() const noexcept;
         API_IMPL float getScaleBackBufferHeight() const noexcept;
+        API_IMPL uint32_t getTotalObjectsOnFrustum3D() const noexcept;
+        API_IMPL uint32_t getTotalObjectsOnFrustum2D() const noexcept;
+        API_IMPL uint32_t getTotalObjectsIsRendering3D() const noexcept;
+        API_IMPL uint32_t getTotalObjectsIsRendering2D() const noexcept;
+        API_IMPL uint32_t getTotalObjects3D() const noexcept;
+        API_IMPL uint32_t getTotalObjects2D() const noexcept;
         API_IMPL void scaleToScreen(const float widthScreen, const float heightScreen,const char *stretch) noexcept; // stretch: x, y xy nullptr
         API_IMPL void pauseGame();
         API_IMPL void resumeGame();
@@ -149,6 +149,14 @@ namespace mbm
         void setCamera2dScaleCache(const float percX, const float percY) noexcept;
         void setPixelPerfectRenderingActive(const bool active) noexcept;
         void setSpecificContextDevice(SPECIFIC_AUX_CONTEXT_DEVICE *context) noexcept;
+        void setTotalObjectsOnFrustum3D(uint32_t total) noexcept;
+        void setTotalObjectsOnFrustum2D(uint32_t total) noexcept;
+        void setTotalObjectsIsRendering3D(uint32_t total) noexcept;
+        void setTotalObjectsIsRendering2D(uint32_t total) noexcept;
+        void incrementTotalObjectsIsRendering3D() noexcept;
+        void incrementTotalObjectsIsRendering2D() noexcept;
+        void setTotalObjects3D(uint32_t total) noexcept;
+        void setTotalObjects2D(uint32_t total) noexcept;
         uint32_t getTotalPhysics() const noexcept;
         PHYSICS * getPhysics(const uint32_t index) const noexcept;
         uint32_t getTotalRenderTargets() const noexcept;

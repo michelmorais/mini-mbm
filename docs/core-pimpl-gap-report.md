@@ -36,7 +36,7 @@ High-impact examples:
 
 | Header | Public state that blocks strict PIMPL |
 |---|---|
-| `include/core_mbm/device.h` | `verbose`, `run`, `backBufferWidth`, `backBufferHeight`, `colorClearBackGround`, `camera`, render counters, `cfg`, global dynamic vars, `scene`, `orderRender`, window position. |
+| `include/core_mbm/device.h` | `verbose`, `run`, `backBufferWidth`, `backBufferHeight`, `colorClearBackGround`, `camera`, `cfg`, global dynamic vars, `scene`, `orderRender`, window position. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`, `changeScene`, `__sceneWasInit`, key/window flags. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
@@ -362,6 +362,13 @@ Milestone 25 implementation note:
 - `DEVICE::setSpecificContextDevice()` and `DEVICE::getSpecificContextDevice()` preserve the existing backend ownership boundary for context creation, release, and lookup.
 - Updated the current-state report and backend instructions so new backend code does not depend on direct `DEVICE` layout access.
 - `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
+Milestone 26 implementation note:
+
+- `DEVICE` render counters are now stored behind `DEVICE::Impl` instead of being public `DEVICE` data members.
+- Added read-only public getters for render statistics and private writer/increment helpers used by `CORE_MANAGER::render()`.
+- Migrated Lua render-stat reads and backend guide snippets to the accessor/helper path.
+- `specificContextDevice`, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
 ### Phase 3 - Hide renderer backend handles
 

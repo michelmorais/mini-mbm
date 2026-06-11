@@ -812,7 +812,7 @@ first `setDepthTest(true)` / 2dw draw loop:
 
 ```cpp
 device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-device->totalObjectsIsRendering2D = 0;
+device->setTotalObjectsIsRendering2D(0);
 // Clear the depth buffer so 3D perspective depth values do not occlude 2dw
 // objects whose depth comes from the orthographic projection.
 device->clearDepth();
