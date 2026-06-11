@@ -50,8 +50,14 @@ namespace mbm
 		API_IMPL bool loadSolidColor(const char* colorAsString, const bool hasColorAlpha);
         API_IMPL uint32_t getWidth()const noexcept;
         API_IMPL uint32_t getHeight()const noexcept;
+        API_IMPL uint32_t getBackendTextureId() const noexcept;
+        API_IMPL void setBackendTextureId(uint32_t textureId) noexcept;
+        API_IMPL uint32_t * getBackendTextureIdAddress() noexcept;
+        API_IMPL void * getBackendTexturePointer() const noexcept;
+        API_IMPL void setBackendTexturePointer(void *texturePointer) noexcept;
+        API_IMPL void ** getBackendTexturePointerAddress() noexcept;
         API_IMPL static void EnablePixelPerfectTexture(bool value) noexcept;
-        
+
         union {
             uint32_t idTexture; // DO NOT use in 64-bit. Use ptrTexture instead.
 			void*    ptrTexture;

@@ -783,8 +783,9 @@ namespace mbm
             // Bind stage-1 texture (constant across all subsets).
             {
                 const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
-                [enc setFragmentTexture:(t1 && t1->ptrTexture
-                    ? (__bridge id<MTLTexture>)t1->ptrTexture : nil) atIndex:1];
+                void *texturePointer = t1 ? t1->getBackendTexturePointer() : nullptr;
+                [enc setFragmentTexture:(texturePointer
+                    ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:1];
             }
 
             // Upload custom fragment uniforms to [[buffer(2)]].
@@ -831,8 +832,9 @@ namespace mbm
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    [enc setFragmentTexture:(t && t->ptrTexture
-                        ? (__bridge id<MTLTexture>)t->ptrTexture : nil) atIndex:0];
+                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer
+                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -848,8 +850,9 @@ namespace mbm
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    [enc setFragmentTexture:(t && t->ptrTexture
-                        ? (__bridge id<MTLTexture>)t->ptrTexture : nil) atIndex:0];
+                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer
+                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:pBufferId->bs->vertexBuffer offset:off atIndex:0];
@@ -910,8 +913,9 @@ namespace mbm
             // Bind stage-1 texture (constant across all subsets).
             {
                 const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
-                [enc setFragmentTexture:(t1 && t1->ptrTexture
-                    ? (__bridge id<MTLTexture>)t1->ptrTexture : nil) atIndex:1];
+                void *texturePointer = t1 ? t1->getBackendTexturePointer() : nullptr;
+                [enc setFragmentTexture:(texturePointer
+                    ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:1];
             }
 
             // Upload custom fragment uniforms to [[buffer(2)]].
@@ -958,8 +962,9 @@ namespace mbm
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    [enc setFragmentTexture:(t && t->ptrTexture
-                        ? (__bridge id<MTLTexture>)t->ptrTexture : nil) atIndex:0];
+                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer
+                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -974,8 +979,9 @@ namespace mbm
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    [enc setFragmentTexture:(t && t->ptrTexture
-                        ? (__bridge id<MTLTexture>)t->ptrTexture : nil) atIndex:0];
+                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer
+                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:vbuf offset:off atIndex:0];
@@ -1016,8 +1022,9 @@ namespace mbm
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
 
             const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
-            [enc setFragmentTexture:(tex0 && tex0->ptrTexture
-                ? (__bridge id<MTLTexture>)tex0->ptrTexture : nil) atIndex:0];
+            void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
+            [enc setFragmentTexture:(texturePointer
+                ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
 
             const VERTEX_UV*    vbuf      = particleControl->getVertexBuffer();
             const ATT_PARTICLE* particles = particleControl->getAttParticle();
@@ -1099,8 +1106,9 @@ namespace mbm
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
 
             const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
-            [enc setFragmentTexture:(tex0 && tex0->ptrTexture
-                ? (__bridge id<MTLTexture>)tex0->ptrTexture : nil) atIndex:0];
+            void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
+            [enc setFragmentTexture:(texturePointer
+                ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
 
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;

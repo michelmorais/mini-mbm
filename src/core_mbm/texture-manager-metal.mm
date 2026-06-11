@@ -26,10 +26,11 @@ namespace mbm
     }
     void TEXTURE::release()
     {
-        if (ptrTexture)
+        void *texturePointer = getBackendTexturePointer();
+        if (texturePointer)
         {
-            CFBridgingRelease(ptrTexture);
-            ptrTexture = nullptr;
+            CFBridgingRelease(texturePointer);
+            setBackendTexturePointer(nullptr);
         }
         width           = 0;
         height          = 0;
@@ -93,8 +94,9 @@ namespace mbm
                    mipmapLevel:0
                      withBytes:rgbaData
                    bytesPerRow:w * 4];
-            if (ptrTexture) CFBridgingRelease(ptrTexture);
-            ptrTexture = (__bridge_retained void*)tex;
+            void *texturePointer = getBackendTexturePointer();
+            if (texturePointer) CFBridgingRelease(texturePointer);
+            setBackendTexturePointer((__bridge_retained void*)tex);
         }
         delete[] tempBuf;
         if (!tex) return false;
@@ -122,8 +124,9 @@ namespace mbm
                mipmapLevel:0
                  withBytes:image->data
                bytesPerRow:image->width * 4];
-        if (ptrTexture) CFBridgingRelease(ptrTexture);
-        ptrTexture        = (__bridge_retained void*)tex;
+        void *texturePointer = getBackendTexturePointer();
+        if (texturePointer) CFBridgingRelease(texturePointer);
+        setBackendTexturePointer((__bridge_retained void*)tex);
         this->width           = image->width;
         this->height          = image->height;
         this->useAlphaChannel = true;
@@ -217,7 +220,7 @@ namespace mbm
 
             // Build the TEXTURE record used for sampling in the main pass.
             newTexture = new TEXTURE();
-            newTexture->ptrTexture      = (__bridge_retained void*)colorTex;
+            newTexture->setBackendTexturePointer((__bridge_retained void*)colorTex);
             newTexture->width           = static_cast<uint32_t>(tw);
             newTexture->height          = static_cast<uint32_t>(th);
             newTexture->useAlphaChannel = enableAlpha;

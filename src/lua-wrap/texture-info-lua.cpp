@@ -101,7 +101,7 @@ namespace mbm
         TEXTURE_INFO_DATA *data = getTextureInfoDataFromRawTable(lua, 1, 1);
         TEXTURE *texture = data ? data->getTexture() : nullptr;
         if (texture)
-            lua_pushlightuserdata(lua, texture->ptrTexture);
+            lua_pushlightuserdata(lua, texture->getBackendTexturePointer());
         else
             lua_pushnil(lua);
         return 1;

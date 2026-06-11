@@ -53,8 +53,7 @@ namespace mbm
 
     TEXTURE::TEXTURE() noexcept
     {
-        ptrTexture      = nullptr;
-        idTexture       = 0;
+        setBackendTexturePointer(nullptr);
         fileName[0]     = 0;
         width           = 0;
         height          = 0;
@@ -339,7 +338,7 @@ namespace mbm
             TEXTURE* resouce = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
             if (resouce)
             {
-                this->ptrTexture = resouce->ptrTexture;
+                this->setBackendTexturePointer(resouce->getBackendTexturePointer());
                 this->width = resouce->width;
                 this->height = resouce->height;
                 this->fileName = fileNameTexture;
@@ -400,6 +399,36 @@ namespace mbm
     {
         return this->height;
     }
+
+    uint32_t TEXTURE::getBackendTextureId() const noexcept
+    {
+        return this->idTexture;
+    }
+
+    void TEXTURE::setBackendTextureId(uint32_t textureId) noexcept
+    {
+        this->idTexture = textureId;
+    }
+
+    uint32_t * TEXTURE::getBackendTextureIdAddress() noexcept
+    {
+        return &this->idTexture;
+    }
+
+    void * TEXTURE::getBackendTexturePointer() const noexcept
+    {
+        return this->ptrTexture;
+    }
+
+    void TEXTURE::setBackendTexturePointer(void *texturePointer) noexcept
+    {
+        this->ptrTexture = texturePointer;
+    }
+
+    void ** TEXTURE::getBackendTexturePointerAddress() noexcept
+    {
+        return &this->ptrTexture;
+    }
     
 #if defined ANDROID
     bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha) // Android 24/32 bits true color
@@ -420,12 +449,13 @@ namespace mbm
             {
                 this->width  = static_cast<uint32_t>(-wint);
                 this->height = static_cast<uint32_t>(-hint);
-                idTexture = ((static_cast<int>(pixels[0]) << 24) | 
-                             (static_cast<int>(pixels[1]) << 16) | 
-                             (static_cast<int>(pixels[2]) << 8 ) | 
-                             (static_cast<int>(pixels[3])));
+                const uint32_t textureId = ((static_cast<int>(pixels[0]) << 24) |
+                                            (static_cast<int>(pixels[1]) << 16) |
+                                            (static_cast<int>(pixels[2]) << 8 ) |
+                                            (static_cast<int>(pixels[3])));
+                setBackendTextureId(textureId);
                 this->useAlphaChannel = (pixels[4] ? true : false) || hasAlpha;
-                PRINT_IF_DEBUG("texture generated externally!\n width:%u height:%u id:%d", this->width, this->height, idTexture);
+                PRINT_IF_DEBUG("texture generated externally!\n width:%u height:%u id:%d", this->width, this->height, getBackendTextureId());
                 delete[] pixels;
                 return true;
             }
@@ -1115,4 +1145,3 @@ const char* getLodePNGVersion()
 {
     return LODEPNG_VERSION_STRING;
 }
-

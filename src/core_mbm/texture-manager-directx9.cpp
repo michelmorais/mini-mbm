@@ -32,12 +32,12 @@ namespace mbm
 {
     void TEXTURE::release()
     {
-        IDirect3DTexture9* p3DTexture9 = static_cast<IDirect3DTexture9*>(ptrTexture);
+        IDirect3DTexture9* p3DTexture9 = static_cast<IDirect3DTexture9*>(getBackendTexturePointer());
         if (p3DTexture9)
         {
             p3DTexture9->Release();
         }
-        ptrTexture      = nullptr;
+        setBackendTexturePointer(nullptr);
         width           = 0;
         height          = 0;
         useAlphaChannel = false;
@@ -325,7 +325,7 @@ namespace mbm
             PRINT_IF_DEBUG("failed to get texture from DATA");
             return false;
         }
-        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(getBackendTexturePointerAddress());
         this->width  = w;
         this->height = h;
         this->useAlphaChannel = hasAlpha ? true : false;
@@ -346,7 +346,7 @@ namespace mbm
         const int  channel    = 4;
         const bool alpha      = true;
 
-        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(getBackendTexturePointerAddress());
         return created3dTexture(pp3DTexture9,
             TEXTURE::isPixelPerfectTextureEnabled,
             reinterpret_cast<const uint8_t*>(image->data),
@@ -376,7 +376,7 @@ namespace mbm
             tex->height = infoTexture.Height;
             UINT MipLevels = 1U; // Match OpenGL ES: no mip chain for 2D textures (avoids edge bleeding)
             D3DFORMAT tFormat = forceAlpha ? D3DFMT_A8R8G8B8 : D3DFMT_UNKNOWN;
-            IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&tex->ptrTexture);
+            IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(tex->getBackendTexturePointerAddress());
             
             constexpr DWORD Usage = 0; //D3DUSAGE_RENDERTARGET D3DUSAGE_DYNAMIC 
             DWORD Filter = D3DX_FILTER_BOX;
@@ -443,7 +443,7 @@ namespace mbm
             return texture;
         texture = new TEXTURE();
 
-        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&texture->ptrTexture);
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(texture->getBackendTexturePointerAddress());
         const D3DFORMAT Format = enableAlpha ? D3DFMT_A8R8G8B8 : D3DFMT_X8R8G8B8;
         if (FAILED(pd3dDevice->CreateTexture(width, height, 1,
             D3DUSAGE_RENDERTARGET,

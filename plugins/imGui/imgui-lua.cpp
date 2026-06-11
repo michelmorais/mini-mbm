@@ -528,7 +528,7 @@ const int get_texture_id(lua_State *lua,const char* texture_name,unsigned int & 
     {
         width_out  = texture->getWidth();
         height_out = texture->getHeight();
-        return texture->idTexture;
+        return texture->getBackendTextureId();
     }
     std::string msg("Texture [");
     msg += texture_name ? texture_name : "nullptr";
@@ -543,7 +543,7 @@ const int get_texture_id(lua_State *lua,const char* texture_name)
     mbm::TEXTURE* texture        = texMan->load(texture_name,true);
     if(texture)
     {
-        return texture->idTexture;
+        return texture->getBackendTextureId();
     }
     std::string msg("Texture [");
     msg += texture_name ? texture_name : "nullptr";
@@ -629,7 +629,7 @@ ImTextureID get_imgui_texture_id(lua_State *lua, int &index, unsigned int &width
         {
             width_out  = texture->getWidth();
             height_out = texture->getHeight();
-            return (ImTextureID)(texture->ptrTexture);
+            return (ImTextureID)(texture->getBackendTexturePointer());
         }
         std::string msg("Texture [");
         msg += texture_name ? texture_name : "nullptr";
@@ -650,7 +650,7 @@ ImTextureID get_imgui_texture_id(lua_State *lua, int &index, unsigned int &width
                 width_out = texture->getWidth();
                 height_out = texture->getHeight();
                 index++;
-                return (ImTextureID)(texture->ptrTexture);
+                return (ImTextureID)(texture->getBackendTexturePointer());
             }
         }
         lua_log_error(lua, "Invalid or released TextureInfo");

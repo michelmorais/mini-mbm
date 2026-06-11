@@ -31,11 +31,12 @@ namespace mbm
 {
     void TEXTURE::release()
     {
-        if (idTexture)
+        const uint32_t textureId = getBackendTextureId();
+        if (textureId)
         {
-            GLDeleteTextures(1, &idTexture);
+            GLDeleteTextures(1, getBackendTextureIdAddress());
         }
-        idTexture       = 0;
+        setBackendTextureId(0);
         width           = 0;
         height          = 0;
         useAlphaChannel = false;
@@ -58,12 +59,13 @@ namespace mbm
         this->width  = w;
         this->height = h;
         GLPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        GLGenTextures(1, &idTexture);
-        if (idTexture == 0)
+        uint32_t *textureId = getBackendTextureIdAddress();
+        GLGenTextures(1, textureId);
+        if (*textureId == 0)
         {
             return false;
         }
-        GLBindTexture(GL_TEXTURE_2D, idTexture);
+        GLBindTexture(GL_TEXTURE_2D, *textureId);
         uint8_t *rgba_toDelete = nullptr;
         if (channel == 4)
         {
@@ -119,10 +121,11 @@ namespace mbm
         this->height          = image->height;
         this->useAlphaChannel = true;
         GLPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        GLGenTextures(1, &idTexture);
-        if (idTexture == 0)
+        uint32_t *textureId = getBackendTextureIdAddress();
+        GLGenTextures(1, textureId);
+        if (*textureId == 0)
             return false;
-        GLBindTexture(GL_TEXTURE_2D, idTexture);
+        GLBindTexture(GL_TEXTURE_2D, *textureId);
         GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
         if (TEXTURE::isPixelPerfectTextureEnabled)
         { // TILE MAP Mode
@@ -223,7 +226,7 @@ namespace mbm
         sf->idFrameBuffer                   = idFrameBuffer;
         sf->idDepthRenderbuffer             = idRenderBuffer;
         sf->idTextureDynamic                = idTexture2d;
-        texture->idTexture                  = idTexture2d;
+        texture->setBackendTextureId(idTexture2d);
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;

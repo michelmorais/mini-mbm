@@ -970,7 +970,7 @@ namespace mbm
             TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
             if (texture1)
             {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
                 pd3dDevice->SetTexture(1, pp3DTexture9);
             }
             else
@@ -982,7 +982,7 @@ namespace mbm
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 if (texture0)
                 {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
@@ -1075,7 +1075,7 @@ namespace mbm
             TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
             if (texture1)
             {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
                 pd3dDevice->SetTexture(1, pp3DTexture9);
             }
             else
@@ -1088,7 +1088,7 @@ namespace mbm
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 if (texture0)
                 {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
@@ -1301,7 +1301,7 @@ namespace mbm
             TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
             if (texture1)
             {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
                 pd3dDevice->SetTexture(1, pp3DTexture9);
             }
             else
@@ -1314,7 +1314,7 @@ namespace mbm
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 if (texture0)
                 {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
@@ -1583,7 +1583,7 @@ namespace mbm
             TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
             if (texture1)
             {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
                 pd3dDevice->SetTexture(1, pp3DTexture9);
             }
             else
@@ -1596,7 +1596,7 @@ namespace mbm
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 if (texture0)
                 {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else

@@ -483,6 +483,13 @@ Milestone 41 review cleanup note:
 - The local reference is intentionally scoped to the current function only; no code should cache the `DEVICE` camera reference as persistent object state.
 - Project coding rules now generalize this pattern: repeated accessor-backed object use in one function should be stored once in a local variable/reference.
 
+Milestone 42 implementation note:
+
+- Added `TEXTURE` backend-handle compatibility helpers: `getBackendTextureId()`, `setBackendTextureId()`, `getBackendTextureIdAddress()`, `getBackendTexturePointer()`, `setBackendTexturePointer()`, and `getBackendTexturePointerAddress()`.
+- Migrated core texture managers, shader binding paths, ImGui texture helpers, and Lua texture-info access from direct `idTexture` / `ptrTexture` reads or writes to the helper methods.
+- The public `TEXTURE::idTexture/ptrTexture` union remains in place for source compatibility in this milestone; remaining direct code-side handle access is isolated to the helper implementation and the compatibility union declaration.
+- Updated backend-porting guidance so new code uses the helper path instead of direct union access.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

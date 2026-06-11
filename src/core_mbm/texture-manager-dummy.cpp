@@ -34,7 +34,7 @@ namespace mbm
     void TEXTURE::release()
     {
         REMINDER_TODO
-        ptrTexture      = nullptr;
+        setBackendTexturePointer(nullptr);
         width           = 0;
         height          = 0;
         useAlphaChannel = false;

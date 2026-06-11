@@ -708,7 +708,7 @@ namespace mbm
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
 
@@ -716,7 +716,7 @@ namespace mbm
                 const TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
@@ -759,14 +759,14 @@ namespace mbm
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE* texture1 = pBufferId->getTextureByStage(0, i);
                 if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
@@ -820,7 +820,7 @@ namespace mbm
             {
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
 
@@ -828,7 +828,7 @@ namespace mbm
                 GLActiveTexture(GL_TEXTURE1);
                 if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
@@ -866,14 +866,14 @@ namespace mbm
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
@@ -898,7 +898,7 @@ namespace mbm
         constexpr uint32_t index_subset = 0;
         const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
         GLActiveTexture(GL_TEXTURE0);
-        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
         const GLenum modeDrawGl      = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
@@ -912,7 +912,7 @@ namespace mbm
         const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
         if (texture1)
         {
-            GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+            GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
             GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
         }
         else
@@ -996,7 +996,7 @@ namespace mbm
         constexpr uint32_t index_subset = 0;
         const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
         GLActiveTexture(GL_TEXTURE0);
-        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
         const GLenum modeDrawGl = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
@@ -1010,7 +1010,7 @@ namespace mbm
         const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
         if (texture1)
         {
-            GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+            GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
             GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
         }
         else

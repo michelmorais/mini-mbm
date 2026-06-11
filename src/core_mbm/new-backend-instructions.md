@@ -368,13 +368,18 @@ there — choose the approach that fits your backend.
 
 ## 11. Texture upload
 
-`TEXTURE` uses a union field for the GPU handle:
+`TEXTURE` currently keeps a compatibility union for the GPU handle:
 ```cpp
 union { uint32_t idTexture; void* ptrTexture; };
 ```
 
-- OpenGL ES uses `idTexture` (GLuint texture object).
-- Metal/Vulkan/D3D12 use `ptrTexture` (store a retained pointer / descriptor, cast via
+- New backend/core code should use `getBackendTextureId()` / `setBackendTextureId()` /
+  `getBackendTextureIdAddress()` for OpenGL-style integer handles.
+- New backend/core code should use `getBackendTexturePointer()` /
+  `setBackendTexturePointer()` / `getBackendTexturePointerAddress()` for pointer-backed
+  handles.
+- OpenGL ES uses the texture-id helper path (GLuint texture object).
+- Metal/Vulkan/D3D12 use the pointer helper path (store a retained pointer / descriptor, cast via
   `(__bridge_retained void*)` on Metal, via raw pointer on others).
 
 > **CRITICAL — 64-bit platforms: always use `ptrTexture`, never `idTexture`**  
@@ -384,19 +389,20 @@ union { uint32_t idTexture; void* ptrTexture; };
 > in `ptrTexture` and then reading it back through `idTexture` silently truncates the
 > upper 32 bits, yielding a garbage or null value that will crash when used as a pointer.
 >
-> - **OpenGL ES (any bitness):** use `idTexture` exclusively.  `GLGenTextures(1, &idTexture)`
->   and `GLDeleteTextures(1, &idTexture)` take a `GLuint*` (4 bytes).  Widening `idTexture`
+> - **OpenGL ES (any bitness):** use the texture-id helpers exclusively.  `GLGenTextures`
+>   and `GLDeleteTextures` take a `GLuint*` (4 bytes), so use `getBackendTextureIdAddress()`.
+>   Widening `idTexture`
 >   to 64 bits would corrupt those calls because the GL functions only write/read 4 bytes.
 >   The union is intentionally split by backend for this reason — never widen `idTexture`.
-> - **Metal / Vulkan / D3D12 on 64-bit:** use `ptrTexture` everywhere.  Never read or
->   compare `idTexture` in these backends, not even for null checks.
+> - **Metal / Vulkan / D3D12 on 64-bit:** use the texture-pointer helpers everywhere.
+>   Never read or compare `idTexture` in these backends, not even for null checks.
 >
 > **Real crash (macOS/Metal, tilemap plugin):** a code path checked `texture->idTexture`
 > to test whether a Metal texture was loaded.  The Metal texture had a valid non-null
 > `ptrTexture`, but the lower 32 bits of the pointer happened to be zero, so the equality
 > test returned `true` and the texture was treated as missing — causing a null dereference
-> one call later.  The fix: use `ptrTexture` (or `ptrTexture != nullptr`) exclusively in
-> all Metal code paths.
+> one call later.  The fix: use `getBackendTexturePointer()` exclusively in all Metal
+> code paths.
 
 `TEXTURE::release()` must free the GPU texture when called.  `loadFromData()` receives a
 decoded RGBA byte buffer + dimensions; upload it to the GPU and store the handle.
@@ -745,8 +751,9 @@ whether a Metal texture was loaded.  On the 64-bit macOS build the Metal texture
 was stored in `ptrTexture` (8 bytes); its lower 32 bits happened to be zero, so the
 `idTexture == 0` check incorrectly concluded the texture was missing and proceeded to
 dereference a null pointer.  
-*Fix:* use `ptrTexture != nullptr` for Metal (or any pointer-based backend) everywhere in
-plugin code.  See §11 for the full explanation of the union layout.
+*Fix:* use `texture->getBackendTexturePointer() != nullptr` for Metal (or any pointer-backed
+backend) everywhere in plugin code.  See §11 for the full explanation of the compatibility
+handle layout.
 
 **`TILE_EDITOR::renderTileSet()` missing null guard:**  
 After a tile set is successfully created (at least one entry in `tile_sets`), the next
@@ -766,8 +773,9 @@ platform (64-bit struct sizes, endianness) before enabling them.
 
 ### General plugin checklist for a new 64-bit backend
 
-- [ ] Replace every `texture->idTexture` check with `texture->ptrTexture != nullptr` in
-      plugin code that runs on the new backend.
+- [ ] Replace every `texture->idTexture` check with
+      `texture->getBackendTexturePointer() != nullptr` in plugin code that runs on a
+      pointer-backed backend.
 - [ ] Verify `onPrepare()` / `onRender()` split: GPU resource creation in `onPrepare()`,
       draw calls in `onRender()` (encoder active).
 - [ ] Any backend-specific `NewFrame()` call (ImGui, etc.) must be deferred to

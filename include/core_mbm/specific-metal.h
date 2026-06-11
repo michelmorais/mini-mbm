@@ -37,7 +37,7 @@
 namespace mbm
 {
     // Per-texture GPU resource used by the Metal texture manager.
-    // 'idTexture' in TEXTURE stores a raw pointer to this (cast to uint32_t is NOT used for Metal).
+    // TEXTURE stores Metal texture handles through the pointer-backed helper path.
     // We keep a separate map in the Metal texture manager indexed by TEXTURE pointer.
     // This struct is referenced via specificConfig (void*) in RENDERIZABLE_TO_TARGET.
     struct RENDER2TARGET_METAL
