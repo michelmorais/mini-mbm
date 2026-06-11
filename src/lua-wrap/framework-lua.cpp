@@ -276,7 +276,7 @@ namespace mbm
         const float  b      = luaL_checknumber(lua, 3);
         DEVICE *device		= DEVICE::getInstance();
         COLOR color(r, g, b, 1.0f);
-        device->colorClearBackGround = (unsigned int)color;
+        device->setColorClearBackGround(static_cast<unsigned int>(color));
         return 0;
     }
 

@@ -132,7 +132,9 @@ void MY_SCENE::onInitScene()
     mbm::DEVICE* device    = mbm::DEVICE::getInstance();
     device->camera.position = mbm::VEC3(0, 280, -900);
     device->camera.focus    = mbm::VEC3(0, 280, 0);
-    device->colorClearBackGround.b = 0.5f;
+    mbm::COLOR backgroundColor = device->getColorClearBackGround();
+    backgroundColor.b = 0.5f;
+    device->setColorClearBackGround(backgroundColor);
 
     util::addPath(__FILE__);
 

@@ -196,7 +196,7 @@ namespace mbm
             }
             if (SCENE_SCRIPT::logo_was_init == false && this->noSplash == false)
             {
-                device->colorClearBackGround = COLOR(1.0f,1.0f,1.0f,1.0f);
+                device->setColorClearBackGround(COLOR(1.0f,1.0f,1.0f,1.0f));
                 device->camera.position2d.x  = 0;
                 device->camera.position2d.y  = 0;
                 bool        exitsFile              = false;
@@ -977,7 +977,7 @@ namespace mbm
             else if (this->textureLogo == nullptr)
             {
                 this->textureLogo                  = new TEXTURE_VIEW(this, true, true);
-                device->colorClearBackGround = COLOR(1.0f,1.0f,1.0f,1.0f);
+                device->setColorClearBackGround(COLOR(1.0f,1.0f,1.0f,1.0f));
                 if (this->textureLogo && this->textureLogo->load(& resource_loading))
                 {
                     this->textureLogo->position.x = device->getScaleBackBufferWidth() / 2.0f;

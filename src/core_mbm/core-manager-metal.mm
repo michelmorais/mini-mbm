@@ -87,11 +87,12 @@ namespace mbm
             // Color attachment: clear to background colour
             desc.colorAttachments[0].texture     = ctx->currentDrawable.texture;
             desc.colorAttachments[0].loadAction  = MTLLoadActionClear;
+            const COLOR &background = device->getColorClearBackGround();
             desc.colorAttachments[0].clearColor  = MTLClearColorMake(
-                static_cast<double>(device->colorClearBackGround.r),
-                static_cast<double>(device->colorClearBackGround.g),
-                static_cast<double>(device->colorClearBackGround.b),
-                static_cast<double>(device->colorClearBackGround.a));
+                static_cast<double>(background.r),
+                static_cast<double>(background.g),
+                static_cast<double>(background.b),
+                static_cast<double>(background.a));
             desc.colorAttachments[0].storeAction = MTLStoreActionStore;
 
             // Depth attachment — create or resize to match the current drawable.

@@ -54,6 +54,7 @@ namespace mbm
         uint32_t totalObjects2D = 0;
         VEC3 dimFarFrustum3d = VEC3(0, 0, 0);
         VEC3 dimNearFrustum3d = VEC3(0, 0, 0);
+        COLOR colorClearBackGround = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
         bool clearBackGround = true;
         bool stopScriptOnError = false;
         int swapBackBufferStep = 3;
@@ -85,7 +86,6 @@ namespace mbm
         verbose					   = true;
         backBufferWidth            = 0;
         backBufferHeight           = 0;
-        colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
     void DEVICE::setCamera2dScaleCache(const float percX, const float percY) noexcept
@@ -272,6 +272,16 @@ namespace mbm
     uint32_t DEVICE::getTotalObjects2D() const noexcept
     {
         return impl->totalObjects2D;
+    }
+
+    void DEVICE::setColorClearBackGround(const COLOR &color) noexcept
+    {
+        impl->colorClearBackGround = color;
+    }
+
+    const COLOR & DEVICE::getColorClearBackGround() const noexcept
+    {
+        return impl->colorClearBackGround;
     }
 
     void DEVICE::setClearBackGround(const bool clear) noexcept

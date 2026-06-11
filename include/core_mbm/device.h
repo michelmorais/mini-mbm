@@ -53,8 +53,6 @@ namespace mbm
         bool   run;
         float  backBufferWidth;
         float  backBufferHeight;
-        //Using GL_SRC_ALPHA / GL_ONE_MINUS_SRC_ALPHA (or GL_SRC_ALPHA, GL_ONE for additive) makes particle visibility depend on the particle alpha value, not on whatever was previously written into the destination alpha.
-        COLOR  colorClearBackGround; //	Clear the back buffer alpha to 1.0 , this make the ALPHA operation work
         CAMERA camera;
     
         SHADER_CFG_LOADER cfg;                       // CFG files
@@ -80,6 +78,8 @@ namespace mbm
         API_IMPL uint32_t getTotalObjectsIsRendering2D() const noexcept;
         API_IMPL uint32_t getTotalObjects3D() const noexcept;
         API_IMPL uint32_t getTotalObjects2D() const noexcept;
+        API_IMPL void setColorClearBackGround(const COLOR &color) noexcept;
+        API_IMPL const COLOR & getColorClearBackGround() const noexcept;
         API_IMPL void setClearBackGround(bool clear) noexcept;
         API_IMPL bool isClearBackGroundEnabled() const noexcept;
         API_IMPL void setStopScriptOnError(bool stop) noexcept;

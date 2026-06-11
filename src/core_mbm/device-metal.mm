@@ -106,8 +106,8 @@ namespace mbm
 
     void DEVICE::clearDepthColored()
     {
-        // colorClearBackGround is already updated by the caller before invoking this.
-        // beginRender() reads it when building the MTLRenderPassDescriptor.
+        // The clear background color is already updated by the caller before invoking this.
+        // beginRender() reads it through DEVICE accessors when building the MTLRenderPassDescriptor.
         if (auto *context = getSpecificContextDevice())
             context->pendingClearDepth = true;
     }

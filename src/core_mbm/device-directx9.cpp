@@ -79,7 +79,8 @@ namespace mbm
     }
     void DEVICE::clearDepthColored()
     {
-        D3DCOLOR color = D3DCOLOR_COLORVALUE(this->colorClearBackGround.r, this->colorClearBackGround.g, this->colorClearBackGround.b,0xff);
+        const COLOR &background = this->getColorClearBackGround();
+        D3DCOLOR color = D3DCOLOR_COLORVALUE(background.r, background.g, background.b,0xff);
         getSpecificContextDevice()->pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, color, 1.0f, 0);
     }
 

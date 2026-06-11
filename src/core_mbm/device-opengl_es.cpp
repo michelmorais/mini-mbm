@@ -93,11 +93,12 @@ namespace mbm
     }
     void DEVICE::clearDepthColored()
     {
+        const COLOR &background = this->getColorClearBackGround();
         GLClearDepthf(1.0f);
-        GLClearColor(this->colorClearBackGround.r,
-                        this->colorClearBackGround.g,
-                        this->colorClearBackGround.b,
-                        this->colorClearBackGround.a);
+        GLClearColor(background.r,
+                        background.g,
+                        background.b,
+                        background.a);
         GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
