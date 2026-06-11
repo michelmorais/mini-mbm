@@ -321,6 +321,13 @@ Milestone 19 implementation note:
 - The larger DirectX9 shader implementation remains separate for a later backend-specific milestone.
 - `specificContextDevice` remains public for compatibility; `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 20 implementation note:
+
+- DirectX9 shader and blend-state implementations now use `DEVICE::getSpecificContextDevice()` instead of reading `DEVICE::specificContextDevice` directly.
+- Migrated DirectX9 vertex/index buffer creation, shader parameter upload, render paths, particle render paths, FVF declaration lookup, and blend operation state changes.
+- This completes the currently identified DirectX9 direct context-access migration; `specificContextDevice` remains public until remaining non-DirectX backends and compatibility users are migrated.
+- `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

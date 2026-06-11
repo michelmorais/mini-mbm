@@ -275,7 +275,7 @@ namespace mbm
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
         this->fvf = this->bs->FVF = d3d_converter.getFVF();
@@ -316,7 +316,7 @@ namespace mbm
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
         this->fvf = this->bs->FVF = d3d_converter.getFVF();
@@ -386,7 +386,7 @@ namespace mbm
         if ( !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         // Find the max vertex count
         // and max size of index buffer
         UINT sizeIndexBuffer = 0;
@@ -598,7 +598,7 @@ namespace mbm
         if (d3dPsVs->pd3dPixelShader == nullptr && d3dPsVs->pd3dVertexShader == nullptr) // simple check
             return;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
@@ -779,7 +779,7 @@ namespace mbm
             }
         }
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -853,7 +853,7 @@ namespace mbm
         };
 
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
 
         const D3DMATRIX* modelView = reinterpret_cast<const D3DMATRIX*>(&SHADER::modelView);
         if (FAILED(pd3dDevice->SetTransform(D3DTS_WORLD, modelView)))
@@ -945,7 +945,7 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->bs->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
@@ -1064,7 +1064,7 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF));
+            pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->bs->FVF));
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
                 pBufferId->bs->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
                 0,		//Posicao Em Bytes Do inicio  Do Stream Atual
@@ -1174,7 +1174,7 @@ namespace mbm
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         DWORD depthTestEnabled = FALSE;
 
         pd3dDevice->GetRenderState(D3DRS_ZENABLE, &depthTestEnabled);
@@ -1269,7 +1269,7 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->bs->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
@@ -1459,7 +1459,7 @@ namespace mbm
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         DWORD depthTestEnabled = FALSE;
 
         pd3dDevice->GetRenderState(D3DRS_ZENABLE, &depthTestEnabled);
@@ -1554,7 +1554,7 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(pBufferId->bs->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;

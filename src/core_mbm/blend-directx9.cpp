@@ -29,7 +29,7 @@ namespace mbm
     void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
     {
 		mbm::DEVICE* device = mbm::DEVICE::getInstance();
-		IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+		IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         switch (blendState)
         {
             case BLEND_DISABLE:
@@ -60,13 +60,13 @@ namespace mbm
 
     void FX::setBlendDefaultOp()
     {
-        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
     }
 
     void FX::setBlendOp()
     {
-        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         switch (blendOperation)
         {
         case 1: // D3DBLENDOP_ADD              = 1,
