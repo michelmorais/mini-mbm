@@ -166,7 +166,7 @@ namespace mbm
         int width  = 0;
         int height = 0;
         DEVICE *device = DEVICE::getInstance();
-        device->ptrManager->getScreenSize(&width, &height);
+        device->getCoreManager()->getScreenSize(&width, &height);
         if (width > 0 && height > 0)
         {
             lua_pushnumber(lua, width);

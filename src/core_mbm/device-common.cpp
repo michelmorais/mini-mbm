@@ -49,6 +49,7 @@ namespace mbm
         bool run = true;
         float backBufferWidth = 0.0f;
         float backBufferHeight = 0.0f;
+        CORE_MANAGER *ptrManager = nullptr;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
@@ -84,7 +85,6 @@ namespace mbm
     DEVICE::DEVICE()
         : impl(new Impl())
     {
-        ptrManager                 = nullptr;
         scene                      = nullptr;
     }
 
@@ -232,6 +232,16 @@ namespace mbm
     bool DEVICE::isRunning() const noexcept
     {
         return impl->run;
+    }
+
+    void DEVICE::setCoreManager(CORE_MANAGER *manager) noexcept
+    {
+        impl->ptrManager = manager;
+    }
+
+    CORE_MANAGER * DEVICE::getCoreManager() const noexcept
+    {
+        return impl->ptrManager;
     }
 
     void DEVICE::setBackBufferSize(const float width, const float height) noexcept
@@ -1037,7 +1047,7 @@ namespace mbm
         const int newWidth     = static_cast<int>(impl->backBufferWidth);
         const int newHeight    = static_cast<int>(impl->backBufferHeight);
         impl->backBufferWidth  = static_cast<float>(newWidth + 1);
-        this->ptrManager->onResizeWindow(newWidth, newHeight);
+        impl->ptrManager->onResizeWindow(newWidth, newHeight);
     }
 }
 

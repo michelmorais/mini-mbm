@@ -257,19 +257,19 @@ namespace mbm
                     if (luaL_dostring(this->lua, luaFile.c_str()))
                     {
                         lua_print_line(lua,TYPE_LOG_ERROR,"\n%s", luaL_checkstring(lua, -1));
-                        loadMainScene(device->ptrManager,
+                        loadMainScene(device->getCoreManager(),
                                       this->scriptLua.size() > 0 ? this->scriptLua.c_str() : "main.lua");
                     }
                     
                 }
                 else
                 {
-                    loadMainScene(device->ptrManager,
+                    loadMainScene(device->getCoreManager(),
                                   this->scriptLua.size() > 0 ? this->scriptLua.c_str() : "main.lua");
                 }
                 SCENE_SCRIPT::logo_was_init = true;
             }
-            else if(static_cast<LUA_MANAGER *>(device->ptrManager)->execute_string(this->lua))
+            else if(static_cast<LUA_MANAGER *>(device->getCoreManager())->execute_string(this->lua))
             {
                 SCENE_SCRIPT::logo_was_init = true;
             }
@@ -517,7 +517,7 @@ namespace mbm
                 if(this->time_resize_window <= 0.0f)
                 {
                     auto newScene     = new SCENE_SCRIPT(this->getSceneName(), true, this->splashRenderizable);
-                    auto *luaManager  = static_cast<LUA_MANAGER *>(device->ptrManager);
+                    auto *luaManager  = static_cast<LUA_MANAGER *>(device->getCoreManager());
                     luaManager->lsScene.push_back(newScene);
                     device->scene->nextScene     = newScene;
                     device->scene->goToNextScene = true;
@@ -1339,7 +1339,7 @@ namespace mbm
         bool LUA_MANAGER::initializeSceneLua(int w, int h,int _expectedWidth,int _expectedHeight, const bool border)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            device->ptrManager = this;
+            device->setCoreManager(this);
             std::string s_stretch("y");
             getExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch);
             setExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch.c_str());
@@ -1751,7 +1751,7 @@ namespace mbm
     {
         const int    top        = lua_gettop(lua);
         DEVICE *device			= DEVICE::getInstance();
-        auto *luaManager = static_cast<LUA_MANAGER *>(device->ptrManager);
+        auto *luaManager = static_cast<LUA_MANAGER *>(device->getCoreManager());
         if (luaManager && device)
         {
             const char *  nameScene = luaL_checkstring(lua, 1);
@@ -1877,7 +1877,7 @@ namespace mbm
     void SCENE_SCRIPT::removePreviousSceneOnUnload()
     {
         DEVICE *device     = DEVICE::getInstance();
-        auto *luaManager = static_cast<LUA_MANAGER *>(device->ptrManager);
+        auto *luaManager = static_cast<LUA_MANAGER *>(device->getCoreManager());
         if (luaManager)
         {
             for (unsigned int i = 0; i < luaManager->lsScene.size(); ++i)

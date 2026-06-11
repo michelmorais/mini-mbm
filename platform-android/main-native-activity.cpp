@@ -293,7 +293,7 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
                 }
 
                 s_game->device->setBackBufferSize(static_cast<float>(w), static_cast<float>(h));
-                s_game->device->ptrManager       = s_game;
+                s_game->device->setCoreManager(s_game);
 
                 // Store the AAssetManager and native window in the platform context.
                 mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx = s_game->device->getSpecificContextDevice();

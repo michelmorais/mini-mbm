@@ -120,7 +120,7 @@ namespace mbm
     {
         std::string command              = luaL_checkstring(lua,1);
         mbm::DEVICE* device              = mbm::DEVICE::getInstance();
-        device->ptrManager->execute_system_cmd_thread(command.c_str());
+        device->getCoreManager()->execute_system_cmd_thread(command.c_str());
         return 0;
     }
 
@@ -223,7 +223,7 @@ namespace mbm
         const int  max_x  = top >= 3 ? luaL_checkinteger(lua, 3) : 0;
         const int  max_y  = top >= 4 ? luaL_checkinteger(lua, 4) : 0;
         DEVICE *device = DEVICE::getInstance();
-        device->ptrManager->setMinMaxSizeWindow(min_x,min_y,max_x,max_y);
+        device->getCoreManager()->setMinMaxSizeWindow(min_x,min_y,max_x,max_y);
         return 0;
     }
     
@@ -1262,7 +1262,7 @@ namespace mbm
     int onIsCapitalKeyOn(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        lua_pushboolean(lua, device->ptrManager->keyCapsLockState);
+        lua_pushboolean(lua, device->getCoreManager()->keyCapsLockState);
         return 1;
     }
 
@@ -2295,7 +2295,7 @@ namespace mbm
         PLUGIN **ud              = static_cast<PLUGIN **>(lua_check_userType(lua,1,1,L_USER_TYPE_PLUGIN));
         PLUGIN * pPlugin         = *ud;
         DEVICE *device           = DEVICE::getInstance();
-        const unsigned int index = device->ptrManager->addPlugin(pPlugin);
+        const unsigned int index = device->getCoreManager()->addPlugin(pPlugin);
         if (index == 0xffffffff)
         {
             ERROR_LOG("Could not register plugin...");

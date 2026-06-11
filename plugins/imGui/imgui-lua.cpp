@@ -1996,7 +1996,7 @@ public:
     {
         #if defined(__linux__) || defined(__APPLE__) || defined (ANDROID)
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            return device->ptrManager->keyCapsLockState;
+            return device->getCoreManager()->keyCapsLockState;
         #elif defined (_WIN32)
             if ((GetKeyState(VK_CAPITAL) & 0x0001)!=0)
                 return true;

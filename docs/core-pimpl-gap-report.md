@@ -434,6 +434,13 @@ Milestone 35 implementation note:
 - Mesh file header fields named `backBufferWidth` / `backBufferHeight` remain unchanged because they are serialized asset metadata, not `DEVICE` state.
 - `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, run flag, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 36 implementation note:
+
+- `DEVICE::ptrManager` is now stored behind `DEVICE::Impl` instead of being a public `DEVICE` data member.
+- Added `DEVICE::setCoreManager()` and `DEVICE::getCoreManager()` so Android setup, Lua framework calls, plugin registration, display metrics, scene loading, and ImGui caps-lock checks no longer depend on direct `DEVICE` layout access.
+- This does not change `CORE_MANAGER` ownership or lifetime; it only hides the back-reference storage.
+- `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, run flag, backbuffer size, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

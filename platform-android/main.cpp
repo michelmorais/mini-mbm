@@ -80,7 +80,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
         {
             INFO_LOG("lib mini-mbm initialized\n width: %d height: %d", width, height);
 			const char *nameApplication = "Hello-world";
-			game->device->ptrManager       = game;
+			game->device->setCoreManager(game);
             game->device->setBackBufferSize(static_cast<float>(width), static_cast<float>(height));
             mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
             cJni->jenv        = env;
@@ -105,7 +105,7 @@ void MiniMbmEngine_onLoop(JNIEnv *env, jobject obj)
     {
         constexpr bool singleLoop = true;
         constexpr bool doSwapBuffers = false;
-        game->device->ptrManager = game;
+        game->device->setCoreManager(game);
         game->onLoop(singleLoop, doSwapBuffers);
     }
 }
