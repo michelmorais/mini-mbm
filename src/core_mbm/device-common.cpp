@@ -51,6 +51,7 @@ namespace mbm
         float backBufferHeight = 0.0f;
         CORE_MANAGER *ptrManager = nullptr;
         SHADER_CFG_LOADER cfg;
+        mbm::ORDER_RENDER orderRender;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
@@ -253,6 +254,16 @@ namespace mbm
     const SHADER_CFG_LOADER & DEVICE::getShaderConfig() const noexcept
     {
         return impl->cfg;
+    }
+
+    mbm::ORDER_RENDER & DEVICE::getOrderRender() noexcept
+    {
+        return impl->orderRender;
+    }
+
+    const mbm::ORDER_RENDER & DEVICE::getOrderRender() const noexcept
+    {
+        return impl->orderRender;
     }
 
     void DEVICE::setBackBufferSize(const float width, const float height) noexcept
@@ -514,20 +525,20 @@ namespace mbm
             if (renderizable->is3D)
             {
                 if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = this->orderRender.getNextZOrderControl3d();
+                    renderizable->position.z = impl->orderRender.getNextZOrderControl3d();
                 impl->render3D.push_back(renderizable);
             }
             else if (renderizable->is2dS)
             {
                 if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = this->orderRender.getNextZOrderControl2d(
+                    renderizable->position.z = impl->orderRender.getNextZOrderControl2d(
                         renderizable->is2dS, renderizable->typeClass == TYPE_CLASS_TEXT);
                 impl->render2DS.push_back(renderizable);
             }
             else
             {
                 if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = this->orderRender.getNextZOrderControl2d(
+                    renderizable->position.z = impl->orderRender.getNextZOrderControl2d(
                         renderizable->is2dS, renderizable->typeClass == TYPE_CLASS_TEXT);
                 impl->render2DW.push_back(renderizable);
             }

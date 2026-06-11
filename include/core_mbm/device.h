@@ -53,8 +53,6 @@ namespace mbm
     
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         SCENE *             scene;
-        
-        mbm::ORDER_RENDER   orderRender;
         API_IMPL static DEVICE *     getInstance();
         API_IMPL void initializeSpecificContext();
         API_IMPL void destroySpecificContext();
@@ -68,6 +66,8 @@ namespace mbm
         API_IMPL CORE_MANAGER * getCoreManager() const noexcept;
         API_IMPL SHADER_CFG_LOADER & getShaderConfig() noexcept;
         API_IMPL const SHADER_CFG_LOADER & getShaderConfig() const noexcept;
+        API_IMPL mbm::ORDER_RENDER & getOrderRender() noexcept;
+        API_IMPL const mbm::ORDER_RENDER & getOrderRender() const noexcept;
         API_IMPL void setBackBufferSize(float width, float height) noexcept;
         API_IMPL void setBackBufferWidth(float width) noexcept;
         API_IMPL void setBackBufferHeight(float height) noexcept;

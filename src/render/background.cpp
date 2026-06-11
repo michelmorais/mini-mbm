@@ -42,7 +42,7 @@ namespace mbm
         this->mesh              = nullptr;
         this->lasIndexAnimation = 0xffffffff;
         mbm::DEVICE* device     = mbm::DEVICE::getInstance();
-        this->position.z        = device->orderRender.getNextZOrderControl2dBackground();
+        this->position.z        = device->getOrderRender().getNextZOrderControl2dBackground();
         this->isFrontGround     = false;
         device->addRenderizable(this);
     }

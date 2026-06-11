@@ -806,7 +806,7 @@ namespace mbm
                     this->reinitTimers();
                     enableRender(this->device->scene->getIdScene());
                     this->device->scene->wasUnloadedScene = false;
-                    this->device->orderRender.reInit();
+                    this->device->getOrderRender().reInit();
                     this->device->scene->onInitScene();
                     this->device->setFakeFps(120,60);
                     this->device->resumeTimer();

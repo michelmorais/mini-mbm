@@ -36,7 +36,7 @@ High-impact examples:
 
 | Header | Public state that blocks strict PIMPL |
 |---|---|
-| `include/core_mbm/device.h` | `camera`, global dynamic vars, `scene`, `orderRender`. |
+| `include/core_mbm/device.h` | `camera`, global dynamic vars, `scene`. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`, `changeScene`, `__sceneWasInit`, key/window flags. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
@@ -447,6 +447,13 @@ Milestone 37 implementation note:
 - Added `DEVICE::getShaderConfig()` const/non-const accessors for shader config loading, sorting, shader lookup, Lua shader-list editing, plugin shader lookup, and `testLib` shader-menu reads.
 - This hides the `DEVICE` layout slot only; the shader config object remains reachable because Lua/editor/plugin code still needs direct list and lookup access.
 - `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, run flag, backbuffer size, core manager pointer, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
+Milestone 38 implementation note:
+
+- `DEVICE::orderRender` is now stored behind `DEVICE::Impl` instead of being a public `DEVICE` data member.
+- Added `DEVICE::getOrderRender()` const/non-const accessors for scene-transition z-order reset and background z-order allocation.
+- Internal renderizable z-order allocation now reads the hidden `Impl` state directly from `DEVICE::addRenderizable()`.
+- `specificContextDevice`, render counters, frustum dimension cache, clear-background state, script-error stop flag, swap-back-buffer state, window position, clear color, verbose flag, run flag, backbuffer size, core manager pointer, shader config, render lists, `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, remaining public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
 ### Phase 3 - Hide renderer backend handles
 
