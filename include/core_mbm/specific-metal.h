@@ -39,7 +39,7 @@ namespace mbm
     // Per-texture GPU resource used by the Metal texture manager.
     // TEXTURE stores Metal texture handles through the pointer-backed helper path.
     // We keep a separate map in the Metal texture manager indexed by TEXTURE pointer.
-    // This struct is referenced via specificConfig (void*) in RENDERIZABLE_TO_TARGET.
+    // This struct is referenced via RENDERIZABLE_TO_TARGET backend config helpers.
     struct RENDER2TARGET_METAL
     {
         id<MTLTexture>            renderTexture    = nil;

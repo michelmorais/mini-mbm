@@ -211,7 +211,8 @@ namespace mbm
             }
 
             // Store GPU objects in the render-target's backend config.
-            RENDER2TARGET_METAL* rf = static_cast<RENDER2TARGET_METAL*>(renderToTarget->specificConfig);
+            void *renderTargetSpecificConfig = renderToTarget->getRenderTargetSpecificConfig();
+            RENDER2TARGET_METAL* rf = static_cast<RENDER2TARGET_METAL*>(renderTargetSpecificConfig);
             rf->renderTexture  = colorTex;
             rf->depthTexture   = depthTex;
             rf->passDescriptor = passDesc;

@@ -221,7 +221,8 @@ namespace mbm
         GLBindFramebuffer(GL_FRAMEBUFFER, 0);
         GLBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-        RENDER2TARGET_GLES* sf = static_cast<RENDER2TARGET_GLES*>(renderToTarget->specificConfig);
+        void *renderTargetSpecificConfig = renderToTarget->getRenderTargetSpecificConfig();
+        RENDER2TARGET_GLES* sf = static_cast<RENDER2TARGET_GLES*>(renderTargetSpecificConfig);
 
         sf->idFrameBuffer                   = idFrameBuffer;
         sf->idDepthRenderbuffer             = idRenderBuffer;

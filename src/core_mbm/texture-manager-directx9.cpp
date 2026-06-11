@@ -457,7 +457,8 @@ namespace mbm
         }
         IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
 
-        RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderToTarget->specificConfig);
+        void *renderTargetSpecificConfig = renderToTarget->getRenderTargetSpecificConfig();
+        RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderTargetSpecificConfig);
 
         if (FAILED(p3DTexture9->GetSurfaceLevel(0, &sf->pRenderSurface)))
         {

@@ -33,7 +33,7 @@ namespace mbm
     RENDERIZABLE_TO_TARGET::RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
         RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
     {
-        this->specificConfig = new RENDER2TARGET_GLES();
+        setRenderTargetSpecificConfig(new RENDER2TARGET_GLES());
         this->colorClearBackGround = COLOR(255, 255, 255); // alpha em 0 significa transparente
         this->colorClearBackGround.a = 1.0f;
         this->widthTexture = 0;
@@ -42,8 +42,10 @@ namespace mbm
 
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
+        void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        delete static_cast<RENDER2TARGET_GLES*>(this->specificConfig);
+        delete static_cast<RENDER2TARGET_GLES*>(renderTargetSpecificConfig);
+        setRenderTargetSpecificConfig(nullptr);
     }
 
     FVF_PROVIDE_BY_ENGINE RENDERIZABLE_TO_TARGET::getFvfFromBuffer() const noexcept
@@ -57,7 +59,8 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"file name to save png is null");
         if(!this->isLoaded())
             return log_util::fail(__LINE__,__FILE__,"render to texture is not loaded!");
-        const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(this->specificConfig);
+        void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
+        const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTargetSpecificConfig);
         if(sf->idTextureDynamic == 0)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(this->texture == nullptr)

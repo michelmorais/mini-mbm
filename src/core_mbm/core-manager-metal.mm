@@ -163,8 +163,9 @@ namespace mbm
                 continue;
             if (!renderTarget->isObjectOnFrustum)
                 continue;
+            void *renderTargetSpecificConfig = renderTarget->getRenderTargetSpecificConfig();
             RENDER2TARGET_METAL* rf =
-                static_cast<RENDER2TARGET_METAL*>(renderTarget->specificConfig);
+                static_cast<RENDER2TARGET_METAL*>(renderTargetSpecificConfig);
             if (!rf || !rf->renderTexture || !rf->passDescriptor)
                 continue;
 

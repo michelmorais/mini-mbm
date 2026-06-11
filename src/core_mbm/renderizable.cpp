@@ -59,6 +59,34 @@ namespace mbm
         this->lsDynamicVar.clear();
     }
 
+    struct RENDERIZABLE_TO_TARGET::BackendData
+    {
+        void *specificConfig;
+
+        BackendData() noexcept :
+            specificConfig(nullptr)
+        {
+        }
+    };
+
+    void RENDERIZABLE_TO_TARGET::BackendDataDeleter::operator()(BackendData *data) const noexcept
+    {
+        delete data;
+    }
+
+    void * RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig() const noexcept
+    {
+        return backendData ? backendData->specificConfig : nullptr;
+    }
+
+    void RENDERIZABLE_TO_TARGET::setRenderTargetSpecificConfig(void *newSpecificConfig) noexcept
+    {
+        if (!backendData)
+        {
+            backendData.reset(new BackendData());
+        }
+        backendData->specificConfig = newSpecificConfig;
+    }
 
     DYNAMIC_VAR * RENDERIZABLE::getDynamicVar(const char *nameVar)noexcept
     {

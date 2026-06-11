@@ -143,7 +143,8 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
                 continue;
             if (!renderTarget->isObjectOnFrustum)
                 continue;
-            const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTarget->specificConfig);
+            void *renderTargetSpecificConfig = renderTarget->getRenderTargetSpecificConfig();
+            const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTargetSpecificConfig);
             GLViewport(0, 0, static_cast<GLsizei>(renderTarget->widthTexture), static_cast<GLsizei>(renderTarget->heightTexture));
             GLBindFramebuffer(GL_FRAMEBUFFER, sf->idFrameBuffer);
             GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sf->idTextureDynamic,0);

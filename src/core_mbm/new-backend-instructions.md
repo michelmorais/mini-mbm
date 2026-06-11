@@ -432,7 +432,8 @@ as a regular 2D object in the main scene.
 
 Required steps:
 1. `createTextureRenderTarget(w, h)` — create an off-screen color texture +
-   depth texture, store in `SPECIFIC_AUX_CONTEXT_DEVICE` or via `specificConfig`.
+   depth texture, store in `SPECIFIC_AUX_CONTEXT_DEVICE` or private render-target config via
+   `RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig()`.
 2. `CORE_MANAGER::renderToTargets()` — iterate render targets with
    `device->getTotalRenderTargets()` and `device->getRenderTarget(index)`,
    begin a secondary render pass for each target, render its object list, end the pass.

@@ -74,7 +74,7 @@ namespace mbm
     RENDER_2_TEXTURE::~RENDER_2_TEXTURE()
     {
         // Evict the render-target texture from the cache and free its GL object before
-        // the base-class destructor deletes the FBO/renderbuffer in specificConfig.
+        // the base-class destructor deletes the FBO/renderbuffer in backend-specific config.
         this->release();
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeObjectRender2Texture(this);

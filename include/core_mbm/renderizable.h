@@ -24,6 +24,7 @@
 #include "primitives.h"
 #include "blend.h"
 #include "shader.h"
+#include <memory>
 #include <string>
 #include <map>
 
@@ -127,7 +128,6 @@ namespace mbm
     {
       public:
         FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
-        void* specificConfig; // specific configuration for each graphic API (backend)
         uint32_t widthTexture;
         uint32_t heightTexture;
         COLOR        colorClearBackGround;
@@ -135,6 +135,16 @@ namespace mbm
         API_IMPL virtual ~RENDERIZABLE_TO_TARGET();
         API_IMPL virtual bool render2Texture() = 0;
         API_IMPL virtual void removeFromRender2Texture(RENDERIZABLE *ptr) = 0;
+        API_IMPL void * getRenderTargetSpecificConfig() const noexcept;
+        API_IMPL void setRenderTargetSpecificConfig(void *specificConfig) noexcept;
+      private:
+        struct BackendData;
+        struct BackendDataDeleter
+        {
+            void operator()(BackendData *data) const noexcept;
+        };
+
+        std::unique_ptr<BackendData, BackendDataDeleter> backendData;
     };
 
 }

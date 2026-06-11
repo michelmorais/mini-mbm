@@ -385,7 +385,8 @@ namespace mbm
             // equivalent here before switching the texture into render-target mode.
             for (DWORD stage = 0; stage < 8; ++stage)
                 pd3dDevice->SetTexture(stage, nullptr);
-            RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderTarget->specificConfig);
+            void *renderTargetSpecificConfig = renderTarget->getRenderTargetSpecificConfig();
+            RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderTargetSpecificConfig);
             HRESULT hr = pd3dDevice->SetRenderTarget(0, sf->pRenderSurface);
 
             //begin rendering to texture

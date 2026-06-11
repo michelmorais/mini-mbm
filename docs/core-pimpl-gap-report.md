@@ -62,7 +62,7 @@ The strongest PIMPL candidate is backend-owned rendering state. These fields sho
 | `include/core_mbm/shader.h` | `BUFFER_GL::BUFFER_SPECIFIC *bs` | Done: stored in `BUFFER_GL::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/shader.h` | `SHADER::void *ptrShaderSpecific` | Done: stored in `SHADER::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/texture-manager.h` | `TEXTURE::idTexture/ptrTexture` union | Done: stored in `TEXTURE::BackendData`, with helper accessors for backend code. |
-| `include/core_mbm/renderizable.h` | `RENDERIZABLE_TO_TARGET::void *specificConfig` | `RENDERIZABLE_TO_TARGET::BackendData`. |
+| `include/core_mbm/renderizable.h` | `RENDERIZABLE_TO_TARGET::void *specificConfig` | Done: stored in `RENDERIZABLE_TO_TARGET::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/specific-*.h` | GL/EGL/X11, D3D9, Metal/Cocoa public headers | Move to private backend include area or `src/core_mbm/` once public users no longer need these concrete structs. |
 
 This can follow the audio pattern: public class owns `std::unique_ptr<BackendData>`, the incomplete struct is defined in the active backend `.cpp/.mm`, and common code talks through narrow private hooks.
@@ -536,6 +536,21 @@ Milestone 49 implementation note:
 - `SHADER::getBackendShaderSpecific()` and `SHADER::setBackendShaderSpecific()` remain the only shader-specific backend access path, so backend destructors still own and release their concrete objects exactly as before.
 - Used a custom private deleter for the incomplete `BackendData` holder so backend-specific `SHADER` destructor definitions do not need the private storage definition.
 
+Milestone 50 implementation note:
+
+- Added `RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig()` and `RENDERIZABLE_TO_TARGET::setRenderTargetSpecificConfig()` as the compatibility helper path for `RENDERIZABLE_TO_TARGET::specificConfig`.
+- Migrated render-target backend config users in OpenGL ES, DirectX9, and Metal core-manager, texture-manager, and render-to-texture implementation files to the helper path.
+- Constructors now initialize backend render-target config through `setRenderTargetSpecificConfig()`, and destructors store `getRenderTargetSpecificConfig()` once in a local `void *renderTargetSpecificConfig` before deleting the concrete backend object.
+- This milestone only touches render-to-texture backend handle access; gameplay-facing `RENDERIZABLE` fields remain untouched.
+- The public `RENDERIZABLE_TO_TARGET::specificConfig` member remains in place for source compatibility in this milestone; remaining direct code-side access is limited to the compatibility helper implementation and the public compatibility member declaration.
+
+Milestone 51 implementation note:
+
+- Moved the `RENDERIZABLE_TO_TARGET::specificConfig` compatibility member out of the public header and into private `RENDERIZABLE_TO_TARGET::BackendData`.
+- `RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig()` and `RENDERIZABLE_TO_TARGET::setRenderTargetSpecificConfig()` remain the only render-target backend config access path, so backend destructors still own and release their concrete config objects exactly as before.
+- Used a custom private deleter for the incomplete `BackendData` holder so backend-specific `RENDERIZABLE_TO_TARGET` destructor definitions do not need the private storage definition.
+- This milestone still avoids gameplay-facing `RENDERIZABLE` fields.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -543,8 +558,8 @@ Order:
 1. `TEXTURE::idTexture/ptrTexture` - done
 2. `BUFFER_GL::bs` - done
 3. `SHADER::ptrShaderSpecific` - done
-4. `RENDERIZABLE_TO_TARGET::specificConfig`
-5. `DEVICE::specificContextDevice`
+4. `RENDERIZABLE_TO_TARGET::specificConfig` - done
+5. `DEVICE::specificContextDevice` - done
 
 This phase removes most backend leakage while keeping gameplay-facing APIs mostly unchanged.
 

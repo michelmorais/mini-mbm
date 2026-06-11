@@ -28,7 +28,7 @@ namespace mbm
                                                    const bool _is2ds) noexcept :
         RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
     {
-        this->specificConfig = new RENDER2TARGET_METAL();
+        setRenderTargetSpecificConfig(new RENDER2TARGET_METAL());
         this->colorClearBackGround = COLOR(255, 255, 255);
         this->colorClearBackGround.a = 1.0f;
         this->widthTexture  = 0;
@@ -37,7 +37,9 @@ namespace mbm
 
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
-        delete static_cast<RENDER2TARGET_METAL*>(this->specificConfig);
+        void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
+        delete static_cast<RENDER2TARGET_METAL*>(renderTargetSpecificConfig);
+        setRenderTargetSpecificConfig(nullptr);
     }
 
     FVF_PROVIDE_BY_ENGINE RENDERIZABLE_TO_TARGET::getFvfFromBuffer() const noexcept
@@ -54,8 +56,9 @@ namespace mbm
         if (this->texture == nullptr)
             return log_util::fail(__LINE__, __FILE__, "render-to-texture: texture is not created!");
 
+        void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
         const RENDER2TARGET_METAL* rf =
-            static_cast<const RENDER2TARGET_METAL*>(this->specificConfig);
+            static_cast<const RENDER2TARGET_METAL*>(renderTargetSpecificConfig);
         if (!rf || !rf->renderTexture)
             return log_util::fail(__LINE__, __FILE__, "Metal render texture is not created!");
 
