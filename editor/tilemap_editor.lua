@@ -46,7 +46,6 @@ function onInitScene()
     tLineCenterX:setColor(1,0,0)
     tLineCenterY:setColor(0,1,0)
     bEnableMainTabBar           = true
-    ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
     sFileNameTile               = ''
     tUtil.bRightSide            = true
     tUtil.sMessageOverlay       = tLang.L("welcome_tilemap")
@@ -91,7 +90,6 @@ function onInitScene()
     tCircleEditVuBrick.z = -100
     iClickedAndSelectedBrick = false
     tInitialBrickAdjustUv = {}
-    bEnableMoveWindow = true
     tClicked = {x = 0, y = 0}
     tOverBrick = {x = 0, y = 0}
     tToolsBrickLayerSize = {x = 0, y = 0}
@@ -212,7 +210,7 @@ end
 function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnAddProperty)
     local flags = 0
     if tImGui.TreeNodeEx(tLang.L("properties"),flags,sTreeId) then
-        tImGui.PushItemWidth(item_width - 20)
+        tUtil.pushResponsiveItemWidth(item_width - 20)
         tImGui.Text(tLang.L("new_property"))
         local label            = '##' .. sTreeId .. 'Combo'
         local height_in_items  =  -1
@@ -254,7 +252,7 @@ function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnA
             sTextAdd = tLang.L("add_boolean")
         end
 
-        if tImGui.Button(sTextAdd,{x=item_width - 20 ,y=0}) then
+        if tImGui.Button(sTextAdd, tUtil.getResponsiveItemSize(item_width - 20)) then
             if tPropertyOptions.name:len() == 0 then
                 tUtil.showMessageWarn(tLang.L("property_name_empty"))
             else
@@ -278,7 +276,7 @@ function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnA
             tImGui.Separator()
         end
 
-        tImGui.PushItemWidth(item_width - 40)
+        tUtil.pushResponsiveItemWidth(item_width - 40)
         for i=1, #tProperties do
             local tProperty = tProperties[i]
             local sNewId    = sTreeId .. tostring(i) .. 'property'
@@ -333,7 +331,7 @@ function drawLayerTab(item_width)
     updatePhysicsLine({})
     tEditorOptions.iIndexDrawLayer = tTile:setRenderMode('layer',tEditorOptions.iIndexDrawLayer)
     
-    if tImGui.Button(tLang.L("new_layer"), {x=item_width,y=0}) then
+    if tImGui.Button(tLang.L("new_layer"), tUtil.getResponsiveItemSize(item_width)) then
         tTile:newLayer()
         addHistoric()
     end
@@ -373,7 +371,7 @@ function drawLayerTab(item_width)
                     break
                 end
             end
-            tImGui.PushItemWidth(item_width - 20)
+            tUtil.pushResponsiveItemWidth(item_width - 20)
             local bVisible = tImGui.Checkbox(tLang.L("visible"), tLayer.visible)
             if tLayer.visible ~= bVisible then
                 tLayer.visible = bVisible
@@ -424,7 +422,7 @@ function drawLayerTab(item_width)
             elseif  sShaderName == 'tint.ps' then
                 if tImGui.TreeNodeEx(tLang.L("tint_options"), flag_selected_node, id .. '-tint') then
 
-                    tImGui.PushItemWidth(item_width - 40)
+                    tUtil.pushResponsiveItemWidth(item_width - 40)
                     tImGui.Text(tLang.L("min_tint_color"))
                     local clicked, tRgba = tImGui.ColorEdit3('##LayerMinTint' .. id, tLayer.minTint, flags)
                     if clicked then
@@ -473,11 +471,11 @@ function drawLayerTab(item_width)
                         end
                     end
 
-                    if tImGui.Button(tLang.L("restart_animation_btn"), {x=item_width - 40,y=0}) then
+                    if tImGui.Button(tLang.L("restart_animation_btn"), tUtil.getResponsiveItemSize(item_width - 40)) then
                         tTile:updateLayer(i,tLayer)
                     end
 
-                    if tImGui.Button(tLang.L("remove_tint"), {x=item_width - 40,y=0}) then
+                    if tImGui.Button(tLang.L("remove_tint"), tUtil.getResponsiveItemSize(item_width - 40)) then
                         tTile:removeShaderFromLayer(i)
                     end
 
@@ -544,7 +542,7 @@ function drawLayerTab(item_width)
         bShowBrickBelows = tImGui.Checkbox(tLang.L("brick_selector_separated"), bShowBrickBelows)
         if bShowBrickBelows then
             local iTotalBrick  = tTile:getTotalBricks()
-            tImGui.PushItemWidth(item_width - 20)
+            tUtil.pushResponsiveItemWidth(item_width - 20)
             tImGui.Text(tLang.L("current_brick_id"))
             local result, iValue = tImGui.InputInt('##selectedBrickAtLayer', tEditorOptions.iIndexSelectedBrickMenuLayer, 1, 10, flags)
             if result and iValue > 0 and iValue <= iTotalBrick then
@@ -564,7 +562,7 @@ function drawLayerTab(item_width)
 
         local iTotalBrick  = tTile:getTotalBricks()
         local tFilterBrick = {'All'}
-        tImGui.PushItemWidth(item_width - 20)
+        tUtil.pushResponsiveItemWidth(item_width - 20)
         if iTotalBrick > 0 then
             tImGui.Text(tLang.L("filter_by_tileset"))
 
@@ -679,7 +677,7 @@ function drawBrickTab(item_width)
     local step       =  1
     local step_fast  =  10
     local flags      =  0
-    tImGui.PushItemWidth(item_width - 35)
+    tUtil.pushResponsiveItemWidth(item_width - 35)
     tEditorOptions.iIndexDrawBrick = tTile:setRenderMode('brick',tEditorOptions.iIndexDrawBrick)
     tImGui.HelpMarker(tLang.L("help_bricks_general"))
 
@@ -779,7 +777,7 @@ function drawBrickTab(item_width)
             end
             
             tImGui.Separator()
-            tImGui.PushItemWidth(item_width - 40)
+            tUtil.pushResponsiveItemWidth(item_width - 40)
             
             if tInitialBrickAdjustUv[tBrick.id] == nil then
                 tInitialBrickAdjustUv[tBrick.id] = { u =  tBrick.uv[3].x - tBrick.uv[1].x, v = tBrick.uv[1].y - tBrick.uv[2].y}
@@ -873,14 +871,14 @@ function drawBrickTab(item_width)
             end
 
             tImGui.Separator()
-            if tImGui.Button(tLang.L("restore_default") .. string.format('##RestBrick%d', n), {x=item_width - 40,y=0}) then
+            if tImGui.Button(tLang.L("restore_default") .. string.format('##RestBrick%d', n), tUtil.getResponsiveItemSize(item_width - 40)) then
                 tTile:undoChangesBrick(tBrick.id)
                 addHistoric()
             end
             tImGui.Separator()
             local tPhysics     = tTile:getPhysicsBrick(tBrick.id)
             tImGui.Text(tLang.L("physics"))
-            if tImGui.Button(tLang.L("add_physic") .. '##PhysicBrickN' .. tostring(n), {x=item_width - 40,y=0}) then
+            if tImGui.Button(tLang.L("add_physic") .. '##PhysicBrickN' .. tostring(n), tUtil.getResponsiveItemSize(item_width - 40)) then
                 table.insert(tPhysics,{type = 'rectangle', x = 0, y = 0, width = tBrick.width, height = tBrick.height })
                 tTile:setPhysicsBrick(tBrick.id,tPhysics)
                 addHistoric()
@@ -1018,7 +1016,7 @@ function drawTileSetTab(item_width)
     local step_fast  =  10
     local flags      = 0
     tEditorOptions.iIndexDrawTileSet = tTile:setRenderMode('tileset',tEditorOptions.iIndexDrawTileSet)
-    tImGui.PushItemWidth(item_width)
+    tUtil.pushResponsiveItemWidth(item_width)
     tImGui.Text(tLang.L("name"))
 
     local modified , sNewText = tImGui.InputText('##TileSetNew',tEditorOptions.sDefaultTileSetName,flags)
@@ -1044,7 +1042,7 @@ function drawTileSetTab(item_width)
 
     if tTextureTileSet[tEditorOptions.iSelectedTileSetPreview] then
 
-        if tImGui.Button(tLang.L("set_image_size"), {x=item_width,y=0}) then
+        if tImGui.Button(tLang.L("set_image_size"), tUtil.getResponsiveItemSize(item_width)) then
             local texInfo = mbm.loadTexture(tTextureTileSet[tEditorOptions.iSelectedTileSetPreview])
             if texInfo:isValid() then
                 tEditorOptions.iDefaultTileSetWidth  = texInfo:getWidth()
@@ -1082,7 +1080,7 @@ function drawTileSetTab(item_width)
         anyChange = true
     end
 
-    if tImGui.Button(tLang.L("load_images_btn"), {x=item_width,y=0}) then
+    if tImGui.Button(tLang.L("load_images_btn"), tUtil.getResponsiveItemSize(item_width)) then
         if tTile:existTileSet(tEditorOptions.sDefaultTileSetName) then
             tUtil.showMessageWarn(string.format(tLang.L("tileset_exists_fmt"), tEditorOptions.sDefaultTileSetName))
         else
@@ -1209,7 +1207,7 @@ function drawTileSetTab(item_width)
             tLineRectTile:setScale(scale.x,scale.y)
         end
         
-        if tImGui.Button(tLang.L("create_tile_set"), {x=item_width,y=0}) then
+        if tImGui.Button(tLang.L("create_tile_set"), tUtil.getResponsiveItemSize(item_width)) then
 
             if tTile:existTileSet(tEditorOptions.sDefaultTileSetName) then
                 tUtil.showMessageWarn(string.format(tLang.L("tileset_exists_fmt"), tEditorOptions.sDefaultTileSetName))
@@ -1267,7 +1265,7 @@ function drawTileSetTab(item_width)
         tImGui.Separator()
     end
 
-    tImGui.PushItemWidth(item_width - 35)
+    tUtil.pushResponsiveItemWidth(item_width - 35)
     for i=1, iTotalTileSet do
         local size         =  {x=item_width-25,y=0}
         local sTileSetName = tTile:getTileSetName(i)
@@ -1604,7 +1602,7 @@ function drawMapTab(item_width)
         bObjectsVisible = bValue
     end
 
-    if tImGui.Button(tLang.L("add_object"), {x=item_width - 40,y=0}) then
+    if tImGui.Button(tLang.L("add_object"), tUtil.getResponsiveItemSize(item_width - 40)) then
         local tObj = {type = 'rectangle',name = 'no_name' , x = 0, y = 0, width = tTile:getMapTileWidth(), height = tTile:getMapTileHeight() }
         tTile:addObjectMap(tObj)
     end
@@ -1613,7 +1611,7 @@ function drawMapTab(item_width)
     local flags = 0
     tImGui.Separator()
     
-    tImGui.PushItemWidth(item_width - 20)
+    tUtil.pushResponsiveItemWidth(item_width - 20)
     if bMoveLayerOpened then
         flags = 0 -- TODO: collapse TreeNodeEX here
     end
@@ -1728,7 +1726,7 @@ function drawMapTab(item_width)
             --        end
             --    end
             elseif tObj.type == 'line' then
-                if tImGui.Button(tLang.L("add_point"), {x=item_width - 40,y=0}) then
+                if tImGui.Button(tLang.L("add_point"), tUtil.getResponsiveItemSize(item_width - 40)) then
                     
                     local x = tObj[#tObj -1]
                     local y = tObj[#tObj -0]
@@ -1819,19 +1817,19 @@ function showTileTools()
             end
             tImGui.SameLine()
             tImGui.HelpMarker(string.format(tLang.L("help_tile_id_selected_fmt"), table.concat(tSelectedTileIDs, ',')))
-            if tImGui.Button(tLang.L("rotate_right"), {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("rotate_right"), tUtil.getResponsiveItemSize(item_width)) then
                 local id = tTile:rotate('right')
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button(tLang.L("rotate_left"), {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("rotate_left"), tUtil.getResponsiveItemSize(item_width)) then
                 local id = tTile:rotate('left')
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button(tLang.L("flip_btn"), {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("flip_btn"), tUtil.getResponsiveItemSize(item_width)) then
                 local id = tTile:flip()
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button(tLang.L("delete_btn"), {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("delete_btn"), tUtil.getResponsiveItemSize(item_width)) then
                 tTile:deleteSelectedBricks()
             end
         end
@@ -2216,10 +2214,10 @@ function main_tab_bar()
     local width        = 230
     local item_width   = 200
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_tile_map, x_pos, y_pos, width, width)
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_tile_map), true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_tile_map), true, 0)
     bIsOverSizeBrickSelector = false
     if is_opened then
-        tImGui.PushItemWidth(item_width)
+        tUtil.pushResponsiveItemWidth(item_width)
         if tImGui.BeginTabBar('##TabBar_id', flags) then
             if tTile:getTotalLayer() > 0 and tImGui.BeginTabItem("Map",nil,ImGuiTabItemFlags['map'] or 0 ) then
                 ImGuiTabItemFlags['map'] = 0
@@ -2370,16 +2368,6 @@ function main_menu_tiled()
             if pressed then
                 tLineCenterX.visible = checked
                 tLineCenterY.visible = checked
-            end
-
-            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
-            if pressed then
-                bEnableMoveWindow = checked
-                if bEnableMoveWindow then
-                    ImGuiWindowFlags_NoMove = 0
-                else
-                    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
-                end
             end
 
             tLang.renderLanguageSubmenu()

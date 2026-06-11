@@ -88,7 +88,6 @@ function onInitScene()
      sLastEditorFileName = ''
 
      tWindowsTitle        = {title_edit_physics = "title_edit_physics"}
-     ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
      tPhysicsOptions      = {
         iIndexPrimitiveType = 1,
         iPrimitivesRectangle  = 2,
@@ -949,16 +948,6 @@ function main_menu_physic_editor()
         end
 
         if tImGui.BeginMenu(tLang.L("menu_options")) then
-            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
-            if pressed then
-                bEnableMoveWindow = checked
-                if bEnableMoveWindow then
-                    ImGuiWindowFlags_NoMove = 0
-                else
-                    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
-                end
-            end
-
             local pressed,checked = tImGui.MenuItem(tLang.L("show_alpha_pattern"), true, tex_alpha_pattern.visible)
             if pressed then
                 tex_alpha_pattern.visible = checked
@@ -1035,7 +1024,7 @@ function showEditPhysics()
     local max_width = 250
     local tSizeBtn   = {x=width - 20,y=0} -- size button
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_edit_physics,x_pos,y_pos,width,max_width)
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_edit_physics), true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_edit_physics), true, 0)
     
     if is_opened then
         
@@ -1044,7 +1033,7 @@ function showEditPhysics()
         indexPrimitive       = tImGui.RadioButton(tLang.L("rectangle_triangle"), indexPrimitive, 2)
         if indexPrimitive == 2 then
             tImGui.SameLine()
-            tImGui.PushItemWidth(70)
+            tUtil.pushResponsiveItemWidth(70)
             local step,step_fast,flags = 2,2,0
             local result, iValue = tImGui.InputInt('##PrimitivesRect',tPhysicsOptions.iPrimitivesRectangle,step,step_fast,flags)
             if result  and iValue > 1 and iValue < 1000 and iValue % 2 == 0 then
@@ -1057,7 +1046,7 @@ function showEditPhysics()
         indexPrimitive       = tImGui.RadioButton('Circle/Triangle',    indexPrimitive, 4)
         if indexPrimitive == 4 then
             tImGui.SameLine()
-            tImGui.PushItemWidth(70)
+            tUtil.pushResponsiveItemWidth(70)
             local step,step_fast,flags = 1,1,0
             local result, iValue = tImGui.InputInt('##PrimitivesCircle',tPhysicsOptions.iPrimitivesCircle,step,step_fast,flags)
             if result  and iValue > 3 and iValue < 1000 then
@@ -1231,7 +1220,7 @@ function showEditPhysics()
         local step_fast  =  10.0
         local format     = "%.3f"
         local flags      =  0
-        tImGui.PushItemWidth(150)
+        tUtil.pushResponsiveItemWidth(150)
         if tImGui.TreeNode('##physics_tree', tLang.L("physics")) then
             tInfoPhysics:highLightPoint(nil) --disable high light before each loop
             for i=1, #tInfoPhysics do

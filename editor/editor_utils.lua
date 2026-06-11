@@ -14,21 +14,78 @@ tUtil.tColorBackground = {r=37/255,g=37/255,b=37/255}
 --color theme
 mbm.setColor(tUtil.tColorBackground.r,tUtil.tColorBackground.g,tUtil.tColorBackground.b)
 
+tUtil.iWindowBottomMargin = 24
+
+tUtil.getEditorWindowHeightLimit = function(iMenuBarHeight, y, max_height)
+    local _, iH = mbm.getRealSizeScreen()
+    local available_height = iH - iMenuBarHeight - (y or 0) - tUtil.iWindowBottomMargin
+    available_height = math.max(80, available_height)
+    if max_height then
+        return math.min(max_height, available_height)
+    end
+    return available_height
+end
+
+tUtil.iResponsiveItemMinWidth = 150
+tUtil.iResponsiveItemLabelReserve = 90
+tUtil.iWindowMinWidth = 120
+
+tUtil.getResponsiveItemWidth = function(min_width, label_reserve)
+    local tAvail = tImGui.GetContentRegionAvail()
+    local available_width = tAvail and tAvail.x or 0
+    local reserve = label_reserve
+    if reserve == nil then
+        reserve = tUtil.iResponsiveItemLabelReserve
+    end
+    return math.max(min_width or tUtil.iResponsiveItemMinWidth, available_width - reserve)
+end
+
+tUtil.getResponsiveItemSize = function(min_width, height, label_reserve)
+    return {x = tUtil.getResponsiveItemWidth(min_width, label_reserve), y = height or 0}
+end
+
+tUtil.pushResponsiveItemWidth = function(min_width, label_reserve)
+    tImGui.PushItemWidth(tUtil.getResponsiveItemWidth(min_width, label_reserve))
+end
+
+if not tImGui.__miniMbmResponsiveItemWidth then
+    tImGui.__miniMbmResponsiveItemWidth = {
+        Begin = tImGui.Begin,
+        End = tImGui.End,
+        stack = {}
+    }
+    tImGui.Begin = function(...)
+        local is_opened, closed_clicked = tImGui.__miniMbmResponsiveItemWidth.Begin(...)
+        if is_opened then
+            tUtil.pushResponsiveItemWidth()
+        end
+        table.insert(tImGui.__miniMbmResponsiveItemWidth.stack, is_opened and true or false)
+        return is_opened, closed_clicked
+    end
+    tImGui.End = function()
+        local should_pop = table.remove(tImGui.__miniMbmResponsiveItemWidth.stack)
+        if should_pop then
+            tImGui.PopItemWidth()
+        end
+        return tImGui.__miniMbmResponsiveItemWidth.End()
+    end
+end
 
 tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width, max_height)-- from right to left (so x must be <= 0)
     local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
+    local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
+    local iW                        = mbm.getRealSizeScreen()
+    local tPosWin                   = {x = iW - width + x,y = iMenuBarHeight + y }
+    local win_height                = tUtil.getEditorWindowHeightLimit(iMenuBarHeight, y, max_height)
+    local min_width = math.min(width, tUtil.iWindowMinWidth)
+    tImGui.SetNextWindowSizeConstraints({x = min_width,y = math.min(win_height,width)}, {x = max_width or iW,y = win_height})
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
-        local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
-        local iW, iH                    = mbm.getRealSizeScreen()
-        local tPosWin                   = {x = iW - width + x,y = iMenuBarHeight + y }
-        local win_height                = max_height or (iH - iMenuBarHeight - y)
-        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = win_height})
-        tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Always'))
-        tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Always'))
+        tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Once'))
+        tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Once'))
     end
 end
 
@@ -37,15 +94,16 @@ tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width, max_hei
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
+    local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
+    local iW                        = mbm.getRealSizeScreen()
+    local tPosWin                   = {x = x,y = iMenuBarHeight + y }
+    local win_height                = tUtil.getEditorWindowHeightLimit(iMenuBarHeight, y, max_height)
+    local min_width = math.min(width, tUtil.iWindowMinWidth)
+    tImGui.SetNextWindowSizeConstraints({x = min_width,y = math.min(win_height,width)}, {x = max_width or iW,y = win_height})
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
-        local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
-        local iW, iH                    = mbm.getRealSizeScreen()
-        local tPosWin                   = {x = x,y = iMenuBarHeight + y }
-        local win_height                = max_height or (iH - iMenuBarHeight - y)
-        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = win_height})
-        tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Always'))
-        tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Always'))
+        tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Once'))
+        tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Once'))
     end
 end
 
@@ -54,30 +112,25 @@ tUtil.setInitialWindowPositionDown = function(title,xStart,YPercentage,xRight)
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
+    local iW, iH                    = mbm.getRealSizeScreen()
+    local tPosWin                   = {x=xStart,y=iH - (YPercentage * iH)}
+    local tSize                     = {x = iW - tPosWin.x - (xRight or 0), y = math.max(80, iH - tPosWin.y - tUtil.iWindowBottomMargin)}
+    local tMinSize                  = {x = math.min(120, tSize.x), y = math.min(80, tSize.y)}
+    local tMaxSize                  = {x = iW, y = tSize.y}
+    tImGui.SetNextWindowSizeConstraints(tMinSize,tMaxSize)
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
-        local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
-        local iW, iH                    = mbm.getRealSizeScreen()
-        local tPosWin                   = {x=xStart,y=iH - (YPercentage * iH)}
-        local tSize                     = {x = iW - tPosWin.x - (xRight or 0), y = iH - tPosWin.y}
-        local tMaxSize                  = {x = iW, y = tSize.y}
-        tImGui.SetNextWindowSizeConstraints(tSize,tMaxSize)
-        tImGui.SetNextWindowSize(tSize,tImGui.Flags('ImGuiCond_Always'))
-        tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Always'))
+        tImGui.SetNextWindowSize(tSize,tImGui.Flags('ImGuiCond_Once'))
+        tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Once'))
     end
 end
 
 tUtil.bEraseOnClick_showTextureAssets = false
 tUtil.bModalRemoveImages_showTextureAssets = nil
 tUtil.sTextRemove_showTextureAssets = ''
-tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMoveWindow) -- in title, {{width,height,file_name}}, return tSelectedTexture,  closed_clicked
+tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos) -- in title, {{width,height,file_name}}, return tSelectedTexture,  closed_clicked
     local closeable    =  true
-    local flags
-    if bEnableMoveWindow then
-        flags = tImGui.Flags('ImGuiWindowFlags_MenuBar')
-    else
-        flags = tImGui.Flags('ImGuiWindowFlags_MenuBar', 'ImGuiWindowFlags_NoMove')
-    end
+    local flags        =  tImGui.Flags('ImGuiWindowFlags_MenuBar')
     local width        = 200
     tUtil.setInitialWindowPositionRight(title,x_pos,y_pos,width,nil)
     local is_opened, closed_clicked = tImGui.Begin(title, closeable, flags)
@@ -523,7 +576,7 @@ tUtil.tSizeWindowOverlay  = {x=0,y=0}
                     
 tUtil.showOverlayMessage = function()
     if tUtil.sMessageOverlay then
-        local flags = {'ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing', 'ImGuiWindowFlags_NoNav'}
+        local flags = {'ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing', 'ImGuiWindowFlags_NoNav'}
         local window_pos = {x = 0, y = tImGui.GetMainMenuBarHeight()}
         local window_pos_pivot = {x = 0, y = 0}
         if tUtil.bRightSide then

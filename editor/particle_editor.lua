@@ -65,8 +65,6 @@ function onInitScene()
             title_particle_options = "title_particle_options",
             title_particle_status  = "title_particle_status"
     }
-    bEnableMoveWindow       = false
-    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
     ImGuiSliderFlags_Logarithmic = tImGui.Flags('ImGuiSliderFlags_Logarithmic')
     tLineCenterX            = line:new("2dw",0,0,200)
     tLineCenterY            = line:new("2dw",0,0,200)
@@ -422,7 +420,7 @@ function drawStrength(title,x,y,z)
     local flags      =  0
     tImGui.Text(tLang.L("strength"))
     tImGui.SameLine()
-    tImGui.PushItemWidth(100)
+    tUtil.pushResponsiveItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, length, step, step_fast, format, flags)
     if result then
         if fValue > 1 and fValue <= 1000 then
@@ -434,7 +432,7 @@ function drawStrength(title,x,y,z)
     local label      = '##ZDir' .. title
     tImGui.Text(tLang.L("z_dir"))
     tImGui.SameLine()
-    tImGui.PushItemWidth(100)
+    tUtil.pushResponsiveItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, z, step, step_fast, format, flags)
     if result then
         if fValue >= -1000 and fValue <= 1000 then
@@ -449,7 +447,7 @@ function drawStrength(title,x,y,z)
 end
 
 function drawSlider(value,title,v_min,v_max)
-    tImGui.PushItemWidth(150)
+    tUtil.pushResponsiveItemWidth(150)
     tImGui.Text(title)
     local label   = '##' ..title
     local format  = "%.3f"
@@ -465,15 +463,14 @@ function showParticleOptions()
     if tParticle then
         local width = 220
         local x_pos, y_pos = 0, 0
-        local max_width = 220
         local tSizeBtn   = {x=width - 20,y=0} -- size button
         local tSizeBtnAddSet   = {x=43,y=0} 
-        tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_particle_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_particle_options), true, ImGuiWindowFlags_NoMove)
+        tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_particle_options,x_pos,y_pos,width)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_particle_options), true, 0)
         if is_opened then
 
             local indexCurrentStage, iTotalStage = tParticle:getStage()
-            tImGui.PushItemWidth(150)
+            tUtil.pushResponsiveItemWidth(150)
             tImGui.Text(tLang.L("number_of_particles"))
             local label      = '##Number of particles'
             local step       =  1
@@ -907,16 +904,6 @@ function main_menu_particle()
             if pressed then
                 tLineCenterX.visible = checked
                 tLineCenterY.visible = checked
-            end
-
-            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
-            if pressed then
-                bEnableMoveWindow = checked
-                if bEnableMoveWindow then
-                    ImGuiWindowFlags_NoMove = 0
-                else
-                    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
-                end
             end
 
             tLang.renderLanguageSubmenu()

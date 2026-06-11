@@ -388,10 +388,9 @@ end
 function renderMainMenu(delta)
     local width        = 300
     local iW, iH       = mbm.getRealSizeScreen()
-    local height       = iH
+    local height       = math.max(80, iH - tImGui.GetMainMenuBarHeight() - tUtil.iWindowBottomMargin)
     local tPosWin      = {x = 0, y = 20}
-    local tSizeButton  = {x = 200, y = 0}
-    local itemWidth    = 200
+    local itemMinWidth = 200
     local title        = tLang.L("title_font_import_options")
     tImGui.SetNextWindowSize({x = width, y = height}, tImGui.Flags('ImGuiCond_Once'))
     tImGui.SetNextWindowPos(tPosWin, tImGui.Flags('ImGuiCond_Once'))
@@ -405,7 +404,7 @@ function renderMainMenu(delta)
         local step       =  1
         local step_fast  =  10
         if sFontSelected and tGlobalFont and iSFontLoadedTTF then
-            tImGui.PushItemWidth(itemWidth)
+            tUtil.pushResponsiveItemWidth(itemMinWidth)
             local clicked, iValue = tImGui.InputInt(tLang.L("height"), iNewHeightFont, step, step_fast)
             if clicked then
                 if iValue > 0 and iValue < 1000 then
@@ -417,7 +416,7 @@ function renderMainMenu(delta)
                 tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
                 tImGui.Text(tLang.L("reload_font_with_new_height"))
                 tImGui.PopStyleColor(1)
-                if tImGui.Button(tLang.L("reload_font"),tSizeButton) then
+                if tImGui.Button(tLang.L("reload_font"), tUtil.getResponsiveItemSize(itemMinWidth)) then
                     iHeightFont = iNewHeightFont
                     loadNewFont(sFontSelected)
                 end
@@ -425,6 +424,7 @@ function renderMainMenu(delta)
             tImGui.PopItemWidth()
         end
 
+        tUtil.pushResponsiveItemWidth(itemMinWidth)
         local clicked, iValue = tImGui.InputInt(tLang.L("space_x_label"), iSpace, step, step_fast)
         if clicked then
             if iValue > -1000 and iValue < 1000 then
@@ -448,7 +448,7 @@ function renderMainMenu(delta)
             end
         end
 
-        local size       = {x = itemWidth, y =50}
+        local size       = tUtil.getResponsiveItemSize(itemMinWidth, 50)
         local flags      = 0
         local modified , sNewText = tImGui.InputTextMultiline(tLang.L("your_text"),sAdditionalText,size,flags)
         if modified then
@@ -489,7 +489,7 @@ function renderMainMenu(delta)
                 local flags      = 0
                 tImGui.Text(tLang.L("add_label"))
                 tImGui.SameLine()
-                tImGui.PushItemWidth(itemWidth-40)
+                tUtil.pushResponsiveItemWidth(itemMinWidth - 40, 40)
                 local modified , sNewText = tImGui.InputTextWithHint(label,sAnimationName,hint,flags)
                 if modified then
                     sAnimationName = sNewText
@@ -567,7 +567,7 @@ function renderMainMenu(delta)
                                     tShader:setPStime(fValue)
                                 end
                             end
-                            if tImGui.Button(tLang.L("restart_animation"),tSizeButton) then
+                            if tImGui.Button(tLang.L("restart_animation"), tUtil.getResponsiveItemSize(itemMinWidth)) then
                                 tText:restartAnim()
                             end
                         else
@@ -646,7 +646,7 @@ function renderMainMenu(delta)
                             end
 
                             if selected then
-                                tImGui.PushItemWidth(150)
+                                tUtil.pushResponsiveItemWidth(150)
                                 tImGui.Text(tLang.L("change_position"))
                                 local iValue   = tGlobalFont:getLetterXDiff(sLetter)
                                 local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. string.format('##LetterAdjust_x_%d_%d', j, i), iValue, step, step_fast, format, flags)
@@ -687,6 +687,7 @@ function renderMainMenu(delta)
             end
             tImGui.TreePop()
         end
+        tImGui.PopItemWidth()
     end
     tImGui.End()
 end

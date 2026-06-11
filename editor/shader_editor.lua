@@ -67,8 +67,6 @@ function onInitScene()
                             iFrameStop    = 1,
                             tAnimTypes    = {'PAUSED','GROWING','GROWING_LOOP', 'DECREASING', 'DECREASING_LOOP', 'RECURSIVE', 'RECURSIVE_LOOP'}}
     tTexturesToEditor       = {}
-    bEnableMoveWindow       = false
-    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
     tLineCenterX            = line:new("2dw",0,0,200)
     tLineCenterY            = line:new("2dw",0,0,200)
     local tLx               = {-9999999,0, 9999999,0}
@@ -156,9 +154,9 @@ function showAnimationAdd()
         local window_pos       = {x = 220, y = 20}
         local window_pos_pivot = {x = 0, y = 0}
         tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_animation), true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_animation), true, 0)
         if is_opened then
-            tImGui.PushItemWidth(180)
+            tUtil.pushResponsiveItemWidth(180)
             tImGui.Text(tLang.L("add_animation_label"))
             local v_min     = 1
             local v_max     = tMesh:getTotalFrame()
@@ -350,7 +348,7 @@ function drawStrength(title,x,y,z)
     local flags      =  0
     tImGui.Text(tLang.L("strength"))
     tImGui.SameLine()
-    tImGui.PushItemWidth(100)
+    tUtil.pushResponsiveItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, length, step, step_fast, format, flags)
     if result then
         if fValue > 1 and fValue <= 1000 then
@@ -362,7 +360,7 @@ function drawStrength(title,x,y,z)
     local label      = '##ZDir' .. title
     tImGui.Text(tLang.L("z_dir"))
     tImGui.SameLine()
-    tImGui.PushItemWidth(100)
+    tUtil.pushResponsiveItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, z, step, step_fast, format, flags)
     if result then
         if fValue >= -1000 and fValue <= 1000 then
@@ -377,7 +375,7 @@ function drawStrength(title,x,y,z)
 end
 
 function drawSlider(value,title,v_min,v_max,power)
-    tImGui.PushItemWidth(150)
+    tUtil.pushResponsiveItemWidth(150)
     tImGui.Text(title)
     local label   = '##' ..title
     local format  = "%.3f"
@@ -540,11 +538,11 @@ function showShaderOptions()
         local tSizeBtn   = {x=width - 20,y=0} -- size button
         local tSizeBtnAddSet   = {x=43,y=0} 
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_shaders_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_shaders_options), true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_shaders_options), true, 0)
         if is_opened then
 
             local sAnim, indexCurrentAnim = tMesh:getAnim()
-            tImGui.PushItemWidth(150)
+            tUtil.pushResponsiveItemWidth(150)
             tImGui.Text(tLang.L("animation_label"))
             tImGui.TextDisabled(sAnim)
             local label      = '##Number of animation'
@@ -936,16 +934,6 @@ function mainMenuShader()
                 tLineCenterY.visible = checked
             end
 
-            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
-            if pressed then
-                bEnableMoveWindow = checked
-                if bEnableMoveWindow then
-                    ImGuiWindowFlags_NoMove = 0
-                else
-                    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
-                end
-            end
-
             if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
@@ -1180,7 +1168,7 @@ local tPie =
 addShader(tPie)
 ]]
         local label      = '##ShaderExample'
-        local size       = {x=580,y=500}
+        local size       = tUtil.getResponsiveItemSize(580, 500, 0)
         local flags      = 0
 
         local modified , sNewText = tImGui.InputTextMultiline(label,sShaderExample,size,flags)
@@ -1239,7 +1227,7 @@ end
 function onLoop(delta)
     mainMenuShader()
     if bTextureViewOpened then
-        local closed_clicked = tUtil.showTextureAssets(tWindowsTitle.title_image_selector,tTexturesToEditor,0,0,ImGuiWindowFlags_NoMove == 0)
+        local closed_clicked = tUtil.showTextureAssets(tWindowsTitle.title_image_selector,tTexturesToEditor,0,0)
         if closed_clicked then
             bTextureViewOpened = false
         end
@@ -1270,4 +1258,3 @@ function onLoop(delta)
     end
     tUtil.showOverlayMessage()
 end
-

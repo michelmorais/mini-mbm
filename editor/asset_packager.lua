@@ -38,7 +38,6 @@ function onInitScene()
     
     tWindowsTitle               = {title_asset = "title_asset"}
     tAssets                     = {}
-    ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
     iSelectedItem               = 0
     sSelectedFile               = ''
     bShowAssets                 = false
@@ -262,12 +261,11 @@ end
 
 function showAssets()
     if bShowAssets then
-        local iWs,iHs 	   = mbm.getSizeScreen()
-        local width        = iWs  * 0.35
+        local width        = 300
         local tPosWin      = {x = 0, y = 0}
         local size         = {x=0,y=0}
-        tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_asset,tPosWin.x,tPosWin.y,width,width)
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_asset), true, ImGuiWindowFlags_NoMove)
+        tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_asset,tPosWin.x,tPosWin.y,width)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_asset), true, 0)
         local bUniquePoupUpContext = true
         local right_mouse_pressed = false
         local bRemoved = false

@@ -66,9 +66,7 @@ function onInitScene()
     bShowFrameBulkOps    = false
     iNumNickName         = 0
     keyControlPressed    = false
-    bEnableMoveWindow    = false
     tPreviewFrameColor   = {r=1,g=1,b=1,a=1}
-    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
     iStep_zoom           = 10
     tTexturesToEditor    = {}
     tUtil.sMessageOverlay= 'Welcome to Sprite Maker!\n\nFirst add an image from menu!'
@@ -893,16 +891,6 @@ function main_menu_sprite()
         end
         
         if tImGui.BeginMenu(tLang.L("menu_options")) then
-            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
-            if pressed then
-                bEnableMoveWindow = checked
-                if bEnableMoveWindow then
-                    ImGuiWindowFlags_NoMove = 0
-                else
-                    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
-                end
-            end
-
             local pressed,checked = tImGui.MenuItem(tLang.L("show_alpha_pattern"), true, tex_alpha_pattern.visible)
             if pressed then
                 tex_alpha_pattern.visible = checked
@@ -1902,7 +1890,7 @@ function showFrameBulkOperations()
     local tSizeBtn = {x=width - 20,y=0}
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_frame_bulk_ops,x_pos,y_pos,width)
     shouldICollapse(tWindowsTitle.title_frame_bulk_ops)
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_bulk_ops), true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_bulk_ops), true, 0)
     if is_opened then
         if #tFrameList == 0 then
             tImGui.Text(tLang.L("no_frame_to_save_sprite"))
@@ -2056,7 +2044,7 @@ function showFrameEdit()
         local x_pos, y_pos = 200, 0
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_frame_edit,x_pos,y_pos,width)
         shouldICollapse(tWindowsTitle.title_frame_edit)
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_edit), true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_edit), true, 0)
         if is_opened then
             local step       =  1.0
             local step_fast  =  100.0
@@ -2343,7 +2331,7 @@ function showFrameList()
         end
     end
     shouldICollapse(tWindowsTitle.title_frame_list)
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_list), true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_list), true, 0)
     if is_opened then
         if tFrameList.indexSelectedFrameNode ~= 0 and #tFrameList > 0 then
             if tImGui.IsWindowFocused(0) then
@@ -2482,7 +2470,7 @@ function showFramePreview()
     tImGui.PushStyleVar('ImGuiStyleVar_WindowMinSize',{x = 200, y= 200})
 
     shouldICollapse(tWindowsTitle.title_frame_preview)
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_preview), true, tImGui.Flags('ImGuiWindowFlags_NoMove'))
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_preview), true, 0)
     if is_opened and tFrameAddOptions.tSelectedTexture then
         local padding        = tImGui.GetStyle('DisplayWindowPadding')
         local sy_visible     = select(2,tImGui.IsScrollVisible())
@@ -2743,7 +2731,7 @@ function showFrameAdd()
     tUtil.setInitialWindowPositionRight(tWindowsTitle.title_add_frame,x_pos,y_pos,width,max_width)
 
     shouldICollapse(tWindowsTitle.title_add_frame)
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_add_frame), true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_add_frame), true, 0)
     if is_opened then
         tImGui.Text(tLang.L("primitive_type"))
         local indexPrimitive = tImGui.RadioButton(tLang.L("rectangle"), tFrameAddOptions.iIndexPrimitiveType, 1)
@@ -3561,7 +3549,7 @@ function showAnimationAdd(delta)
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_animation,x_pos,y_pos,width)
         shouldICollapse(tWindowsTitle.title_animation)
         tImGui.PushStyleVar('ImGuiStyleVar_WindowMinSize',{x = width, y= width})
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_animation), true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_animation), true, 0)
         if tAnimationOptions.iFrameStart <= 0 then
             tAnimationOptions.iFrameStart = 1
         end
@@ -3601,7 +3589,7 @@ function showAnimationAdd(delta)
             if sy_visible then
                 padding.x = padding.x + tImGui.GetStyle('ScrollbarSize')
             end
-            tImGui.PushItemWidth(animWidth)
+            tUtil.pushResponsiveItemWidth(animWidth)
             local result, iValue = tImGui.SliderInt(tLang.L("start_frame") .. '##Start', tAnimationOptions.iFrameStart, v_min, v_max, "Start Frame %d")
             tImGui.PopItemWidth()
             if result then
@@ -3613,7 +3601,7 @@ function showAnimationAdd(delta)
             
             addDynamicTextureToImGuiImage(tFrameStart,winSize,padding,1)
 
-            tImGui.PushItemWidth(animWidth)
+            tUtil.pushResponsiveItemWidth(animWidth)
             local result, iValue = tImGui.SliderInt(tLang.L("stop_frame") .. '##Stop', tAnimationOptions.iFrameStop, v_min, v_max, "Stop Frame %d")
             tImGui.PopItemWidth()
             if result then
@@ -3623,7 +3611,7 @@ function showAnimationAdd(delta)
                 end
             end
             addDynamicTextureToImGuiImage(tFrameStop,winSize,padding,2)
-            tImGui.PushItemWidth(200)
+            tUtil.pushResponsiveItemWidth(200)
             tImGui.Separator()
             tImGui.Text(string.format(tLang.L("current_frame_fmt"), tostring(indexFrame)))
             tImGui.Text(string.format("%s: %.3f", tLang.L("current_time"), tAnimationOptions.iTimeAnimSimulation))
@@ -3797,10 +3785,10 @@ function showAdvancedOptions()
 
     shouldICollapse(tWindowsTitle.title_advanced_options)
     tImGui.PushStyleVar('ImGuiStyleVar_WindowMinSize',{x = width, y= height})
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_advanced_options), true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_advanced_options), true, 0)
     if is_opened then
 
-        tImGui.PushItemWidth(270)
+        tUtil.pushResponsiveItemWidth(270)
         tImGui.Text(tLang.L("mode_draw"))
         local ret, current_item, item = tImGui.Combo('##ModeDraw', tSaveBinaryOptions.indexModeDraw, tSaveBinaryOptions.tModeDrawList)
         if ret then
@@ -3834,7 +3822,7 @@ function showAdvancedOptions()
 
         tImGui.Separator()
 
-        if tImGui.Button(tLang.L("reset_to_default_options"), {x=270,y=0}) then
+        if tImGui.Button(tLang.L("reset_to_default_options"), tUtil.getResponsiveItemSize(270)) then
             tSaveBinaryOptions.indexFrontFace       = 1
             tSaveBinaryOptions.indexModeDraw        = 1
             tSaveBinaryOptions.indexCullFace        = 2
@@ -4089,7 +4077,7 @@ function showEditPhysics()
         bShowFrameList           = false
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_edit_physics,x_pos,y_pos,width,max_width)
         shouldICollapse(tWindowsTitle.title_edit_physics)
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_edit_physics), true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_edit_physics), true, 0)
         local tFrame = tFrameList[1]
         tFrame.tShape.visible = true
         tFrame.tShape:setScale(tPhysicsOptions.tScalePhysics.sx,tPhysicsOptions.tScalePhysics.sy)
@@ -4184,7 +4172,7 @@ function showEditPhysics()
             local step_fast  =  10.0
             local format     = "%.3f"
             local flags      =  0
-            tImGui.PushItemWidth(150)
+            tUtil.pushResponsiveItemWidth(150)
             if tImGui.TreeNode('##physics_tree', tLang.L("physics")) then
                 for i=1, #tPhysicsOptions.tLinesPhysics do
                     local tLinesPhysics = tPhysicsOptions.tLinesPhysics[i]
@@ -4396,7 +4384,6 @@ function closePhysicsWindow()
     end
     tPivotShape.visible = false
     tex_alpha_pattern.visible = false
-    bEnableMoveWindow = false
     camera2d:setPos(0,0)
     bEnableMoveWorld = false
     setAllFrameAsNotVisible()
@@ -5396,7 +5383,7 @@ function onLoop(delta)
     main_menu_sprite()
     if bTextureViewOpened then
         shouldICollapse(tWindowsTitle.title_image_selector)
-        local closed_clicked = tUtil.showTextureAssets(tWindowsTitle.title_image_selector,tTexturesToEditor,0,0,ImGuiWindowFlags_NoMove == 0)
+        local closed_clicked = tUtil.showTextureAssets(tWindowsTitle.title_image_selector,tTexturesToEditor,0,0)
         if closed_clicked then
             bTextureViewOpened = false
         end
