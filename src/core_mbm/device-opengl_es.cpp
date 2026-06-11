@@ -45,15 +45,16 @@ namespace mbm
     void DEVICE::initializeSpecificContext()
     {
         this->destroySpecificContext();
-        this->specificContextDevice = new SPECIFIC_AUX_CONTEXT_DEVICE();
+        setSpecificContextDevice(new SPECIFIC_AUX_CONTEXT_DEVICE());
         
     }
     void DEVICE::destroySpecificContext()
     {
-        if(this->specificContextDevice)
+        auto *context = getSpecificContextDevice();
+        if(context)
         {
-            delete this->specificContextDevice;
-            this->specificContextDevice = nullptr;
+            delete context;
+            setSpecificContextDevice(nullptr);
         }
     }
 
@@ -65,7 +66,7 @@ namespace mbm
         if (instanceDevice)
         {
             constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
-            instanceDevice->specificContextDevice->release(wasDeviceLost);
+            instanceDevice->getSpecificContextDevice()->release(wasDeviceLost);
             delete instanceDevice;
         }
         instanceDevice = nullptr;
@@ -131,7 +132,7 @@ namespace mbm
     const char* DEVICE::copyFileFromAsset(const char* assetName, const char* mode)// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
     {
         #if defined ANDROID
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = this->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = getSpecificContextDevice();
         return cJni->copyFileFromAsset(assetName, mode);
         #else
         return assetName;
@@ -145,11 +146,12 @@ namespace mbm
 		// In OPENGL this does not seem to be affecting the texture. what is affecting is to set those GLTexParameteri while loading the texture.
         // TODO: maybe investigate??
         constexpr GLint index[2] = { GL_TEXTURE1 , GL_TEXTURE0 };
+        auto *context = getSpecificContextDevice();
         GLActiveTexture(GL_TEXTURE0);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &this->specificContextDevice->filter_GL_TEXTURE_WRAP_S);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &this->specificContextDevice->filter_GL_TEXTURE_WRAP_T);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &this->specificContextDevice->filter_GL_TEXTURE_MIN_FILTER);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &this->specificContextDevice->filter_GL_TEXTURE_MAG_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &context->filter_GL_TEXTURE_WRAP_S);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &context->filter_GL_TEXTURE_WRAP_T);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &context->filter_GL_TEXTURE_MIN_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &context->filter_GL_TEXTURE_MAG_FILTER);
 
         for (int i = 0; i < 2; i++)
         {

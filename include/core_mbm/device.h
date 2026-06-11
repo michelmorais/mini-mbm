@@ -77,6 +77,7 @@ namespace mbm
         API_IMPL static DEVICE *     getInstance();
         API_IMPL void initializeSpecificContext();
         API_IMPL void destroySpecificContext();
+        API_IMPL SPECIFIC_AUX_CONTEXT_DEVICE * getSpecificContextDevice() const noexcept;
         API_IMPL void setAppReturnCode(const int returnCode) noexcept;
         API_IMPL int getAppReturnCode() const noexcept;
         API_IMPL static void quit();
@@ -148,6 +149,7 @@ namespace mbm
         void setProjectionMode(const bool is3D, const float width, const float height);
         void setCamera2dScaleCache(const float percX, const float percY) noexcept;
         void setPixelPerfectRenderingActive(const bool active) noexcept;
+        void setSpecificContextDevice(SPECIFIC_AUX_CONTEXT_DEVICE *context) noexcept;
         uint32_t getTotalPhysics() const noexcept;
         PHYSICS * getPhysics(const uint32_t index) const noexcept;
         uint32_t getTotalRenderTargets() const noexcept;

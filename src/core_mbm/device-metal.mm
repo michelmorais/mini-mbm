@@ -31,15 +31,16 @@ namespace mbm
     void DEVICE::initializeSpecificContext()
     {
         this->destroySpecificContext();
-        this->specificContextDevice = new SPECIFIC_AUX_CONTEXT_DEVICE();
+        setSpecificContextDevice(new SPECIFIC_AUX_CONTEXT_DEVICE());
     }
 
     void DEVICE::destroySpecificContext()
     {
-        if (this->specificContextDevice)
+        auto *context = getSpecificContextDevice();
+        if (context)
         {
-            delete this->specificContextDevice;
-            this->specificContextDevice = nullptr;
+            delete context;
+            setSpecificContextDevice(nullptr);
         }
     }
 
@@ -51,7 +52,7 @@ namespace mbm
         if (instanceDevice)
         {
             constexpr bool wasDeviceLost = false;
-            instanceDevice->specificContextDevice->release(wasDeviceLost);
+            instanceDevice->getSpecificContextDevice()->release(wasDeviceLost);
             delete instanceDevice;
         }
         instanceDevice = nullptr;
@@ -61,8 +62,8 @@ namespace mbm
     {
         // Toggle the flag read by SHADER::render() / renderDynamic() to choose between
         // the depth-enabled (less + write) and depth-disabled (always + no-write) states.
-        if (specificContextDevice)
-            specificContextDevice->depthTestEnabled = enable;
+        if (auto *context = getSpecificContextDevice())
+            context->depthTestEnabled = enable;
     }
 
     void DEVICE::clearDepth()
@@ -72,8 +73,8 @@ namespace mbm
         // colour attachment (preserving the 3D scene) but clears the depth attachment.
         // This is called between the 3D pass and the 2dw pass so that 3D perspective
         // depth values do not contaminate the 2dw orthographic depth comparisons.
-        if (!specificContextDevice) return;
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = getSpecificContextDevice();
+        if (!ctx) return;
         if (ctx->currentEncoder && ctx->currentCommandBuffer && ctx->currentPassDescriptor)
         {
             [ctx->currentEncoder endEncoding];
@@ -107,8 +108,8 @@ namespace mbm
     {
         // colorClearBackGround is already updated by the caller before invoking this.
         // beginRender() reads it when building the MTLRenderPassDescriptor.
-        if (this->specificContextDevice)
-            this->specificContextDevice->pendingClearDepth = true;
+        if (auto *context = getSpecificContextDevice())
+            context->pendingClearDepth = true;
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
@@ -118,11 +119,12 @@ namespace mbm
 
     const char* DEVICE::getBackendEngineVersion() const noexcept
     {
-        if (this->specificContextDevice && this->specificContextDevice->mtlDevice)
+        auto *context = getSpecificContextDevice();
+        if (context && context->mtlDevice)
         {
             static std::string ver;
             ver = "\nMetal device: ";
-            ver += [this->specificContextDevice->mtlDevice.name UTF8String];
+            ver += [context->mtlDevice.name UTF8String];
             return ver.c_str();
         }
         return "\nMetal (device not initialised)";
@@ -146,15 +148,15 @@ namespace mbm
     void DEVICE::disableFilteringForPixelPerfect() noexcept
     {
         setPixelPerfectRenderingActive(true);
-        if (specificContextDevice)
-            specificContextDevice->useNearestSampler = true;
+        if (auto *context = getSpecificContextDevice())
+            context->useNearestSampler = true;
     }
 
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept
     {
         setPixelPerfectRenderingActive(false);
-        if (specificContextDevice)
-            specificContextDevice->useNearestSampler = false;
+        if (auto *context = getSpecificContextDevice())
+            context->useNearestSampler = false;
     }
 
 } // namespace mbm

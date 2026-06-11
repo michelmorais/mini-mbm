@@ -278,6 +278,14 @@ Milestone 13 implementation note:
 - `CORE_MANAGER` render preparation, render enable/disable, stop, and lost-device restore paths access the 2-D screen list through a private `DEVICE::getRender2DSList()` helper.
 - All three main render lists are now outside the visible `DEVICE` layout; `RENDERIZABLE_TO_TARGET::specificConfig`, `specificContextDevice`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
 
+Milestone 14 implementation note:
+
+- Added `DEVICE::getSpecificContextDevice()` as the compatibility accessor for backend device context access.
+- Added a private `DEVICE::setSpecificContextDevice()` helper for backend context creation/destruction.
+- OpenGL ES, DirectX9, Metal, and dummy `DEVICE` backend implementation files now use the helper path for their own context ownership and local backend operations.
+- `specificContextDevice` remains public in this milestone to avoid a breaking source change; `CORE_MANAGER`, texture, shader, platform, and render-target call sites can migrate backend-by-backend before the pointer moves behind `DEVICE::Impl`.
+- `RENDERIZABLE_TO_TARGET::specificConfig`, camera, scene, public fields, and `RENDERIZABLE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

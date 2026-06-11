@@ -98,6 +98,16 @@ namespace mbm
         impl->pixelPerfectRenderingActive = active;
     }
 
+    void DEVICE::setSpecificContextDevice(SPECIFIC_AUX_CONTEXT_DEVICE *context) noexcept
+    {
+        specificContextDevice = context;
+    }
+
+    SPECIFIC_AUX_CONTEXT_DEVICE * DEVICE::getSpecificContextDevice() const noexcept
+    {
+        return specificContextDevice;
+    }
+
     uint32_t DEVICE::getTotalPhysics() const noexcept
     {
         return static_cast<uint32_t>(impl->physics.size());

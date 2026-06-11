@@ -145,8 +145,9 @@ This is the single object that owns everything backend-specific at the device le
 - Per-frame command encoder / command buffer
 - Shared state (default sampler, depth-stencil state, etc.)
 
-It is stored as `DEVICE::specificContextDevice` (forward-declared in `device.h`; the concrete
-type lives in your `specific-<backend>.h`).
+It is currently compatibility-exposed as `DEVICE::specificContextDevice`, but new backend code
+should access it through `DEVICE::getSpecificContextDevice()` so the pointer can move fully
+behind `DEVICE::Impl` later.
 
 The struct **must** provide:
 ```cpp
