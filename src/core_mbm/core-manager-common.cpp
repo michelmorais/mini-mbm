@@ -62,6 +62,14 @@ namespace mbm
         std::mutex                           mutexEvents;
         EVENT_KEY                            lastEvent;
         std::vector<PLUGIN*>                 plugins;
+        bool                                 wasGamePausedBeforeOnStop = false;
+        bool                                 loopVariablesInitialized  = false;
+        WHICH_FOR                            whichFor                  = WFOR_INITIAL;
+        STEP_RETORE                          stepRestore               = STEP_RES_INIT_GL;
+        uint32_t                             indexOnRestore            = 0;
+        uint32_t                             totalForByLoop            = 0;
+        float                                stepRestoreInfo           = 0.1f;
+        float                                percentRestoreInfo        = 0.0f;
     };
 
     void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
@@ -100,6 +108,11 @@ namespace mbm
         impl->plugins.clear();
     }
 
+    STEP_RETORE CORE_MANAGER::getStepRestore() const noexcept
+    {
+        return impl->stepRestore;
+    }
+
     void CORE_MANAGER::setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept
     {
         _setUsageOfDefaultPS_VS_WhenNoShader(_useDeafultPSwhenNoPsShader, _useDeafultVSwhenNoVSShader);
@@ -120,7 +133,7 @@ namespace mbm
         //             device ? (void*)device->scene : nullptr);
         if (!device)
             return -1;
-        if (!this->loopVariablesInitialized)
+        if (!impl->loopVariablesInitialized)
         {
             #if defined _DEBUG || defined DEBUG
             INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->backBufferWidth, device->backBufferHeight);
@@ -136,7 +149,7 @@ namespace mbm
             this->device->updateFps();
             initEnableRenders();
             this->_updateDimFrustum();
-            this->loopVariablesInitialized = true;
+            impl->loopVariablesInitialized = true;
             this->device->camera.expectedScreen.x = this->device->backBufferWidth;
             this->device->camera.expectedScreen.y = this->device->backBufferHeight;
         }
@@ -374,7 +387,7 @@ namespace mbm
     void CORE_MANAGER::onStopCoreManager()
     {
         // Stop the game and all resources, this is called when the device is lost, so we need to release all resources and stop the game, but we do not release the graphics device, so we can restore it later
-        wasGamePausedBeforeOnStop = this->device->isGamePaused();
+        impl->wasGamePausedBeforeOnStop = this->device->isGamePaused();
         this->device->pauseGame();
         for (auto ptr : this->device->lsObjectRender2DS)
         {
@@ -947,10 +960,10 @@ namespace mbm
 
     bool CORE_MANAGER::onLostDevice(const bool doSwapBuffers, int width, int height, const int px, const int py)
     {
-        if (stepRestore == STEP_RES_INIT_GL)
+        if (impl->stepRestore == STEP_RES_INIT_GL)
         {
 #if defined _DEBUG
-            WARN_LOG("onLostDevice step %d", stepRestore);
+            WARN_LOG("onLostDevice step %d", impl->stepRestore);
 #endif
             // Save 2D scaling state
             const VEC2 expectedScreenBefore = this->device->camera.expectedScreen;
@@ -978,21 +991,21 @@ namespace mbm
                 this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
                 this->adjustScaleScreen2d();
 
-                stepRestore = STEP_RES_DRAW_HOURGLASS;
+                impl->stepRestore = STEP_RES_DRAW_HOURGLASS;
                 return false;
             }
             else
             {
 #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d function initGraphics failed!", stepRestore);
+                WARN_LOG("onLostDevice step %d function initGraphics failed!", impl->stepRestore);
 #endif
                 return false;
             }
         }
-        else if (stepRestore == STEP_RES_DRAW_HOURGLASS)
+        else if (impl->stepRestore == STEP_RES_DRAW_HOURGLASS)
         {
 #if defined _DEBUG
-            WARN_LOG("onLostDevice step %d draw Hourglass.", stepRestore);
+            WARN_LOG("onLostDevice step %d draw Hourglass.", impl->stepRestore);
 #endif
             if (this->beginRender())
             {
@@ -1001,8 +1014,8 @@ namespace mbm
                 device->clearDepthColored();
                 if (device->scene)
                     device->scene->onRestore(0); //true means: no call restore,  just to prepare the screen.
-                stepRestore = STEP_RES_OBJ;
-                this->which_for = WFOR_INITIAL;
+                impl->stepRestore = STEP_RES_OBJ;
+                impl->whichFor = WFOR_INITIAL;
                 this->endRender();
                 if(doSwapBuffers)
                 {
@@ -1011,32 +1024,32 @@ namespace mbm
             }
             return false;
         }
-        else if (stepRestore == STEP_RES_OBJ)
+        else if (impl->stepRestore == STEP_RES_OBJ)
         {
             device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
             device->setDepthTest(false);
             device->clearDepthColored();
-            switch (this->which_for)
+            switch (impl->whichFor)
             {
             case WFOR_INITIAL:
             {
 #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d restoring objs.", stepRestore);
+                WARN_LOG("onLostDevice step %d restoring objs.", impl->stepRestore);
 #endif
                 const auto t = static_cast<float>(this->device->lsObjectRender2DW.size() + this->device->lsObjectRender2DS.size() + this->device->lsObjectRender3D.size());
                 if (t > 0.0f)
                 {
-                    this->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
-                    this->stepRestoreInfo = 98.0f / t * static_cast<float>(this->totalForByLoop);
+                    impl->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
+                    impl->stepRestoreInfo = 98.0f / t * static_cast<float>(impl->totalForByLoop);
                 }
                 else
                 {
-                    this->stepRestoreInfo = 0.001f;
-                    this->totalForByLoop = 1;
+                    impl->stepRestoreInfo = 0.001f;
+                    impl->totalForByLoop = 1;
                 }
-                this->percentRestoreInfo = 0.0f;
-                this->which_for = WFOR_2DW;
-                this->indexOnRestore = 0;
+                impl->percentRestoreInfo = 0.0f;
+                impl->whichFor = WFOR_2DW;
+                impl->indexOnRestore = 0;
                 return false;
             }
             break;
@@ -1044,7 +1057,7 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender2DW.size(); ++i)
+                    for (uint32_t i = impl->indexOnRestore, j = 0; i < this->device->lsObjectRender2DW.size(); ++i)
                     {
                         RENDERIZABLE* ptr = this->device->lsObjectRender2DW[i];
                         const bool    alwaysRenderize = ptr->alwaysRenderize;
@@ -1062,12 +1075,12 @@ namespace mbm
                         }
                         ptr->position = positionBefore;
                         ptr->angle = angleBefore;
-                        this->indexOnRestore = (i + 1);
-                        if (++j >= this->totalForByLoop)
+                        impl->indexOnRestore = (i + 1);
+                        if (++j >= impl->totalForByLoop)
                         {
-                            this->percentRestoreInfo += this->stepRestoreInfo;
+                            impl->percentRestoreInfo += impl->stepRestoreInfo;
                             if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                                device->scene->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1076,10 +1089,10 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (this->indexOnRestore >= this->device->lsObjectRender2DW.size())
+                    if (impl->indexOnRestore >= this->device->lsObjectRender2DW.size())
                     {
-                        this->indexOnRestore = 0;
-                        this->which_for = WFOR_2DS;
+                        impl->indexOnRestore = 0;
+                        impl->whichFor = WFOR_2DS;
                     }
                 }
                 return false;
@@ -1089,7 +1102,7 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender2DS.size(); ++i)
+                    for (uint32_t i = impl->indexOnRestore, j = 0; i < this->device->lsObjectRender2DS.size(); ++i)
                     {
                         RENDERIZABLE* ptr = this->device->lsObjectRender2DS[i];
                         const bool    alwaysRenderize = ptr->alwaysRenderize;
@@ -1107,12 +1120,12 @@ namespace mbm
                         }
                         ptr->position = positionBefore;
                         ptr->angle = angleBefore;
-                        this->indexOnRestore = (i + 1);
-                        if (++j >= this->totalForByLoop)
+                        impl->indexOnRestore = (i + 1);
+                        if (++j >= impl->totalForByLoop)
                         {
-                            this->percentRestoreInfo += this->stepRestoreInfo;
+                            impl->percentRestoreInfo += impl->stepRestoreInfo;
                             if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                                device->scene->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1121,10 +1134,10 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (this->indexOnRestore >= this->device->lsObjectRender2DS.size())
+                    if (impl->indexOnRestore >= this->device->lsObjectRender2DS.size())
                     {
-                        this->indexOnRestore = 0;
-                        this->which_for = WFOR_3D;
+                        impl->indexOnRestore = 0;
+                        impl->whichFor = WFOR_3D;
                     }
                 }
                 return false;
@@ -1134,7 +1147,7 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender3D.size(); ++i)
+                    for (uint32_t i = impl->indexOnRestore, j = 0; i < this->device->lsObjectRender3D.size(); ++i)
                     {
                         RENDERIZABLE* ptr = this->device->lsObjectRender3D[i];
                         const bool    alwaysRenderize = ptr->alwaysRenderize;
@@ -1152,12 +1165,12 @@ namespace mbm
                         }
                         ptr->position = positionBefore;
                         ptr->angle = angleBefore;
-                        this->indexOnRestore = (i + 1);
-                        if (++j >= this->totalForByLoop)
+                        impl->indexOnRestore = (i + 1);
+                        if (++j >= impl->totalForByLoop)
                         {
-                            this->percentRestoreInfo += this->stepRestoreInfo;
+                            impl->percentRestoreInfo += impl->stepRestoreInfo;
                             if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                                device->scene->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1166,10 +1179,10 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (this->indexOnRestore >= this->device->lsObjectRender3D.size())
+                    if (impl->indexOnRestore >= this->device->lsObjectRender3D.size())
                     {
-                        this->indexOnRestore = 0;
-                        this->which_for = WFOR_DONE;
+                        impl->indexOnRestore = 0;
+                        impl->whichFor = WFOR_DONE;
                     }
                     return false;
                 }
@@ -1177,17 +1190,17 @@ namespace mbm
             break;
             default: {};
             }
-            stepRestore = STEP_RES_END;
+            impl->stepRestore = STEP_RES_END;
             return false;
         }
-        else if (stepRestore == STEP_RES_END)
+        else if (impl->stepRestore == STEP_RES_END)
         {
 #if defined _DEBUG
-            WARN_LOG("onLostDevice step %d resumeGame", stepRestore);
+            WARN_LOG("onLostDevice step %d resumeGame", impl->stepRestore);
 #endif
-            stepRestore = STEP_RES_INIT_GL;
+            impl->stepRestore = STEP_RES_INIT_GL;
             device->clearBackGround = true;
-            if(wasGamePausedBeforeOnStop == false)
+            if(impl->wasGamePausedBeforeOnStop == false)
                 this->device->resumeGame();
             if (device->scene)
                 device->scene->onRestore(100);

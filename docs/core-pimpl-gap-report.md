@@ -208,6 +208,13 @@ Milestone 3 implementation note:
 - Plugin subscribe/destroy ordering remains unchanged.
 - `RENDERIZABLE` and `DEVICE` remain untouched by this milestone.
 
+Milestone 4 implementation note:
+
+- `CORE_MANAGER::Impl` now owns private loop/bootstrap and device-restore bookkeeping: `loopVariablesInitialized`, pause-before-stop state, restore phase, restore list selector, restore index, restore batch size, and restore progress values.
+- `getStepRestore()` remains public but is implemented out-of-line so it can read hidden state.
+- Backend constructors rely on `Impl` defaults instead of repeating restore-state initialization.
+- `nameApplication`, public compatibility flags, `RENDERIZABLE`, and `DEVICE` remain untouched by this milestone.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

@@ -45,17 +45,9 @@ namespace mbm
     {
         this->initializeImpl();
         this->device           = DEVICE::getInstance();
-        this->indexOnRestore   = 0;
-        this->totalForByLoop   = 0;
-        this->percentRestoreInfo = 0.0f;
-        this->stepRestoreInfo  = 0.1f;
-        this->stepRestore      = STEP_RES_INIT_GL;
-        this->which_for        = WFOR_INITIAL;
         this->changeScene               = true;
         this->__sceneWasInit            = false;
-        this->loopVariablesInitialized  = false;
         this->keyCapsLockState          = false;
-        this->wasGamePausedBeforeOnStop  = false;
         REMINDER_TODO
     }
     

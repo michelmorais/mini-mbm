@@ -267,17 +267,9 @@ namespace mbm
         bool keyCapsLockState;
         bool windowBorder;
         bool enableResizeWindow;
-        STEP_RETORE getStepRestore() const noexcept { return stepRestore; }
+        API_IMPL STEP_RETORE getStepRestore() const noexcept;
       private:
-        bool                                    wasGamePausedBeforeOnStop;
-        bool                                    loopVariablesInitialized;
         std::string  nameApplication;
-        WHICH_FOR    which_for;
-        STEP_RETORE  stepRestore;
-        uint32_t     indexOnRestore;
-        uint32_t     totalForByLoop;
-        float        stepRestoreInfo;
-        float        percentRestoreInfo;
         struct Impl;
         struct ImplDeleter
         {
