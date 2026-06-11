@@ -76,7 +76,7 @@ This is now the most useful next cleanup direction because it matches the real P
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
 | `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, `BUFFER_SPECIFIC`, `RENDER2TARGET_GLES`, `GLES_PS_VS`, GL debug macros. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Split backend-only structs and GL helper macros into a private backend header first. Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
-| `include/core_mbm/specific-directx9.h` | D3D9/COM types, Win32 window context, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `RENDER2TARGET_DIRECTX9`, DirectX helper functions. | DirectX9 backend files and Win32 platform helper files. | Good candidate for private move after Win32 platform helper ownership is clarified, because non-backend consumers are already limited. |
+| `include/core_mbm/specific-directx9.h` | D3D9/COM types, Win32 window context, `BUFFER_SPECIFIC`, `D3D_PS_VS`, and DirectX helper functions. `RENDER2TARGET_DIRECTX9` has moved to a private DirectX9 backend header. | DirectX9 backend files and Win32 platform helper files. | Move shader/buffer structs private later after their backend users are isolated. The context/window surface still needs a separate platform bridge decision. |
 | `include/core_mbm/specific-metal.h` | Metal/Cocoa/UIKit types, `BUFFER_SPECIFIC`, and full Metal `SPECIFIC_AUX_CONTEXT_DEVICE` layout. `RENDER2TARGET_METAL` has moved to a private Metal backend header. | Metal backend files and the ImGui Metal bridge plugin. | Move the buffer struct private next. Keep a minimal bridge for ImGui or replace plugin access with a small Metal frame context API. |
 | `include/core_mbm/specific-dummy.h` | Dummy backend context, buffer, and render-target structs. | Dummy backend and dummy Lua wrappers. | Keep as a template for now, but update it to model the private-header pattern once a real backend split is proven. |
 | `include/core_mbm/platform-win32.h` and `include/core_mbm/d3dx9-mingw.h` | Win32 window/event and DirectX compatibility types. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat separately from renderer PIMPL. They are platform integration headers, not render-resource ownership, but they still block a fully clean public boundary. |
@@ -84,7 +84,7 @@ This is now the most useful next cleanup direction because it matches the real P
 Recommended order:
 
 1. Do not add accessors for public gameplay/core flags only because they are public and strongly typed. Accessors are useful when they hide layout, preserve invariants, or replace repeated direct backend access.
-2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL` is done; remaining examples are `BUFFER_SPECIFIC`, `GLES_PS_VS`, `D3D_PS_VS`, `RENDER2TARGET_GLES`, and `RENDER2TARGET_DIRECTX9`.
+2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL` and `RENDER2TARGET_DIRECTX9` are done; remaining examples are `BUFFER_SPECIFIC`, `GLES_PS_VS`, `D3D_PS_VS`, and `RENDER2TARGET_GLES`.
 3. Leave `SPECIFIC_AUX_CONTEXT_DEVICE` visible where platform entry points still need concrete fields, especially Android asset/window/JNI setup and plugin render-device bridging.
 4. Add narrow platform bridge methods before hiding `SPECIFIC_AUX_CONTEXT_DEVICE` completely. Examples: Android asset manager lookup, native window update, X11 display/window lookup, Win32 native window lookup, and Metal drawable/pass access.
 5. After those bridges exist, move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers.
@@ -587,6 +587,13 @@ Milestone 53 implementation note:
 - Updated the Metal render-target owner/destructor path, Metal render-to-texture save path, Metal render-target texture creation, and Metal render-to-target pass code to include the private header explicitly.
 - Kept `SPECIFIC_AUX_CONTEXT_DEVICE` and `BUFFER_SPECIFIC` in `specific-metal.h` for now because platform/bootstrap, shader, mesh, device, and ImGui bridge code still need the concrete Metal context/buffer layout.
 - This is the first backend-header leakage pilot and does not change runtime ownership, object layout outside the private backend config, gameplay API, or `RENDERIZABLE`.
+
+Milestone 54 implementation note:
+
+- Moved `RENDER2TARGET_DIRECTX9` out of the public `include/core_mbm/specific-directx9.h` header and into the private backend header `src/core_mbm/specific-directx9-render-target.h`.
+- Updated the DirectX9 render-to-target pass, render-target texture creation, and render-to-texture owner/save paths to include the private header explicitly.
+- Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, `BUFFER_SPECIFIC`, and `D3D_PS_VS` in `specific-directx9.h` for now because window/bootstrap, shader, texture, blend, device, and platform helper code still need those concrete layouts.
+- This repeats the backend-header leakage pattern proven by Metal and does not change runtime ownership, gameplay API, or `RENDERIZABLE`.
 
 ### Phase 3 - Hide renderer backend handles
 

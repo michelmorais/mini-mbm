@@ -134,18 +134,6 @@ namespace mbm
         D3D_PS_VS& operator=(const D3D_PS_VS&) = delete;
     };
 
-    struct RENDER2TARGET_DIRECTX9
-    {
-        IDirect3DSurface9* pRenderSurface       = nullptr;
-        IDirect3DSurface9* pDepthStencilSurface = nullptr; // per-target depth stencil (matches render target size)
-        void release() noexcept;
-        RENDER2TARGET_DIRECTX9() noexcept = default;
-        ~RENDER2TARGET_DIRECTX9();
-        // Prevent copying (COM objects should not be copied)
-        RENDER2TARGET_DIRECTX9(const RENDER2TARGET_DIRECTX9&) = delete;
-        RENDER2TARGET_DIRECTX9& operator=(const RENDER2TARGET_DIRECTX9&) = delete;
-    };
-
     void copy_pixels_per_row_Pitch(D3DSURFACE_DESC& descSurfaceDest,
         const uint32_t width,
         const uint32_t height,

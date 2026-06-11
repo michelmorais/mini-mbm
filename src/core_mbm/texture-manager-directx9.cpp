@@ -21,6 +21,7 @@
 #if defined (USE_DIRECTX9)
 
 #include <specific-directx9.h>
+#include "specific-directx9-render-target.h"
 #include <texture-manager.h>
 #include <renderizable.h>
 #include <uber-image.h>
