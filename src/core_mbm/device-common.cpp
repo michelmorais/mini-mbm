@@ -52,6 +52,7 @@ namespace mbm
         CORE_MANAGER *ptrManager = nullptr;
         SHADER_CFG_LOADER cfg;
         mbm::ORDER_RENDER orderRender;
+        std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
         uint32_t totalObjectsOnFrustum3D = 0;
         uint32_t totalObjectsOnFrustum2D = 0;
@@ -264,6 +265,16 @@ namespace mbm
     const mbm::ORDER_RENDER & DEVICE::getOrderRender() const noexcept
     {
         return impl->orderRender;
+    }
+
+    std::map<std::string, DYNAMIC_VAR *> & DEVICE::getDynamicVars() noexcept
+    {
+        return impl->lsDynamicVarGlobal;
+    }
+
+    const std::map<std::string, DYNAMIC_VAR *> & DEVICE::getDynamicVars() const noexcept
+    {
+        return impl->lsDynamicVarGlobal;
     }
 
     void DEVICE::setBackBufferSize(const float width, const float height) noexcept
@@ -1054,12 +1065,12 @@ namespace mbm
 
     DEVICE::~DEVICE()
     {
-        for (const auto & i : this->lsDynamicVarGlobal)
+        for (const auto & i : impl->lsDynamicVarGlobal)
         {
             DYNAMIC_VAR *dVar = i.second;
             delete dVar;
         }
-        this->lsDynamicVarGlobal.clear();
+        impl->lsDynamicVarGlobal.clear();
         this->destroySpecificContext();
     }
 

@@ -434,12 +434,12 @@ namespace mbm
             const char *      what   = luaL_checkstring(lua, 1);
             const int         type   = lua_type(lua, 2);
             DEVICE *     device = DEVICE::getInstance();
-            DYNAMIC_VAR *dyVar  = device->lsDynamicVarGlobal[what];
+            DYNAMIC_VAR *dyVar  = device->getDynamicVars()[what];
             switch (type)
             {
                 case LUA_TNIL:
                 {
-                    device->lsDynamicVarGlobal[what] = nullptr;
+                    device->getDynamicVars()[what] = nullptr;
                     if (dyVar)
                         delete dyVar;
                 }
@@ -450,7 +450,7 @@ namespace mbm
                     if (dyVar == nullptr)
                     {
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_FLOAT, &var);
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                     else
                     {
@@ -475,7 +475,7 @@ namespace mbm
                             {
                                 delete dyVar;
                                 dyVar                            = new DYNAMIC_VAR(DYNAMIC_FLOAT, &var);
-                                device->lsDynamicVarGlobal[what] = dyVar;
+                                device->getDynamicVars()[what] = dyVar;
                             }
                         }
                     }
@@ -487,7 +487,7 @@ namespace mbm
                     if (dyVar == nullptr)
                     {
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_BOOL, &var);
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                     else if (dyVar->type == DYNAMIC_BOOL)
                     {
@@ -497,7 +497,7 @@ namespace mbm
                     {
                         delete dyVar;
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_BOOL, &var);
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                 }
                 break;
@@ -507,7 +507,7 @@ namespace mbm
                     if (dyVar == nullptr)
                     {
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_CSTRING, static_cast<const void*>(var));
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                     else if (dyVar->type == DYNAMIC_CSTRING)
                     {
@@ -517,7 +517,7 @@ namespace mbm
                     {
                         delete dyVar;
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_CSTRING, static_cast<const void*>(var));
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                 }
                 break;
@@ -541,7 +541,7 @@ namespace mbm
         const char *      what      = luaL_checkstring(lua, 1);
         const char *      strinChar = nullptr;
         DEVICE *     device    = DEVICE::getInstance();
-        DYNAMIC_VAR *dyVar     = device->lsDynamicVarGlobal[what];
+        DYNAMIC_VAR *dyVar     = device->getDynamicVars()[what];
         if (dyVar == nullptr)
         {
             lua_pushnil(lua);
@@ -767,7 +767,7 @@ namespace mbm
             }
             else if (strcasecmp(what, "exe") == 0 || strcasecmp(what, "exe name") == 0 || strcasecmp(what, "exename") == 0)
             {
-                DYNAMIC_VAR* dExeName = device->lsDynamicVarGlobal["_executable_name_"];
+                DYNAMIC_VAR* dExeName = device->getDynamicVars()["_executable_name_"];
                 if(dExeName)
                     lua_pushstring(lua, dExeName->getString());
                 else
@@ -1273,26 +1273,26 @@ namespace mbm
         const auto & globals_lua = get_globals_lua();
         for(const auto & global_name :  globals_lua)
         {
-            DYNAMIC_VAR* dynamic_var = device->lsDynamicVarGlobal[global_name];
+            DYNAMIC_VAR* dynamic_var = device->getDynamicVars()[global_name];
             if(dynamic_var)
             {
-                device->lsDynamicVarGlobal[global_name] = nullptr;
+                device->getDynamicVars()[global_name] = nullptr;
                 map_globals[global_name] = dynamic_var;
             }
         }
-        for (const auto & dynamic_var : device->lsDynamicVarGlobal)
+        for (const auto & dynamic_var : device->getDynamicVars())
         {
             DYNAMIC_VAR *dVar = dynamic_var.second;
             if(dVar)
                 delete dVar;
         }
-        device->lsDynamicVarGlobal.clear();
+        device->getDynamicVars().clear();
         for(const auto & global_name :  globals_lua)
         {
             DYNAMIC_VAR* dynamic_var = map_globals[global_name];
             if(dynamic_var)
             {
-                device->lsDynamicVarGlobal[global_name] = dynamic_var;
+                device->getDynamicVars()[global_name] = dynamic_var;
             }
         }
         return 0;

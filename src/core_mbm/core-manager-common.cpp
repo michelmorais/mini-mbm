@@ -967,7 +967,7 @@ namespace mbm
         std::thread* exec_thread         = new std::thread(fExecute, std::string(command));
 #endif
         DYNAMIC_VAR* dyVar               = new DYNAMIC_VAR(DYNAMIC_REF,static_cast<const void*>(exec_thread));
-        device->lsDynamicVarGlobal[name] = dyVar;
+        device->getDynamicVars()[name] = dyVar;
     }
     #endif
 

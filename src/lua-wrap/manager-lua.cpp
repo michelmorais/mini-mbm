@@ -173,20 +173,20 @@ namespace mbm
                 auto expectedWidth  = static_cast<int>(device->getBackBufferWidth());
                 auto expectedHeight = static_cast<int>(device->getBackBufferHeight());
 
-                DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
+                DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
                 if(D_expectedW && D_expectedW->type == DYNAMIC_INT)
                     expectedWidth = static_cast<unsigned int>(D_expectedW->getInt());
                 else if(D_expectedW && D_expectedW->type == DYNAMIC_FLOAT)
                     expectedWidth = static_cast<unsigned int>(D_expectedW->getFloat());
 
-                DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+                DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
                 if(D_expectedH->type == DYNAMIC_INT)
                     expectedHeight = static_cast<unsigned int>(D_expectedH->getInt());
                 else if(D_expectedH->type == DYNAMIC_FLOAT)
                     expectedHeight = static_cast<unsigned int>(D_expectedH->getFloat());
                 
                 char stretch[3] = "y";
-                DYNAMIC_VAR * D_scaleTo = device->lsDynamicVarGlobal["stretch"];
+                DYNAMIC_VAR * D_scaleTo = device->getDynamicVars()["stretch"];
                 if(D_scaleTo && D_scaleTo->type == DYNAMIC_CSTRING)
                 {
                     const char * pScale = D_scaleTo->getString();
@@ -1121,17 +1121,17 @@ namespace mbm
         bool SCENE_SCRIPT::doLauncher(const std::string& fileNameScene)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            mbm::DYNAMIC_VAR* var = device->lsDynamicVarGlobal["fileNameScene"];
+            mbm::DYNAMIC_VAR* var = device->getDynamicVars()["fileNameScene"];
             if (var == nullptr)
             {
                 var = new DYNAMIC_VAR(DYNAMIC_CSTRING, fileNameScene.c_str());
-                device->lsDynamicVarGlobal["fileNameScene"] = var;
+                device->getDynamicVars()["fileNameScene"] = var;
             }
             else if (var->type != DYNAMIC_CSTRING)
             {
                 delete var;
                 var = new DYNAMIC_VAR(DYNAMIC_CSTRING, fileNameScene.c_str());
-                device->lsDynamicVarGlobal["fileNameScene"] = var;
+                device->getDynamicVars()["fileNameScene"] = var;
             }
             else
             {
@@ -1211,7 +1211,7 @@ namespace mbm
             if(args.size() > 0)
             {
                 auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,args[0].c_str());
-                pLuaManager->device->lsDynamicVarGlobal["_executable_name_"] = dExeName;
+                pLuaManager->device->getDynamicVars()["_executable_name_"] = dExeName;
             }
             
             this->hasValueTextureLogo = false;
@@ -1250,7 +1250,7 @@ namespace mbm
             std::vector<std::string> lsArg;
             
             auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,argv[0]);
-            pLuaManager->device->lsDynamicVarGlobal["_executable_name_"] = dExeName;
+            pLuaManager->device->getDynamicVars()["_executable_name_"] = dExeName;
             
             this->hasValueTextureLogo = false;
             lsArg.reserve(argc);
@@ -1286,26 +1286,26 @@ namespace mbm
         void LUA_MANAGER::setExpectedSizeOfWindow(int expectedWidth,int expectedHeight,const char * stretch)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
-            DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+            DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
+            DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
             if(D_expectedW == nullptr)
-                device->lsDynamicVarGlobal["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&expectedWidth);
+                device->getDynamicVars()["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&expectedWidth);
             else if(D_expectedW->type == DYNAMIC_INT)
                 D_expectedW->setInt(expectedWidth);
             else if(D_expectedW->type == DYNAMIC_FLOAT)
                 D_expectedW->setFloat(static_cast<float>(expectedWidth));
 
             if(D_expectedH == nullptr)
-                device->lsDynamicVarGlobal["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&expectedHeight);
+                device->getDynamicVars()["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&expectedHeight);
             else if(D_expectedH->type == DYNAMIC_INT)
                 D_expectedH->setInt(expectedHeight);
             else if(D_expectedH->type == DYNAMIC_FLOAT)
                 D_expectedH->setFloat(static_cast<float>(expectedHeight));
             if(stretch)
             {
-                DYNAMIC_VAR * D_scaleTo = device->lsDynamicVarGlobal["stretch"];
+                DYNAMIC_VAR * D_scaleTo = device->getDynamicVars()["stretch"];
                 if(D_scaleTo == nullptr)
-                    device->lsDynamicVarGlobal["stretch"] = new DYNAMIC_VAR(DYNAMIC_CSTRING,stretch);
+                    device->getDynamicVars()["stretch"] = new DYNAMIC_VAR(DYNAMIC_CSTRING,stretch);
                 else if(D_scaleTo->type == DYNAMIC_CSTRING)
                     D_scaleTo->setString(stretch);
             }
@@ -1314,8 +1314,8 @@ namespace mbm
         void LUA_MANAGER::getExpectedSizeOfWindow(int & expectedWidth,int & expectedHeight, std::string & stretch)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
-            DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+            DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
+            DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
             if(D_expectedW)
             {
                 if(D_expectedW->type == DYNAMIC_INT)
@@ -1331,7 +1331,7 @@ namespace mbm
                 else if(D_expectedH->type == DYNAMIC_FLOAT)
                     expectedHeight = static_cast<int>(D_expectedH->getFloat());
             }
-            DYNAMIC_VAR * D_scaleTo = device->lsDynamicVarGlobal["stretch"];
+            DYNAMIC_VAR * D_scaleTo = device->getDynamicVars()["stretch"];
             if(D_scaleTo && D_scaleTo->type == DYNAMIC_CSTRING)
                 stretch = D_scaleTo->getString();
         }
@@ -1466,17 +1466,17 @@ namespace mbm
                             {
                                 const char *      name  = result[0].c_str();
                                 const char *      value = result[1].c_str();
-                                DYNAMIC_VAR *var   = device->lsDynamicVarGlobal[name];
+                                DYNAMIC_VAR *var   = device->getDynamicVars()[name];
                                 if (var)
                                     delete var;
                                 auto vFloat    = static_cast<float>(std::atof(value));
                                 int vInt        = std::atoi(value);
                                 if(vFloat != 0.0f) //-V550
-                                    device->lsDynamicVarGlobal[name] = new DYNAMIC_VAR(DYNAMIC_FLOAT,&vFloat);
+                                    device->getDynamicVars()[name] = new DYNAMIC_VAR(DYNAMIC_FLOAT,&vFloat);
                                 else if(vInt != 0)
-                                    device->lsDynamicVarGlobal[name] = new DYNAMIC_VAR(DYNAMIC_INT,&vInt);
+                                    device->getDynamicVars()[name] = new DYNAMIC_VAR(DYNAMIC_INT,&vInt);
                                 else
-                                    device->lsDynamicVarGlobal[name] = new DYNAMIC_VAR(DYNAMIC_CSTRING,value);
+                                    device->getDynamicVars()[name] = new DYNAMIC_VAR(DYNAMIC_CSTRING,value);
                             }
                             else
                             {
@@ -1501,7 +1501,7 @@ namespace mbm
                                             {
                                                 const char *      name  = result[0].c_str();
                                                 const char *      value = result[1].c_str();
-                                                DYNAMIC_VAR *var   = device->lsDynamicVarGlobal[name];
+                                                DYNAMIC_VAR *var   = device->getDynamicVars()[name];
                                                 if (var)
                                                     delete var;
                                                 auto vFloat    = static_cast<float>(std::atof(value));
@@ -1512,7 +1512,7 @@ namespace mbm
                                                     var = new DYNAMIC_VAR(DYNAMIC_INT,&vInt);
                                                 else
                                                     var = new DYNAMIC_VAR(DYNAMIC_CSTRING,value);
-                                                device->lsDynamicVarGlobal[name] = var;
+                                                device->getDynamicVars()[name] = var;
                                             }
                                         }
 
@@ -1563,9 +1563,9 @@ namespace mbm
                                         int newW = std::atoi(arg);
                                         if (newW > 0)
                                         {
-                                            DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
+                                            DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
                                             if(D_expectedW == nullptr)
-                                                device->lsDynamicVarGlobal["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
+                                                device->getDynamicVars()["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
                                             else if(D_expectedW->type == DYNAMIC_INT)
                                                 D_expectedW->setInt(newW);
                                             else if(D_expectedW->type == DYNAMIC_FLOAT)
@@ -1579,9 +1579,9 @@ namespace mbm
                                         int newH = std::atoi(arg);
                                         if (newH > 0)
                                         {
-                                            DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+                                            DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
                                             if(D_expectedH == nullptr)
-                                                device->lsDynamicVarGlobal["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
+                                                device->getDynamicVars()["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
                                             else if(D_expectedH->type == DYNAMIC_INT)
                                                 D_expectedH->setInt(newH);
                                             else if(D_expectedH->type == DYNAMIC_FLOAT)
@@ -1666,9 +1666,9 @@ namespace mbm
                             auto newW = (unsigned int)std::atoi(arg);
                             if (newW > 0)
                             {
-                                DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
+                                DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
                                 if(D_expectedW == nullptr)
-                                    device->lsDynamicVarGlobal["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
+                                    device->getDynamicVars()["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
                                 else if(D_expectedW->type == DYNAMIC_INT)
                                     D_expectedW->setInt(newW);
                                 else if(D_expectedW->type == DYNAMIC_FLOAT)
@@ -1676,7 +1676,7 @@ namespace mbm
                                 else
                                 {
                                     delete D_expectedW;
-                                    device->lsDynamicVarGlobal["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
+                                    device->getDynamicVars()["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
                                 }
                             }
                         }
@@ -1686,9 +1686,9 @@ namespace mbm
                             auto newH = (unsigned int)std::atoi(arg);
                             if (newH > 0)
                             {
-                                DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+                                DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
                                 if(D_expectedH == nullptr)
-                                    device->lsDynamicVarGlobal["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
+                                    device->getDynamicVars()["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
                                 else if(D_expectedH->type == DYNAMIC_INT)
                                     D_expectedH->setInt(newH);
                                 else if(D_expectedH->type == DYNAMIC_FLOAT)
@@ -1696,7 +1696,7 @@ namespace mbm
                                 else
                                 {
                                     delete D_expectedH;
-                                    device->lsDynamicVarGlobal["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
+                                    device->getDynamicVars()["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
                                 }
                             }
                         }

@@ -27,7 +27,9 @@
 #include "frustum.h"
 #include "camera.h"
 #include "time-control.h"
+#include <map>
 #include <memory>
+#include <string>
 
 namespace mbm
 {
@@ -51,7 +53,6 @@ namespace mbm
       public:
         CAMERA camera;
     
-        std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         SCENE *             scene;
         API_IMPL static DEVICE *     getInstance();
         API_IMPL void initializeSpecificContext();
@@ -68,6 +69,8 @@ namespace mbm
         API_IMPL const SHADER_CFG_LOADER & getShaderConfig() const noexcept;
         API_IMPL mbm::ORDER_RENDER & getOrderRender() noexcept;
         API_IMPL const mbm::ORDER_RENDER & getOrderRender() const noexcept;
+        API_IMPL std::map<std::string, DYNAMIC_VAR *> & getDynamicVars() noexcept;
+        API_IMPL const std::map<std::string, DYNAMIC_VAR *> & getDynamicVars() const noexcept;
         API_IMPL void setBackBufferSize(float width, float height) noexcept;
         API_IMPL void setBackBufferWidth(float width) noexcept;
         API_IMPL void setBackBufferHeight(float height) noexcept;
