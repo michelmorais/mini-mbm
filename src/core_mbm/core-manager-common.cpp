@@ -599,13 +599,13 @@ namespace mbm
         // prepara para renderizar os objeto --
         device->setTotalObjectsIsRendering3D(0);
         device->setTotalObjectsOnFrustum3D(0);
-        auto &render3DList                = this->device->getRender3DList();
+        auto &render3DList                = device->getRender3DList();
         device->setTotalObjects3D(static_cast<uint32_t>(render3DList.size()));
         device->setTotalObjectsIsRendering2D(0);
         device->setTotalObjectsOnFrustum2D(0);
-        auto &render2DSList               = this->device->getRender2DSList();
+        auto &render2DSList               = device->getRender2DSList();
         const auto total2ds       = static_cast<uint32_t>(render2DSList.size());
-        auto &render2DWList               = this->device->getRender2DWList();
+        auto &render2DWList               = device->getRender2DWList();
         const auto total2dw       = static_cast<uint32_t>(render2DWList.size());
         device->setTotalObjects2D(total2ds + total2dw);
 
@@ -635,7 +635,7 @@ namespace mbm
         {
             device->clearDepthColored();
         }
-        CAMERA &camera = this->device->getCamera();
+        CAMERA &camera = device->getCamera();
         device->updateFrustum(&camera.matrixView, &camera.matrixProj);
         camera.updateNormalsRelativeCam();
         camera.calculateAzimuthFromCamera();
@@ -682,47 +682,49 @@ namespace mbm
 
     void CORE_MANAGER::_updateDimFrustum()
     {
+        DEVICE *device = this->getDevice();
         VEC3 point(0, 0, 50);
-        CAMERA &camera = this->device->getCamera();
-        this->device->setNearFrustumDimension(VEC3(0, 0, 20));
-        this->device->setFarFrustumDimension(VEC3(0, 0, 980));
-        camera.updateCam(true, this->device->getBackBufferWidth(), this->device->getBackBufferHeight());
-        this->device->updateFrustum(&camera.matrixView, &camera.matrixProj);
-        while (this->device->isPointAtTheFrustum(point))
+        CAMERA &camera = device->getCamera();
+        device->setNearFrustumDimension(VEC3(0, 0, 20));
+        device->setFarFrustumDimension(VEC3(0, 0, 980));
+        camera.updateCam(true, device->getBackBufferWidth(), device->getBackBufferHeight());
+        device->updateFrustum(&camera.matrixView, &camera.matrixProj);
+        while (device->isPointAtTheFrustum(point))
         {
             point.x += 0.5f;
         }
-        this->device->setNearFrustumDimensionX(point.x * 2.0f);
+        device->setNearFrustumDimensionX(point.x * 2.0f);
 
         point = VEC3(0, 0, 50);
-        while (this->device->isPointAtTheFrustum(point))
+        while (device->isPointAtTheFrustum(point))
         {
             point.y += 0.5f;
         }
-        this->device->setNearFrustumDimensionY(point.y * 2.0f);
+        device->setNearFrustumDimensionY(point.y * 2.0f);
 
         point = VEC3(0, 0, 980);
-        while (this->device->isPointAtTheFrustum(point))
+        while (device->isPointAtTheFrustum(point))
         {
             point.x += 0.5f;
         }
-        this->device->setFarFrustumDimensionX(point.x * 2.0f);
+        device->setFarFrustumDimensionX(point.x * 2.0f);
 
         point = VEC3(0, 0, 980);
-        while (this->device->isPointAtTheFrustum(point))
+        while (device->isPointAtTheFrustum(point))
         {
             point.y += 0.5f;
         }
-        this->device->setFarFrustumDimensionY(point.y * 2.0f);
+        device->setFarFrustumDimensionY(point.y * 2.0f);
     }
     
     void CORE_MANAGER::adjustScaleScreen2d()
     {
-        CAMERA &camera = this->device->getCamera();
+        DEVICE *device = this->getDevice();
+        CAMERA &camera = device->getCamera();
         if (camera.expectedScreen.x != 0.0f && camera.expectedScreen.y != 0.0f) //-V550
         {
-            const float percx = this->device->getBackBufferWidth() / camera.expectedScreen.x;
-            const float percy = this->device->getBackBufferHeight() / camera.expectedScreen.y;
+            const float percx = device->getBackBufferWidth() / camera.expectedScreen.x;
+            const float percy = device->getBackBufferHeight() / camera.expectedScreen.y;
             if (percx != 0.0f && percy != 0.0f) //-V550
             {
                 if (camera.stretch[0])
