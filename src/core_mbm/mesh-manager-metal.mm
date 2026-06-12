@@ -26,6 +26,7 @@
 #include <shader.h>           // BUFFER_GL full definition, FVF_PROVIDE_BY_ENGINE
 #include <texture-manager.h>  // TEXTURE::getFileNameTexture()
 #include <specific-metal.h>
+#include "specific-metal-buffer.h"
 #include <util-interface.h>
 #include <header-mesh.h>      // HEADER_FRAME, BUFFER_MESH_DEBUG, SUBSET_DEBUG
 #include <shapes.h>           // INFO_BOUND_FONT::letterDiffY

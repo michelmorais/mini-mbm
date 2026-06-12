@@ -17,6 +17,7 @@
 #if defined(USE_METAL)
 
 #include <specific-metal.h>
+#include "specific-metal-buffer.h"
 #include "specific-metal-render-target.h"
 
 namespace mbm

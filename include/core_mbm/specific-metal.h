@@ -36,19 +36,6 @@
 
 namespace mbm
 {
-    // Per-mesh GPU vertex/index buffers.
-    struct BUFFER_SPECIFIC
-    {
-        id<MTLBuffer> vertexBuffer = nil;
-        id<MTLBuffer> indexBuffer  = nil;
-        NSUInteger    vertexCount  = 0;
-        NSUInteger    indexCount   = 0;
-
-        BUFFER_SPECIFIC() noexcept = default;
-        ~BUFFER_SPECIFIC();
-        void release();
-    };
-
     // Window + Metal device context, accessed through DEVICE::getSpecificContextDevice().
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
