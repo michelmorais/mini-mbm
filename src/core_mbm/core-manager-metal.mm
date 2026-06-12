@@ -43,7 +43,8 @@ namespace mbm
     {
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+            DEVICE *device = this->getDevice();
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
             if (!ctx) return;
             if (ctx->currentCommandBuffer && ctx->currentDrawable)
             {
@@ -57,14 +58,15 @@ namespace mbm
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         if (!ctx || !ctx->metalLayer) return true;
 
         // newWidth/newHeight are in logical points; scale up to physical pixels
         // for the Metal drawable (so Retina displays render at full resolution).
         const CGFloat sc = ctx->metalLayer.contentsScale > 0.0 ? ctx->metalLayer.contentsScale : 1.0;
         ctx->metalLayer.drawableSize = CGSizeMake(newWidth * sc, newHeight * sc);
-        this->device->setBackBufferSize(static_cast<float>(newWidth), static_cast<float>(newHeight));
+        device->setBackBufferSize(static_cast<float>(newWidth), static_cast<float>(newHeight));
         return true;
     }
 
@@ -72,7 +74,8 @@ namespace mbm
     {
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+            DEVICE *device = this->getDevice();
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
             if (!ctx || !ctx->commandQueue || !ctx->metalLayer) return false;
 
             ctx->currentDrawable = [ctx->metalLayer nextDrawable];
@@ -140,7 +143,8 @@ namespace mbm
 
     void CORE_MANAGER::endRender()
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         if (!ctx) return;
         if (ctx->currentEncoder)
         {
@@ -249,7 +253,8 @@ namespace mbm
         (void)min_x; (void)min_y; (void)max_x; (void)max_y;
         // iOS windows are always full-screen; min/max size is not applicable.
 #else
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         NSWindow* win = ctx->window;
         if (!win) return;
 
