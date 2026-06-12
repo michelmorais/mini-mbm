@@ -28,7 +28,7 @@
 #include <plugin-helper/user-data-lua.h>
 
 #if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
+    #include <core_mbm/android-bridge.h>
 #else
     #error "This file is only for OpenGL ES"
 #endif

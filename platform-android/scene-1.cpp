@@ -21,7 +21,7 @@
 
 #include "scene-1.h"
 #include <util-interface.h>
-#include <core_mbm/specific-opengl_es.h>
+#include <core_mbm/android-bridge.h>
 
 MY_SCENE::MY_SCENE()
 {

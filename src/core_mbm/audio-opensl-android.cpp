@@ -22,9 +22,9 @@
 #if defined(USE_OPENGL_ES)
 
 #include <audio.h>
+#include <android-bridge.h>
 #include <core-manager.h>
 #include <util-interface.h>
-#include <specific-opengl_es.h>
 
 #include <android/asset_manager.h>
 #include <android/log.h>

@@ -22,7 +22,7 @@
 #endif
 
 #if defined USE_OPENGL_ES && defined ANDROID
-    #include <core_mbm/specific-opengl_es.h>
+    #include <core_mbm/android-bridge.h>
 #endif
 
 #include "sqlite3ext.h"

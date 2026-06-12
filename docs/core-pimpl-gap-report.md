@@ -904,6 +904,14 @@ Milestone 89 implementation note:
 - Updated the MSVS project and filter references to the new private file location so the solution does not point at a removed public header.
 - MSVS behavior remains unchanged: `_MSC_VER` still includes the standard `d3dx9.h` and links `d3dx9.lib`; the compatibility shim remains MinGW/Cygwin-only.
 
+Milestone 90 implementation note:
+
+- Added public `include/core_mbm/android-bridge.h` for Android bridge functions that do not require consumers to include the OpenGL ES backend utility header.
+- `include/core_mbm/specific-opengl_es.h` includes the Android bridge on Android for source compatibility, but it no longer owns the `android*` bridge declarations directly.
+- Migrated Android platform entry points, Android Lua wrappers, file/asset helpers, OpenSL Android audio, Android texture loading, and the lsqlite3 asset package helper to include `android-bridge.h` when they only need Android bridge functions.
+- Removed an unnecessary GLES-header include from the Android sample scene that did not use any GLES or Android bridge symbols.
+- This reduces accidental EGL/GLES exposure in Android non-render code while leaving GL wrapper macros and real GLES backend files untouched.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.

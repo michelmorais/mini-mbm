@@ -28,13 +28,12 @@
 #include <static-resource/resource-particle.h>
 
 #if defined ANDROID
-    #include <device.h>
     #if defined     USE_OPENGL_ES
         #if defined (USE_DUMMY_BACK_END_ENGINE)
             // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
             #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
         #else
-            #include <core_mbm/specific-opengl_es.h>
+            #include <core_mbm/android-bridge.h>
         #endif
     #endif
 #endif

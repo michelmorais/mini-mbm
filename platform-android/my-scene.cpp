@@ -19,7 +19,6 @@
 
 #include "my-scene.h"
 #include <core_mbm/util-interface.h>
-#include <core_mbm/specific-opengl_es.h>
 
 MY_SCENE::MY_SCENE()
     : texBox(nullptr)

@@ -35,8 +35,8 @@
 #   include "my-scene.h"
 #endif
 
+#include <core_mbm/android-bridge.h>
 #include <core_mbm/device.h>
-#include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
 
 // ---------------------------------------------------------------------------

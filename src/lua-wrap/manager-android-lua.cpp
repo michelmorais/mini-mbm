@@ -33,7 +33,7 @@ extern "C"
 #include <core_mbm/scene.h>
 
 #if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
+    #include <core_mbm/android-bridge.h>
 #elif defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
     #include <core_mbm/specific-dummy.h> // for specific context of dummy engine
 #else

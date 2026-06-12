@@ -23,6 +23,10 @@
 #include "core-exports.h"
 #include <stdint.h>
 
+#if defined(ANDROID)
+    #include "android-bridge.h"
+#endif
+
 #if defined ANDROID
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
@@ -561,38 +565,6 @@ void printGLString(const char *name, GLenum s);
 void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #if defined(ANDROID)
-
-    API_IMPL const char *androidGetAbsPath() noexcept;
-    API_IMPL bool androidAbsPathEndsWithSlash() noexcept;
-    API_IMPL void androidAddPath(const char *path);
-    API_IMPL const char *androidCopyFileFromAsset(const char *fileName, const char *mode);
-    API_IMPL void *androidGetAssetManager() noexcept;
-    API_IMPL void androidRequestQuit();
-    API_IMPL int androidGetKeyCode(const char *key);
-    API_IMPL const char *androidGetKeyName(int key);
-    API_IMPL const char *androidGetIdiom();
-    API_IMPL const char *androidGetUserName();
-    API_IMPL const char *androidSaveFile(const char *defaultName);
-    API_IMPL bool androidRequestOpenFile(const char *callback, bool allowMultipleSelects);
-    API_IMPL bool androidShowMessageBox(const char *title, const char *message, const char *dialogType);
-    API_IMPL const char *androidOpenFolder(const char *title, const char *defaultPath);
-    API_IMPL void androidReleaseGraphicsContext(bool wasDeviceLost);
-    API_IMPL bool androidEnsureEGLSurface(int *width, int *height);
-    API_IMPL void androidSwapBuffers();
-    API_IMPL void androidStoreTextureFilters();
-    API_IMPL void *androidGetPluginSubscribeHandle() noexcept;
-    API_IMPL void androidSetRuntimePaths(const char *absPath, const char *apkPath);
-    API_IMPL void androidSetAssetManager(void *assetManager);
-    API_IMPL void androidSetNativeWindow(void *nativeWindow);
-    API_IMPL bool androidAttachNativeActivityThread(void *javaVm, void *activityObj, const char *packageNameClasses);
-    API_IMPL void *androidCreateActivityGlobalRef(void *activityObj);
-    API_IMPL void androidDeleteGlobalRef(void *globalRef);
-    API_IMPL bool androidCallActivityDoCommands(void *activityObj, const char *cmd, const char *param, char *result,
-                                                int maxSize);
-    API_IMPL void *androidGetJNIEnv() noexcept;
-    API_IMPL void androidSetJNIEnv(void *jniEnv);
-    API_IMPL void androidCacheJavaClasses(const char *packageNameClasses);
-    API_IMPL uint8_t *androidGetImageDataFromDroid(const char *fileName, int *width, int *height);
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE;
 

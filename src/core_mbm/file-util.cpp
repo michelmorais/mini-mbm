@@ -38,7 +38,7 @@
     #include <sys/stat.h>
     #include <sys/types.h>
     #include <errno.h>
-    #include <specific-opengl_es.h>
+    #include <android-bridge.h>
 #elif __linux__ || defined(__APPLE__)
     #include <climits>
     #include <cstdarg>
