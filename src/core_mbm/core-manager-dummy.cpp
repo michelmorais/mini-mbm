@@ -55,7 +55,8 @@ namespace mbm
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->getSpecificContextDevice()->release(wasDeviceLost);
+        DEVICE *device = this->getDevice();
+        device->getSpecificContextDevice()->release(wasDeviceLost);
         REMINDER_TODO
     }
     
@@ -112,12 +113,14 @@ namespace mbm
 
     bool CORE_MANAGER::renderToTargets()
     {
+        DEVICE *device = this->getDevice();
+        CAMERA &camera = device->getCamera();
         bool oneRender                 = false;
         REMINDER_TODO
-        const uint32_t totalRenderTargets = this->device->getTotalRenderTargets();
+        const uint32_t totalRenderTargets = device->getTotalRenderTargets();
         for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
-            auto renderTarget = this->device->getRenderTarget(i);
+            auto renderTarget = device->getRenderTarget(i);
             if (!renderTarget)
                 continue;
             if (!renderTarget->isObjectOnFrustum)
@@ -127,20 +130,21 @@ namespace mbm
             if (!renderTarget->render2Texture())
             {
                 ERROR_AT(__LINE__, __FILE__, "Error render2Texture!");
-                this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+                camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             oneRender = true;
         }
         if (oneRender)
         {
-            this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+            camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
     
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
+        DEVICE *device = this->getDevice();
         for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
         {
             const PLUGIN * thatPlugin = this->getPlugin(i);
@@ -154,7 +158,7 @@ namespace mbm
             const unsigned int indexPlugin = this->appendPlugin(plugin);
             REMINDER_TODO
             void * handle = nullptr;
-            plugin->onSubscribe(static_cast<int>(this->device->getBackBufferWidth()),static_cast<int>(this->device->getBackBufferHeight()), handle, nullptr);
+            plugin->onSubscribe(static_cast<int>(device->getBackBufferWidth()),static_cast<int>(device->getBackBufferHeight()), handle, nullptr);
             return indexPlugin;
         }
         return 0xffffffff;
