@@ -102,17 +102,6 @@ namespace mbm
     bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line);
     #define CHECK_AND_LOG_HRESULT_DX(hr) checkAndLogHresultResultDx((hr), __FILE__, __LINE__)
 
-    struct BUFFER_SPECIFIC
-    {
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        FVF_PROVIDE_BY_ENGINE FVF;
-        uint32_t sizeStructVertexInBytes;
-        IDirect3DVertexBuffer9* pVertexBuffer;
-        IDirect3DIndexBuffer9* pIndexBuffer;
-        void release();
-    };
-
     struct D3D_PS_VS
     {
         IDirect3DPixelShader9* pd3dPixelShader;//Pixel Shader

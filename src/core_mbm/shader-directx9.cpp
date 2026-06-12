@@ -25,6 +25,7 @@
 #include <shader-var-cfg.h>
 #include <device.h>
 #include <specific-directx9.h>
+#include "specific-directx9-buffer.h"
 #include <header-mesh.h>
 #include <draw-compatibility.h>
 #include <texture-manager.h>
