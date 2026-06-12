@@ -77,9 +77,6 @@ namespace mbm
         IDirect3DVertexDeclaration9* vertex_declaration_pos_norm_uv;
     };
 
-    bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line);
-    #define CHECK_AND_LOG_HRESULT_DX(hr) checkAndLogHresultResultDx((hr), __FILE__, __LINE__)
-
 }
 
 #endif

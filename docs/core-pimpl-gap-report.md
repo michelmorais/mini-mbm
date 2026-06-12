@@ -76,7 +76,7 @@ This is now the most useful next cleanup direction because it matches the real P
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
 | `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, and `GLES_PS_VS` have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
-| `include/core_mbm/specific-directx9.h` | D3D9/COM types, Win32 window context, and the HRESULT logging helper. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, and `D3D_VERTEX_CONVERTER` have moved to private DirectX9 backend headers. The texture pixel-copy helper is now file-local. | DirectX9 backend files and Win32 platform helper files. | The context/window surface still needs a separate platform bridge decision. |
+| `include/core_mbm/specific-directx9.h` | D3D9/COM types and Win32 window context. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, and the HRESULT logging helper have moved to private DirectX9 backend headers. The texture pixel-copy helper is file-local. | DirectX9 backend files and Win32 platform helper files. | The context/window surface still needs a separate platform bridge decision. |
 | `include/core_mbm/specific-metal.h` | Metal/Cocoa/UIKit types and full Metal `SPECIFIC_AUX_CONTEXT_DEVICE` layout. `RENDER2TARGET_METAL` and `BUFFER_SPECIFIC` have moved to private Metal backend headers. | Metal backend files and the ImGui Metal bridge plugin. | Keep a minimal bridge for ImGui or replace plugin access with a small Metal frame context API before hiding the full context layout. |
 | `include/core_mbm/specific-dummy.h` | Dummy backend context, buffer, and render-target structs. | Dummy backend and dummy Lua wrappers. | Keep as a template for now, but update it to model the private-header pattern once a real backend split is proven. |
 | `include/core_mbm/platform-win32.h` and `include/core_mbm/d3dx9-mingw.h` | Win32 window/event and DirectX compatibility types. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat separately from renderer PIMPL. They are platform integration headers, not render-resource ownership, but they still block a fully clean public boundary. |
@@ -648,8 +648,15 @@ Milestone 62 implementation note:
 
 - Removed the `copy_pixels_per_row_Pitch` declaration from the public `include/core_mbm/specific-directx9.h` header.
 - Made `copy_pixels_per_row_Pitch` file-local inside `src/core_mbm/texture-manager-directx9.cpp`, where all current call sites already live.
-- Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, the HRESULT logging helper, and Win32 integration types in `specific-directx9.h` for now because window/bootstrap, device, and platform helper code still need those definitions.
+- Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, the HRESULT logging helper, and Win32 integration types in `specific-directx9.h` at that point because window/bootstrap, device, and platform helper code still needed those definitions. Milestone 63 later moves the HRESULT helper.
 - This removes a texture-only DirectX9 helper from the public backend header without changing texture upload behavior, gameplay API, or `RENDERIZABLE`.
+
+Milestone 63 implementation note:
+
+- Moved the DirectX9 HRESULT logging helper declaration and `CHECK_AND_LOG_HRESULT_DX` macro out of the public `include/core_mbm/specific-directx9.h` header and into the private backend header `src/core_mbm/specific-directx9-hresult.h`.
+- Updated the DirectX9 core-manager render path and helper implementation file to include the private HRESULT header explicitly.
+- Kept `SPECIFIC_AUX_CONTEXT_DEVICE` and Win32 integration types in `specific-directx9.h` for now because window/bootstrap, device, and platform helper code still need those definitions.
+- This removes the last free helper declaration from the public DirectX9 backend header without changing render begin error handling, gameplay API, or `RENDERIZABLE`.
 
 ### Phase 3 - Hide renderer backend handles
 
