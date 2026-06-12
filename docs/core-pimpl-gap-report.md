@@ -843,6 +843,21 @@ Milestone 83 implementation note:
 - The value passed to `PLUGIN::onSubscribe()` remains the current Android `JNIEnv*` handle for compatibility, but `CORE_MANAGER` no longer depends on the Android context layout.
 - Kept platform bootstrap context population unchanged for a later, separate milestone.
 
+Milestone 84 implementation note:
+
+- Added NativeActivity bootstrap bridge functions:
+  - `androidSetRuntimePaths()`
+  - `androidSetAssetManager()`
+  - `androidSetNativeWindow()`
+  - `androidAttachNativeActivityThread()`
+  - `androidCreateActivityGlobalRef()`
+  - `androidDeleteGlobalRef()`
+  - `androidCallActivityDoCommands()`
+- Migrated `platform-android/main-native-activity.cpp` away from direct `SPECIFIC_AUX_CONTEXT_DEVICE` field writes for paths, asset manager, native window, JNI env, class loader setup, and global activity reference deletion.
+- `android_command_handler()` now calls the Android bridge instead of using `JNIEnv*` directly.
+- The exported `Java_com_mini_mbm_MbmActivity_nativeOnCallBackCommands()` callback still has JNI parameters by ABI requirement, but it does not access the Android context layout.
+- Legacy Android entry points (`platform-android/main.cpp`, `platform-android/main-lua.cpp`, and `platform-android/scene-1.cpp`) still need a separate audit if they remain supported.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.

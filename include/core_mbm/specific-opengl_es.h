@@ -585,6 +585,14 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
     API_IMPL void androidSwapBuffers();
     API_IMPL void androidStoreTextureFilters();
     API_IMPL void *androidGetPluginSubscribeHandle() noexcept;
+    API_IMPL void androidSetRuntimePaths(const char *absPath, const char *apkPath);
+    API_IMPL void androidSetAssetManager(void *assetManager);
+    API_IMPL void androidSetNativeWindow(void *nativeWindow);
+    API_IMPL bool androidAttachNativeActivityThread(void *javaVm, void *activityObj, const char *packageNameClasses);
+    API_IMPL void *androidCreateActivityGlobalRef(void *activityObj);
+    API_IMPL void androidDeleteGlobalRef(void *globalRef);
+    API_IMPL bool androidCallActivityDoCommands(void *activityObj, const char *cmd, const char *param, char *result,
+                                                int maxSize);
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {

@@ -472,6 +472,95 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
         return context ? context->jenv : nullptr;
     }
+
+    void androidSetRuntimePaths(const char *absPath, const char *apkPath)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context)
+            return;
+        context->absPath = absPath ? absPath : "";
+        context->apkPath = apkPath ? apkPath : "";
+    }
+
+    void androidSetAssetManager(void *assetManager)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->assetManager = static_cast<AAssetManager *>(assetManager);
+    }
+
+    void androidSetNativeWindow(void *nativeWindow)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->nativeWindow = static_cast<ANativeWindow *>(nativeWindow);
+    }
+
+    bool androidAttachNativeActivityThread(void *javaVm, void *activityObj, const char *packageNameClasses)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        JavaVM *vm = static_cast<JavaVM *>(javaVm);
+        jobject activity = static_cast<jobject>(activityObj);
+        if (!context || !vm || !activity)
+            return false;
+        JNIEnv *jenv = nullptr;
+        vm->AttachCurrentThread(&jenv, nullptr);
+        if (!jenv)
+            return false;
+        context->jenv = jenv;
+        context->initClassLoader(activity);
+        context->cacheJavaClasses(packageNameClasses);
+        return true;
+    }
+
+    void *androidCreateActivityGlobalRef(void *activityObj)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        jobject activity = static_cast<jobject>(activityObj);
+        if (!context || !context->jenv || !activity)
+            return nullptr;
+        return context->jenv->NewGlobalRef(activity);
+    }
+
+    void androidDeleteGlobalRef(void *globalRef)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context && context->jenv && globalRef)
+            context->jenv->DeleteGlobalRef(static_cast<jobject>(globalRef));
+    }
+
+    bool androidCallActivityDoCommands(void *activityObj, const char *cmd, const char *param, char *result,
+                                       int maxSize)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        jobject activity = static_cast<jobject>(activityObj);
+        if (!context || !context->jenv || !activity || !result || maxSize <= 0)
+            return false;
+        JNIEnv *jenv = context->jenv;
+        jclass cls = jenv->GetObjectClass(activity);
+        jmethodID mid = jenv->GetMethodID(cls, "OnDoCommands",
+                                          "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+        jenv->DeleteLocalRef(cls);
+        if (!mid)
+            return false;
+        jstring jcmd = jenv->NewStringUTF(cmd ? cmd : "");
+        jstring jparam = jenv->NewStringUTF(param ? param : "");
+        jstring jret = static_cast<jstring>(jenv->CallObjectMethod(activity, mid, jcmd, jparam));
+        jenv->DeleteLocalRef(jcmd);
+        jenv->DeleteLocalRef(jparam);
+        if (jret)
+        {
+            const char *chars = jenv->GetStringUTFChars(jret, nullptr);
+            if (chars)
+            {
+                strncpy(result, chars, static_cast<size_t>(maxSize) - 1);
+                result[maxSize - 1] = '\0';
+                jenv->ReleaseStringUTFChars(jret, chars);
+            }
+            jenv->DeleteLocalRef(jret);
+        }
+        return true;
+    }
     
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():
     jenv(nullptr),
