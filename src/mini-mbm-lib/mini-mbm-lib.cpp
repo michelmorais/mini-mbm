@@ -260,7 +260,8 @@ namespace mbm
             mbm::setTheme(22, true);
         #endif
         mbm::LUA_MANAGER luaCore(args);
-        if(luaCore.device && luaCore.device->isVerbose())
+        DEVICE *device = luaCore.getDevice();
+        if(device && device->isVerbose())
             log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
     
         luaCore.onDoNativeCommand = externalDoNativeCommand;
@@ -290,14 +291,14 @@ namespace mbm
             }
             if(hideConsole)
                 mbm::hideConsoleWindow();
-    #endif
+#endif
             const int ret = luaCore.run();
-            const int code_quit = luaCore.device->getAppReturnCode();
+            const int code_quit = device->getAppReturnCode();
             return code_quit ? code_quit : ret;
         }
         else
         {
-            ERROR_LOG("Failed to load Mini Mbm %s engine backend [%s]", MBM_VERSION, luaCore.device->getBackendEngineName());
+            ERROR_LOG("Failed to load Mini Mbm %s engine backend [%s]", MBM_VERSION, device ? device->getBackendEngineName() : "unknown");
             //fprintf(stderr, "\nMini-Mbm-OpenGLES is necessary to have the following DLLs:");
             //fprintf(stderr, "\nlibEGL.dll, libGLESv2.dll and d3dcompiler_47.dll");
             //fprintf(stderr, "\nfound in mini-mbm/third-party/gles/bin");

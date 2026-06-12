@@ -160,6 +160,11 @@ namespace mbm
         return impl->keyCapsLockState;
     }
 
+    DEVICE *CORE_MANAGER::getDevice() const noexcept
+    {
+        return this->device;
+    }
+
     void CORE_MANAGER::setSceneInitialized(const bool initialized) noexcept
     {
         impl->sceneWasInitialized = initialized;

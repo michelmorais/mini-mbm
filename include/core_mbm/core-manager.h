@@ -207,6 +207,7 @@ namespace mbm
         API_IMPL bool initGraphics(const char *nameApplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
 
         API_IMPL int onLoop(const bool singleLoop, const bool doSwapBuffers);
+        API_IMPL DEVICE *getDevice() const noexcept;
         API_IMPL bool isKeyCapsLockOn() const noexcept;
         API_IMPL bool isSceneInitialized() const noexcept;
     

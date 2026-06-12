@@ -1031,6 +1031,13 @@ Milestone 105 implementation note:
 - Kept `device` public because platform startup, mobile bridges, and Lua/platform code still use it directly.
 - This is a narrow scene-lifecycle state cleanup and does not change scene initialization, loading, or finalize behavior.
 
+Milestone 106 implementation note:
+
+- Added exported `CORE_MANAGER::getDevice()` as the compatibility accessor for the remaining public device pointer.
+- Migrated the launcher library's repeated `LUA_MANAGER::device` reads to a local `DEVICE *device = luaCore.getDevice();`.
+- Kept `CORE_MANAGER::device` public because backend startup, Android/iOS bridges, Lua manager code, and platform glue still use it directly.
+- This is a prep milestone before any future broad migration of direct device field access.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1065,7 +1072,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
 - `ANIMATION_MANAGER`, restore backup object done; animation list/index/callback fields remain public pending accessor migration.
-- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, and scene-initialized flag done; remaining compatibility fields only if there is a clear invariant or dependency to hide.
+- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, and scene-initialized flag done; `getDevice()` compatibility accessor added before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
 
@@ -1099,7 +1106,7 @@ Only after engine internals, Lua bindings, plugins, examples, and editors use th
 This is future work only. It is not required for the completed OS/backend isolation goal.
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
-2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, the private `EFFECT_SHADER` shader cache, `MESH_MANAGER` singleton cache, the `ANIMATION_MANAGER` restore backup object, and selected `CORE_MANAGER` flags done.
+2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, the private `EFFECT_SHADER` shader cache, `MESH_MANAGER` singleton cache, the `ANIMATION_MANAGER` restore backup object, selected `CORE_MANAGER` flags, and the first `CORE_MANAGER::getDevice()` compatibility accessor done.
 3. Add complete accessor/mutator coverage for `EFFECT_SHADER`, `RENDERIZABLE`, `SCENE`, `ANIMATION_MANAGER`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
@@ -1128,7 +1135,7 @@ Current decision:
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
 6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; public animation list/index/callback state remains pending accessor migration.
-7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `device` remains a public compatibility field.
+7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists, but `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.
