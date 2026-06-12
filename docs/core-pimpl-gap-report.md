@@ -78,7 +78,7 @@ This is now the most useful next cleanup direction because it matches the real P
 | `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, and `GLES_PS_VS` have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
 | `include/core_mbm/specific-directx9.h` | D3D9/COM types and Win32 window context. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, and the HRESULT logging helper have moved to private DirectX9 backend headers. The texture pixel-copy helper is file-local. Direct dependencies on `core-manager.h`, `shader.h`, `primitives.h`, and D3DX headers have been removed. | DirectX9 backend files and Win32 platform helper files. | The context/window surface still needs a separate platform bridge decision. |
 | `include/core_mbm/specific-metal.h` | Metal/Cocoa/UIKit types and full Metal `SPECIFIC_AUX_CONTEXT_DEVICE` layout. `RENDER2TARGET_METAL` and `BUFFER_SPECIFIC` have moved to private Metal backend headers. | Metal backend files and the ImGui Metal bridge plugin. | Keep a minimal bridge for ImGui or replace plugin access with a small Metal frame context API before hiding the full context layout. |
-| `include/core_mbm/specific-dummy.h` | Dummy backend context and buffer structs. `RENDER2TARGET_DUMMY` has moved to a private dummy backend header. | Dummy backend and dummy Lua wrappers. | Keep as a template for now, but update it to model the private-header pattern once a real backend split is proven. |
+| `include/core_mbm/specific-dummy.h` | Dummy backend context. `RENDER2TARGET_DUMMY` and `BUFFER_SPECIFIC` have moved to private dummy backend headers. | Dummy backend and dummy Lua wrappers. | Keep as a minimal public context template until the platform bridge pattern is ready. |
 | `include/core_mbm/platform-win32.h` and `include/core_mbm/d3dx9-mingw.h` | Win32 window/event and DirectX compatibility types. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat separately from renderer PIMPL. They are platform integration headers, not render-resource ownership, but they still block a fully clean public boundary. |
 
 Recommended order:
@@ -705,6 +705,19 @@ Milestone 70 implementation note:
 - Updated the dummy render-to-texture implementation to include the private dummy render-target header explicitly.
 - Kept `SPECIFIC_AUX_CONTEXT_DEVICE` and `BUFFER_SPECIFIC` in `specific-dummy.h` for now because dummy device, shader, audio, and Lua wrapper/template code still include that public template header.
 - This updates the dummy backend template to follow the proven private render-target pattern without changing runtime behavior, gameplay API, or `RENDERIZABLE`.
+
+Milestone 71 implementation note:
+
+- Moved dummy `BUFFER_SPECIFIC` out of the public `include/core_mbm/specific-dummy.h` header and into the private backend header `src/core_mbm/specific-dummy-buffer.h`.
+- Updated the dummy shader/buffer implementation to include the private dummy buffer header explicitly.
+- Kept `SPECIFIC_AUX_CONTEXT_DEVICE` in `specific-dummy.h` because dummy device, core-manager, audio, and Lua wrapper/template code still include that public context surface.
+- This completes the dummy backend resource-struct split without changing runtime behavior, gameplay API, or `RENDERIZABLE`.
+
+Milestone 72 implementation note:
+
+- Removed the now-unused `primitives.h` include from public `include/core_mbm/specific-dummy.h`.
+- After Milestones 70 and 71, the public dummy header only exposes the minimal dummy `SPECIFIC_AUX_CONTEXT_DEVICE` template and the Win32 window dependency needed by that context on Windows.
+- This trims dummy public-header dependencies while preserving the dummy backend template context surface.
 
 ### Phase 3 - Hide renderer backend handles
 
