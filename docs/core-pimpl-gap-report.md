@@ -719,6 +719,13 @@ Milestone 72 implementation note:
 - After Milestones 70 and 71, the public dummy header only exposes the minimal dummy `SPECIFIC_AUX_CONTEXT_DEVICE` template and the Win32 window dependency needed by that context on Windows.
 - This trims dummy public-header dependencies while preserving the dummy backend template context surface.
 
+Milestone 73 documentation note:
+
+- Refreshed the remaining-work plan after the backend resource-handle milestones.
+- Added a pre-audit for `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` focused on the primary PIMPL goal: hiding explicit OS/backend dependencies from public headers.
+- Confirmed these four candidates do not currently expose DirectX/OpenGL ES/Metal/Win32/macOS SDK handles directly in their public manager layouts; their remaining value is mostly header/ABI cleanup, not backend isolation.
+- Kept the platform bridge headers as the main remaining backend-isolation problem because `SPECIFIC_AUX_CONTEXT_DEVICE` still exposes concrete backend/platform context layouts.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -733,13 +740,24 @@ This phase removes most backend leakage while keeping gameplay-facing APIs mostl
 
 ### Phase 4 - PIMPL remaining manager internals
 
+Before implementing this phase, keep the main PIMPL goal explicit: do not move a manager just because it has private STL state. Move it when the public header exposes OS/backend dependencies, backend-owned state, or enough private layout to create avoidable ABI/header coupling.
+
+Manager backend-leakage pre-audit:
+
+| Candidate | Exposes explicit OS/backend SDK types in the public header? | Current issue | Suggested priority |
+|---|---|---|---|
+| `TEXTURE_MANAGER` | No direct DirectX/OpenGL ES/Metal/Win32/macOS types. `TEXTURE` backend handles are already behind `BackendData`. | Header still exposes cache/path/capability storage and `stbtt_aligned_quad` in the TTF API. Backend files still access manager cache/capability fields directly. | Good next small milestone only if the goal is header/ABI hygiene. Not required for backend isolation. |
+| `MESH_MANAGER` | No direct DirectX/OpenGL ES/Metal/Win32/macOS SDK types. It still carries legacy GLES-named engine value types such as `MATERIAL_GLES`, but those are engine/file-format structs, not backend handles. | Header exposes manager cache vectors/maps and large mesh/debug data layouts. | Lower priority for backend isolation; higher risk because mesh file/editor/debug code is broad. |
+| `ANIMATION_BACKUP` | No OS/backend SDK types. | Header exposes backup vectors and nested backup structs; it depends heavily on shader/animation value types. | Useful ABI cleanup, but not a backend isolation milestone. |
+| `EFFECT_SHADER` | No OS/backend SDK types. | Header exposes current shader/effect state and a shader map. Call sites, plugins, and editor helpers read this state directly. | Requires accessor policy first; not the next backend-isolation milestone. |
+
 Move private containers and counters into `Impl` for:
 
-- `CORE_MANAGER`, after the audio manager pattern is validated.
-- `TEXTURE_MANAGER`
-- `MESH_MANAGER`
-- `ANIMATION_BACKUP`
-- `EFFECT_SHADER`
+- `TEXTURE_MANAGER`, if we choose a small header/ABI cleanup after the backend-resource work.
+- `MESH_MANAGER`, after deciding how much mesh/debug layout should remain source-compatible.
+- `ANIMATION_BACKUP`, as a contained ABI cleanup.
+- `EFFECT_SHADER`, only after adding or confirming accessors for shader/effect state currently read by plugins/editor code.
+- Remaining `CORE_MANAGER` compatibility fields, only if there is a clear invariant or dependency to hide.
 
 This mainly improves header hygiene and ABI layout.
 
@@ -773,12 +791,11 @@ These can stay as normal public value/API types unless there is a specific ABI g
 
 ## Summary
 
-The core is already moving in the right direction in audio, but the main engine is not close to strict PIMPL yet. The missing work is mostly:
+The core has completed the highest-value backend resource-handle cleanup without touching gameplay-facing `RENDERIZABLE` state. The remaining work is now split into two different categories:
 
-1. Hide backend handles in texture, shader, buffer, render target, and device classes.
-2. Move private manager containers into `Impl`.
-3. Add accessor APIs before hiding public gameplay fields.
-4. Decide whether direct public fields remain a supported convenience API.
-5. Update Lua, plugins, examples, and docs after each staged cleanup.
+1. Backend/platform bridge isolation: hide the remaining concrete `SPECIFIC_AUX_CONTEXT_DEVICE` layouts behind narrow bridge APIs for Android, Win32, Metal, OpenGL ES, plugins, and platform entry points.
+2. Header/ABI hygiene: move remaining private manager containers into `Impl` where that reduces public dependencies without changing gameplay behavior.
+3. Gameplay API policy: decide whether direct public fields remain a supported convenience API before touching `RENDERIZABLE`, `SCENE`, or `ANIMATION_MANAGER`.
+4. Lua/plugin/editor migration: update call sites only after a stable accessor or bridge policy exists.
 
-The highest-value first implementation step is not `RENDERIZABLE`; it is proving the pattern safely in `AUDIO_MANAGER`. After that compiles cleanly, the next large cleanup target should be backend handle isolation in `DEVICE`, texture, shader, buffer, and render-target code.
+The next backend-isolation milestone should not be chosen from `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER` unless the specific goal is header/ABI hygiene. For the original PIMPL goal of hiding OS/backend dependencies, the remaining high-value target is the `specific-*.h` platform bridge surface.
