@@ -210,7 +210,9 @@ namespace mbm
             void operator()(BackendData *data) const noexcept;
         };
 
+        MBM_MSVC_DISABLE_DLL_INTERFACE_WARNING_BEGIN
         std::unique_ptr<BackendData, BackendDataDeleter> backendData;
+        MBM_MSVC_DISABLE_DLL_INTERFACE_WARNING_END
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
     };

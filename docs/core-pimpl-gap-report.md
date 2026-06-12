@@ -685,6 +685,12 @@ Milestone 67 implementation note:
 - Added a direct `shader.h` include to `specific-directx9.cpp` because `SPECIFIC_AUX_CONTEXT_DEVICE::getFVF` switches on concrete `FVF_PROVIDE_BY_ENGINE` enum values.
 - Kept `shader.h` out of public `include/core_mbm/specific-directx9.h`; the public header still only needs the forward declaration for the method signature.
 
+Milestone 68 implementation note:
+
+- Added MSVC-only C4251 suppression macros to `include/core_mbm/core-exports.h`.
+- Applied the suppression narrowly around `SHADER::backendData`, the exported-class PIMPL `std::unique_ptr` member that MSVS reports repeatedly as needing a DLL interface.
+- This keeps the opaque `SHADER::BackendData` PIMPL design and does not change MinGW/GCC/Clang behavior, ABI layout, runtime behavior, gameplay API, or `RENDERIZABLE`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
