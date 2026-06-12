@@ -807,6 +807,23 @@ Milestone 80 implementation note:
 - Kept Android JNI class-cache, `JNIEnv*`, native-window/EGL, and texture-filter context access unchanged for later milestones.
 - This reduces direct Android context coupling in file/asset code without moving the Android context layout yet.
 
+Milestone 81 implementation note:
+
+- Added Android Lua/JNI bridge functions beside the existing Android path/asset bridge:
+  - `androidRequestQuit()`
+  - `androidGetKeyCode()`
+  - `androidGetKeyName()`
+  - `androidGetIdiom()`
+  - `androidGetUserName()`
+  - `androidSaveFile()`
+  - `androidRequestOpenFile()`
+  - `androidShowMessageBox()`
+  - `androidOpenFolder()`
+- Implemented those functions in `src/core_mbm/specific-android.cpp`, where JNI class-cache, `JNIEnv*`, `jstring`, and Android configuration details still belong.
+- Migrated `src/lua-wrap/framework-android-lua.cpp` away from direct Android context/JNI layout access for Lua quit, key mapping, idiom, username, save/open dialog, message box, open folder, path source, and include-file asset copy.
+- Left Android EGL/native-window/bootstrap context access unchanged for later milestones.
+- This milestone keeps Lua behavior stable while removing the Lua wrapper's dependency on Android-specific context fields.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.

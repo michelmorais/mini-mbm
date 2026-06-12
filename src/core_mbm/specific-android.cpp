@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <cstring>
+#include <android/configuration.h>
 #include <android/asset_manager.h>
 #include <stb_image.h>
 #include <platform/mismatch-platform.h>
@@ -80,6 +81,248 @@ namespace mbm
     {
         SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
         return context ? context->assetManager : nullptr;
+    }
+
+    void androidRequestQuit()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->callQuit();
+    }
+
+    int androidGetKeyCode(const char *key)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassKeyCodeJniEngine)
+            return 0;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassKeyCodeJniEngine, "getKeyCode",
+                                                "(Ljava/lang/String;)I");
+        if (mid == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "%s", "method getKeyCode not found");
+            return 0;
+        }
+        jstring jstr = jenv->NewStringUTF(context->get_safe_string_utf(key));
+        if (jstr == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "%s", "error on call NewStringUTF!");
+            return 0;
+        }
+        jint ret = jenv->CallStaticIntMethod(context->jclassKeyCodeJniEngine, mid, jstr);
+        jenv->DeleteLocalRef(jstr);
+        return static_cast<int>(ret);
+    }
+
+    const char *androidGetKeyName(int key)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassKeyCodeJniEngine)
+            return nullptr;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassKeyCodeJniEngine, "getKeyName",
+                                                "(I)Ljava/lang/String;");
+        if (mid == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "%s", "method getKeyName not found");
+            return nullptr;
+        }
+        jstring ret = static_cast<jstring>(jenv->CallStaticObjectMethod(context->jclassKeyCodeJniEngine, mid, key));
+        if (ret)
+        {
+            const char *newRet = jenv->GetStringUTFChars(ret, nullptr);
+            const char *result = context->getStrToDelete(newRet);
+            jenv->ReleaseStringUTFChars(ret, newRet);
+            jenv->DeleteLocalRef(ret);
+            return result;
+        }
+        return nullptr;
+    }
+
+    const char *androidGetIdiom()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context && context->assetManager)
+        {
+            AConfiguration *config = AConfiguration_new();
+            AConfiguration_fromAssetManager(config, context->assetManager);
+            char lang[3] = {};
+            AConfiguration_getLanguage(config, lang);
+            AConfiguration_delete(config);
+            if (lang[0] != 0)
+            {
+                static std::string language;
+                language = lang;
+                return language.c_str();
+            }
+        }
+        return "en";
+    }
+
+    const char *androidGetUserName()
+    {
+        const char *methodName = "getUserName";
+        const char *signature = "()Ljava/lang/String;";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassDoCommandsJniEngine)
+            return nullptr;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassDoCommandsJniEngine, methodName, signature);
+        if (mid == nullptr)
+            return nullptr;
+        jstring ret = static_cast<jstring>(jenv->CallStaticObjectMethod(context->jclassDoCommandsJniEngine, mid));
+        if (ret)
+        {
+            const char *newRet = jenv->GetStringUTFChars(ret, nullptr);
+            const char *result = context->getStrToDelete(newRet);
+            jenv->ReleaseStringUTFChars(ret, newRet);
+            jenv->DeleteLocalRef(ret);
+            return result;
+        }
+        ERROR_LOG("To get username from Android you need to add the following permission on XML manifest:\n%s",
+                  "<uses-permission android:name=\"android.permission.GET_ACCOUNTS\" />");
+        return nullptr;
+    }
+
+    const char *androidSaveFile(const char *defaultName)
+    {
+        const char *methodName = "saveFile";
+        const char *signature = "(Ljava/lang/String;)Ljava/lang/String;";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassDoCommandsJniEngine)
+            return nullptr;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassDoCommandsJniEngine, methodName, signature);
+        if (mid == nullptr)
+        {
+            ERROR_LOG("method not found: %s", methodName);
+            return nullptr;
+        }
+        jstring jstr = jenv->NewStringUTF(context->get_safe_string_utf(defaultName));
+        if (jstr == nullptr)
+        {
+            ERROR_LOG("%s", "error on call NewStringUTF");
+            return nullptr;
+        }
+        jstring ret = static_cast<jstring>(jenv->CallStaticObjectMethod(context->jclassDoCommandsJniEngine, mid, jstr));
+        jenv->DeleteLocalRef(jstr);
+        if (ret == nullptr)
+            return nullptr;
+        const char *newRet = jenv->GetStringUTFChars(ret, nullptr);
+        const char *fileName = context->getStrToDelete(newRet);
+        jenv->ReleaseStringUTFChars(ret, newRet);
+        jenv->DeleteLocalRef(ret);
+        return fileName;
+    }
+
+    bool androidRequestOpenFile(const char *callback, bool allowMultipleSelects)
+    {
+        const char *methodName = allowMultipleSelects ? "openMultFile" : "getImage";
+        const char *signature = "(Ljava/lang/String;)V";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassDoCommandsJniEngine)
+            return false;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassDoCommandsJniEngine, methodName, signature);
+        if (mid == nullptr)
+        {
+            ERROR_LOG("method not found: %s", methodName);
+            return false;
+        }
+        jstring jstr = jenv->NewStringUTF(context->get_safe_string_utf(callback));
+        if (jstr == nullptr)
+        {
+            ERROR_LOG("%s", "error on call NewStringUTF");
+            return false;
+        }
+        jenv->CallStaticVoidMethod(context->jclassDoCommandsJniEngine, mid, jstr);
+        jenv->DeleteLocalRef(jstr);
+        return true;
+    }
+
+    bool androidShowMessageBox(const char *title, const char *message, const char *dialogType)
+    {
+        const char *methodName = "messageBox";
+        const char *signature = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassFileJniEngine)
+            return false;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassFileJniEngine, methodName, signature);
+        if (mid == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "method not found: %s", methodName);
+            return false;
+        }
+        jstring jstrTitle = jenv->NewStringUTF(context->get_safe_string_utf(title));
+        if (jstrTitle == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "%s", "error on call NewStringUTF");
+            return false;
+        }
+        jstring jstrMessage = jenv->NewStringUTF(context->get_safe_string_utf(message));
+        if (jstrMessage == nullptr)
+        {
+            jenv->DeleteLocalRef(jstrTitle);
+            ERROR_AT(__LINE__, __FILE__, "%s", "error on call NewStringUTF");
+            return false;
+        }
+        jstring jstrDialogType = jenv->NewStringUTF(context->get_safe_string_utf(dialogType));
+        if (jstrDialogType == nullptr)
+        {
+            jenv->DeleteLocalRef(jstrTitle);
+            jenv->DeleteLocalRef(jstrMessage);
+            ERROR_AT(__LINE__, __FILE__, "%s", "error on call NewStringUTF");
+            return false;
+        }
+        jboolean ret = jenv->CallStaticBooleanMethod(context->jclassFileJniEngine, mid, jstrTitle, jstrMessage,
+                                                     jstrDialogType);
+        jenv->DeleteLocalRef(jstrTitle);
+        jenv->DeleteLocalRef(jstrMessage);
+        jenv->DeleteLocalRef(jstrDialogType);
+        return ret;
+    }
+
+    const char *androidOpenFolder(const char *title, const char *defaultPath)
+    {
+        const char *methodName = "openFolder";
+        const char *signature = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassFileJniEngine)
+            return nullptr;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassFileJniEngine, methodName, signature);
+        if (mid == nullptr)
+        {
+            ERROR_LOG("method not found: %s", methodName);
+            return nullptr;
+        }
+        jstring jstrTitle = jenv->NewStringUTF(context->get_safe_string_utf(title));
+        if (jstrTitle == nullptr)
+        {
+            ERROR_LOG("%s", "error on call NewStringUTF");
+            return nullptr;
+        }
+        jstring jstrDefaultPath = jenv->NewStringUTF(context->get_safe_string_utf(defaultPath));
+        if (jstrDefaultPath == nullptr)
+        {
+            jenv->DeleteLocalRef(jstrTitle);
+            ERROR_LOG("%s", "error on call NewStringUTF");
+            return nullptr;
+        }
+        jstring ret = static_cast<jstring>(jenv->CallStaticObjectMethod(context->jclassFileJniEngine, mid, jstrTitle,
+                                                                        jstrDefaultPath));
+        jenv->DeleteLocalRef(jstrTitle);
+        jenv->DeleteLocalRef(jstrDefaultPath);
+        if (ret)
+        {
+            const char *newRet = jenv->GetStringUTFChars(ret, nullptr);
+            const char *path = context->getStrToDelete(newRet);
+            jenv->ReleaseStringUTFChars(ret, newRet);
+            jenv->DeleteLocalRef(ret);
+            return path;
+        }
+        return nullptr;
     }
     
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():

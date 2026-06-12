@@ -32,9 +32,8 @@
 #else
     #error "This file is only for OpenGL ES"
 #endif
-#include <android/configuration.h>
 
-extern "C" 
+extern "C"
 {
     #include <lauxlib.h>
     #include <lualib.h>
@@ -82,7 +81,7 @@ namespace mbm
         device->setRun(false);
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
         device->getScene()->onFinalizeScene();
-        device->getSpecificContextDevice()->callQuit();
+        androidRequestQuit();
         return 0;
     }
 
@@ -104,8 +103,7 @@ namespace mbm
                               : (top >= 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
         char             dir[255]   = "";
         dir[0]                      = 0;
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        const char *     currentPath = cJni->absPath.c_str();
+        const char *     currentPath = androidGetAbsPath();
         if (currentPath)
             strncpy(dir, currentPath,sizeof(dir)-1);
         if (dir[0])
@@ -124,8 +122,7 @@ namespace mbm
         {
             bool             sucess = false;
     #if defined              ANDROID
-            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-            const char *     newPath = util::getFullPath(cJni->copyFileFromAsset(fileName, "rt"),nullptr);
+            const char *     newPath = util::getFullPath(androidCopyFileFromAsset(fileName, "rt"),nullptr);
     #else
             const char *  newPath = util::getFullPath(fileName, nullptr);
     #endif
@@ -156,97 +153,27 @@ namespace mbm
 
     int getKeyCode(const char *key)
     {
-    
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        if (!cJni->jclassKeyCodeJniEngine) return 0;
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyCode", "(Ljava/lang/String;)I");
-        if (mid == NULL)
-        {
-            ERROR_AT(__LINE__,__FILE__,"%s","method getKeyCode not found");
-            return 0;
-        }
-        jstring jstr = jenv->NewStringUTF(cJni->get_safe_string_utf(key));//fixed issue using local std::string
-        if (jstr == NULL)
-        {
-            ERROR_AT(__LINE__,__FILE__,"%s","error on call NewStringUTF!");
-            return 0;
-        }
-        jint ret = jenv->CallStaticIntMethod(cJni->jclassKeyCodeJniEngine, mid, jstr);
-        jenv->DeleteLocalRef(jstr);
-        return (int)ret;
+        return androidGetKeyCode(key);
     }
 
     const char *getKeyName(const int key)
     {
-    
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        if (!cJni->jclassKeyCodeJniEngine) return nullptr;
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyName", "(I)Ljava/lang/String;");
-        if (mid == NULL)
-        {
-            ERROR_AT(__LINE__,__FILE__,"%s","method getKeyName not found");
-            return 0;
-        }
-        jstring ret = (jstring)jenv->CallStaticObjectMethod(cJni->jclassKeyCodeJniEngine, mid, key);
-        if (ret)
-        {
-            const char *newRet = jenv->GetStringUTFChars(ret, 0);
-            const char *r      = cJni->getStrToDelete(newRet);
-            jenv->ReleaseStringUTFChars(ret, newRet);
-            jenv->DeleteLocalRef(ret);
-            return r;
-        }
-        return NULL;
+        return androidGetKeyName(key);
     }
 
     int onGetIdiom(lua_State *lua)
     {
-        // Pure C++ implementation using AConfiguration — no JNI required.
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        if (cJni->assetManager)
-        {
-            AConfiguration* config = AConfiguration_new();
-            AConfiguration_fromAssetManager(config, cJni->assetManager);
-            char lang[3] = {};
-            AConfiguration_getLanguage(config, lang);
-            AConfiguration_delete(config);
-            if (lang[0] != 0)
-            {
-                lua_pushstring(lua, lang);
-                return 1;
-            }
-        }
-        lua_pushstring(lua, "en");
+        lua_pushstring(lua, androidGetIdiom());
         return 1;
     }
 
     int onGetUserName(lua_State *lua)
     {
-        const char *     methodName = "getUserName";
-        const char *     signature  = "()Ljava/lang/String;"; //(string) void
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        JNIEnv *         jenv       = cJni->jenv;
-        jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
-        if (mid == NULL)
-        {
-            return lua_error_debug(lua, "method not found:%s", methodName);
-        }
-        jstring ret = (jstring)jenv->CallStaticObjectMethod(cJni->jclassDoCommandsJniEngine, mid);
-        if (ret)
-        {
-            const char *newRet = jenv->GetStringUTFChars(ret, 0);
-            const char *r      = cJni->getStrToDelete(newRet);
-            jenv->ReleaseStringUTFChars(ret, newRet);
-            lua_pushstring(lua, r);
-            jenv->DeleteLocalRef(ret);
-        }
+        const char *userName = androidGetUserName();
+        if (userName)
+            lua_pushstring(lua, userName);
         else
-        {
-            ERROR_LOG("To get username from Android you need to add the following permission on XML manifest:\n%s","<uses-permission android:name=\"android.permission.GET_ACCOUNTS\" />");
             lua_pushnil(lua);
-        }
         return 1;
     }
 
@@ -281,41 +208,10 @@ namespace mbm
             filtersArray[i] = filters[i].c_str();
         }
 
-        const char *     methodName = "saveFile";
-        const char *     signature  = "(Ljava/lang/String;)Ljava/lang/String;"; // String (string)
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        JNIEnv *         jenv       = cJni->jenv;
-        jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
-        if (mid == NULL)
-        {
-            lua_print_line(lua,TYPE_LOG_ERROR,"method not found: %s", methodName);
-            lua_pushnil(lua);
-            delete[] filtersArray;
-            return 1;
-        }
         if (defaultName == NULL)
             defaultName = "callBackSaveImageLua";
-        jstring jstr    = jenv->NewStringUTF(cJni->get_safe_string_utf(defaultName));//fixed issue using local std::string
-        if (jstr == NULL)
-        {
-            lua_print_line(lua,TYPE_LOG_ERROR,"error on call NewStringUTF");
-            lua_pushnil(lua);
-            delete[] filtersArray;
-            return 1;
-        }
-        jstring ret = (jstring)jenv->CallStaticObjectMethod(cJni->jclassDoCommandsJniEngine, mid, jstr);
-        jenv->DeleteLocalRef(jstr);
-        if (ret == NULL)
-        {
-            delete[] filtersArray;
-            lua_pushnil(lua);
-            return 1;
-        }
-        const char *newRet   = jenv->GetStringUTFChars(ret, 0);
-        const char *fileName = cJni->getStrToDelete(newRet);
-        jenv->ReleaseStringUTFChars(ret, newRet);
-        jenv->DeleteLocalRef(ret);
-    
+        const char *fileName = androidSaveFile(defaultName);
+
         delete[] filtersArray;
         if (fileName)
         {
@@ -391,31 +287,15 @@ namespace mbm
             filtersArray[i] = filters[i].c_str();
         }
 
-        const char *     methodName = allowMultipleSelects ? "openMultFile" : "getImage";
-        const char *     signature  = "(Ljava/lang/String;)V"; // void (string)
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        JNIEnv *         jenv       = cJni->jenv;
-        jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
-        if (mid == NULL)
-        {
-            lua_print_line(lua,TYPE_LOG_ERROR,"method not found: %s", methodName);
-            lua_pushnil(lua);
-            delete[] filtersArray;
-            return 1;
-        }
         const char *callBack = "callBackLoadImageLua";
         if (defaultName)
             callBack = defaultName;
-        jstring jstr = jenv->NewStringUTF(cJni->get_safe_string_utf(callBack));//fixed issue using local std::string
-        if (jstr == NULL)
+        if (!androidRequestOpenFile(callBack, allowMultipleSelects != 0))
         {
-            lua_print_line(lua,TYPE_LOG_ERROR,"error on call NewStringUTF");
             lua_pushnil(lua);
             delete[] filtersArray;
             return 1;
         }
-        jenv->CallStaticVoidMethod(cJni->jclassDoCommandsJniEngine, mid, jstr);
-        jenv->DeleteLocalRef(jstr);
         const char *filename = "NULL";
         delete[] filtersArray;
         if (filename)
@@ -450,40 +330,7 @@ namespace mbm
 
     bool onShowMessageBoxAndroid(const char *const title, const char *const message, const char *dialogType)
     {
-        const char *methodName = "messageBox";
-        const char *signature = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z"; // boolean (string,string,string)
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        if (!cJni->jclassFileJniEngine) return false;
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
-        if (mid == NULL)
-        {
-            ERROR_AT(__LINE__,__FILE__,"method not found: %s", methodName);
-            return false;
-        }
-        jstring jstrTitle = jenv->NewStringUTF(cJni->get_safe_string_utf(title));//fixed issue using local std::string
-        if (jstrTitle == NULL)
-        {
-            ERROR_AT(__LINE__,__FILE__,"%s","error on call NewStringUTF");
-            return false;
-        }
-        jstring jstrMessage = jenv->NewStringUTF(cJni->get_safe_string_utf(message));//fixed issue using local std::string
-        if (jstrMessage == NULL)
-        {
-            ERROR_AT(__LINE__,__FILE__,"%s","error on call NewStringUTF");
-            return false;
-        }
-        jstring jstrDialogType = jenv->NewStringUTF(cJni->get_safe_string_utf(dialogType));//fixed issue using local std::string
-        if (jstrDialogType == NULL)
-        {
-            ERROR_AT(__LINE__,__FILE__,"%s", "error on call NewStringUTF");
-            return false;
-        }
-        jboolean ret = jenv->CallStaticBooleanMethod(cJni->jclassFileJniEngine, mid, jstrTitle, jstrMessage, jstrDialogType);
-        jenv->DeleteLocalRef(jstrTitle);
-        jenv->DeleteLocalRef(jstrMessage);
-        jenv->DeleteLocalRef(jstrDialogType);
-        return ret;
+        return androidShowMessageBox(title, message, dialogType);
     }
 
     int onShowMessageBox(lua_State *lua)
@@ -514,43 +361,7 @@ namespace mbm
         const int         top         = lua_gettop(lua);
         const char *const title       = top > 0 && lua_type(lua, 1) == LUA_TSTRING ? lua_tostring(lua, 1) : "Choose a folder";
         const char *const defaultPath = top > 1 && lua_type(lua, 2) == LUA_TSTRING ? lua_tostring(lua, 2) : "";
-        const char *      methodName = "openFolder";
-        const char *      signature  = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"; // String (string)
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->getSpecificContextDevice();
-        if (!cJni->jclassFileJniEngine) { lua_pushnil(lua); return 1; }
-        JNIEnv *          jenv       = cJni->jenv;
-        jmethodID         mid        = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
-        if (mid == NULL)
-        {
-            lua_print_line(lua,TYPE_LOG_ERROR,"method not found: %s", methodName);
-            lua_pushnil(lua);
-            return 1;
-        }
-        jstring jstrTitle = jenv->NewStringUTF(cJni->get_safe_string_utf(title));//fixed issue using local std::string
-        if (jstrTitle == NULL)
-        {
-            lua_print_line(lua,TYPE_LOG_ERROR,"error on call NewStringUTF");
-            lua_pushnil(lua);
-            return 1;
-        }
-        jstring jstrDefaultPath = jenv->NewStringUTF(cJni->get_safe_string_utf(defaultPath));//fixed issue using local std::string
-        if (jstrDefaultPath == NULL)
-        {
-            lua_print_line(lua,TYPE_LOG_ERROR,"error on call NewStringUTF");
-            lua_pushnil(lua);
-            return 1;
-        }
-        jstring ret = (jstring)jenv->CallStaticObjectMethod(cJni->jclassFileJniEngine, mid, jstrTitle, jstrDefaultPath);
-        jenv->DeleteLocalRef(jstrTitle);
-        jenv->DeleteLocalRef(jstrDefaultPath);
-        const char *path = NULL;
-        if (ret)
-        {
-            const char *newRet = jenv->GetStringUTFChars(ret, 0);
-            path               = cJni->getStrToDelete(newRet);
-            jenv->ReleaseStringUTFChars(ret, newRet);
-            jenv->DeleteLocalRef(ret);
-        }
+        const char *path = androidOpenFolder(title, defaultPath);
 
         if (path)
             lua_pushstring(lua, path);

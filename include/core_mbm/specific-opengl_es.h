@@ -571,6 +571,15 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
     API_IMPL void androidAddPath(const char *path);
     API_IMPL const char *androidCopyFileFromAsset(const char *fileName, const char *mode);
     API_IMPL void *androidGetAssetManager() noexcept;
+    API_IMPL void androidRequestQuit();
+    API_IMPL int androidGetKeyCode(const char *key);
+    API_IMPL const char *androidGetKeyName(int key);
+    API_IMPL const char *androidGetIdiom();
+    API_IMPL const char *androidGetUserName();
+    API_IMPL const char *androidSaveFile(const char *defaultName);
+    API_IMPL bool androidRequestOpenFile(const char *callback, bool allowMultipleSelects);
+    API_IMPL bool androidShowMessageBox(const char *title, const char *message, const char *dialogType);
+    API_IMPL const char *androidOpenFolder(const char *title, const char *defaultPath);
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
