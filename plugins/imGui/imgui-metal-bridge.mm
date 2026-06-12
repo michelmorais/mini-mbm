@@ -6,6 +6,7 @@
 // declared in imgui_metal_bridge.h.
 
 #import "imgui.h"
+#import <Metal/Metal.h>
 #import "backends/imgui_impl_metal.h"
 #import "imgui_metal_bridge.h"
 
