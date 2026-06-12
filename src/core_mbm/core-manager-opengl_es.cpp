@@ -226,12 +226,14 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     #if defined _WIN32
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
+        DEVICE *device = this->getDevice();
         device->getSpecificContextDevice()->window.setMinSizeAllowed(min_x,min_y);
         device->getSpecificContextDevice()->window.setMaxSizeAllowed(max_x,max_y);
     }
     #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
+        DEVICE *device = this->getDevice();
         XSizeHints xsize;
         long min_flag = PMinSize;
         long max_flag = PMaxSize;
@@ -245,10 +247,12 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         xsize.max_height    = static_cast<int>(max_y);
         xsize.min_width     = static_cast<int>(min_x);
         xsize.min_height    = static_cast<int>(min_y);
-        if(static_cast<int32_t>(this->device->getBackBufferWidth()) <= max_x && static_cast<int32_t>(this->device->getBackBufferWidth()) >= min_x)
+        const float backBufferWidth = device->getBackBufferWidth();
+        const float backBufferHeight = device->getBackBufferHeight();
+        if(static_cast<int32_t>(backBufferWidth) <= max_x && static_cast<int32_t>(backBufferWidth) >= min_x)
         {
-            xsize.base_width    = static_cast<int>(this->device->getBackBufferWidth());
-            xsize.width         = static_cast<int>(this->device->getBackBufferWidth());
+            xsize.base_width    = static_cast<int>(backBufferWidth);
+            xsize.width         = static_cast<int>(backBufferWidth);
         }
         else
         {
@@ -256,10 +260,10 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             xsize.width         = static_cast<int>(min_x);
         }
 
-        if(static_cast<int32_t>(this->device->getBackBufferHeight()) <= max_y && static_cast<int32_t>(this->device->getBackBufferHeight()) >= min_y)
+        if(static_cast<int32_t>(backBufferHeight) <= max_y && static_cast<int32_t>(backBufferHeight) >= min_y)
         {
-            xsize.base_height   = static_cast<int>(this->device->getBackBufferHeight());
-            xsize.height        = static_cast<int>(this->device->getBackBufferHeight());
+            xsize.base_height   = static_cast<int>(backBufferHeight);
+            xsize.height        = static_cast<int>(backBufferHeight);
         }
         else
         {
@@ -270,7 +274,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         xsize.height_inc    = 0;
         xsize.x             = 0;
         xsize.y             = 0;
-        XSetWMNormalHints(this->device->getSpecificContextDevice()->display_x11,this->device->getSpecificContextDevice()->window_x11,&xsize);
+        XSetWMNormalHints(device->getSpecificContextDevice()->display_x11,device->getSpecificContextDevice()->window_x11,&xsize);
     }
     #elif defined(ANDROID)
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
