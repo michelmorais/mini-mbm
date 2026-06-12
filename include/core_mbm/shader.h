@@ -185,24 +185,24 @@ namespace mbm
         std::string        stringCodeShader;
     };
 
-    class API_IMPL SHADER
+    class SHADER
     {
       public:
-        static MATRIX modelView;
-        static MATRIX mvpMatrix; // ModelView x projection
-        SHADER();
-        virtual ~SHADER();
-        void * getBackendShaderSpecific() const noexcept;
-        void setBackendShaderSpecific(void *backendShaderSpecific) noexcept;
-        void releaseShader();
-        void onRestore();
-        bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
-        bool isLoad() const noexcept;
-        bool render(const BUFFER_GL *pBufferId) const;
-        bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
-        bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
-        bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
-        void update();
+        API_IMPL static MATRIX modelView;
+        API_IMPL static MATRIX mvpMatrix; // ModelView x projection
+        API_IMPL SHADER();
+        API_IMPL virtual ~SHADER();
+        API_IMPL void * getBackendShaderSpecific() const noexcept;
+        API_IMPL void setBackendShaderSpecific(void *backendShaderSpecific) noexcept;
+        API_IMPL void releaseShader();
+        API_IMPL void onRestore();
+        API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
+        API_IMPL bool isLoad() const noexcept;
+        API_IMPL bool render(const BUFFER_GL *pBufferId) const;
+        API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
+        API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
+        API_IMPL bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
+        API_IMPL void update();
       private:
         struct BackendData;
         struct BackendDataDeleter
@@ -210,9 +210,7 @@ namespace mbm
             void operator()(BackendData *data) const noexcept;
         };
 
-        MBM_MSVC_DISABLE_DLL_INTERFACE_WARNING_BEGIN
         std::unique_ptr<BackendData, BackendDataDeleter> backendData;
-        MBM_MSVC_DISABLE_DLL_INTERFACE_WARNING_END
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
     };

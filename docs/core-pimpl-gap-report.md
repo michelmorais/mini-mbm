@@ -689,7 +689,15 @@ Milestone 68 implementation note:
 
 - Added MSVC-only C4251 suppression macros to `include/core_mbm/core-exports.h`.
 - Applied the suppression narrowly around `SHADER::backendData`, the exported-class PIMPL `std::unique_ptr` member that MSVS reports repeatedly as needing a DLL interface.
-- This keeps the opaque `SHADER::BackendData` PIMPL design and does not change MinGW/GCC/Clang behavior, ABI layout, runtime behavior, gameplay API, or `RENDERIZABLE`.
+- This kept the opaque `SHADER::BackendData` PIMPL design without changing MinGW/GCC/Clang behavior, ABI layout, runtime behavior, gameplay API, or `RENDERIZABLE`. Milestone 69 replaces this temporary suppression with method-level exports.
+
+Milestone 69 implementation note:
+
+- Replaced `class API_IMPL SHADER` with `class SHADER` plus explicit `API_IMPL` on public `SHADER` methods and static matrix members.
+- Removed the MSVC C4251 suppression macros from `core-exports.h` and removed the suppression wrapper around `SHADER::backendData`.
+- Kept `SHADER::BackendData` private and opaque while avoiding class-level export of the private `std::unique_ptr` member.
+- Added explicit export to `SHADER::modelView` and `SHADER::mvpMatrix` because render code and plugins use those static members through the public header.
+- This is the structural MSVC warning fix for `SHADER` and does not change runtime behavior, gameplay API, or `RENDERIZABLE`.
 
 ### Phase 3 - Hide renderer backend handles
 

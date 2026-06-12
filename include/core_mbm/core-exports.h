@@ -62,12 +62,4 @@
   #define API_IMPL_OVERRIDE API_IMPL
 #endif
 
-#if defined(_MSC_VER)
-  #define MBM_MSVC_DISABLE_DLL_INTERFACE_WARNING_BEGIN __pragma(warning(push)) __pragma(warning(disable : 4251))
-  #define MBM_MSVC_DISABLE_DLL_INTERFACE_WARNING_END __pragma(warning(pop))
-#else
-  #define MBM_MSVC_DISABLE_DLL_INTERFACE_WARNING_BEGIN
-  #define MBM_MSVC_DISABLE_DLL_INTERFACE_WARNING_END
-#endif
-
 #endif
