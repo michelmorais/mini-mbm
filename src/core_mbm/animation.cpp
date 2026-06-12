@@ -1186,7 +1186,75 @@ namespace mbm
         return false;
     }
 
-    ANIMATION_BACKUP::VAR_SHADER_BACKUP::VAR_SHADER_BACKUP(const VAR_SHADER* var) noexcept:
+    struct ANIMATION_BACKUP::Impl
+    {
+        struct VAR_SHADER_BACKUP
+        {
+            const std::string     name;
+            const TYPE_VAR_SHADER typeVar;
+            const bool            isPS;
+            const int             sizeVar;
+            float                 current[4];
+            float                 min[4];
+            float                 max[4];
+            float                 step[4];
+            bool                  control[4];
+            bool                  granThen[4];
+
+            explicit VAR_SHADER_BACKUP(const VAR_SHADER* var) noexcept;
+            ~VAR_SHADER_BACKUP() = default;
+            VAR_SHADER_BACKUP(VAR_SHADER_BACKUP&& other) = delete;
+            VAR_SHADER_BACKUP& operator=(VAR_SHADER_BACKUP&& other) = delete;
+            VAR_SHADER_BACKUP(const VAR_SHADER_BACKUP&) = delete;
+            VAR_SHADER_BACKUP& operator=(const VAR_SHADER_BACKUP&) = delete;
+        };
+
+        struct FX_BACKUP
+        {
+            const STATUS_FX         statusFxPs;
+            const STATUS_FX         statusFxVs;
+            const TYPE_ANIMATION    typeAnimPs;
+            const TYPE_ANIMATION    typeAnimVs;
+            const float             timeAnimationPs;
+            const float             timeAnimationVs;
+
+            std::vector<VAR_SHADER_BACKUP*> varsPS;
+            std::vector<VAR_SHADER_BACKUP*> varsVS;
+
+            void restoreFX(mbm::ANIMATION& anim) const noexcept;
+
+            FX_BACKUP(const ANIMATION& anim) noexcept;
+            ~FX_BACKUP() noexcept;
+            FX_BACKUP(FX_BACKUP&& other) = delete;
+            FX_BACKUP& operator=(FX_BACKUP&& other) = delete;
+            FX_BACKUP(const FX_BACKUP&) = delete;
+            FX_BACKUP& operator=(const FX_BACKUP&) = delete;
+        };
+
+        struct ANIMATION_STATE
+        {
+            char           nameAnimation[32];
+            float          intervalChangeFrame;
+            int            indexInitialFrame;
+            int            indexFinalFrame;
+            int            indexCurrentFrame;
+            BLEND_STATE    blendState;
+            bool           isEndedThisAnimation;
+            bool           currentWayGrowingOfAnimation;
+            TYPE_ANIMATION type;
+            float          currentTimeToChangeAnimation;
+
+            std::string    fx_textureOverrideStage2;
+            bool           fx_textureOverrideStage2Alpha;
+            int            fx_blendOperation;
+        };
+
+        std::vector<ANIMATION_STATE> lsAnimationState;
+        std::vector<FX_BACKUP*>      lsFxBackup;
+        uint32_t                     indexCurrentAnimation = 0;
+    };
+
+    ANIMATION_BACKUP::Impl::VAR_SHADER_BACKUP::VAR_SHADER_BACKUP(const VAR_SHADER* var) noexcept:
 		name(var ? var->name : ""),
 		typeVar(var ? var->typeVar : TYPE_VAR_SHADER::VAR_FLOAT),
 		isPS(var ? var->isPS : false),
@@ -1203,7 +1271,7 @@ namespace mbm
         }
     }
 
-    ANIMATION_BACKUP::FX_BACKUP::FX_BACKUP(const ANIMATION& anim) noexcept:
+    ANIMATION_BACKUP::Impl::FX_BACKUP::FX_BACKUP(const ANIMATION& anim) noexcept:
         statusFxPs(anim.fx.fxPS ? anim.fx.fxPS->statusFx : STATUS_FX::FX_GROWING),
 		statusFxVs(anim.fx.fxVS ? anim.fx.fxVS->statusFx : STATUS_FX::FX_GROWING),
 		typeAnimPs(anim.fx.fxPS ? anim.fx.fxPS->typeAnim : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
@@ -1237,7 +1305,7 @@ namespace mbm
         }
     }
 
-    ANIMATION_BACKUP::FX_BACKUP::~FX_BACKUP() noexcept
+    ANIMATION_BACKUP::Impl::FX_BACKUP::~FX_BACKUP() noexcept
     {
         for (std::vector<mbm::VAR_SHADER*>::size_type i = 0; i < varsPS.size(); ++i)
         {
@@ -1259,7 +1327,7 @@ namespace mbm
         varsVS.clear();
     }
 
-    void ANIMATION_BACKUP::FX_BACKUP::restoreFX(mbm::ANIMATION& anim) const noexcept
+    void ANIMATION_BACKUP::Impl::FX_BACKUP::restoreFX(mbm::ANIMATION& anim) const noexcept
     {
 		if (anim.fx.fxPS && anim.fx.fxPS->ptrCurrentShader)
         {
@@ -1335,17 +1403,17 @@ namespace mbm
 
     void ANIMATION_BACKUP::clearBackup() noexcept
     {
-        this->lsAnimationState.clear();
-        for (std::vector<FX_BACKUP>::size_type i = 0; i < this->lsFxBackup.size(); ++i)
+        this->impl->lsAnimationState.clear();
+        for (std::vector<Impl::FX_BACKUP *>::size_type i = 0; i < this->impl->lsFxBackup.size(); ++i)
         {
-            FX_BACKUP* it = this->lsFxBackup[i];
+            Impl::FX_BACKUP* it = this->impl->lsFxBackup[i];
             if (it)
             {
                 delete it;
-                this->lsFxBackup[i] = nullptr;
+                this->impl->lsFxBackup[i] = nullptr;
             }
         }
-		this->lsFxBackup.clear();
+		this->impl->lsFxBackup.clear();
     }
     
     void ANIMATION_BACKUP::backup(ANIMATION_MANAGER* animationManager)
@@ -1358,7 +1426,7 @@ namespace mbm
                 ANIMATION* anim = animationManager->lsAnimation[i];
 				if (anim)
                 {
-                    ANIMATION_STATE state               = {};
+                    Impl::ANIMATION_STATE state         = {};
                     strncpy(state.nameAnimation, anim->nameAnimation, sizeof(state.nameAnimation));
                     state.intervalChangeFrame           = anim->intervalChangeFrame;
                     state.indexInitialFrame             = anim->indexInitialFrame;
@@ -1373,26 +1441,26 @@ namespace mbm
                     state.fx_textureOverrideStage2      = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->getFileNameTexture() : "";
                     state.fx_textureOverrideStage2Alpha = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->useAlphaChannel : false;
                     state.fx_blendOperation             = anim->fx.blendOperation;
-                    this->lsAnimationState.push_back(state);
+                    this->impl->lsAnimationState.push_back(state);
 
-                    FX_BACKUP* fxBackup = new FX_BACKUP(*anim);
-                    this->lsFxBackup.push_back(fxBackup);
+                    Impl::FX_BACKUP* fxBackup = new Impl::FX_BACKUP(*anim);
+                    this->impl->lsFxBackup.push_back(fxBackup);
                 }
             }
             
-            this->indexCurrentAnimation = animationManager->indexCurrentAnimation;
+            this->impl->indexCurrentAnimation = animationManager->indexCurrentAnimation;
             animationManager->releaseAnimation();
         }
     }
 
     void ANIMATION_BACKUP::restore(ANIMATION_MANAGER* animationManager)
     {
-        if (animationManager && this->lsAnimationState.size())
+        if (animationManager && this->impl->lsAnimationState.size())
         {
             mbm::TEXTURE_MANAGER* texManager = mbm::TEXTURE_MANAGER::getInstance();
-            for (std::vector<ANIMATION_STATE>::size_type i = 0; i < this->lsAnimationState.size(); ++i)
+            for (std::vector<Impl::ANIMATION_STATE>::size_type i = 0; i < this->impl->lsAnimationState.size(); ++i)
             {
-                const ANIMATION_STATE& state = this->lsAnimationState[i];
+                const Impl::ANIMATION_STATE& state = this->impl->lsAnimationState[i];
                 mbm::ANIMATION* anim = animationManager->getAnimation(static_cast<uint32_t>(i));
                 if (anim == nullptr)
                 {
@@ -1413,9 +1481,9 @@ namespace mbm
                     //fx
                     anim->fx.textureOverrideStage2     = state.fx_textureOverrideStage2.size() > 0 ? texManager->load(state.fx_textureOverrideStage2.c_str(), state.fx_textureOverrideStage2Alpha) : nullptr;
                     anim->fx.blendOperation            = state.fx_blendOperation;
-                    if (i < this->lsFxBackup.size())
+                    if (i < this->impl->lsFxBackup.size())
                     {
-                        FX_BACKUP* it = this->lsFxBackup[i];
+                        Impl::FX_BACKUP* it = this->impl->lsFxBackup[i];
                         if (it)
                         {
                             it->restoreFX(*anim);
@@ -1424,9 +1492,9 @@ namespace mbm
                 }
                 
             }
-            if (this->indexCurrentAnimation < animationManager->lsAnimation.size())
+            if (this->impl->indexCurrentAnimation < animationManager->lsAnimation.size())
             {
-                animationManager->indexCurrentAnimation = this->indexCurrentAnimation;
+                animationManager->indexCurrentAnimation = this->impl->indexCurrentAnimation;
             }
             else
             {
@@ -1434,6 +1502,11 @@ namespace mbm
             }
         }
         this->clearBackup();
+    }
+
+    ANIMATION_BACKUP::ANIMATION_BACKUP() noexcept
+        : impl(std::make_unique<Impl>())
+    {
     }
 
     ANIMATION_BACKUP::~ANIMATION_BACKUP() noexcept

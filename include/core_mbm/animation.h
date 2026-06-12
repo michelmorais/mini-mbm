@@ -21,6 +21,7 @@
 #define ANIMATION_SHADERS_GLES_H
 
 #include <map>
+#include <memory>
 
 #include "core-exports.h"
 #include "shader.h"
@@ -100,8 +101,8 @@ namespace mbm
     class ANIMATION_BACKUP
     {
     public:
-        ANIMATION_BACKUP() noexcept = default;
-        ~ANIMATION_BACKUP() noexcept;
+        API_IMPL ANIMATION_BACKUP() noexcept;
+        API_IMPL ~ANIMATION_BACKUP() noexcept;
         // Prevent copying
         // Move semantics
         ANIMATION_BACKUP(ANIMATION_BACKUP&& other) = delete;
@@ -114,80 +115,9 @@ namespace mbm
         API_IMPL void backup(ANIMATION_MANAGER* animationManager);
         API_IMPL void restore(ANIMATION_MANAGER* animationManager);
     private:
-
-        struct VAR_SHADER_BACKUP
-        {
-            const std::string     name;
-            const TYPE_VAR_SHADER typeVar;
-            const bool            isPS;
-            const int             sizeVar;
-            float                 current[4];
-            float                 min[4];
-            float                 max[4];
-            float                 step[4];
-            bool                  control[4];
-            bool                  granThen[4];
-
-            explicit VAR_SHADER_BACKUP(const VAR_SHADER* var) noexcept;
-            ~VAR_SHADER_BACKUP() = default;
-            // Prevent copying
-            // Move semantics
-            VAR_SHADER_BACKUP(VAR_SHADER_BACKUP&& other) = delete;
-            VAR_SHADER_BACKUP& operator=(VAR_SHADER_BACKUP&& other) = delete;
-
-            // Prevent copying
-            VAR_SHADER_BACKUP(const VAR_SHADER_BACKUP&) = delete;
-            VAR_SHADER_BACKUP& operator=(const VAR_SHADER_BACKUP&) = delete;
-        };
-
-        struct FX_BACKUP
-        {
-            const STATUS_FX			statusFxPs;
-            const STATUS_FX			statusFxVs;
-            const TYPE_ANIMATION    typeAnimPs;
-            const TYPE_ANIMATION    typeAnimVs;
-            const float             timeAnimationPs;
-            const float             timeAnimationVs;
-
-            std::vector<VAR_SHADER_BACKUP*> varsPS;
-            std::vector<VAR_SHADER_BACKUP*> varsVS;
-
-            void restoreFX(mbm::ANIMATION& anim) const noexcept;
-            
-            FX_BACKUP(const ANIMATION& anim) noexcept;
-            ~FX_BACKUP() noexcept;
-            // Prevent copying
-            // Move semantics
-            FX_BACKUP(FX_BACKUP&& other) = delete;
-            FX_BACKUP& operator=(FX_BACKUP&& other) = delete;
-            
-            // Prevent copying
-            FX_BACKUP(const FX_BACKUP&) = delete;
-            FX_BACKUP& operator=(const FX_BACKUP&) = delete;
-        };
-
-        struct ANIMATION_STATE
-        {
-            char           nameAnimation[32];
-            float          intervalChangeFrame;
-            int            indexInitialFrame;
-            int            indexFinalFrame;
-            int            indexCurrentFrame;
-            BLEND_STATE    blendState;
-            bool           isEndedThisAnimation;
-            bool           currentWayGrowingOfAnimation;
-            TYPE_ANIMATION type;
-            float          currentTimeToChangeAnimation;
-
-            std::string    fx_textureOverrideStage2; // fx
-            bool           fx_textureOverrideStage2Alpha; // fx
-            int            fx_blendOperation; // fx
-        };
-
+        struct Impl;
+        std::unique_ptr<Impl> impl;
         void clearBackup() noexcept;
-        std::vector<ANIMATION_STATE> lsAnimationState;
-        std::vector<FX_BACKUP*>      lsFxBackup;
-        uint32_t                     indexCurrentAnimation;
     };
 
     class ANIMATION_MANAGER
