@@ -783,23 +783,26 @@ namespace mbm
     
     void CORE_MANAGER::updateAudio()
     {
-        if(this->device->getAudioManagerInterface())
-            this->device->getAudioManagerInterface()->update(this,this->device->getScene()->getIdScene());
+        DEVICE *device = this->getDevice();
+        if(device->getAudioManagerInterface())
+            device->getAudioManagerInterface()->update(this, device->getScene()->getIdScene());
     }
     
     void CORE_MANAGER::updatePhysis()
     {
-        if (!this->device->getScene())
+        DEVICE *device = this->getDevice();
+        SCENE *scene = device->getScene();
+        if (!scene)
             return;
-        const float        fps            = this->device->delta == 0.0f ? 0.0f : this->device->fps; //-V550
-        const int          idCurrentScene = this->device->getScene()->getIdScene();
-        const uint32_t     s              = this->device->getTotalPhysics();
+        const float        fps            = device->delta == 0.0f ? 0.0f : device->fps; //-V550
+        const int          idCurrentScene = scene->getIdScene();
+        const uint32_t     s              = device->getTotalPhysics();
         for (uint32_t i = 0; i < s; ++i)
         {
-            PHYSICS *ptr = this->device->getPhysics(i);
+            PHYSICS *ptr = device->getPhysics(i);
             if (ptr && ptr->enablePhysics && ptr->idScene == idCurrentScene)
             {
-                ptr->update(fps,this->device->delta);
+                ptr->update(fps, device->delta);
             }
         }
     }
