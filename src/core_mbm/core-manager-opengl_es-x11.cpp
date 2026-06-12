@@ -49,6 +49,8 @@ namespace mbm
 {
     bool CORE_MANAGER::initGraphics(const char *nameApplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
     {
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
         int x = width;
         int y = height;
         this->setNameApplication(nameApplication);
@@ -58,29 +60,29 @@ namespace mbm
         EGLint egl_minor = 0;
           // Initialize window position
         device->setWindowPosition(px, py);
-        if(initializeWindowx11(this->device->getSpecificContextDevice()) == false)
+        if(initializeWindowx11(context) == false)
         {
             INFO_LOG("Failed to initialize X11 window");
             return false;
         }
     #ifdef __APPLE__
-        this->device->getSpecificContextDevice()->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        context->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
         #pragma message("Check if this is correct for MacOS")
     #else
-        this->device->getSpecificContextDevice()->eglDisplay = eglGetDisplay((EGLNativeDisplayType) this->device->getSpecificContextDevice()->display_x11);
+        context->eglDisplay = eglGetDisplay((EGLNativeDisplayType) context->display_x11);
     #endif
-        if (!this->device->getSpecificContextDevice()->eglDisplay)
+        if (!context->eglDisplay)
         {
             printf("Error: eglGetDisplay() failed\n");
             return false;
         }
 
-        if (!eglInitialize(this->device->getSpecificContextDevice()->eglDisplay, &egl_major, &egl_minor))
+        if (!eglInitialize(context->eglDisplay, &egl_major, &egl_minor))
         {
             printf("Error: eglInitialize() failed\n");
             return false;
         }
-        Screen *screen = DefaultScreenOfDisplay(this->device->getSpecificContextDevice()->display_x11);
+        Screen *screen = DefaultScreenOfDisplay(context->display_x11);
         if (border && (height + 60) >= screen->height)
         {
             height -= 60;
@@ -88,9 +90,9 @@ namespace mbm
         }
         
         // Check if we're reusing an existing window (lost device recovery)
-        const bool reusingWindow = (this->device->getSpecificContextDevice()->window_x11 != 0);
+        const bool reusingWindow = (context->window_x11 != 0);
         
-        this->device->getSpecificContextDevice()->make_x_window(nameApplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->getWindowBorder(), this->getEnableResizeWindow());
+        context->make_x_window(nameApplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->getWindowBorder(), this->getEnableResizeWindow());
 
       
         
@@ -99,19 +101,19 @@ namespace mbm
         if (!reusingWindow)
         {
             XEvent event;
-            XIfEvent(this->device->getSpecificContextDevice()->display_x11, &event,
+            XIfEvent(context->display_x11, &event,
                     [](Display*, XEvent* ev, XPointer) -> Bool {
                         return ev->type == MapNotify;
                     }, nullptr);
         }
         
         // Sync with X server to ensure all events are processed
-        XSync(this->device->getSpecificContextDevice()->display_x11, False);
+        XSync(context->display_x11, False);
         
         // Get actual window geometry after mapping
         XWindowAttributes window_attrs;
-        XGetWindowAttributes(this->device->getSpecificContextDevice()->display_x11, 
-                           this->device->getSpecificContextDevice()->window_x11, 
+        XGetWindowAttributes(context->display_x11,
+                           context->window_x11,
                            &window_attrs);
         
         // Update dimensions with actual window size
@@ -123,7 +125,7 @@ namespace mbm
         // Now process all pending events including ConfigureNotify
         this->handleEventFromWindow();
 
-        if (!eglMakeCurrent(this->device->getSpecificContextDevice()->eglDisplay, this->device->getSpecificContextDevice()->eglSurface, this->device->getSpecificContextDevice()->eglSurface, this->device->getSpecificContextDevice()->eglContext))
+        if (!eglMakeCurrent(context->eglDisplay, context->eglSurface, context->eglSurface, context->eglContext))
         {
             printf("Error: eglMakeCurrent() failed\n");
             return false;
