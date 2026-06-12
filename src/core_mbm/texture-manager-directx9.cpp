@@ -20,7 +20,7 @@
 
 #if defined (USE_DIRECTX9)
 
-#include <specific-directx9.h>
+#include "specific-directx9-context.h"
 #include "specific-directx9-d3dx.h"
 #include "specific-directx9-render-target.h"
 #include <texture-manager.h>

@@ -20,7 +20,7 @@
 #ifndef DIRECTX9_RENDER_TARGET_SPECIFIC_H
 #define DIRECTX9_RENDER_TARGET_SPECIFIC_H
 
-#include <specific-directx9.h>
+#include "specific-directx9-context.h"
 
 namespace mbm
 {

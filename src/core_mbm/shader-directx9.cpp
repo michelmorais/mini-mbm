@@ -24,7 +24,7 @@
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
-#include <specific-directx9.h>
+#include "specific-directx9-context.h"
 #include "specific-directx9-buffer.h"
 #include "specific-directx9-shader.h"
 #include "specific-directx9-vertex.h"

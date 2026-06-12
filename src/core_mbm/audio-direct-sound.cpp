@@ -33,7 +33,7 @@
     #if defined (USE_OPENGL_ES)
         #include <specific-opengl_es.h>
     #elif defined (USE_DIRECTX9)
-        #include <specific-directx9.h>
+        #include "specific-directx9-context.h"
     #elif defined (USE_DUMMY_BACK_END_ENGINE)
         #include "specific-dummy-context.h"
     #endif
