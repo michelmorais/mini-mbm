@@ -447,7 +447,9 @@ namespace mbm
 
     void CORE_MANAGER::getScreenSize(int *width,int *height)
     {
-        Screen * screen = DefaultScreenOfDisplay(this->device->getSpecificContextDevice()->display_x11);
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        Screen * screen = DefaultScreenOfDisplay(context->display_x11);
         if(screen)
         {
             *width  = screen->width;
@@ -457,13 +459,12 @@ namespace mbm
 
     void CORE_MANAGER::moveWindow(int x, int y)
     {
-        if(this->device->getSpecificContextDevice()->display_x11 != nullptr && 
-           this->device->getSpecificContextDevice()->window_x11 != 0)
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        if(context->display_x11 != nullptr && context->window_x11 != 0)
         {
-            XMoveWindow(this->device->getSpecificContextDevice()->display_x11, 
-                       this->device->getSpecificContextDevice()->window_x11, 
-                       x, y);
-            XFlush(this->device->getSpecificContextDevice()->display_x11);
+            XMoveWindow(context->display_x11, context->window_x11, x, y);
+            XFlush(context->display_x11);
         }
     }
 
@@ -749,7 +750,8 @@ namespace mbm
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->getSpecificContextDevice()->release(wasDeviceLost);
+        DEVICE *device = this->getDevice();
+        device->getSpecificContextDevice()->release(wasDeviceLost);
     }
 
 }
