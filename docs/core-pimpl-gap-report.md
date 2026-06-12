@@ -679,6 +679,12 @@ Milestone 66 implementation note:
 - Updated DirectX9 backend files/private headers that use `D3DX*` symbols to include `specific-directx9-d3dx.h` instead of referring to the MinGW shim directly.
 - Kept D3DX out of public `specific-directx9.h`, preserving the public-header cleanup while restoring the intended MSVS vs MinGW split.
 
+Milestone 67 implementation note:
+
+- Fixed the MSVS compile failure in `src/core_mbm/specific-directx9.cpp` after the Milestone 64 include trim.
+- Added a direct `shader.h` include to `specific-directx9.cpp` because `SPECIFIC_AUX_CONTEXT_DEVICE::getFVF` switches on concrete `FVF_PROVIDE_BY_ENGINE` enum values.
+- Kept `shader.h` out of public `include/core_mbm/specific-directx9.h`; the public header still only needs the forward declaration for the method signature.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
