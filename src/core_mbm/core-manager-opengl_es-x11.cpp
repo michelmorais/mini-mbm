@@ -282,7 +282,7 @@ namespace mbm
                     if (key >= 'a' && key <= 'z')
                         key = toupper(key);
                     if (key == XK_Caps_Lock)
-                        this->keyCapsLockState = ((xevent.xbutton.state & 2) == 0);// == 0 is on
+                        this->setKeyCapsLockState((xevent.xbutton.state & 2) == 0);// == 0 is on
                     this->onKeyDown(key);
                 }
                 break;

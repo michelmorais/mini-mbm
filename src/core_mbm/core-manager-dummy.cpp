@@ -47,7 +47,7 @@ namespace mbm
         this->device           = DEVICE::getInstance();
         this->setChangeScene(true);
         this->__sceneWasInit            = false;
-        this->keyCapsLockState          = false;
+        this->setKeyCapsLockState(false);
         REMINDER_TODO
     }
     

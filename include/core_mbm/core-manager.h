@@ -207,6 +207,7 @@ namespace mbm
         API_IMPL bool initGraphics(const char *nameApplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
 
         API_IMPL int onLoop(const bool singleLoop, const bool doSwapBuffers);
+        API_IMPL bool isKeyCapsLockOn() const noexcept;
     
 
         API_IMPL void getScreenSize(int *width,int *height);
@@ -252,6 +253,7 @@ namespace mbm
         bool getEnableResizeWindow() const noexcept;
         void setChangeScene(const bool change) noexcept;
         bool isChangeScene() const noexcept;
+        void setKeyCapsLockState(const bool enabled) noexcept;
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;
@@ -270,7 +272,6 @@ namespace mbm
 
       public:
         bool __sceneWasInit;
-        bool keyCapsLockState;
         API_IMPL STEP_RETORE getStepRestore() const noexcept;
       private:
         struct Impl;

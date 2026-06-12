@@ -1262,7 +1262,7 @@ namespace mbm
     int onIsCapitalKeyOn(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        lua_pushboolean(lua, device->getCoreManager()->keyCapsLockState);
+        lua_pushboolean(lua, device->getCoreManager()->isKeyCapsLockOn());
         return 1;
     }
 

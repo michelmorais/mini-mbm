@@ -74,6 +74,7 @@ namespace mbm
         bool                                 windowBorder              = true;
         bool                                 enableResizeWindow        = true;
         bool                                 changeScene               = true;
+        bool                                 keyCapsLockState          = false;
     };
 
     void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
@@ -146,6 +147,16 @@ namespace mbm
     bool CORE_MANAGER::isChangeScene() const noexcept
     {
         return impl->changeScene;
+    }
+
+    void CORE_MANAGER::setKeyCapsLockState(const bool enabled) noexcept
+    {
+        impl->keyCapsLockState = enabled;
+    }
+
+    bool CORE_MANAGER::isKeyCapsLockOn() const noexcept
+    {
+        return impl->keyCapsLockState;
     }
 
     STEP_RETORE CORE_MANAGER::getStepRestore() const noexcept
@@ -313,9 +324,9 @@ namespace mbm
                         if (event.key == VK_CAPITAL)
                         {
                             if ((GetKeyState(VK_CAPITAL) & 0x0001) != 0)
-                                this->keyCapsLockState = true;
+                                this->setKeyCapsLockState(true);
                             else
-                                this->keyCapsLockState = false;
+                                this->setKeyCapsLockState(false);
                         }
                         #elif defined(__linux__) || defined(__APPLE__)
                         //TODO: implement CapsLock state detection for linux and macOS

@@ -99,7 +99,7 @@ namespace mbm
         this->device           = DEVICE::getInstance();
         this->setChangeScene(true);
         this->__sceneWasInit            = false;
-        this->keyCapsLockState          = false;
+        this->setKeyCapsLockState(false);
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
         this->device->getSpecificContextDevice()->initializeWi32Callbacks(this);
 #endif
