@@ -63,7 +63,7 @@ The strongest PIMPL candidate is backend-owned rendering state. These fields sho
 | `include/core_mbm/shader.h` | `SHADER::void *ptrShaderSpecific` | Done: stored in `SHADER::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/texture-manager.h` | `TEXTURE::idTexture/ptrTexture` union | Done: stored in `TEXTURE::BackendData`, with helper accessors for backend code. |
 | `include/core_mbm/renderizable.h` | `RENDERIZABLE_TO_TARGET::void *specificConfig` | Done: stored in `RENDERIZABLE_TO_TARGET::BackendData`, with helper accessors for backend code. |
-| `include/core_mbm/specific-*.h` | GL/EGL/X11, D3D9, Metal/Cocoa public headers | Move to private backend include area or `src/core_mbm/` once public users no longer need these concrete structs. |
+| `include/core_mbm/specific-*.h` | Concrete GL/EGL/X11, D3D9, Metal/Cocoa implementation layouts | Done: concrete backend layouts moved to `src/core_mbm/private/`; public backend headers now keep only forward declarations or narrow bridge APIs. |
 
 This can follow the audio pattern: public class owns `std::unique_ptr<BackendData>`, the incomplete struct is defined in the active backend `.cpp/.mm`, and common code talks through narrow private hooks.
 
@@ -948,6 +948,14 @@ Milestone 94 implementation note:
 - Replaced relative private-header includes in `src/platform/win32-platform.cpp` and render-to-texture backend files with private include-path based includes.
 - This is a structure-only cleanup after the backend PIMPL split; it should not change engine API or runtime behavior.
 
+Milestone 95 scope/closure note:
+
+- User confirmed the `src/core_mbm/private/` version builds on macOS, iOS, Windows, Android, and Linux.
+- The current PIMPL migration scope is now closed: isolate OS/backend SDK types, backend-owned handles, and concrete platform/backend layouts from public headers.
+- Do not migrate a header only because it has private STL containers, engine value types, or strongly typed engine fields.
+- `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` stay unchanged for now because they do not expose direct DirectX/OpenGL ES/Metal/Win32/macOS SDK types in public headers.
+- Further PIMPL work is future ABI/header hygiene, not required for the current backend/OS isolation goal.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -960,20 +968,20 @@ Order:
 
 This phase removes most backend leakage while keeping gameplay-facing APIs mostly unchanged.
 
-### Phase 4 - PIMPL remaining manager internals
+### Phase 4 - Deferred PIMPL manager internals
 
-Before implementing this phase, keep the main PIMPL goal explicit: do not move a manager just because it has private STL state. Move it when the public header exposes OS/backend dependencies, backend-owned state, or enough private layout to create avoidable ABI/header coupling.
+This phase is deferred. For the current goal, do not move a manager just because it has private STL state. Move it only when the public header exposes OS/backend dependencies, backend-owned state, or when the project intentionally starts a broader ABI/header hygiene pass.
 
 Manager backend-leakage pre-audit:
 
 | Candidate | Exposes explicit OS/backend SDK types in the public header? | Current issue | Suggested priority |
 |---|---|---|---|
-| `TEXTURE_MANAGER` | No direct DirectX/OpenGL ES/Metal/Win32/macOS types. `TEXTURE` backend handles are already behind `BackendData`. | Header still exposes cache/path/capability storage and `stbtt_aligned_quad` in the TTF API. Backend files still access manager cache/capability fields directly. | Good next small milestone only if the goal is header/ABI hygiene. Not required for backend isolation. |
-| `MESH_MANAGER` | No direct DirectX/OpenGL ES/Metal/Win32/macOS SDK types. It still carries legacy GLES-named engine value types such as `MATERIAL_GLES`, but those are engine/file-format structs, not backend handles. | Header exposes manager cache vectors/maps and large mesh/debug data layouts. | Lower priority for backend isolation; higher risk because mesh file/editor/debug code is broad. |
-| `ANIMATION_BACKUP` | No OS/backend SDK types. | Header exposes backup vectors and nested backup structs; it depends heavily on shader/animation value types. | Useful ABI cleanup, but not a backend isolation milestone. |
-| `EFFECT_SHADER` | No OS/backend SDK types. | Header exposes current shader/effect state and a shader map. Call sites, plugins, and editor helpers read this state directly. | Requires accessor policy first; not the next backend-isolation milestone. |
+| `TEXTURE_MANAGER` | No direct DirectX/OpenGL ES/Metal/Win32/macOS types. `TEXTURE` backend handles are already behind `BackendData`. | Header still exposes cache/path/capability storage and `stbtt_aligned_quad` in the TTF API. Backend files still access manager cache/capability fields directly. | Deferred. Good future milestone only if the goal becomes header/ABI hygiene. Not required for backend isolation. |
+| `MESH_MANAGER` | No direct DirectX/OpenGL ES/Metal/Win32/macOS SDK types. It still carries legacy GLES-named engine value types such as `MATERIAL_GLES`, but those are engine/file-format structs, not backend handles. | Header exposes manager cache vectors/maps and large mesh/debug data layouts. | Deferred. Lower priority for backend isolation; higher risk because mesh file/editor/debug code is broad. |
+| `ANIMATION_BACKUP` | No OS/backend SDK types. | Header exposes backup vectors and nested backup structs; it depends heavily on shader/animation value types. | Deferred. Useful ABI cleanup, but not a backend isolation milestone. |
+| `EFFECT_SHADER` | No OS/backend SDK types. | Header exposes current shader/effect state and a shader map. Call sites, plugins, and editor helpers read this state directly. | Deferred. Requires accessor policy first; not a backend-isolation milestone. |
 
-Move private containers and counters into `Impl` for:
+Future ABI/header hygiene could move private containers and counters into `Impl` for:
 
 - `TEXTURE_MANAGER`, if we choose a small header/ABI cleanup after the backend-resource work.
 - `MESH_MANAGER`, after deciding how much mesh/debug layout should remain source-compatible.
@@ -981,7 +989,13 @@ Move private containers and counters into `Impl` for:
 - `EFFECT_SHADER`, only after adding or confirming accessors for shader/effect state currently read by plugins/editor code.
 - Remaining `CORE_MANAGER` compatibility fields, only if there is a clear invariant or dependency to hide.
 
-This mainly improves header hygiene and ABI layout.
+This mainly improves header hygiene and ABI layout. It is intentionally not part of the current backend/OS isolation scope.
+
+Current stop rule:
+
+- Stop PIMPL migration when a public header has no direct OS/backend SDK type, no concrete backend-owned handle, and no concrete platform/backend layout.
+- Do not migrate public gameplay ergonomics or backend-neutral manager internals only to make the code "more PIMPL".
+- Reopen a header only if a future backend adds SDK types to it, or if the project chooses a separate ABI-stability cleanup.
 
 ### Phase 5 - Add public accessors for gameplay state
 
@@ -1002,6 +1016,18 @@ Only after engine internals, Lua bindings, plugins, examples, and editors use th
 - Remove public backend fields.
 - Deprecate or remove legacy direct fields depending on the compatibility decision from Phase 0.
 
+## Future work to complete strict PIMPL
+
+This is future work only. It is not required for the completed OS/backend isolation goal.
+
+1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
+2. Add complete accessor/mutator coverage for `RENDERIZABLE`, `SCENE`, `ANIMATION_MANAGER`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
+3. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
+4. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
+5. Split public and private headers further where STL-heavy internals still leak compile dependencies.
+6. Revisit plugin ABI separately if `PLUGIN::onSubscribe(void *context, void *renderDevice)` ever needs a stable cross-version ABI instead of opaque backend handles.
+7. Decide whether value-heavy inheritance such as `DEVICE : public TIME_CONTROL, public FRUSTUM` should remain source-compatible or move behind composition.
+
 ## Not worth PIMPL first
 
 These can stay as normal public value/API types unless there is a specific ABI goal:
@@ -1013,10 +1039,13 @@ These can stay as normal public value/API types unless there is a specific ABI g
 
 ## Summary
 
-The core has completed backend resource-handle cleanup, public backend/platform header isolation, and private backend-header organization without touching gameplay-facing `RENDERIZABLE` state. The remaining work is now split into cleanup categories:
+The core has completed the requested PIMPL scope: backend resource-handle cleanup, public backend/platform header isolation, and private backend-header organization without touching gameplay-facing `RENDERIZABLE` state.
 
-1. Header/ABI hygiene: optionally move remaining manager containers into `Impl` where that reduces public dependencies without changing gameplay behavior. `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` are candidates only for this goal.
-2. Gameplay API policy: keep direct public fields as convenience API unless a deliberate breaking cleanup is chosen. Do not touch `RENDERIZABLE` by default.
-3. Lua/plugin/editor policy: revisit only after a stable accessor, bridge, or plugin ABI policy exists.
+Current decision:
 
-The next milestone should be optional header/ABI hygiene or final documentation review, not Android PIMPL. For the original PIMPL goal of hiding OS/backend dependencies from public headers, the high-value backend/platform work is now complete.
+1. Do not migrate headers that have no direct DirectX/OpenGL ES/Metal/Win32/macOS SDK types.
+2. Do not migrate `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER` for now.
+3. Keep direct public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
+4. Treat any remaining manager `Impl` work as future header/ABI hygiene, not part of the current backend/OS isolation goal.
+
+For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete.
