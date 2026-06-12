@@ -836,69 +836,74 @@ namespace mbm
     
     void CORE_MANAGER::logic()
     {
-        if (this->device->getScene() != nullptr)
+        DEVICE *device = this->getDevice();
+        SCENE *scene = device->getScene();
+        if (scene != nullptr)
         {
-            if (this->device->getScene()->endScene)
+            if (scene->endScene)
             {
-                this->device->getScene()->onFinalizeScene();
-                this->device->getScene()->wasUnloadedScene = true;
-                disableRender(this->device->getScene()->getIdScene());
+                scene->onFinalizeScene();
+                scene->wasUnloadedScene = true;
+                disableRender(scene->getIdScene());
                 for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
                 {
                     PLUGIN * plugin = this->getPlugin(i);
                     plugin->onDestroy();
                 }
                 this->clearPlugins();
-                if (this->device->getScene()->goToNextScene && this->device->getScene()->nextScene == nullptr)
+                if (scene->goToNextScene && scene->nextScene == nullptr)
                 {
-                    this->device->setRun(false);
-                    this->device->setClearBackGround(false);
+                    device->setRun(false);
+                    device->setClearBackGround(false);
                 }
                 else
                 {
-                    if (this->device->getScene()->goToNextScene)
-                        this->device->setScene(this->device->getScene()->nextScene);
-                    if(this->device->getScene())
-                        this->device->getScene()->endScene = false;
+                    if (scene->goToNextScene)
+                    {
+                        device->setScene(scene->nextScene);
+                        scene = device->getScene();
+                    }
+                    if(scene)
+                        scene->endScene = false;
                     this->setChangeScene(true);
-                    this->device->setClearBackGround(true);
-                    if(this->device->getScene())
-                        this->device->getScene()->startLoading();
+                    device->setClearBackGround(true);
+                    if(scene)
+                        scene->startLoading();
                 }
                 this->setSceneInitialized(false);
             }
             else if (this->isChangeScene())
             {
                 #if defined _DEBUG || defined DEBUG
-                INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", this->device->getSwapBackBufferStep());
+                INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", device->getSwapBackBufferStep());
                 #endif
-                if (this->device->getSwapBackBufferStep() == 3)
+                if (device->getSwapBackBufferStep() == 3)
                 {
                     #if defined _DEBUG || defined DEBUG
                     INFO_LOG("CORE_MANAGER::logic() calling scene->init()");
                     #endif
                     this->reinitTimers();
-                    enableRender(this->device->getScene()->getIdScene());
-                    this->device->getScene()->wasUnloadedScene = false;
-                    this->device->getOrderRender().reInit();
-                    this->device->getScene()->onInitScene();
-                    this->device->setFakeFps(120,60);
-                    this->device->resumeTimer();
+                    enableRender(scene->getIdScene());
+                    scene->wasUnloadedScene = false;
+                    device->getOrderRender().reInit();
+                    scene->onInitScene();
+                    device->setFakeFps(120,60);
+                    device->resumeTimer();
                     this->setSceneInitialized(true);
                     this->setChangeScene(false);
-                    this->device->setClearBackGround(true);
-                    if(this->device->getScene())
-                        this->device->getScene()->endLoading();
+                    device->setClearBackGround(true);
+                    if(scene)
+                        scene->endLoading();
                 }
                 else
                 {
-                    this->device->setClearBackGround(false);
-                    this->device->incrementSwapBackBufferStep();
+                    device->setClearBackGround(false);
+                    device->incrementSwapBackBufferStep();
                 }
             }
             else
             {
-                this->device->getScene()->onLoop();
+                scene->onLoop();
             }
         }
     }
