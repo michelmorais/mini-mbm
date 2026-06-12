@@ -88,6 +88,7 @@ Recommended order:
 3. Leave `SPECIFIC_AUX_CONTEXT_DEVICE` visible where platform entry points still need concrete fields, especially Android asset/window/JNI setup and plugin render-device bridging.
 4. Add narrow platform bridge methods before hiding `SPECIFIC_AUX_CONTEXT_DEVICE` completely. Examples: Android asset manager lookup, native window update, X11 display/window lookup, Win32 native window lookup, and Metal drawable/pass access.
 5. After those bridges exist, move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers.
+6. After backend isolation is stable across Linux, Android, macOS, MinGW, and MSVS, reorganize the private backend headers into `src/core_mbm/private/` and update internal include paths/build include directories. This is a cleanup/structure milestone, not a public API milestone.
 
 ### 3. Public headers include too much implementation detail
 
@@ -764,6 +765,41 @@ Milestone 78 implementation note:
 - Updated shared OpenGL ES core-manager/device code and the X11 OpenGL ES backend file to include the private context header only where concrete X11/EGL fields are required.
 - Kept the Android OpenGL ES context layout public for now because Android platform entry points, Lua wrappers, file/asset helpers, and lsqlite3 asset package code still reach into JNI/asset/window fields.
 - This removes the X11 OpenGL ES context layout from the public core header without changing runtime behavior, gameplay API, Android GLES behavior, Windows GLES behavior, or `RENDERIZABLE`.
+
+Milestone 79 Android OpenGL ES context bridge audit:
+
+The Android branch is the last concrete `SPECIFIC_AUX_CONTEXT_DEVICE` layout still exposed by public `include/core_mbm/specific-opengl_es.h`. Do not move it in one step. It currently mixes platform bootstrap, JNI class cache, asset/file helpers, native-window EGL state, and texture filter state.
+
+Current Android context responsibilities:
+
+| Context area | Public fields / methods currently used | Current consumers | Bridge direction |
+|---|---|---|---|
+| App paths | `absPath`, `apkPath`, `addPathDroid()` | `platform-android/main.cpp`, `platform-android/main-lua.cpp`, `platform-android/main-native-activity.cpp`, `src/core_mbm/file-util.cpp`, `third-party/lsqlite3/asset-pkg.cpp`, Android Lua wrappers | Add path setters/getters on an Android-private bridge, e.g. `mbm_android_set_paths(absPath, apkPath)`, `mbm_android_get_abs_path()`, and `mbm_android_add_asset_path(path)`. |
+| Asset manager | `assetManager`, `existFileOnAssets()`, `copyFileFromAsset()`, `getImageDataFromDroid()`, `fopenAsset()` | Android bootstrap, `file-util.cpp`, `audio-opensl-android.cpp`, `specific-android.cpp`, `lsqlite3` asset package | Keep file/asset operations as bridge functions so non-render modules do not read the context layout. Add `mbm_android_get_asset_manager()` only for backend files that must call NDK APIs directly. |
+| Native window / EGL | `nativeWindow`, `eglDisplay`, `eglSurface`, `eglContext`, `eglConfig`, `release()` | `platform-android/main-native-activity.cpp`, `core-manager-opengl_es_android.cpp`, `device-opengl_es.cpp` | Move to private `src/core_mbm/specific-opengl_es-android-context.h` only after adding native-window setters and EGL helpers used by Android platform/core-manager code. |
+| JNI thread/env | `jenv`, temporary reassignment around callbacks | `platform-android/main.cpp`, `platform-android/main-lua.cpp`, `platform-android/main-native-activity.cpp`, Android Lua wrappers | Add scoped or explicit bridge calls for setting/restoring the active `JNIEnv*`, e.g. `mbm_android_get_jni_env()`, `mbm_android_set_jni_env(env)`, and later a scoped helper if the codebase accepts it. |
+| Java class cache | `jclassDoCommandsJniEngine`, `jclassFileJniEngine`, `jclassKeyCodeJniEngine`, `initClassLoader()`, `cacheJavaClasses()` | Android platform entry points and Android Lua wrappers | Add narrow wrappers for doCommands, key code/name, dialogs, vibration, and file dialog calls. Do not expose cached `jclass` fields outside private Android code after migration. |
+| UTF string lifetime | `get_safe_string_utf()` | Android Lua wrappers | Keep as a private helper behind JNI bridge functions. Lua wrappers should pass C strings to bridge functions, not allocate `jstring` directly through context fields. |
+| Texture filter cache | `filter_GL_TEXTURE_*` | `core-manager-opengl_es_android.cpp`, `device-opengl_es.cpp` | Can stay backend-private with the Android context once `device-opengl_es.cpp` includes the private Android context header on Android. |
+
+Suggested Android migration order:
+
+1. Add Android bridge declarations to the public GLES header, but only as narrow functions. Keep the concrete context public during this step.
+2. Convert non-render file/asset users first: `file-util.cpp`, `audio-opensl-android.cpp`, and `third-party/lsqlite3/asset-pkg.cpp`.
+3. Convert Android Lua JNI users next: `framework-android-lua.cpp`, `manager-android-lua.cpp`, and any Android-only Lua helpers. These should call bridge functions for doCommands, key mapping, dialogs, and string safety.
+4. Convert Android platform bootstrap: `platform-android/main.cpp`, `platform-android/main-lua.cpp`, and `platform-android/main-native-activity.cpp` should set paths, asset manager, native window, class loader, and active `JNIEnv*` through bridge functions.
+5. Move the concrete Android context layout to `src/core_mbm/specific-opengl_es-android-context.h`, include it only from Android backend/platform implementation files, and leave only forward declarations plus bridge functions in `include/core_mbm/specific-opengl_es.h`.
+
+Validation requirement:
+
+- Each Android bridge group should be a separate milestone and must be tested with the full Android command before proceeding.
+- Linux/MSVS/macOS should also be checked after the public header changes because `specific-opengl_es.h` is shared by all GLES builds.
+
+Future private-header organization note:
+
+- The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.
+- Do this only after the backend splits have settled and passed the full platform matrix, because moving them now would add include-path churn on top of the functional PIMPL changes.
+- When this cleanup milestone happens, update CMake and MSVS private include paths together so internal engine files outside `src/core_mbm/`, such as `src/render/` and `src/platform/`, do not need fragile relative includes.
 
 ### Phase 3 - Hide renderer backend handles
 

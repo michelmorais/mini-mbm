@@ -20,7 +20,7 @@
 
 #if defined (USE_DIRECTX9)
 
-#include "specific-directx9-context.h"
+#include "../core_mbm/specific-directx9-context.h"
 #include "../core_mbm/specific-directx9-render-target.h"
 #include <scene.h>
 #include <render-2-texture.h>
