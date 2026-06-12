@@ -276,8 +276,8 @@ namespace mbm
         if (luaCore.initializeSceneLua(luaCore.widthWindow, luaCore.heightWindow, expectedWidth, expectedHeight,luaCore.windowBorder))
         {
             // TODO: review if these options are still necessary
-            //luaCore.device->getSpecificContextDevice()->window.askOnExit = false;
-            //luaCore.device->window.exitOnEsc = false;
+            //device->getSpecificContextDevice()->window.askOnExit = false;
+            //device->window.exitOnEsc = false;
     
     #if !defined(_DEBUG) && (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
             bool hideConsole = true;
