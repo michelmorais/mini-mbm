@@ -174,10 +174,10 @@ the audio backend DLL (`portaudio_x86.dll`), the graphics backend DLLs
 executables by CMake POST_BUILD steps, so no manual copying is required.
 
 ```cmd
-mkdir build\mingw_release
-cd build\mingw_release
+mkdir build
+cd build
 
-cmake ..\.. -G "MinGW Makefiles" ^
+cmake .. -G "MinGW Makefiles" ^
     -DPLAT=Windows -DUSE_ALL=1 ^
     -DAUDIO=portaudio ^
     -DCMAKE_BUILD_TYPE=Release
@@ -188,10 +188,10 @@ mingw32-make -j%NUMBER_OF_PROCESSORS%
 For a Debug build:
 
 ```cmd
-mkdir build\mingw_debug
-cd build\mingw_debug
+mkdir build
+cd build
 
-cmake ..\.. -G "MinGW Makefiles" ^
+cmake .. -G "MinGW Makefiles" ^
     -DPLAT=Windows -DUSE_ALL=1 ^
     -DAUDIO=portaudio ^
     -DCMAKE_BUILD_TYPE=Debug
