@@ -126,7 +126,8 @@ namespace mbm
             auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
             if (luaManager)
             {
-                auto *curScene = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
+                DEVICE *device = luaManager->getDevice();
+                auto *curScene = static_cast<SCENE_SCRIPT*>(device->getScene());
                 if(curScene && curScene->splashRenderizable)
                 {
                     auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(curScene->splashRenderizable->userData);
@@ -1153,10 +1154,11 @@ namespace mbm
             LUA_MANAGER::pLuaManager = this;
             onDoNativeCommand = nullptr;
             pLuaManager->device = mbm::DEVICE::getInstance();
+            DEVICE *device = this->getDevice();
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
             this->nameApplication = "Mini-mbm " MBM_VERSION " ";
-            this->nameApplication += pLuaManager->device->getBackendEngineName();
+            this->nameApplication += device->getBackendEngineName();
             this->nameApplication += " Compiled: " __DATE__;
     #if defined _WIN32
             int _w = 0;
@@ -1187,6 +1189,7 @@ namespace mbm
         {
             LUA_MANAGER::pLuaManager = this;
             pLuaManager->device = mbm::DEVICE::getInstance();
+            DEVICE *device = this->getDevice();
             onDoNativeCommand = nullptr;
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
@@ -1214,12 +1217,12 @@ namespace mbm
             if(args.size() > 0)
             {
                 auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,args[0].c_str());
-                pLuaManager->device->getDynamicVars()["_executable_name_"] = dExeName;
+                device->getDynamicVars()["_executable_name_"] = dExeName;
             }
             
             this->hasValueTextureLogo = false;
             this->parserArgs(args);
-            if(pLuaManager->device->isVerbose())
+            if(device->isVerbose())
                 INFO_LOG("%s", this->nameApplication.c_str());
         }
 
@@ -1228,6 +1231,7 @@ namespace mbm
             LUA_MANAGER::pLuaManager = this;
             onDoNativeCommand = nullptr;
             pLuaManager->device = mbm::DEVICE::getInstance();
+            DEVICE *device = this->getDevice();
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
             this->nameApplication = "Mini-mbm " MBM_VERSION;
@@ -1254,7 +1258,7 @@ namespace mbm
             std::vector<std::string> lsArg;
             
             auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,argv[0]);
-            pLuaManager->device->getDynamicVars()["_executable_name_"] = dExeName;
+            device->getDynamicVars()["_executable_name_"] = dExeName;
             
             this->hasValueTextureLogo = false;
             lsArg.reserve(argc);
@@ -1596,13 +1600,13 @@ namespace mbm
                                     break;
                                     case POSITION_X_SCREEN:
                                     {
-                                        this->device->setWindowPositionX(std::atoi(arg));
+                                        device->setWindowPositionX(std::atoi(arg));
                                         nextArg               = POSITION_X_SCREEN;
                                     }
                                     break;
                                     case POSITION_Y_SCREEN:
                                     {
-                                        this->device->setWindowPositionY(std::atoi(arg));
+                                        device->setWindowPositionY(std::atoi(arg));
                                         nextArg               = POSITION_Y_SCREEN;
                                     }
                                     break;
@@ -1705,9 +1709,9 @@ namespace mbm
                             }
                         }
                         break;
-                        case POSITION_X_SCREEN: { this->device->setWindowPositionX(std::atoi(arg));}
+                        case POSITION_X_SCREEN: { device->setWindowPositionX(std::atoi(arg));}
                         break;
-                        case POSITION_Y_SCREEN: { this->device->setWindowPositionY(std::atoi(arg));}
+                        case POSITION_Y_SCREEN: { device->setWindowPositionY(std::atoi(arg));}
                         break;
                         case MAXIMIZED_WINDOW: { this->maximizedWindow = std::atoi(arg) ? true : false;}
                         break;
@@ -1761,14 +1765,15 @@ namespace mbm
             const char *  nameScene = luaL_checkstring(lua, 1);
             const int tSplash       = top > 1 ? lua_type(lua,2) : LUA_TNONE;
             nameScene               = util::getFullPath(nameScene,nullptr);
+            SCENE *scene = device->getScene();
             if (luaManager->isSceneInitialized() == false)
             {
-                if(luaManager->device->isVerbose())
+                if(device->isVerbose())
                     lua_print_line(lua,TYPE_LOG_WARN,"The scene [%s] will be load in the main loop!", nameScene);
                 std::string nameSceneTmp(nameScene);
                 log_util::replaceString(nameSceneTmp,"\\\\","/");
                 log_util::replaceString(nameSceneTmp,"\\","/");
-                auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
+                auto *curScene = static_cast<SCENE_SCRIPT*>(scene);
                 curScene->loadSceneOnFirstLoop        = true;
                 curScene->strNameSceneLoadOnFirtLoop = std::move(nameSceneTmp);
                 lua_pushboolean(lua, 1);
@@ -1776,14 +1781,14 @@ namespace mbm
             }
             
             const std::string newSceneName(nameScene ? nameScene : "");
-            if (device->getScene() && access_file(newSceneName.c_str(), 0) == 0)
+            if (scene && access_file(newSceneName.c_str(), 0) == 0)
             {
-                auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
+                auto *curScene = static_cast<SCENE_SCRIPT*>(scene);
                 auto newScene = new SCENE_SCRIPT(newSceneName.c_str(), false, curScene->splashRenderizable);
                 luaManager->lsScene.push_back(newScene);
-                device->getScene()->nextScene     = newScene;
-                device->getScene()->goToNextScene = true;
-                device->getScene()->endScene      = true;
+                scene->nextScene     = newScene;
+                scene->goToNextScene = true;
+                scene->endScene      = true;
 
                 if (tSplash == LUA_TTABLE)//add or replace renderizable
                 {
@@ -1859,17 +1864,19 @@ namespace mbm
                         const char *  nameScene = util::getFullPath(nameMainScene,nullptr);
                         if (access_file(nameScene, 0) == 0)
                         {
-                            auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
+                            SCENE *scene = device->getScene();
+                            auto *curScene = static_cast<SCENE_SCRIPT*>(scene);
                             auto newScene = new SCENE_SCRIPT(nameScene, luaManager->noSplash,curScene->splashRenderizable);
                             luaManager->lsScene.push_back(newScene);
-                            luaManager->device->getScene()->nextScene     = newScene;
-                            luaManager->device->getScene()->goToNextScene = true;
-                            luaManager->device->getScene()->endScene      = true;
+                            scene->nextScene     = newScene;
+                            scene->goToNextScene = true;
+                            scene->endScene      = true;
                         }
                         else
                         {
                             ERROR_LOG("Scene not found:[%s]", nameScene);
-                            luaManager->device->getScene()->endScene = true;
+                            SCENE *scene = device->getScene();
+                            scene->endScene = true;
                         }
                     }
                 }
@@ -1916,7 +1923,8 @@ namespace mbm
         auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
         if(luaManager)
         {
-            auto *curScene   = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
+            DEVICE *device = luaManager->getDevice();
+            auto *curScene = static_cast<SCENE_SCRIPT*>(device->getScene());
             if(curScene)
             {
                 lua_print_line(curScene->getLuaState() ,TYPE_LOG_ERROR,"Attempt to get root cause...");
@@ -1929,7 +1937,8 @@ namespace mbm
         auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
         if(luaManager)
         {
-            auto *curScene   = static_cast<SCENE_SCRIPT*>(luaManager->device->getScene());
+            DEVICE *device = luaManager->getDevice();
+            auto *curScene = static_cast<SCENE_SCRIPT*>(device->getScene());
             if(curScene)
             {
                 lua_State* lua = curScene->getLuaState();
