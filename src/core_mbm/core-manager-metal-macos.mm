@@ -577,7 +577,8 @@ namespace mbm
 
     void CORE_MANAGER::moveWindow(int x, int y)
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         NSWindow* win = ctx->window;
         if (!win) return;
         NSRect screenFrame = [[NSScreen mainScreen] frame];
@@ -591,7 +592,8 @@ namespace mbm
         [NSApp setPresentationOptions:NSApplicationPresentationDefault];
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         ctx->release(wasDeviceLost);
     }
 
