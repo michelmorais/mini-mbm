@@ -195,6 +195,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
+        DEVICE *device = this->getDevice();
         for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
         {
             const PLUGIN * thatPlugin = this->getPlugin(i);
@@ -210,13 +211,13 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             #if defined _WIN32
                 handle = device->getSpecificContextDevice()->window.getHwnd();
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-                handle = this->device->getSpecificContextDevice()->display_x11;
+                handle = device->getSpecificContextDevice()->display_x11;
             #elif defined(ANDROID)
                 handle = androidGetPluginSubscribeHandle();
             #else
                 #error "Platform not supported"
             #endif
-            plugin->onSubscribe(static_cast<int>(this->device->getBackBufferWidth()),static_cast<int>(this->device->getBackBufferHeight()),handle, nullptr);
+            plugin->onSubscribe(static_cast<int>(device->getBackBufferWidth()),static_cast<int>(device->getBackBufferHeight()),handle, nullptr);
             return indexPlugin;
         }
         return 0xffffffff;
