@@ -192,7 +192,6 @@ namespace mbm
     {
       public:
         DEVICE *device;
-        bool    changeScene;
         API_IMPL CORE_MANAGER();
         API_IMPL virtual ~CORE_MANAGER();
     
@@ -251,6 +250,8 @@ namespace mbm
         void setWindowOptions(const bool border, const bool enableResize) noexcept;
         bool getWindowBorder() const noexcept;
         bool getEnableResizeWindow() const noexcept;
+        void setChangeScene(const bool change) noexcept;
+        bool isChangeScene() const noexcept;
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;

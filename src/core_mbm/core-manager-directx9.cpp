@@ -97,7 +97,7 @@ namespace mbm
     {
         this->initializeImpl();
         this->device           = DEVICE::getInstance();
-        this->changeScene               = true;
+        this->setChangeScene(true);
         this->__sceneWasInit            = false;
         this->keyCapsLockState          = false;
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))

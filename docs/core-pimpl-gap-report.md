@@ -39,7 +39,7 @@ High-impact examples:
 |---|---|
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
-| `include/core_mbm/core-manager.h` | `device`, `changeScene`, `__sceneWasInit`, `keyCapsLockState`. Window restore options are hidden behind `CORE_MANAGER::Impl`. |
+| `include/core_mbm/core-manager.h` | `device`, `__sceneWasInit`, `keyCapsLockState`. Scene-change and window restore options are hidden behind `CORE_MANAGER::Impl`. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
 | `include/core_mbm/scene.h` | `endScene`, `wasUnloadedScene`, `nextScene`, `goToNextScene`, `userData`. |
 
@@ -1005,8 +1005,15 @@ Milestone 102 implementation note:
 - Moved `CORE_MANAGER` window restore options behind `CORE_MANAGER::Impl`: window border and resize-enabled state.
 - Added private `CORE_MANAGER` helpers for backend/common code to store and reuse those options during device restore.
 - Kept `LUA_MANAGER` source compatibility by giving it its own launch-option fields for Lua startup argument parsing.
-- Kept `device`, `changeScene`, `__sceneWasInit`, and `keyCapsLockState` public because platform/Lua compatibility code still reads them directly.
+- At this milestone, `device`, `changeScene`, `__sceneWasInit`, and `keyCapsLockState` still remained public because platform/Lua compatibility code read them directly.
 - This is a narrow `CORE_MANAGER` layout cleanup and does not change window creation arguments, lost-device restore behavior, or gameplay API.
+
+Milestone 103 implementation note:
+
+- Moved `CORE_MANAGER::changeScene` behind `CORE_MANAGER::Impl`.
+- Added private `CORE_MANAGER` helpers for common/backend code to read and update the scene-change flag.
+- Kept `device`, `__sceneWasInit`, and `keyCapsLockState` public because platform, Lua, and plugin compatibility code still reads them directly.
+- This is a narrow scene-transition state cleanup and does not change scene loading, unloading, or swap-step behavior.
 
 ### Phase 3 - Hide renderer backend handles
 
@@ -1042,7 +1049,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
 - `ANIMATION_MANAGER`, restore backup object done; animation list/index/callback fields remain public pending accessor migration.
-- `CORE_MANAGER`, window restore options done; remaining compatibility fields only if there is a clear invariant or dependency to hide.
+- `CORE_MANAGER`, window restore options and scene-change flag done; remaining compatibility fields only if there is a clear invariant or dependency to hide.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
 
@@ -1076,7 +1083,7 @@ Only after engine internals, Lua bindings, plugins, examples, and editors use th
 This is future work only. It is not required for the completed OS/backend isolation goal.
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
-2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, the private `EFFECT_SHADER` shader cache, `MESH_MANAGER` singleton cache, the `ANIMATION_MANAGER` restore backup object, and `CORE_MANAGER` window restore options done.
+2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, the private `EFFECT_SHADER` shader cache, `MESH_MANAGER` singleton cache, the `ANIMATION_MANAGER` restore backup object, and selected `CORE_MANAGER` flags done.
 3. Add complete accessor/mutator coverage for `EFFECT_SHADER`, `RENDERIZABLE`, `SCENE`, `ANIMATION_MANAGER`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
@@ -1105,7 +1112,7 @@ Current decision:
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
 6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; public animation list/index/callback state remains pending accessor migration.
-7. `CORE_MANAGER` window restore options are now behind `Impl`; `device`, `changeScene`, `__sceneWasInit`, and `keyCapsLockState` remain public compatibility fields.
+7. `CORE_MANAGER` window restore options and scene-change flag are now behind `Impl`; `device`, `__sceneWasInit`, and `keyCapsLockState` remain public compatibility fields.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

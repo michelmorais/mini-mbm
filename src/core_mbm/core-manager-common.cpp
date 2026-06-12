@@ -73,6 +73,7 @@ namespace mbm
         std::string                          nameApplication           = "Mini-mbm";
         bool                                 windowBorder              = true;
         bool                                 enableResizeWindow        = true;
+        bool                                 changeScene               = true;
     };
 
     void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
@@ -135,6 +136,16 @@ namespace mbm
     bool CORE_MANAGER::getEnableResizeWindow() const noexcept
     {
         return impl->enableResizeWindow;
+    }
+
+    void CORE_MANAGER::setChangeScene(const bool change) noexcept
+    {
+        impl->changeScene = change;
+    }
+
+    bool CORE_MANAGER::isChangeScene() const noexcept
+    {
+        return impl->changeScene;
     }
 
     STEP_RETORE CORE_MANAGER::getStepRestore() const noexcept
@@ -385,7 +396,7 @@ namespace mbm
             }
             //if (loopCallCount <= 3)
             //    INFO_LOG("CORE_MANAGER::onLoop() about to update/render (frame %d) changeScene=%d swapStep=%d",
-            //             loopCallCount, (int)this->changeScene, this->device->getSwapBackBufferStep());
+            //             loopCallCount, (int)this->isChangeScene(), this->device->getSwapBackBufferStep());
             this->update();
             this->render();
             if(doSwapBuffers)// some backend engines need to control when swap buffers is done
@@ -809,14 +820,14 @@ namespace mbm
                         this->device->setScene(this->device->getScene()->nextScene);
                     if(this->device->getScene())
                         this->device->getScene()->endScene = false;
-                    changeScene                   = true;
+                    this->setChangeScene(true);
                     this->device->setClearBackGround(true);
                     if(this->device->getScene())
                         this->device->getScene()->startLoading();
                 }
                 this->__sceneWasInit = false;
             }
-            else if (changeScene)
+            else if (this->isChangeScene())
             {
                 #if defined _DEBUG || defined DEBUG
                 INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", this->device->getSwapBackBufferStep());
@@ -834,7 +845,7 @@ namespace mbm
                     this->device->setFakeFps(120,60);
                     this->device->resumeTimer();
                     this->__sceneWasInit          = true;
-                    changeScene                   = false;
+                    this->setChangeScene(false);
                     this->device->setClearBackGround(true);
                     if(this->device->getScene())
                         this->device->getScene()->endLoading();
