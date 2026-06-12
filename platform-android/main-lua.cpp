@@ -105,11 +105,9 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     if (game != nullptr)
     {
         INFO_LOG("lib mini-mbm resized\n width: %d height: %d", width, height);
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
-        cJni->jenv            = env;
-        cJni->absPath         = _absPath ? _absPath : "";
-        cJni->apkPath         = _apkPath ? _apkPath : "";
-        cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+        mbm::androidSetJNIEnv(env);
+        mbm::androidSetRuntimePaths(_absPath, _apkPath);
+        mbm::androidCacheJavaClasses(PACKAGE_NAME_CLASS);
         const char* nameApplication = _apkPath ? _apkPath : "mini-mbm Android application";
         constexpr int px = 0;
         constexpr int py = 0;
@@ -142,11 +140,9 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
 
             game->device->setCoreManager(game);
             game->device->setBackBufferSize(static_cast<float>(width), static_cast<float>(height));
-            mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
-            cJni->jenv        = env;
-            cJni->absPath     = _absPath ? _absPath : "";
-            cJni->apkPath     = _apkPath ? _apkPath : "";
-            cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+            mbm::androidSetJNIEnv(env);
+            mbm::androidSetRuntimePaths(_absPath, _apkPath);
+            mbm::androidCacheJavaClasses(PACKAGE_NAME_CLASS);
 
             constexpr bool border = false;
             game->initializeSceneLua(width, height,static_cast<int>(expectedWidth),static_cast<int>(expectedHeight), border);
@@ -257,9 +253,8 @@ bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint he
     if (game)
     {
         //maybe need this in future
-        //mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
-        //cJni->jenv            = env;
-        //cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+        //mbm::androidSetJNIEnv(env);
+        //mbm::androidCacheJavaClasses(PACKAGE_NAME_CLASS);
         return game->onLostDevice(doSwapBuffers, static_cast<int>(width), static_cast<int>(height), px, py);
     }
     return true;
@@ -268,37 +263,13 @@ bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint he
 void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
 {
     INFO_LOG("OnStop Called.");
-	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->getSpecificContextDevice();
-    JavaVM *         jvm        = nullptr;
-    JNIEnv *         oldJenv    = cJni->jenv;
-    int              getEnvStat = JNI_OK;
-    int              status     = env->GetJavaVM(&jvm);
-    if (status != 0)
-    {
-        ERROR_LOG( "Failed to GetJavaVM");
-        return;
-    }
-    if (env != cJni->jenv)
-    {
-        getEnvStat = JNI_EDETACHED;
-        if (jvm->AttachCurrentThread(&env, nullptr) != 0)
-        {
-            ERROR_LOG( "Failed to attach");
-            return;
-        }
-        cJni->jenv = env;
-    }
+    void *oldJenv = mbm::androidGetJNIEnv();
+    if (env != oldJenv)
+        mbm::androidSetJNIEnv(env);
     if (game)
         game->onStopCoreManager();
-    if (getEnvStat == JNI_EDETACHED)
-    {
-        /*
-        Não posso dar DetachCurrentThread pois no lollipop causa:
-        "attempting to detach while still running code"
-        jvm->DetachCurrentThread();
-        */
-        cJni->jenv = oldJenv;
-    }
+    if (env != oldJenv)
+        mbm::androidSetJNIEnv(oldJenv);
 }
 
 void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, jstring param2)

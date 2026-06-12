@@ -561,6 +561,26 @@ namespace mbm
         }
         return true;
     }
+
+    void *androidGetJNIEnv() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->jenv : nullptr;
+    }
+
+    void androidSetJNIEnv(void *jniEnv)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->jenv = static_cast<JNIEnv *>(jniEnv);
+    }
+
+    void androidCacheJavaClasses(const char *packageNameClasses)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->cacheJavaClasses(packageNameClasses);
+    }
     
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():
     jenv(nullptr),

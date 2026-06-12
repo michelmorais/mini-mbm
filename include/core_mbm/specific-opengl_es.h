@@ -593,6 +593,9 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
     API_IMPL void androidDeleteGlobalRef(void *globalRef);
     API_IMPL bool androidCallActivityDoCommands(void *activityObj, const char *cmd, const char *param, char *result,
                                                 int maxSize);
+    API_IMPL void *androidGetJNIEnv() noexcept;
+    API_IMPL void androidSetJNIEnv(void *jniEnv);
+    API_IMPL void androidCacheJavaClasses(const char *packageNameClasses);
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {

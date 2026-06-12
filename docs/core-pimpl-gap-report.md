@@ -858,6 +858,19 @@ Milestone 84 implementation note:
 - The exported `Java_com_mini_mbm_MbmActivity_nativeOnCallBackCommands()` callback still has JNI parameters by ABI requirement, but it does not access the Android context layout.
 - Legacy Android entry points (`platform-android/main.cpp`, `platform-android/main-lua.cpp`, and `platform-android/scene-1.cpp`) still need a separate audit if they remain supported.
 
+Milestone 85 implementation note:
+
+- Added legacy Android JNI/context bridge helpers:
+  - `androidGetJNIEnv()`
+  - `androidSetJNIEnv()`
+  - `androidCacheJavaClasses()`
+- Migrated legacy Android entry points away from direct `SPECIFIC_AUX_CONTEXT_DEVICE` access:
+  - `platform-android/main.cpp`
+  - `platform-android/main-lua.cpp`
+  - `platform-android/scene-1.cpp`
+- Kept JNI function signatures and Java native registration unchanged because those files are JNI ABI entry points.
+- Current CMake Android builds use `platform-android/main-native-activity.cpp`; these legacy files are not part of the active Android target, so validation is by static scan plus the active Android build.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.
