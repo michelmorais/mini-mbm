@@ -303,7 +303,7 @@
     <ClInclude Include="..\..\include\core_mbm\specific-directx9.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h">
+    <ClInclude Include="..\..\src\core_mbm\specific-opengl_es.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\particle-control.h">

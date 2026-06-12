@@ -21,7 +21,7 @@
 
 #if defined(ANDROID)
 
-#include <core_mbm/specific-opengl_es.h>
+#include <specific-opengl_es.h>
 
 #include <android/asset_manager.h>
 #include <android/native_window.h>

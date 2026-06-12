@@ -75,7 +75,7 @@ This is now the most useful next cleanup direction because it matches the real P
 
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
-| `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window concrete context fields, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, `GLES_PS_VS`, and the Windows/X11 OpenGL ES context layouts have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android platform/asset bridge surface public until those call sites move behind narrow accessors. |
+| `src/core_mbm/specific-opengl_es.h` | EGL, GLES2, and GL debug macros remain, but the header is now private to OpenGL ES backend implementation files. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, `GLES_PS_VS`, and all concrete OpenGL ES context layouts have moved to private OpenGL ES backend headers. | OpenGL ES backend files and private GLES resource/context headers. | Done for public-header isolation. Keep Android bridge APIs in `include/core_mbm/android-bridge.h` for Android platform/file/Lua users that need them. |
 | `include/core_mbm/specific-directx9.h` | No concrete DirectX9/Win32 backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, HRESULT logging, and the DirectX9 context layout have moved to private backend headers. The texture pixel-copy helper is file-local. Direct dependencies on `core-manager.h`, `shader.h`, `primitives.h`, D3D9, Win32 platform, and D3DX headers have been removed. | DirectX9 backend files and Win32 platform helper files include the private context header when concrete D3D/window fields are required. | Done for DirectX9 context layout. The broader Win32 platform header remains separate platform integration surface. |
 | `include/core_mbm/specific-metal.h` | No concrete Metal backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE` and exposes narrow opaque `void *` frame bridge functions for the ImGui Metal plugin. `RENDER2TARGET_METAL`, `BUFFER_SPECIFIC`, and the Metal context layout have moved to private Metal backend headers. | Metal backend files include the private context header. The ImGui Metal bridge uses the opaque frame bridge instead of reading the context layout directly. | Done for Metal context layout. |
 | `include/core_mbm/specific-dummy.h` | No concrete dummy backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DUMMY`, `BUFFER_SPECIFIC`, and the dummy context layout have moved to private dummy backend headers. | Dummy backend and dummy Lua wrappers can include it as a compatibility shim, but only backend files include the concrete private context header. | Done for dummy; use this as the lowest-risk pattern for future platform bridge splits. |
@@ -921,6 +921,13 @@ Milestone 91 implementation note:
 - The Linux wrapper now includes `strings.h` directly for `strcasecmp()` instead of relying on unrelated include chains.
 - The Windows and DirectX wrappers now include `platform/mismatch-platform.h` for the Win32/string-compatibility surface they actually use, instead of pulling in EGL/GLES through the OpenGL ES backend utility header.
 - This keeps Lua platform wrappers tied to platform APIs only, not to a renderer backend header.
+
+Milestone 92 implementation note:
+
+- Moved the OpenGL ES backend utility header from public `include/core_mbm/specific-opengl_es.h` to private `src/core_mbm/specific-opengl_es.h`.
+- Updated CMake to keep both public `include/core_mbm` and private `src/core_mbm` on the internal engine include path.
+- Updated the Android private context include and MSVS project/filter references to the new private header location.
+- After Milestones 90 and 91, the moved header is only used by OpenGL ES backend implementation files and private GLES resource/context headers, so EGL/GLES types and GL debug macros are no longer exposed through a public core header.
 
 Future private-header organization note:
 
