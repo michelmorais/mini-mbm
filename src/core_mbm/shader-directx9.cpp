@@ -27,6 +27,7 @@
 #include <specific-directx9.h>
 #include "specific-directx9-buffer.h"
 #include "specific-directx9-shader.h"
+#include "specific-directx9-vertex.h"
 #include <header-mesh.h>
 #include <draw-compatibility.h>
 #include <texture-manager.h>

@@ -76,7 +76,7 @@ This is now the most useful next cleanup direction because it matches the real P
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
 | `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, and `GLES_PS_VS` have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
-| `include/core_mbm/specific-directx9.h` | D3D9/COM types, Win32 window context, DirectX helper functions, and `D3D_VERTEX_CONVERTER`. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, and `D3D_PS_VS` have moved to private DirectX9 backend headers. | DirectX9 backend files and Win32 platform helper files. | The context/window surface still needs a separate platform bridge decision. `D3D_VERTEX_CONVERTER` can be evaluated later as a shader-only helper. |
+| `include/core_mbm/specific-directx9.h` | D3D9/COM types, Win32 window context, and DirectX helper functions. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, and `D3D_VERTEX_CONVERTER` have moved to private DirectX9 backend headers. | DirectX9 backend files and Win32 platform helper files. | The context/window surface still needs a separate platform bridge decision. |
 | `include/core_mbm/specific-metal.h` | Metal/Cocoa/UIKit types and full Metal `SPECIFIC_AUX_CONTEXT_DEVICE` layout. `RENDER2TARGET_METAL` and `BUFFER_SPECIFIC` have moved to private Metal backend headers. | Metal backend files and the ImGui Metal bridge plugin. | Keep a minimal bridge for ImGui or replace plugin access with a small Metal frame context API before hiding the full context layout. |
 | `include/core_mbm/specific-dummy.h` | Dummy backend context, buffer, and render-target structs. | Dummy backend and dummy Lua wrappers. | Keep as a template for now, but update it to model the private-header pattern once a real backend split is proven. |
 | `include/core_mbm/platform-win32.h` and `include/core_mbm/d3dx9-mingw.h` | Win32 window/event and DirectX compatibility types. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat separately from renderer PIMPL. They are platform integration headers, not render-resource ownership, but they still block a fully clean public boundary. |
@@ -84,7 +84,7 @@ This is now the most useful next cleanup direction because it matches the real P
 Recommended order:
 
 1. Do not add accessors for public gameplay/core flags only because they are public and strongly typed. Accessors are useful when they hide layout, preserve invariants, or replace repeated direct backend access.
-2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL`, `RENDER2TARGET_DIRECTX9`, `RENDER2TARGET_GLES`, backend `BUFFER_SPECIFIC` structs, `GLES_PS_VS`, and `D3D_PS_VS` are done.
+2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL`, `RENDER2TARGET_DIRECTX9`, `RENDER2TARGET_GLES`, backend `BUFFER_SPECIFIC` structs, `GLES_PS_VS`, `D3D_PS_VS`, and `D3D_VERTEX_CONVERTER` are done.
 3. Leave `SPECIFIC_AUX_CONTEXT_DEVICE` visible where platform entry points still need concrete fields, especially Android asset/window/JNI setup and plugin render-device bridging.
 4. Add narrow platform bridge methods before hiding `SPECIFIC_AUX_CONTEXT_DEVICE` completely. Examples: Android asset manager lookup, native window update, X11 display/window lookup, Win32 native window lookup, and Metal drawable/pass access.
 5. After those bridges exist, move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers.
@@ -636,6 +636,13 @@ Milestone 60 implementation note:
 - Updated DirectX9 shader-specific ownership, uniform lookup/upload, release, compile, load checks, and render paths to include the private shader header explicitly.
 - Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, DirectX helper functions, `D3D_VERTEX_CONVERTER`, and Win32 integration types in `specific-directx9.h` for now because window/bootstrap, shader conversion, texture, blend, device, and platform helper code still need those definitions.
 - This removes the main DirectX9 shader resource struct from the public backend header without changing `SHADER::BackendData`, shader ownership, runtime behavior, gameplay API, or `RENDERIZABLE`.
+
+Milestone 61 implementation note:
+
+- Moved `D3D_VERTEX_CONVERTER` out of the public `include/core_mbm/specific-directx9.h` header and into the private backend header `src/core_mbm/specific-directx9-vertex.h`.
+- Updated DirectX9 shader vertex-buffer conversion paths to include the private vertex helper header explicitly.
+- Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, DirectX helper functions, and Win32 integration types in `specific-directx9.h` for now because window/bootstrap, texture, blend, device, and platform helper code still need those definitions.
+- This removes the last shader-only helper type from the public DirectX9 backend header without changing vertex conversion behavior, buffer ownership, gameplay API, or `RENDERIZABLE`.
 
 ### Phase 3 - Hide renderer backend handles
 

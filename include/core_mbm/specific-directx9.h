@@ -51,28 +51,6 @@
 
 namespace mbm
 {
-    class D3D_VERTEX_CONVERTER // convert automaticlly to directx VERTEX (see above)
-    {
-    public:
-        explicit D3D_VERTEX_CONVERTER(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept;
-        D3D_VERTEX_CONVERTER(const D3D_VERTEX_CONVERTER&) = delete;
-        D3D_VERTEX_CONVERTER(D3D_VERTEX_CONVERTER&&) = delete;
-        D3D_VERTEX_CONVERTER& operator=(const D3D_VERTEX_CONVERTER&) = delete;
-        D3D_VERTEX_CONVERTER& operator=(D3D_VERTEX_CONVERTER&&) = delete;
-        ~D3D_VERTEX_CONVERTER() = default;
-
-        void copyTod3dVertexBuffer(void* pvertex) const noexcept;
-        uint32_t getSizeOfStructureInBytes() const noexcept;
-        FVF_PROVIDE_BY_ENGINE getFVF() const noexcept;
-        DWORD get3d3FVF() const;
-    private:
-        FVF_PROVIDE_BY_ENGINE FVF;
-        const VEC3* pos;
-        const VEC3* normal;
-        const VEC2* uv;
-        unsigned int size_array;
-    };
-
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
         WINDOW window;
