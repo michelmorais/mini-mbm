@@ -1312,17 +1312,19 @@ namespace mbm
      void CORE_MANAGER::forceRestore(const bool doSwapBuffers)
     {
         // Call onStop and forceRestore to ensure all resources are reloaded
+        DEVICE *device = this->getDevice();
         this->onStopCoreManager();
         while (!this->onLostDevice(doSwapBuffers, 
-            static_cast<int>(this->device->getBackBufferWidth()),
-            static_cast<int>(this->device->getBackBufferHeight()),
-            this->device->getWindowPositionX(),
-            this->device->getWindowPositionY()));
+            static_cast<int>(device->getBackBufferWidth()),
+            static_cast<int>(device->getBackBufferHeight()),
+            device->getWindowPositionX(),
+            device->getWindowPositionY()));
     }
 
      void CORE_MANAGER::onTouchDown(int key, float x, float y)
      {
-         const CAMERA &camera = this->device->getCamera();
+         DEVICE *device = this->getDevice();
+         const CAMERA &camera = device->getCamera();
          x /= camera.scale2d.x;
          y /= camera.scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHDOWN);
@@ -1331,7 +1333,8 @@ namespace mbm
 
      void CORE_MANAGER::onTouchUp(int key, float x, float y)
      {
-         const CAMERA &camera = this->device->getCamera();
+         DEVICE *device = this->getDevice();
+         const CAMERA &camera = device->getCamera();
          x /= camera.scale2d.x;
          y /= camera.scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHUP);
@@ -1340,7 +1343,8 @@ namespace mbm
 
      void CORE_MANAGER::onTouchMove(int key, float x, float y)
      {
-         const CAMERA &camera = this->device->getCamera();
+         DEVICE *device = this->getDevice();
+         const CAMERA &camera = device->getCamera();
          x /= camera.scale2d.x;
          y /= camera.scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHMOVE);
@@ -1368,7 +1372,8 @@ namespace mbm
 
      void CORE_MANAGER::onDoubleClick(float x, float y, int key)
      {
-         const CAMERA &camera = this->device->getCamera();
+         DEVICE *device = this->getDevice();
+         const CAMERA &camera = device->getCamera();
          x /= camera.scale2d.x;
          y /= camera.scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONDOUBLECLICK);
