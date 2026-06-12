@@ -66,8 +66,9 @@ namespace mbm
     {
         this->setNameApplication(nameApplication);
 
-        this->device->initializeSpecificContext();
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        DEVICE *device = this->getDevice();
+        device->initializeSpecificContext();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
 
         // -- Attach the pre-registered CAMetalLayer ---------------------------
         ctx->metalLayer = s_pendingMetalLayer;
@@ -100,13 +101,13 @@ namespace mbm
         // -- Backbuffer dimensions -------------------------------------------
         // MetalViewController sets the backbuffer size from the view's logical
         // point size before calling initializeSceneLua, so we trust those values.
-        float backBufferWidth = this->device->getBackBufferWidth();
-        float backBufferHeight = this->device->getBackBufferHeight();
+        float backBufferWidth = device->getBackBufferWidth();
+        float backBufferHeight = device->getBackBufferHeight();
         if (backBufferWidth <= 0)
             backBufferWidth = static_cast<float>(width > 0 ? width : 375);
         if (backBufferHeight <= 0)
             backBufferHeight = static_cast<float>(height > 0 ? height : 667);
-        this->device->setBackBufferSize(backBufferWidth, backBufferHeight);
+        device->setBackBufferSize(backBufferWidth, backBufferHeight);
 
         // -- CAMetalLayer pixel format + drawable size -----------------------
         const CGFloat scale = [[UIScreen mainScreen] scale];
@@ -117,12 +118,12 @@ namespace mbm
             ctx->metalLayer.bounds.size.height * scale);
 
         // -- Mark device as running ------------------------------------------
-        this->device->setRun(true);
+        device->setRun(true);
 
         INFO_LOG("iOS Metal device: %s", [ctx->mtlDevice.name UTF8String]);
         INFO_LOG("Backbuffer: %.1f x %.1f | Retina scale: %.2f | Drawable: %.0f x %.0f",
-                 this->device->getBackBufferWidth(),
-                 this->device->getBackBufferHeight(),
+                 backBufferWidth,
+                 backBufferHeight,
                  scale,
                  ctx->metalLayer.drawableSize.width,
                  ctx->metalLayer.drawableSize.height);
@@ -160,7 +161,8 @@ namespace mbm
     {
         mbm::TEXTURE_MANAGER::getInstance()->release();
         mbm::MESH_MANAGER::getInstance()->release();
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         ctx->release(wasDeviceLost);
     }
 
