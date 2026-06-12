@@ -187,7 +187,8 @@ namespace mbm
 
     void CORE_MANAGER::setScene(SCENE *currentScene)
     {
-        this->device->setScene(currentScene);
+        DEVICE *device = this->getDevice();
+        device->setScene(currentScene);
     }
 
     int CORE_MANAGER::onLoop(const bool singleLoop, const bool doSwapBuffers)
