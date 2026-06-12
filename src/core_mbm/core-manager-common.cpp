@@ -811,21 +811,22 @@ namespace mbm
     
     void CORE_MANAGER::initEnableRenders()
     {
-        for (auto ptr : this->device->getRender3DList())
+        DEVICE *device = this->getDevice();
+        for (auto ptr : device->getRender3DList())
         {
             if (ptr != nullptr)
             {
                 ptr->enableRender = false;
             }
         }
-        for (auto ptr : this->device->getRender2DSList())
+        for (auto ptr : device->getRender2DSList())
         {
             if (ptr != nullptr)
             {
                 ptr->enableRender = false;
             }
         }
-        for (auto ptr : this->device->getRender2DWList())
+        for (auto ptr : device->getRender2DWList())
         {
             if (ptr != nullptr)
             {
