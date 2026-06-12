@@ -69,9 +69,9 @@ This can follow the audio pattern: public class owns `std::unique_ptr<BackendDat
 
 #### Backend header leakage audit
 
-The backend handle fields above are now hidden from the main public class layouts, but backend implementation headers still live under `include/core_mbm/`. That means code outside `src/core_mbm/` can still include concrete backend types and platform SDK headers.
+The backend handle fields above are now hidden from the main public class layouts, and the concrete backend implementation layouts have moved out of the public header surface. The remaining public backend headers are compatibility/bridge headers: they forward-declare backend context types or expose narrow opaque bridge APIs instead of concrete SDK-owned layouts.
 
-This is now the most useful next cleanup direction because it matches the real PIMPL goal: isolate platform-specific implementation details without forcing accessor churn for every strongly typed gameplay field.
+This completed the most useful PIMPL direction for the original goal: isolate platform-specific implementation details without forcing accessor churn for every strongly typed gameplay field.
 
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
@@ -85,10 +85,9 @@ Recommended order:
 
 1. Do not add accessors for public gameplay/core flags only because they are public and strongly typed. Accessors are useful when they hide layout, preserve invariants, or replace repeated direct backend access.
 2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL`, `RENDER2TARGET_DIRECTX9`, `RENDER2TARGET_GLES`, backend `BUFFER_SPECIFIC` structs, `GLES_PS_VS`, `D3D_PS_VS`, and `D3D_VERTEX_CONVERTER` are done.
-3. Leave `SPECIFIC_AUX_CONTEXT_DEVICE` visible where platform entry points still need concrete fields, especially Android asset/window/JNI setup and plugin render-device bridging.
-4. Add narrow platform bridge methods before hiding `SPECIFIC_AUX_CONTEXT_DEVICE` completely. Examples: Android asset manager lookup, native window update, X11 display/window lookup, Win32 native window lookup, and Metal drawable/pass access.
-5. After those bridges exist, move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers.
-6. After backend isolation is stable across Linux, Android, macOS, MinGW, and MSVS, reorganize the private backend headers into `src/core_mbm/private/` and update internal include paths/build include directories. This is a cleanup/structure milestone, not a public API milestone.
+3. Add narrow platform bridge methods before hiding concrete `SPECIFIC_AUX_CONTEXT_DEVICE` fields. The Android asset/window/JNI bridge and Metal opaque frame bridge are done.
+4. Move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers. This is done for dummy, DirectX9, Metal, and OpenGL ES.
+5. After backend isolation is stable across Linux, Android, macOS, MinGW, MSVS, and iOS, reorganize the private backend headers into `src/core_mbm/private/` and update internal include paths/build include directories. This is now eligible as a cleanup/structure milestone, not a public API milestone.
 
 ### 3. Public headers include too much implementation detail
 
@@ -932,8 +931,15 @@ Milestone 92 implementation note:
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.
-- Do this only after the backend splits have settled and passed the full platform matrix, because moving them now would add include-path churn on top of the functional PIMPL changes.
+- Backend splits have now passed Android, MSVS, macOS, MinGW, and iOS validation. The private-directory relocation is eligible, but should remain a separate structure-only milestone because it is include-path/build-file churn rather than new encapsulation.
 - When this cleanup milestone happens, update CMake and MSVS private include paths together so internal engine files outside `src/core_mbm/`, such as `src/render/` and `src/platform/`, do not need fragile relative includes.
+
+Milestone 93 validation/status note:
+
+- User confirmed the current branch builds on MSVS, macOS, MinGW, and iOS after Milestone 92.
+- Android arm64-v8a validation had already passed during the Android/OpenGL ES split.
+- Public SDK include/concrete-layout scan is clean for `include/core_mbm`, `include/render`, and `include/lua-interface`. The broad symbol scan only finds the `plugin-callback.h` documentation comment that explains the opaque `void * renderDevice` ABI.
+- Backend/platform public-header isolation is complete for the original PIMPL goal. Remaining work is private-header organization or optional ABI/header hygiene, not Android/OpenGL ES public leakage.
 
 ### Phase 3 - Hide renderer backend handles
 
@@ -1000,11 +1006,11 @@ These can stay as normal public value/API types unless there is a specific ABI g
 
 ## Summary
 
-The core has completed the highest-value backend resource-handle cleanup without touching gameplay-facing `RENDERIZABLE` state. The remaining work is now split into two different categories:
+The core has completed backend resource-handle cleanup and public backend/platform header isolation without touching gameplay-facing `RENDERIZABLE` state. The remaining work is now split into cleanup categories:
 
-1. Backend/platform bridge isolation: hide the remaining concrete `SPECIFIC_AUX_CONTEXT_DEVICE` layouts behind narrow bridge APIs for Android, Win32, Metal, OpenGL ES, plugins, and platform entry points.
-2. Header/ABI hygiene: move remaining private manager containers into `Impl` where that reduces public dependencies without changing gameplay behavior.
-3. Gameplay API policy: decide whether direct public fields remain a supported convenience API before touching `RENDERIZABLE`, `SCENE`, or `ANIMATION_MANAGER`.
-4. Lua/plugin/editor migration: update call sites only after a stable accessor or bridge policy exists.
+1. Private-header organization: move backend-private headers from `src/core_mbm/` to `src/core_mbm/private/` after deciding the internal include-path and MSVS project/filter organization.
+2. Header/ABI hygiene: optionally move remaining manager containers into `Impl` where that reduces public dependencies without changing gameplay behavior. `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` are candidates only for this goal.
+3. Gameplay API policy: keep direct public fields as convenience API unless a deliberate breaking cleanup is chosen. Do not touch `RENDERIZABLE` by default.
+4. Lua/plugin/editor policy: revisit only after a stable accessor, bridge, or plugin ABI policy exists.
 
-The next backend-isolation milestone should not be chosen from `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER` unless the specific goal is header/ABI hygiene. For the original PIMPL goal of hiding OS/backend dependencies, the remaining high-value target is the `specific-*.h` platform bridge surface.
+The next milestone should be documentation/status cleanup or private-header organization, not Android PIMPL. For the original PIMPL goal of hiding OS/backend dependencies from public headers, the high-value backend/platform work is now complete.
