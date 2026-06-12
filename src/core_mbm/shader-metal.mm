@@ -16,7 +16,7 @@
 #include <shader.h>
 #include <shader-var-cfg.h>
 #include <texture-manager.h>
-#include <specific-metal.h>
+#include "specific-metal-context.h"
 #include "specific-metal-buffer.h"
 #include <device.h>
 #include <util-interface.h>

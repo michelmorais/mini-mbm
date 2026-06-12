@@ -20,7 +20,7 @@
 #ifndef METAL_RENDER_TARGET_SPECIFIC_H
 #define METAL_RENDER_TARGET_SPECIFIC_H
 
-#include <specific-metal.h>
+#include "specific-metal-context.h"
 #include <stdint.h>
 
 namespace mbm

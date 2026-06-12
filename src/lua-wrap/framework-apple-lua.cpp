@@ -32,8 +32,7 @@
 #include <core_mbm/util-interface.h>
 
 #if defined USE_METAL
-    // No extra header needed here: Metal-specific types live in specific-metal.h
-    //  and are only required from .mm files that include them with Objective-C imports.
+    // No extra header needed here: Metal-specific types live in private .mm-only headers.
 #elif defined USE_DUMMY_BACK_END_ENGINE
     #include <core_mbm/specific-dummy.h>
 #else

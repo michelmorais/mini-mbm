@@ -23,7 +23,7 @@
 #include <audio-interface.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
-#include <specific-metal.h>
+#include "specific-metal-context.h"
 #include <dynamic-var.h>
 
 namespace mbm

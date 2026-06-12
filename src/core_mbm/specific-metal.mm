@@ -16,9 +16,10 @@
 
 #if defined(USE_METAL)
 
-#include <specific-metal.h>
+#include "specific-metal-context.h"
 #include "specific-metal-buffer.h"
 #include "specific-metal-render-target.h"
+#include <device.h>
 
 namespace mbm
 {
@@ -107,5 +108,32 @@ namespace mbm
     }
 
 } // namespace mbm
+
+namespace
+{
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *getMetalContext() noexcept
+    {
+        mbm::DEVICE *device = mbm::DEVICE::getInstance();
+        return device ? device->getSpecificContextDevice() : nullptr;
+    }
+}
+
+extern "C" API_IMPL void *mbm_metal_get_current_pass_descriptor() noexcept
+{
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = getMetalContext();
+    return ctx ? (__bridge void*)ctx->currentPassDescriptor : nullptr;
+}
+
+extern "C" API_IMPL void *mbm_metal_get_current_command_buffer() noexcept
+{
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = getMetalContext();
+    return ctx ? (__bridge void*)ctx->currentCommandBuffer : nullptr;
+}
+
+extern "C" API_IMPL void *mbm_metal_get_current_encoder() noexcept
+{
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = getMetalContext();
+    return ctx ? (__bridge void*)ctx->currentEncoder : nullptr;
+}
 
 #endif // USE_METAL

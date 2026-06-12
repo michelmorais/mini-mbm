@@ -20,7 +20,7 @@
 #ifndef METAL_BUFFER_SPECIFIC_H
 #define METAL_BUFFER_SPECIFIC_H
 
-#include <specific-metal.h>
+#include "specific-metal-context.h"
 
 namespace mbm
 {
