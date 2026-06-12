@@ -75,7 +75,7 @@ This is now the most useful next cleanup direction because it matches the real P
 
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
-| `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, `GLES_PS_VS`, GL debug macros. `RENDER2TARGET_GLES` and `BUFFER_SPECIFIC` have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Move the shader-specific struct private later. Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
+| `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, and `GLES_PS_VS` have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
 | `include/core_mbm/specific-directx9.h` | D3D9/COM types, Win32 window context, `D3D_PS_VS`, and DirectX helper functions. `RENDER2TARGET_DIRECTX9` and `BUFFER_SPECIFIC` have moved to private DirectX9 backend headers. | DirectX9 backend files and Win32 platform helper files. | Move the shader-specific struct private later after its backend users are isolated. The context/window surface still needs a separate platform bridge decision. |
 | `include/core_mbm/specific-metal.h` | Metal/Cocoa/UIKit types and full Metal `SPECIFIC_AUX_CONTEXT_DEVICE` layout. `RENDER2TARGET_METAL` and `BUFFER_SPECIFIC` have moved to private Metal backend headers. | Metal backend files and the ImGui Metal bridge plugin. | Keep a minimal bridge for ImGui or replace plugin access with a small Metal frame context API before hiding the full context layout. |
 | `include/core_mbm/specific-dummy.h` | Dummy backend context, buffer, and render-target structs. | Dummy backend and dummy Lua wrappers. | Keep as a template for now, but update it to model the private-header pattern once a real backend split is proven. |
@@ -84,7 +84,7 @@ This is now the most useful next cleanup direction because it matches the real P
 Recommended order:
 
 1. Do not add accessors for public gameplay/core flags only because they are public and strongly typed. Accessors are useful when they hide layout, preserve invariants, or replace repeated direct backend access.
-2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL`, `RENDER2TARGET_DIRECTX9`, `RENDER2TARGET_GLES`, and backend `BUFFER_SPECIFIC` structs are done; remaining examples are `GLES_PS_VS` and `D3D_PS_VS`.
+2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL`, `RENDER2TARGET_DIRECTX9`, `RENDER2TARGET_GLES`, backend `BUFFER_SPECIFIC` structs, and `GLES_PS_VS` are done; remaining example is `D3D_PS_VS`.
 3. Leave `SPECIFIC_AUX_CONTEXT_DEVICE` visible where platform entry points still need concrete fields, especially Android asset/window/JNI setup and plugin render-device bridging.
 4. Add narrow platform bridge methods before hiding `SPECIFIC_AUX_CONTEXT_DEVICE` completely. Examples: Android asset manager lookup, native window update, X11 display/window lookup, Win32 native window lookup, and Metal drawable/pass access.
 5. After those bridges exist, move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers.
@@ -599,7 +599,7 @@ Milestone 55 implementation note:
 
 - Moved `RENDER2TARGET_GLES` out of the public `include/core_mbm/specific-opengl_es.h` header and into the private backend header `src/core_mbm/specific-opengl_es-render-target.h`.
 - Updated OpenGL ES render-target release, common render-to-target pass, render-target texture creation, and render-to-texture owner/save paths to include the private header explicitly.
-- Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, `BUFFER_SPECIFIC`, `GLES_PS_VS`, and GL debug/helper macros in `specific-opengl_es.h` for now because Android/platform, shader, mesh, file/asset, audio, and Lua wrapper code still need those concrete definitions.
+- Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, `BUFFER_SPECIFIC`, `GLES_PS_VS`, and GL debug/helper macros in `specific-opengl_es.h` at that point because Android/platform, shader, mesh, file/asset, audio, and Lua wrapper code still needed those concrete definitions. Milestones 58 and 59 later move the buffer and shader structs.
 - This completes the first render-target backend-header cleanup pass for Metal, DirectX9, and OpenGL ES without changing runtime ownership, gameplay API, or `RENDERIZABLE`.
 
 Milestone 56 implementation note:
@@ -620,8 +620,15 @@ Milestone 58 implementation note:
 
 - Moved OpenGL ES `BUFFER_SPECIFIC` out of the public `include/core_mbm/specific-opengl_es.h` header and into the private backend header `src/core_mbm/specific-opengl_es-buffer.h`.
 - Updated OpenGL ES shader buffer ownership/render paths and OpenGL ES mesh-debug readback to include the private buffer header explicitly.
-- Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, `GLES_PS_VS`, and GL debug/helper macros in `specific-opengl_es.h` for now because Android/platform, shader, mesh, file/asset, audio, and Lua wrapper code still need those concrete definitions.
+- Kept `SPECIFIC_AUX_CONTEXT_DEVICE`, `GLES_PS_VS`, and GL debug/helper macros in `specific-opengl_es.h` at that point because Android/platform, shader, mesh, file/asset, audio, and Lua wrapper code still needed those concrete definitions. Milestone 59 later moves `GLES_PS_VS`.
 - This completes the buffer backend-header cleanup pass for Metal, DirectX9, and OpenGL ES without changing `BUFFER_GL::BackendData`, buffer ownership, runtime behavior, gameplay API, or `RENDERIZABLE`.
+
+Milestone 59 implementation note:
+
+- Moved `GLES_PS_VS` out of the public `include/core_mbm/specific-opengl_es.h` header and into the private backend header `src/core_mbm/specific-opengl_es-shader.h`.
+- Updated OpenGL ES shader-specific ownership, uniform upload, load checks, and render paths to include the private shader header explicitly.
+- Kept `SPECIFIC_AUX_CONTEXT_DEVICE` and GL debug/helper macros in `specific-opengl_es.h` for now because Android/platform, file/asset, audio, Lua wrapper, and general GLES backend code still need those definitions.
+- This removes the last OpenGL ES render-resource struct from the public backend header without changing `SHADER::BackendData`, shader ownership, runtime behavior, gameplay API, or `RENDERIZABLE`.
 
 ### Phase 3 - Hide renderer backend handles
 

@@ -781,26 +781,6 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #endif
 
-    struct GLES_PS_VS
-    {
-        GLint positionHandle;
-        GLint texCoordHandle;
-        GLint normalHandle;
-        GLint mvpMatrixHandle; // Handle para matrix x projection
-        GLint mvMatrixHandle;  // Handle para a matrix do modelo
-        GLint samplerHandle0;
-        GLint samplerHandle1;
-
-        GLuint programObject;
-
-        GLES_PS_VS() noexcept;
-        ~GLES_PS_VS();
-        void release() noexcept;
-        // Prevent copying (COM objects should not be copied)
-        GLES_PS_VS(const GLES_PS_VS&) = delete;
-        GLES_PS_VS& operator=(const GLES_PS_VS&) = delete;
-    };
-    
 }
 #endif
 

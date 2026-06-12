@@ -627,8 +627,8 @@ namespace mbm
     }
 
     // ---- GLES_PS_VS — not used for Metal ----
-    // (GLES_PS_VS is declared in specific-opengl_es.h and only needed by
-    //  the OpenGL backend.  Metal does not include that header.)
+    // (GLES_PS_VS is private to the OpenGL ES backend. Metal keeps its own
+    // Obj-C pipeline holder in MetalShaderObjects.)
 
     // ---- SHADER ----
 
