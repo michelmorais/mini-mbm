@@ -880,6 +880,16 @@ Milestone 86 implementation note:
 - `src/core_mbm/specific-android.cpp` and `src/core_mbm/device-opengl_es.cpp` are now the Android implementation files that include the private Android context layout.
 - The new private header has been staged immediately because it is a new backend-private implementation file.
 
+Milestone 87 audit note:
+
+- Confirmed the Android public-header context split from Milestone 86: public `include/core_mbm/specific-opengl_es.h` now forward-declares Android `SPECIFIC_AUX_CONTEXT_DEVICE` and no longer includes Android-only `jni.h`, `android/asset_manager.h`, `android/native_window.h`, or `std::string`.
+- Confirmed Android texture loading now uses `androidGetImageDataFromDroid()` instead of direct concrete context access.
+- Remaining public backend-header leakage is not Android context layout anymore:
+  - `specific-opengl_es.h` still intentionally exposes EGL/GLES types/macros as the OpenGL ES backend utility header.
+  - `d3dx9-mingw.h` remains a public DirectX/MinGW compatibility shim and should be evaluated separately.
+  - `time-control.h` still includes `windows.h` under `_WIN32`; this is a small public Windows dependency unrelated to Android.
+- Do not move all backend-private headers to `src/core_mbm/private/` until Windows/macOS have reviewed the Android split, because that move is include-path churn rather than new encapsulation.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.
