@@ -781,8 +781,13 @@ namespace mbm
         }
     }
 
-    ANIMATION_MANAGER::ANIMATION_MANAGER() noexcept : 
-    indexCurrentAnimation(0), onEndAnimation(nullptr),onEndFx(nullptr)
+    struct ANIMATION_MANAGER::Impl
+    {
+        ANIMATION_BACKUP animationBackup;
+    };
+
+    ANIMATION_MANAGER::ANIMATION_MANAGER() noexcept
+        : indexCurrentAnimation(0), onEndAnimation(nullptr), onEndFx(nullptr), impl(std::make_unique<Impl>())
     {
     }
 
@@ -1144,12 +1149,12 @@ namespace mbm
 
     void ANIMATION_MANAGER::backupAnimations() noexcept
     {
-        animationBackup.backup(this);
+        this->impl->animationBackup.backup(this);
     }
 
     void ANIMATION_MANAGER::restoreBackupAnimations() noexcept
     {
-        animationBackup.restore(this);
+        this->impl->animationBackup.restore(this);
     }
 
     bool ANIMATION_MANAGER::setTexture(

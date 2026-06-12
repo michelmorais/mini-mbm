@@ -993,6 +993,13 @@ Milestone 100 implementation note:
 - Kept `MESH_MBM` and `MESH_MBM_DEBUG` layouts unchanged because those are larger source-compatibility surfaces used by renderers, debug tools, Lua bindings, and mesh file compatibility code.
 - This is the lowest-risk `MESH_MANAGER` ABI/header hygiene step; any future mesh cleanup should review `MESH_MBM` separately.
 
+Milestone 101 implementation note:
+
+- Moved the `ANIMATION_MANAGER` restore backup object behind `ANIMATION_MANAGER::Impl`.
+- Kept public animation state fields unchanged: `indexCurrentAnimation`, `onEndAnimation`, `onEndFx`, and `lsAnimation`.
+- This hides the restore-only backup storage from the public manager layout without changing animation playback, Lua callbacks, render-type update code, or plugin/editor direct animation access.
+- Hiding the remaining `ANIMATION_MANAGER` fields still requires a separate accessor migration because many render types, Lua bindings, and the tiled editor use them directly.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1026,6 +1033,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `ANIMATION_BACKUP`, done for backup nested structs/vectors.
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
+- `ANIMATION_MANAGER`, restore backup object done; animation list/index/callback fields remain public pending accessor migration.
 - Remaining `CORE_MANAGER` compatibility fields, only if there is a clear invariant or dependency to hide.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
@@ -1060,7 +1068,7 @@ Only after engine internals, Lua bindings, plugins, examples, and editors use th
 This is future work only. It is not required for the completed OS/backend isolation goal.
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
-2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, the private `EFFECT_SHADER` shader cache, and `MESH_MANAGER` singleton cache done.
+2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, the private `EFFECT_SHADER` shader cache, `MESH_MANAGER` singleton cache, and the `ANIMATION_MANAGER` restore backup object done.
 3. Add complete accessor/mutator coverage for `EFFECT_SHADER`, `RENDERIZABLE`, `SCENE`, `ANIMATION_MANAGER`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
@@ -1088,6 +1096,7 @@ Current decision:
 3. `ANIMATION_BACKUP` backup internals are now behind `Impl`.
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
-6. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
+6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; public animation list/index/callback state remains pending accessor migration.
+7. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

@@ -148,7 +148,9 @@ namespace mbm
         OnEndAnimation              onEndAnimation;
         OnEndEffect                 onEndFx;
         std::vector<ANIMATION *>    lsAnimation;
-        ANIMATION_BACKUP            animationBackup;// to be used on restore device
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 
     
