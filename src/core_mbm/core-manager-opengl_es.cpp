@@ -102,9 +102,11 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
     {
         #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
         // On X11/EGL, the EGL surface doesn't automatically resize with the window
         // We need to recreate the surface to match the new window dimensions
-        if (!this->device->getSpecificContextDevice()->recreateEGLSurface())
+        if (!context->recreateEGLSurface())
         {
             return false;  // Trigger full restore if surface recreation fails
         }
@@ -112,11 +114,11 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         // Query the actual EGL surface dimensions after recreation
         EGLint surfaceWidth = 0;
         EGLint surfaceHeight = 0;
-        eglQuerySurface(this->device->getSpecificContextDevice()->eglDisplay, 
-                        this->device->getSpecificContextDevice()->eglSurface, 
+        eglQuerySurface(context->eglDisplay,
+                        context->eglSurface,
                         EGL_WIDTH, &surfaceWidth);
-        eglQuerySurface(this->device->getSpecificContextDevice()->eglDisplay, 
-                        this->device->getSpecificContextDevice()->eglSurface, 
+        eglQuerySurface(context->eglDisplay,
+                        context->eglSurface,
                         EGL_HEIGHT, &surfaceHeight);
         
         // Use actual surface dimensions
@@ -124,7 +126,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         {
             newWidth = surfaceWidth;
             newHeight = surfaceHeight;
-            this->device->setBackBufferSize(static_cast<float>(newWidth), static_cast<float>(newHeight));
+            device->setBackBufferSize(static_cast<float>(newWidth), static_cast<float>(newHeight));
         }
         #endif
         
