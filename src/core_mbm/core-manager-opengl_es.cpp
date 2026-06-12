@@ -144,11 +144,13 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     
     bool CORE_MANAGER::renderToTargets()
     {
+        DEVICE *device = this->getDevice();
+        CAMERA &camera = device->getCamera();
         bool oneRender = false;
-        const uint32_t totalRenderTargets = this->device->getTotalRenderTargets();
+        const uint32_t totalRenderTargets = device->getTotalRenderTargets();
         for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
-            auto renderTarget = this->device->getRenderTarget(i);
+            auto renderTarget = device->getRenderTarget(i);
             if (!renderTarget)
                 continue;
             if (!renderTarget->isObjectOnFrustum)
@@ -168,14 +170,14 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             {
                 GLBindFramebuffer(GL_FRAMEBUFFER, 0);
                 GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
-                this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+                camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             if (!renderTarget->render2Texture())
             {
                 GLBindFramebuffer(GL_FRAMEBUFFER, 0);
                 GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
-                this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+                camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             GLBindTexture(GL_TEXTURE_2D, 0);
@@ -186,7 +188,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         if (oneRender)
         {
             GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
-            this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+            camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
