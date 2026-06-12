@@ -29,7 +29,7 @@
 #elif defined (USE_OPENGL_ES)
     #include <specific-opengl_es.h>
 #elif defined (USE_DUMMY_BACK_END_ENGINE)
-    #include <specific-dummy.h>
+    #include "specific-dummy-context.h"
 #endif
 
 

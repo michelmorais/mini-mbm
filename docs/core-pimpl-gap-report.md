@@ -78,7 +78,7 @@ This is now the most useful next cleanup direction because it matches the real P
 | `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, and `GLES_PS_VS` have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
 | `include/core_mbm/specific-directx9.h` | D3D9/COM types and Win32 window context. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, and the HRESULT logging helper have moved to private DirectX9 backend headers. The texture pixel-copy helper is file-local. Direct dependencies on `core-manager.h`, `shader.h`, `primitives.h`, and D3DX headers have been removed. | DirectX9 backend files and Win32 platform helper files. | The context/window surface still needs a separate platform bridge decision. |
 | `include/core_mbm/specific-metal.h` | Metal/Cocoa/UIKit types and full Metal `SPECIFIC_AUX_CONTEXT_DEVICE` layout. `RENDER2TARGET_METAL` and `BUFFER_SPECIFIC` have moved to private Metal backend headers. | Metal backend files and the ImGui Metal bridge plugin. | Keep a minimal bridge for ImGui or replace plugin access with a small Metal frame context API before hiding the full context layout. |
-| `include/core_mbm/specific-dummy.h` | Dummy backend context. `RENDER2TARGET_DUMMY` and `BUFFER_SPECIFIC` have moved to private dummy backend headers. | Dummy backend and dummy Lua wrappers. | Keep as a minimal public context template until the platform bridge pattern is ready. |
+| `include/core_mbm/specific-dummy.h` | No concrete dummy backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DUMMY`, `BUFFER_SPECIFIC`, and the dummy context layout have moved to private dummy backend headers. | Dummy backend and dummy Lua wrappers can include it as a compatibility shim, but only backend files include the concrete private context header. | Done for dummy; use this as the lowest-risk pattern for future platform bridge splits. |
 | `include/core_mbm/platform-win32.h` and `include/core_mbm/d3dx9-mingw.h` | Win32 window/event and DirectX compatibility types. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat separately from renderer PIMPL. They are platform integration headers, not render-resource ownership, but they still block a fully clean public boundary. |
 
 Recommended order:
@@ -725,6 +725,13 @@ Milestone 73 documentation note:
 - Added a pre-audit for `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` focused on the primary PIMPL goal: hiding explicit OS/backend dependencies from public headers.
 - Confirmed these four candidates do not currently expose DirectX/OpenGL ES/Metal/Win32/macOS SDK handles directly in their public manager layouts; their remaining value is mostly header/ABI cleanup, not backend isolation.
 - Kept the platform bridge headers as the main remaining backend-isolation problem because `SPECIFIC_AUX_CONTEXT_DEVICE` still exposes concrete backend/platform context layouts.
+
+Milestone 74 implementation note:
+
+- Moved the concrete dummy `SPECIFIC_AUX_CONTEXT_DEVICE` layout out of public `include/core_mbm/specific-dummy.h` and into the private backend header `src/core_mbm/specific-dummy-context.h`.
+- The public dummy header now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`, matching the bridge direction used by `DEVICE`.
+- Updated dummy backend, dummy Win32 bridge, and DirectSound dummy-window users to include the private context header only where the concrete `window`, `idIcon`, or `release()` members are required.
+- This removes the last concrete dummy backend context layout from the public core header without changing runtime behavior, gameplay API, or `RENDERIZABLE`.
 
 ### Phase 3 - Hide renderer backend handles
 

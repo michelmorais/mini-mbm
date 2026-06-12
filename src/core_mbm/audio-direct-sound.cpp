@@ -35,7 +35,7 @@
     #elif defined (USE_DIRECTX9)
         #include <specific-directx9.h>
     #elif defined (USE_DUMMY_BACK_END_ENGINE)
-        #include <specific-dummy.h>
+        #include "specific-dummy-context.h"
     #endif
 #endif
 

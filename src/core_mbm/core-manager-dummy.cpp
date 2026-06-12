@@ -31,7 +31,7 @@
 #include <audio-interface.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <plugin-callback.h>
-#include <specific-dummy.h> // for specific context of dummy engine
+#include "specific-dummy-context.h" // for specific context of dummy engine
 
 
 namespace mbm
