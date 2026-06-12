@@ -23,13 +23,6 @@
 #include "core-exports.h"
 #include <stdint.h>
 
-#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
-    #include <joystick-win32/joystick-win32.h>
-    #include <plusWindows/plusWindows.h>
-    #include <core-manager.h>
-    #include <platform/win32-platform.h>
-#endif
-
 #if defined ANDROID
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
@@ -705,79 +698,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #elif (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-        WINDOW window;
-        DWORD idIcon;
-        EGLDisplay eglDisplay;
-        EGLSurface eglSurface;
-        EGLContext eglContext;
-
-        WIN_EVENT_BY_PASS* win32_EventByPass;
-        WIN_JOYSTICK_BY_PASS* win32_joystickByPass;
-        
-        GLint filter_GL_TEXTURE_WRAP_S;
-        GLint filter_GL_TEXTURE_WRAP_T;
-        GLint filter_GL_TEXTURE_MIN_FILTER;
-        GLint filter_GL_TEXTURE_MAG_FILTER;
-        
-        SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-            this->idIcon = 0;
-            this->win32_joystickByPass = nullptr;
-            this->win32_EventByPass = nullptr;
-            this->eglDisplay = EGL_NO_DISPLAY;
-            this->eglSurface = EGL_NO_SURFACE;
-            this->eglContext = EGL_NO_CONTEXT;
-
-            filter_GL_TEXTURE_WRAP_S     =  GL_CLAMP_TO_EDGE;
-            filter_GL_TEXTURE_WRAP_T     =  GL_CLAMP_TO_EDGE;
-            filter_GL_TEXTURE_MIN_FILTER =  GL_NEAREST;
-            filter_GL_TEXTURE_MAG_FILTER =  GL_LINEAR;
-        }
-
-        ~SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-            constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
-            release(wasDeviceLost);
-            // do not need to release  the win32 events and joystick here, because the core manager is still the same (in case of lost device)
-            if (this->win32_EventByPass)
-                delete this->win32_EventByPass;
-            this->win32_EventByPass = nullptr;
-            if (this->win32_joystickByPass)
-                delete this->win32_joystickByPass;
-            this->win32_joystickByPass = nullptr;
-        }
-
-        void initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr)
-        {
-            if (this->win32_EventByPass)
-                delete this->win32_EventByPass;
-            this->win32_EventByPass = nullptr;
-            if (this->win32_joystickByPass)
-                delete this->win32_joystickByPass;
-            this->win32_joystickByPass = nullptr;
-            this->win32_EventByPass = new WIN_EVENT_BY_PASS(core_manager_ptr ? reinterpret_cast<EVENTS*>(core_manager_ptr) : nullptr);
-            this->win32_joystickByPass = new WIN_JOYSTICK_BY_PASS(core_manager_ptr ? reinterpret_cast<JOYSTICK_BASE*>(core_manager_ptr) : nullptr);
-        }
-
-        void release(bool wasDeviceLost)
-        {
-            if (this->eglDisplay != EGL_NO_DISPLAY)
-                eglTerminate(this->eglDisplay);
-            if (this->eglSurface != EGL_NO_SURFACE)
-                eglDestroySurface(this->eglDisplay, this->eglSurface);
-            if (this->eglContext != EGL_NO_CONTEXT)
-                eglDestroyContext(this->eglDisplay, this->eglContext);
-            this->eglDisplay = EGL_NO_DISPLAY;
-            this->eglSurface = EGL_NO_SURFACE;
-            this->eglContext = EGL_NO_CONTEXT;
-            
-            //window.release(); // The window release is done in the WINDOW destructor
-        }
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-    };
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 
 #endif
 

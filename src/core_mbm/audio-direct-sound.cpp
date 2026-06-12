@@ -31,7 +31,7 @@
 
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
     #if defined (USE_OPENGL_ES)
-        #include <specific-opengl_es.h>
+        #include "specific-opengl_es-windows-context.h"
     #elif defined (USE_DIRECTX9)
         #include "specific-directx9-context.h"
     #elif defined (USE_DUMMY_BACK_END_ENGINE)

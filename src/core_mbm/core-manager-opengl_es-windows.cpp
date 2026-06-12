@@ -20,7 +20,7 @@
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 #if defined (USE_OPENGL_ES)
 
-#include <specific-opengl_es.h>
+#include "specific-opengl_es-windows-context.h"
 #include <util-interface.h>
 #include <core-manager.h>
 #include <texture-manager.h>

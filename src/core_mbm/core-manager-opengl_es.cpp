@@ -24,6 +24,9 @@
 #include <device.h>
 #include <renderizable.h>
 #include <specific-opengl_es.h>
+#if defined(_WIN32)
+    #include "specific-opengl_es-windows-context.h"
+#endif
 #include "specific-opengl_es-render-target.h"
 #include <util-interface.h>
 #include <cr-static-local.h>

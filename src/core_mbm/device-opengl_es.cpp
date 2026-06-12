@@ -30,6 +30,9 @@
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <specific-opengl_es.h>
+#if defined(_WIN32)
+    #include "specific-opengl_es-windows-context.h"
+#endif
 #include <dynamic-var.h>
 
 #if defined ANDROID
