@@ -65,10 +65,11 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     setenv("apkPath", _apkPath, 1);
     if (game != nullptr)
     {
+        mbm::DEVICE *device = game->getDevice();
         if (width > 0)
-            game->device->setBackBufferWidth(static_cast<float>(width));
+            device->setBackBufferWidth(static_cast<float>(width));
         if (height > 0)
-            game->device->setBackBufferHeight(static_cast<float>(height));
+            device->setBackBufferHeight(static_cast<float>(height));
         mbm::androidSetRuntimePaths(_absPath, _apkPath);
     }
     else
@@ -78,8 +79,9 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
         {
             INFO_LOG("lib mini-mbm initialized\n width: %d height: %d", width, height);
 			const char *nameApplication = "Hello-world";
-			game->device->setCoreManager(game);
-            game->device->setBackBufferSize(static_cast<float>(width), static_cast<float>(height));
+            mbm::DEVICE *device = game->getDevice();
+            device->setCoreManager(game);
+            device->setBackBufferSize(static_cast<float>(width), static_cast<float>(height));
             mbm::androidSetJNIEnv(env);
             mbm::androidSetRuntimePaths(_absPath, _apkPath);
             mbm::androidCacheJavaClasses(PACKAGE_NAME_CLASS);
@@ -101,7 +103,8 @@ void MiniMbmEngine_onLoop(JNIEnv *env, jobject obj)
     {
         constexpr bool singleLoop = true;
         constexpr bool doSwapBuffers = false;
-        game->device->setCoreManager(game);
+        mbm::DEVICE *device = game->getDevice();
+        device->setCoreManager(game);
         game->onLoop(singleLoop, doSwapBuffers);
     }
 }
@@ -199,32 +202,34 @@ void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
 
 void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, jstring param2)
 {
-    if (env && game && game->device && game->device->getScene() && game->device->getScene()->userData)
+    mbm::DEVICE *device = game ? game->getDevice() : nullptr;
+    auto *scene = device ? device->getScene() : nullptr;
+    if (env && game && device && scene && scene->userData)
     {
         if (param1 && param2)
         {
             const char *p1 = env->GetStringUTFChars(param1, nullptr);
             const char *p2 = env->GetStringUTFChars(param2, nullptr);
-            game->device->getScene()->onCallBackCommands(p1, p2);
+            scene->onCallBackCommands(p1, p2);
             env->ReleaseStringUTFChars(param1, p1);
             env->ReleaseStringUTFChars(param2, p2);
         }
         else if (param1)
         {
             const char *p1 = env->GetStringUTFChars(param1, nullptr);
-            game->device->getScene()->onCallBackCommands(p1, "NULL");
+            scene->onCallBackCommands(p1, "NULL");
             env->ReleaseStringUTFChars(param1, p1);
         }
         else if (param2)
         {
             const char *p2 = env->GetStringUTFChars(param2, nullptr);
-            game->device->getScene()->onCallBackCommands("NULL", p2);
+            scene->onCallBackCommands("NULL", p2);
             env->ReleaseStringUTFChars(param2, p2);
         }
         else
         {
             ERROR_AT(__LINE__,__FILE__,"Call back expected command [%d] [%s] [%s]",__LINE__,"NULL","NULL");
-            game->device->getScene()->onCallBackCommands("NULL", "NULL");
+            scene->onCallBackCommands("NULL", "NULL");
         }
     }
     else 
@@ -233,17 +238,17 @@ void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, 
         {
             ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game is null!");
         }
-        else if(game->device == nullptr)
+        else if(device == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n game->getDevice() is null!");
         }
-        else if(game->device->getScene() == nullptr)
+        else if(scene == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device->getScene() is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->getDevice()->getScene() is null!");
         }
-        else if(game->device->getScene()->userData == nullptr)
+        else if(scene->userData == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device->getScene()->userData is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->getDevice()->getScene()->userData is null!");
         }
         else if(env == nullptr)
         {
