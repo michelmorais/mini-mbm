@@ -197,7 +197,7 @@
     <ClInclude Include="..\..\include\core_mbm\core-exports.h" />
     <ClInclude Include="..\..\include\core_mbm\core-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
-    <ClInclude Include="..\..\include\core_mbm\d3dx9-mingw.h" />
+    <ClInclude Include="..\..\src\core_mbm\d3dx9-mingw.h" />
     <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
     <ClInclude Include="..\..\include\core_mbm\dialog-util.h" />

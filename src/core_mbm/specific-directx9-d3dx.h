@@ -21,7 +21,7 @@
 #define DIRECTX9_D3DX_SPECIFIC_H
 
 #if defined(__MINGW32__) || defined(__CYGWIN__)
-    #include <core_mbm/d3dx9-mingw.h>
+    #include "d3dx9-mingw.h"
 #else
     #if defined(_MSC_VER)
         #pragma comment (lib, "d3dx9.lib")

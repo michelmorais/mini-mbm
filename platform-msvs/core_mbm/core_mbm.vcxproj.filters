@@ -336,7 +336,7 @@
     <ClInclude Include="..\..\src\core_mbm\mesh-v8-io.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\d3dx9-mingw.h">
+    <ClInclude Include="..\..\src\core_mbm\d3dx9-mingw.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\dialog-util.h">

@@ -79,7 +79,7 @@ This is now the most useful next cleanup direction because it matches the real P
 | `include/core_mbm/specific-directx9.h` | No concrete DirectX9/Win32 backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, HRESULT logging, and the DirectX9 context layout have moved to private backend headers. The texture pixel-copy helper is file-local. Direct dependencies on `core-manager.h`, `shader.h`, `primitives.h`, D3D9, Win32 platform, and D3DX headers have been removed. | DirectX9 backend files and Win32 platform helper files include the private context header when concrete D3D/window fields are required. | Done for DirectX9 context layout. The broader Win32 platform header remains separate platform integration surface. |
 | `include/core_mbm/specific-metal.h` | No concrete Metal backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE` and exposes narrow opaque `void *` frame bridge functions for the ImGui Metal plugin. `RENDER2TARGET_METAL`, `BUFFER_SPECIFIC`, and the Metal context layout have moved to private Metal backend headers. | Metal backend files include the private context header. The ImGui Metal bridge uses the opaque frame bridge instead of reading the context layout directly. | Done for Metal context layout. |
 | `include/core_mbm/specific-dummy.h` | No concrete dummy backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DUMMY`, `BUFFER_SPECIFIC`, and the dummy context layout have moved to private dummy backend headers. | Dummy backend and dummy Lua wrappers can include it as a compatibility shim, but only backend files include the concrete private context header. | Done for dummy; use this as the lowest-risk pattern for future platform bridge splits. |
-| `include/core_mbm/platform-win32.h` and `include/core_mbm/d3dx9-mingw.h` | Win32 window/event and DirectX compatibility types. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat separately from renderer PIMPL. They are platform integration headers, not render-resource ownership, but they still block a fully clean public boundary. |
+| `include/core_mbm/platform-win32.h` | Win32 window/event integration types. The MinGW D3DX9 shim has moved to private `src/core_mbm/d3dx9-mingw.h`. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat Win32 platform integration separately from renderer PIMPL. The D3DX9 compatibility shim is now private to the DirectX9 backend selector. |
 
 Recommended order:
 
@@ -676,7 +676,7 @@ Milestone 65 implementation note:
 Milestone 66 implementation note:
 
 - Added private DirectX9 D3DX selection header `src/core_mbm/specific-directx9-d3dx.h`.
-- The private header includes `core_mbm/d3dx9-mingw.h` only for MinGW/Cygwin and includes standard `d3dx9.h` for MSVS/other Windows compilers, with an MSVC `d3dx9.lib` pragma.
+- The private header now includes the private MinGW shim locally only for MinGW/Cygwin and includes standard `d3dx9.h` for MSVS/other Windows compilers, with an MSVC `d3dx9.lib` pragma.
 - Updated DirectX9 backend files/private headers that use `D3DX*` symbols to include `specific-directx9-d3dx.h` instead of referring to the MinGW shim directly.
 - Kept D3DX out of public `specific-directx9.h`, preserving the public-header cleanup while restoring the intended MSVS vs MinGW split.
 
@@ -886,9 +886,23 @@ Milestone 87 audit note:
 - Confirmed Android texture loading now uses `androidGetImageDataFromDroid()` instead of direct concrete context access.
 - Remaining public backend-header leakage is not Android context layout anymore:
   - `specific-opengl_es.h` still intentionally exposes EGL/GLES types/macros as the OpenGL ES backend utility header.
-  - `d3dx9-mingw.h` remains a public DirectX/MinGW compatibility shim and should be evaluated separately.
-  - `time-control.h` still includes `windows.h` under `_WIN32`; this is a small public Windows dependency unrelated to Android.
+  - `d3dx9-mingw.h` was still a public DirectX/MinGW compatibility shim at this point. Milestone 89 moves it behind the private DirectX9 selector.
+  - `time-control.h` still includes `windows.h` under `_WIN32`; this is a small public Windows dependency unrelated to Android and is addressed by Milestone 88.
 - Do not move all backend-private headers to `src/core_mbm/private/` until Windows/macOS have reviewed the Android split, because that move is include-path churn rather than new encapsulation.
+
+Milestone 88 implementation note:
+
+- Removed the public `windows.h` include from `include/core_mbm/time-control.h`.
+- The Windows timing branch only needs `_timeb` and `_ftime_s`, which are declared by `sys/timeb.h`; no Win32 API type is required in this header.
+- This keeps `DEVICE` and any other `TIME_CONTROL` consumer from inheriting an avoidable Windows SDK dependency through a public core header.
+- This is a header-boundary cleanup only; timing storage, behavior, and public API remain unchanged.
+
+Milestone 89 implementation note:
+
+- Moved the MinGW-only D3DX9 compatibility shim from public `include/core_mbm/d3dx9-mingw.h` to private `src/core_mbm/d3dx9-mingw.h`.
+- Updated the private DirectX9 D3DX selector `src/core_mbm/specific-directx9-d3dx.h` to include the shim locally only for MinGW/Cygwin.
+- Updated the MSVS project and filter references to the new private file location so the solution does not point at a removed public header.
+- MSVS behavior remains unchanged: `_MSC_VER` still includes the standard `d3dx9.h` and links `d3dx9.lib`; the compatibility shim remains MinGW/Cygwin-only.
 
 Future private-header organization note:
 
