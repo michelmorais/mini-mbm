@@ -26,6 +26,8 @@
 #include <specific-opengl_es.h>
 #if defined(_WIN32)
     #include "specific-opengl_es-windows-context.h"
+#elif !defined(ANDROID) && (defined(__linux__) || defined(__APPLE__))
+    #include "specific-opengl_es-x11-context.h"
 #endif
 #include "specific-opengl_es-render-target.h"
 #include <util-interface.h>

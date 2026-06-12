@@ -43,10 +43,6 @@
 #elif defined __linux__  || defined(__APPLE__)
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
-
-    #include <X11/Xlib.h>
-    #include <X11/Xutil.h>
-    #include <X11/XKBlib.h>
 #endif
 
 #ifdef _DEBUG
@@ -631,70 +627,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
     #elif (defined(__linux__) || defined(__APPLE__))
 
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-        EGLDisplay eglDisplay;
-        EGLSurface eglSurface;
-        EGLContext eglContext;
-        EGLConfig  eglConfig;  // Store config for surface recreation
-        Window     window_x11;
-        Display *  display_x11;
-
-        GLint filter_GL_TEXTURE_WRAP_S;
-        GLint filter_GL_TEXTURE_WRAP_T;
-        GLint filter_GL_TEXTURE_MIN_FILTER;
-        GLint filter_GL_TEXTURE_MAG_FILTER;
-    
-    void make_x_window(const char *name,const int px, const int py,const uint32_t width,const uint32_t height, const bool border, const bool enable_resize);
-    bool recreateEGLSurface();  // Recreate EGL surface on resize
-            
-        SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-            this->eglDisplay = EGL_NO_DISPLAY;
-            this->eglSurface = EGL_NO_SURFACE;
-            this->eglContext = EGL_NO_CONTEXT;
-            this->eglConfig = nullptr;
-            this->window_x11 = 0;
-            this->display_x11 = nullptr;
-
-            filter_GL_TEXTURE_WRAP_S = GL_CLAMP_TO_EDGE;
-            filter_GL_TEXTURE_WRAP_T = GL_CLAMP_TO_EDGE;
-            filter_GL_TEXTURE_MIN_FILTER = GL_NEAREST;
-            filter_GL_TEXTURE_MAG_FILTER = GL_LINEAR;
-        }
-
-        ~SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-            constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
-            release(wasDeviceLost);
-        }
-
-        void release(bool wasDeviceLost)
-        {
-            if(this->eglDisplay != EGL_NO_DISPLAY)
-                eglTerminate(this->eglDisplay);
-            if(this->eglSurface != EGL_NO_SURFACE)
-                eglDestroySurface(this->eglDisplay, this->eglSurface);
-            if(this->eglContext != EGL_NO_CONTEXT)
-                eglDestroyContext(this->eglDisplay, this->eglContext);
-            if(wasDeviceLost == false) // we keep the window and display if we are lost device, because we will reuse them
-            {
-                if (this->display_x11 != nullptr && this->window_x11 != 0)
-                {
-                    XDestroyWindow(this->display_x11, this->window_x11);
-                    XCloseDisplay(this->display_x11);
-                    this->display_x11 = nullptr;
-                    this->window_x11 = 0;
-                }
-            }
-            this->eglDisplay = EGL_NO_DISPLAY;
-            this->eglSurface = EGL_NO_SURFACE;
-            this->eglContext = EGL_NO_CONTEXT;
-            this->eglConfig = nullptr;
-        }
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-    };
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 
 #elif (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 

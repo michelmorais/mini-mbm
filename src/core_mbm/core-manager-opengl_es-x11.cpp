@@ -26,7 +26,7 @@
 #include <texture-manager.h>
 #include <mesh-manager.h>
 #include <device.h>
-#include <specific-opengl_es.h>
+#include "specific-opengl_es-x11-context.h"
 #include <miniz-wrap/miniz-wrap.h>
 #include <audio-interface.h>
 #include <util-interface.h>
@@ -43,7 +43,6 @@
 //#include <X11/Xmu/WinUtil.h>
 #endif
 
-struct SPECIFIC_AUX_CONTEXT_DEVICE;
 namespace mbm { static bool initializeWindowx11(SPECIFIC_AUX_CONTEXT_DEVICE* ctx); }
 
 namespace mbm

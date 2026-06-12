@@ -75,7 +75,7 @@ This is now the most useful next cleanup direction because it matches the real P
 
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
-| `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11/Linux/macOS concrete context fields, Android concrete context fields, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, `GLES_PS_VS`, and the Windows OpenGL ES context layout have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, Linux Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android and X11 platform bridge surfaces public until those call sites move behind narrow accessors. |
+| `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window concrete context fields, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, `GLES_PS_VS`, and the Windows/X11 OpenGL ES context layouts have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android platform/asset bridge surface public until those call sites move behind narrow accessors. |
 | `include/core_mbm/specific-directx9.h` | No concrete DirectX9/Win32 backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, HRESULT logging, and the DirectX9 context layout have moved to private backend headers. The texture pixel-copy helper is file-local. Direct dependencies on `core-manager.h`, `shader.h`, `primitives.h`, D3D9, Win32 platform, and D3DX headers have been removed. | DirectX9 backend files and Win32 platform helper files include the private context header when concrete D3D/window fields are required. | Done for DirectX9 context layout. The broader Win32 platform header remains separate platform integration surface. |
 | `include/core_mbm/specific-metal.h` | No concrete Metal backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE` and exposes narrow opaque `void *` frame bridge functions for the ImGui Metal plugin. `RENDER2TARGET_METAL`, `BUFFER_SPECIFIC`, and the Metal context layout have moved to private Metal backend headers. | Metal backend files include the private context header. The ImGui Metal bridge uses the opaque frame bridge instead of reading the context layout directly. | Done for Metal context layout. |
 | `include/core_mbm/specific-dummy.h` | No concrete dummy backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DUMMY`, `BUFFER_SPECIFIC`, and the dummy context layout have moved to private dummy backend headers. | Dummy backend and dummy Lua wrappers can include it as a compatibility shim, but only backend files include the concrete private context header. | Done for dummy; use this as the lowest-risk pattern for future platform bridge splits. |
@@ -85,7 +85,7 @@ Recommended order:
 
 1. Do not add accessors for public gameplay/core flags only because they are public and strongly typed. Accessors are useful when they hide layout, preserve invariants, or replace repeated direct backend access.
 2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL`, `RENDER2TARGET_DIRECTX9`, `RENDER2TARGET_GLES`, backend `BUFFER_SPECIFIC` structs, `GLES_PS_VS`, `D3D_PS_VS`, and `D3D_VERTEX_CONVERTER` are done.
-3. Leave `SPECIFIC_AUX_CONTEXT_DEVICE` visible where platform entry points still need concrete fields, especially Android asset/window/JNI setup, X11 window/display setup, and plugin render-device bridging.
+3. Leave `SPECIFIC_AUX_CONTEXT_DEVICE` visible where platform entry points still need concrete fields, especially Android asset/window/JNI setup and plugin render-device bridging.
 4. Add narrow platform bridge methods before hiding `SPECIFIC_AUX_CONTEXT_DEVICE` completely. Examples: Android asset manager lookup, native window update, X11 display/window lookup, Win32 native window lookup, and Metal drawable/pass access.
 5. After those bridges exist, move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers.
 
@@ -756,6 +756,14 @@ Milestone 77 implementation note:
 - Updated Windows OpenGL ES backend files, DirectSound, and the Win32 platform helper to include the private context header only where the concrete window/EGL callback layout is required.
 - Kept Android and Linux/macOS OpenGL ES context layouts public for now because they have many platform and asset/file bridge call sites that need a separate staged migration.
 - This removes the Windows-specific OpenGL ES context layout from the public core header without changing runtime behavior, gameplay API, Android/Linux/macOS GLES behavior, or `RENDERIZABLE`.
+
+Milestone 78 implementation note:
+
+- Moved the concrete X11/Linux/macOS OpenGL ES `SPECIFIC_AUX_CONTEXT_DEVICE` layout out of public `include/core_mbm/specific-opengl_es.h` and into the private backend header `src/core_mbm/specific-opengl_es-x11-context.h`.
+- The Linux/macOS branch of the public OpenGL ES header now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`, so it no longer exposes `X11/Xlib.h`, `X11/Xutil.h`, `X11/XKBlib.h`, `Window`, `Display`, `window_x11`, `display_x11`, `eglConfig`, `make_x_window()`, or `recreateEGLSurface()`.
+- Updated shared OpenGL ES core-manager/device code and the X11 OpenGL ES backend file to include the private context header only where concrete X11/EGL fields are required.
+- Kept the Android OpenGL ES context layout public for now because Android platform entry points, Lua wrappers, file/asset helpers, and lsqlite3 asset package code still reach into JNI/asset/window fields.
+- This removes the X11 OpenGL ES context layout from the public core header without changing runtime behavior, gameplay API, Android GLES behavior, Windows GLES behavior, or `RENDERIZABLE`.
 
 ### Phase 3 - Hide renderer backend handles
 
