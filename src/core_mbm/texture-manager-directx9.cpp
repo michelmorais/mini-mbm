@@ -82,10 +82,10 @@ namespace mbm
 
     
 
-    void copy_pixels_per_row_Pitch( D3DSURFACE_DESC	&descSurfaceDest, 
-                                        const uint32_t width, 
-                                        const uint32_t height, 
-                                        D3DLOCKED_RECT & lockDestRect, 
+    static void copy_pixels_per_row_Pitch( D3DSURFACE_DESC	&descSurfaceDest,
+                                        const uint32_t width,
+                                        const uint32_t height,
+                                        D3DLOCKED_RECT & lockDestRect,
                                         const uint8_t* dataImage) noexcept
     {   // compute bytes per pixel in source and destination
         const bool destIsA8R8G8B8 = (descSurfaceDest.Format == D3DFMT_A8R8G8B8);

@@ -80,11 +80,6 @@ namespace mbm
     bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line);
     #define CHECK_AND_LOG_HRESULT_DX(hr) checkAndLogHresultResultDx((hr), __FILE__, __LINE__)
 
-    void copy_pixels_per_row_Pitch(D3DSURFACE_DESC& descSurfaceDest,
-        const uint32_t width,
-        const uint32_t height,
-        D3DLOCKED_RECT& lockDestRect,
-        const uint8_t* dataImage) noexcept;
 }
 
 #endif
