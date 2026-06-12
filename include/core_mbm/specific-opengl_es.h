@@ -580,6 +580,10 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
     API_IMPL bool androidRequestOpenFile(const char *callback, bool allowMultipleSelects);
     API_IMPL bool androidShowMessageBox(const char *title, const char *message, const char *dialogType);
     API_IMPL const char *androidOpenFolder(const char *title, const char *defaultPath);
+    API_IMPL void androidReleaseGraphicsContext(bool wasDeviceLost);
+    API_IMPL bool androidEnsureEGLSurface(int *width, int *height);
+    API_IMPL void androidSwapBuffers();
+    API_IMPL void androidStoreTextureFilters();
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {

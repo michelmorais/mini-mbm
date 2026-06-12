@@ -40,7 +40,7 @@ namespace mbm
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->getSpecificContextDevice()->release(wasDeviceLost);
+        androidReleaseGraphicsContext(wasDeviceLost);
     }
 
     void CORE_MANAGER::moveWindow(int , int )
@@ -50,120 +50,8 @@ namespace mbm
 
     bool CORE_MANAGER::initGraphics(const char *nameApplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
     {
-        auto* ctx = this->device->getSpecificContextDevice();
-
-        if (!ctx->nativeWindow)
-        {
-            ERROR_LOG("EGL: nativeWindow is null — cannot create EGL surface");
+        if (!androidEnsureEGLSurface(&width, &height))
             return false;
-        }
-
-        // ---------------------------------------------------------------
-        // EGL initialisation — must happen before any GL call
-        // ---------------------------------------------------------------
-        if (ctx->eglDisplay == EGL_NO_DISPLAY)
-        {
-            // First-time init: create display, context and window surface
-            ctx->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-            if (ctx->eglDisplay == EGL_NO_DISPLAY)
-            {
-                ERROR_LOG("EGL: eglGetDisplay failed (error 0x%x)", eglGetError());
-                return false;
-            }
-            if (!eglInitialize(ctx->eglDisplay, nullptr, nullptr))
-            {
-                ERROR_LOG("EGL: eglInitialize failed (error 0x%x)", eglGetError());
-                return false;
-            }
-
-            const EGLint configAttribs[] = {
-                EGL_RED_SIZE,        8,
-                EGL_GREEN_SIZE,      8,
-                EGL_BLUE_SIZE,       8,
-                EGL_DEPTH_SIZE,      24,
-                EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
-                EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-                EGL_NONE
-            };
-            EGLint numConfigs = 0;
-            eglChooseConfig(ctx->eglDisplay, configAttribs, &ctx->eglConfig, 1, &numConfigs);
-            if (numConfigs == 0)
-            {
-                // Fallback: relax depth size
-                INFO_LOG("EGL: depth-24 config not available, trying depth-16");
-                const EGLint fallbackAttribs[] = {
-                    EGL_RED_SIZE,        8,
-                    EGL_GREEN_SIZE,      8,
-                    EGL_BLUE_SIZE,       8,
-                    EGL_DEPTH_SIZE,      16,
-                    EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
-                    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-                    EGL_NONE
-                };
-                eglChooseConfig(ctx->eglDisplay, fallbackAttribs, &ctx->eglConfig, 1, &numConfigs);
-            }
-            if (numConfigs == 0)
-            {
-                ERROR_LOG("EGL: eglChooseConfig found no matching config (error 0x%x)", eglGetError());
-                return false;
-            }
-            INFO_LOG("EGL: config chosen, numConfigs=%d", numConfigs);
-
-            EGLint format = 0;
-            eglGetConfigAttrib(ctx->eglDisplay, ctx->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
-            ANativeWindow_setBuffersGeometry(ctx->nativeWindow, 0, 0, format);
-
-            ctx->eglSurface = eglCreateWindowSurface(ctx->eglDisplay, ctx->eglConfig, ctx->nativeWindow, nullptr);
-            if (ctx->eglSurface == EGL_NO_SURFACE)
-            {
-                ERROR_LOG("EGL: eglCreateWindowSurface failed (error 0x%x)", eglGetError());
-                return false;
-            }
-
-            const EGLint ctxAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
-            ctx->eglContext = eglCreateContext(ctx->eglDisplay, ctx->eglConfig, EGL_NO_CONTEXT, ctxAttribs);
-            if (ctx->eglContext == EGL_NO_CONTEXT)
-            {
-                ERROR_LOG("EGL: eglCreateContext failed (error 0x%x)", eglGetError());
-                return false;
-            }
-
-            if (!eglMakeCurrent(ctx->eglDisplay, ctx->eglSurface, ctx->eglSurface, ctx->eglContext))
-            {
-                ERROR_LOG("EGL: eglMakeCurrent failed (error 0x%x)", eglGetError());
-                return false;
-            }
-            INFO_LOG("EGL: context created and made current");
-        }
-        else if (ctx->eglSurface == EGL_NO_SURFACE)
-        {
-            // Resume after device-lost: context is alive, only the surface needs recreation
-            EGLint format = 0;
-            eglGetConfigAttrib(ctx->eglDisplay, ctx->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
-            ANativeWindow_setBuffersGeometry(ctx->nativeWindow, 0, 0, format);
-            ctx->eglSurface = eglCreateWindowSurface(ctx->eglDisplay, ctx->eglConfig, ctx->nativeWindow, nullptr);
-            if (ctx->eglSurface == EGL_NO_SURFACE)
-            {
-                ERROR_LOG("EGL: resume eglCreateWindowSurface failed (error 0x%x)", eglGetError());
-                return false;
-            }
-            if (!eglMakeCurrent(ctx->eglDisplay, ctx->eglSurface, ctx->eglSurface, ctx->eglContext))
-            {
-                ERROR_LOG("EGL: resume eglMakeCurrent failed (error 0x%x)", eglGetError());
-                return false;
-            }
-            INFO_LOG("EGL: surface recreated for resume");
-        }
-
-        // Query actual surface dimensions and use them
-        {
-            EGLint surfW = 0, surfH = 0;
-            eglQuerySurface(ctx->eglDisplay, ctx->eglSurface, EGL_WIDTH,  &surfW);
-            eglQuerySurface(ctx->eglDisplay, ctx->eglSurface, EGL_HEIGHT, &surfH);
-            INFO_LOG("EGL: surface dimensions %d x %d", surfW, surfH);
-            if (surfW > 0) width  = surfW;
-            if (surfH > 0) height = surfH;
-        }
 
         // ---------------------------------------------------------------
         int x = width;
@@ -206,10 +94,7 @@ namespace mbm
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
 
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &device->getSpecificContextDevice()->filter_GL_TEXTURE_WRAP_S);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &device->getSpecificContextDevice()->filter_GL_TEXTURE_WRAP_T);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &device->getSpecificContextDevice()->filter_GL_TEXTURE_MIN_FILTER);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &device->getSpecificContextDevice()->filter_GL_TEXTURE_MAG_FILTER);
+        androidStoreTextureFilters();
 
         return true;
     }

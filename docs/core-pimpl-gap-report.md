@@ -824,6 +824,18 @@ Milestone 81 implementation note:
 - Left Android EGL/native-window/bootstrap context access unchanged for later milestones.
 - This milestone keeps Lua behavior stable while removing the Lua wrapper's dependency on Android-specific context fields.
 
+Milestone 82 implementation note:
+
+- Added Android EGL/native-window bridge functions:
+  - `androidReleaseGraphicsContext()`
+  - `androidEnsureEGLSurface()`
+  - `androidSwapBuffers()`
+  - `androidStoreTextureFilters()`
+- Moved Android EGL display/config/surface/context creation and resume logic from `src/core_mbm/core-manager-opengl_es_android.cpp` into `src/core_mbm/specific-android.cpp`.
+- Migrated Android `CORE_MANAGER::ReleaseGraphics()`, `initGraphics()`, and Android `swapBuffers()` away from direct EGL/native-window/filter context field access.
+- Kept plugin subscription JNI handle access and Android platform bootstrap context population unchanged for later milestones.
+- This isolates Android EGL/native-window lifecycle from core-manager code while preserving the current NativeActivity behavior.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.

@@ -324,6 +324,148 @@ namespace mbm
         }
         return nullptr;
     }
+
+    void androidReleaseGraphicsContext(bool wasDeviceLost)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->release(wasDeviceLost);
+    }
+
+    bool androidEnsureEGLSurface(int *width, int *height)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context)
+            return false;
+        if (!context->nativeWindow)
+        {
+            ERROR_LOG("EGL: nativeWindow is null, cannot create EGL surface");
+            return false;
+        }
+
+        if (context->eglDisplay == EGL_NO_DISPLAY)
+        {
+            context->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+            if (context->eglDisplay == EGL_NO_DISPLAY)
+            {
+                ERROR_LOG("EGL: eglGetDisplay failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            if (!eglInitialize(context->eglDisplay, nullptr, nullptr))
+            {
+                ERROR_LOG("EGL: eglInitialize failed (error 0x%x)", eglGetError());
+                return false;
+            }
+
+            const EGLint configAttribs[] = {
+                EGL_RED_SIZE, 8,
+                EGL_GREEN_SIZE, 8,
+                EGL_BLUE_SIZE, 8,
+                EGL_DEPTH_SIZE, 24,
+                EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+                EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                EGL_NONE
+            };
+            EGLint numConfigs = 0;
+            eglChooseConfig(context->eglDisplay, configAttribs, &context->eglConfig, 1, &numConfigs);
+            if (numConfigs == 0)
+            {
+                INFO_LOG("EGL: depth-24 config not available, trying depth-16");
+                const EGLint fallbackAttribs[] = {
+                    EGL_RED_SIZE, 8,
+                    EGL_GREEN_SIZE, 8,
+                    EGL_BLUE_SIZE, 8,
+                    EGL_DEPTH_SIZE, 16,
+                    EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+                    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                    EGL_NONE
+                };
+                eglChooseConfig(context->eglDisplay, fallbackAttribs, &context->eglConfig, 1, &numConfigs);
+            }
+            if (numConfigs == 0)
+            {
+                ERROR_LOG("EGL: eglChooseConfig found no matching config (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: config chosen, numConfigs=%d", numConfigs);
+
+            EGLint format = 0;
+            eglGetConfigAttrib(context->eglDisplay, context->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
+            ANativeWindow_setBuffersGeometry(context->nativeWindow, 0, 0, format);
+
+            context->eglSurface = eglCreateWindowSurface(context->eglDisplay, context->eglConfig,
+                                                         context->nativeWindow, nullptr);
+            if (context->eglSurface == EGL_NO_SURFACE)
+            {
+                ERROR_LOG("EGL: eglCreateWindowSurface failed (error 0x%x)", eglGetError());
+                return false;
+            }
+
+            const EGLint ctxAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+            context->eglContext = eglCreateContext(context->eglDisplay, context->eglConfig, EGL_NO_CONTEXT,
+                                                   ctxAttribs);
+            if (context->eglContext == EGL_NO_CONTEXT)
+            {
+                ERROR_LOG("EGL: eglCreateContext failed (error 0x%x)", eglGetError());
+                return false;
+            }
+
+            if (!eglMakeCurrent(context->eglDisplay, context->eglSurface, context->eglSurface, context->eglContext))
+            {
+                ERROR_LOG("EGL: eglMakeCurrent failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: context created and made current");
+        }
+        else if (context->eglSurface == EGL_NO_SURFACE)
+        {
+            EGLint format = 0;
+            eglGetConfigAttrib(context->eglDisplay, context->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
+            ANativeWindow_setBuffersGeometry(context->nativeWindow, 0, 0, format);
+            context->eglSurface = eglCreateWindowSurface(context->eglDisplay, context->eglConfig,
+                                                         context->nativeWindow, nullptr);
+            if (context->eglSurface == EGL_NO_SURFACE)
+            {
+                ERROR_LOG("EGL: resume eglCreateWindowSurface failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            if (!eglMakeCurrent(context->eglDisplay, context->eglSurface, context->eglSurface, context->eglContext))
+            {
+                ERROR_LOG("EGL: resume eglMakeCurrent failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: surface recreated for resume");
+        }
+
+        EGLint surfaceWidth = 0;
+        EGLint surfaceHeight = 0;
+        eglQuerySurface(context->eglDisplay, context->eglSurface, EGL_WIDTH, &surfaceWidth);
+        eglQuerySurface(context->eglDisplay, context->eglSurface, EGL_HEIGHT, &surfaceHeight);
+        INFO_LOG("EGL: surface dimensions %d x %d", surfaceWidth, surfaceHeight);
+        if (width && surfaceWidth > 0)
+            *width = surfaceWidth;
+        if (height && surfaceHeight > 0)
+            *height = surfaceHeight;
+        return true;
+    }
+
+    void androidSwapBuffers()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            eglSwapBuffers(context->eglDisplay, context->eglSurface);
+    }
+
+    void androidStoreTextureFilters()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context)
+            return;
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &context->filter_GL_TEXTURE_WRAP_S);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &context->filter_GL_TEXTURE_WRAP_T);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &context->filter_GL_TEXTURE_MIN_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &context->filter_GL_TEXTURE_MAG_FILTER);
+    }
     
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():
     jenv(nullptr),
