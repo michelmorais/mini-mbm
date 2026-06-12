@@ -39,7 +39,7 @@
 
 // d3dx9.h is part of the legacy DirectX SDK — not available in MinGW or
 // the modern Windows SDK (VS 2022+). Always use the bundled shim.
-#include <core_mbm/d3dx9-mingw.h>
+//#include <core_mbm/d3dx9-mingw.h>
 
 // 
 //#pragma comment (lib,"comsuppwd.lib")

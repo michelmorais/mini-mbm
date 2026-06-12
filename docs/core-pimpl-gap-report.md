@@ -76,7 +76,7 @@ This is now the most useful next cleanup direction because it matches the real P
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
 | `include/core_mbm/specific-opengl_es.h` | EGL, GLES2, Android JNI/asset/native-window, X11, Win32 compatibility types, `SPECIFIC_AUX_CONTEXT_DEVICE`, and GL debug macros. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, and `GLES_PS_VS` have moved to private OpenGL ES backend headers. | Android platform entry points, Android Lua wrappers, Linux/Windows Lua wrappers, lsqlite3 asset package helper, and OpenGL ES backend files. | Keep only the Android/platform bridge surface public until those call sites move behind narrow accessors. |
-| `include/core_mbm/specific-directx9.h` | D3D9/COM types and Win32 window context. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, and the HRESULT logging helper have moved to private DirectX9 backend headers. The texture pixel-copy helper is file-local. Direct dependencies on `core-manager.h`, `shader.h`, and `primitives.h` have been replaced with forward declarations. | DirectX9 backend files and Win32 platform helper files. | The context/window surface still needs a separate platform bridge decision. |
+| `include/core_mbm/specific-directx9.h` | D3D9/COM types and Win32 window context. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, and the HRESULT logging helper have moved to private DirectX9 backend headers. The texture pixel-copy helper is file-local. Direct dependencies on `core-manager.h`, `shader.h`, `primitives.h`, and the D3DX compatibility shim have been removed. | DirectX9 backend files and Win32 platform helper files. | The context/window surface still needs a separate platform bridge decision. |
 | `include/core_mbm/specific-metal.h` | Metal/Cocoa/UIKit types and full Metal `SPECIFIC_AUX_CONTEXT_DEVICE` layout. `RENDER2TARGET_METAL` and `BUFFER_SPECIFIC` have moved to private Metal backend headers. | Metal backend files and the ImGui Metal bridge plugin. | Keep a minimal bridge for ImGui or replace plugin access with a small Metal frame context API before hiding the full context layout. |
 | `include/core_mbm/specific-dummy.h` | Dummy backend context, buffer, and render-target structs. | Dummy backend and dummy Lua wrappers. | Keep as a template for now, but update it to model the private-header pattern once a real backend split is proven. |
 | `include/core_mbm/platform-win32.h` and `include/core_mbm/d3dx9-mingw.h` | Win32 window/event and DirectX compatibility types. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat separately from renderer PIMPL. They are platform integration headers, not render-resource ownership, but they still block a fully clean public boundary. |
@@ -664,6 +664,13 @@ Milestone 64 implementation note:
 - Added forward declarations for `CORE_MANAGER` and `FVF_PROVIDE_BY_ENGINE`, which are enough for the remaining DirectX9 context method signatures.
 - Kept `platform/win32-platform.h`, `d3d9.h`, and the DirectX compatibility shim in `specific-directx9.h` because the public context layout still stores concrete Win32 and D3D9 fields.
 - This reduces transitive public header dependencies without changing DirectX9 context ownership, runtime behavior, gameplay API, or `RENDERIZABLE`.
+
+Milestone 65 implementation note:
+
+- Removed the DirectX9 D3DX compatibility shim include from the public `include/core_mbm/specific-directx9.h` header.
+- Added direct `core_mbm/d3dx9-mingw.h` includes to the DirectX9 backend files/private headers that actually use `D3DX*` symbols: core-manager, shader-specific state, shader var config, and texture manager.
+- Kept `d3d9.h` in `specific-directx9.h` because the public context layout still stores concrete D3D9 COM pointer fields.
+- This reduces another transitive public backend dependency without changing DirectX9 shader, texture, render begin, gameplay API, or `RENDERIZABLE` behavior.
 
 ### Phase 3 - Hide renderer backend handles
 

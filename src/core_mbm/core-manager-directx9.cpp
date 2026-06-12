@@ -20,6 +20,7 @@
 #if defined (USE_DIRECTX9)
 
 #include <specific-directx9.h>
+//#include <core_mbm/d3dx9-mingw.h>
 #include "specific-directx9-hresult.h"
 #include "specific-directx9-render-target.h"
 #include <core-manager.h>
