@@ -35,7 +35,6 @@
 
 // These headers are available in both MSVC and MinGW builds
 #include <platform/win32-platform.h>
-#include <core-manager.h>
 #include <d3d9.h>
 
 // d3dx9.h is part of the legacy DirectX SDK — not available in MinGW or
@@ -46,11 +45,11 @@
 //#pragma comment (lib,"comsuppwd.lib")
 //#pragma comment (lib, "dsetup.lib") //Directx version setup
 
-#include <primitives.h>
-#include <shader.h>
-
 namespace mbm
 {
+    class CORE_MANAGER;
+    enum class FVF_PROVIDE_BY_ENGINE;
+
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
         WINDOW window;
