@@ -159,12 +159,13 @@ namespace mbm
         const auto height        = static_cast<GLsizei>(renderToTarget->heightTexture);
         if (fileNameBase.size() == 0)
             return nullptr;
-        if (static_cast<uint32_t>(width) > this->maxTextureSize || static_cast<uint32_t>(height) > this->maxTextureSize)
+        const uint32_t maxTextureSize = getMaxTextureSize();
+        if (static_cast<uint32_t>(width) > maxTextureSize || static_cast<uint32_t>(height) > maxTextureSize)
         {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
+            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height, maxTextureSize);
             return nullptr;
         }
-        TEXTURE *texture = lsTextures[fileNameBase];
+        TEXTURE *texture = getCachedTexture(fileNameBase);
         if (texture)
             return texture;
         texture = new TEXTURE();
@@ -233,7 +234,7 @@ namespace mbm
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;
         texture->fileName                   = std::move(fileNameBase);
-        lsTextures[texture->fileName]       = texture;
+        cacheTexture(texture->fileName, texture);
         return texture;
     }
 }

@@ -25,8 +25,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <map>
-#include <unordered_map>
 
 #include <stb/stb-interface.h>
 
@@ -132,15 +130,15 @@ namespace mbm
         API_IMPL TEXTURE* loadNativeEngine(const char* fileName, const bool forceAlpha); // load native engine (e.g.: Directx LoadTextureFromFile, Metal). Implemented specific
       private:
         static TEXTURE_MANAGER *instanceTextureManager;
-        std::unordered_map<std::string,TEXTURE *> lsTextures;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
         TEXTURE_MANAGER();
         virtual ~TEXTURE_MANAGER();
         const char *getFilePathTexture(const char *fileName,const char* fullFileName);
         const char *findInAllPaths(const char *fileNameTexture);
-        char                     pathSource[255];
-        uint32_t                 maxTextureSize;
-        uint32_t                 maxTextureHeight;
-        uint32_t                 maxTextureWidth;
+        TEXTURE *getCachedTexture(const std::string &fileName) const;
+        void cacheTexture(const std::string &fileName, TEXTURE *texture);
+        uint32_t getMaxTextureSize() const noexcept;
     };
 }
 

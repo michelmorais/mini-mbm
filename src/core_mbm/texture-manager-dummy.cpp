@@ -81,7 +81,7 @@ namespace mbm
         if (fileName == nullptr)
             return nullptr;
         std::string fileNameBase = util::getBaseName(fileName);
-        TEXTURE* tex = lsTextures[fileNameBase];
+        TEXTURE* tex = getCachedTexture(fileNameBase);
         if (tex)
             return tex;
         fileName = getFilePathTexture(fileName, nullptr);
@@ -91,7 +91,7 @@ namespace mbm
         
         tex->useAlphaChannel = forceAlpha;
         tex->fileName = fileName;
-        lsTextures[fileNameBase] = (tex);
+        cacheTexture(fileNameBase, tex);
         REMINDER_TODO
         return tex;
     }
@@ -106,12 +106,13 @@ namespace mbm
         
         if (fileNameBase.size() == 0)
             return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
+        const uint32_t maxTextureSize = getMaxTextureSize();
+        if (static_cast<uint32_t>(width) > maxTextureSize || static_cast<uint32_t>(height) > maxTextureSize)
         {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
+            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height, maxTextureSize);
             return nullptr;
         }
-        TEXTURE *texture = lsTextures[fileNameBase];
+        TEXTURE *texture = getCachedTexture(fileNameBase);
         if (texture)
             return texture;
         texture = new TEXTURE();
@@ -121,7 +122,7 @@ namespace mbm
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;
         texture->fileName                   = std::move(fileNameBase);
-        lsTextures[texture->fileName]       = texture;
+        cacheTexture(texture->fileName, texture);
         return texture;
     }
 }
