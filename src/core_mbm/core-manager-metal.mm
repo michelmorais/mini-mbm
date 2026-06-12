@@ -152,14 +152,15 @@ namespace mbm
 
     bool CORE_MANAGER::renderToTargets()
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         if (!ctx || !ctx->mtlDevice || !ctx->commandQueue) return true;
 
         bool oneRender = false;
-        const uint32_t totalRenderTargets = this->device->getTotalRenderTargets();
+        const uint32_t totalRenderTargets = device->getTotalRenderTargets();
         for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
-            auto renderTarget = this->device->getRenderTarget(i);
+            auto renderTarget = device->getRenderTarget(i);
             if (!renderTarget)
                 continue;
             if (!renderTarget->isObjectOnFrustum)
@@ -205,7 +206,8 @@ namespace mbm
         {
             // Restore the camera to main backbuffer dimensions in case render2Texture()
             // updated it for the off-screen target.
-            this->device->getCamera().updateCam(
+            CAMERA &camera = device->getCamera();
+            camera.updateCam(
                 true,
                 static_cast<float>(device->getBackBufferWidth()),
                 static_cast<float>(device->getBackBufferHeight()));
@@ -215,6 +217,7 @@ namespace mbm
 
     unsigned int CORE_MANAGER::addPlugin(PLUGIN* plugin)
     {
+        DEVICE *device = this->getDevice();
         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
         {
             if (this->getPlugin(i) == plugin)
@@ -223,7 +226,7 @@ namespace mbm
         if (plugin)
         {
             const unsigned int indexPlugin = this->appendPlugin(plugin);
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
             // Provide the window/view as the platform handle (cast to void*).
 #if TARGET_OS_IOS
             void* handle = (__bridge void*)ctx->metalView;
@@ -231,8 +234,8 @@ namespace mbm
             void* handle = (__bridge void*)ctx->window;
 #endif
             plugin->onSubscribe(
-                static_cast<int>(this->device->getBackBufferWidth()),
-                static_cast<int>(this->device->getBackBufferHeight()),
+                static_cast<int>(device->getBackBufferWidth()),
+                static_cast<int>(device->getBackBufferHeight()),
                 handle,
                 (__bridge void*)ctx->mtlDevice);
             return indexPlugin;
