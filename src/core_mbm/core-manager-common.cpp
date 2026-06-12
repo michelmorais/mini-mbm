@@ -1055,13 +1055,14 @@ namespace mbm
 
     bool CORE_MANAGER::onLostDevice(const bool doSwapBuffers, int width, int height, const int px, const int py)
     {
+        DEVICE *device = this->getDevice();
         if (impl->stepRestore == STEP_RES_INIT_GL)
         {
 #if defined _DEBUG
             WARN_LOG("onLostDevice step %d", impl->stepRestore);
 #endif
             // Save 2D scaling state
-            CAMERA &camera = this->device->getCamera();
+            CAMERA &camera = device->getCamera();
             const VEC2 expectedScreenBefore = camera.expectedScreen;
             char stretchBefore[sizeof(camera.stretch)] = {};
             strncpy(stretchBefore, camera.stretch, sizeof(stretchBefore) - 1);
@@ -1073,7 +1074,7 @@ namespace mbm
             {
                 // Reapply previous 2D scaling
                 camera.expectedScreen = expectedScreenBefore;
-                this->device->scaleToScreen(expectedScreenBefore.x, expectedScreenBefore.y, stretchBefore);
+                device->scaleToScreen(expectedScreenBefore.x, expectedScreenBefore.y, stretchBefore);
 
 #if defined _DEBUG
                 WARN_LOG("After restore - scale2d.x: %f, scale2d.y: %f, expectedScreen.x: %f, expectedScreen.y: %f",
@@ -1083,8 +1084,8 @@ namespace mbm
                     camera.expectedScreen.y);
 #endif
 
-                this->device->setCamera2dScaleCache(1.0f / camera.scale2d.x,
-                                                    1.0f / camera.scale2d.y);
+                device->setCamera2dScaleCache(1.0f / camera.scale2d.x,
+                                              1.0f / camera.scale2d.y);
                 this->adjustScaleScreen2d();
 
                 impl->stepRestore = STEP_RES_DRAW_HOURGLASS;
@@ -1132,7 +1133,7 @@ namespace mbm
 #if defined _DEBUG
                 WARN_LOG("onLostDevice step %d restoring objs.", impl->stepRestore);
 #endif
-                const auto t = static_cast<float>(this->device->getRender2DWList().size() + this->device->getRender2DSList().size() + this->device->getRender3DList().size());
+                const auto t = static_cast<float>(device->getRender2DWList().size() + device->getRender2DSList().size() + device->getRender3DList().size());
                 if (t > 0.0f)
                 {
                     impl->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
@@ -1153,7 +1154,7 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    auto &render2DWList = this->device->getRender2DWList();
+                    auto &render2DWList = device->getRender2DWList();
                     for (uint32_t i = impl->indexOnRestore, j = 0; i < render2DWList.size(); ++i)
                     {
                         RENDERIZABLE* ptr = render2DWList[i];
@@ -1186,7 +1187,7 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (impl->indexOnRestore >= this->device->getRender2DWList().size())
+                    if (impl->indexOnRestore >= device->getRender2DWList().size())
                     {
                         impl->indexOnRestore = 0;
                         impl->whichFor = WFOR_2DS;
@@ -1199,7 +1200,7 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    auto &render2DSList = this->device->getRender2DSList();
+                    auto &render2DSList = device->getRender2DSList();
                     for (uint32_t i = impl->indexOnRestore, j = 0; i < render2DSList.size(); ++i)
                     {
                         RENDERIZABLE* ptr = render2DSList[i];
@@ -1232,7 +1233,7 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (impl->indexOnRestore >= this->device->getRender2DSList().size())
+                    if (impl->indexOnRestore >= device->getRender2DSList().size())
                     {
                         impl->indexOnRestore = 0;
                         impl->whichFor = WFOR_3D;
@@ -1245,7 +1246,7 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    auto &render3DList = this->device->getRender3DList();
+                    auto &render3DList = device->getRender3DList();
                     for (uint32_t i = impl->indexOnRestore, j = 0; i < render3DList.size(); ++i)
                     {
                         RENDERIZABLE* ptr = render3DList[i];
@@ -1278,7 +1279,7 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (impl->indexOnRestore >= this->device->getRender3DList().size())
+                    if (impl->indexOnRestore >= device->getRender3DList().size())
                     {
                         impl->indexOnRestore = 0;
                         impl->whichFor = WFOR_DONE;
@@ -1300,7 +1301,7 @@ namespace mbm
             impl->stepRestore = STEP_RES_INIT_GL;
             device->setClearBackGround(true);
             if(impl->wasGamePausedBeforeOnStop == false)
-                this->device->resumeGame();
+                device->resumeGame();
             if (device->getScene())
                 device->getScene()->onRestore(100);
             return true;
