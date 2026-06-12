@@ -905,13 +905,15 @@ namespace mbm
     
     void CORE_MANAGER::reinitTimers()
     {
-        this->device->clearAdditionalTimers();
-        this->device->resumeTimer();
+        DEVICE *device = this->getDevice();
+        device->clearAdditionalTimers();
+        device->resumeTimer();
     }
 
     void CORE_MANAGER::enableRender(const int idScene)
     {
-        for (auto ptr : this->device->getRender3DList())
+        DEVICE *device = this->getDevice();
+        for (auto ptr : device->getRender3DList())
         {
             if (ptr != nullptr)
             {
@@ -919,7 +921,7 @@ namespace mbm
                     ptr->enableRender = true;
             }
         }
-        for (auto ptr : this->device->getRender2DSList())
+        for (auto ptr : device->getRender2DSList())
         {
             if (ptr != nullptr)
             {
@@ -927,7 +929,7 @@ namespace mbm
                     ptr->enableRender = true;
             }
         }
-        for (auto ptr : this->device->getRender2DWList())
+        for (auto ptr : device->getRender2DWList())
         {
             if (ptr != nullptr)
             {
@@ -939,7 +941,8 @@ namespace mbm
     
     void CORE_MANAGER::disableRender(const int idScene)
     {
-        for (auto ptr : this->device->getRender3DList())
+        DEVICE *device = this->getDevice();
+        for (auto ptr : device->getRender3DList())
         {
             if (ptr != nullptr)
             {
@@ -947,7 +950,7 @@ namespace mbm
                     ptr->enableRender = false;
             }
         }
-        for (auto ptr : this->device->getRender2DSList())
+        for (auto ptr : device->getRender2DSList())
         {
             if (ptr != nullptr)
             {
@@ -955,7 +958,7 @@ namespace mbm
                     ptr->enableRender = false;
             }
         }
-        for (auto ptr : this->device->getRender2DWList())
+        for (auto ptr : device->getRender2DWList())
         {
             if (ptr != nullptr)
             {
