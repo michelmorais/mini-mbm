@@ -75,6 +75,7 @@ namespace mbm
         bool                                 enableResizeWindow        = true;
         bool                                 changeScene               = true;
         bool                                 keyCapsLockState          = false;
+        bool                                 sceneWasInitialized       = false;
     };
 
     void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
@@ -159,6 +160,16 @@ namespace mbm
         return impl->keyCapsLockState;
     }
 
+    void CORE_MANAGER::setSceneInitialized(const bool initialized) noexcept
+    {
+        impl->sceneWasInitialized = initialized;
+    }
+
+    bool CORE_MANAGER::isSceneInitialized() const noexcept
+    {
+        return impl->sceneWasInitialized;
+    }
+
     STEP_RETORE CORE_MANAGER::getStepRestore() const noexcept
     {
         return impl->stepRestore;
@@ -217,7 +228,7 @@ namespace mbm
             INFO_JOYSTICK_INIT_PLAYER info;
             while (this->popEvent(&info))
             {
-                if (this->device->getScene() && this->__sceneWasInit)
+                if (this->device->getScene() && this->isSceneInitialized())
                     this->device->getScene()->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
                         info.extraInfo.c_str());
             }
@@ -274,7 +285,7 @@ namespace mbm
                     break;
                     case ONTOUCHDOWN:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onTouchDown(event.key, event.x, event.y);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -285,7 +296,7 @@ namespace mbm
                     break;
                     case ONTOUCHUP:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onTouchUp(event.key, event.x, event.y);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -296,7 +307,7 @@ namespace mbm
                     break;
                     case ONTOUCHMOVE:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onTouchMove(event.key, event.x, event.y);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -307,7 +318,7 @@ namespace mbm
                     break;
                     case ONTOUCHZOOM:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onTouchZoom((float)event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -318,7 +329,7 @@ namespace mbm
                     break;
                     case ONKEYDOWN:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onKeyDown(event.key);
                         #if defined(_WIN32) || defined(__MINGW32__)
                         if (event.key == VK_CAPITAL)
@@ -340,7 +351,7 @@ namespace mbm
                     break;
                     case ONKEYUP:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onKeyUp(event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -351,7 +362,7 @@ namespace mbm
                     break;
                     case ONDOUBLECLICK:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onDoubleClick(event.x, event.y, event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -368,7 +379,7 @@ namespace mbm
                                            break;
                     case ONKEYDOWNJOYSTICK:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onKeyDownJoystick(event.player, event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -379,7 +390,7 @@ namespace mbm
                     break;
                     case ONKEYUPJOYSTICK:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onKeyUpJoystick(event.player, event.key);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -390,7 +401,7 @@ namespace mbm
                     break;
                     case ONMOVEJOYSTICK:
                     {
-                        if (this->device->getScene() && this->__sceneWasInit)
+                        if (this->device->getScene() && this->isSceneInitialized())
                             this->device->getScene()->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
                         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
@@ -836,7 +847,7 @@ namespace mbm
                     if(this->device->getScene())
                         this->device->getScene()->startLoading();
                 }
-                this->__sceneWasInit = false;
+                this->setSceneInitialized(false);
             }
             else if (this->isChangeScene())
             {
@@ -855,7 +866,7 @@ namespace mbm
                     this->device->getScene()->onInitScene();
                     this->device->setFakeFps(120,60);
                     this->device->resumeTimer();
-                    this->__sceneWasInit          = true;
+                    this->setSceneInitialized(true);
                     this->setChangeScene(false);
                     this->device->setClearBackGround(true);
                     if(this->device->getScene())
@@ -1381,7 +1392,7 @@ namespace mbm
      
      void CORE_MANAGER::pushEvent(EVENT_KEY* event)
      {
-         if (event && this->device->getScene() && this->__sceneWasInit)
+         if (event && this->device->getScene() && this->isSceneInitialized())
          {
              impl->mutexEvents.lock();
              if (event->eventType == impl->lastEvent.eventType)
@@ -1535,7 +1546,7 @@ namespace mbm
      void CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER* info)
      {
          impl->mutexEvents.lock();
-         if (this->device->getScene() && this->__sceneWasInit)
+         if (this->device->getScene() && this->isSceneInitialized())
          {
              impl->joystickInfoEvents.push_back(*info);
          }

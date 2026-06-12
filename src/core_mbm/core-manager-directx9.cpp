@@ -61,7 +61,7 @@ namespace mbm
             INFO_JOYSTICK_INIT_PLAYER info;
             while (this->popEvent(&info))
             {
-                if (this->device->getScene() && this->__sceneWasInit)
+                if (this->device->getScene() && this->isSceneInitialized())
                     this->device->getScene()->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
                         info.extraInfo.c_str());
             }
@@ -98,7 +98,7 @@ namespace mbm
         this->initializeImpl();
         this->device           = DEVICE::getInstance();
         this->setChangeScene(true);
-        this->__sceneWasInit            = false;
+        this->setSceneInitialized(false);
         this->setKeyCapsLockState(false);
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
         this->device->getSpecificContextDevice()->initializeWi32Callbacks(this);

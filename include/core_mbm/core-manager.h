@@ -208,6 +208,7 @@ namespace mbm
 
         API_IMPL int onLoop(const bool singleLoop, const bool doSwapBuffers);
         API_IMPL bool isKeyCapsLockOn() const noexcept;
+        API_IMPL bool isSceneInitialized() const noexcept;
     
 
         API_IMPL void getScreenSize(int *width,int *height);
@@ -254,6 +255,7 @@ namespace mbm
         void setChangeScene(const bool change) noexcept;
         bool isChangeScene() const noexcept;
         void setKeyCapsLockState(const bool enabled) noexcept;
+        void setSceneInitialized(const bool initialized) noexcept;
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;
@@ -270,8 +272,6 @@ namespace mbm
         API_IMPL void onResizeWindow(int width, int height) override;
         API_IMPL void onMoveWindow(int width, int height) override;
 
-      public:
-        bool __sceneWasInit;
         API_IMPL STEP_RETORE getStepRestore() const noexcept;
       private:
         struct Impl;

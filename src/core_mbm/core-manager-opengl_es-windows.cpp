@@ -56,7 +56,7 @@ namespace mbm
             INFO_JOYSTICK_INIT_PLAYER info;
             while (this->popEvent(&info))
             {
-                if (this->device->getScene() && this->__sceneWasInit)
+                if (this->device->getScene() && this->isSceneInitialized())
                     this->device->getScene()->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
                         info.extraInfo.c_str());
             }

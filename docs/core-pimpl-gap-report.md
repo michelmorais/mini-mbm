@@ -39,7 +39,7 @@ High-impact examples:
 |---|---|
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
-| `include/core_mbm/core-manager.h` | `device`, `__sceneWasInit`. Scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
+| `include/core_mbm/core-manager.h` | `device`. Scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
 | `include/core_mbm/scene.h` | `endScene`, `wasUnloadedScene`, `nextScene`, `goToNextScene`, `userData`. |
 
@@ -1023,6 +1023,14 @@ Milestone 104 implementation note:
 - Kept `device` and `__sceneWasInit` public because platform/Lua compatibility code still reads them directly.
 - This is a narrow input-state layout cleanup and does not change Caps Lock behavior.
 
+Milestone 105 implementation note:
+
+- Moved `CORE_MANAGER::__sceneWasInit` behind `CORE_MANAGER::Impl`.
+- Added exported `CORE_MANAGER::isSceneInitialized()` for platform/Lua consumers and a private setter for core/backend code.
+- Migrated common event dispatch, backend joystick-info dispatch, and Lua scene-loading checks to the getter.
+- Kept `device` public because platform startup, mobile bridges, and Lua/platform code still use it directly.
+- This is a narrow scene-lifecycle state cleanup and does not change scene initialization, loading, or finalize behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1057,7 +1065,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
 - `ANIMATION_MANAGER`, restore backup object done; animation list/index/callback fields remain public pending accessor migration.
-- `CORE_MANAGER`, window restore options, scene-change flag, and Caps Lock state done; remaining compatibility fields only if there is a clear invariant or dependency to hide.
+- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, and scene-initialized flag done; remaining compatibility fields only if there is a clear invariant or dependency to hide.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
 
@@ -1120,7 +1128,7 @@ Current decision:
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
 6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; public animation list/index/callback state remains pending accessor migration.
-7. `CORE_MANAGER` window restore options, scene-change flag, and Caps Lock state are now behind `Impl`; `device` and `__sceneWasInit` remain public compatibility fields.
+7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

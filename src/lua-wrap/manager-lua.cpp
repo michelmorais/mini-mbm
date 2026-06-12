@@ -1761,7 +1761,7 @@ namespace mbm
             const char *  nameScene = luaL_checkstring(lua, 1);
             const int tSplash       = top > 1 ? lua_type(lua,2) : LUA_TNONE;
             nameScene               = util::getFullPath(nameScene,nullptr);
-            if (luaManager->__sceneWasInit == false)
+            if (luaManager->isSceneInitialized() == false)
             {
                 if(luaManager->device->isVerbose())
                     lua_print_line(lua,TYPE_LOG_WARN,"The scene [%s] will be load in the main loop!", nameScene);
@@ -1849,7 +1849,7 @@ namespace mbm
             {
                 if (luaManager->lsScene.size())
                 {
-                    if (luaManager->__sceneWasInit == false)
+                    if (luaManager->isSceneInitialized() == false)
                     {
                         if(device->isVerbose())
                             WARN_LOG("Scene [%s] cannot be loaded in the function", nameMainScene);

@@ -241,7 +241,7 @@ void MiniMbmEngine_onInfoDeviceJoystick(JNIEnv *env, jobject obj, int player, in
 
 /*void MiniMbmEngine_onEndSceneByQuiting(JNIEnv *env, jobject obj)
 {
-    if (game && game->device->getScene() && game->__sceneWasInit && game->device->getScene()->wasUnloadedScene == false)
+    if (game && game->device->getScene() && game->isSceneInitialized() && game->device->getScene()->wasUnloadedScene == false)
         game->device->getScene()->onFinalizeScene();
 }*/
 
