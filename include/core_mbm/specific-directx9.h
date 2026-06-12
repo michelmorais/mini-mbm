@@ -102,27 +102,6 @@ namespace mbm
     bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line);
     #define CHECK_AND_LOG_HRESULT_DX(hr) checkAndLogHresultResultDx((hr), __FILE__, __LINE__)
 
-    struct D3D_PS_VS
-    {
-        IDirect3DPixelShader9* pd3dPixelShader;//Pixel Shader
-        IDirect3DVertexShader9* pd3dVertexShader;//Vertex Shader
-        ID3DXConstantTable* constantTablePS;
-        ID3DXConstantTable* constantTableVS;
-
-        
-        D3DXHANDLE mvpMatrixHandle;
-        D3DXHANDLE mvMatrixHandle;
-        D3DXHANDLE samplerHandle0;
-        D3DXHANDLE samplerHandle1;
-
-        D3D_PS_VS() noexcept;
-        ~D3D_PS_VS();
-        void release() noexcept;
-        // Prevent copying (COM objects should not be copied)
-        D3D_PS_VS(const D3D_PS_VS&) = delete;
-        D3D_PS_VS& operator=(const D3D_PS_VS&) = delete;
-    };
-
     void copy_pixels_per_row_Pitch(D3DSURFACE_DESC& descSurfaceDest,
         const uint32_t width,
         const uint32_t height,
