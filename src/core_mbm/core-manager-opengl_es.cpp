@@ -84,7 +84,8 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         this->setSceneInitialized(false);
         this->setKeyCapsLockState(false);
     #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-        this->device->getSpecificContextDevice()->initializeWi32Callbacks(this);
+        DEVICE *device = this->getDevice();
+        device->getSpecificContextDevice()->initializeWi32Callbacks(this);
     #endif
     }
     
@@ -93,7 +94,8 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         #if defined(ANDROID)
         androidSwapBuffers();
         #else
-        eglSwapBuffers(this->device->getSpecificContextDevice()->eglDisplay, this->device->getSpecificContextDevice()->eglSurface);
+        DEVICE *device = this->getDevice();
+        eglSwapBuffers(device->getSpecificContextDevice()->eglDisplay, device->getSpecificContextDevice()->eglSurface);
         #endif
     }
 
