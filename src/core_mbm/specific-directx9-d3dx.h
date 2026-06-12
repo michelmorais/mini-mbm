@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2025      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -16,63 +16,18 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
+#if defined(USE_DIRECTX9)
+#ifndef DIRECTX9_D3DX_SPECIFIC_H
+#define DIRECTX9_D3DX_SPECIFIC_H
 
-#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
-#ifndef DIRECTX9_SPECIFIC_H
-#define DIRECTX9_SPECIFIC_H
-#if defined (USE_DIRECTX9)
-
-//#include <dsetup.h>
-//#include <comdef.h>
-
-// #pragma comment is MSVC-only; MinGW links via CMake targets (d3d9, d3dcompiler).
-// D3DX header/library selection is private to backend files via specific-directx9-d3dx.h.
-#ifndef __MINGW32__
-#pragma comment (lib, "d3d9.lib")
-#pragma comment (lib, "d3dcompiler.lib")
-#endif // !__MINGW32__
-
-// These headers are available in both MSVC and MinGW builds
-#include <platform/win32-platform.h>
-#include <d3d9.h>
-
-// 
-//#pragma comment (lib,"comsuppwd.lib")
-//#pragma comment (lib, "dsetup.lib") //Directx version setup
-
-namespace mbm
-{
-    class CORE_MANAGER;
-    enum class FVF_PROVIDE_BY_ENGINE;
-
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-        WINDOW window;
-        DWORD idIcon;
-        WIN_EVENT_BY_PASS* win32_EventByPass;
-        WIN_JOYSTICK_BY_PASS* win32_joystickByPass;
-
-        IDirect3D9* pD3D;
-        IDirect3DDevice9* pd3dDevice;
-        SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-        ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
-        IDirect3DVertexDeclaration9* getFVF(const FVF_PROVIDE_BY_ENGINE FVF);
-        void release() noexcept;
-        void initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr);
-        DWORD DWORD_D3DSAMP_MINFILTER[2];
-        DWORD DWORD_D3DSAMP_MAGFILTER[2];
-        DWORD DWORD_D3DSAMP_MIPFILTER[2];
-    private:
-        IDirect3DVertexDeclaration9* vertex_declaration_pos;
-        IDirect3DVertexDeclaration9* vertex_declaration_pos_norm;
-        IDirect3DVertexDeclaration9* vertex_declaration_pos_uv;
-        IDirect3DVertexDeclaration9* vertex_declaration_pos_norm_uv;
-    };
-
-}
-
+#if defined(__MINGW32__) || defined(__CYGWIN__)
+    #include <core_mbm/d3dx9-mingw.h>
+#else
+    #if defined(_MSC_VER)
+        #pragma comment (lib, "d3dx9.lib")
+    #endif
+    #include <d3dx9.h>
 #endif
-#endif
-#endif
+
+#endif // DIRECTX9_D3DX_SPECIFIC_H
+#endif // USE_DIRECTX9

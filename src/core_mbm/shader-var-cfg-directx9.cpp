@@ -22,7 +22,7 @@
 #include <shader-var-cfg.h>
 #include <cstring>
 #include <specific-directx9.h>
-//#include <core_mbm/d3dx9-mingw.h>
+#include "specific-directx9-d3dx.h"
 
 namespace mbm
 {

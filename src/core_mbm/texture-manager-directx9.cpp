@@ -21,7 +21,7 @@
 #if defined (USE_DIRECTX9)
 
 #include <specific-directx9.h>
-//#include <core_mbm/d3dx9-mingw.h>
+#include "specific-directx9-d3dx.h"
 #include "specific-directx9-render-target.h"
 #include <texture-manager.h>
 #include <renderizable.h>
