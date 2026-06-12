@@ -27,18 +27,10 @@
 #include <core_mbm/device.h>
 #include <lua-wrap/manager-lua.h>
 #include <core_mbm/util-interface.h>
+#include <strings.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
-
-#if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
-#elif defined USE_DUMMY_BACK_END_ENGINE
-    #include <core_mbm/specific-dummy.h> // replace with your specific backend engine header
-#else
-    #error "This file is only for OpenGL ES"
-#endif
-
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
 

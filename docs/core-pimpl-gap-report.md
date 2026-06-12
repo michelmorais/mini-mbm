@@ -912,6 +912,16 @@ Milestone 90 implementation note:
 - Removed an unnecessary GLES-header include from the Android sample scene that did not use any GLES or Android bridge symbols.
 - This reduces accidental EGL/GLES exposure in Android non-render code while leaving GL wrapper macros and real GLES backend files untouched.
 
+Milestone 91 implementation note:
+
+- Removed unnecessary `specific-opengl_es.h` includes from non-render Lua framework wrappers:
+  - `src/lua-wrap/framework-linux-lua.cpp`
+  - `src/lua-wrap/framework-windows-lua.cpp`
+  - `src/lua-wrap/framework-directx-lua.cpp`
+- The Linux wrapper now includes `strings.h` directly for `strcasecmp()` instead of relying on unrelated include chains.
+- The Windows and DirectX wrappers now include `platform/mismatch-platform.h` for the Win32/string-compatibility surface they actually use, instead of pulling in EGL/GLES through the OpenGL ES backend utility header.
+- This keeps Lua platform wrappers tied to platform APIs only, not to a renderer backend header.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.
