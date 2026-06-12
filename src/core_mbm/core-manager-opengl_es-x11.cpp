@@ -252,10 +252,12 @@ namespace mbm
 
     void CORE_MANAGER::handleEventFromWindow()
     {
-        while (XPending(this->device->getSpecificContextDevice()->display_x11))
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        while (XPending(context->display_x11))
         {
             XEvent xevent;
-            XNextEvent(this->device->getSpecificContextDevice()->display_x11, &xevent);
+            XNextEvent(context->display_x11, &xevent);
             switch (xevent.type)
             {
                 case KeyPress:
@@ -362,9 +364,9 @@ namespace mbm
                     Window child_return;
                     int abs_x = 0;
                     int abs_y = 0;
-                    XTranslateCoordinates(this->device->getSpecificContextDevice()->display_x11,
-                                         this->device->getSpecificContextDevice()->window_x11,
-                                         DefaultRootWindow(this->device->getSpecificContextDevice()->display_x11),
+                    XTranslateCoordinates(context->display_x11,
+                                         context->window_x11,
+                                         DefaultRootWindow(context->display_x11),
                                          0, 0, &abs_x, &abs_y, &child_return);
                     
                     // Store absolute window position for coordinate transformations
