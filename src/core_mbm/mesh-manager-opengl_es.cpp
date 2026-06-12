@@ -25,6 +25,7 @@
 #include <shapes.h>
 #include <shader.h>
 #include <specific-opengl_es.h>
+#include "specific-opengl_es-buffer.h"
 #include <string>
 #include <GLES2/gl2ext.h>
 

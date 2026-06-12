@@ -781,20 +781,6 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #endif
 
-    struct BUFFER_SPECIFIC
-    {
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        // Index buffer
-        uint32_t    vboVertNorTexIB[3]; //(Index buffer: Vertex, Normal, texture) (vertex buffer: Normal, texture, unused)
-        uint32_t     *vboIndexSubsetIB; // vbo index buffer IB
-        // Vertex buffer
-        uint32_t    *vboVertexSubsetVB;  // Vertex buffer do subset VB
-        uint32_t    *vboNormalSubsetVB;  // Normal buffer do subset VB
-        uint32_t    *vboTextureSubsetVB; // Textura buffer do subset VB
-        void release();
-    };
-
     struct GLES_PS_VS
     {
         GLint positionHandle;

@@ -23,6 +23,7 @@
 #include <shader.h>
 #include <texture-manager.h>
 #include <specific-opengl_es.h>
+#include "specific-opengl_es-buffer.h"
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <draw-compatibility.h>
