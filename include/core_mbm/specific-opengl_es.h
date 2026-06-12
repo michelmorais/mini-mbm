@@ -584,6 +584,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
     API_IMPL bool androidEnsureEGLSurface(int *width, int *height);
     API_IMPL void androidSwapBuffers();
     API_IMPL void androidStoreTextureFilters();
+    API_IMPL void *androidGetPluginSubscribeHandle() noexcept;
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {

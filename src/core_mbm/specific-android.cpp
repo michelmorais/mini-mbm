@@ -466,6 +466,12 @@ namespace mbm
         glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &context->filter_GL_TEXTURE_MIN_FILTER);
         glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &context->filter_GL_TEXTURE_MAG_FILTER);
     }
+
+    void *androidGetPluginSubscribeHandle() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->jenv : nullptr;
+    }
     
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():
     jenv(nullptr),

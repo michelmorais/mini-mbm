@@ -836,6 +836,13 @@ Milestone 82 implementation note:
 - Kept plugin subscription JNI handle access and Android platform bootstrap context population unchanged for later milestones.
 - This isolates Android EGL/native-window lifecycle from core-manager code while preserving the current NativeActivity behavior.
 
+Milestone 83 implementation note:
+
+- Added `androidGetPluginSubscribeHandle()` as the Android plugin subscription bridge.
+- Migrated the Android branch in `CORE_MANAGER::addPlugin()` away from direct `SPECIFIC_AUX_CONTEXT_DEVICE` and `JNIEnv*` access.
+- The value passed to `PLUGIN::onSubscribe()` remains the current Android `JNIEnv*` handle for compatibility, but `CORE_MANAGER` no longer depends on the Android context layout.
+- Kept platform bootstrap context population unchanged for a later, separate milestone.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.

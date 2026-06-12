@@ -210,9 +210,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
                 handle = this->device->getSpecificContextDevice()->display_x11;
             #elif defined(ANDROID)
-                SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
-                JNIEnv *     jenv                 = cJni->jenv;
-                handle                            = jenv;
+                handle = androidGetPluginSubscribeHandle();
             #else
                 #error "Platform not supported"
             #endif
