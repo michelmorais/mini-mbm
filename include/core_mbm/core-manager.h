@@ -248,6 +248,9 @@ namespace mbm
         void clearPlugins();
         void setNameApplication(const char *nameApplication);
         const char *getNameApplication() const noexcept;
+        void setWindowOptions(const bool border, const bool enableResize) noexcept;
+        bool getWindowBorder() const noexcept;
+        bool getEnableResizeWindow() const noexcept;
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;
@@ -267,8 +270,6 @@ namespace mbm
       public:
         bool __sceneWasInit;
         bool keyCapsLockState;
-        bool windowBorder;
-        bool enableResizeWindow;
         API_IMPL STEP_RETORE getStepRestore() const noexcept;
       private:
         struct Impl;

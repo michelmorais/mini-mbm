@@ -71,6 +71,8 @@ namespace mbm
         float                                stepRestoreInfo           = 0.1f;
         float                                percentRestoreInfo        = 0.0f;
         std::string                          nameApplication           = "Mini-mbm";
+        bool                                 windowBorder              = true;
+        bool                                 enableResizeWindow        = true;
     };
 
     void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
@@ -117,6 +119,22 @@ namespace mbm
     const char *CORE_MANAGER::getNameApplication() const noexcept
     {
         return impl->nameApplication.c_str();
+    }
+
+    void CORE_MANAGER::setWindowOptions(const bool border, const bool enableResize) noexcept
+    {
+        impl->windowBorder = border;
+        impl->enableResizeWindow = enableResize;
+    }
+
+    bool CORE_MANAGER::getWindowBorder() const noexcept
+    {
+        return impl->windowBorder;
+    }
+
+    bool CORE_MANAGER::getEnableResizeWindow() const noexcept
+    {
+        return impl->enableResizeWindow;
     }
 
     STEP_RETORE CORE_MANAGER::getStepRestore() const noexcept
@@ -992,7 +1010,7 @@ namespace mbm
             constexpr bool wasLostDevice = true;
             this->ReleaseGraphics(wasLostDevice);
 
-            if (initGraphics(this->getNameApplication(), width, height, px, py, this->windowBorder, this->enableResizeWindow))
+            if (initGraphics(this->getNameApplication(), width, height, px, py, this->getWindowBorder(), this->getEnableResizeWindow()))
             {
                 // Reapply previous 2D scaling
                 camera.expectedScreen = expectedScreenBefore;

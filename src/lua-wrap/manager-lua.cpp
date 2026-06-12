@@ -1175,7 +1175,8 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->windowBorder   = true;
+            this->windowBorder       = true;
+            this->enableResizeWindow = false;
             this->hasValueTextureLogo = false;
             #if defined _DEBUG || defined DEBUG
             INFO_LOG("%s", this->nameApplication.c_str());
@@ -1208,7 +1209,8 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->windowBorder = true;
+            this->windowBorder       = true;
+            this->enableResizeWindow = false;
             if(args.size() > 0)
             {
                 auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,args[0].c_str());
@@ -1247,7 +1249,8 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->windowBorder = true;
+            this->windowBorder       = true;
+            this->enableResizeWindow = false;
             std::vector<std::string> lsArg;
             
             auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,argv[0]);

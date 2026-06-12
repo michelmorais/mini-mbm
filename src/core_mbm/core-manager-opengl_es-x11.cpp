@@ -52,8 +52,7 @@ namespace mbm
         int x = width;
         int y = height;
         this->setNameApplication(nameApplication);
-        this->windowBorder = border;
-        this->enableResizeWindow = enable_resize;
+        this->setWindowOptions(border, enable_resize);
         //char * dpyName = nullptr;
         EGLint egl_major = 0;
         EGLint egl_minor = 0;
@@ -91,7 +90,7 @@ namespace mbm
         // Check if we're reusing an existing window (lost device recovery)
         const bool reusingWindow = (this->device->getSpecificContextDevice()->window_x11 != 0);
         
-        this->device->getSpecificContextDevice()->make_x_window(nameApplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->windowBorder, this->enableResizeWindow);
+        this->device->getSpecificContextDevice()->make_x_window(nameApplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->getWindowBorder(), this->getEnableResizeWindow());
 
       
         

@@ -147,8 +147,7 @@ namespace mbm
                                      const bool border, const bool enable_resize)
     {
         this->setNameApplication(nameApplication);
-        this->windowBorder         = border;
-        this->enableResizeWindow   = enable_resize;
+        this->setWindowOptions(border, enable_resize);
 
         // Initialise NSApplication (safe to call multiple times).
         [NSApplication sharedApplication];
