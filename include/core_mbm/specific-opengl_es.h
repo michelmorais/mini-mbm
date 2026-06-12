@@ -26,10 +26,6 @@
 #if defined ANDROID
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
-    #include <jni.h>
-    #include <string>
-    #include <android/asset_manager.h>
-    #include <android/native_window.h>
 #elif defined __MINGW32__ || defined __CYGWIN__
     #include <gles/EGL/egl.h>
     #include <gles/GLES2/gl2.h>
@@ -596,64 +592,9 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
     API_IMPL void *androidGetJNIEnv() noexcept;
     API_IMPL void androidSetJNIEnv(void *jniEnv);
     API_IMPL void androidCacheJavaClasses(const char *packageNameClasses);
+    API_IMPL uint8_t *androidGetImageDataFromDroid(const char *fileName, int *width, int *height);
 
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-      public:
-        JNIEnv *         jenv;
-        std::string      absPath, apkPath;
-        AAssetManager*   assetManager;   // NDK asset manager — replaces FileJniEngine JNI
-        ANativeWindow*   nativeWindow;   // current ANativeWindow for EGL surface creation
-        jclass           jclassDoCommandsJniEngine;     // thin MbmActivity: vibrate / doCommands
-        jclass           jclassFileJniEngine;           // Lua file dialogs
-        jclass           jclassKeyCodeJniEngine;        // Lua key mapping
-        jobject          jclassLoaderGlobal;            // app ClassLoader (for FindClass on native threads)
-        jmethodID        jmethodLoadClass;              // ClassLoader.loadClass method
-
-        // EGL context created and owned by NativeActivity C++ code
-        EGLDisplay       eglDisplay;
-        EGLSurface       eglSurface;
-        EGLContext       eglContext;
-        EGLConfig        eglConfig;
-
-        GLint filter_GL_TEXTURE_WRAP_S;
-        GLint filter_GL_TEXTURE_WRAP_T;
-        GLint filter_GL_TEXTURE_MIN_FILTER;
-        GLint filter_GL_TEXTURE_MAG_FILTER;
-
-        SPECIFIC_AUX_CONTEXT_DEVICE();
-        ~SPECIFIC_AUX_CONTEXT_DEVICE();
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        
-        void release(const bool wasDeviceLost);
-        const char *getStrToDelete(const char *str);
-        void initClassLoader(jobject activityObj);  // must be called before cacheJavaClasses on native threads
-        void cacheJavaClasses(const char *_packageNameMiniMBMClasses);
-        void callQuit();
-
-      private:
-        char              packageName[255];
-        char              packageNameMiniMBMClasses[255];
-        std::string       retPath;
-        std::string       buffer_new_stringUTF[10];
-        int               index_string_utf;
-        jclass getClass(const char *nameClass);       // aborts if class not found
-        jclass tryGetClass(const char *nameClass);    // returns nullptr silently if not found
-      public:
-        const char* get_safe_string_utf(const char* string_input);
-        #if _DEBUG
-            FILE *onFailOpenFile(const int lineNumber, const char *fileName, const char *message);
-        #else
-            FILE *onFailOpenFile(const int, const char *, const char *);
-        #endif
-        const int onFailExistFile(const int lineNumber, const char *fileName, const char *message);
-        void addPathDroid(const char *fileName);
-        int existFileOnAssets(const char *fileName);
-        const char *copyFileFromAsset(const char *fileName, const char *mode);
-        uint8_t *getImageDataFromDroid(const char *fileName, int *width, int *height);
-        FILE *fopenAsset(const char *fileName, const char *mode = "rb");
-    };
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 
 
     #elif (defined(__linux__) || defined(__APPLE__))

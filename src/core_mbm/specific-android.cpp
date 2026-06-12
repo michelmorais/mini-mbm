@@ -34,6 +34,7 @@
 #elif defined          ANDROID
     #include <specific-opengl_es.h>
 #endif
+#include "specific-opengl_es-android-context.h"
 #include <device.h>
 #include <audio-interface.h>
 
@@ -580,6 +581,12 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
         if (context)
             context->cacheJavaClasses(packageNameClasses);
+    }
+
+    uint8_t *androidGetImageDataFromDroid(const char *fileName, int *width, int *height)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->getImageDataFromDroid(fileName, width, height) : nullptr;
     }
     
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():

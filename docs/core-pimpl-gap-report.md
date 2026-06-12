@@ -871,6 +871,15 @@ Milestone 85 implementation note:
 - Kept JNI function signatures and Java native registration unchanged because those files are JNI ABI entry points.
 - Current CMake Android builds use `platform-android/main-native-activity.cpp`; these legacy files are not part of the active Android target, so validation is by static scan plus the active Android build.
 
+Milestone 86 implementation note:
+
+- Moved the concrete Android OpenGL ES `SPECIFIC_AUX_CONTEXT_DEVICE` layout out of public `include/core_mbm/specific-opengl_es.h` into private `src/core_mbm/specific-opengl_es-android-context.h`.
+- Removed Android-only `jni.h`, `android/asset_manager.h`, `android/native_window.h`, and `std::string` requirements from the public GLES header.
+- Kept public Android bridge APIs in `specific-opengl_es.h` with backend-neutral pointer signatures where platform handles cross the boundary.
+- Added `androidGetImageDataFromDroid()` and migrated `TEXTURE::loadFromAndroid()` away from direct Android context layout access.
+- `src/core_mbm/specific-android.cpp` and `src/core_mbm/device-opengl_es.cpp` are now the Android implementation files that include the private Android context layout.
+- The new private header has been staged immediately because it is a new backend-private implementation file.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.
