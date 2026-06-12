@@ -197,8 +197,10 @@
     <ClInclude Include="..\..\include\core_mbm\core-exports.h" />
     <ClInclude Include="..\..\include\core_mbm\core-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
+    <ClInclude Include="..\..\include\core_mbm\d3dx9-mingw.h" />
     <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
+    <ClInclude Include="..\..\include\core_mbm\dialog-util.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
     <ClInclude Include="..\..\include\core_mbm\frustum.h" />
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
@@ -211,6 +213,7 @@
     <ClInclude Include="..\..\include\core_mbm\parse-launcher-args.hpp" />
     <ClInclude Include="..\..\include\core_mbm\particle-control.h" />
     <ClInclude Include="..\..\include\core_mbm\physics.h" />
+    <ClInclude Include="..\..\include\core_mbm\platform-win32.h" />
     <ClInclude Include="..\..\include\core_mbm\plugin-callback.h" />
     <ClInclude Include="..\..\include\core_mbm\primitives.h" />
     <ClInclude Include="..\..\include\core_mbm\renderizable-clone.h" />
@@ -225,6 +228,7 @@
     <ClInclude Include="..\..\include\core_mbm\audio.h" />
     <ClInclude Include="..\..\include\core_mbm\specific-directx9.h" />
     <ClInclude Include="..\..\include\core_mbm\specific-dummy.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-metal.h" />
     <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h" />
     <ClInclude Include="..\..\include\core_mbm\strings-pt-br.h" />
     <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
@@ -259,7 +263,6 @@
     <ClInclude Include="..\..\include\version\version.h" />
     <ClInclude Include="..\..\src\core_mbm\mesh-manager-legacy-internal.h" />
     <ClInclude Include="..\..\src\core_mbm\mesh-v8-io.h" />
-
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
     <ClInclude Include="..\..\third-party\miniz\miniz_common.h" />
@@ -293,7 +296,6 @@
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
-
     <ClCompile Include="..\..\src\core_mbm\blend.cpp" />
     <ClCompile Include="..\..\src\core_mbm\blend-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\camera.cpp" />
