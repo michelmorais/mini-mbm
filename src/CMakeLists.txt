@@ -11,7 +11,8 @@ set(PLUGINS                     ${CMAKE_SOURCE_DIR}/plugins)
 set(CORE_MBM                    ${INCLUDE}/core_mbm)
 set(RENDER_INCLUDES             ${INCLUDE}/render)
 set(CORE_OPENGLES_INCLUDES      ${INCLUDE}/core_mbm
-                                ${CMAKE_CURRENT_SOURCE_DIR}/core_mbm)
+                                ${CMAKE_CURRENT_SOURCE_DIR}/core_mbm
+                                ${CMAKE_CURRENT_SOURCE_DIR}/core_mbm/private)
 set(LUA_INCLUDE                 ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(LUA_WRAP                    ${INCLUDE}/lua-interface)
 set(TINYFILEDIALOGS_DIR         ${THIRD_PARTY}/tinyfiledialogs)

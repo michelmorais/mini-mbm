@@ -4,6 +4,7 @@ project(core_mbm)
 
 set(SRC_INCLUDES               "../../include")
 set(CORE_OPENGLES_SRC          ${CMAKE_CURRENT_SOURCE_DIR})
+set(CORE_OPENGLES_PRIVATE      ${CORE_OPENGLES_SRC}/private)
 set(RENDER_SRC                 "../render")
 set(THIRD_PARTY                "../../third-party")
 set(RENDER_INCLUDE             ${SRC_INCLUDES}/render)
@@ -43,6 +44,7 @@ endif()
 #Bring the headers, such as xxx.h into the project
 include_directories(${CORE_OPENGLES_INCLUDE}
                     ${CORE_OPENGLES_SRC}
+                    ${CORE_OPENGLES_PRIVATE}
                     ${RENDER_INCLUDE} 
                     ${CORE_OPENGLES_MINIZ} 
                     ${CORE_OPENGLES_PLATFORM} 

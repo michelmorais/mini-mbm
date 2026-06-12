@@ -75,11 +75,11 @@ This completed the most useful PIMPL direction for the original goal: isolate pl
 
 | Header | What leaks today | Current external consumers | Cleanup direction |
 |---|---|---|---|
-| `src/core_mbm/specific-opengl_es.h` | EGL, GLES2, and GL debug macros remain, but the header is now private to OpenGL ES backend implementation files. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, `GLES_PS_VS`, and all concrete OpenGL ES context layouts have moved to private OpenGL ES backend headers. | OpenGL ES backend files and private GLES resource/context headers. | Done for public-header isolation. Keep Android bridge APIs in `include/core_mbm/android-bridge.h` for Android platform/file/Lua users that need them. |
+| `src/core_mbm/private/specific-opengl_es.h` | EGL, GLES2, and GL debug macros remain, but the header is now private to OpenGL ES backend implementation files. `RENDER2TARGET_GLES`, `BUFFER_SPECIFIC`, `GLES_PS_VS`, and all concrete OpenGL ES context layouts have moved to private OpenGL ES backend headers. | OpenGL ES backend files and private GLES resource/context headers. | Done for public-header isolation. Keep Android bridge APIs in `include/core_mbm/android-bridge.h` for Android platform/file/Lua users that need them. |
 | `include/core_mbm/specific-directx9.h` | No concrete DirectX9/Win32 backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DIRECTX9`, `BUFFER_SPECIFIC`, `D3D_PS_VS`, `D3D_VERTEX_CONVERTER`, HRESULT logging, and the DirectX9 context layout have moved to private backend headers. The texture pixel-copy helper is file-local. Direct dependencies on `core-manager.h`, `shader.h`, `primitives.h`, D3D9, Win32 platform, and D3DX headers have been removed. | DirectX9 backend files and Win32 platform helper files include the private context header when concrete D3D/window fields are required. | Done for DirectX9 context layout. The broader Win32 platform header remains separate platform integration surface. |
 | `include/core_mbm/specific-metal.h` | No concrete Metal backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE` and exposes narrow opaque `void *` frame bridge functions for the ImGui Metal plugin. `RENDER2TARGET_METAL`, `BUFFER_SPECIFIC`, and the Metal context layout have moved to private Metal backend headers. | Metal backend files include the private context header. The ImGui Metal bridge uses the opaque frame bridge instead of reading the context layout directly. | Done for Metal context layout. |
 | `include/core_mbm/specific-dummy.h` | No concrete dummy backend layout remains; it now only forward-declares `SPECIFIC_AUX_CONTEXT_DEVICE`. `RENDER2TARGET_DUMMY`, `BUFFER_SPECIFIC`, and the dummy context layout have moved to private dummy backend headers. | Dummy backend and dummy Lua wrappers can include it as a compatibility shim, but only backend files include the concrete private context header. | Done for dummy; use this as the lowest-risk pattern for future platform bridge splits. |
-| `include/core_mbm/platform-win32.h` | Win32 window/event integration types. The MinGW D3DX9 shim has moved to private `src/core_mbm/d3dx9-mingw.h`. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat Win32 platform integration separately from renderer PIMPL. The D3DX9 compatibility shim is now private to the DirectX9 backend selector. |
+| `include/core_mbm/platform-win32.h` | Win32 window/event integration types. The MinGW D3DX9 shim has moved to private `src/core_mbm/private/d3dx9-mingw.h`. | Windows launcher, Win32 platform code, Lua wrappers, and DirectX9 backend code. | Treat Win32 platform integration separately from renderer PIMPL. The D3DX9 compatibility shim is now private to the DirectX9 backend selector. |
 
 Recommended order:
 
@@ -87,7 +87,7 @@ Recommended order:
 2. Move backend-only render resource structs private first. `RENDER2TARGET_METAL`, `RENDER2TARGET_DIRECTX9`, `RENDER2TARGET_GLES`, backend `BUFFER_SPECIFIC` structs, `GLES_PS_VS`, `D3D_PS_VS`, and `D3D_VERTEX_CONVERTER` are done.
 3. Add narrow platform bridge methods before hiding concrete `SPECIFIC_AUX_CONTEXT_DEVICE` fields. The Android asset/window/JNI bridge and Metal opaque frame bridge are done.
 4. Move the full `specific-*.h` layouts to `src/core_mbm/` or a private include area and leave only forward declarations or stable bridge APIs in public headers. This is done for dummy, DirectX9, Metal, and OpenGL ES.
-5. After backend isolation is stable across Linux, Android, macOS, MinGW, MSVS, and iOS, reorganize the private backend headers into `src/core_mbm/private/` and update internal include paths/build include directories. This is now eligible as a cleanup/structure milestone, not a public API milestone.
+5. Reorganize the private backend headers into `src/core_mbm/private/` and update internal include paths/build include directories. This is done as the structure-only follow-up after backend isolation passed Linux, Android, macOS, MinGW, MSVS, and iOS validation.
 
 ### 3. Public headers include too much implementation detail
 
@@ -887,7 +887,7 @@ Milestone 87 audit note:
   - `specific-opengl_es.h` still intentionally exposes EGL/GLES types/macros as the OpenGL ES backend utility header.
   - `d3dx9-mingw.h` was still a public DirectX/MinGW compatibility shim at this point. Milestone 89 moves it behind the private DirectX9 selector.
   - `time-control.h` still includes `windows.h` under `_WIN32`; this is a small public Windows dependency unrelated to Android and is addressed by Milestone 88.
-- Do not move all backend-private headers to `src/core_mbm/private/` until Windows/macOS have reviewed the Android split, because that move is include-path churn rather than new encapsulation.
+- At this point, moving all backend-private headers to `src/core_mbm/private/` was intentionally deferred until Windows/macOS reviewed the Android split. Milestone 94 completes that structure-only move after the platform matrix passed.
 
 Milestone 88 implementation note:
 
@@ -930,9 +930,8 @@ Milestone 92 implementation note:
 
 Future private-header organization note:
 
-- The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.
-- Backend splits have now passed Android, MSVS, macOS, MinGW, and iOS validation. The private-directory relocation is eligible, but should remain a separate structure-only milestone because it is include-path/build-file churn rather than new encapsulation.
-- When this cleanup milestone happens, update CMake and MSVS private include paths together so internal engine files outside `src/core_mbm/`, such as `src/render/` and `src/platform/`, do not need fragile relative includes.
+- The backend-private headers now live under `src/core_mbm/private/`.
+- CMake and MSVS private include paths are updated together so internal engine files outside `src/core_mbm/`, such as `src/render/` and `src/platform/`, can include private backend headers by name instead of fragile relative paths.
 
 Milestone 93 validation/status note:
 
@@ -940,6 +939,14 @@ Milestone 93 validation/status note:
 - Android arm64-v8a validation had already passed during the Android/OpenGL ES split.
 - Public SDK include/concrete-layout scan is clean for `include/core_mbm`, `include/render`, and `include/lua-interface`. The broad symbol scan only finds the `plugin-callback.h` documentation comment that explains the opaque `void * renderDevice` ABI.
 - Backend/platform public-header isolation is complete for the original PIMPL goal. Remaining work is private-header organization or optional ABI/header hygiene, not Android/OpenGL ES public leakage.
+
+Milestone 94 implementation note:
+
+- Moved backend-private headers from flat `src/core_mbm/` into `src/core_mbm/private/`: all private `specific-*.h` headers plus the MinGW-only `d3dx9-mingw.h` shim.
+- Kept public compatibility/bridge headers in `include/core_mbm/`.
+- Added `src/core_mbm/private/` to internal CMake and MSVS include paths.
+- Replaced relative private-header includes in `src/platform/win32-platform.cpp` and render-to-texture backend files with private include-path based includes.
+- This is a structure-only cleanup after the backend PIMPL split; it should not change engine API or runtime behavior.
 
 ### Phase 3 - Hide renderer backend handles
 
@@ -1006,11 +1013,10 @@ These can stay as normal public value/API types unless there is a specific ABI g
 
 ## Summary
 
-The core has completed backend resource-handle cleanup and public backend/platform header isolation without touching gameplay-facing `RENDERIZABLE` state. The remaining work is now split into cleanup categories:
+The core has completed backend resource-handle cleanup, public backend/platform header isolation, and private backend-header organization without touching gameplay-facing `RENDERIZABLE` state. The remaining work is now split into cleanup categories:
 
-1. Private-header organization: move backend-private headers from `src/core_mbm/` to `src/core_mbm/private/` after deciding the internal include-path and MSVS project/filter organization.
-2. Header/ABI hygiene: optionally move remaining manager containers into `Impl` where that reduces public dependencies without changing gameplay behavior. `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` are candidates only for this goal.
-3. Gameplay API policy: keep direct public fields as convenience API unless a deliberate breaking cleanup is chosen. Do not touch `RENDERIZABLE` by default.
-4. Lua/plugin/editor policy: revisit only after a stable accessor, bridge, or plugin ABI policy exists.
+1. Header/ABI hygiene: optionally move remaining manager containers into `Impl` where that reduces public dependencies without changing gameplay behavior. `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` are candidates only for this goal.
+2. Gameplay API policy: keep direct public fields as convenience API unless a deliberate breaking cleanup is chosen. Do not touch `RENDERIZABLE` by default.
+3. Lua/plugin/editor policy: revisit only after a stable accessor, bridge, or plugin ABI policy exists.
 
-The next milestone should be documentation/status cleanup or private-header organization, not Android PIMPL. For the original PIMPL goal of hiding OS/backend dependencies from public headers, the high-value backend/platform work is now complete.
+The next milestone should be optional header/ABI hygiene or final documentation review, not Android PIMPL. For the original PIMPL goal of hiding OS/backend dependencies from public headers, the high-value backend/platform work is now complete.

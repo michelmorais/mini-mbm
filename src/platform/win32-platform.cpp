@@ -25,11 +25,11 @@
 #include <core_mbm/device.h>
 
 #if defined (USE_DIRECTX9)
-    #include "../core_mbm/specific-directx9-context.h"
+    #include "specific-directx9-context.h"
 #elif defined (USE_OPENGL_ES)
-    #include "../core_mbm/specific-opengl_es-windows-context.h"
+    #include "specific-opengl_es-windows-context.h"
 #elif defined (USE_DUMMY_BACK_END_ENGINE)
-    #include "../core_mbm/specific-dummy-context.h"
+    #include "specific-dummy-context.h"
 #endif
 
 
