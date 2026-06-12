@@ -1146,6 +1146,12 @@ Milestone 122 implementation note:
 - Kept the `DEVICE::setScene(currentScene)` assignment path unchanged.
 - This is an internal accessor-consistency cleanup only; it does not change scene ownership or scene transition behavior.
 
+Milestone 123 implementation note:
+
+- Migrated the `CORE_MANAGER::pushEvent(EVENT_KEY*)` and `CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER*)` scene guards to local `DEVICE *device = this->getDevice();` variables.
+- Kept the scene-initialized checks, event coalescing, joystick-info queueing, and mutex behavior unchanged.
+- This is an internal accessor-consistency cleanup only; it does not change event filtering or queue behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1180,7 +1186,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
 - `ANIMATION_MANAGER`, restore backup object done; animation list/index/callback fields remain public pending accessor migration.
-- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/logic/restore/input-coordinate accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
+- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
 
@@ -1243,7 +1249,7 @@ Current decision:
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
 6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; public animation list/index/callback state remains pending accessor migration.
-7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/logic/restore/input-coordinate helpers use it, but `device` remains a public compatibility field.
+7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate helpers use it, but `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

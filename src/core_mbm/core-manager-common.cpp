@@ -1426,7 +1426,8 @@ namespace mbm
      
      void CORE_MANAGER::pushEvent(EVENT_KEY* event)
      {
-         if (event && this->device->getScene() && this->isSceneInitialized())
+         DEVICE *device = this->getDevice();
+         if (event && device->getScene() && this->isSceneInitialized())
          {
              impl->mutexEvents.lock();
              if (event->eventType == impl->lastEvent.eventType)
@@ -1580,7 +1581,8 @@ namespace mbm
      void CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER* info)
      {
          impl->mutexEvents.lock();
-         if (this->device->getScene() && this->isSceneInitialized())
+         DEVICE *device = this->getDevice();
+         if (device->getScene() && this->isSceneInitialized())
          {
              impl->joystickInfoEvents.push_back(*info);
          }
