@@ -172,7 +172,10 @@ static int32_t onInputEvent(struct android_app* app, AInputEvent* event)
         {
             const int32_t action = AKeyEvent_getAction(event);
             if (action == AKEY_EVENT_ACTION_UP && s_game)
-                s_game->device->setRun(false);
+            {
+                mbm::DEVICE *device = s_game->getDevice();
+                device->setRun(false);
+            }
             return 1;
         }
         const int32_t action  = AKeyEvent_getAction(event);
@@ -260,8 +263,9 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
                     break;
                 }
 
-                s_game->device->setBackBufferSize(static_cast<float>(w), static_cast<float>(h));
-                s_game->device->setCoreManager(s_game);
+                mbm::DEVICE *device = s_game->getDevice();
+                device->setBackBufferSize(static_cast<float>(w), static_cast<float>(h));
+                device->setCoreManager(s_game);
 
                 // Pass NativeActivity bootstrap handles into the Android backend bridge.
                 mbm::androidSetRuntimePaths(absPath.c_str(), apkPath.c_str());
@@ -402,7 +406,8 @@ void android_main(struct android_app* app)
         // Render one frame when the window is ready and the engine is running.
         if (s_game && s_windowReady && s_running)
         {
-            if (!s_game->device->isRunning())
+            mbm::DEVICE *device = s_game->getDevice();
+            if (!device->isRunning())
             {
                 // mbm.quit() was called from Lua or C++.
                 INFO_LOG("mini-mbm: device is not running — exiting");
@@ -440,11 +445,13 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_mini_mbm_MbmActivity_nativeOnCallBackCommands(
     JNIEnv *env, jobject /*obj*/, jstring param1, jstring param2)
 {
-    if (!s_game || !s_game->device || !s_game->device->getScene())
+    mbm::DEVICE *device = s_game ? s_game->getDevice() : nullptr;
+    auto *scene = device ? device->getScene() : nullptr;
+    if (!s_game || !device || !scene)
         return;
     const char *p1 = param1 ? env->GetStringUTFChars(param1, nullptr) : nullptr;
     const char *p2 = param2 ? env->GetStringUTFChars(param2, nullptr) : nullptr;
-    s_game->device->getScene()->onCallBackCommands(p1 ? p1 : "", p2 ? p2 : "");
+    scene->onCallBackCommands(p1 ? p1 : "", p2 ? p2 : "");
     if (p1) env->ReleaseStringUTFChars(param1, p1);
     if (p2) env->ReleaseStringUTFChars(param2, p2);
 }

@@ -1059,6 +1059,14 @@ Milestone 109 implementation note:
 - Left Android native-activity and iOS bridge direct device reads for separate milestones.
 - This is a platform glue cleanup only; it does not change Android JNI initialization, resize handling, or callback behavior.
 
+Milestone 110 implementation note:
+
+- Migrated Android NativeActivity direct `s_game->device` reads in `platform-android/main-native-activity.cpp` to `s_game->getDevice()`.
+- Stored `device->getScene()` once in the native callback command bridge and reused the local `scene` pointer for callback dispatch.
+- Android platform entry files no longer directly read `CORE_MANAGER::device`.
+- Left iOS bridge direct device reads for a separate milestone.
+- This is a platform glue cleanup only; it does not change NativeActivity input, window, restore, or callback behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1093,7 +1101,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
 - `ANIMATION_MANAGER`, restore backup object done; animation list/index/callback fields remain public pending accessor migration.
-- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, and scene-initialized flag done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android bridge reads migrated before any broader `device` field migration.
+- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, and scene-initialized flag done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android platform reads migrated before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
 
@@ -1156,7 +1164,7 @@ Current decision:
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
 6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; public animation list/index/callback state remains pending accessor migration.
-7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android bridge reads use it, but `device` remains a public compatibility field.
+7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android platform reads use it, but `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.
