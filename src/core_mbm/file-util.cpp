@@ -38,7 +38,6 @@
     #include <sys/stat.h>
     #include <sys/types.h>
     #include <errno.h>
-    #include <device.h>
     #include <specific-opengl_es.h>
 #elif __linux__ || defined(__APPLE__)
     #include <climits>
@@ -302,11 +301,9 @@ namespace util
                 const char * dir_name = nullptr;
                 return false;
             #elif defined          ANDROID
-                mbm::DEVICE *device                     = mbm::DEVICE::getInstance();
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni  = device->getSpecificContextDevice();
-                const char *     currentPath            = cJni->absPath.c_str();
+                const char *     currentPath            = mbm::androidGetAbsPath();
                 char template_name[255]                 = "";
-                if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
+                if(mbm::androidAbsPathEndsWithSlash())
                     snprintf(template_name,sizeof(template_name),"%sasset_XXXXXX",currentPath);
                 else
                     snprintf(template_name,sizeof(template_name),"%s/asset_XXXXXX",currentPath);
@@ -415,14 +412,12 @@ namespace util
                     // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
                     return false;
                 #elif defined          ANDROID
-                mbm::DEVICE *device                     = mbm::DEVICE::getInstance();
-                mbm::SPECIFIC_AUX_CONTEXT_DEVICE*  cJni = device->getSpecificContextDevice();
-                const char *     currentPath  = cJni->absPath.c_str();
-                if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
+                const char *     currentPath  = mbm::androidGetAbsPath();
+                if(mbm::androidAbsPathEndsWithSlash())
                     snprintf(dir_name,sizeof(dir_name),"%s%s",currentPath,folder_base_name);
                 else
                     snprintf(dir_name,sizeof(dir_name),"%s/%s",currentPath,folder_base_name);
-                cJni->addPathDroid(dir_name);
+                mbm::androidAddPath(dir_name);
                 #elif defined _WIN32
                 char lpBuffer[255]            = "";
                 if(GetTempPathA(sizeof(lpBuffer),lpBuffer) != 0 )
@@ -482,9 +477,7 @@ namespace util
         #elif defined          ANDROID
         if (mode && strchr(mode, 'w'))
         {
-            mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-            mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
-            const char *currentPath                = cJni->absPath.c_str();
+            const char *currentPath                = mbm::androidGetAbsPath();
             if (currentPath)
             {
                 std::string file(currentPath);
@@ -628,11 +621,9 @@ namespace util
             return nullptr;
 		if(strlen(fileName) == 0)
 			return fileName;
-        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if(strstr(fileName,util::getDecompressModelFileName()) != nullptr)
         {
-            const char *currentPath = cJni->absPath.c_str();
+            const char *currentPath = mbm::androidGetAbsPath();
             if (currentPath)
             {
                 static std::string fileDecompress;
@@ -655,7 +646,7 @@ namespace util
             {
                 if (existPath)
                     *existPath              = true;
-                const char *fileNameAndorid = cJni->copyFileFromAsset(fileName, "r");
+                const char *fileNameAndorid = mbm::androidCopyFileFromAsset(fileName, "r");
                 if (fileNameAndorid)
                 {
                     addPath(fileNameAndorid);
@@ -663,7 +654,7 @@ namespace util
                 }
                 else
                 {
-                    nameOnly = cJni->copyFileFromAsset(nameOnly, "r");
+                    nameOnly = mbm::androidCopyFileFromAsset(nameOnly, "r");
                     if (nameOnly)
                     {
                         addPath(nameOnly);
@@ -686,7 +677,7 @@ namespace util
                     if (existPath)
                         *existPath              = true;
                     pathRet               = fullPath;
-                    const char *fileNameAndorid = cJni->copyFileFromAsset(fullPath.c_str(), "r");
+                    const char *fileNameAndorid = mbm::androidCopyFileFromAsset(fullPath.c_str(), "r");
                     if (fileNameAndorid)
                     {
                         addPath(fileNameAndorid);
@@ -709,7 +700,7 @@ namespace util
         {
             if (existPath)
                 *existPath              = true;
-            const char *fileNameAndorid = cJni->copyFileFromAsset(fileName, "r");
+            const char *fileNameAndorid = mbm::androidCopyFileFromAsset(fileName, "r");
             if (fileNameAndorid)
             {
                 addPath(fileNameAndorid);
@@ -799,9 +790,7 @@ namespace util
             // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
             REMINDER_TODO                
     #elif defined ANDROID // add anyway bacause we are going to search in the files of Android
-            mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-            mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
-            cJni->addPathDroid(path);
+            mbm::androidAddPath(path);
             for (uint32_t i = 0; i < lsPath.size(); ++i)
             {
                 if (lsPath[i].compare(path) == 0) // Ja existe este path

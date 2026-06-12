@@ -45,6 +45,42 @@ namespace mbm
 #else
 namespace mbm
 {
+    static SPECIFIC_AUX_CONTEXT_DEVICE *getAndroidContext() noexcept
+    {
+        mbm::DEVICE *device = mbm::DEVICE::getInstance();
+        return device ? device->getSpecificContextDevice() : nullptr;
+    }
+
+    const char *androidGetAbsPath() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->absPath.c_str() : "";
+    }
+
+    bool androidAbsPathEndsWithSlash() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context && context->absPath.size() > 0 && context->absPath[context->absPath.size() - 1] == '/';
+    }
+
+    void androidAddPath(const char *path)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->addPathDroid(path);
+    }
+
+    const char *androidCopyFileFromAsset(const char *fileName, const char *mode)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->copyFileFromAsset(fileName, mode) : fileName;
+    }
+
+    void *androidGetAssetManager() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->assetManager : nullptr;
+    }
     
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():
     jenv(nullptr),

@@ -566,6 +566,12 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #if defined(ANDROID)
 
+    API_IMPL const char *androidGetAbsPath() noexcept;
+    API_IMPL bool androidAbsPathEndsWithSlash() noexcept;
+    API_IMPL void androidAddPath(const char *path);
+    API_IMPL const char *androidCopyFileFromAsset(const char *fileName, const char *mode);
+    API_IMPL void *androidGetAssetManager() noexcept;
+
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
       public:

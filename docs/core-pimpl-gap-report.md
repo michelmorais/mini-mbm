@@ -795,6 +795,18 @@ Validation requirement:
 - Each Android bridge group should be a separate milestone and must be tested with the full Android command before proceeding.
 - Linux/MSVS/macOS should also be checked after the public header changes because `specific-opengl_es.h` is shared by all GLES builds.
 
+Milestone 80 implementation note:
+
+- Added the first narrow Android GLES bridge functions to public `include/core_mbm/specific-opengl_es.h`: `androidGetAbsPath()`, `androidAbsPathEndsWithSlash()`, `androidAddPath()`, `androidCopyFileFromAsset()`, and `androidGetAssetManager()`.
+- Implemented those bridge functions in `src/core_mbm/specific-android.cpp`, where they still delegate to the current concrete Android `SPECIFIC_AUX_CONTEXT_DEVICE` layout.
+- Migrated non-render path/asset consumers away from direct Android context layout access:
+  - `src/core_mbm/file-util.cpp`
+  - `third-party/lsqlite3/asset-pkg.cpp`
+  - `src/core_mbm/audio-opensl-android.cpp`
+- Removed now-unneeded `device.h` includes from those consumers where they were only used to reach `DEVICE::getSpecificContextDevice()`.
+- Kept Android JNI class-cache, `JNIEnv*`, native-window/EGL, and texture-filter context access unchanged for later milestones.
+- This reduces direct Android context coupling in file/asset code without moving the Android context layout yet.
+
 Future private-header organization note:
 
 - The backend-private headers currently placed directly under `src/core_mbm/` should eventually move to `src/core_mbm/private/`.
