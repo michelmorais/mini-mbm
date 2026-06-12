@@ -459,18 +459,19 @@ namespace mbm
     
     void CORE_MANAGER::onStopCoreManager()
     {
+        DEVICE *device = this->getDevice();
         // Stop the game and all resources, this is called when the device is lost, so we need to release all resources and stop the game, but we do not release the graphics device, so we can restore it later
-        impl->wasGamePausedBeforeOnStop = this->device->isGamePaused();
-        this->device->pauseGame();
-        for (auto ptr : this->device->getRender2DSList())
+        impl->wasGamePausedBeforeOnStop = device->isGamePaused();
+        device->pauseGame();
+        for (auto ptr : device->getRender2DSList())
         {
             ptr->onStop();
         }
-        for (auto ptr : this->device->getRender2DWList())
+        for (auto ptr : device->getRender2DWList())
         {
             ptr->onStop();
         }
-        for (auto ptr : this->device->getRender3DList())
+        for (auto ptr : device->getRender3DList())
         {
             ptr->onStop();
         }
@@ -481,12 +482,13 @@ namespace mbm
 
     void CORE_MANAGER::update()
     {
+        DEVICE *device = this->getDevice();
         if (!device->isRunning())
             return;
-        this->device->updateFps();
-        const CAMERA &camera = this->device->getCamera();
-        this->device->setCamera2dScaleCache(1.0f / camera.scale2d.x,
-                                            1.0f / camera.scale2d.y);
+        device->updateFps();
+        const CAMERA &camera = device->getCamera();
+        device->setCamera2dScaleCache(1.0f / camera.scale2d.x,
+                                      1.0f / camera.scale2d.y);
         this->adjustScaleScreen2d();
         this->logic();
         this->updatePhysis();
@@ -494,7 +496,7 @@ namespace mbm
         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
         {
             PLUGIN* plugin = this->getPlugin(i);
-            plugin->onLoop(this->device->delta);
+            plugin->onLoop(device->delta);
         }
     }
     
