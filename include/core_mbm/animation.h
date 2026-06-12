@@ -20,7 +20,6 @@
 #ifndef ANIMATION_SHADERS_GLES_H
 #define ANIMATION_SHADERS_GLES_H
 
-#include <map>
 #include <memory>
 
 #include "core-exports.h"
@@ -65,7 +64,8 @@ namespace mbm
         API_IMPL bool setNewTimeAnim(const float newTimeAnim);
         API_IMPL bool adjustMinMax(const uint32_t indexVar, const float min[4], const float max[4], const float timeAnim);
       private:
-        std::map<std::string, BASE_SHADER *> lsPtrShader;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 
 

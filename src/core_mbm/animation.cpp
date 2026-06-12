@@ -26,24 +26,35 @@
 #include <renderizable.h>
 #include <util-interface.h>
 
+#include <map>
+#include <string>
+
 
 namespace mbm
 {
+    struct EFFECT_SHADER::Impl
+    {
+        std::map<std::string, BASE_SHADER *> lsPtrShader;
+    };
 
     EFFECT_SHADER::EFFECT_SHADER()
-        noexcept : statusFx(FX_GROWING), typeAnim(TYPE_ANIMATION_PAUSED), ptrCurrentShader(nullptr), timeAnimation(1.0f)
+        noexcept : statusFx(FX_GROWING),
+                   typeAnim(TYPE_ANIMATION_PAUSED),
+                   ptrCurrentShader(nullptr),
+                   timeAnimation(1.0f),
+                   impl(std::make_unique<Impl>())
     {
     }
 
     EFFECT_SHADER::~EFFECT_SHADER()
     {
         this->ptrCurrentShader = nullptr;
-        for (const auto & i : this->lsPtrShader)
+        for (const auto & i : this->impl->lsPtrShader)
         {
             BASE_SHADER *ptr = i.second;
             delete ptr;
         }
-        this->lsPtrShader.clear();
+        this->impl->lsPtrShader.clear();
     }
 
     BASE_SHADER * EFFECT_SHADER::loadEffect(const char *fileNameShader, const char *code, const TYPE_ANIMATION typeAnimationShader)
@@ -54,7 +65,7 @@ namespace mbm
             return nullptr;
         }
         this->typeAnim = typeAnimationShader;
-        BASE_SHADER *ptr = this->lsPtrShader[fileNameShader];
+        BASE_SHADER *ptr = this->impl->lsPtrShader[fileNameShader];
         if (ptr)
         {
             this->ptrCurrentShader = ptr;
@@ -69,7 +80,7 @@ namespace mbm
             this->ptrCurrentShader = nullptr;
             return nullptr;
         }
-        this->lsPtrShader[fileNameShader] = psNew;
+        this->impl->lsPtrShader[fileNameShader] = psNew;
         return psNew;
     }
 
