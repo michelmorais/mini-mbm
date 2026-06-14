@@ -56,8 +56,9 @@ void MY_SCENE::onTouchMove(int, float x, float y)
 {
     if (texBox)
     {
-        texBox->position.x = x;
-        texBox->position.y = y;
+        mbm::VEC3 &position = texBox->getPosition();
+        position.x = x;
+        position.y = y;
     }
 }
 

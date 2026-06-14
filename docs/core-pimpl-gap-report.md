@@ -1865,6 +1865,13 @@ Milestone 222 implementation note:
 - Touched only `src/render/font.cpp`.
 - Focused scan shows remaining `bounding_AABB` hits are the public member declaration, accessor implementation, constructor initialization, and architecture documentation.
 
+Milestone 223 implementation note:
+
+- Confirmed `RENDERIZABLE::enableRender` and `RENDERIZABLE::alwaysRenderize` are already accessor-clean outside constructor/accessor implementation and documentation.
+- Migrated Android platform scene touch handlers from direct `TEXTURE_VIEW::position` writes to local `getPosition()` references.
+- Touched `platform-android/my-scene.cpp` and `platform-android/scene-1.cpp`.
+- Focused platform scan for direct `position` / `scale` / `angle` renderizable access is clean.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
