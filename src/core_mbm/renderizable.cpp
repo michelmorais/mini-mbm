@@ -88,6 +88,146 @@ namespace mbm
         backendData->specificConfig = newSpecificConfig;
     }
 
+    TYPE_CLASS RENDERIZABLE::getTypeClass() const noexcept
+    {
+        return this->typeClass;
+    }
+
+    bool RENDERIZABLE::is3DObject() const noexcept
+    {
+        return this->is3D;
+    }
+
+    bool RENDERIZABLE::is2dScreenObject() const noexcept
+    {
+        return this->is2dS;
+    }
+
+    VEC3 & RENDERIZABLE::getPosition() noexcept
+    {
+        return this->position;
+    }
+
+    const VEC3 & RENDERIZABLE::getPosition() const noexcept
+    {
+        return this->position;
+    }
+
+    void RENDERIZABLE::setPosition(const VEC3 &newPosition) noexcept
+    {
+        this->position = newPosition;
+    }
+
+    VEC3 & RENDERIZABLE::getScale() noexcept
+    {
+        return this->scale;
+    }
+
+    const VEC3 & RENDERIZABLE::getScale() const noexcept
+    {
+        return this->scale;
+    }
+
+    void RENDERIZABLE::setScale(const VEC3 &newScale) noexcept
+    {
+        this->scale = newScale;
+    }
+
+    VEC3 & RENDERIZABLE::getAngle() noexcept
+    {
+        return this->angle;
+    }
+
+    const VEC3 & RENDERIZABLE::getAngle() const noexcept
+    {
+        return this->angle;
+    }
+
+    void RENDERIZABLE::setAngle(const VEC3 &newAngle) noexcept
+    {
+        this->angle = newAngle;
+    }
+
+    VEC3 & RENDERIZABLE::getBoundingAABB() noexcept
+    {
+        return this->bounding_AABB;
+    }
+
+    const VEC3 & RENDERIZABLE::getBoundingAABB() const noexcept
+    {
+        return this->bounding_AABB;
+    }
+
+    void RENDERIZABLE::setBoundingAABB(const VEC3 &newBoundingAABB) noexcept
+    {
+        this->bounding_AABB = newBoundingAABB;
+    }
+
+    bool RENDERIZABLE::isAlwaysRenderizeEnabled() const noexcept
+    {
+        return this->alwaysRenderize;
+    }
+
+    void RENDERIZABLE::setAlwaysRenderize(const bool enabled) noexcept
+    {
+        this->alwaysRenderize = enabled;
+    }
+
+    bool RENDERIZABLE::getIsObjectOnFrustum() const noexcept
+    {
+        return this->isObjectOnFrustum;
+    }
+
+    void RENDERIZABLE::setIsObjectOnFrustum(const bool onFrustum) noexcept
+    {
+        this->isObjectOnFrustum = onFrustum;
+    }
+
+    bool RENDERIZABLE::isRenderEnabled() const noexcept
+    {
+        return this->enableRender;
+    }
+
+    void RENDERIZABLE::setEnableRender(const bool enabled) noexcept
+    {
+        this->enableRender = enabled;
+    }
+
+    bool RENDERIZABLE::isRender2TextureEnabled() const noexcept
+    {
+        return this->isRender2Texture;
+    }
+
+    void RENDERIZABLE::setRender2Texture(const bool enabled) noexcept
+    {
+        this->isRender2Texture = enabled;
+    }
+
+    void * RENDERIZABLE::getUserData() const noexcept
+    {
+        return this->userData;
+    }
+
+    void RENDERIZABLE::setUserData(void *data) noexcept
+    {
+        this->userData = data;
+    }
+
+    RENDER_STATE & RENDERIZABLE::getBlend() noexcept
+    {
+        return this->blend;
+    }
+
+    const RENDER_STATE & RENDERIZABLE::getBlend() const noexcept
+    {
+        return this->blend;
+    }
+
+    void RENDERIZABLE::setBlendState(const BLEND_STATE blendState) noexcept
+    {
+        this->blend.set(blendState);
+    }
+
     DYNAMIC_VAR * RENDERIZABLE::getDynamicVar(const char *nameVar)noexcept
     {
         return this->lsDynamicVar[nameVar];
@@ -110,14 +250,16 @@ namespace mbm
     }
     void RENDERIZABLE::getAABB(float *w, float *h) const
     {
-        *w = this->bounding_AABB.x;
-        *h = this->bounding_AABB.y;
+        const VEC3 &boundingAABB = this->getBoundingAABB();
+        *w = boundingAABB.x;
+        *h = boundingAABB.y;
     }
     void RENDERIZABLE::getAABB(float *w, float *h, float *d) const
     {
-        *w = this->bounding_AABB.x;
-        *h = this->bounding_AABB.y;
-        *d = this->bounding_AABB.z;
+        const VEC3 &boundingAABB = this->getBoundingAABB();
+        *w = boundingAABB.x;
+        *h = boundingAABB.y;
+        *d = boundingAABB.z;
     }
     bool RENDERIZABLE::getWidthHeight(float *w, float *h, const bool consider_scale) const
     {
@@ -127,7 +269,8 @@ namespace mbm
         {
             if(consider_scale)
             {
-                *w = x * this->scale.x, *h = y * this->scale.y;
+                const VEC3 &scale = this->getScale();
+                *w = x * scale.x, *h = y * scale.y;
             }
             else
             {
@@ -145,13 +288,12 @@ namespace mbm
         {
             if(consider_scale)
             {
-                VEC3 halfDim(x * 0.5f * this->scale.x, y * 0.5f * this->scale.y, z * 0.5f * this->scale.z);
-                *w = x * this->scale.x, *h = y * this->scale.y;
-                *d = z * this->scale.z;
+                const VEC3 &scale = this->getScale();
+                *w = x * scale.x, *h = y * scale.y;
+                *d = z * scale.z;
             }
             else
             {
-                VEC3 halfDim(x * 0.5f, y * 0.5f, z * 0.5f);
                 *w = x, *h = y;
                 *d = z;
             }
@@ -170,15 +312,16 @@ namespace mbm
         w *= 0.5f;
         h *= 0.5f;
         d *= 0.5f;
+        const VEC3 &position = this->getPosition();
         // dir is unit direction vector of ray
         const VEC3 dirfrac(dir.x != 0.0f ? 1.0f / dir.x : 0.0f, dir.y != 0.0f ? 1.0f / dir.y : 0.0f,
                             dir.z != 0.0f ? 1.0f / dir.z : 0.0f);
-        float t1 = ((this->position.x + w) - p1.x) * dirfrac.x;
-        float t2 = ((this->position.x - w) - p1.x) * dirfrac.x;
-        float t3 = ((this->position.y + h) - p1.y) * dirfrac.y;
-        float t4 = ((this->position.y - h) - p1.y) * dirfrac.y;
-        float t5 = ((this->position.z + d) - p1.z) * dirfrac.z;
-        float t6 = ((this->position.z - d) - p1.z) * dirfrac.z;
+        float t1 = ((position.x + w) - p1.x) * dirfrac.x;
+        float t2 = ((position.x - w) - p1.x) * dirfrac.x;
+        float t3 = ((position.y + h) - p1.y) * dirfrac.y;
+        float t4 = ((position.y - h) - p1.y) * dirfrac.y;
+        float t5 = ((position.z + d) - p1.z) * dirfrac.z;
+        float t6 = ((position.z - d) - p1.z) * dirfrac.z;
 
         float tmin = std::max(std::max(std::min(t1, t2), std::min(t3, t4)), std::min(t5, t6));
         float tmax = std::min(std::min(std::max(t1, t2), std::max(t3, t4)), std::max(t5, t6));
@@ -196,7 +339,7 @@ namespace mbm
         this->getAABB(&w, &h);
         const VEC2 point(x, y);
         VEC2       halfDim(w * 0.5f, h * 0.5f);
-        if (device->isPointScreen2DOnRectangleWorld2d(point, halfDim, this->position))
+        if (device->isPointScreen2DOnRectangleWorld2d(point, halfDim, this->getPosition()))
             return true;
         return false;
     }
@@ -206,7 +349,7 @@ namespace mbm
         this->getAABB(&w, &h);
         const VEC2 point(x, y);
         VEC2       halfDim(w * 0.5f, h * 0.5f);
-        if (device->isPointScreen2DOnRectangleScreen2d(point, halfDim, this->position))
+        if (device->isPointScreen2DOnRectangleScreen2d(point, halfDim, this->getPosition()))
             return true;
         return false;
     }
@@ -219,7 +362,7 @@ namespace mbm
             if (infoPhysics)
             {
                 float x = 0, y = 0;
-                if (this->is3D)
+                if (this->is3DObject())
                 {
                     float z = 0;
                     infoPhysics->getBounds(&x, &y, &z);
@@ -235,7 +378,10 @@ namespace mbm
                     p[7] = VEC3(x * 0.5f, y * 0.5f, z * 0.5f);
 
                     MATRIX matrix;
-                    MatrixTranslationRotationScale(&matrix, &this->position, &this->angle, &this->scale);
+                    const VEC3 &position = this->getPosition();
+                    const VEC3 &angle = this->getAngle();
+                    const VEC3 &scale = this->getScale();
+                    MatrixTranslationRotationScale(&matrix, &position, &angle, &scale);
                     VEC3 box_max(-FLT_MAX, -FLT_MAX, -FLT_MAX);
                     VEC3 box_min(FLT_MAX, FLT_MAX, FLT_MAX);
 
@@ -258,15 +404,17 @@ namespace mbm
                             box_min.z = i.z;
                     }
 
-                    this->bounding_AABB.x = (box_max.x - box_min.x);
-                    this->bounding_AABB.y = (box_max.y - box_min.y);
-                    this->bounding_AABB.z = (box_max.z - box_min.z);
+                    this->setBoundingAABB(VEC3(box_max.x - box_min.x, box_max.y - box_min.y, box_max.z - box_min.z));
                 }
                 else
                 {
                     infoPhysics->getBounds(&x, &y);
-                    VEC2 halfDim(x * 0.5f * this->scale.x, y * 0.5f * this->scale.y);
-                    util::getAABB(halfDim, this->angle.z, &this->bounding_AABB.x, &this->bounding_AABB.y);
+                    const VEC3 &scale = this->getScale();
+                    const VEC3 &angle = this->getAngle();
+                    VEC2 halfDim(x * 0.5f * scale.x, y * 0.5f * scale.y);
+                    VEC3 boundingAABB = this->getBoundingAABB();
+                    util::getAABB(halfDim, angle.z, &boundingAABB.x, &boundingAABB.y);
+                    this->setBoundingAABB(boundingAABB);
                 }
             }
         }
@@ -279,9 +427,9 @@ namespace mbm
             renderizable_clone->fileName = this->fileName;
             if(renderizable_clone->onRestoreDevice())
             {
-                renderizable_clone->position = this->position;
-                renderizable_clone->scale    = this->scale;
-                renderizable_clone->angle    = this->angle;
+                renderizable_clone->setPosition(this->getPosition());
+                renderizable_clone->setScale(this->getScale());
+                renderizable_clone->setAngle(this->getAngle());
                 return true;
             }
         }
@@ -290,7 +438,7 @@ namespace mbm
 
     const char * RENDERIZABLE::getTypeClassName() const noexcept
     {
-        switch (typeClass)
+        switch (this->getTypeClass())
         {
             case TYPE_CLASS_MESH                : return "mesh";
             case TYPE_CLASS_SPRITE              : return "sprite";

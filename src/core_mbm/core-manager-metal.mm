@@ -167,7 +167,7 @@ namespace mbm
             auto renderTarget = device->getRenderTarget(i);
             if (!renderTarget)
                 continue;
-            if (!renderTarget->isObjectOnFrustum)
+            if (!renderTarget->getIsObjectOnFrustum())
                 continue;
             void *renderTargetSpecificConfig = renderTarget->getRenderTargetSpecificConfig();
             RENDER2TARGET_METAL* rf =

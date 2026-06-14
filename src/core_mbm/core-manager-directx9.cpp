@@ -400,7 +400,7 @@ namespace mbm
             auto renderTarget = device->getRenderTarget(i);
             if (!renderTarget)
                 continue;
-            if (!renderTarget->isObjectOnFrustum)
+            if (!renderTarget->getIsObjectOnFrustum())
                 continue;
             // DX9 cannot safely render into a texture that is still bound as an input sampler
             // from a previous draw. OpenGL explicitly unbinds after render-to-texture; do the

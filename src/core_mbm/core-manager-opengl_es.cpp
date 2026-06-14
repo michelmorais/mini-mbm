@@ -157,7 +157,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             auto renderTarget = device->getRenderTarget(i);
             if (!renderTarget)
                 continue;
-            if (!renderTarget->isObjectOnFrustum)
+            if (!renderTarget->getIsObjectOnFrustum())
                 continue;
             void *renderTargetSpecificConfig = renderTarget->getRenderTargetSpecificConfig();
             const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTargetSpecificConfig);

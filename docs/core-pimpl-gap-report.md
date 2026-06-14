@@ -1599,6 +1599,13 @@ Milestone 185 implementation note:
 - Narrowed remaining strict-PIMPL future work to `RENDERIZABLE` gameplay/public layout and any future manager/helper state, not animation call-site migration.
 - This is documentation-only and does not change runtime behavior.
 
+Milestone 186 implementation note:
+
+- Started the `RENDERIZABLE` accessor foundation while keeping all public fields in place for source compatibility.
+- Added accessors/mutators for type/coordinate flags, transform vectors, bounding AABB, render/frustum flags, render-to-texture flag, user data, and blend state.
+- Migrated the contained `renderizable.cpp` self-use paths, frustum checks, and backend render-to-texture frustum guards to the new accessor API.
+- This is the first strict-PIMPL preparation step for `RENDERIZABLE`; it does not move fields behind `Impl` yet.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
