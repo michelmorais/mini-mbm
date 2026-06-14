@@ -74,7 +74,7 @@ namespace mbm
     b2Body *getBodyBox2dFromRawTable(lua_State *lua,const int rawi, const int indexTable)
     {
         RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, rawi, indexTable);
-        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
         {
@@ -87,7 +87,7 @@ namespace mbm
     SHAPE_INFO *getShapeInfoFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, rawi, indexTable);
-        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
             lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
@@ -99,7 +99,7 @@ namespace mbm
         DEVICE * device = DEVICE::getInstance();
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         lua_State * lua = userScene->lua;
-        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         //if we have animation callback we dont want to take off the reference
         if (userData->ref_CallBackAnimation == LUA_NOREF &&
             userData->ref_CallBackTouchDown == LUA_NOREF &&
@@ -147,7 +147,7 @@ namespace mbm
         const int             top       = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         const float           density   = top > 2 ? luaL_checknumber(lua, 3) : 0.0f;
         const float           friction  = top > 3 ? luaL_checknumber(lua, 4) : 0.3f;
@@ -191,7 +191,7 @@ namespace mbm
     {
         PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr   = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto *         infoBox2d  = static_cast<SHAPE_INFO*>(userData->extra);
         if (lua_type(lua, 3) != LUA_TTABLE)
         {
@@ -276,7 +276,7 @@ namespace mbm
         const int             top         = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto *          infoBox2d   = static_cast<SHAPE_INFO *>(userData->extra);
 
 
@@ -325,7 +325,7 @@ namespace mbm
         const int             top         = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
-        auto * userData                   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto * userData                   = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto * infoBox2d                  = static_cast<SHAPE_INFO *>(userData->extra);
         const float           density     = top > 2 ? luaL_checknumber(lua, 3) : 1.0f;
         const float           friction    = top > 3 ? luaL_checknumber(lua, 4) : 10.0f;
@@ -910,11 +910,13 @@ namespace mbm
         const int             top       = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto *infoBox2d                 = static_cast<SHAPE_INFO *>(userData->extra);
-        const float           x         = top > 2 ? luaL_checknumber(lua, 3) : ptr->position.x;
-        const float           y         = top > 3 ? luaL_checknumber(lua, 4) : ptr->position.y;
-        const float           z         = top > 4 ? luaL_checknumber(lua, 5) : ptr->angle.z;
+        const VEC3 &          position  = ptr->getPosition();
+        const VEC3 &          angle     = ptr->getAngle();
+        const float           x         = top > 2 ? luaL_checknumber(lua, 3) : position.x;
+        const float           y         = top > 3 ? luaL_checknumber(lua, 4) : position.y;
+        const float           z         = top > 4 ? luaL_checknumber(lua, 5) : angle.z;
         const VEC2            newPos(x, y);
         if (infoBox2d)
             box2d->interference(infoBox2d->body, &newPos, z);
@@ -1202,7 +1204,7 @@ namespace mbm
             auto* info = static_cast<SHAPE_INFO*>(fixture->GetBody()->GetUserData());
             if(info)
             {
-                auto * userData              = static_cast<USER_DATA_RENDER_LUA *>(info->ptr->userData);
+                auto * userData              = static_cast<USER_DATA_RENDER_LUA *>(info->ptr->getUserData());
                 lua_State * lua              = user_data_box2d.lua;
                 const float scale            = p_box2d->getScale();
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, user_data_box2d.ref_CallBack);
@@ -1280,7 +1282,7 @@ namespace mbm
             auto* info = static_cast<SHAPE_INFO*>(fixture->GetBody()->GetUserData());
             if(info)
             {
-                auto * userData              = static_cast<USER_DATA_RENDER_LUA *>(info->ptr->userData);
+                auto * userData              = static_cast<USER_DATA_RENDER_LUA *>(info->ptr->getUserData());
                 lua_State * lua              = user_data_box2d.lua;
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, user_data_box2d.ref_CallBack);
                 if (userData->ref_MeAsTable != LUA_NOREF && lua_isfunction(lua, -1))
@@ -1359,7 +1361,7 @@ namespace mbm
     {
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d)
             box2d->destroyBody(infoBox2d);
@@ -1370,7 +1372,7 @@ namespace mbm
     {
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d)
             box2d->removeJoint(infoBox2d);
@@ -1875,8 +1877,8 @@ namespace mbm
     {
         if (info1 && info2)
         {
-            auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->ptr->userData);
-            auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->ptr->userData);
+            auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->ptr->getUserData());
+            auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->ptr->getUserData());
             DEVICE *             device    = DEVICE::getInstance();
             auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *               lua       = userScene->lua;

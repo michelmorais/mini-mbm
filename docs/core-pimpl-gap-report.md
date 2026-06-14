@@ -1718,6 +1718,13 @@ Milestone 202 implementation note:
 - Replaced Lua userdata position pointer extraction with `getPosition()`, debug line mesh position copies with `setPosition()`, and repeated line mesh position component writes with a local `VEC3 &position`.
 - Left `TRIANGLE::position` physics shape fields unchanged because they are not `RENDERIZABLE` state.
 
+Milestone 203 implementation note:
+
+- Migrated plain Box2D Lua binding renderizable state access in `plugins/box2d/physics-box-2d-lua.cpp` to the accessor API.
+- Replaced callback/body helper `RENDERIZABLE::userData` reads with `getUserData()`.
+- Replaced `onInterfereBox2d()` fallback position/angle reads with local `getPosition()` / `getAngle()` references.
+- Remaining focused hits in this file are `PHYSICS_BOX2D::userData`, not `RENDERIZABLE` state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
