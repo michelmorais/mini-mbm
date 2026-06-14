@@ -1651,6 +1651,13 @@ Milestone 192 implementation note:
 - Cached `position`, `angle`, `scale`, and the 3D coordinate flag inside render/scale paths to follow the accessor reuse rule.
 - This keeps background behavior unchanged while removing direct `RENDERIZABLE` transform/flag/blend field use from `background.cpp`.
 
+Milestone 193 implementation note:
+
+- Migrated the remaining simple render-enable flag writes in `TEXTURE_VIEW`, `GIF_VIEW`, `LINE_MESH`, and `STEERED_PARTICLE`.
+- Replaced constructor/destructor/release/load direct `enableRender` writes with `setEnableRender()`.
+- Replaced the `STEERED_PARTICLE` load-time direct `alwaysRenderize` write with `setAlwaysRenderize()`.
+- This removes direct `enableRender`/`alwaysRenderize` field writes from these small render classes without changing render or ownership behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

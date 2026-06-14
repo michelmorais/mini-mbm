@@ -35,7 +35,7 @@ namespace mbm
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_TEXTURE, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->texture      = nullptr;
-        this->enableRender = true;
+        this->setEnableRender(true);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
@@ -44,13 +44,13 @@ namespace mbm
         : RENDERIZABLE(0, TYPE_CLASS_TEXTURE, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->texture      = nullptr;
-        this->enableRender = true;
+        this->setEnableRender(true);
         //no scene - just restore texture
     }
     
     TEXTURE_VIEW::~TEXTURE_VIEW()
     {
-        this->enableRender = false;
+        this->setEnableRender(false);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeRenderizable(this);
         this->release();

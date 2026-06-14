@@ -35,7 +35,7 @@ namespace mbm
     void STEERED_PARTICLE::release()
     {
         this->releaseAnimation();
-        this->enableRender = false;
+        this->setEnableRender(false);
         this->bufferGl.release();
         for (unsigned int i = 0; i < this->lsParticleGroup.size(); ++i)
         {
@@ -230,8 +230,8 @@ namespace mbm
                 return false;
             }
             this->fileName = fileNameTexture;
-            this->enableRender = true;
-            this->alwaysRenderize = true;
+            this->setEnableRender(true);
+            this->setAlwaysRenderize(true);
             this->updateAABB();
             return true;
         }

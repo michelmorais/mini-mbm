@@ -35,14 +35,14 @@ namespace mbm
     GIF_VIEW::GIF_VIEW(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_GIF, _is3d && _is2dScreen == false, _is2dScreen)
     {
-        this->enableRender = true;
+        this->setEnableRender(true);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
     
     GIF_VIEW::~GIF_VIEW()
     {
-        this->enableRender = false;
+        this->setEnableRender(false);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeRenderizable(this);
         this->release();
