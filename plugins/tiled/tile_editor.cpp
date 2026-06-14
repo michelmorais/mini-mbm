@@ -1107,8 +1107,10 @@ namespace mbm
             auto & layer              = tileMap.layers[index_layer];
             if(layer->visible == false)
                 return true;
-            ANIMATION *anim_normal    = lsAnimation[0];
-            ANIMATION *transparent    = lsAnimation[3];
+            ANIMATION *anim_normal    = this->getAnimation(0);
+            ANIMATION *transparent    = this->getAnimation(3);
+            if (anim_normal == nullptr || transparent == nullptr)
+                return false;
             const uint32_t total      = tileMap.count_width_tile * tileMap.count_height_tile;
             position.x                = layer->offset.x * scale_offset.x;
             position.y                = layer->offset.y * scale_offset.y;
@@ -1297,10 +1299,12 @@ namespace mbm
                                      const bool transparency)
     {
         mbm::DEVICE* device       = mbm::DEVICE::getInstance();
-        ANIMATION *anim_normal    = lsAnimation[0];
-        ANIMATION *anim_selected  = lsAnimation[1];
-        ANIMATION *anim_over      = lsAnimation[2];
-        ANIMATION *transparent    = lsAnimation[3];
+        ANIMATION *anim_normal    = this->getAnimation(0);
+        ANIMATION *anim_selected  = this->getAnimation(1);
+        ANIMATION *anim_over      = this->getAnimation(2);
+        ANIMATION *transparent    = this->getAnimation(3);
+        if (anim_normal == nullptr || anim_selected == nullptr || anim_over == nullptr || transparent == nullptr)
+            return false;
         const OnEndAnimation onEndAnimation = this->getOnEndAnimation();
         const OnEndEffect onEndFx = this->getOnEndFx();
         if(transparency)
