@@ -1548,8 +1548,14 @@ Milestone 178 implementation note:
 - Migrated particle-control animation state transitions to the `ANIMATION` accessor API.
 - Replaced direct particle animation ended/direction/name reads and writes with `isEnded()`, `setEnded()`, `isCurrentWayGrowing()`, `setCurrentWayGrowing()`, `getNameAnimation()`, and `setNameAnimation()`.
 - Migrated the small Lua effect helper direct `fx` user in `line-mesh-lua.cpp` to locally cached `FX &fx = anim->getFx()`.
-- Left `particle-lua.cpp` for a separate cleanup because the file currently has mixed line endings and a small edit creates noisy whole-file newline churn.
-- Remaining direct `ANIMATION` field migration is concentrated in `animation-lua.cpp`, `particle-lua.cpp`, mesh debug export code, and plugins.
+- Left `particle-lua.cpp` for a separate cleanup because the file had mixed line endings and a small edit created noisy whole-file newline churn.
+- Remaining direct `ANIMATION` field migration is concentrated in `animation-lua.cpp`, mesh debug export code, and plugins.
+
+Milestone 179 implementation note:
+
+- After `particle-lua.cpp` was normalized with `dos2unix`, migrated the remaining particle Lua alpha `FX` direct users.
+- Replaced `anim->fx` calls in particle alpha set/get paths with locally cached `FX &fx = anim->getFx()`.
+- This completes the small Lua effect-helper cleanup left open by Milestone 178.
 
 ### Phase 3 - Hide renderer backend handles
 
@@ -1604,7 +1610,7 @@ Before hiding public fields, add and use methods for:
 - `RENDERIZABLE`: transform, visibility, blend, user data, dynamic vars.
 - `SCENE`: scene transition state and user data done.
 - `ANIMATION_MANAGER`: animation list/index/callback access done; remaining public layout is `ANIMATION` frame state and `fx`.
-- `ANIMATION`: accessor coverage started for frame state and `fx`; core animation implementation, render-side direct users, particle-control state transitions, and the small line-mesh Lua effect helper migrated.
+- `ANIMATION`: accessor coverage started for frame state and `fx`; core animation implementation, render-side direct users, particle-control state transitions, and small Lua effect helpers migrated.
 
 Keep direct fields during transition if source compatibility matters.
 
@@ -1652,7 +1658,7 @@ Current decision:
 6. `ANIMATION_MANAGER` restore backup storage, animation list, current index, and callback fields are now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index writes use `setIndexAnimation()`, Lua callback writes use callback setters, render/tiled callback reads use callback getters, straightforward render-side list reads use `getAnimation()`/`getTotalAnimation()`, backup list reads use list accessors, straightforward setup appends use `appendAnimation()`, tiled editor fixed-slot reads use `getAnimation(index)`, read-only internal manager list use is accessor-backed, and `removeAnimation()` bounds/clamp logic uses list accessors.
 7. `SCENE` scene transition state and scene user data are now behind `Impl`; core scene transitions, Lua scene loading, Android callback routing, physics plugins, and Lua wrappers use the accessor API.
 8. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and device pointer are now behind `Impl`; internal/backend/platform/Lua call sites use accessor-backed device access.
-9. `ANIMATION` now has accessor coverage for frame state and `fx`; core animation implementation, render-side direct users, particle-control state transitions, and the small line-mesh Lua effect helper use it, while remaining Lua animation table/export, particle Lua, and plugin call sites still need migration before the public fields can move.
+9. `ANIMATION` now has accessor coverage for frame state and `fx`; core animation implementation, render-side direct users, particle-control state transitions, and small Lua effect helpers use it, while remaining Lua animation table/export and plugin call sites still need migration before the public fields can move.
 10. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

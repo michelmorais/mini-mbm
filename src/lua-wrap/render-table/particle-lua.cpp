@@ -172,11 +172,12 @@ namespace mbm
 					auto *  anim = particle->getAnimation();
                     if (anim)
                     {
+                        FX &fx = anim->getFx();
                         float      data[4] = { 0, 0, 0, 0 };
                         data[0] = lua_toboolean(lua, 3) ? 1.0f : 0.0f;
-                        anim->fx.setVarPShader("enableAlphaFromColor", data);
-                        anim->fx.setMaxVarPShader("enableAlphaFromColor", data);
-                        anim->fx.setMinVarPShader("enableAlphaFromColor", data);
+                        fx.setVarPShader("enableAlphaFromColor", data);
+                        fx.setMaxVarPShader("enableAlphaFromColor", data);
+                        fx.setMinVarPShader("enableAlphaFromColor", data);
                     }
                 }
                 else
@@ -312,8 +313,9 @@ namespace mbm
 					auto *  anim = particle->getAnimation();
                     if (anim)
                     {
+                        FX &fx = anim->getFx();
                         float      data[4] = { 0, 0, 0, 0 };
-						if (anim->fx.getVarPShader("enableAlphaFromColor", data))
+						if (fx.getVarPShader("enableAlphaFromColor", data))
                             lua_pushboolean(lua, data[0] > 0.5f ? 1 : 0);
                         else
                             lua_pushboolean(lua,0);
