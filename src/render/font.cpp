@@ -312,6 +312,7 @@ namespace mbm
                 cube = this->mesh->infoPhysics.lsCube[0];
             }
             const VEC3 &position = this->getPosition();
+            VEC3 &boundingAABB = this->getBoundingAABB();
             if (this->is2dScreenObject())
             {
                 // Convert world-2D dimensions to screen pixels so that
@@ -325,8 +326,8 @@ namespace mbm
                 cube->halfDim.x       = sw * 0.5f;
                 cube->halfDim.y       = sh * 0.5f;
                 cube->halfDim.z       = 1.0f;
-                this->bounding_AABB.x = sw;
-                this->bounding_AABB.y = sh;
+                boundingAABB.x        = sw;
+                boundingAABB.y        = sh;
                 // position is the top-left corner in screen coords (Y-down)
                 this->aabbMin = VEC2(position.x, position.y);
                 this->aabbMax = VEC2(position.x + sw, position.y + sh);
@@ -336,8 +337,8 @@ namespace mbm
                 cube->halfDim.x       = w * 0.5f;
                 cube->halfDim.y       = h * 0.5f;
                 cube->halfDim.z       = 1.0f;
-                this->bounding_AABB.x = w;
-                this->bounding_AABB.y = h;
+                boundingAABB.x        = w;
+                boundingAABB.y        = h;
                 // position is the top-origin corner in world coords (Y-up); text extends right and down
                 this->aabbMin = VEC2(position.x, position.y - h);
                 this->aabbMax = VEC2(position.x + w, position.y);
@@ -469,8 +470,9 @@ namespace mbm
                     cube->halfDim.x       = sw * 0.5f;
                     cube->halfDim.y       = sh * 0.5f;
                     cube->halfDim.z       = 1.0f;
-                    this->bounding_AABB.x = sw;
-                    this->bounding_AABB.y = sh;
+                    VEC3 &boundingAABB    = this->getBoundingAABB();
+                    boundingAABB.x        = sw;
+                    boundingAABB.y        = sh;
                     w = sw; h = sh;
                 }
                 else
@@ -478,8 +480,9 @@ namespace mbm
                     cube->halfDim.x       = w * 0.5f;
                     cube->halfDim.y       = h * 0.5f;
                     cube->halfDim.z       = 1.0f;
-                    this->bounding_AABB.x = w;
-                    this->bounding_AABB.y = h;
+                    VEC3 &boundingAABB    = this->getBoundingAABB();
+                    boundingAABB.x        = w;
+                    boundingAABB.y        = h;
                 }
             }
             const float ws = w * 0.5f;
@@ -999,8 +1002,9 @@ namespace mbm
         this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
-        text->bounding_AABB.x = text->endText.x - text->beginText.x;
-        text->bounding_AABB.y = text->beginText.y - text->endText.y;
+        VEC3 &boundingAABB = text->getBoundingAABB();
+        boundingAABB.x = text->endText.x - text->beginText.x;
+        boundingAABB.y = text->beginText.y - text->endText.y;
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1014,8 +1018,9 @@ namespace mbm
         this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
-        text->bounding_AABB.x = text->endText.x - text->beginText.x;
-        text->bounding_AABB.y = text->beginText.y - text->endText.y;
+        VEC3 &boundingAABB = text->getBoundingAABB();
+        boundingAABB.x = text->endText.x - text->beginText.x;
+        boundingAABB.y = text->beginText.y - text->endText.y;
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1030,8 +1035,9 @@ namespace mbm
         this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
-        text->bounding_AABB.x = text->endText.x - text->beginText.x;
-        text->bounding_AABB.y = text->beginText.y - text->endText.y;
+        VEC3 &boundingAABB = text->getBoundingAABB();
+        boundingAABB.x = text->endText.x - text->beginText.x;
+        boundingAABB.y = text->beginText.y - text->endText.y;
         text->isOnFrustum();
         text->updateAABB();
         return text;

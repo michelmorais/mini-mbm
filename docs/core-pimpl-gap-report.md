@@ -1859,6 +1859,12 @@ Milestone 221 implementation note:
 - Touched only `src/core_mbm/device-common.cpp`; `FONT_DRAW::idScene`, `PHYSICS::idScene`, `AUDIO::idScene`, and `SCENE::idScene` are separate class state and remain outside this renderizable accessor milestone.
 - Focused scan shows remaining `idScene` hits are non-`RENDERIZABLE` state.
 
+Milestone 222 implementation note:
+
+- Migrated direct `RENDERIZABLE::bounding_AABB` writes in text/font sizing code to `RENDERIZABLE::getBoundingAABB()` local references.
+- Touched only `src/render/font.cpp`.
+- Focused scan shows remaining `bounding_AABB` hits are the public member declaration, accessor implementation, constructor initialization, and architecture documentation.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
