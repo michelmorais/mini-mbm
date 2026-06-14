@@ -806,7 +806,7 @@ namespace mbm
             if(infoHead->effectShader)
             {
                 util::INFO_SHADER_DATA *infoPS         = infoHead->effectShader->dataPS;
-                ANIMATION *anim                         = i < this->lsAnimation.size() ? this->lsAnimation[i] : nullptr;
+                ANIMATION *anim                         = this->getAnimation(static_cast<uint32_t>(i));
                 if (infoPS && infoPS->fileNameTextureStage2)
                 {
                     TEXTURE *  tex  = texMan->load(infoPS->fileNameTextureStage2, true);
@@ -1070,10 +1070,10 @@ namespace mbm
 
     bool ANIMATION_MANAGER::setAnimationByIndex(const uint32_t newIndex)
     {
-        if (newIndex < this->lsAnimation.size())
+        ANIMATION *anim = this->getAnimation(newIndex);
+        if (anim)
         {
             this->setIndexAnimation(newIndex);
-            ANIMATION *anim = this->lsAnimation[newIndex];
             anim->restartAnimation();
             return true;
         }
@@ -1082,13 +1082,13 @@ namespace mbm
 
     void ANIMATION_MANAGER::setAnimation(const char *name)
     {
-        const std::vector<ANIMATION *>::size_type s =  lsAnimation.size();
-        for (std::vector<ANIMATION *>::size_type i = 0; i < s; ++i)
+        const uint32_t s = this->getTotalAnimation();
+        for (uint32_t i = 0; i < s; ++i)
         {
-            ANIMATION * anim = lsAnimation[i];
+            ANIMATION * anim = this->getAnimation(i);
             if (anim && strcmp(anim->nameAnimation, name) == 0)
             {
-                this->setIndexAnimation(static_cast<uint32_t>(i));
+                this->setIndexAnimation(i);
                 anim->restartAnimation();
                 break;
             }
@@ -1097,12 +1097,9 @@ namespace mbm
 
     void ANIMATION_MANAGER::restartAnimation()
     {
-        const uint32_t indexAnimation = this->getIndexAnimation();
-        if (indexAnimation < this->lsAnimation.size())
-        {
-            ANIMATION *anim = this->lsAnimation[indexAnimation];
+        ANIMATION *anim = this->getAnimation();
+        if (anim)
             anim->restartAnimation();
-        }
     }
 
     void ANIMATION_MANAGER::removeAnimation(const uint32_t index)
@@ -1127,24 +1124,22 @@ namespace mbm
 
     char * ANIMATION_MANAGER::getNameAnimation(const uint32_t index) const
     {
-        if (index < lsAnimation.size())
-            return lsAnimation[index]->nameAnimation;
+        ANIMATION *anim = this->getAnimation(index);
+        if (anim)
+            return anim->nameAnimation;
         return nullptr;
     }
 
     char * ANIMATION_MANAGER::getNameAnimation() const
     {
-        const uint32_t indexAnimation = this->getIndexAnimation();
-        if (indexAnimation < lsAnimation.size())
-            return lsAnimation[indexAnimation]->nameAnimation;
-        return nullptr;
+        return this->getNameAnimation(this->getIndexAnimation());
     }
 
     uint32_t ANIMATION_MANAGER::addAnimation()
     {
         auto anim = new ANIMATION();
         this->appendAnimation(anim);
-        this->setIndexAnimation(static_cast<uint32_t>(this->lsAnimation.size() - 1));
+        this->setIndexAnimation(this->getTotalAnimation() - 1);
         RENDERIZABLE* r = dynamic_cast<RENDERIZABLE*>(this);
         const FVF_PROVIDE_BY_ENGINE fvf = r ? r->getFvfFromBuffer() : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
         if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, fvf))
@@ -1161,10 +1156,9 @@ namespace mbm
 
     bool ANIMATION_MANAGER::isEndedAnimation() const noexcept
     {
-        const uint32_t indexAnimation = this->getIndexAnimation();
-        if (indexAnimation < this->lsAnimation.size())
+        mbm::ANIMATION *anim = this->getAnimation();
+        if (anim)
         {
-            mbm::ANIMATION *anim = this->lsAnimation[indexAnimation];
             return anim->isEndedThisAnimation;
         }
         return false;
