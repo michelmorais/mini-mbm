@@ -108,10 +108,11 @@ namespace mbm
             const util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->infoAnimation.lsHeaderAnim[0];
             if (anim && mesh->infoAnimation.lsHeaderAnim.size() && infoHead->headerAnim)
             {
-                anim->blendState = static_cast<BLEND_STATE>(infoHead->headerAnim->blendState);
+                anim->setBlendState(static_cast<BLEND_STATE>(infoHead->headerAnim->blendState));
                 if (infoHead->effectShader)
                 {
-                    anim->fx.blendOperation = infoHead->effectShader->blendOperation;
+                    FX &fx = anim->getFx();
+                    fx.blendOperation = infoHead->effectShader->blendOperation;
                 }
             }
         }
@@ -208,23 +209,24 @@ namespace mbm
         const char* fileNameVs = "__particle.vs";
 
         ANIMATION* anim = this->getAnimation();
+        FX &fx = anim->getFx();
 
-        anim->fx.fxPS->setCurrentShader(anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_PAUSED));
-        anim->fx.fxVS->setCurrentShader(anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
-        anim->fx.shader.releaseShader();
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
+        fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_PAUSED));
+        fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
+        fx.shader.releaseShader();
+        if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         float defaultVar[4] = { 1, 1, 1, 1 };
-        void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
-        if (anim->fx.fxPS->getCurrentShader() == nullptr ||
-            anim->fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, defaultVar,
+        void *backendShaderSpecific = fx.shader.getBackendShaderSpecific();
+        if (fx.fxPS->getCurrentShader() == nullptr ||
+            fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, defaultVar,
                 backendShaderSpecific, true) == false)
         {
 #if defined _DEBUG
             PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
 #endif
         }
-        if (anim->fx.fxPS->getCurrentShader() == nullptr || anim->fx.fxPS->getCurrentShader()->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
+        if (fx.fxPS->getCurrentShader() == nullptr || fx.fxPS->getCurrentShader()->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
             backendShaderSpecific, true) == false)
         {
 #if defined _DEBUG
@@ -295,9 +297,9 @@ namespace mbm
             ANIMATION* anim = this->getAnimation();
             if (anim)
             {
-                anim->isEndedThisAnimation = false;
-                anim->currentWayGrowingOfAnimation = false;
-                snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "stage:%d", 1);
+                anim->setEnded(false);
+                anim->setCurrentWayGrowing(false);
+                anim->setNameAnimation("stage:1");
             }
             this->control.restartAnimationParticle();
         }
@@ -516,7 +518,8 @@ namespace mbm
                 mbm::ANIMATION *anim = this->getAnimation();
                 if(anim)
                 {
-                    anim->fx.textureOverrideStage2 = newTex;
+                    FX &fx = anim->getFx();
+                    fx.textureOverrideStage2 = newTex;
                     bufferGl.setTextureByStage(newTex, stage, 0);
                     return true;
                 }
@@ -529,11 +532,11 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new ANIMATION();
-        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "stage:%d", 1);
-        anim->isEndedThisAnimation = false;
-        anim->currentWayGrowingOfAnimation = false;
-        anim->type = TYPE_ANIMATION_PAUSED;
-        anim->blendState = (BLEND_ONE);
+        anim->setNameAnimation("stage:1");
+        anim->setEnded(false);
+        anim->setCurrentWayGrowing(false);
+        anim->setType(TYPE_ANIMATION_PAUSED);
+        anim->setBlendState(BLEND_ONE);
         this->appendAnimation(anim);
         if (!this->loadParticleShader(operatorShader, newCodeLine))
             return false;
@@ -544,13 +547,14 @@ namespace mbm
     {
         ANIMATION* anim = this->getAnimation();
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        anim->fx.shader.update();
-        anim->fx.setBlendOp();
-        this->blend.set(anim->blendState);
+        FX &fx = anim->getFx();
+        fx.shader.update();
+        fx.setBlendOp();
+        this->blend.set(anim->getBlendState());
         anim->updateAnimation(device->delta, this, nullptr, this->getOnEndFx());
         this->control.updateParticleStage(sPart, device->delta);
 
-        return anim->fx.shader.renderParticle(&this->bufferGl, &this->control);
+        return fx.shader.renderParticle(&this->bufferGl, &this->control);
     }
     
     const INFO_PHYSICS * PARTICLE::getInfoPhysics() const
@@ -567,7 +571,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 

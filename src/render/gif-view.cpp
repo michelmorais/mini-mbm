@@ -59,7 +59,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -73,7 +73,8 @@ namespace mbm
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->appendAnimation(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
+        FX &fx = anim->getFx();
+        if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         return true;
     }
@@ -115,11 +116,11 @@ namespace mbm
         ANIMATION* anim             = this->getAnimation();
         if(anim)
         {
-            anim->indexCurrentFrame     = 0;
-            anim->indexInitialFrame     = 0;
-            anim->indexFinalFrame       = infoGif.totalFrames -1;
-            anim->type                  = TYPE_ANIMATION_GROWING_LOOP;
-            anim->intervalChangeFrame   = infoGif.interval[0];
+            anim->setIndexCurrentFrame(0);
+            anim->setIndexInitialFrame(0);
+            anim->setIndexFinalFrame(infoGif.totalFrames -1);
+            anim->setType(TYPE_ANIMATION_GROWING_LOOP);
+            anim->setIntervalChangeFrame(infoGif.interval[0]);
         }
         this->bufferGL.setTextureByStage(this->textures[0], 0, 0);
         
@@ -213,8 +214,9 @@ namespace mbm
         ANIMATION* anim = this->getAnimation(indexAnimation);
         if(anim)
         {
-            if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
-                return this->textures[anim->indexCurrentFrame];
+            const int currentFrame = anim->getIndexCurrentFrame();
+            if(currentFrame < static_cast<int>(this->textures.size()))
+                return this->textures[currentFrame];
         }
         return nullptr;
     }
@@ -232,8 +234,9 @@ namespace mbm
                 ANIMATION* anim = this->getAnimation(indexAnimation);
                 if(anim)
                 {
-                    if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
-                        this->textures[anim->indexCurrentFrame] = newTex;
+                    const int currentFrame = anim->getIndexCurrentFrame();
+                    if(currentFrame < static_cast<int>(this->textures.size()))
+                        this->textures[currentFrame] = newTex;
                 }
                 this->bufferGL.setTextureByStage(newTex, 0, 0);
                 return true;
@@ -252,8 +255,9 @@ namespace mbm
         ANIMATION* anim = this->getAnimation(indexAnimation);
         if(anim)
         {
-            if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
-                this->textures[anim->indexCurrentFrame] = nullptr;
+            const int currentFrame = anim->getIndexCurrentFrame();
+            if(currentFrame < static_cast<int>(this->textures.size()))
+                this->textures[currentFrame] = nullptr;
         }
     }
     
@@ -299,24 +303,26 @@ namespace mbm
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
-            this->blend.set(animation->blendState);
+            FX &fx = animation->getFx();
+            this->blend.set(animation->getBlendState());
             animation->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
-            if(animation->indexCurrentFrame < static_cast<int>(this->textures.size()))
+            const int currentFrame = animation->getIndexCurrentFrame();
+            if(currentFrame < static_cast<int>(this->textures.size()))
             {
-                if(animation->indexCurrentFrame < static_cast<int>(interval.size()))
-                    animation->intervalChangeFrame  = interval[animation->indexCurrentFrame];
+                if(currentFrame < static_cast<int>(interval.size()))
+                    animation->setIntervalChangeFrame(interval[currentFrame]);
                 else
-                    animation->intervalChangeFrame  = interval[0];
+                    animation->setIntervalChangeFrame(interval[0]);
 
-                TEXTURE* curTex = this->textures[animation->indexCurrentFrame];
+                TEXTURE* curTex = this->textures[currentFrame];
                 this->bufferGL.setTextureByStage(curTex, 0, 0);
             }
-            animation->fx.setBlendOp();
-            animation->fx.shader.update();
-            if (animation->fx.textureOverrideStage2)
-                this->bufferGL.setTextureByStage(animation->fx.textureOverrideStage2, 1, 0);
+            fx.setBlendOp();
+            fx.shader.update();
+            if (fx.textureOverrideStage2)
+                this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
                 
-            if (!animation->fx.shader.render(&this->bufferGL))
+            if (!fx.shader.render(&this->bufferGL))
                 return false;
             return true;
         }

@@ -182,9 +182,9 @@ namespace mbm
         ANIMATION* anim = this->getAnimation();
         if (anim)
         {
-            anim->isEndedThisAnimation = false;
-            anim->currentWayGrowingOfAnimation = false;
-            snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "group:%d", 1);
+            anim->setEnded(false);
+            anim->setCurrentWayGrowing(false);
+            anim->setNameAnimation("group:1");
         }
     }
 
@@ -251,17 +251,19 @@ namespace mbm
         }
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION* anim = this->getAnimation();
-        this->blend.set(anim->blendState);
+        FX &fx = anim->getFx();
+        this->blend.set(anim->getBlendState());
         anim->updateAnimation(device->delta, this, nullptr, this->getOnEndFx());
-        anim->fx.setBlendOp();
-        anim->fx.shader.update();
+        fx.setBlendOp();
+        fx.shader.update();
 
-        return anim->fx.shader.renderParticle(&this->bufferGl, pGroup);
+        return fx.shader.renderParticle(&this->bufferGl, pGroup);
     }
 
     bool STEERED_PARTICLE::loadParticleShader(const COLOR* p_color)
     {
         ANIMATION* anim = this->getAnimation();
+        FX &fx = anim->getFx();
         if (p_color)
         {
             if (this->loadedColored)
@@ -273,21 +275,21 @@ namespace mbm
             const char* fileNamePs = "__steered_particle.ps";
             const char* fileNameVs = "__steered_particle.vs";
 
-            anim->fx.fxPS->setCurrentShader(anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING));
-            anim->fx.fxVS->setCurrentShader(anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING));
-            anim->fx.shader.releaseShader();
-            if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
+            fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING));
+            fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING));
+            fx.shader.releaseShader();
+            if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
                 return false;
 
             const float defaultVar[4] = { p_color->r, p_color->g, p_color->b, p_color->a };
-            if (anim->fx.fxPS->getCurrentShader())
+            if (fx.fxPS->getCurrentShader())
             {
-                void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
-                if (anim->fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, defaultVar, backendShaderSpecific, true) == false)
+                void *backendShaderSpecific = fx.shader.getBackendShaderSpecific();
+                if (fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, defaultVar, backendShaderSpecific, true) == false)
                 {
                     PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
                 }
-                VAR_SHADER* colorVar = anim->fx.fxPS->getCurrentShader()->getVarByName("color");
+                VAR_SHADER* colorVar = fx.fxPS->getCurrentShader()->getVarByName("color");
                 if (colorVar)
                 {
                     colorVar->set(defaultVar, defaultVar, 1.0f);
@@ -305,10 +307,10 @@ namespace mbm
             const char* fileNamePs = "__steered_particle_no_color.ps";
             const char* fileNameVs = "__steered_particle.vs";
 
-            anim->fx.fxPS->setCurrentShader(anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED));
-            anim->fx.fxVS->setCurrentShader(anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
-            anim->fx.shader.releaseShader();
-            if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
+            fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED));
+            fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
+            fx.shader.releaseShader();
+            if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
                 return false;
         }
         return true;
@@ -397,7 +399,8 @@ namespace mbm
                 mbm::ANIMATION *anim = this->getAnimation();
                 if(anim)
                 {
-                    anim->fx.textureOverrideStage2 = newTex;
+                    FX &fx = anim->getFx();
+                    fx.textureOverrideStage2 = newTex;
                     bufferGl.setTextureByStage(newTex, stage, 0);
                     return true;
                 }
@@ -410,11 +413,11 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new ANIMATION();
-        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "group:%d", 1);
-        anim->isEndedThisAnimation = false;
-        anim->currentWayGrowingOfAnimation = false;
-        anim->type = TYPE_ANIMATION_PAUSED;
-        anim->blendState = BLEND_ONE;
+        anim->setNameAnimation("group:1");
+        anim->setEnded(false);
+        anim->setCurrentWayGrowing(false);
+        anim->setType(TYPE_ANIMATION_PAUSED);
+        anim->setBlendState(BLEND_ONE);
         this->appendAnimation(anim);
         if (!this->loadParticleShader(p_color))
             return false;
@@ -435,7 +438,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
