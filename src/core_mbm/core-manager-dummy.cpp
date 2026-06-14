@@ -64,7 +64,7 @@ namespace mbm
     {
         int x = width;
         int y = height;
-        DEVICE* device = DEVICE::getInstance();
+        DEVICE *device = this->getDevice();
         this->setNameApplication(nameApplication);
         REMINDER_TODO
         

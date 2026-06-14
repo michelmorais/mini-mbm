@@ -1322,6 +1322,13 @@ Milestone 147 implementation note:
 - Kept duplicate-plugin handling, plugin append order, subscribe parameters, and min/max window size behavior unchanged.
 - This is an internal accessor-consistency cleanup only; it completes the active DirectX9 `CORE_MANAGER` helper direct-read cleanup.
 
+Milestone 148 implementation note:
+
+- Migrated dummy backend `CORE_MANAGER::initGraphics()` from a local `DEVICE::getInstance()` lookup to the existing `getDevice()` compatibility accessor.
+- Reused the local device for verbose logging checks and back-buffer dimension writes.
+- Kept dummy backend TODO markers, name assignment, texture capability defaults, version/audio logging, and return behavior unchanged.
+- This is an internal accessor-consistency cleanup only; it does not change dummy backend behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
