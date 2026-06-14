@@ -1908,6 +1908,13 @@ Milestone 228 implementation note:
 - Kept all external behavior routed through the existing public/protected helpers: `getFileName()`, `getInternalFileName()`, `setInternalFileName(...)`, `clearInternalFileName()`, `getDistanceFromView()`, and `setDistanceFromView()`.
 - Public gameplay fields remain unchanged; this milestone only hides already-migrated internal state.
 
+Milestone 229 implementation note:
+
+- Moved `RENDERIZABLE::isObjectOnFrustum` and `RENDERIZABLE::isRender2Texture` into `RENDERIZABLE::Impl`.
+- Kept behavior routed through the existing helpers: `getIsObjectOnFrustum()`, `setIsObjectOnFrustum()`, `isRender2TextureEnabled()`, and `setRender2Texture()`.
+- Focused scan shows no direct call-site access to those fields outside constructor/accessor implementation before the move.
+- Public gameplay convenience fields such as transform, render enable, blend, user data, and dynamic vars remain unchanged.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

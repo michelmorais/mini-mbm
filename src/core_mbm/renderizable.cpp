@@ -34,9 +34,13 @@ namespace mbm
     {
         std::string fileName;
         float       distanceFromView;
+        bool        isObjectOnFrustum;
+        bool        isRender2Texture;
 
         Impl() noexcept :
-            distanceFromView(0.0f)
+            distanceFromView(0.0f),
+            isObjectOnFrustum(true),
+            isRender2Texture(false)
         {
         }
     };
@@ -54,9 +58,7 @@ namespace mbm
     {
         this->enableRender      = true;
         this->alwaysRenderize   = false;
-        this->isRender2Texture  = false;
         this->userData          = nullptr;
-        this->isObjectOnFrustum = true;
     }
 
     RENDERIZABLE::~RENDERIZABLE() noexcept
@@ -197,12 +199,12 @@ namespace mbm
 
     bool RENDERIZABLE::getIsObjectOnFrustum() const noexcept
     {
-        return this->isObjectOnFrustum;
+        return this->impl->isObjectOnFrustum;
     }
 
     void RENDERIZABLE::setIsObjectOnFrustum(const bool onFrustum) noexcept
     {
-        this->isObjectOnFrustum = onFrustum;
+        this->impl->isObjectOnFrustum = onFrustum;
     }
 
     bool RENDERIZABLE::isRenderEnabled() const noexcept
@@ -217,12 +219,12 @@ namespace mbm
 
     bool RENDERIZABLE::isRender2TextureEnabled() const noexcept
     {
-        return this->isRender2Texture;
+        return this->impl->isRender2Texture;
     }
 
     void RENDERIZABLE::setRender2Texture(const bool enabled) noexcept
     {
-        this->isRender2Texture = enabled;
+        this->impl->isRender2Texture = enabled;
     }
 
     void * RENDERIZABLE::getUserData() const noexcept

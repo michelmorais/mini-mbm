@@ -79,10 +79,8 @@ namespace mbm
         mbm::VEC3        angle;
         mbm::VEC3        bounding_AABB;
         bool             alwaysRenderize;
-        bool             isObjectOnFrustum;
         bool             enableRender;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
-        bool             isRender2Texture;
         void *           userData;
         RENDER_STATE     blend;
         API_IMPL RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds)noexcept;
