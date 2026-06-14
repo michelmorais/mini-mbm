@@ -1822,6 +1822,16 @@ Milestone 216 implementation note:
 - Added `USE_BULLET3D` to the Linux/Windows engine feature summary.
 - Verified Linux `-DUSE_LUA=1 -DUSE_BULLET3D=1` builds `bullet3d.so`.
 
+Milestone 217 implementation note:
+
+- Migrated Bullet3D plugin direct `RENDERIZABLE` transform/user-data access to the accessor API.
+- Replaced Bullet world-transform sync in `shape-info-bullet-3d.cpp` with local `getPosition()` / `getAngle()` references.
+- Replaced Bullet3D Lua body/contact/raycast `RENDERIZABLE::userData` casts with a local `getUserData()` helper.
+- Replaced Bullet3D interference position/angle reads and writes with local accessor-backed `VEC3` references.
+- Replaced Bullet3D wrapper force/impulse/interference transform reads and collision-shape controller scale reads with accessor-backed local references.
+- Focused scan for `ptr` / `controller` / `infoBullet->ptr` direct `RENDERIZABLE` field access in `plugins/bullet3d` is clean.
+- Remaining broad Bullet3D scan hits are plugin-private `PHYSICS_BULLET::scale/userData` and primitive physics geometry fields, not `RENDERIZABLE` fields.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

@@ -59,6 +59,11 @@ struct USER_DATA_PHYSICS_3D
         return *ud;
     }
 
+    USER_DATA_RENDER_LUA *getRenderUserData(RENDERIZABLE *ptr) noexcept
+    {
+        return ptr ? static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData()) : nullptr;
+    }
+
     int onAddDynamicBodyBullet3d(lua_State *lua)
     {
         const int             top         = lua_gettop(lua);
@@ -73,7 +78,7 @@ struct USER_DATA_PHYSICS_3D
         const bool            isCharacter = false;
         if (ptr)
         {
-            auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+            auto *userData    = getRenderUserData(ptr);
             if (!ptr->isLoaded())
             {
                 return lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
@@ -114,7 +119,7 @@ struct USER_DATA_PHYSICS_3D
         const bool            isCharacter = true;
         if (ptr)
         {
-            auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+            auto *userData    = getRenderUserData(ptr);
             if (!ptr->isLoaded())
             {
                 return lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
@@ -154,7 +159,7 @@ struct USER_DATA_PHYSICS_3D
         const bool            isCharacter = false;
         if (ptr)
         {
-            auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+            auto *userData    = getRenderUserData(ptr);
             if (!ptr->isLoaded())
             {
                 return lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
@@ -194,7 +199,7 @@ struct USER_DATA_PHYSICS_3D
         const bool            isKinematic = true;
         if (ptr)
         {
-            auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+            auto *userData    = getRenderUserData(ptr);
             if (!ptr->isLoaded())
             {
                 return lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
@@ -243,7 +248,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           x          = luaL_checknumber(lua, 3);
         const float           y          = luaL_checknumber(lua, 4);
@@ -256,7 +261,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           x          = luaL_checknumber(lua, 3);
         const float           y          = luaL_checknumber(lua, 4);
@@ -269,7 +274,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           x          = luaL_checknumber(lua, 3);
         const float           y          = luaL_checknumber(lua, 4);
@@ -282,7 +287,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           x          = luaL_checknumber(lua, 3);
         const float           y          = luaL_checknumber(lua, 4);
@@ -295,7 +300,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           f          = luaL_checknumber(lua, 3);
         bullet->setFriction(infoBullet, f);
@@ -306,7 +311,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           r          = luaL_checknumber(lua, 3);
         bullet->setRestituition(infoBullet, r);
@@ -317,7 +322,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           mass       = luaL_checknumber(lua, 3);
         const float           x          = luaL_checknumber(lua, 4);
@@ -332,22 +337,24 @@ struct USER_DATA_PHYSICS_3D
         const int             top        = lua_gettop(lua);
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData); //-V595
-        const float           x          = top >= 3 ? luaL_checknumber(lua, 3) : ptr->position.x;
-        const float           y          = top >= 4 ? luaL_checknumber(lua, 4) : ptr->position.y;
-        const float           z          = top >= 5 ? luaL_checknumber(lua, 5) : ptr->position.z;
-        const float           ax         = top >= 6 ? luaL_checknumber(lua, 6) : ptr->angle.x;
-        const float           ay         = top >= 7 ? luaL_checknumber(lua, 7) : ptr->angle.y;
-        const float           az         = top >= 8 ? luaL_checknumber(lua, 8) : ptr->angle.z;
         if (ptr)
         {
+            auto *userData = getRenderUserData(ptr);
+            VEC3 &renderPosition = ptr->getPosition();
+            VEC3 &renderAngle = ptr->getAngle();
+            const float           x          = top >= 3 ? luaL_checknumber(lua, 3) : renderPosition.x;
+            const float           y          = top >= 4 ? luaL_checknumber(lua, 4) : renderPosition.y;
+            const float           z          = top >= 5 ? luaL_checknumber(lua, 5) : renderPosition.z;
+            const float           ax         = top >= 6 ? luaL_checknumber(lua, 6) : renderAngle.x;
+            const float           ay         = top >= 7 ? luaL_checknumber(lua, 7) : renderAngle.y;
+            const float           az         = top >= 8 ? luaL_checknumber(lua, 8) : renderAngle.z;
             auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
-            ptr->position.x = x;
-            ptr->position.y = y;
-            ptr->position.z = z;
-            ptr->angle.x    = ax;
-            ptr->angle.y    = ay;
-            ptr->angle.z    = az;
+            renderPosition.x = x;
+            renderPosition.y = y;
+            renderPosition.z = z;
+            renderAngle.x    = ax;
+            renderAngle.y    = ay;
+            renderAngle.z    = az;
             bullet->interference(infoBullet);
         }
         return 0;
@@ -357,7 +364,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const bool            bValue     = lua_toboolean(lua, 3) ? true : false;
         bullet->setAwake(infoBullet, bValue);
@@ -368,7 +375,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const bool            bValue     = bullet->isAwake(infoBullet);
         lua_pushboolean(lua, bValue ? 1 : 0);
@@ -383,8 +390,8 @@ struct USER_DATA_PHYSICS_3D
             DEVICE *             device    = DEVICE::getInstance();
             auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *               lua       = userScene->lua;
-            auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
-            auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
+            auto *    userData1 = getRenderUserData(info1);
+            auto *    userData2 = getRenderUserData(info2);
             lua_getglobal(lua, uData->szBeginContact);
             if (userData1->ref_MeAsTable != LUA_NOREF && userData2->ref_MeAsTable != LUA_NOREF && lua_isfunction(lua, -1))
             {
@@ -404,8 +411,8 @@ struct USER_DATA_PHYSICS_3D
             DEVICE *             device    = DEVICE::getInstance();
             auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *               lua       = userScene->lua;
-            auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
-            auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
+            auto *    userData1 = getRenderUserData(info1);
+            auto *    userData2 = getRenderUserData(info2);
             lua_getglobal(lua, uData->szEndContact);
             if (userData1->ref_MeAsTable != LUA_NOREF && userData2->ref_MeAsTable != LUA_NOREF && lua_isfunction(lua, -1))
             {
@@ -425,8 +432,8 @@ struct USER_DATA_PHYSICS_3D
             DEVICE *             device    = DEVICE::getInstance();
             auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *               lua       = userScene->lua;
-            auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
-            auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
+            auto *    userData1 = getRenderUserData(info1);
+            auto *    userData2 = getRenderUserData(info2);
             lua_getglobal(lua, uData->szKeepContact);
             if (userData1->ref_MeAsTable != LUA_NOREF && userData2->ref_MeAsTable != LUA_NOREF && lua_isfunction(lua, -1))
             {
@@ -468,7 +475,7 @@ struct USER_DATA_PHYSICS_3D
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userData   = getRenderUserData(ptr);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         lua_pushboolean(lua, bullet->isOnTheGround(infoBullet) ? 1 : 0);
         return 1;
@@ -490,7 +497,7 @@ struct USER_DATA_PHYSICS_3D
         RENDERIZABLE *  ptr = bullet->rayCast(startPoint, endPoint, hit, normal);
         if (ptr)
         {
-            auto *userData = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+            auto *userData = getRenderUserData(ptr);
             if (userData->ref_MeAsTable != LUA_NOREF)
             {
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_MeAsTable);
