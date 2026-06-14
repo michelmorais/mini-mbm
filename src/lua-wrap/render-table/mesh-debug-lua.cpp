@@ -1565,7 +1565,7 @@ namespace mbm
             {
                 PRINT_IF_DEBUG("there is no animation in the mesh!");
             }
-            if (renderizable->typeClass == TYPE_CLASS_PARTICLE)
+            if (renderizable->getTypeClass() == TYPE_CLASS_PARTICLE)
             {
                 auto* particle = static_cast<PARTICLE*>(renderizable);
                 if (particle)

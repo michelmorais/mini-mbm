@@ -61,7 +61,7 @@ namespace mbm
 			return 1;
 		}
 
-		switch (renderizable->typeClass)
+		switch (renderizable->getTypeClass())
 		{
             case TYPE_CLASS_MESH        : return onNewMeshNoGcLua(lua,renderizable);
 			case TYPE_CLASS_SPRITE      : return onNewSpriteNoGcLua(lua,renderizable);

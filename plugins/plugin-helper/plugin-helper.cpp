@@ -367,7 +367,7 @@ namespace mbm
         RENDERIZABLE* renderizable = *ud;
         ANIMATION_MANAGER * animManager = renderizable->getAnimationManager();
         if (animManager == nullptr)
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for animation_manager!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for animation_manager!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         return animManager;
     }
 
@@ -375,7 +375,7 @@ namespace mbm
     {
         ANIMATION_MANAGER * animManager = renderizable->getAnimationManager();
         if (animManager == nullptr)
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for animation_manager!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for animation_manager!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         return animManager;
     }
 
@@ -385,7 +385,7 @@ namespace mbm
         RENDERIZABLE* renderizable = *ud;
         FX * fx = renderizable->getFx();
         if (fx == nullptr)
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for FX!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for FX!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         return fx;
     }
 
@@ -393,7 +393,7 @@ namespace mbm
     {
         FX * fx = renderizable->getFx();
         if (fx == nullptr)
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for FX!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for FX!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         return fx;
     }
 
@@ -403,13 +403,13 @@ namespace mbm
         ANIMATION_MANAGER * animManager = renderizable->getAnimationManager();
         if (animManager == nullptr)
         {
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for ANIMATION_MANAGER!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for ANIMATION_MANAGER!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         }
         else
         {
             anim = animManager->getAnimation();
             if (anim == nullptr)
-                lua_error_debug(lua, "type of class [%d][%s] not implemented for ANIMATION_MANAGER!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+                lua_error_debug(lua, "type of class [%d][%s] not implemented for ANIMATION_MANAGER!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         }
         return anim;
     }

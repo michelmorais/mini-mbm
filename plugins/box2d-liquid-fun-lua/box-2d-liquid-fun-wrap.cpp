@@ -717,7 +717,7 @@ namespace mbm
         {
             INFO_FLUID* info  = this->lsFluid[i];
             {
-                if(info->steered_particle && info->particleSystem && info->steered_particle->typeClass == mbm::TYPE_CLASS_STEERED_PARTICLE)
+                if(info->steered_particle && info->particleSystem && info->steered_particle->getTypeClass() == mbm::TYPE_CLASS_STEERED_PARTICLE)
                 {
                     update_fluid(info);
                 }

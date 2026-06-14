@@ -56,8 +56,9 @@ namespace mbm
 		RENDERIZABLE * the_clone = nullptr;
 		const bool is3DObject = clone_from->is3DObject();
 		const bool is2dScreenObject = clone_from->is2dScreenObject();
+		const TYPE_CLASS typeClass = clone_from->getTypeClass();
 
-		switch(clone_from->typeClass)
+		switch(typeClass)
 		{
 			case TYPE_CLASS_MESH:          the_clone = new MESH(scene,is3DObject,is2dScreenObject); break;
 			case TYPE_CLASS_SPRITE:        the_clone = new SPRITE(scene,is3DObject,is2dScreenObject); break;

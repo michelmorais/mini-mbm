@@ -1846,6 +1846,13 @@ Milestone 219 implementation note:
 - Routed renderizable `getVariable()` / `setVariable()` through `RENDERIZABLE::getDynamicVar()` and `RENDERIZABLE::setDynamicVar()`.
 - Focused plugin scan for direct `RENDERIZABLE::lsDynamicVar` access is clean; remaining `lsDynamicVar` hits are generic map helpers or camera user-data maps.
 
+Milestone 220 implementation note:
+
+- Migrated remaining direct `RENDERIZABLE::typeClass` reads in Lua-wrap, plugin-helper diagnostics, LiquidFun fluid update, and renderizable clone construction to `RENDERIZABLE::getTypeClass()`.
+- Cached renderizable classification locally in clone construction before the type switch.
+- Cached `is2dScreenObject()` in Lua text-offset helpers while migrating their text type check to the accessor API.
+- Focused scan for direct `renderizable->typeClass` / `ptr->typeClass` style access in `src/lua-wrap`, `plugins`, and `renderizable-clone.cpp` is clean.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

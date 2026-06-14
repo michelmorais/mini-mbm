@@ -129,10 +129,11 @@ namespace mbm
 
     void doOffsetIfText(RENDERIZABLE *ptr,const float w,const float h)
     {
-        if(ptr->typeClass == TYPE_CLASS::TYPE_CLASS_TEXT)
+        if(ptr->getTypeClass() == TYPE_CLASS::TYPE_CLASS_TEXT)
         {
             VEC3 &position = ptr->getPosition();
-            if(ptr->is2dScreenObject())
+            const bool is2dScreenObject = ptr->is2dScreenObject();
+            if(is2dScreenObject)
             {
                 position.x += w * 0.5f;
                 position.y += h * 0.5f;
@@ -147,10 +148,11 @@ namespace mbm
 
     void undoOffsetIfText(RENDERIZABLE *ptr,const float w,const float h)
     {
-        if(ptr->typeClass == TYPE_CLASS::TYPE_CLASS_TEXT)
+        if(ptr->getTypeClass() == TYPE_CLASS::TYPE_CLASS_TEXT)
         {
             VEC3 &position = ptr->getPosition();
-            if(ptr->is2dScreenObject())
+            const bool is2dScreenObject = ptr->is2dScreenObject();
+            if(is2dScreenObject)
             {
                 position.x -= w * 0.5f;
                 position.y -= h * 0.5f;
