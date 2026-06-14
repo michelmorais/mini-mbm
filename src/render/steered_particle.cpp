@@ -197,7 +197,7 @@ namespace mbm
     
     bool STEERED_PARTICLE::isOnFrustum()
     {
-        if (this->isRender2Texture)
+        if (this->isRender2TextureEnabled())
             return false;
         if (this->getTotalParticleToRender() > 0)
             return true;
@@ -252,7 +252,7 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION* anim = this->getAnimation();
         FX &fx = anim->getFx();
-        this->blend.set(anim->getBlendState());
+        this->setBlendState(anim->getBlendState());
         anim->updateAnimation(device->delta, this, nullptr, this->getOnEndFx());
         fx.setBlendOp();
         fx.shader.update();
@@ -327,22 +327,25 @@ namespace mbm
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            if (this->is3D)
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
-                    this->position.y * camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             for (FLUID_GROUP* pGroup : this->lsParticleGroup)

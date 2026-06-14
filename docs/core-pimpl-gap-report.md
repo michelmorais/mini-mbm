@@ -1614,6 +1614,14 @@ Milestone 187 implementation note:
 - Replaced `DEVICE::disableAllButThis()` direct render-enable writes with `setEnableRender()`.
 - This keeps public `RENDERIZABLE` fields in place, but removes the core scheduler's dependency on those public flag/transform fields.
 
+Milestone 188 implementation note:
+
+- Migrated the first simple renderer batch to the `RENDERIZABLE` accessor API: `SPRITE`, `MESH`, `TEXTURE_VIEW`, `GIF_VIEW`, `LINE_MESH`, and `STEERED_PARTICLE`.
+- Replaced direct render transform reads with cached `getPosition()`, `getAngle()`, and `getScale()` locals in compact render matrix setup paths.
+- Replaced direct coordinate/type flag reads with `is3DObject()`, `is2dScreenObject()`, and `getTypeClass()` in the affected frustum and bounding-line paths.
+- Replaced direct blend-state writes with `setBlendState()` in the affected render paths.
+- This is still a compatibility-preserving migration; no `RENDERIZABLE` public field has moved behind `Impl` yet.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

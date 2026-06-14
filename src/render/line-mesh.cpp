@@ -183,7 +183,7 @@ namespace mbm
             return;
         float w,h = 0.0f;
         ptr->updateAABB();
-        if(ptr->is3D)
+        if(ptr->is3DObject())
         {
             /*
                f________________g
@@ -246,38 +246,40 @@ namespace mbm
             else
                 this->add(std::move(line));
         }
-        if(this->is3D)
+        VEC3 &position = this->getPosition();
+        const VEC3 &targetPosition = ptr->getPosition();
+        if(this->is3DObject())
         {
-            this->position = ptr->position;
+            position = targetPosition;
         }
         else
         {
-            this->position.x = ptr->position.x;
-            this->position.y = ptr->position.y;
+            position.x = targetPosition.x;
+            position.y = targetPosition.y;
         }
-        if(ptr->typeClass == TYPE_CLASS::TYPE_CLASS_TEXT)
+        if(ptr->getTypeClass() == TYPE_CLASS::TYPE_CLASS_TEXT)
         {
-            if(ptr->is2dS)
+            if(ptr->is2dScreenObject())
             {
-                this->position.x += w;
-                this->position.y += h;
+                position.x += w;
+                position.y += h;
             }
-            else if(ptr->is3D == false)
+            else if(ptr->is3DObject() == false)
             {
-                this->position.x += w;
-                this->position.y -= h;
+                position.x += w;
+                position.y -= h;
             }
             else
             {
-                this->position.x += w;
-                this->position.y -= h;
+                position.x += w;
+                position.y -= h;
             }
         }
     }
     
     bool LINE_MESH::isOnFrustum()
     {
-        if (this->isRender2Texture)
+        if (this->isRender2TextureEnabled())
             return false;
         return this->lsLines.size() != 0;
     }
@@ -288,27 +290,30 @@ namespace mbm
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            if (this->is3D)
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
-                                    this->position.y * camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             mbm::ANIMATION *anim = this->getAnimation();
             FX &fx = anim->getFx();
-            this->blend.set(anim->getBlendState());
+            this->setBlendState(anim->getBlendState());
             anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             fx.shader.update(); // glUseProgram
             fx.setBlendOp();
