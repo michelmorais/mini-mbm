@@ -126,7 +126,7 @@ namespace mbm
     {
         if (renderer)
         {
-            auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(renderer->userData);
+            auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(renderer->getUserData());
             DEVICE *         device    = DEVICE::getInstance();
             auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *           lua       = sceneData->lua;
@@ -149,7 +149,7 @@ namespace mbm
     {
         if (renderizable)
         {
-            auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->userData);
+            auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->getUserData());
             DEVICE *         device = DEVICE::getInstance();
             auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *           lua = sceneData->lua;
@@ -175,9 +175,9 @@ namespace mbm
         {
             RENDERIZABLE *        renderizable = nullptr;
             ANIMATION_MANAGER *   animations   = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
-            if(renderizable && renderizable->userData)
+            if(renderizable && renderizable->getUserData())
             {
-                auto *userData     = static_cast<USER_DATA_RENDER_LUA *>(renderizable->userData);
+                auto *userData     = static_cast<USER_DATA_RENDER_LUA *>(renderizable->getUserData());
                 userData->refTableLua(lua, 1, &userData->ref_MeAsTable);
                 userData->refFunctionLua(lua, 2, &userData->ref_CallBackAnimation);
                 if(userData->ref_CallBackAnimation == LUA_NOREF)
@@ -196,9 +196,9 @@ namespace mbm
         {
             RENDERIZABLE *        renderizable = nullptr;
             ANIMATION_MANAGER *   animations = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
-            if(renderizable && renderizable->userData)
+            if(renderizable && renderizable->getUserData())
             {
-                auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->userData);
+                auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->getUserData());
                 userData->refTableLua(lua, 1, &userData->ref_MeAsTable);
                 userData->refFunctionLua(lua, 2, &userData->ref_CallBackEffectShader);
                 if(userData->ref_CallBackEffectShader == LUA_NOREF)
@@ -446,7 +446,7 @@ namespace mbm
         ANIMATION_MANAGER *animManager = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
         ANIMATION* anim                = animManager->getAnimation(); //-V522
         const BLEND_STATE blendState   = anim->getBlendState();
-        const char *       descr       = renderizable->blend.getDesc(blendState);
+        const char *       descr       = renderizable->getBlend().getDesc(blendState);
         lua_pushstring(lua, descr);
         lua_pushnumber(lua, static_cast<lua_Number>(blendState));
         return 2;

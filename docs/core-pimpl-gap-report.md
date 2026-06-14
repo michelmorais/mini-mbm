@@ -1798,6 +1798,14 @@ Milestone 213 implementation note:
 - Replaced shape/line `is3D` checks with cached `is3DObject()` values where repeated in a function.
 - Focused scan for direct `RENDERIZABLE` fields in the four touched files is clean.
 
+Milestone 214 implementation note:
+
+- Migrated `animation-lua.cpp` renderizable callback and blend-description paths to the `RENDERIZABLE` accessor API.
+- Replaced animation callback `userData` reads and null checks with `getUserData()`.
+- Replaced direct `blend` description lookup with `getBlend()`.
+- Focused scan for direct `RENDERIZABLE` fields in `animation-lua.cpp` is clean.
+- Remaining render-table scan hits are `CAMERA_TARGET` fields in `render-2-texture-lua.cpp` and mesh-debug buffer fields in `mesh-debug-lua.cpp`, not `RENDERIZABLE` fields.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
