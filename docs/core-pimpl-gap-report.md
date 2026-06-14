@@ -1665,6 +1665,13 @@ Milestone 194 implementation note:
 - Cached `position`, `scale`, `angle`, and coordinate flags in the text render/frustum paths to follow the accessor reuse rule.
 - This keeps text layout/render behavior unchanged while removing direct `RENDERIZABLE` transform/flag/blend field use from `font.cpp`.
 
+Milestone 195 implementation note:
+
+- Migrated `TILE`, `TILE_LAYER`, and `TILE_OBJ` render-state usage in `tile.cpp` to the `RENDERIZABLE` accessor API.
+- Replaced parent tile scale/position/angle/blend reads, layer z-order reads/writes, layer visibility writes, layer frustum checks, tile-object transform setup, and tile-object blend writes with accessor-backed state.
+- Cached `position`, `scale`, `angle`, and coordinate flags in tile render, tile size/position helpers, tile-object construction, and tile-object render paths to follow the accessor reuse rule.
+- This keeps tile map rendering, layer z ordering, and tile-object physics setup unchanged while removing direct `RENDERIZABLE` transform/flag/blend field use from `tile.cpp`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
