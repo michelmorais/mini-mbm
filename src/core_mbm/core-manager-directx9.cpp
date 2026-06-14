@@ -130,20 +130,21 @@ namespace mbm
     {
         int x = width;
         int y = height;
-        DEVICE* device = DEVICE::getInstance();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
         // Initialize window position
         device->setWindowPosition(px, py);
         this->setNameApplication(nameApplication);
-        device->getSpecificContextDevice()->window.setNameAplication(nameApplication);
-        if (!device->getSpecificContextDevice()->window.init(nameApplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
-            this->device->getSpecificContextDevice()->idIcon, false))
+        context->window.setNameAplication(nameApplication);
+        if (!context->window.init(nameApplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
+            context->idIcon, false))
         {
-            device->getSpecificContextDevice()->window.messageBox("error on init app ... will be closed ");
+            context->window.messageBox("error on init app ... will be closed ");
             PRINT_IF_DEBUG("error on init app ... will be closed %s", "error on create window");
             return false;
         }
-        device->getSpecificContextDevice()->window.setMinSizeAllowed(800, 600);
-        HWND mNativeWindow = device->getSpecificContextDevice()->window.getHwnd();
+        context->window.setMinSizeAllowed(800, 600);
+        HWND mNativeWindow = context->window.getHwnd();
         RECT rect;
         if (!GetClientRect(mNativeWindow, &rect))
         {
@@ -167,17 +168,17 @@ namespace mbm
             x = width;
             y = height;
         }
-        if (this->device->getSpecificContextDevice()->win32_EventByPass)
-            device->getSpecificContextDevice()->window.setCallEventsManager(this->device->getSpecificContextDevice()->win32_EventByPass);
-        if (this->device->getSpecificContextDevice()->win32_joystickByPass)
-            this->device->getSpecificContextDevice()->win32_joystickByPass->initJoystick(&device->getSpecificContextDevice()->window);
+        if (context->win32_EventByPass)
+            context->window.setCallEventsManager(context->win32_EventByPass);
+        if (context->win32_joystickByPass)
+            context->win32_joystickByPass->initJoystick(&context->window);
 
         if (D3DXCheckVersion(D3D_SDK_VERSION, D3DX_SDK_VERSION))
         {
             INFO_LOG("DirectX version is not present or if there is a failure during initialization");
         }
 
-        if (NULL == (this->device->getSpecificContextDevice()->pD3D = Direct3DCreate9(D3D_SDK_VERSION)))
+        if (NULL == (context->pD3D = Direct3DCreate9(D3D_SDK_VERSION)))
         {
 
             ERROR_AT(__LINE__, __FILE__, "failed to create hardware device '%s'", "Direct3DCreate9");
@@ -199,14 +200,14 @@ namespace mbm
         D3DCAPS9 cap;
 
         D3DDEVTYPE _typeDevice = D3DDEVTYPE_HAL;
-        this->device->getSpecificContextDevice()->pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, _typeDevice, &cap);
+        context->pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, _typeDevice, &cap);
         int Hardware_Software_Vertex_Process = 0;
         const bool forceSoftwareProcess = false;
         if (forceSoftwareProcess)
         {
-            if (FAILED(this->device->getSpecificContextDevice()->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, mNativeWindow,
+            if (FAILED(context->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, mNativeWindow,
                 D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED,
-                &d3dParams, &this->device->getSpecificContextDevice()->pd3dDevice)))
+                &d3dParams, &context->pd3dDevice)))
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to create software device");
                 return false;
@@ -219,21 +220,21 @@ namespace mbm
             else
             {
                 _typeDevice = D3DDEVTYPE_REF;//Nosso Tipo De Dispositivo Que Queremos Capturar
-                this->device->getSpecificContextDevice()->pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, _typeDevice, &cap);
+                context->pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, _typeDevice, &cap);
                 Hardware_Software_Vertex_Process = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
             }
             //Passo 4:Criamos O Dispositivo -----------------------------------------------------------------------------------
-            if (FAILED(this->device->getSpecificContextDevice()->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, mNativeWindow,
+            if (FAILED(context->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, mNativeWindow,
                 Hardware_Software_Vertex_Process | D3DCREATE_MULTITHREADED,
-                &d3dParams, &this->device->getSpecificContextDevice()->pd3dDevice)))
+                &d3dParams, &context->pd3dDevice)))
             {
-                if (FAILED(this->device->getSpecificContextDevice()->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, mNativeWindow,
+                if (FAILED(context->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, mNativeWindow,
                     Hardware_Software_Vertex_Process | D3DCREATE_MULTITHREADED,
-                    &d3dParams, &this->device->getSpecificContextDevice()->pd3dDevice)))
+                    &d3dParams, &context->pd3dDevice)))
                 {
-                    if (FAILED(this->device->getSpecificContextDevice()->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_SW, mNativeWindow,
+                    if (FAILED(context->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_SW, mNativeWindow,
                         D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_DISABLE_DRIVER_MANAGEMENT,
-                        &d3dParams, &this->device->getSpecificContextDevice()->pd3dDevice)))
+                        &d3dParams, &context->pd3dDevice)))
                     {
                         ERROR_AT(__LINE__, __FILE__, "failed to create hardware device");
                         return false;
@@ -246,46 +247,46 @@ namespace mbm
         const uint32_t maxTextureSize = cap.MaxTextureWidth * cap.MaxTextureWidth;
         texture_manager->setTextureCapabilities(maxTextureSize, cap.MaxTextureWidth, cap.MaxTextureHeight);
 
-        this->device->getSpecificContextDevice()->pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);//Turn on the face oclusion
-        this->device->getSpecificContextDevice()->pd3dDevice->SetRenderState(D3DRS_LIGHTING, false);//Turn off ilumination
-        this->device->getSpecificContextDevice()->pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);//Turn on Zbuffer
+        context->pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);//Turn on the face oclusion
+        context->pd3dDevice->SetRenderState(D3DRS_LIGHTING, false);//Turn off ilumination
+        context->pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);//Turn on Zbuffer
         //TODO: set matrix mode to world
 
         //optional states
-        this->device->getSpecificContextDevice()->pd3dDevice->SetRenderState(D3DRS_AMBIENT, D3DCOLOR_XRGB(100, 100, 100));
+        context->pd3dDevice->SetRenderState(D3DRS_AMBIENT, D3DCOLOR_XRGB(100, 100, 100));
         //enable blender
-        this->device->getSpecificContextDevice()->pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
+        context->pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
 
         //This value can range from 1 to 16, with higher values providing better image quality at the cost of performance.
         for (DWORD stage = 0; stage < 2; ++stage)
         {
             const DWORD Anisotropy = static_cast<DWORD>(static_cast<float>(cap.MaxAnisotropy) * 0.5);
-            if (FAILED(this->device->getSpecificContextDevice()->pd3dDevice->SetSamplerState(stage, D3DSAMP_MAXANISOTROPY, Anisotropy))) //50%
+            if (FAILED(context->pd3dDevice->SetSamplerState(stage, D3DSAMP_MAXANISOTROPY, Anisotropy))) //50%
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MAXANISOTROPY %d", Anisotropy);
             }
-            if (FAILED(this->device->getSpecificContextDevice()->pd3dDevice->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+            if (FAILED(context->pd3dDevice->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MINFILTER %d", Anisotropy);
             }
-            if (FAILED(this->device->getSpecificContextDevice()->pd3dDevice->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+            if (FAILED(context->pd3dDevice->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MAGFILTER %d", Anisotropy);
             }
-            if (FAILED(this->device->getSpecificContextDevice()->pd3dDevice->SetSamplerState(stage, D3DSAMP_MIPFILTER, D3DTEXF_NONE)))
+            if (FAILED(context->pd3dDevice->SetSamplerState(stage, D3DSAMP_MIPFILTER, D3DTEXF_NONE)))
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MIPFILTER %d", Anisotropy);
             }
-            this->device->getSpecificContextDevice()->pd3dDevice->SetSamplerState(stage, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-            this->device->getSpecificContextDevice()->pd3dDevice->SetSamplerState(stage, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
-            this->device->getSpecificContextDevice()->pd3dDevice->GetSamplerState(stage, D3DSAMP_MINFILTER, &this->device->getSpecificContextDevice()->DWORD_D3DSAMP_MINFILTER[stage]);
-            this->device->getSpecificContextDevice()->pd3dDevice->GetSamplerState(stage, D3DSAMP_MAGFILTER, &this->device->getSpecificContextDevice()->DWORD_D3DSAMP_MAGFILTER[stage]);
-            this->device->getSpecificContextDevice()->pd3dDevice->GetSamplerState(stage, D3DSAMP_MIPFILTER, &this->device->getSpecificContextDevice()->DWORD_D3DSAMP_MIPFILTER[stage]);
+            context->pd3dDevice->SetSamplerState(stage, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+            context->pd3dDevice->SetSamplerState(stage, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+            context->pd3dDevice->GetSamplerState(stage, D3DSAMP_MINFILTER, &context->DWORD_D3DSAMP_MINFILTER[stage]);
+            context->pd3dDevice->GetSamplerState(stage, D3DSAMP_MAGFILTER, &context->DWORD_D3DSAMP_MAGFILTER[stage]);
+            context->pd3dDevice->GetSamplerState(stage, D3DSAMP_MIPFILTER, &context->DWORD_D3DSAMP_MIPFILTER[stage]);
         }
 
         
         
-        device->getSpecificContextDevice()->window.disableRender(mNativeWindow);
+        context->window.disableRender(mNativeWindow);
         //TODO: set real version from DirectX
         INFO_LOG("\nDIRECTX Version: %s\n", "9");
         if (device->isVerbose())
