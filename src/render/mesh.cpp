@@ -117,17 +117,18 @@ namespace mbm
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
-            this->blend.set(anim->blendState);
-            anim->fx.shader.update();
-            anim->fx.setBlendOp();
-            if (anim->fx.textureOverrideStage2)
+            FX &fx = anim->getFx();
+            this->blend.set(anim->getBlendState());
+            fx.shader.update();
+            fx.setBlendOp();
+            if (fx.textureOverrideStage2)
             {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader, anim->fx.textureOverrideStage2))
+                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, fx.textureOverrideStage2))
                     return false;
             }
             else
             {
-                if (!mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader, nullptr))
+                if (!mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, nullptr))
                     return false;
             }
             return true;
@@ -193,7 +194,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 

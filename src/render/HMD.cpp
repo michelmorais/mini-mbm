@@ -190,13 +190,14 @@ namespace mbm
             ANIMATION *anim = this->getAnimation();
             if (anim)
             {
-                this->blend.set(anim->blendState);
+                FX &fx = anim->getFx();
+                this->blend.set(anim->getBlendState());
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
-                anim->fx.shader.update(); // glUseProgram
-                anim->fx.setBlendOp();
-                if (anim->fx.textureOverrideStage2)
-                    bufferSide->setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
-                if (!anim->fx.shader.render(bufferSide))
+                fx.shader.update(); // glUseProgram
+                fx.setBlendOp();
+                if (fx.textureOverrideStage2)
+                    bufferSide->setTextureByStage(fx.textureOverrideStage2, 1, 0);
+                if (!fx.shader.render(bufferSide))
                     return false;
                 return true;
             }

@@ -307,13 +307,14 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             mbm::ANIMATION *anim = this->getAnimation();
-            this->blend.set(anim->blendState);
+            FX &fx = anim->getFx();
+            this->blend.set(anim->getBlendState());
             anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
-            anim->fx.shader.update(); // glUseProgram
-            anim->fx.setBlendOp();
+            fx.shader.update(); // glUseProgram
+            fx.setBlendOp();
             for (auto line : this->lsLines)
             {
-                if (!line->renderLines(&anim->fx.shader))
+                if (!line->renderLines(&fx.shader))
                     return false;
             }
             return true;
@@ -366,11 +367,12 @@ namespace mbm
         const char* fileNamePs = "__line_color.ps";
         const char* fileNameVs = "__line_color.vs";
 
-        anim->fx.fxPS->setCurrentShader(anim->fx.fxPS->loadEffect(fileNamePs, getCodePScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED));
-        anim->fx.fxVS->setCurrentShader(anim->fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED));
-        if (!anim->fx.fxPS->getCurrentShader() || !anim->fx.fxVS->getCurrentShader())
+        FX &fx = anim->getFx();
+        fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, getCodePScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED));
+        fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED));
+        if (!fx.fxPS->getCurrentShader() || !fx.fxVS->getCurrentShader())
             return false;
-        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer());
+        const bool ret = fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer());
         if (!ret)
         {
             PRINT_IF_DEBUG("failed to compile shader:%s", fileNamePs);
@@ -379,16 +381,16 @@ namespace mbm
         else
         {
             float c[4] = { 1, 0, 0, 1 };
-            void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
-            if (!anim->fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, c, backendShaderSpecific, true))
+            void *backendShaderSpecific = fx.shader.getBackendShaderSpecific();
+            if (!fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, c, backendShaderSpecific, true))
             {
 #if defined _DEBUG
                 PRINT_IF_DEBUG("failed to included variable %s shader %s!", "color", fileNamePs);
 #endif
             }
-            for (unsigned int i = 0; i < anim->fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
+            for (unsigned int i = 0; i < fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
             {
-                VAR_SHADER* varShader = anim->fx.fxPS->getCurrentShader()->getVar(i);
+                VAR_SHADER* varShader = fx.fxPS->getCurrentShader()->getVar(i);
                 if (varShader)
                 {
                     varShader->set(c, c, 1.0f);
@@ -409,7 +411,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 

@@ -242,9 +242,10 @@ namespace mbm
                     backPos.x += width_tile * 0.25f;
                 }
 
+                FX &fx = anim->getFx();
                 MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &this->angle, &backGround_scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
-                if (anim->fx.shader.render(&this->backGroundMap) == false)
+                if (fx.shader.render(&this->backGroundMap) == false)
                 {
                     device->enableFilteringAfterPixelPerfect();
                     return false;
@@ -281,11 +282,12 @@ namespace mbm
         device->disableFilteringForPixelPerfect();
 
         anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
-        anim->fx.shader.update();
-        this->blend.set(anim->blendState);
-        anim->fx.setBlendOp();
+        FX &fx = anim->getFx();
+        fx.shader.update();
+        this->blend.set(anim->getBlendState());
+        fx.setBlendOp();
 
-        TEXTURE* idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2 : nullptr;
+        TEXTURE* idTextureOverrideStage2 = fx.textureOverrideStage2 ? fx.textureOverrideStage2 : nullptr;
         VEC3 thePosBrick(renderPos);
         const MATRIX *matrixPerspective = nullptr;
         const CAMERA &camera = device->getCamera();
@@ -322,7 +324,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i,
                                 j - 1,
@@ -345,7 +347,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i,
                                 j,
@@ -371,7 +373,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i - 1,
                                 j - 1,
@@ -394,7 +396,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i - 1,
                                 j,
@@ -423,7 +425,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i,
                                 j - 1,
@@ -446,7 +448,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i,
                                 j,
@@ -472,7 +474,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i - 1,
                                 j - 1,
@@ -495,7 +497,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i - 1,
                                 j,
@@ -813,7 +815,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -989,7 +991,7 @@ namespace mbm
     {
         ANIMATION* anim = ptr_tileMap->getAnimation(indexLayer);
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -1160,7 +1162,7 @@ namespace mbm
     {
         auto anim = ptr_tileMap->getAnimation(index_layer);
         if(anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -1181,9 +1183,10 @@ namespace mbm
         auto anim            = ptr_tileMap->getAnimation(index_layer);
         if(anim && index_layer < ptr_cTileInfo->map.layerCount && brickID < ptr_cTileInfo->map.countRawTiles)
         {
-            anim->fx.shader.update();
-            this->blend.set(anim->blendState);
-            anim->fx.setBlendOp();
+            FX &fx = anim->getFx();
+            fx.shader.update();
+            this->blend.set(anim->getBlendState());
+            fx.setBlendOp();
             auto * device = DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
             
@@ -1206,7 +1209,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
 
-            return this->ptr_Mesh->render(brickID, &anim->fx.shader, anim->fx.textureOverrideStage2);
+            return this->ptr_Mesh->render(brickID, &fx.shader, fx.textureOverrideStage2);
         }
         return false;
     }

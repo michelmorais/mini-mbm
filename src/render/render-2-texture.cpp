@@ -324,13 +324,14 @@ namespace mbm
             mbm::ANIMATION *anim = this->getAnimation();
             if (anim)
             {
-                this->blend.set(anim->blendState);
+                FX &fx = anim->getFx();
+                this->blend.set(anim->getBlendState());
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(),this->getOnEndFx());
-                anim->fx.shader.update(); // glUseProgram
-                anim->fx.setBlendOp();
-                if (anim->fx.textureOverrideStage2)
-                    this->bufferGL.setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
-                if (!anim->fx.shader.render(&this->bufferGL))
+                fx.shader.update(); // glUseProgram
+                fx.setBlendOp();
+                if (fx.textureOverrideStage2)
+                    this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
+                if (!fx.shader.render(&this->bufferGL))
                     return false;
                 return true;
             }
@@ -475,7 +476,8 @@ namespace mbm
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->appendAnimation(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
+        FX &fx = anim->getFx();
+        if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         return true;
     }
@@ -494,7 +496,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
