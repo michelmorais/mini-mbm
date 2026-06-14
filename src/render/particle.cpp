@@ -158,7 +158,7 @@ namespace mbm
             }
             char strTemp[255];
             snprintf(strTemp, sizeof(strTemp), "%s@%u@%s@%s", fileNameTextureOrMesh, effectiveTotal, operatorShader, newCodeLine ? newCodeLine : "");
-            this->fileName = strTemp;
+            this->setInternalFileName(strTemp);
             this->setEnableRender(true);
             this->setAlwaysRenderize(true);
             // Only start with 0 alive when loading texture (not .ptl) without particle count - particles arise over time

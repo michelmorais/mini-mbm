@@ -73,7 +73,7 @@ namespace mbm
                 }
             }
             this->populateTextureStage2FromMesh(this->mesh);
-            this->fileName = fileName;
+            this->setInternalFileName(fileName);
             this->restartAnimation();
             this->updateAABB();
             return true;

@@ -94,7 +94,7 @@ namespace mbm
                 }
             }
             this->populateTextureStage2FromMesh(this->mesh);
-            this->fileName = fileName;
+            this->setInternalFileName(fileName);
             this->restartAnimation();
             const auto * ptr_TileInfo = this->mesh->getInfoTile();
             if (ptr_TileInfo)

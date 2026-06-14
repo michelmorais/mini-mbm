@@ -235,7 +235,7 @@ namespace mbm
                 if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                     return false;
             }
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             return true;
         }
@@ -340,7 +340,7 @@ namespace mbm
             FX &fx = anim->getFx();
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
@@ -503,7 +503,7 @@ namespace mbm
             FX &fx = anim->getFx();
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
@@ -595,7 +595,7 @@ namespace mbm
             FX &fx = anim->getFx();
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
@@ -755,7 +755,7 @@ namespace mbm
             FX &fx = anim->getFx();
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
@@ -899,7 +899,7 @@ namespace mbm
             FX &fx = anim->getFx();
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             return true;
         }
@@ -1044,7 +1044,7 @@ namespace mbm
             FX &fx = anim->getFx();
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             return true;
         }

@@ -124,11 +124,12 @@ namespace mbm
         }
         this->bufferGL.setTextureByStage(this->textures[0], 0, 0);
         
-        this->fileName = fileNameTexture;
-        this->fileName += '|';
-        this->fileName += std::to_string(w <= 0.0f ? infoGif.widthTexture : w);
-        this->fileName += '|';
-        this->fileName += std::to_string(h <= 0.0f ? infoGif.heightTexture : h);
+        std::string restoreFileName = fileNameTexture;
+        restoreFileName += '|';
+        restoreFileName += std::to_string(w <= 0.0f ? infoGif.widthTexture : w);
+        restoreFileName += '|';
+        restoreFileName += std::to_string(h <= 0.0f ? infoGif.heightTexture : h);
+        this->setInternalFileName(restoreFileName);
 
         this->updateAABB();
         return true;

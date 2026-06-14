@@ -1887,6 +1887,14 @@ Milestone 225 implementation note:
 - Focused scan shows remaining `this->fileName.c_str()` hits in `src/render` belong to `FONT_DRAW`, which owns a separate font filename string and is not `RENDERIZABLE` storage.
 - Left broader direct `RENDERIZABLE::fileName` assignment builders for later milestones so construction/load behavior stays easy to review.
 
+Milestone 226 implementation note:
+
+- Migrated remaining direct `RENDERIZABLE::fileName` writes in render load/build paths to `setInternalFileName()` / `clearInternalFileName()`.
+- Covered `MESH`, `SPRITE`, `TILE`, `PARTICLE`, `STEERED_PARTICLE`, `TEXTURE_VIEW`, `GIF_VIEW`, `BACKGROUND`, `RENDER_2_TEXTURE`, `HMD`, and `SHAPE_MESH`.
+- Converted encoded restore-name builders in `BACKGROUND` and `GIF_VIEW` to local `std::string` values followed by one helper assignment, keeping the stored restore format unchanged.
+- Focused scan for direct `this->fileName` writes in `src/render` now only reports `FONT_DRAW`, which owns a separate font filename string and is not `RENDERIZABLE` storage.
+- Remaining broad direct filename writes belong to non-renderizable owner classes such as `TEXTURE`, `AUDIO`, `MESH_MBM`, `SHADER`, and the `RENDERIZABLE` helper implementation.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

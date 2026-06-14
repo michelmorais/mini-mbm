@@ -101,10 +101,11 @@ namespace mbm
             return false;
         if (newText)
             this->text                = newText;
-        this->fileName = "loadFont|";
-        this->fileName += fileNameMeshMbm;
-        this->fileName += "|";
-        this->fileName += newText ? newText : "(null)";
+        std::string restoreFileName = "loadFont|";
+        restoreFileName += fileNameMeshMbm;
+        restoreFileName += "|";
+        restoreFileName += newText ? newText : "(null)";
+        this->setInternalFileName(restoreFileName);
 
         return true;
     }
@@ -243,8 +244,9 @@ namespace mbm
             // carregamos a textura do estagio 2
             this->populateTextureStage2FromMesh(this->mesh);
             this->restartAnimation();
-            this->fileName = "load|";
-            this->fileName += fileName;
+            std::string restoreFileName = "load|";
+            restoreFileName += fileName;
+            this->setInternalFileName(restoreFileName);
             this->updateAABB();
             return true;
         }
@@ -273,12 +275,13 @@ namespace mbm
             this->buffer->setTextureByStage(this->texture, 0, 0);
             bool useAlpha  = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
             this->type     = util::TYPE_MESH_TEXTURE;
-            this->fileName = "loadTexture|";
-            this->fileName += fileName;
+            std::string restoreFileName = "loadTexture|";
+            restoreFileName += fileName;
             if (useAlpha)
-                this->fileName += "|1";
+                restoreFileName += "|1";
             else
-                this->fileName += "|0";
+                restoreFileName += "|0";
+            this->setInternalFileName(restoreFileName);
 
             this->restartAnimation();
             return true;

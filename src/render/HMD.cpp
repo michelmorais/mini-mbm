@@ -37,7 +37,7 @@ namespace mbm
         this->texture = nullptr;
         this->lsObjects2dRender.clear();
         this->lsObjects3dRender.clear();
-        this->fileName.clear();
+        this->clearInternalFileName();
         this->bufferGLRight.release();
         this->bufferGL.release();
     }
@@ -123,7 +123,7 @@ namespace mbm
                 snprintf(strTemp,sizeof(strTemp)-1, "rende2texture|%s|%u|%u|%u|%u|%s", nickName, widthFrame, heightFrame, widthTexture,
                         heightTexture, hasAlpha ? "true" : "false");
 
-                this->fileName = strTemp;
+                this->setInternalFileName(strTemp);
             }
         }
         return (this->texture != nullptr);

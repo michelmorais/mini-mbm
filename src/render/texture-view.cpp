@@ -91,7 +91,7 @@ namespace mbm
         this->bufferGL.setTextureByStage(this->texture, 0, 0);
         char strTemp[255];
         snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->texture->useAlphaChannel ? 1 : 0);
-        this->fileName = strTemp;
+        this->setInternalFileName(strTemp);
         this->updateAABB();
         return true;
     }
@@ -115,7 +115,7 @@ namespace mbm
         char strTemp[255];
         const std::string baseFileName = util::getBaseName(fileNameTexture);
         snprintf(strTemp, sizeof(strTemp), "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, useAlpha);
-        this->fileName = strTemp;
+        this->setInternalFileName(strTemp);
         this->updateAABB();
         return true;
     }

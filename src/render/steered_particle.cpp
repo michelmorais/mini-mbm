@@ -229,7 +229,7 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
                 return false;
             }
-            this->fileName = fileNameTexture;
+            this->setInternalFileName(fileNameTexture);
             this->setEnableRender(true);
             this->setAlwaysRenderize(true);
             this->updateAABB();

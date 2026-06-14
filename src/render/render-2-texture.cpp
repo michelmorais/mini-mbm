@@ -117,7 +117,7 @@ namespace mbm
             this->texture = nullptr;
         }
         this->clear();
-        this->fileName.clear();
+        this->clearInternalFileName();
         this->bufferGL.release();
     }
     
@@ -192,7 +192,7 @@ namespace mbm
                 cube->halfDim.x               = widthFrame * 0.5f;
                 cube->halfDim.y               = heightFrame * 0.5f;
                 cube->halfDim.z               = 1;
-                this->fileName = strTemp;
+                this->setInternalFileName(strTemp);
                 this->updateAABB();
             }
         }
