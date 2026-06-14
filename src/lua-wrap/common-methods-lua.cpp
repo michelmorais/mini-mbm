@@ -115,9 +115,9 @@ namespace mbm
             const float        y     = luaL_checknumber(lua, 3);
             bool               ret   = false;
             DEVICE *      device = DEVICE::getInstance();
-            if (ptr->is3D)
+            if (ptr->is3DObject())
                 ret = ptr->isOver3d(device, x, y);
-            else if (ptr->is2dS)
+            else if (ptr->is2dScreenObject())
                 ret = ptr->isOver2ds(device, x, y);
             else
                 ret = ptr->isOver2dw(device, x, y);
@@ -131,15 +131,16 @@ namespace mbm
     {
         if(ptr->typeClass == TYPE_CLASS::TYPE_CLASS_TEXT)
         {
-            if(ptr->is2dS)
+            VEC3 &position = ptr->getPosition();
+            if(ptr->is2dScreenObject())
             {
-                ptr->position.x += w * 0.5f;
-                ptr->position.y += h * 0.5f;
+                position.x += w * 0.5f;
+                position.y += h * 0.5f;
             }
             else
             {
-                ptr->position.x += w * 0.5f;
-                ptr->position.y -= h * 0.5f;
+                position.x += w * 0.5f;
+                position.y -= h * 0.5f;
             }
         }
     }
@@ -148,15 +149,16 @@ namespace mbm
     {
         if(ptr->typeClass == TYPE_CLASS::TYPE_CLASS_TEXT)
         {
-            if(ptr->is2dS)
+            VEC3 &position = ptr->getPosition();
+            if(ptr->is2dScreenObject())
             {
-                ptr->position.x -= w * 0.5f;
-                ptr->position.y -= h * 0.5f;
+                position.x -= w * 0.5f;
+                position.y -= h * 0.5f;
             }
             else
             {
-                ptr->position.x -= w * 0.5f;
-                ptr->position.y += h * 0.5f;
+                position.x -= w * 0.5f;
+                position.y += h * 0.5f;
             }
         }
     }
@@ -182,10 +184,12 @@ namespace mbm
 			float h1 = 0.0f;
 			float w2 = 0.0f;
 			float h2 = 0.0f;
+            VEC3 &positionA = ptrA->getPosition();
+            VEC3 &positionB = ptrB->getPosition();
             
-            if(ptrA->is2dS)
+            if(ptrA->is2dScreenObject())
             {
-                if(ptrB->is2dS)//2ds
+                if(ptrB->is2dScreenObject())//2ds
                 {
                     if(useAABB)
                     {
@@ -202,12 +206,12 @@ namespace mbm
                     {
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        collide = device->checkBoundCollision(ptrA->position, w1,h1,ptrB->position,w2,h2);
+                        collide = device->checkBoundCollision(positionA, w1,h1,positionB,w2,h2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
-                else if(ptrB->is3D == false)//2dw
+                else if(ptrB->is3DObject() == false)//2dw
                 {
                     if(useAABB)
                     {
@@ -225,18 +229,18 @@ namespace mbm
                         VEC2 pos;
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        device->transformeWorld2dToScreen2d_scaled(ptrB->position.x,ptrB->position.y,pos);
+                        device->transformeWorld2dToScreen2d_scaled(positionB.x,positionB.y,pos);
                         const VEC3 p2(pos.x,pos.y,0.0f);
-                        collide = device->checkBoundCollision(ptrA->position,w1,h1,p2,w2,h2);
+                        collide = device->checkBoundCollision(positionA,w1,h1,p2,w2,h2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
             
             }
-            else if(ptrA->is3D == false)//2dw
+            else if(ptrA->is3DObject() == false)//2dw
             {
-                if(ptrB->is3D == false && ptrB->is2dS == false) // 2dw
+                if(ptrB->is3DObject() == false && ptrB->is2dScreenObject() == false) // 2dw
                 {
                     if(useAABB)
                     {
@@ -253,12 +257,12 @@ namespace mbm
                     {
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        collide = device->checkBoundCollision(ptrA->position,w1,h1,ptrB->position,w2,h2);
+                        collide = device->checkBoundCollision(positionA,w1,h1,positionB,w2,h2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
-                else if(ptrB->is2dS)
+                else if(ptrB->is2dScreenObject())
                 {
                     if(useAABB)
                     {
@@ -276,8 +280,8 @@ namespace mbm
                         VEC3 pos;
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        device->transformeScreen2dToWorld2d_scaled(ptrB->position.x,ptrB->position.y,pos);
-                        collide = device->checkBoundCollision(ptrA->position,w1,h1,pos,w2,h2);
+                        device->transformeScreen2dToWorld2d_scaled(positionB.x,positionB.y,pos);
+                        collide = device->checkBoundCollision(positionA,w1,h1,pos,w2,h2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
@@ -286,7 +290,7 @@ namespace mbm
             }
             else//3d
             {
-                if(ptrB->is3D)//3d
+                if(ptrB->is3DObject())//3d
                 {
                     float d1 , d2 = 0.0f;
                     if(useAABB)
@@ -304,7 +308,7 @@ namespace mbm
                     {
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        collide = device->checkBoundCollision(ptrA->position,w1,h1,d1,ptrB->position,w2,h2,d2);
+                        collide = device->checkBoundCollision(positionA,w1,h1,d1,positionB,w2,h2,d2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
@@ -329,22 +333,23 @@ namespace mbm
 				ptrA->getAABB(&w,&h,&d);
 			else
 				ptrA->getWidthHeight(&w,&h,&d);
-			if(ptrA->is2dS)
+            VEC3 &positionA = ptrA->getPosition();
+			if(ptrA->is2dScreenObject())
 			{
 				const VEC2 rect(w*0.5f,h*0.5f);
-				collide = device->isPointScreen2DOnRectangleScreen2d(positioScreen,rect,ptrA->position);
+				collide = device->isPointScreen2DOnRectangleScreen2d(positioScreen,rect,positionA);
 			}
-			else if(ptrA->is3D == false) //2dw
+			else if(ptrA->is3DObject() == false) //2dw
 			{
 				const VEC2 rect(w*0.5f,h*0.5f);
-				collide = device->isPointScreen2DOnRectangleWorld2d(positioScreen,rect,ptrA->position);
+				collide = device->isPointScreen2DOnRectangleWorld2d(positioScreen,rect,positionA);
 			}
 			else//3d
 			{
 				VEC3 pOther(x,y,0);
-				device->transformeScreen2dToWorld3d_scaled(x,y,&pOther,std::abs(ptrA->position.z));
+				device->transformeScreen2dToWorld3d_scaled(x,y,&pOther,std::abs(positionA.z));
 				doOffsetIfText(ptrA,w,h);
-				collide = device->checkBoundCollision(ptrA->position,w,h,d,pOther,1,1,1);
+				collide = device->checkBoundCollision(positionA,w,h,d,pOther,1,1,1);
 				undoOffsetIfText(ptrA,w,h);
 			}
 			lua_pushboolean(lua, collide ? 1 : 0);
@@ -363,7 +368,7 @@ namespace mbm
         const bool consider_scale = top > 1 ? lua_toboolean(lua,2) : true;
         float              w   = 0;
         float              h   = 0;
-        if (ptr->is3D)
+        if (ptr->is3DObject())
         {
             float d = 0;
             if (ptr->getWidthHeight(&w, &h, &d, consider_scale))
@@ -597,7 +602,7 @@ namespace mbm
     int onDestroyRenderizable(lua_State *lua)
     {
         /*
-            Only sets RENDERIZABLE->enableRender = false, and unregisters Lua callbacks. 
+            Only disables RENDERIZABLE rendering through the accessor API and unregisters Lua callbacks.
             No delete, cleanup until LUA garbage collection or the scene change.
             The actual delete only happens when Lua GC eventually runs the __gc metamethod
             potentially many frames later.

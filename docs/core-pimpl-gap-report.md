@@ -1693,6 +1693,13 @@ Milestone 198 implementation note:
 - Updated the Lua `__index` / `__newindex` renderizable property paths for `x/y/z`, `sx/sy/sz`, `ax/ay/az`, `visible`, and `alwaysRender`.
 - Left collision/overlap helpers for a separate milestone because they require a broader coordinate-space audit.
 
+Milestone 199 implementation note:
+
+- Migrated the remaining `src/lua-wrap/common-methods-lua.cpp` collision/overlap helper renderizable state use to the `RENDERIZABLE` accessor API.
+- Replaced direct coordinate flag checks and position reads/writes in `isOver`, text-offset helpers, renderizable-vs-renderizable collision, renderizable-vs-point collision, and size dimensionality selection.
+- Cached `positionA` / `positionB` references where collision paths temporarily offset text renderizables, preserving the existing offset/undo behavior.
+- Remaining focused scan hits in this file are `TRIANGLE::position` fields from physics table export, not `RENDERIZABLE`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
