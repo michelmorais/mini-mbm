@@ -41,6 +41,8 @@ namespace mbm
         float       distanceFromView;
         bool        isObjectOnFrustum;
         bool        isRender2Texture;
+        bool        alwaysRenderize;
+        bool        enableRender;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
 
         Impl(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
@@ -50,7 +52,9 @@ namespace mbm
             is2dS(_is2ds),
             distanceFromView(0.0f),
             isObjectOnFrustum(true),
-            isRender2Texture(false)
+            isRender2Texture(false),
+            alwaysRenderize(false),
+            enableRender(true)
         {
         }
     };
@@ -62,8 +66,6 @@ namespace mbm
                                                              bounding_AABB(0, 0, 0),
                                                              impl(std::make_unique<Impl>(idSceneMe, newTypeClass, _is3d, _is2ds))
     {
-        this->enableRender      = true;
-        this->alwaysRenderize   = false;
         this->userData          = nullptr;
     }
 
@@ -195,12 +197,12 @@ namespace mbm
 
     bool RENDERIZABLE::isAlwaysRenderizeEnabled() const noexcept
     {
-        return this->alwaysRenderize;
+        return this->impl->alwaysRenderize;
     }
 
     void RENDERIZABLE::setAlwaysRenderize(const bool enabled) noexcept
     {
-        this->alwaysRenderize = enabled;
+        this->impl->alwaysRenderize = enabled;
     }
 
     bool RENDERIZABLE::getIsObjectOnFrustum() const noexcept
@@ -215,12 +217,12 @@ namespace mbm
 
     bool RENDERIZABLE::isRenderEnabled() const noexcept
     {
-        return this->enableRender;
+        return this->impl->enableRender;
     }
 
     void RENDERIZABLE::setEnableRender(const bool enabled) noexcept
     {
-        this->enableRender = enabled;
+        this->impl->enableRender = enabled;
     }
 
     bool RENDERIZABLE::isRender2TextureEnabled() const noexcept

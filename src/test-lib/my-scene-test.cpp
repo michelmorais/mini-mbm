@@ -426,11 +426,11 @@ void MY_SCENE::onTouchMove(int, float x, float y)
 
         if(found)
         {
-            lineFontIsOver->enableRender = true;
+            lineFontIsOver->setEnableRender(true);
         }
         else
         {
-            lineFontIsOver->enableRender = false;
+            lineFontIsOver->setEnableRender(false);
         }
     }
 }
@@ -560,8 +560,8 @@ void MY_SCENE::buildMenu()
         row.labelText->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
         row.labelText->forceCalcSize();
         row.labelText->position.z    = -1.0f;
-        row.labelText->alwaysRenderize = true;
-        row.labelText->enableRender  = false;
+        row.labelText->setAlwaysRenderize(true);
+        row.labelText->setEnableRender(false);
 
         menuItems.push_back(row);
     }
@@ -583,8 +583,8 @@ void MY_SCENE::buildMenu()
     hintsText->position.x      = 10.0f;
     hintsText->position.y      = static_cast<float>(device->getBackBufferHeight()) - hh - 5.0f;
     hintsText->position.z      = -1.0f;
-    hintsText->alwaysRenderize = true;
-    hintsText->enableRender    = true;
+    hintsText->setAlwaysRenderize(true);
+    hintsText->setEnableRender(true);
 
 
     shaderInfoText = this->fontDrawNoShader->addText("Shader information", IS_2D_FONT, IS_SCREEN);
@@ -593,8 +593,8 @@ void MY_SCENE::buildMenu()
     shaderInfoText->position.x      = 10.0f;
     shaderInfoText->position.y      = latestY + 50.0f;
     shaderInfoText->position.z      = -1.0f;
-    shaderInfoText->alwaysRenderize = true;
-    shaderInfoText->enableRender    = true;
+    shaderInfoText->setAlwaysRenderize(true);
+    shaderInfoText->setEnableRender(true);
 
     // Show initial menu state
     for (size_t i = 0; i < menuItems.size(); i++)
@@ -611,7 +611,7 @@ void MY_SCENE::updateMenuRow(size_t i)
     else
         row.labelText->setText("[ ] %s", row.typeName);
 
-    row.labelText->enableRender  = menuVisible;
+    row.labelText->setEnableRender(menuVisible);
 }
 
 void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
@@ -790,7 +790,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
                 std::vector<mbm::VEC3> d2 = { mbm::VEC3(-H, H, 0.0f), mbm::VEC3(H, -H, 0.0f) };
                 line->add(std::move(d2));
             }
-            line->enableRender = true;
+            line->setEnableRender(true);
             INFO_LOG("LINE_MESH loaded (%s)", modeToStr(mode));
             row.object = line;
         }
@@ -1040,7 +1040,7 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
     for (size_t i = 0; i < menuItems.size(); i++)
     {
         MenuRow& row = menuItems[i];
-        if (btn2dS->enableRender && btn2dS->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn2dS->isRenderEnabled() && btn2dS->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
             if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
@@ -1048,7 +1048,7 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
                 loadObjectAt(i, RenderMode::SCREEN_2D);
             return true;
         }
-        if (btn2dW->enableRender && btn2dW->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn2dW->isRenderEnabled() && btn2dW->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
             if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
@@ -1056,7 +1056,7 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
                 loadObjectAt(i, RenderMode::WORLD_2D);
             return true;
         }
-        if (btn3d->enableRender && btn3d->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn3d->isRenderEnabled() && btn3d->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
             if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
@@ -1095,8 +1095,8 @@ void MY_SCENE::buildPosMenu()
         posMenuTexts[j]->scale         = mbm::VEC3(1.0f, 1.0f, 1.0f);
         posMenuTexts[j]->forceCalcSize();
         posMenuTexts[j]->position.z    = -1.0f;
-        posMenuTexts[j]->alwaysRenderize = true;
-        posMenuTexts[j]->enableRender  = true;
+        posMenuTexts[j]->setAlwaysRenderize(true);
+        posMenuTexts[j]->setEnableRender(true);
 
         float w = 0.0f, h = 0.0f;
         posMenuTexts[j]->getAABB(&w, &h);
@@ -1125,8 +1125,8 @@ void MY_SCENE::buildPosMenu()
     statusText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
     statusText->forceCalcSize();
     statusText->position.z    = -1.0f;
-    statusText->alwaysRenderize = true;
-    statusText->enableRender  = true;
+    statusText->setAlwaysRenderize(true);
+    statusText->setEnableRender(true);
 
     // Notification text: one line above statusText
     const float notifyY = statusY - hh - 5.0f;
@@ -1134,8 +1134,8 @@ void MY_SCENE::buildPosMenu()
     notificationText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
     notificationText->forceCalcSize();
     notificationText->position.z    = -1.0f;
-    notificationText->alwaysRenderize = true;
-    notificationText->enableRender  = false;
+    notificationText->setAlwaysRenderize(true);
+    notificationText->setEnableRender(false);
 }
 
 void MY_SCENE::buildWorldMenu()
@@ -1149,16 +1149,16 @@ void MY_SCENE::buildWorldMenu()
     btn2dS->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
     btn2dS->forceCalcSize();
     btn2dS->position.z    = -1.0f;
-    btn2dS->alwaysRenderize = true;
-    btn2dS->enableRender  = true;
+    btn2dS->setAlwaysRenderize(true);
+    btn2dS->setEnableRender(true);
     btn2dS->getAABB(&maxWidth, &maxHeight);
 
     btn2dW = this->fontDrawNoShader->addText("[ ](2dW)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
     btn2dW->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
     btn2dW->forceCalcSize();
     btn2dW->position.z    = -1.0f;
-    btn2dW->alwaysRenderize = true;
-    btn2dW->enableRender  = true;
+    btn2dW->setAlwaysRenderize(true);
+    btn2dW->setEnableRender(true);
     btn2dW->getAABB(&hw, &hh);
     if (hw > maxWidth)        
     {
@@ -1173,8 +1173,8 @@ void MY_SCENE::buildWorldMenu()
     btn3d->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
     btn3d->forceCalcSize();
     btn3d->position.z    = -1.0f;
-    btn3d->alwaysRenderize = true;
-    btn3d->enableRender  = true;
+    btn3d->setAlwaysRenderize(true);
+    btn3d->setEnableRender(true);
     btn3d->getAABB(&hw, &hh);
     if (hw > maxWidth)        
     {
@@ -1216,7 +1216,7 @@ void MY_SCENE::updatePosMenu()
         posMenuTexts[j]->setText("%s %s", static_cast<size_t>(j) == static_cast<size_t>(posMenuSelected) ? "[X]" : "[ ]", baseLabels[j]);
         // If render2Texture is active, only show the "Apply (X=0,Y=0,Z=0)" preset since the others don't make sense inside the texture frame
         // Uncommenting the line below will show all presets, but they will all apply the position based on the main screen dimensions, which can be confusing when the object is inside render2texture
-        //posMenuTexts[j]->enableRender = posMenuVisible && (render2Texture == nullptr || j == 0);
+        //posMenuTexts[j]->setEnableRender(posMenuVisible && (render2Texture == nullptr || j == 0));
     }
 }
 
@@ -1326,7 +1326,7 @@ void MY_SCENE::applyPosPreset(int idx)
 bool MY_SCENE::handleWorldMenuTouchDown(float x, float y, RenderMode& mode_selected)
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    if(btn3d && btn3d->enableRender && btn3d->isOver2ds(device, x, y))
+    if(btn3d && btn3d->isRenderEnabled() && btn3d->isOver2ds(device, x, y))
     {
         btn2dS->setText("[ ](2dS)");
         btn2dW->setText("[ ](2dW)");
@@ -1335,7 +1335,7 @@ bool MY_SCENE::handleWorldMenuTouchDown(float x, float y, RenderMode& mode_selec
         return true;
     }
 
-    if(btn2dW && btn2dW->enableRender && btn2dW->isOver2ds(device, x, y))
+    if(btn2dW && btn2dW->isRenderEnabled() && btn2dW->isOver2ds(device, x, y))
     {
         btn2dS->setText("[ ](2dS)");
         btn2dW->setText("[x](2dW)");
@@ -1344,7 +1344,7 @@ bool MY_SCENE::handleWorldMenuTouchDown(float x, float y, RenderMode& mode_selec
         return true;
     }
 
-    if(btn2dS && btn2dS->enableRender && btn2dS->isOver2ds(device, x, y))
+    if(btn2dS && btn2dS->isRenderEnabled() && btn2dS->isOver2ds(device, x, y))
     {
         btn2dS->setText("[x](2dS)");
         btn2dW->setText("[ ](2dW)");
@@ -1361,7 +1361,7 @@ bool MY_SCENE::handlePosMenuTouchDown(float x, float y)
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
-        if (posMenuTexts[j] && posMenuTexts[j]->enableRender &&
+        if (posMenuTexts[j] && posMenuTexts[j]->isRenderEnabled() &&
             posMenuTexts[j]->isOver2ds(device, x, y))
         {
             applyPosPreset(j);
@@ -1404,7 +1404,7 @@ void MY_SCENE::showNotification(const char* fmt, ...)
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     notificationText->setText("%s", buf);
-    notificationText->enableRender = true;
+    notificationText->setEnableRender(true);
     notificationTimer = 5.0f;
 }
 
@@ -1420,8 +1420,8 @@ void MY_SCENE::buildShaderMenu()
         t->scale           = mbm::VEC3(0.75f, 0.75f, 0.75f);
         t->forceCalcSize();
         t->position.z      = -1.0f;
-        t->alwaysRenderize = true;
-        t->enableRender    = true;// initially visible
+        t->setAlwaysRenderize(true);
+        t->setEnableRender(true);// initially visible
         return t;
     };
 
@@ -1507,17 +1507,17 @@ void MY_SCENE::updateShaderMenu()
         shaderRowPS.labelText->setText("[X] %s", device->getShaderConfig().lsPs[static_cast<size_t>(currentPsShaderIdx)]->fileName.c_str());
     else
         shaderRowPS.labelText->setText("[ ] (PS none)");
-    shaderRowPS.labelText->enableRender = visible;
-    shaderRowPS.btnPrev->enableRender   = visible;
-    shaderRowPS.btnNext->enableRender   = visible;
+    shaderRowPS.labelText->setEnableRender(visible);
+    shaderRowPS.btnPrev->setEnableRender(visible);
+    shaderRowPS.btnNext->setEnableRender(visible);
 
     if (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->getShaderConfig().lsVs.size()))
         shaderRowVS.labelText->setText("[X] %s", device->getShaderConfig().lsVs[static_cast<size_t>(currentVsShaderIdx)]->fileName.c_str());
     else
         shaderRowVS.labelText->setText("[ ] (VS none)");
-    shaderRowVS.labelText->enableRender = visible;
-    shaderRowVS.btnPrev->enableRender   = visible;
-    shaderRowVS.btnNext->enableRender   = visible;
+    shaderRowVS.labelText->setEnableRender(visible);
+    shaderRowVS.btnPrev->setEnableRender(visible);
+    shaderRowVS.btnNext->setEnableRender(visible);
 
     bool paused = false;
     if (lastLoadedRowIdx >= 0 && lastLoadedRowIdx < static_cast<int>(menuItems.size()))
@@ -1532,7 +1532,7 @@ void MY_SCENE::updateShaderMenu()
         }
     }
     shaderBtnPause->setText(paused ? "[X] Pause shader animation" : "[ ] Pause shader animation");
-    shaderBtnPause->enableRender = visible;
+    shaderBtnPause->setEnableRender(visible);
 }
 
 void MY_SCENE::applyCurrentShaders()
@@ -1583,7 +1583,7 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
     const int    psCount = static_cast<int>(device->getShaderConfig().lsPs.size());
     const int    vsCount = static_cast<int>(device->getShaderConfig().lsVs.size());
 
-    if (shaderRowPS.btnPrev->enableRender && shaderRowPS.btnPrev->isOver2ds(device, x, y))
+    if (shaderRowPS.btnPrev->isRenderEnabled() && shaderRowPS.btnPrev->isOver2ds(device, x, y))
     {
         if (psCount > 0)
         {
@@ -1592,7 +1592,7 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         }
         return true;
     }
-    if (shaderRowPS.btnNext->enableRender && shaderRowPS.btnNext->isOver2ds(device, x, y))
+    if (shaderRowPS.btnNext->isRenderEnabled() && shaderRowPS.btnNext->isOver2ds(device, x, y))
     {
         if (psCount > 0)
         {
@@ -1601,14 +1601,14 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         }
         return true;
     }
-    if (shaderRowPS.labelText->enableRender && shaderRowPS.labelText->isOver2ds(device, x, y))
+    if (shaderRowPS.labelText->isRenderEnabled() && shaderRowPS.labelText->isOver2ds(device, x, y))
     {
         currentPsShaderIdx = (currentPsShaderIdx >= 0) ? -1 : (psCount > 0 ? 0 : -1);
         applyCurrentShaders();
         return true;
     }
 
-    if (shaderRowVS.btnPrev->enableRender && shaderRowVS.btnPrev->isOver2ds(device, x, y))
+    if (shaderRowVS.btnPrev->isRenderEnabled() && shaderRowVS.btnPrev->isOver2ds(device, x, y))
     {
         if (vsCount > 0)
         {
@@ -1617,7 +1617,7 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         }
         return true;
     }
-    if (shaderRowVS.btnNext->enableRender && shaderRowVS.btnNext->isOver2ds(device, x, y))
+    if (shaderRowVS.btnNext->isRenderEnabled() && shaderRowVS.btnNext->isOver2ds(device, x, y))
     {
         if (vsCount > 0)
         {
@@ -1626,14 +1626,14 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         }
         return true;
     }
-    if (shaderRowVS.labelText->enableRender && shaderRowVS.labelText->isOver2ds(device, x, y))
+    if (shaderRowVS.labelText->isRenderEnabled() && shaderRowVS.labelText->isOver2ds(device, x, y))
     {
         currentVsShaderIdx = (currentVsShaderIdx >= 0) ? -1 : (vsCount > 0 ? 0 : -1);
         applyCurrentShaders();
         return true;
     }
 
-    if (shaderBtnPause->enableRender && shaderBtnPause->isOver2ds(device, x, y))
+    if (shaderBtnPause->isRenderEnabled() && shaderBtnPause->isOver2ds(device, x, y))
     {
         if (lastLoadedRowIdx >= 0 && lastLoadedRowIdx < static_cast<int>(menuItems.size()))
         {

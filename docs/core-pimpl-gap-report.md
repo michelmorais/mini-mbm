@@ -1930,6 +1930,13 @@ Milestone 231 implementation note:
 - Fixed the unqualified inherited `is2dS` uses in `LINE_MESH` by using `is2dScreenObject()`.
 - Remaining broad scan hits for `idScene` / `is3D` / `is2dS` are other owner types, constructor parameters, docs, or local variables.
 
+Milestone 232 implementation note:
+
+- Moved `RENDERIZABLE::enableRender` and `RENDERIZABLE::alwaysRenderize` into `RENDERIZABLE::Impl`.
+- Kept behavior routed through `isRenderEnabled()`, `setEnableRender()`, `isAlwaysRenderizeEnabled()`, and `setAlwaysRenderize()`.
+- Migrated remaining `testLib` direct visibility flag reads/writes in `my-scene-test.cpp` to the accessor API.
+- Focused scan shows no direct visibility flag access outside the private `RENDERIZABLE::Impl` storage and accessor implementation.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
