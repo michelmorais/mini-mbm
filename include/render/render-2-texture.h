@@ -66,6 +66,10 @@ namespace mbm
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
         API_IMPL bool isTextureOnlyModeEnabled() const noexcept;
         API_IMPL void setTextureOnlyMode(const bool mode) noexcept;
+        API_IMPL CAMERA_TARGET & getCamera2d() noexcept;
+        API_IMPL const CAMERA_TARGET & getCamera2d() const noexcept;
+        API_IMPL CAMERA_TARGET & getCamera3d() noexcept;
+        API_IMPL const CAMERA_TARGET & getCamera3d() const noexcept;
     
       protected:
         virtual bool render() override;

@@ -1990,6 +1990,14 @@ Milestone 240 implementation note:
 - Kept `CAMERA_TARGET` and public `camera2d`/`camera3d` unchanged because the Lua camera table exposes that object heavily and it needs a separate compatibility pass.
 - Focused scan shows `lsObjects2dRender`, `lsObjects3dRender`, and `modeTextureOnly` now appear only in the private implementation and the new accessor/helper calls.
 
+Milestone 241 implementation note:
+
+- Added compatibility-prep accessors for render-target cameras: `getCamera2d()` and `getCamera3d()`, with const and non-const overloads.
+- Migrated current C++/Lua users in `RENDER_2_TEXTURE`, `HMD`, and the render-to-texture Lua camera binding to the accessor API.
+- Kept public `camera2d` and `camera3d` fields in place for this review milestone; hiding their storage remains a separate follow-up after call sites are accessor-backed.
+- Applied the accessor reuse rule by storing camera accessor results in local `CAMERA_TARGET &` references when a function uses the same camera more than once.
+- Focused scan shows remaining direct `camera2d`/`camera3d` hits are the public compatibility declarations, accessor implementation, historical docs, and unrelated Lua local variable strings.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2094,5 +2102,6 @@ Current decision:
 9. `ANIMATION` frame state, blend state, flags, type, `FX`, and timer are now behind `Impl`; direct repo call sites found by the `anim->...` / `animation->...` public field scan use the accessor API.
 10. `RENDERIZABLE` base state is now behind `Impl`; `RENDERIZABLE_TO_TARGET` render-target size/clear-color state is now accessor-backed and hidden.
 11. `RENDER_2_TEXTURE` render-object lists and texture-only flag are now behind `Impl`; `CAMERA_TARGET` remains public compatibility surface for a separate pass.
+12. `RENDER_2_TEXTURE` camera access now has `getCamera2d()` / `getCamera3d()` compatibility accessors; direct internal users are migrated, but public `camera2d` / `camera3d` storage remains until the next storage-hiding milestone.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

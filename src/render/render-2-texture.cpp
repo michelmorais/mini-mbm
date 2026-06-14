@@ -371,11 +371,12 @@ namespace mbm
             const CUBE *cube        = this->infoPhysics.lsCube[0];
             const float widthFrame  = cube->halfDim.x * 2.0f;
             const float heightFrame = cube->halfDim.y * 2.0f;
-            this->camera3d.enableMode3D(device, widthFrame, heightFrame);
+            CAMERA_TARGET &camera3dTarget = this->getCamera3d();
+            camera3dTarget.enableMode3D(device, widthFrame, heightFrame);
             for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
                 RENDERIZABLE *ptr = objects3d[i];
-                const VEC3 distFromCam(ptr->getPosition() - this->camera3d.position);
+                const VEC3 distFromCam(ptr->getPosition() - camera3dTarget.position);
                 ptr->setDistanceFromView(distFromCam.length());
             }
             std::sort(objects3d.begin(), objects3d.end(),
@@ -398,7 +399,8 @@ namespace mbm
         if (objects2d.size())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            this->camera2d.enableMode2D(device, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
+            CAMERA_TARGET &camera2dTarget = this->getCamera2d();
+            camera2dTarget.enableMode2D(device, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
             for (unsigned int i = 0; i < objects2d.size(); ++i)
             {
                 RENDERIZABLE *ptr   = objects2d[i];
@@ -431,6 +433,26 @@ namespace mbm
     void RENDER_2_TEXTURE::setTextureOnlyMode(const bool mode) noexcept
     {
         this->impl->modeTextureOnly = mode;
+    }
+
+    CAMERA_TARGET & RENDER_2_TEXTURE::getCamera2d() noexcept
+    {
+        return this->camera2d;
+    }
+
+    const CAMERA_TARGET & RENDER_2_TEXTURE::getCamera2d() const noexcept
+    {
+        return this->camera2d;
+    }
+
+    CAMERA_TARGET & RENDER_2_TEXTURE::getCamera3d() noexcept
+    {
+        return this->camera3d;
+    }
+
+    const CAMERA_TARGET & RENDER_2_TEXTURE::getCamera3d() const noexcept
+    {
+        return this->camera3d;
     }
 
     void RENDER_2_TEXTURE::clearRenderObjectLists() noexcept

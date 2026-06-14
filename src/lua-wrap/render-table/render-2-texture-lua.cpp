@@ -427,9 +427,9 @@ namespace mbm
         luaL_newlib(lua, regCamera3dMethods);
         auto **udata = static_cast<CAMERA_TARGET **>(lua_newuserdata(lua, sizeof(CAMERA_TARGET *)));
         if (is3d)
-            *udata = &render2texture->camera3d;
+            *udata = &render2texture->getCamera3d();
         else
-            *udata = &render2texture->camera2d;
+            *udata = &render2texture->getCamera2d();
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_CAMERA_TARGET);

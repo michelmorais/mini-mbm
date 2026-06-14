@@ -131,10 +131,12 @@ namespace mbm
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         const CAMERA &camera = device->getCamera();
-        this->camera2d.position.x = camera.position2d.x;
-        this->camera2d.position.y = camera.position2d.y;
-        this->camera3d.position   = camera.position;
-        this->camera3d.focus      = camera.focus;
+        CAMERA_TARGET &camera2dTarget = this->getCamera2d();
+        CAMERA_TARGET &camera3dTarget = this->getCamera3d();
+        camera2dTarget.position.x = camera.position2d.x;
+        camera2dTarget.position.y = camera.position2d.y;
+        camera3dTarget.position   = camera.position;
+        camera3dTarget.focus      = camera.focus;
         return RENDER_2_TEXTURE::isOnFrustum();
     }
     
@@ -144,10 +146,12 @@ namespace mbm
         if (this->isAlwaysRenderizeEnabled())
         {
             const CAMERA &camera = device->getCamera();
-            this->camera2d.position.x = camera.position2d.x;
-            this->camera2d.position.y = camera.position2d.y;
-            this->camera3d.position   = camera.position;
-            this->camera3d.focus      = camera.focus;
+            CAMERA_TARGET &camera2dTarget = this->getCamera2d();
+            CAMERA_TARGET &camera3dTarget = this->getCamera3d();
+            camera2dTarget.position.x = camera.position2d.x;
+            camera2dTarget.position.y = camera.position2d.y;
+            camera3dTarget.position   = camera.position;
+            camera3dTarget.focus      = camera.focus;
         }
         VEC3 &position = this->getPosition();
         position.x = device->getScaleBackBufferWidth() * 0.25f;
