@@ -445,10 +445,11 @@ void MY_SCENE::updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw)
         // TEXT_DRAW::position is the top-left starting corner in screen coords (Y-down).
         // getAABB() returns screen-pixel dimensions, so the box spans
         // [position.x .. position.x+w] x [position.y .. position.y+h].
-        linePoints[0] = mbm::VEC3(textDraw->position.x,     textDraw->position.y,     textDraw->position.z);
-        linePoints[1] = mbm::VEC3(textDraw->position.x + w, textDraw->position.y,     textDraw->position.z);
-        linePoints[2] = mbm::VEC3(textDraw->position.x + w, textDraw->position.y + h, textDraw->position.z);
-        linePoints[3] = mbm::VEC3(textDraw->position.x,     textDraw->position.y + h, textDraw->position.z);
+        const mbm::VEC3 &position = textDraw->getPosition();
+        linePoints[0] = mbm::VEC3(position.x,     position.y,     position.z);
+        linePoints[1] = mbm::VEC3(position.x + w, position.y,     position.z);
+        linePoints[2] = mbm::VEC3(position.x + w, position.y + h, position.z);
+        linePoints[3] = mbm::VEC3(position.x,     position.y + h, position.z);
 
         lineFontIsOver->set(std::move(linePoints), 0);
     }
@@ -557,9 +558,9 @@ void MY_SCENE::buildMenu()
         char labelBuf[64];
         snprintf(labelBuf, sizeof(labelBuf), "[ ] %s", defs[i].name);
         row.labelText = this->fontDrawNoShader->addText(labelBuf, mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-        row.labelText->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+        row.labelText->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
         row.labelText->forceCalcSize();
-        row.labelText->position.z    = -1.0f;
+        row.labelText->getPosition().z = -1.0f;
         row.labelText->setAlwaysRenderize(true);
         row.labelText->setEnableRender(false);
 
@@ -569,30 +570,33 @@ void MY_SCENE::buildMenu()
     for (size_t i = 0; i < sizeof(defs) / sizeof(defs[0]); i++)
     {
         MenuRow& row = menuItems[i];
-        row.labelText->position.x = 10.0f;
-        row.labelText->position.y = 10.0f + static_cast<float>(i) * 50.0f;
-        latestY = row.labelText->position.y;
+        mbm::VEC3 &position = row.labelText->getPosition();
+        position.x = 10.0f;
+        position.y = 10.0f + static_cast<float>(i) * 50.0f;
+        latestY = position.y;
     }
     // Hints text — always visible at the bottom of the screen
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     hintsText = this->fontDrawNoShader->addText("[M] menu | [P] pos | [S] shader | [Arrows] camera", IS_2D_FONT, IS_SCREEN);
-    hintsText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    hintsText->setScale(mbm::VEC3(0.5f, 0.5f, 0.5f));
     hintsText->forceCalcSize();
     float hw = 0.0f, hh = 0.0f;
     hintsText->getAABB(&hw, &hh);
-    hintsText->position.x      = 10.0f;
-    hintsText->position.y      = static_cast<float>(device->getBackBufferHeight()) - hh - 5.0f;
-    hintsText->position.z      = -1.0f;
+    mbm::VEC3 &hintsPosition = hintsText->getPosition();
+    hintsPosition.x = 10.0f;
+    hintsPosition.y = static_cast<float>(device->getBackBufferHeight()) - hh - 5.0f;
+    hintsPosition.z = -1.0f;
     hintsText->setAlwaysRenderize(true);
     hintsText->setEnableRender(true);
 
 
     shaderInfoText = this->fontDrawNoShader->addText("Shader information", IS_2D_FONT, IS_SCREEN);
-    shaderInfoText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    shaderInfoText->setScale(mbm::VEC3(0.5f, 0.5f, 0.5f));
     shaderInfoText->forceCalcSize();
-    shaderInfoText->position.x      = 10.0f;
-    shaderInfoText->position.y      = latestY + 50.0f;
-    shaderInfoText->position.z      = -1.0f;
+    mbm::VEC3 &shaderInfoPosition = shaderInfoText->getPosition();
+    shaderInfoPosition.x = 10.0f;
+    shaderInfoPosition.y = latestY + 50.0f;
+    shaderInfoPosition.z = -1.0f;
     shaderInfoText->setAlwaysRenderize(true);
     shaderInfoText->setEnableRender(true);
 
@@ -698,7 +702,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             mesh = new mbm::MESH(this, is3d, is2dS);
             if (mesh->load("Barrel_NoTop.msh"))
             {
-                mesh->scale = mbm::VEC3(3.5f, 3.5f, 3.5f);
+                mesh->setScale(mbm::VEC3(3.5f, 3.5f, 3.5f));
                 INFO_LOG("MESH loaded (%s)", modeToStr(mode));
                 row.object = mesh;
             }
@@ -873,7 +877,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             tile = new mbm::TILE(this, is3d, is2dS);
             if (tile->load("tile-map-test.tile"))
             {
-                tile->scale = mbm::VEC3(0.3f, 0.3f, 0.3f);
+                tile->setScale(mbm::VEC3(0.3f, 0.3f, 0.3f));
                 INFO_LOG("TILE loaded (%s)", modeToStr(mode));
                 row.object = tile;
             }
@@ -893,7 +897,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         lastLoadedRowIdx = static_cast<int>(i);
         // Ensure loaded 2D objects sit behind menu text (z=-1)
         if (!is3d)
-            row.object->position.z = 0.0f;
+            row.object->getPosition().z = 0.0f;
     }
     addObjectsToRender2Texture();
     updateMenuRow(i);
@@ -901,10 +905,11 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
     if (row.object)
     {
         const bool insideR2T = (render2Texture != nullptr) && (row.object != render2Texture);
+        const mbm::VEC3 &position = row.object->getPosition();
         showNotification("%s loaded (%s) %s | pos(%.0f,%.0f,%.0f)",
             row.typeName, modeToStr(mode),
             insideR2T ? "in render2texture" : "in scene",
-            row.object->position.x, row.object->position.y, row.object->position.z);
+            position.x, position.y, position.z);
     }
     //Do not apply shader since some object are loaded with shader.
     //applyCurrentShaders();
@@ -1092,9 +1097,9 @@ void MY_SCENE::buildPosMenu()
         char buf[64];
         snprintf(buf, sizeof(buf), "%s %s", j == 0 ? "[X]" : "[ ]", baseLabels[j]);
         posMenuTexts[j] = this->fontDrawNoShader->addText(buf, mbm::VEC2(0, 0), IS_2D_FONT, IS_SCREEN);
-        posMenuTexts[j]->scale         = mbm::VEC3(1.0f, 1.0f, 1.0f);
+        posMenuTexts[j]->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
         posMenuTexts[j]->forceCalcSize();
-        posMenuTexts[j]->position.z    = -1.0f;
+        posMenuTexts[j]->getPosition().z = -1.0f;
         posMenuTexts[j]->setAlwaysRenderize(true);
         posMenuTexts[j]->setEnableRender(true);
 
@@ -1110,8 +1115,9 @@ void MY_SCENE::buildPosMenu()
     {
         if (posMenuTexts[j])
         {
-            posMenuTexts[j]->position.x = static_cast<float>(device->getBackBufferWidth()) - maxWidth - 10.0f;
-            posMenuTexts[j]->position.y = 10.0f + static_cast<float>(j) * (maxHeight + 5.0f);
+            mbm::VEC3 &position = posMenuTexts[j]->getPosition();
+            position.x = static_cast<float>(device->getBackBufferWidth()) - maxWidth - 10.0f;
+            position.y = 10.0f + static_cast<float>(j) * (maxHeight + 5.0f);
         }
     }
 
@@ -1122,18 +1128,18 @@ void MY_SCENE::buildPosMenu()
     const float statusY = static_cast<float>(device->getBackBufferHeight()) - hh * 2.0f - 12.0f;
     statusText = this->fontDrawNoShader->addText(
         "Mouse(0,0)  Cam2D(0,0)  Cam3D(0,0,0)", mbm::VEC2(10.0f, statusY), IS_2D_FONT, IS_SCREEN);
-    statusText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    statusText->setScale(mbm::VEC3(0.5f, 0.5f, 0.5f));
     statusText->forceCalcSize();
-    statusText->position.z    = -1.0f;
+    statusText->getPosition().z = -1.0f;
     statusText->setAlwaysRenderize(true);
     statusText->setEnableRender(true);
 
     // Notification text: one line above statusText
     const float notifyY = statusY - hh - 5.0f;
     notificationText = this->fontDrawNoShader->addText("", mbm::VEC2(10.0f, notifyY), IS_2D_FONT, IS_SCREEN);
-    notificationText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    notificationText->setScale(mbm::VEC3(0.5f, 0.5f, 0.5f));
     notificationText->forceCalcSize();
-    notificationText->position.z    = -1.0f;
+    notificationText->getPosition().z = -1.0f;
     notificationText->setAlwaysRenderize(true);
     notificationText->setEnableRender(false);
 }
@@ -1146,17 +1152,17 @@ void MY_SCENE::buildWorldMenu()
     constexpr bool  IS_2D_FONT  = true;
     constexpr bool  IS_SCREEN   = true;
     btn2dS = this->fontDrawNoShader->addText("[x](2dS)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-    btn2dS->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn2dS->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
     btn2dS->forceCalcSize();
-    btn2dS->position.z    = -1.0f;
+    btn2dS->getPosition().z = -1.0f;
     btn2dS->setAlwaysRenderize(true);
     btn2dS->setEnableRender(true);
     btn2dS->getAABB(&maxWidth, &maxHeight);
 
     btn2dW = this->fontDrawNoShader->addText("[ ](2dW)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-    btn2dW->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn2dW->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
     btn2dW->forceCalcSize();
-    btn2dW->position.z    = -1.0f;
+    btn2dW->getPosition().z = -1.0f;
     btn2dW->setAlwaysRenderize(true);
     btn2dW->setEnableRender(true);
     btn2dW->getAABB(&hw, &hh);
@@ -1170,9 +1176,9 @@ void MY_SCENE::buildWorldMenu()
     }
 
     btn3d = this->fontDrawNoShader->addText("[ ](3d)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-    btn3d->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn3d->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
     btn3d->forceCalcSize();
-    btn3d->position.z    = -1.0f;
+    btn3d->getPosition().z = -1.0f;
     btn3d->setAlwaysRenderize(true);
     btn3d->setEnableRender(true);
     btn3d->getAABB(&hw, &hh);
@@ -1190,12 +1196,15 @@ void MY_SCENE::buildWorldMenu()
     float heightM = 0;
     btn3d->getWidthHeightString(&widthM, &heightM,"M");
     const float defaultPosY = device->getBackBufferHeight() - maxHeight;
-    btn2dS->position.x  = device->getBackBufferWidth() - (maxWidth * 3) - widthM;
-    btn2dS->position.y  = defaultPosY;
-    btn2dW->position.x  = device->getBackBufferWidth() - (maxWidth * 2) - widthM;
-    btn2dW->position.y  = defaultPosY;
-    btn3d->position.x   = device->getBackBufferWidth() - maxWidth;
-    btn3d->position.y   = defaultPosY;
+    mbm::VEC3 &position2dS = btn2dS->getPosition();
+    mbm::VEC3 &position2dW = btn2dW->getPosition();
+    mbm::VEC3 &position3d  = btn3d->getPosition();
+    position2dS.x = device->getBackBufferWidth() - (maxWidth * 3) - widthM;
+    position2dS.y = defaultPosY;
+    position2dW.x = device->getBackBufferWidth() - (maxWidth * 2) - widthM;
+    position2dW.y = defaultPosY;
+    position3d.x  = device->getBackBufferWidth() - maxWidth;
+    position3d.y  = defaultPosY;
 }
 
 void MY_SCENE::updatePosMenu()
@@ -1238,9 +1247,10 @@ void MY_SCENE::applyPosPreset(int idx)
 
     if (idx == 0) // explicit origin
     {
-        row.object->position.x = 0.0f;
-        row.object->position.y = 0.0f;
-        row.object->position.z = (row.currentMode == RenderMode::WORLD_3D) ? 0.0f : row.object->position.z;
+        mbm::VEC3 &position = row.object->getPosition();
+        position.x = 0.0f;
+        position.y = 0.0f;
+        position.z = (row.currentMode == RenderMode::WORLD_3D) ? 0.0f : position.z;
         return;
     }
 
@@ -1280,7 +1290,8 @@ void MY_SCENE::applyPosPreset(int idx)
             return;
     }
 
-    const float savedZ = row.object->position.z;
+    mbm::VEC3 &position = row.object->getPosition();
+    const float savedZ = position.z;
     const bool insideR2T = (render2Texture != nullptr) && (row.object != render2Texture);
     if (row.currentMode == RenderMode::SCREEN_2D)
     {
@@ -1290,15 +1301,15 @@ void MY_SCENE::applyPosPreset(int idx)
             // calls transformeScreen2dToWorld2d_scaled(position) at draw time, then applies
             // matrixPerspective2d. We need world = (sx - tw/2, -(sy - th/2)), so store the
             // main-screen-equivalent pixel coords that produce those world coords.
-            row.object->position.x = device->getBackBufferWidth() * 0.5f + sx - backBufferWidth * 0.5f;
-            row.object->position.y = device->getBackBufferHeight() * 0.5f - backBufferHeight * 0.5f + sy;
+            position.x = device->getBackBufferWidth() * 0.5f + sx - backBufferWidth * 0.5f;
+            position.y = device->getBackBufferHeight() * 0.5f - backBufferHeight * 0.5f + sy;
         }
         else
         {
-            row.object->position.x = sx;
-            row.object->position.y = sy;
+            position.x = sx;
+            position.y = sy;
         }
-        row.object->position.z = savedZ;
+        position.z = savedZ;
     }
     else if (row.currentMode == RenderMode::WORLD_2D)
     {
@@ -1306,19 +1317,19 @@ void MY_SCENE::applyPosPreset(int idx)
         {
             // render2texture camera uses matrixOrthoLH(tw, th) which maps [-tw/2, tw/2] to
             // clip space. WORLD_2D render path uses position directly — place in texture world.
-            row.object->position.x = sx - backBufferWidth * 0.5f;
-            row.object->position.y = -(sy - backBufferHeight * 0.5f);
-            row.object->position.z = savedZ;
+            position.x = sx - backBufferWidth * 0.5f;
+            position.y = -(sy - backBufferHeight * 0.5f);
+            position.z = savedZ;
         }
         else
         {
-            device->transformeScreen2dToWorld2d_scaled(sx, sy, row.object->position);
-            row.object->position.z = savedZ;
+            device->transformeScreen2dToWorld2d_scaled(sx, sy, position);
+            position.z = savedZ;
         }
     }
     else // WORLD_3D
     {
-        device->transformeScreen2dToWorld3d_scaled(sx, sy, &row.object->position, 800.0f);
+        device->transformeScreen2dToWorld3d_scaled(sx, sy, &position, 800.0f);
         // z is determined by the 3D transform — intentional (how far)
     }
 }
@@ -1417,9 +1428,9 @@ void MY_SCENE::buildShaderMenu()
     auto makeText = [&](const char* txt) -> mbm::TEXT_DRAW*
     {
         mbm::TEXT_DRAW* t = this->fontDrawNoShader->addText(txt, mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-        t->scale           = mbm::VEC3(0.75f, 0.75f, 0.75f);
+        t->setScale(mbm::VEC3(0.75f, 0.75f, 0.75f));
         t->forceCalcSize();
-        t->position.z      = -1.0f;
+        t->getPosition().z = -1.0f;
         t->setAlwaysRenderize(true);
         t->setEnableRender(true);// initially visible
         return t;
@@ -1475,24 +1486,31 @@ void MY_SCENE::buildShaderMenu()
     //float rowY = static_cast<float>(device->getBackBufferHeight()) / 2.0f - totalMenuH / 2.0f;
     float rowY = 510.0f;
 
-    shaderRowPS.labelText->position.x = labelX;
-    shaderRowPS.labelText->position.y = rowY;
-    shaderRowPS.btnPrev->position.x   = prevX;
-    shaderRowPS.btnPrev->position.y   = rowY;
-    shaderRowPS.btnNext->position.x   = nextX;
-    shaderRowPS.btnNext->position.y   = rowY;
+    mbm::VEC3 &psLabelPosition = shaderRowPS.labelText->getPosition();
+    mbm::VEC3 &psPrevPosition  = shaderRowPS.btnPrev->getPosition();
+    mbm::VEC3 &psNextPosition  = shaderRowPS.btnNext->getPosition();
+    psLabelPosition.x = labelX;
+    psLabelPosition.y = rowY;
+    psPrevPosition.x  = prevX;
+    psPrevPosition.y  = rowY;
+    psNextPosition.x  = nextX;
+    psNextPosition.y  = rowY;
     rowY += spacing;
 
-    shaderRowVS.labelText->position.x = labelX;
-    shaderRowVS.labelText->position.y = rowY;
-    shaderRowVS.btnPrev->position.x   = prevX;
-    shaderRowVS.btnPrev->position.y   = rowY;
-    shaderRowVS.btnNext->position.x   = nextX;
-    shaderRowVS.btnNext->position.y   = rowY;
+    mbm::VEC3 &vsLabelPosition = shaderRowVS.labelText->getPosition();
+    mbm::VEC3 &vsPrevPosition  = shaderRowVS.btnPrev->getPosition();
+    mbm::VEC3 &vsNextPosition  = shaderRowVS.btnNext->getPosition();
+    vsLabelPosition.x = labelX;
+    vsLabelPosition.y = rowY;
+    vsPrevPosition.x  = prevX;
+    vsPrevPosition.y  = rowY;
+    vsNextPosition.x  = nextX;
+    vsNextPosition.y  = rowY;
     rowY += spacing;
 
-    shaderBtnPause->position.x = labelX;
-    shaderBtnPause->position.y = rowY;
+    mbm::VEC3 &pausePosition = shaderBtnPause->getPosition();
+    pausePosition.x = labelX;
+    pausePosition.y = rowY;
 }
 
 void MY_SCENE::updateShaderMenu()

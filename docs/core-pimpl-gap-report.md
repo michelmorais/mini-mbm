@@ -1957,6 +1957,12 @@ Milestone 235 implementation note:
 - Focused scan showed direct AABB use was already limited to constructor/accessor implementation; render/text paths use the accessor API.
 - Left `position`, `scale`, and `angle` public for now because they still have broad direct gameplay/test usage and need a separate migration pass.
 
+Milestone 236 implementation note:
+
+- Migrated `src/test-lib/my-scene-test.cpp` direct `RENDERIZABLE` transform reads/writes to `getPosition()`, `setScale()`, and local `VEC3` references.
+- Kept camera and `CAMERA_TARGET` direct transform fields unchanged because they are not `RENDERIZABLE` state.
+- This is a call-site migration milestone only; `RENDERIZABLE::position`, `RENDERIZABLE::scale`, and `RENDERIZABLE::angle` remain public until remaining engine/render/Lua call sites are migrated.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
