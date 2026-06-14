@@ -447,9 +447,10 @@ namespace mbm
     {
         PARTICLE* theParticle = static_cast<PARTICLE*>(that);
         RENDERIZABLE* renderizable = reinterpret_cast<RENDERIZABLE*>(theParticle);
-        if (theParticle->onEndAnimation)
+        const OnEndAnimation onEndAnimation = theParticle->getOnEndAnimation();
+        if (onEndAnimation)
         {
-            theParticle->onEndAnimation(nameAnimation, renderizable);
+            onEndAnimation(nameAnimation, renderizable);
         }
     }
 

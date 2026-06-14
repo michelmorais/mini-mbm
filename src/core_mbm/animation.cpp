@@ -786,10 +786,13 @@ namespace mbm
     {
         ANIMATION_BACKUP animationBackup;
         std::vector<ANIMATION *> lsAnimation;
+        uint32_t indexCurrentAnimation = 0;
+        OnEndAnimation onEndAnimation = nullptr;
+        OnEndEffect onEndFx = nullptr;
     };
 
     ANIMATION_MANAGER::ANIMATION_MANAGER() noexcept
-        : indexCurrentAnimation(0), onEndAnimation(nullptr), onEndFx(nullptr), impl(std::make_unique<Impl>())
+        : impl(std::make_unique<Impl>())
     {
     }
 
@@ -1042,32 +1045,32 @@ namespace mbm
 
     uint32_t ANIMATION_MANAGER::getIndexAnimation() const
     {
-        return this->indexCurrentAnimation;
+        return this->impl->indexCurrentAnimation;
     }
 
     void ANIMATION_MANAGER::setIndexAnimation(const uint32_t newIndex) noexcept
     {
-        this->indexCurrentAnimation = newIndex;
+        this->impl->indexCurrentAnimation = newIndex;
     }
 
     OnEndAnimation ANIMATION_MANAGER::getOnEndAnimation() const noexcept
     {
-        return this->onEndAnimation;
+        return this->impl->onEndAnimation;
     }
 
     void ANIMATION_MANAGER::setOnEndAnimation(OnEndAnimation callback) noexcept
     {
-        this->onEndAnimation = callback;
+        this->impl->onEndAnimation = callback;
     }
 
     OnEndEffect ANIMATION_MANAGER::getOnEndFx() const noexcept
     {
-        return this->onEndFx;
+        return this->impl->onEndFx;
     }
 
     void ANIMATION_MANAGER::setOnEndFx(OnEndEffect callback) noexcept
     {
-        this->onEndFx = callback;
+        this->impl->onEndFx = callback;
     }
 
     bool ANIMATION_MANAGER::setAnimationByIndex(const uint32_t newIndex)

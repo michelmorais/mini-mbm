@@ -150,9 +150,6 @@ namespace mbm
         API_IMPL void backupAnimations() noexcept; // called automatically by engine (CORE_MANAGER)
         API_IMPL void restoreBackupAnimations() noexcept;// called automatically by engine (CORE_MANAGER)
     
-        uint32_t                    indexCurrentAnimation;
-        OnEndAnimation              onEndAnimation;
-        OnEndEffect                 onEndFx;
       private:
         struct Impl;
         std::unique_ptr<Impl> impl;

@@ -634,8 +634,8 @@ namespace mbm
                     return false;
                 unsigned int index = 0;
                 // this->bound.halfDim.z    =   1.0f;
-                // if(this->indexCurrentAnimation < this->mesh->infoSprite.lsBounding.size())
-                //  index = this->indexCurrentAnimation;
+                // if(this->getIndexAnimation() < this->mesh->infoSprite.lsBounding.size())
+                //  index = this->getIndexAnimation();
                 // if(index < this->mesh->infoSprite.lsBounding.size())
                 //{
                 //  deprecated_mbm::BOUNDING_SPRITE* bounding = this->mesh->infoSprite.lsBounding[index];
