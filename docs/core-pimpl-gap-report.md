@@ -38,7 +38,7 @@ High-impact examples:
 | Header | Public state that blocks strict PIMPL |
 |---|---|
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
-| `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, and `blend`; internal flags, dynamic vars, user data, identity/classification, file name, and distance-from-view state are now behind `RENDERIZABLE::Impl`. |
+| `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, and `bounding_AABB`; blend state, internal flags, dynamic vars, user data, identity/classification, file name, and distance-from-view state are now behind `RENDERIZABLE::Impl`. |
 | `include/core_mbm/core-manager.h` | No direct public data members remain; device pointer, scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
 | `include/core_mbm/animation.h` | No direct public data members remain in `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER`; animation/effect state is behind `Impl`. |
 | `include/core_mbm/scene.h` | No direct public data members remain; scene transition state and scene user data are accessor-backed and stored behind `Impl`. |
@@ -1943,6 +1943,13 @@ Milestone 233 implementation note:
 - Kept Lua/plugin ownership behavior routed through the existing `getUserData()` and `setUserData()` API.
 - Focused scan shows remaining `userData` hits are either the private `RENDERIZABLE::Impl` storage/accessors or unrelated owner types such as `AUDIO`, `SCENE`, and physics plugin state.
 
+Milestone 234 implementation note:
+
+- Moved `RENDERIZABLE::blend` into `RENDERIZABLE::Impl`.
+- Kept blend behavior routed through the existing `getBlend()` and `setBlendState()` API.
+- Focused scan showed no external direct `RENDERIZABLE::blend` field access before the move; existing render/Lua/plugin paths already used the accessor API.
+- Kept `blend.h` included by `renderizable.h` because the public `setBlendState(BLEND_STATE)` signature still needs the enum declaration.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1993,7 +2000,7 @@ Current stop rule:
 Before hiding public fields, add and use methods for:
 
 - `DEVICE`: compatibility wrappers around gameplay-facing state, if direct mutable-reference access should be narrowed later.
-- `RENDERIZABLE`: transform, visibility, blend, user data, dynamic vars.
+- `RENDERIZABLE`: transform access is available; visibility, blend, user data, dynamic vars, identity/classification, file name, and distance-from-view state are behind `Impl`.
 - `SCENE`: scene transition state and user data done.
 - `ANIMATION_MANAGER`: animation list/index/callback access done.
 - `ANIMATION`: frame state, blend state, flags, type, `FX`, and timer are behind `Impl`; repo call sites found by direct `anim->...` / `animation->...` public field scan are migrated.

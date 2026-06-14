@@ -44,6 +44,7 @@ namespace mbm
         bool        alwaysRenderize;
         bool        enableRender;
         void *      userData;
+        RENDER_STATE blend;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
 
         Impl(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
@@ -248,17 +249,17 @@ namespace mbm
 
     RENDER_STATE & RENDERIZABLE::getBlend() noexcept
     {
-        return this->blend;
+        return this->impl->blend;
     }
 
     const RENDER_STATE & RENDERIZABLE::getBlend() const noexcept
     {
-        return this->blend;
+        return this->impl->blend;
     }
 
     void RENDERIZABLE::setBlendState(const BLEND_STATE blendState) noexcept
     {
-        this->blend.set(blendState);
+        this->impl->blend.set(blendState);
     }
 
     DYNAMIC_VAR * RENDERIZABLE::getDynamicVar(const char *nameVar)noexcept
