@@ -1464,12 +1464,13 @@ namespace mbm
     
     void ANIMATION_BACKUP::backup(ANIMATION_MANAGER* animationManager)
     {
-        if (animationManager && animationManager->lsAnimation.size())
+        const uint32_t totalAnimation = animationManager ? animationManager->getTotalAnimation() : 0;
+        if (animationManager && totalAnimation)
         {
             this->clearBackup();
-            for (std::vector<ANIMATION*>::size_type i = 0; i < animationManager->lsAnimation.size(); ++i)
+            for (uint32_t i = 0; i < totalAnimation; ++i)
             {
-                ANIMATION* anim = animationManager->lsAnimation[i];
+                ANIMATION* anim = animationManager->getAnimation(i);
 				if (anim)
                 {
                     Impl::ANIMATION_STATE state         = {};
@@ -1538,7 +1539,7 @@ namespace mbm
                 }
                 
             }
-            if (this->impl->indexCurrentAnimation < animationManager->lsAnimation.size())
+            if (this->impl->indexCurrentAnimation < animationManager->getTotalAnimation())
             {
                 animationManager->setIndexAnimation(this->impl->indexCurrentAnimation);
             }
