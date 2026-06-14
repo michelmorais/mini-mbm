@@ -47,13 +47,13 @@ namespace mbm
     int onDestroyMeshLua(lua_State *lua)
     {
         MESH *                mesh     = getMeshFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(mesh->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(mesh->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        mesh->userData = nullptr;
+        mesh->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         const char *fileName = mesh->getFileName();
         static int  num      = 1;
@@ -69,13 +69,13 @@ namespace mbm
 	int onDestroyNoGcMeshLua(lua_State *lua)
     {
         MESH *                mesh     = getMeshFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(mesh->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(mesh->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        mesh->userData = nullptr;
+        mesh->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         const char *fileName = mesh->getFileName();
         static int  num      = 1;
@@ -110,7 +110,7 @@ namespace mbm
 	int onNewMeshNoGcLua(lua_State *lua,RENDERIZABLE * renderizable)
 	{
 		lua_settop(lua,0);
-		if(renderizable == nullptr || renderizable->userData != nullptr)
+		if(renderizable == nullptr || renderizable->getUserData() != nullptr)
 			return false;
 		
 		//table
@@ -137,7 +137,7 @@ namespace mbm
 		auto ** udata             = static_cast<MESH **>(lua_newuserdata(lua, sizeof(MESH *)));
         auto mesh                 = static_cast<MESH*>(renderizable);
 		auto user_data            = new USER_DATA_RENDER_LUA();
-        renderizable->userData    = user_data;
+        renderizable->setUserData(user_data);
         *udata                    = mesh;
         
 		/* trick to ensure that we will receive the expected metatable type expected metatable type. */
@@ -202,14 +202,15 @@ namespace mbm
         auto **      udata  = static_cast<MESH **>(lua_newuserdata(lua, sizeof(MESH *)));
         DEVICE *device = DEVICE::getInstance();
         auto        mesh   = new MESH(device->getScene(), is3d, is2ds);
-        mesh->userData      = new USER_DATA_RENDER_LUA();
+        mesh->setUserData(new USER_DATA_RENDER_LUA());
         *udata              = mesh;
+        VEC3 &meshPosition  = mesh->getPosition();
         if (position.x != 0.0f) //-V550
-            mesh->position.x = position.x;
+            meshPosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            mesh->position.y = position.y;
+            meshPosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            mesh->position.z = position.z;
+            meshPosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_MESH);

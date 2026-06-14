@@ -48,13 +48,13 @@ namespace mbm
     int onDestroyGifViewLua(lua_State *lua)
     {
         GIF_VIEW *        gifView = getGifViewFromRawTable(lua, 1, 1);
-        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(gifView->userData);
+        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(gifView->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        gifView->userData = nullptr;
+        gifView->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = gifView->getFileName();
@@ -70,13 +70,13 @@ namespace mbm
 	int onDestroyGifViewNoGcLua(lua_State *lua)
     {
         GIF_VIEW *        gifView = getGifViewFromRawTable(lua, 1, 1);
-        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(gifView->userData);
+        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(gifView->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        gifView->userData = nullptr;
+        gifView->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = gifView->getFileName();
@@ -124,7 +124,7 @@ namespace mbm
 	int onNewGifViewNoGcLua(lua_State *lua,RENDERIZABLE * renderizable)
 	{
 		lua_settop(lua,0);
-		if(renderizable == nullptr || renderizable->userData != nullptr)
+		if(renderizable == nullptr || renderizable->getUserData() != nullptr)
 			return false;
 		
 		//table
@@ -154,7 +154,7 @@ namespace mbm
 		auto ** udata             = static_cast<GIF_VIEW **>(lua_newuserdata(lua, sizeof(GIF_VIEW *)));
         auto gif                  = static_cast<GIF_VIEW*>(renderizable);
 		auto user_data            = new USER_DATA_RENDER_LUA();
-        renderizable->userData    = user_data;
+        renderizable->setUserData(user_data);
         *udata                    = gif;
         
 		/* trick to ensure that we will receive the expected metatable type expected metatable type. */
@@ -220,14 +220,15 @@ namespace mbm
 
 		auto **   udata     = static_cast<GIF_VIEW **>(lua_newuserdata(lua, sizeof(void *)));
         auto gifView			= new GIF_VIEW(device->getScene(), is3d, is2ds);
-        gifView->userData       = new USER_DATA_RENDER_LUA();
+        gifView->setUserData(new USER_DATA_RENDER_LUA());
         *udata                    = gifView;
+        VEC3 &gifPosition         = gifView->getPosition();
         if (position.x != 0.0f) //-V550
-            gifView->position.x = position.x;
+            gifPosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            gifView->position.y = position.y;
+            gifPosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            gifView->position.z = position.z;
+            gifPosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_GIF);

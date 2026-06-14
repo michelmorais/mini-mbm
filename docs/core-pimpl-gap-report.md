@@ -1767,6 +1767,13 @@ Milestone 209 implementation note:
 - Replaced texture constructor position writes with a local `getPosition()` reference and background front/back z adjustment with a local `getPosition()` reference.
 - Focused scans for direct `RENDERIZABLE` fields in both files are clean.
 
+Milestone 210 implementation note:
+
+- Migrated `SPRITE`, `MESH`, and `GIF_VIEW` Lua render-table ownership/constructor-position paths to the `RENDERIZABLE` accessor API.
+- Replaced Lua `userData` ownership reads/writes in `sprite-lua.cpp`, `mesh-lua.cpp`, and `gif-view-lua.cpp` with `getUserData()` / `setUserData()`.
+- Replaced constructor position writes with local `getPosition()` references.
+- Focused scans for direct `RENDERIZABLE` fields in all three files are clean.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

@@ -46,13 +46,13 @@ namespace mbm
     int onDestroySpriteLua(lua_State *lua)
     {
         SPRITE *              sprite   = getSpriteFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(sprite->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(sprite->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        sprite->userData = nullptr;
+        sprite->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = sprite->getFileName();
@@ -68,13 +68,13 @@ namespace mbm
 	int onDestroyNoGcSpriteLua(lua_State *lua)
     {
         SPRITE *              sprite   = getSpriteFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(sprite->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(sprite->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        sprite->userData = nullptr;
+        sprite->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = sprite->getFileName();
@@ -156,14 +156,15 @@ namespace mbm
         auto **             udata       = static_cast<SPRITE **>(lua_newuserdata(lua, sizeof(SPRITE *)));
         auto               sprite      = new SPRITE(device->getScene(), is3d, is2ds);
         auto tableLuaMbm = new USER_DATA_RENDER_LUA();
-        sprite->userData                  = tableLuaMbm;
+        sprite->setUserData(tableLuaMbm);
         *udata                            = sprite;
+        VEC3 &spritePosition              = sprite->getPosition();
         if (position.x != 0.0f) //-V550
-            sprite->position.x = position.x;
+            spritePosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            sprite->position.y = position.y;
+            spritePosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            sprite->position.z = position.z;
+            spritePosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_SPRITE);
@@ -178,7 +179,7 @@ namespace mbm
 	int onNewSpriteNoGcLua(lua_State *lua,RENDERIZABLE * renderizable)
 	{
 		lua_settop(lua,0);
-		if(renderizable == nullptr || renderizable->userData != nullptr)
+		if(renderizable == nullptr || renderizable->getUserData() != nullptr)
 			return false;
 		
 		//table
@@ -206,7 +207,7 @@ namespace mbm
 		auto ** udata             = static_cast<SPRITE **>(lua_newuserdata(lua, sizeof(SPRITE *)));
         auto sprite               = static_cast<SPRITE*>(renderizable);
 		auto user_data            = new USER_DATA_RENDER_LUA();
-        renderizable->userData    = user_data;
+        renderizable->setUserData(user_data);
         *udata                    = sprite;
         
 		/* trick to ensure that we will receive the expected metatable type expected metatable type. */
