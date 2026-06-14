@@ -1700,6 +1700,12 @@ Milestone 199 implementation note:
 - Cached `positionA` / `positionB` references where collision paths temporarily offset text renderizables, preserving the existing offset/undo behavior.
 - Remaining focused scan hits in this file are `TRIANGLE::position` fields from physics table export, not `RENDERIZABLE`.
 
+Milestone 200 implementation note:
+
+- Migrated the remaining focused `src/lua-wrap/framework-lua.cpp` direct `RENDERIZABLE` state use.
+- Replaced the `addOnTouchMeshLua()` direct `userData` read with `getUserData()`.
+- This keeps Lua touch callback registration behavior unchanged while removing direct `RENDERIZABLE::userData` access from `framework-lua.cpp`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

@@ -406,7 +406,7 @@ namespace mbm
         if (top == 2)
         {
             RENDERIZABLE * ptr  = getRenderizableFromRawTable(lua, 1, 1);
-            auto *    userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+            auto *    userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
             DEVICE *  device    = DEVICE::getInstance();
             auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             bool inTheList = false;
