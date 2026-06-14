@@ -90,9 +90,15 @@ namespace mbm
     struct RENDERIZABLE_TO_TARGET::BackendData
     {
         void *specificConfig;
+        uint32_t widthTexture;
+        uint32_t heightTexture;
+        COLOR colorClearBackGround;
 
         BackendData() noexcept :
-            specificConfig(nullptr)
+            specificConfig(nullptr),
+            widthTexture(0),
+            heightTexture(0),
+            colorClearBackGround(255, 255, 255)
         {
         }
     };
@@ -102,49 +108,65 @@ namespace mbm
         delete data;
     }
 
+    RENDERIZABLE_TO_TARGET::BackendData * RENDERIZABLE_TO_TARGET::ensureRenderTargetBackendData() noexcept
+    {
+        if (!this->backendData)
+        {
+            this->backendData.reset(new BackendData());
+        }
+        return this->backendData.get();
+    }
+
+    const RENDERIZABLE_TO_TARGET::BackendData * RENDERIZABLE_TO_TARGET::getRenderTargetBackendData() const noexcept
+    {
+        return this->backendData.get();
+    }
+
     uint32_t RENDERIZABLE_TO_TARGET::getRenderTargetWidth() const noexcept
     {
-        return this->widthTexture;
+        const BackendData *data = this->getRenderTargetBackendData();
+        return data ? data->widthTexture : 0;
     }
 
     uint32_t RENDERIZABLE_TO_TARGET::getRenderTargetHeight() const noexcept
     {
-        return this->heightTexture;
+        const BackendData *data = this->getRenderTargetBackendData();
+        return data ? data->heightTexture : 0;
     }
 
     void RENDERIZABLE_TO_TARGET::setRenderTargetSize(const uint32_t width, const uint32_t height) noexcept
     {
-        this->widthTexture = width;
-        this->heightTexture = height;
+        BackendData *data = this->ensureRenderTargetBackendData();
+        data->widthTexture = width;
+        data->heightTexture = height;
     }
 
     COLOR & RENDERIZABLE_TO_TARGET::getRenderTargetClearColor() noexcept
     {
-        return this->colorClearBackGround;
+        return this->ensureRenderTargetBackendData()->colorClearBackGround;
     }
 
     const COLOR & RENDERIZABLE_TO_TARGET::getRenderTargetClearColor() const noexcept
     {
-        return this->colorClearBackGround;
+        static const COLOR defaultClearColor(255, 255, 255);
+        const BackendData *data = this->getRenderTargetBackendData();
+        return data ? data->colorClearBackGround : defaultClearColor;
     }
 
     void RENDERIZABLE_TO_TARGET::setRenderTargetClearColor(const COLOR &color) noexcept
     {
-        this->colorClearBackGround = color;
+        this->ensureRenderTargetBackendData()->colorClearBackGround = color;
     }
 
     void * RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig() const noexcept
     {
-        return backendData ? backendData->specificConfig : nullptr;
+        const BackendData *data = this->getRenderTargetBackendData();
+        return data ? data->specificConfig : nullptr;
     }
 
     void RENDERIZABLE_TO_TARGET::setRenderTargetSpecificConfig(void *newSpecificConfig) noexcept
     {
-        if (!backendData)
-        {
-            backendData.reset(new BackendData());
-        }
-        backendData->specificConfig = newSpecificConfig;
+        this->ensureRenderTargetBackendData()->specificConfig = newSpecificConfig;
     }
 
     TYPE_CLASS RENDERIZABLE::getTypeClass() const noexcept

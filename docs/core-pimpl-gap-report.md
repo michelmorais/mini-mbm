@@ -48,7 +48,7 @@ A broad scan for direct member access on the main exposed state returned more th
 What is missing:
 
 - Base `RENDERIZABLE` public field cleanup is done; transform, flags, dynamic vars, user data, file name, distance, blend, and AABB state are behind `Impl`.
-- `RENDERIZABLE_TO_TARGET` still has render-target dimension/clear-color compatibility fields to migrate and hide.
+- `RENDERIZABLE_TO_TARGET` render-target dimension/clear-color compatibility fields are now hidden behind private backend data.
 - A compatibility policy for external source code if future cleanup removes more convenience fields from derived render types or platform samples.
 - Clear classification of which remaining derived-type fields are intentionally part of gameplay scripting ergonomics and which are pure internals.
 
@@ -133,7 +133,7 @@ Current state:
 
 - `RENDERIZABLE` itself has no direct public data members.
 - Engine, Lua, plugin, render, and test call sites use the accessor API for base renderizable state.
-- `RENDERIZABLE_TO_TARGET` still has separate render-target dimension/clear-color fields that are being migrated before hiding.
+- `RENDERIZABLE_TO_TARGET` render-target dimension/clear-color state is now accessor-backed and hidden behind private backend data.
 - Derived render classes may still expose their own gameplay/file-format state; treat those as separate future decisions.
 
 ### 6. Plugin and Lua boundaries need an explicit policy
@@ -1975,6 +1975,13 @@ Milestone 238 implementation note:
 - Migrated backend constructors, render-target viewport/clear paths, texture-manager render-target allocation, HMD/render-to-texture load restore strings, Lua clear/save helpers, and test-lib save/position helpers to the accessor API.
 - Kept `widthTexture`, `heightTexture`, and `colorClearBackGround` public for this milestone so the code-side migration can be reviewed before hiding storage.
 
+Milestone 239 implementation note:
+
+- Moved `RENDERIZABLE_TO_TARGET::widthTexture`, `RENDERIZABLE_TO_TARGET::heightTexture`, and `RENDERIZABLE_TO_TARGET::colorClearBackGround` into private `RENDERIZABLE_TO_TARGET::BackendData`.
+- Reused the existing render-target backend data holder that already stores `specificConfig`, keeping render-target private state in one place.
+- Kept the render-target size/clear-color accessor API added in Milestone 238 unchanged.
+- Focused scan shows remaining `widthTexture` / `heightTexture` / `colorClearBackGround` hits are private accessor implementation, unrelated `INFO_GIF`/`DEVICE` state, or historical docs.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2046,7 +2053,7 @@ This is future work only. It is not required for the completed OS/backend isolat
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
 2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, `EFFECT_SHADER` state, `MESH_MANAGER` singleton cache, `ANIMATION_MANAGER` state, `SCENE` state, and `CORE_MANAGER` public state done.
-3. Finish hiding `RENDERIZABLE_TO_TARGET` dimension/clear-color compatibility fields after the accessor migration is reviewed.
+3. Continue derived render-type header hygiene only where public fields expose internals or cause ABI pressure.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
 6. Split public and private headers further where STL-heavy internals still leak compile dependencies.
@@ -2077,6 +2084,6 @@ Current decision:
 7. `SCENE` scene transition state and scene user data are now behind `Impl`; core scene transitions, Lua scene loading, Android callback routing, physics plugins, and Lua wrappers use the accessor API.
 8. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and device pointer are now behind `Impl`; internal/backend/platform/Lua call sites use accessor-backed device access.
 9. `ANIMATION` frame state, blend state, flags, type, `FX`, and timer are now behind `Impl`; direct repo call sites found by the `anim->...` / `animation->...` public field scan use the accessor API.
-10. `RENDERIZABLE` base state is now behind `Impl`; `RENDERIZABLE_TO_TARGET` size/clear-color accessors are in place and its compatibility fields are the next hide candidate.
+10. `RENDERIZABLE` base state is now behind `Impl`; `RENDERIZABLE_TO_TARGET` render-target size/clear-color state is now accessor-backed and hidden.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

@@ -148,9 +148,6 @@ namespace mbm
     {
       public:
         FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
-        uint32_t widthTexture;
-        uint32_t heightTexture;
-        COLOR        colorClearBackGround;
         API_IMPL RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept;
         API_IMPL virtual ~RENDERIZABLE_TO_TARGET();
         API_IMPL virtual bool render2Texture() = 0;
@@ -170,6 +167,8 @@ namespace mbm
             void operator()(BackendData *data) const noexcept;
         };
 
+        BackendData * ensureRenderTargetBackendData() noexcept;
+        const BackendData * getRenderTargetBackendData() const noexcept;
         std::unique_ptr<BackendData, BackendDataDeleter> backendData;
     };
 
