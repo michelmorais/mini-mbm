@@ -598,7 +598,7 @@ namespace mbm
         */
         RENDERIZABLE *        ptr            = getRenderizableFromRawTable(lua, 1, 1);
         DEVICE *              device         = DEVICE::getInstance();
-        auto * userScene      = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto * userScene      = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         auto *userDataRender = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         if (userDataRender)
             userDataRender->unrefAllTableLua(lua); // destroy all

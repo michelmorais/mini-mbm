@@ -204,7 +204,7 @@ void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, 
 {
     mbm::DEVICE *device = game ? game->getDevice() : nullptr;
     auto *scene = device ? device->getScene() : nullptr;
-    if (env && game && device && scene && scene->userData)
+    if (env && game && device && scene && scene->getUserData())
     {
         if (param1 && param2)
         {
@@ -246,9 +246,9 @@ void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, 
         {
             ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->getDevice()->getScene() is null!");
         }
-        else if(scene->userData == nullptr)
+        else if(scene->getUserData() == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->getDevice()->getScene()->userData is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->getDevice()->getScene()->getUserData() is null!");
         }
         else if(env == nullptr)
         {

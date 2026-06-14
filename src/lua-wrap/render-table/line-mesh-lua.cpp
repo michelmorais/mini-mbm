@@ -63,7 +63,7 @@ namespace mbm
         PRINT_IF_DEBUG( "free lineMesh [%s] [%d]\n", fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(lineMesh);
         delete lineMesh;
         return 0;

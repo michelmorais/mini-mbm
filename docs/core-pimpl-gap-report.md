@@ -41,7 +41,7 @@ High-impact examples:
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`. Scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
 | `include/core_mbm/animation.h` | `ANIMATION` frame state and `fx`. `EFFECT_SHADER` state and `ANIMATION_MANAGER` restore backup, animation list, current index, and callbacks are now behind `Impl`. |
-| `include/core_mbm/scene.h` | `endScene`, `wasUnloadedScene`, `nextScene`, `goToNextScene`, `userData`. |
+| `include/core_mbm/scene.h` | No direct public data members remain; scene transition state and scene user data are accessor-backed and stored behind `Impl`. |
 
 A broad scan for direct member access on the main exposed state returned more than 2,000 hits across `include/`, `src/`, `plugins/`, `platform-*`, and `editor/`. That number is only a sizing signal, but it confirms this cannot be a single mechanical header edit.
 
@@ -1496,6 +1496,14 @@ Milestone 171 implementation note:
 - Removed all public data members from `EFFECT_SHADER`; shader effect state is now method-backed.
 - This is a strict `EFFECT_SHADER` PIMPL step. It changes source compatibility for code that still reads those fields directly, but the repo call sites had already been migrated.
 
+Milestone 172 implementation note:
+
+- Moved public `SCENE` state behind `SCENE::Impl`: `endScene`, `wasUnloadedScene`, `nextScene`, `goToNextScene`, and `userData`.
+- Added explicit `SCENE` accessors/mutators for scene end state, unload state, next-scene pointer, transition flag, and user data.
+- Migrated core scene transition logic, Lua scene loading helpers, Android native callback routing, physics plugin scene callback access, and Lua wrapper scene-user-data reads to the new accessors.
+- Removed all public data members from `SCENE`; scene transition/user-data state is now method-backed.
+- This is a strict `SCENE` PIMPL step. It changes source compatibility for code that still reads those fields directly, but the repo call sites had already been migrated.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1530,6 +1538,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `EFFECT_SHADER`, done for shader cache map and effect state behind `Impl`.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
 - `ANIMATION_MANAGER`, done for restore backup object, animation list, current index, and callback fields behind `Impl`; Lua/render/backup/internal current-index reads migrated to `getIndexAnimation()`, raw current-index writes migrated to `setIndexAnimation()`, Lua callback writes migrated to callback setters, render/tiled callback reads migrated to callback getters, straightforward render-side list reads migrated to `getAnimation()`/`getTotalAnimation()`, backup list reads migrated to list accessors, straightforward setup appends migrated to `appendAnimation()`, tiled editor fixed-slot reads migrated to `getAnimation(index)`, read-only internal manager list use migrated to list accessors, and `removeAnimation()` bounds/clamp logic migrated to list accessors.
+- `SCENE`, done for scene transition state and scene user data behind `Impl`.
 - `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
@@ -1546,7 +1555,7 @@ Before hiding public fields, add and use methods for:
 
 - `DEVICE`: compatibility wrappers around gameplay-facing state, if direct mutable-reference access should be narrowed later.
 - `RENDERIZABLE`: transform, visibility, blend, user data, dynamic vars.
-- `SCENE`: scene transition state and user data.
+- `SCENE`: scene transition state and user data done.
 - `ANIMATION_MANAGER`: animation list/index/callback access done; remaining public layout is `ANIMATION` frame state and `fx`.
 
 Keep direct fields during transition if source compatibility matters.
@@ -1565,7 +1574,7 @@ This is future work only. It is not required for the completed OS/backend isolat
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
 2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, `EFFECT_SHADER` state, `MESH_MANAGER` singleton cache, `ANIMATION_MANAGER` state, selected `CORE_MANAGER` flags, and early `CORE_MANAGER::getDevice()` compatibility migrations done.
-3. Add complete accessor/mutator coverage for `RENDERIZABLE`, `SCENE`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
+3. Add complete accessor/mutator coverage for `RENDERIZABLE`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
 6. Split public and private headers further where STL-heavy internals still leak compile dependencies.
@@ -1593,7 +1602,8 @@ Current decision:
 4. `EFFECT_SHADER` private shader cache and public effect state are now behind `Impl`.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
 6. `ANIMATION_MANAGER` restore backup storage, animation list, current index, and callback fields are now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index writes use `setIndexAnimation()`, Lua callback writes use callback setters, render/tiled callback reads use callback getters, straightforward render-side list reads use `getAnimation()`/`getTotalAnimation()`, backup list reads use list accessors, straightforward setup appends use `appendAnimation()`, tiled editor fixed-slot reads use `getAnimation(index)`, read-only internal manager list use is accessor-backed, and `removeAnimation()` bounds/clamp logic uses list accessors.
-7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.
-8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
+7. `SCENE` scene transition state and scene user data are now behind `Impl`; core scene transitions, Lua scene loading, Android callback routing, physics plugins, and Lua wrappers use the accessor API.
+8. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.
+9. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

@@ -62,7 +62,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",particle->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(particle);
         delete particle;
         return 0;
@@ -84,7 +84,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",particle->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(particle);
         return 0;
     }

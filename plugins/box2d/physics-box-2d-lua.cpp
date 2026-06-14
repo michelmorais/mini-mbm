@@ -97,7 +97,7 @@ namespace mbm
     void lua_box2d_onBox2dDestroyBodyFromList(RENDERIZABLE* ptr)
     {
         DEVICE * device = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         lua_State * lua = userScene->lua;
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         //if we have animation callback we dont want to take off the reference
@@ -1878,7 +1878,7 @@ namespace mbm
             auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->ptr->userData);
             auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->ptr->userData);
             DEVICE *             device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *               lua       = userScene->lua;
             USER_DATA_PHYSICS_2D *    uData     = box2d->userData;
             switch (idEvent)

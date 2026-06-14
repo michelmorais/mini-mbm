@@ -59,7 +59,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",sprite->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(sprite);
         delete sprite;
         return 0;
@@ -81,7 +81,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",sprite->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(sprite);
         return 0;
     }

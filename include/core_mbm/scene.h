@@ -20,6 +20,8 @@
 #ifndef CONTROL_SCENE_H
 #define CONTROL_SCENE_H
 
+#include <memory>
+
 #include "core-exports.h"
 
 namespace mbm
@@ -42,14 +44,8 @@ namespace mbm
     class API_IMPL SCENE : public CONTROL_SCENE
     {
       public:
-        bool   endScene;
-        bool   wasUnloadedScene;
-        SCENE *nextScene;
-        bool   goToNextScene;
-        void * userData;
-
         SCENE() noexcept;
-        virtual ~SCENE() = default;
+        virtual ~SCENE();
 
         virtual void onInitScene() = 0;
         virtual void onLoop() = 0;
@@ -75,7 +71,20 @@ namespace mbm
         virtual void onDoubleClick(float, float, int);
         virtual void onCallBackCommands(const char *,const char *);
 
+        bool isEndScene() const noexcept;
+        void setEndScene(bool value) noexcept;
+        bool wasSceneUnloaded() const noexcept;
+        void setWasUnloadedScene(bool value) noexcept;
+        SCENE *getNextScene() const noexcept;
         void setNextScene(SCENE *_nextScene);
+        bool shouldGoToNextScene() const noexcept;
+        void setGoToNextScene(bool value) noexcept;
+        void *getUserData() const noexcept;
+        void setUserData(void *_userData) noexcept;
+
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 
 }

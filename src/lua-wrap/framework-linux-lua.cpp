@@ -634,7 +634,7 @@ namespace mbm
     int onPanic(lua_State *lua)
     {
         DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         const char *    error     = lua_tostring(lua, -1);
         std::string               strErr(error ? error : "undefined");
         ERROR_LOG("%s",strErr.c_str());

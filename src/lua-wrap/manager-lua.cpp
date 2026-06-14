@@ -82,7 +82,7 @@ namespace mbm
             this->textureRestore        = nullptr;
             this->loadSceneOnFirstLoop   = false;
             this->__onErrorStop__       = false;
-            this->userData              = &this->dataScene;
+            this->setUserData(&this->dataScene);
             //this->time_resize_window    = 0.0f;
             this->splashRenderizable  = mbm::clone(this,previousSplash);
         }
@@ -521,9 +521,9 @@ namespace mbm
                     auto newScene     = new SCENE_SCRIPT(this->getSceneName(), true, this->splashRenderizable);
                     auto *luaManager  = static_cast<LUA_MANAGER *>(device->getCoreManager());
                     luaManager->lsScene.push_back(newScene);
-                    device->getScene()->nextScene     = newScene;
-                    device->getScene()->goToNextScene = true;
-                    device->getScene()->endScene      = true;
+                    device->getScene()->setNextScene(newScene);
+                    device->getScene()->setGoToNextScene(true);
+                    device->getScene()->setEndScene(true);
                     this->time_resize_window           = 0.0f;
                 }
             }*/
@@ -1786,9 +1786,9 @@ namespace mbm
                 auto *curScene = static_cast<SCENE_SCRIPT*>(scene);
                 auto newScene = new SCENE_SCRIPT(newSceneName.c_str(), false, curScene->splashRenderizable);
                 luaManager->lsScene.push_back(newScene);
-                scene->nextScene     = newScene;
-                scene->goToNextScene = true;
-                scene->endScene      = true;
+                scene->setNextScene(newScene);
+                scene->setGoToNextScene(true);
+                scene->setEndScene(true);
 
                 if (tSplash == LUA_TTABLE)//add or replace renderizable
                 {
@@ -1868,15 +1868,15 @@ namespace mbm
                             auto *curScene = static_cast<SCENE_SCRIPT*>(scene);
                             auto newScene = new SCENE_SCRIPT(nameScene, luaManager->noSplash,curScene->splashRenderizable);
                             luaManager->lsScene.push_back(newScene);
-                            scene->nextScene     = newScene;
-                            scene->goToNextScene = true;
-                            scene->endScene      = true;
+                            scene->setNextScene(newScene);
+                            scene->setGoToNextScene(true);
+                            scene->setEndScene(true);
                         }
                         else
                         {
                             ERROR_LOG("Scene not found:[%s]", nameScene);
                             SCENE *scene = device->getScene();
-                            scene->endScene = true;
+                            scene->setEndScene(true);
                         }
                     }
                 }

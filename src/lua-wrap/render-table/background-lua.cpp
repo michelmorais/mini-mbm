@@ -60,7 +60,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",backGround->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(backGround);
         delete backGround;
         return 0;
@@ -82,7 +82,7 @@ namespace mbm
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",backGround->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(backGround);
         return 0;
     }

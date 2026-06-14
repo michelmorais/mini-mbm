@@ -843,10 +843,10 @@ namespace mbm
         SCENE *scene = device->getScene();
         if (scene != nullptr)
         {
-            if (scene->endScene)
+            if (scene->isEndScene())
             {
                 scene->onFinalizeScene();
-                scene->wasUnloadedScene = true;
+                scene->setWasUnloadedScene(true);
                 disableRender(scene->getIdScene());
                 for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
                 {
@@ -854,20 +854,20 @@ namespace mbm
                     plugin->onDestroy();
                 }
                 this->clearPlugins();
-                if (scene->goToNextScene && scene->nextScene == nullptr)
+                if (scene->shouldGoToNextScene() && scene->getNextScene() == nullptr)
                 {
                     device->setRun(false);
                     device->setClearBackGround(false);
                 }
                 else
                 {
-                    if (scene->goToNextScene)
+                    if (scene->shouldGoToNextScene())
                     {
-                        device->setScene(scene->nextScene);
+                        device->setScene(scene->getNextScene());
                         scene = device->getScene();
                     }
                     if(scene)
-                        scene->endScene = false;
+                        scene->setEndScene(false);
                     this->setChangeScene(true);
                     device->setClearBackGround(true);
                     if(scene)
@@ -887,7 +887,7 @@ namespace mbm
                     #endif
                     this->reinitTimers();
                     enableRender(scene->getIdScene());
-                    scene->wasUnloadedScene = false;
+                    scene->setWasUnloadedScene(false);
                     device->getOrderRender().reInit();
                     scene->onInitScene();
                     device->setFakeFps(120,60);

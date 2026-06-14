@@ -381,7 +381,7 @@ struct USER_DATA_PHYSICS_3D
         if (uData->szBeginContact[0])
         {
             DEVICE *             device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *               lua       = userScene->lua;
             auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
             auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
@@ -402,7 +402,7 @@ struct USER_DATA_PHYSICS_3D
         if (uData->szEndContact[0])
         {
             DEVICE *             device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *               lua       = userScene->lua;
             auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
             auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
@@ -423,7 +423,7 @@ struct USER_DATA_PHYSICS_3D
         if (uData->szKeepContact[0])
         {
             DEVICE *             device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *               lua       = userScene->lua;
             auto *    userData1 = static_cast<USER_DATA_RENDER_LUA *>(info1->userData);
             auto *    userData2 = static_cast<USER_DATA_RENDER_LUA *>(info2->userData);
