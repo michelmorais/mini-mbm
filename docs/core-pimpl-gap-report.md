@@ -40,15 +40,15 @@ High-impact examples:
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | No direct public data members remain; device pointer, scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
-| `include/core_mbm/animation.h` | `ANIMATION` frame state and `fx`. `EFFECT_SHADER` state and `ANIMATION_MANAGER` restore backup, animation list, current index, and callbacks are now behind `Impl`. |
+| `include/core_mbm/animation.h` | No direct public data members remain in `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER`; animation/effect state is behind `Impl`. |
 | `include/core_mbm/scene.h` | No direct public data members remain; scene transition state and scene user data are accessor-backed and stored behind `Impl`. |
 
 A broad scan for direct member access on the main exposed state returned more than 2,000 hits across `include/`, `src/`, `plugins/`, `platform-*`, and `editor/`. That number is only a sizing signal, but it confirms this cannot be a single mechanical header edit.
 
 What is missing:
 
-- Accessors and mutators for the current public fields.
-- Internal call-site migration from direct access to methods.
+- Accessors and mutators for remaining gameplay public fields, mainly `RENDERIZABLE`.
+- Internal call-site migration from direct access to methods for any future strict gameplay-field cleanup.
 - A compatibility policy for external source code. Either keep legacy public fields for one cycle or accept a breaking API cleanup.
 - Clear classification of which fields are intentionally part of gameplay scripting ergonomics and which are pure internals.
 
@@ -1592,6 +1592,13 @@ Milestone 184 implementation note:
 - Kept the accessor/mutator API unchanged: name, interval, frame range/current frame, blend state, ended flag, direction flag, type, and `FX`.
 - This is a strict `ANIMATION` PIMPL step. It changes source compatibility for code that still reads or writes `ANIMATION` fields directly, but the repo call sites found by the direct-field scans had already been migrated.
 
+Milestone 185 implementation note:
+
+- Reconciled the report after strict `ANIMATION` PIMPL completion.
+- Updated the main public-state gap table so `animation.h` no longer lists `ANIMATION` frame state or `FX` as exposed public layout.
+- Narrowed remaining strict-PIMPL future work to `RENDERIZABLE` gameplay/public layout and any future manager/helper state, not animation call-site migration.
+- This is documentation-only and does not change runtime behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1663,7 +1670,7 @@ This is future work only. It is not required for the completed OS/backend isolat
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
 2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, `EFFECT_SHADER` state, `MESH_MANAGER` singleton cache, `ANIMATION_MANAGER` state, `SCENE` state, and `CORE_MANAGER` public state done.
-3. Add complete accessor/mutator coverage for `RENDERIZABLE`, remaining external `ANIMATION` frame/`fx` call sites, and any manager state that external code currently reads.
+3. Add complete accessor/mutator coverage for `RENDERIZABLE` and any future manager/helper state that external code currently reads.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
 6. Split public and private headers further where STL-heavy internals still leak compile dependencies.
