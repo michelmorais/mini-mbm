@@ -49,13 +49,13 @@ namespace mbm
     int onDestroyParticleLua(lua_State *lua)
     {
         PARTICLE *            particle = getParticleFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(particle->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(particle->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        particle->userData = nullptr;
+        particle->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = particle->getFileName();
@@ -71,13 +71,13 @@ namespace mbm
 	int onDestroyParticleNoGcLua(lua_State *lua)
     {
         PARTICLE *            particle = getParticleFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(particle->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(particle->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        particle->userData = nullptr;
+        particle->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = particle->getFileName();
@@ -110,15 +110,18 @@ namespace mbm
         PARTICLE *  particle = getParticleFromRawTable(lua, 1, 1);
         const char *what     = luaL_checkstring(lua, 2);
         const int   len      = static_cast<int>(strlen(what));
+        VEC3 &      particlePosition = particle->getPosition();
+        VEC3 &      particleScale = particle->getScale();
+        VEC3 &      particleAngle = particle->getAngle();
         switch (len)
         {
             case 1:
             {
                 switch (what[0])
                 {
-                    case 'x': particle->position.x = luaL_checknumber(lua, 3); break;
-                    case 'y': particle->position.y = luaL_checknumber(lua, 3); break;
-                    case 'z': particle->position.z = luaL_checknumber(lua, 3); break;
+                    case 'x': particlePosition.x = luaL_checknumber(lua, 3); break;
+                    case 'y': particlePosition.y = luaL_checknumber(lua, 3); break;
+                    case 'z': particlePosition.z = luaL_checknumber(lua, 3); break;
                     default: { return setVariable(lua, particle, what);}
                 }
             }
@@ -131,9 +134,9 @@ namespace mbm
                     {
                         switch (what[1])
                         {
-                            case 'x': particle->scale.x = luaL_checknumber(lua, 3); break;
-                            case 'y': particle->scale.y = luaL_checknumber(lua, 3); break;
-                            case 'z': particle->scale.z = luaL_checknumber(lua, 3); break;
+                            case 'x': particleScale.x = luaL_checknumber(lua, 3); break;
+                            case 'y': particleScale.y = luaL_checknumber(lua, 3); break;
+                            case 'z': particleScale.z = luaL_checknumber(lua, 3); break;
                             default: { return setVariable(lua, particle, what);}
                         }
                     }
@@ -142,9 +145,9 @@ namespace mbm
                     {
                         switch (what[1])
                         {
-                            case 'x': particle->angle.x = luaL_checknumber(lua, 3); break;
-                            case 'y': particle->angle.y = luaL_checknumber(lua, 3); break;
-                            case 'z': particle->angle.z = luaL_checknumber(lua, 3); break;
+                            case 'x': particleAngle.x = luaL_checknumber(lua, 3); break;
+                            case 'y': particleAngle.y = luaL_checknumber(lua, 3); break;
+                            case 'z': particleAngle.z = luaL_checknumber(lua, 3); break;
                             default: { return setVariable(lua, particle, what);}
                         }
                     }
@@ -199,7 +202,7 @@ namespace mbm
             case 7:
             {
                 if (strcmp("visible", what) == 0)
-                    particle->enableRender = lua_toboolean(lua, 3) ? true : false;
+                    particle->setEnableRender(lua_toboolean(lua, 3) ? true : false);
                 else
                     return setVariable(lua, particle, what);
             }
@@ -252,15 +255,18 @@ namespace mbm
         PARTICLE *  particle = getParticleFromRawTable(lua, 1, 1);
         const char *what     = luaL_checkstring(lua, 2);
         const int   len      = static_cast<int>(strlen(what));
+        const VEC3 &particlePosition = particle->getPosition();
+        const VEC3 &particleScale = particle->getScale();
+        const VEC3 &particleAngle = particle->getAngle();
         switch (len)
         {
             case 1:
             {
                 switch (what[0])
                 {
-                    case 'x': lua_pushnumber(lua, particle->position.x); break;
-                    case 'y': lua_pushnumber(lua, particle->position.y); break;
-                    case 'z': lua_pushnumber(lua, particle->position.z); break;
+                    case 'x': lua_pushnumber(lua, particlePosition.x); break;
+                    case 'y': lua_pushnumber(lua, particlePosition.y); break;
+                    case 'z': lua_pushnumber(lua, particlePosition.z); break;
                     default: { return getVariable(lua, particle, what);}
                 }
             }
@@ -273,9 +279,9 @@ namespace mbm
                     {
                         switch (what[1])
                         {
-                            case 'x': lua_pushnumber(lua, particle->scale.x); break;
-                            case 'y': lua_pushnumber(lua, particle->scale.y); break;
-                            case 'z': lua_pushnumber(lua, particle->scale.z); break;
+                            case 'x': lua_pushnumber(lua, particleScale.x); break;
+                            case 'y': lua_pushnumber(lua, particleScale.y); break;
+                            case 'z': lua_pushnumber(lua, particleScale.z); break;
                             default: { return getVariable(lua, particle, what);}
                         }
                     }
@@ -284,9 +290,9 @@ namespace mbm
                     {
                         switch (what[1])
                         {
-                            case 'x': lua_pushnumber(lua, particle->angle.x); break;
-                            case 'y': lua_pushnumber(lua, particle->angle.y); break;
-                            case 'z': lua_pushnumber(lua, particle->angle.z); break;
+                            case 'x': lua_pushnumber(lua, particleAngle.x); break;
+                            case 'y': lua_pushnumber(lua, particleAngle.y); break;
+                            case 'z': lua_pushnumber(lua, particleAngle.z); break;
                             default: { return getVariable(lua, particle, what);}
                         }
                     }
@@ -345,7 +351,7 @@ namespace mbm
             case 7:
             {
                 if (strcmp("visible", what) == 0)
-                    lua_pushboolean(lua, particle->enableRender);
+                    lua_pushboolean(lua, particle->isRenderEnabled());
                 else
                     return getVariable(lua, particle, what);
             }
@@ -1155,7 +1161,7 @@ namespace mbm
 	int onNewParticleNoGcLua(lua_State *lua,RENDERIZABLE * renderizable)
 	{
 		lua_settop(lua,0);
-		if(renderizable == nullptr || renderizable->userData != nullptr)
+		if(renderizable == nullptr || renderizable->getUserData() != nullptr)
 			return false;
 		
 		//table
@@ -1224,10 +1230,10 @@ namespace mbm
 		luaL_setfuncs(lua, regParticleMethodsMetaTable, 0);//Registers all functions in the array l (see luaL_Reg) into the table on the top of the stack 
 		lua_setmetatable(lua,-2);
 		
-		auto ** udata             = static_cast<PARTICLE **>(lua_newuserdata(lua, sizeof(PARTICLE *)));
+        auto ** udata             = static_cast<PARTICLE **>(lua_newuserdata(lua, sizeof(PARTICLE *)));
         auto particle             = static_cast<PARTICLE*>(renderizable);
 		auto user_data            = new USER_DATA_RENDER_LUA();
-        renderizable->userData    = user_data;
+        renderizable->setUserData(user_data);
         *udata                    = particle;
         
 		/* trick to ensure that we will receive the expected metatable type expected metatable type. */
@@ -1335,14 +1341,15 @@ namespace mbm
 		auto **      udata    = static_cast<PARTICLE **>(lua_newuserdata(lua, sizeof(PARTICLE *)));
         DEVICE *device   = DEVICE::getInstance();
         auto    particle = new PARTICLE(device->getScene(), is3d, is2ds);
-        particle->userData    = new USER_DATA_RENDER_LUA();
+        particle->setUserData(new USER_DATA_RENDER_LUA());
         *udata                = particle;
+        VEC3 &particlePosition = particle->getPosition();
         if (position.x != 0.0f) //-V550
-            particle->position.x = position.x;
+            particlePosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            particle->position.y = position.y;
+            particlePosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            particle->position.z = position.z;
+            particlePosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_PARTICLE);

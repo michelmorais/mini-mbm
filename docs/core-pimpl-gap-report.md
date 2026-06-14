@@ -1789,6 +1789,15 @@ Milestone 212 implementation note:
 - Replaced tile constructor position writes with a local `getPosition()` reference.
 - Focused scan for direct `RENDERIZABLE` fields in `tile-lua.cpp` is clean.
 
+Milestone 213 implementation note:
+
+- Migrated `SHAPE_MESH`, `LINE_MESH`, `TEXT_DRAW`, and `PARTICLE` Lua render-table direct `RENDERIZABLE` state access to the accessor API in one batched pass.
+- Replaced Lua ownership reads/writes in `shape-lua.cpp`, `line-mesh-lua.cpp`, `font-lua.cpp`, and `particle-lua.cpp` with `getUserData()` / `setUserData()`.
+- Replaced constructor position writes and Lua property `position` / `scale` / `angle` reads/writes with local accessor-backed `VEC3` references.
+- Replaced custom Lua visibility flags with `setEnableRender()` / `isRenderEnabled()` and text `alwaysRender` with `setAlwaysRenderize()` / `isAlwaysRenderizeEnabled()`.
+- Replaced shape/line `is3D` checks with cached `is3DObject()` values where repeated in a function.
+- Focused scan for direct `RENDERIZABLE` fields in the four touched files is clean.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

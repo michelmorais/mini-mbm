@@ -62,13 +62,13 @@ namespace mbm
     int onDestroyShapeMeshLua(lua_State *lua)
     {
         SHAPE_MESH *          shape    = getShapeMeshFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_SHAPE_LUA *>(shape->userData);
+        auto *userData = static_cast<USER_DATA_SHAPE_LUA *>(shape->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        shape->userData = nullptr;
+        shape->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = shape->getFileName();
@@ -237,7 +237,8 @@ namespace mbm
             return lua_error_debug(lua, "[table XYZ] empty!\n Funtions available:\n%s",options_shape);
         }
 
-        if (shape->is3D)
+        const bool is3DObject = shape->is3DObject();
+        if (is3DObject)
         {
             if (sTableXYZ % 3)
             {
@@ -320,7 +321,8 @@ namespace mbm
             return lua_error_debug(lua, "[table index] empty!\n\n options:\n%s", options_shape);
         }
 
-        if (shape->is3D)
+        const bool is3DObject = shape->is3DObject();
+        if (is3DObject)
         {
             if (sTableXYZ % 3)
             {
@@ -450,7 +452,8 @@ namespace mbm
             return lua_error_debug(lua, "[table index] empty! \n\n options:\n%s", options_shape);
         }
 
-        if (shape->is3D)
+        const bool is3DObject = shape->is3DObject();
+        if (is3DObject)
         {
             if (sTableXYZ % 3)
             {
@@ -575,7 +578,7 @@ namespace mbm
 
 	static void onRenderDynamicBufferCallBackLua(SHAPE_MESH * shape, std::vector<float> & dynamicVertex,std::vector<float> & dynamicUV,const std::vector<uint16_t> & index_read_only)
 	{
-        auto *userData   = static_cast<USER_DATA_SHAPE_LUA *>(shape->userData);
+        auto *userData   = static_cast<USER_DATA_SHAPE_LUA *>(shape->getUserData());
 		DEVICE * device  = DEVICE::getInstance();
         auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         lua_State * lua  = sceneData->lua;
@@ -651,7 +654,7 @@ namespace mbm
             SHAPE_MESH *shape          = getShapeMeshFromRawTable(lua, 1, 1);
 			if(shape->isDynamicBufferMode())
 			{
-				auto *userData = static_cast<USER_DATA_SHAPE_LUA *>(shape->userData);
+				auto *userData = static_cast<USER_DATA_SHAPE_LUA *>(shape->getUserData());
 				if(userData)
 				{
                     if(lua_type(lua, 2) == LUA_TNIL)
@@ -734,16 +737,17 @@ namespace mbm
 
         auto **udata  = static_cast<SHAPE_MESH **>(lua_newuserdata(lua, sizeof(SHAPE_MESH *)));
         DEVICE *device = DEVICE::getInstance();
-        auto  shape  = new SHAPE_MESH(device->getScene(), is3d, is2ds);
+		auto  shape  = new SHAPE_MESH(device->getScene(), is3d, is2ds);
 		auto userDataShape  = new USER_DATA_SHAPE_LUA();
-        shape->userData     = userDataShape;
+        shape->setUserData(userDataShape);
         *udata              = shape;
+        VEC3 &shapePosition = shape->getPosition();
         if (position.x != 0.0f) //-V550
-            shape->position.x = position.x;
+            shapePosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            shape->position.y = position.y;
+            shapePosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            shape->position.z = position.z;
+            shapePosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_SHAPE_MESH);
