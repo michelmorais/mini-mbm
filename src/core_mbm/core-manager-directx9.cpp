@@ -99,7 +99,7 @@ namespace mbm
     CORE_MANAGER::CORE_MANAGER()
     {
         this->initializeImpl();
-        this->device           = DEVICE::getInstance();
+        this->setDevice(DEVICE::getInstance());
         this->setChangeScene(true);
         this->setSceneInitialized(false);
         this->setKeyCapsLockState(false);

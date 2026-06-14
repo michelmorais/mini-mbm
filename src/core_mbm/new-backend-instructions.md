@@ -1468,7 +1468,8 @@ extern "C" void mbm_ios_setMetalLayer(CAMetalLayer* layer) {
 
 void CORE_MANAGER::initGraphics() {
     // initializeSpecificContext() was called inside initializeSceneLua()
-    auto* ctx = this->device->getSpecificContextDevice();
+    DEVICE *device = this->getDevice();
+    auto* ctx = device->getSpecificContextDevice();
     ctx->metalLayer = s_pendingMetalLayer;   // read back after context reset
     ...
 }

@@ -1153,7 +1153,6 @@ namespace mbm
         {
             LUA_MANAGER::pLuaManager = this;
             onDoNativeCommand = nullptr;
-            pLuaManager->device = mbm::DEVICE::getInstance();
             DEVICE *device = this->getDevice();
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
@@ -1188,7 +1187,6 @@ namespace mbm
         LUA_MANAGER::LUA_MANAGER(const std::vector<std::string> & args)
         {
             LUA_MANAGER::pLuaManager = this;
-            pLuaManager->device = mbm::DEVICE::getInstance();
             DEVICE *device = this->getDevice();
             onDoNativeCommand = nullptr;
             log_util::setScriptPrintLine(onScriptPrintLine);
@@ -1230,7 +1228,6 @@ namespace mbm
         {
             LUA_MANAGER::pLuaManager = this;
             onDoNativeCommand = nullptr;
-            pLuaManager->device = mbm::DEVICE::getInstance();
             DEVICE *device = this->getDevice();
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);

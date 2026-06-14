@@ -76,6 +76,7 @@ namespace mbm
         bool                                 changeScene               = true;
         bool                                 keyCapsLockState          = false;
         bool                                 sceneWasInitialized       = false;
+        DEVICE                              *device                    = nullptr;
     };
 
     void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
@@ -162,7 +163,12 @@ namespace mbm
 
     DEVICE *CORE_MANAGER::getDevice() const noexcept
     {
-        return this->device;
+        return impl->device;
+    }
+
+    void CORE_MANAGER::setDevice(DEVICE *device) noexcept
+    {
+        impl->device = device;
     }
 
     void CORE_MANAGER::setSceneInitialized(const bool initialized) noexcept
@@ -587,6 +593,7 @@ namespace mbm
 
     void CORE_MANAGER::render()
     {
+        DEVICE *device = this->getDevice();
         if (!device)
             return;
         if (!device->isRunning())

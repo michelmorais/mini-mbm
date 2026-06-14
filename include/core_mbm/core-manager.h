@@ -192,7 +192,6 @@ namespace mbm
     class CORE_MANAGER : public EVENTS
     {
       public:
-        DEVICE *device;
         API_IMPL CORE_MANAGER();
         API_IMPL virtual ~CORE_MANAGER();
     
@@ -258,6 +257,7 @@ namespace mbm
         bool isChangeScene() const noexcept;
         void setKeyCapsLockState(const bool enabled) noexcept;
         void setSceneInitialized(const bool initialized) noexcept;
+        void setDevice(DEVICE *device) noexcept;
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;

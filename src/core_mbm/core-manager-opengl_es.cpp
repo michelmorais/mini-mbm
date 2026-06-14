@@ -79,7 +79,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     CORE_MANAGER::CORE_MANAGER()
     {
         this->initializeImpl();
-        this->device           = DEVICE::getInstance();
+        this->setDevice(DEVICE::getInstance());
         this->setChangeScene(true);
         this->setSceneInitialized(false);
         this->setKeyCapsLockState(false);
