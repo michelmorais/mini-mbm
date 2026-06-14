@@ -109,11 +109,12 @@ namespace mbm
     {
         if (!this->mesh)
             return false;
-        if (this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (indexAnimation < this->lsAnimation.size())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
+            ANIMATION *anim = this->lsAnimation[indexAnimation];
             anim->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
             if (this->is3D)
             {
