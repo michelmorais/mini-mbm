@@ -379,7 +379,8 @@ namespace mbm
 
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+            DEVICE *device = this->getDevice();
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
             if (!ctx || !ctx->window) return;
 
             // The backbuffer size is in logical points (not scaled).
@@ -391,7 +392,7 @@ namespace mbm
             // the backbuffer size).  No scale multiplication needed.
             auto toEngineXY = [&](NSPoint p, float& ex, float& ey) {
                 ex = static_cast<float>(p.x);
-                ey = static_cast<float>(this->device->getBackBufferHeight()) -
+                ey = static_cast<float>(device->getBackBufferHeight()) -
                      static_cast<float>(p.y);
             };
 
@@ -550,7 +551,7 @@ namespace mbm
 
             // If the window was closed by the delegate, stop the engine.
             if (ctx->window && ![ctx->window isVisible])
-                this->device->setRun(false);
+                device->setRun(false);
 
             // Poll for window resize every frame (catches programmatic resizes too).
             if (ctx->window && ctx->metalLayer)
