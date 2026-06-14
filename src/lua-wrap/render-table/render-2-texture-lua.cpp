@@ -55,13 +55,13 @@ namespace mbm
     int onDestroyRender2Texture(lua_State *lua)
     {
         RENDER_2_TEXTURE *    render2texture = getRender2TextureTargetFromRawTable(lua, 1, 1);
-        auto *userData       = static_cast<USER_DATA_RENDER_LUA *>(render2texture->userData);
+        auto *userData       = static_cast<USER_DATA_RENDER_LUA *>(render2texture->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        render2texture->userData = nullptr;
+        render2texture->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = render2texture->getFileName();
@@ -500,14 +500,15 @@ namespace mbm
         DEVICE *      device              = DEVICE::getInstance();
         auto **udata                      = static_cast<RENDER_2_TEXTURE **>(lua_newuserdata(lua, sizeof(RENDER_2_TEXTURE *)));
         auto  render2texture              = new RENDER_2_TEXTURE(device->getScene(), is3d, is2ds);
-        render2texture->userData          = new USER_DATA_RENDER_LUA();
+        render2texture->setUserData(new USER_DATA_RENDER_LUA());
         *udata                            = render2texture;
+        VEC3 &renderPosition              = render2texture->getPosition();
         if (position.x != 0.0f) //-V550
-            render2texture->position.x = position.x;
+            renderPosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            render2texture->position.y = position.y;
+            renderPosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            render2texture->position.z = position.z;
+            renderPosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_RENDER_2_TEXTURE);

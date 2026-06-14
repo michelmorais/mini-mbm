@@ -50,13 +50,13 @@ namespace mbm
     int onDestroyVR(lua_State *lua)
     {
         HMD *                 vr       = getVRFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(vr->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(vr->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        vr->userData = nullptr;
+        vr->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = vr->getFileName();

@@ -1774,6 +1774,13 @@ Milestone 210 implementation note:
 - Replaced constructor position writes with local `getPosition()` references.
 - Focused scans for direct `RENDERIZABLE` fields in all three files are clean.
 
+Milestone 211 implementation note:
+
+- Migrated `HMD` and `RENDER_2_TEXTURE` Lua render-table ownership/constructor-position paths to the `RENDERIZABLE` accessor API.
+- Replaced Lua `userData` ownership reads/writes in `vr-lua.cpp` and `render-2-texture-lua.cpp` with `getUserData()` / `setUserData()`.
+- Replaced render-to-texture constructor position writes with a local `getPosition()` reference.
+- Remaining focused `render-2-texture-lua.cpp` hits are `CAMERA_TARGET` position/scale/angle state, not `RENDERIZABLE` state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
