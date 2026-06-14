@@ -508,9 +508,11 @@ namespace mbm
         if(plugin != nullptr)
         {
             const unsigned int indexPlugin = this->appendPlugin(plugin);
-            void * handle = this->device->getSpecificContextDevice()->window.getHwnd();
-            void * renderDevice = this->device->getSpecificContextDevice()->pd3dDevice;
-            plugin->onSubscribe(static_cast<int>(this->device->getBackBufferWidth()),static_cast<int>(this->device->getBackBufferHeight()), handle, renderDevice);
+            DEVICE *device = this->getDevice();
+            SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+            void * handle = context->window.getHwnd();
+            void * renderDevice = context->pd3dDevice;
+            plugin->onSubscribe(static_cast<int>(device->getBackBufferWidth()), static_cast<int>(device->getBackBufferHeight()), handle, renderDevice);
             return indexPlugin;
         }
         return 0xffffffff;
@@ -518,8 +520,10 @@ namespace mbm
 
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
-        this->device->getSpecificContextDevice()->window.setMinSizeAllowed(min_x, min_y);
-        this->device->getSpecificContextDevice()->window.setMaxSizeAllowed(max_x,max_y);
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        context->window.setMinSizeAllowed(min_x, min_y);
+        context->window.setMaxSizeAllowed(max_x,max_y);
     }
 }
 
