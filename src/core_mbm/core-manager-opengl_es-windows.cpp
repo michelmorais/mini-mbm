@@ -91,20 +91,21 @@ namespace mbm
         int x = width;
         int y = height;
         this->setNameApplication(nameApplication);
-        DEVICE* device = DEVICE::getInstance();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
         // Initialize window position
         device->setWindowPosition(px, py);
-        device->getSpecificContextDevice()->window.setNameAplication(nameApplication);
-        if (!device->getSpecificContextDevice()->window.init(nameApplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
-            this->device->getSpecificContextDevice()->idIcon,false))
+        context->window.setNameAplication(nameApplication);
+        if (!context->window.init(nameApplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
+            context->idIcon,false))
         {
-            device->getSpecificContextDevice()->window.messageBox("error on init app ... will be closed ");
+            context->window.messageBox("error on init app ... will be closed ");
             PRINT_IF_DEBUG("error on init app ... will be closed %s", "error on create window");
             return false;
         }
-        device->getSpecificContextDevice()->window.setMinSizeAllowed(800,600);
-        device->getSpecificContextDevice()->window.askOnExit = false;
-        HWND mNativeWindow = device->getSpecificContextDevice()->window.getHwnd();
+        context->window.setMinSizeAllowed(800,600);
+        context->window.askOnExit = false;
+        HWND mNativeWindow = context->window.getHwnd();
         RECT rect;
         if (!GetClientRect(mNativeWindow, &rect))
         {
@@ -128,17 +129,17 @@ namespace mbm
             x = width;
             y = height;
         }
-        if(this->device->getSpecificContextDevice()->win32_EventByPass)
-            device->getSpecificContextDevice()->window.setCallEventsManager(this->device->getSpecificContextDevice()->win32_EventByPass);
-        if(this->device->getSpecificContextDevice()->win32_joystickByPass)
-            this->device->getSpecificContextDevice()->win32_joystickByPass->initJoystick(&device->getSpecificContextDevice()->window);
-        HDC hdc = GetDC(device->getSpecificContextDevice()->window.getHwnd());
+        if(context->win32_EventByPass)
+            context->window.setCallEventsManager(context->win32_EventByPass);
+        if(context->win32_joystickByPass)
+            context->win32_joystickByPass->initJoystick(&context->window);
+        HDC hdc = GetDC(context->window.getHwnd());
         // Create EGL display connection
-        this->device->getSpecificContextDevice()->eglDisplay = eglGetDisplay(hdc);
+        context->eglDisplay = eglGetDisplay(hdc);
         // Initialize EGL for this display, returns EGL version
         EGLint eglVersionMajor = 0;
         EGLint eglVersionMinor = 0;
-        if(eglInitialize(this->device->getSpecificContextDevice()->eglDisplay, &eglVersionMajor, &eglVersionMinor) == EGL_FALSE)
+        if(eglInitialize(context->eglDisplay, &eglVersionMajor, &eglVersionMinor) == EGL_FALSE)
         {
             ERROR_LOG(" EGL could not be initialized");
             return false;
@@ -174,7 +175,7 @@ namespace mbm
             EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT),
             EGL_NONE};
 
-        EGLBoolean result = eglChooseConfig(this->device->getSpecificContextDevice()->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
+        EGLBoolean result = eglChooseConfig(context->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
         if (result != EGL_TRUE || numConfigs <= 0)
         {
             static const EGLint attribs_gl2[] = {
@@ -185,7 +186,7 @@ namespace mbm
                 EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
                 EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
                 EGL_NONE};
-            result = eglChooseConfig(this->device->getSpecificContextDevice()->eglDisplay, attribs_gl2, &windowConfig, 1, &numConfigs);
+            result = eglChooseConfig(context->eglDisplay, attribs_gl2, &windowConfig, 1, &numConfigs);
             if (result != EGL_TRUE || numConfigs <= 0)
             {
                 ERROR_LOG("eglChooseConfig failed for GLES (ES3/ES2 fallback)");
@@ -200,20 +201,20 @@ namespace mbm
             EGLint stencilBits = 0;
             EGLint renderableType = 0;
             EGLint surfaceType = 0;
-            eglGetConfigAttrib(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, EGL_CONFIG_ID, &cfgId);
-            eglGetConfigAttrib(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, EGL_DEPTH_SIZE, &depthBits);
-            eglGetConfigAttrib(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, EGL_STENCIL_SIZE, &stencilBits);
-            eglGetConfigAttrib(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, EGL_RENDERABLE_TYPE, &renderableType);
-            eglGetConfigAttrib(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, EGL_SURFACE_TYPE, &surfaceType);
+            eglGetConfigAttrib(context->eglDisplay, windowConfig, EGL_CONFIG_ID, &cfgId);
+            eglGetConfigAttrib(context->eglDisplay, windowConfig, EGL_DEPTH_SIZE, &depthBits);
+            eglGetConfigAttrib(context->eglDisplay, windowConfig, EGL_STENCIL_SIZE, &stencilBits);
+            eglGetConfigAttrib(context->eglDisplay, windowConfig, EGL_RENDERABLE_TYPE, &renderableType);
+            eglGetConfigAttrib(context->eglDisplay, windowConfig, EGL_SURFACE_TYPE, &surfaceType);
             INFO_LOG("EGL config selected: id=%d depth=%d stencil=%d renderable=0x%x surface=0x%x", cfgId, depthBits, stencilBits, renderableType, surfaceType);
             printGLString("GL renderer:\n", GL_RENDERER);
             printGLString("GL version:\n", GL_VERSION);
         }
 
         EGLint surfaceAttributes[] = { EGL_NONE };
-        this->device->getSpecificContextDevice()->eglSurface = eglCreateWindowSurface(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, device->getSpecificContextDevice()->window.getHwnd(), surfaceAttributes);
+        context->eglSurface = eglCreateWindowSurface(context->eglDisplay, windowConfig, context->window.getHwnd(), surfaceAttributes);
         //this->device->getSpecificContextDevice()->eglSurface = eglCreateWindowSurface(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, device->window.getHwnd(), the_attribs);
-        if(this->device->getSpecificContextDevice()->eglSurface == nullptr)
+        if(context->eglSurface == nullptr)
         {
             ERROR_LOG(" Could not create EGL Window surface");
             return false;
@@ -222,20 +223,20 @@ namespace mbm
         //EGLint contextAttributes[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
         //this->device->getSpecificContextDevice()->eglContext = eglCreateContext(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, NULL, contextAttributes);
         EGLint es3ContextAttribs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE, EGL_NONE};
-        this->device->getSpecificContextDevice()->eglContext = eglCreateContext(this->device->getSpecificContextDevice()->eglDisplay, windowConfig, NULL, es3ContextAttribs);
-        if(this->device->getSpecificContextDevice()->eglContext == nullptr)
+        context->eglContext = eglCreateContext(context->eglDisplay, windowConfig, NULL, es3ContextAttribs);
+        if(context->eglContext == nullptr)
         {
             ERROR_LOG(" Could not create EGL context");
             return false;
         }
-        result = eglMakeCurrent(this->device->getSpecificContextDevice()->eglDisplay, this->device->getSpecificContextDevice()->eglSurface, this->device->getSpecificContextDevice()->eglSurface, this->device->getSpecificContextDevice()->eglContext);
+        result = eglMakeCurrent(context->eglDisplay, context->eglSurface, context->eglSurface, context->eglContext);
         if(result != EGL_TRUE)
         {
             ERROR_LOG(" Could not make EGL context current");
             return false;
         }
 
-        device->getSpecificContextDevice()->window.disableRender(mNativeWindow);
+        context->window.disableRender(mNativeWindow);
         if (device->isVerbose())
         {
             printGLString("\nversion:\n", GL_VERSION);
@@ -282,10 +283,10 @@ namespace mbm
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
 
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &device->getSpecificContextDevice()->filter_GL_TEXTURE_WRAP_S);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &device->getSpecificContextDevice()->filter_GL_TEXTURE_WRAP_T);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &device->getSpecificContextDevice()->filter_GL_TEXTURE_MIN_FILTER);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &device->getSpecificContextDevice()->filter_GL_TEXTURE_MAG_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &context->filter_GL_TEXTURE_WRAP_S);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &context->filter_GL_TEXTURE_WRAP_T);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &context->filter_GL_TEXTURE_MIN_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &context->filter_GL_TEXTURE_MAG_FILTER);
 
         return true;
     }
