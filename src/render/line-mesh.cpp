@@ -366,11 +366,11 @@ namespace mbm
         const char* fileNamePs = "__line_color.ps";
         const char* fileNameVs = "__line_color.vs";
 
-        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, getCodePScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED);
-        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED);
-        if (!anim->fx.fxPS->ptrCurrentShader || !anim->fx.fxVS->ptrCurrentShader)
+        anim->fx.fxPS->setCurrentShader(anim->fx.fxPS->loadEffect(fileNamePs, getCodePScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED));
+        anim->fx.fxVS->setCurrentShader(anim->fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED));
+        if (!anim->fx.fxPS->getCurrentShader() || !anim->fx.fxVS->getCurrentShader())
             return false;
-        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer());
+        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer());
         if (!ret)
         {
             PRINT_IF_DEBUG("failed to compile shader:%s", fileNamePs);
@@ -380,15 +380,15 @@ namespace mbm
         {
             float c[4] = { 1, 0, 0, 1 };
             void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
-            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c, backendShaderSpecific, true))
+            if (!anim->fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, c, backendShaderSpecific, true))
             {
 #if defined _DEBUG
                 PRINT_IF_DEBUG("failed to included variable %s shader %s!", "color", fileNamePs);
 #endif
             }
-            for (unsigned int i = 0; i < anim->fx.fxPS->ptrCurrentShader->getTotalVar(); ++i)
+            for (unsigned int i = 0; i < anim->fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
             {
-                VAR_SHADER* varShader = anim->fx.fxPS->ptrCurrentShader->getVar(i);
+                VAR_SHADER* varShader = anim->fx.fxPS->getCurrentShader()->getVar(i);
                 if (varShader)
                 {
                     varShader->set(c, c, 1.0f);

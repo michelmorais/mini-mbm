@@ -321,7 +321,7 @@ namespace mbm
         if(index < tileMap.layers.size())
         {
             auto & layer = tileMap.layers[index];
-            layer->fx.fxPS->ptrCurrentShader = nullptr;
+            layer->fx.fxPS->setCurrentShader(nullptr);
         }
     }
 
@@ -330,8 +330,8 @@ namespace mbm
         if(index < tileMap.layers.size())
         {
             const auto & layer = tileMap.layers[index];
-            if(layer->fx.fxPS->ptrCurrentShader)
-                return layer->fx.fxPS->ptrCurrentShader->fileName.c_str();
+            if(layer->fx.fxPS->getCurrentShader())
+                return layer->fx.fxPS->getCurrentShader()->fileName.c_str();
         }
         return "null";
     }
@@ -2605,14 +2605,14 @@ namespace mbm
                 meshDebug.infoAnimation.lsHeaderAnim.push_back(infoAnim);
 
                 snprintf(infoAnim->headerAnim->nameAnimation,sizeof(infoAnim->headerAnim->nameAnimation), "layer-%zu",k+1);
-                if(layer->fx.fxPS->ptrCurrentShader != nullptr)
+                if(layer->fx.fxPS->getCurrentShader() != nullptr)
                 {
-                    const unsigned int totalVar            = layer->fx.fxPS->ptrCurrentShader->getTotalVar();
+                    const unsigned int totalVar            = layer->fx.fxPS->getCurrentShader()->getTotalVar();
                     const unsigned int sizeArrayVarInBytes = totalVar * 4;
-                    const unsigned int sizeFileName        = layer->fx.fxPS->ptrCurrentShader->fileName.size();
+                    const unsigned int sizeFileName        = layer->fx.fxPS->getCurrentShader()->fileName.size();
                     infoAnim->effectShader->dataPS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
                     if(sizeFileName)
-                        strcpy(infoAnim->effectShader->dataPS->fileNameShader,layer->fx.fxPS->ptrCurrentShader->fileName.c_str());
+                        strcpy(infoAnim->effectShader->dataPS->fileNameShader,layer->fx.fxPS->getCurrentShader()->fileName.c_str());
 
                     if(layer->fx.textureOverrideStage2)
                     {
@@ -2622,34 +2622,34 @@ namespace mbm
                         strncpy(infoAnim->effectShader->dataPS->fileNameTextureStage2,textureOverrideStage2,len+1);
                         infoAnim->effectShader->dataPS->fileNameTextureStage2[len] = 0;
                     }
-                    infoAnim->effectShader->dataPS->typeAnimation = layer->fx.fxPS->typeAnim;
-                    infoAnim->effectShader->dataPS->timeAnimation = layer->fx.fxPS->timeAnimation;
+                    infoAnim->effectShader->dataPS->typeAnimation = layer->fx.fxPS->getTypeAnim();
+                    infoAnim->effectShader->dataPS->timeAnimation = layer->fx.fxPS->getTimeAnimation();
 
                     for(unsigned int j=0; j < totalVar; ++j)
                     {
                         const int index       = j * 4;
-                        VAR_SHADER* var       = layer->fx.fxPS->ptrCurrentShader->getVar(j);
+                        VAR_SHADER* var       = layer->fx.fxPS->getCurrentShader()->getVar(j);
                         memcpy(&infoAnim->effectShader->dataPS->min[index],var->min,sizeof(var->min));
                         memcpy(&infoAnim->effectShader->dataPS->max[index],var->max,sizeof(var->max));
                         infoAnim->effectShader->dataPS->typeVars[j]      = var->typeVar;
                     }
                 }
 
-                if(layer->fx.fxVS->ptrCurrentShader != nullptr)
+                if(layer->fx.fxVS->getCurrentShader() != nullptr)
                 {
-                    const unsigned int totalVar            = layer->fx.fxVS->ptrCurrentShader->getTotalVar();
+                    const unsigned int totalVar            = layer->fx.fxVS->getCurrentShader()->getTotalVar();
                     const unsigned int sizeArrayVarInBytes = totalVar * 4;
-                    const unsigned int sizeFileName        = layer->fx.fxVS->ptrCurrentShader->fileName.size();
+                    const unsigned int sizeFileName        = layer->fx.fxVS->getCurrentShader()->fileName.size();
                     infoAnim->effectShader->dataVS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
                     if(sizeFileName)
-                        strcpy(infoAnim->effectShader->dataVS->fileNameShader,layer->fx.fxVS->ptrCurrentShader->fileName.c_str());
-                    infoAnim->effectShader->dataVS->typeAnimation = layer->fx.fxVS->typeAnim;
-                    infoAnim->effectShader->dataVS->timeAnimation = layer->fx.fxVS->timeAnimation;
+                        strcpy(infoAnim->effectShader->dataVS->fileNameShader,layer->fx.fxVS->getCurrentShader()->fileName.c_str());
+                    infoAnim->effectShader->dataVS->typeAnimation = layer->fx.fxVS->getTypeAnim();
+                    infoAnim->effectShader->dataVS->timeAnimation = layer->fx.fxVS->getTimeAnimation();
 
                     for(unsigned int j=0; j < totalVar; ++j)
                     {
                         const int index       = j * 4;
-                        VAR_SHADER* var       = layer->fx.fxVS->ptrCurrentShader->getVar(j);
+                        VAR_SHADER* var       = layer->fx.fxVS->getCurrentShader()->getVar(j);
                         memcpy(&infoAnim->effectShader->dataVS->min[index],var->min,sizeof(var->min));
                         memcpy(&infoAnim->effectShader->dataVS->max[index],var->max,sizeof(var->max));
                         infoAnim->effectShader->dataVS->typeVars[j]    = var->typeVar;

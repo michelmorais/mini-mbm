@@ -45,14 +45,17 @@ namespace mbm
     class EFFECT_SHADER
     {
     public:
-        STATUS_FX			statusFx; 
-        TYPE_ANIMATION      typeAnim;
-        BASE_SHADER *       ptrCurrentShader;
-        float               timeAnimation;
-
         API_IMPL EFFECT_SHADER() noexcept;
         API_IMPL virtual ~EFFECT_SHADER();
 
+        API_IMPL STATUS_FX getStatusFx() const noexcept;
+        API_IMPL void setStatusFx(const STATUS_FX status) noexcept;
+        API_IMPL TYPE_ANIMATION getTypeAnim() const noexcept;
+        API_IMPL void setTypeAnim(const TYPE_ANIMATION type) noexcept;
+        API_IMPL BASE_SHADER *getCurrentShader() const noexcept;
+        API_IMPL void setCurrentShader(BASE_SHADER *shader) noexcept;
+        API_IMPL float getTimeAnimation() const noexcept;
+        API_IMPL void setTimeAnimation(const float time) noexcept;
         API_IMPL BASE_SHADER *loadEffect(const char *fileNameShader, const char *code, const TYPE_ANIMATION typeAnimationShader);
     
         API_IMPL void disableEffect();

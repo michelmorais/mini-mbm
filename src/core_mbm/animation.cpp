@@ -36,26 +36,66 @@ namespace mbm
     struct EFFECT_SHADER::Impl
     {
         std::map<std::string, BASE_SHADER *> lsPtrShader;
+        STATUS_FX statusFx = FX_GROWING;
+        TYPE_ANIMATION typeAnim = TYPE_ANIMATION_PAUSED;
+        BASE_SHADER *ptrCurrentShader = nullptr;
+        float timeAnimation = 1.0f;
     };
 
     EFFECT_SHADER::EFFECT_SHADER()
-        noexcept : statusFx(FX_GROWING),
-                   typeAnim(TYPE_ANIMATION_PAUSED),
-                   ptrCurrentShader(nullptr),
-                   timeAnimation(1.0f),
-                   impl(std::make_unique<Impl>())
+        noexcept : impl(std::make_unique<Impl>())
     {
     }
 
     EFFECT_SHADER::~EFFECT_SHADER()
     {
-        this->ptrCurrentShader = nullptr;
+        this->impl->ptrCurrentShader = nullptr;
         for (const auto & i : this->impl->lsPtrShader)
         {
             BASE_SHADER *ptr = i.second;
             delete ptr;
         }
         this->impl->lsPtrShader.clear();
+    }
+
+    STATUS_FX EFFECT_SHADER::getStatusFx() const noexcept
+    {
+        return this->impl->statusFx;
+    }
+
+    void EFFECT_SHADER::setStatusFx(const STATUS_FX status) noexcept
+    {
+        this->impl->statusFx = status;
+    }
+
+    TYPE_ANIMATION EFFECT_SHADER::getTypeAnim() const noexcept
+    {
+        return this->impl->typeAnim;
+    }
+
+    void EFFECT_SHADER::setTypeAnim(const TYPE_ANIMATION type) noexcept
+    {
+        this->impl->typeAnim = type;
+    }
+
+    BASE_SHADER *EFFECT_SHADER::getCurrentShader() const noexcept
+    {
+        return this->impl->ptrCurrentShader;
+    }
+
+    void EFFECT_SHADER::setCurrentShader(BASE_SHADER *shader) noexcept
+    {
+        this->impl->ptrCurrentShader = shader;
+    }
+
+    float EFFECT_SHADER::getTimeAnimation() const noexcept
+    {
+        return this->impl->timeAnimation;
+    }
+
+    void EFFECT_SHADER::setTimeAnimation(const float time) noexcept
+    {
+        this->impl->timeAnimation = time;
     }
 
     BASE_SHADER * EFFECT_SHADER::loadEffect(const char *fileNameShader, const char *code, const TYPE_ANIMATION typeAnimationShader)
@@ -65,20 +105,20 @@ namespace mbm
             this->disableEffect();
             return nullptr;
         }
-        this->typeAnim = typeAnimationShader;
+        this->impl->typeAnim = typeAnimationShader;
         BASE_SHADER *ptr = this->impl->lsPtrShader[fileNameShader];
         if (ptr)
         {
-            this->ptrCurrentShader = ptr;
+            this->impl->ptrCurrentShader = ptr;
             this->restart();
             return ptr;
         }
         auto psNew = new BASE_SHADER();
-        this->ptrCurrentShader = psNew;
-        if (!this->ptrCurrentShader->loadShader(fileNameShader, code))
+        this->impl->ptrCurrentShader = psNew;
+        if (!this->impl->ptrCurrentShader->loadShader(fileNameShader, code))
         {
             delete psNew;
-            this->ptrCurrentShader = nullptr;
+            this->impl->ptrCurrentShader = nullptr;
             return nullptr;
         }
         this->impl->lsPtrShader[fileNameShader] = psNew;
@@ -87,15 +127,15 @@ namespace mbm
 
     void EFFECT_SHADER::disableEffect()
     {
-        this->ptrCurrentShader = nullptr;
-        this->typeAnim = TYPE_ANIMATION_PAUSED;
+        this->impl->ptrCurrentShader = nullptr;
+        this->impl->typeAnim = TYPE_ANIMATION_PAUSED;
     }
 
     void EFFECT_SHADER::restart()
     {
-        if (this->ptrCurrentShader)
+        if (this->impl->ptrCurrentShader)
         {
-            switch (this->typeAnim)
+            switch (this->impl->typeAnim)
             {
                 case TYPE_ANIMATION_PAUSED:
                 case TYPE_ANIMATION_GROWING:
@@ -103,10 +143,10 @@ namespace mbm
                 case TYPE_ANIMATION_RECURSIVE:
                 case TYPE_ANIMATION_RECURSIVE_LOOP:
                 {
-                    this->statusFx = FX_GROWING;
-                    for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                    this->impl->statusFx = FX_GROWING;
+                    for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                     {
-                        VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                         for (int j = 0; j < var->sizeVar; ++j)
                         {
                             var->control[j] = true;
@@ -118,10 +158,10 @@ namespace mbm
                 case TYPE_ANIMATION_DECREASING:
                 case TYPE_ANIMATION_DECREASING_LOOP:
                 {
-                    this->statusFx = FX_DECREASING;
-                    for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                    this->impl->statusFx = FX_DECREASING;
+                    for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                     {
-                        VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                         for (int j = 0; j < var->sizeVar; ++j)
                         {
                             var->control[j] = true;
@@ -140,16 +180,16 @@ namespace mbm
 
     void EFFECT_SHADER::updateEffect(const float delta)
     {
-        if (this->ptrCurrentShader)
+        if (this->impl->ptrCurrentShader)
         {
-            switch (this->typeAnim)
+            switch (this->impl->typeAnim)
             {
                 case TYPE_ANIMATION_PAUSED:
                 {
-                    const uint32_t iTotalVars = this->ptrCurrentShader->getTotalVar();
+                    const uint32_t iTotalVars = this->impl->ptrCurrentShader->getTotalVar();
                     for (uint32_t i = 0; i < iTotalVars; ++i)
                     {
-                        VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                         for (int j = 0; j < var->sizeVar; ++j)
                         {
                             var->current[j] = var->current[j];
@@ -160,11 +200,11 @@ namespace mbm
                 case TYPE_ANIMATION_GROWING:
                 {
                     uint32_t numStopped = 0;
-                    const uint32_t iTotalVars = this->ptrCurrentShader->getTotalVar();
+                    const uint32_t iTotalVars = this->impl->ptrCurrentShader->getTotalVar();
                     for (uint32_t i = 0; i < iTotalVars; ++i)
                     {
                         int iTotalEndStep = 0;
-                        VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                         for (int j = 0; j < var->sizeVar; ++j)
                         {
                             if (var->control[j])
@@ -196,15 +236,15 @@ namespace mbm
                         if (iTotalEndStep == var->sizeVar)
                             ++numStopped;
                     }
-                    if (this->statusFx != FX_END_CALLBACK && numStopped == iTotalVars)
-                        this->statusFx = FX_END;
+                    if (this->impl->statusFx != FX_END_CALLBACK && numStopped == iTotalVars)
+                        this->impl->statusFx = FX_END;
                 }
                 break;
                 case TYPE_ANIMATION_GROWING_LOOP:
                 {
-                    for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                    for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                     {
-                        VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                         for (int j = 0; j < var->sizeVar; ++j)
                         {
                             const float incr = delta * var->step[j];
@@ -226,11 +266,11 @@ namespace mbm
                 case TYPE_ANIMATION_DECREASING:
                 {
                     uint32_t numStopped = 0;
-                    const uint32_t iTotalVars = this->ptrCurrentShader->getTotalVar();
+                    const uint32_t iTotalVars = this->impl->ptrCurrentShader->getTotalVar();
                     for (uint32_t i = 0; i < iTotalVars; ++i)
                     {
                         int iTotalEndStep = 0;
-                        VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                         for (int j = 0; j < var->sizeVar; ++j)
                         {
                             if (var->control[j])
@@ -258,15 +298,15 @@ namespace mbm
                         if (iTotalEndStep == var->sizeVar)
                             ++numStopped;
                     }
-                    if (this->statusFx != FX_END_CALLBACK && numStopped == iTotalVars)
-                        this->statusFx = FX_END;
+                    if (this->impl->statusFx != FX_END_CALLBACK && numStopped == iTotalVars)
+                        this->impl->statusFx = FX_END;
                 }
                 break;
                 case TYPE_ANIMATION_DECREASING_LOOP:
                 {
-                    for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                    for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                     {
-                        VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                         for (int j = 0; j < var->sizeVar; ++j)
                         {
                             const float incr = delta * var->step[j];
@@ -287,15 +327,15 @@ namespace mbm
                 break;
                 case TYPE_ANIMATION_RECURSIVE:
                 {
-                    switch (this->statusFx)
+                    switch (this->impl->statusFx)
                     {
                         case FX_GROWING:
                         {
                             int totalFinished = 0;
                             int totalExpected = 0;
-                            for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                            for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                             {
-                                VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                                VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                                 totalExpected += var->sizeVar;
                                 for (int j = 0; j < var->sizeVar; ++j)
                                 {
@@ -328,12 +368,12 @@ namespace mbm
                             }
                             if (totalFinished == totalExpected)
                             {
-                                for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                                for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                                 {
-                                    VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                                    VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                                     memset(var->control, 1, sizeof(var->control));
                                 }
-                                this->statusFx = FX_DECREASING;
+                                this->impl->statusFx = FX_DECREASING;
                             }
                         }
                         break;
@@ -341,9 +381,9 @@ namespace mbm
                         {
                             int totalFinished = 0;
                             int totalExpected = 0;
-                            for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                            for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                             {
-                                VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                                VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                                 totalExpected += var->sizeVar;
                                 for (int j = 0; j < var->sizeVar; ++j)
                                 {
@@ -376,12 +416,12 @@ namespace mbm
                             }
                             if (totalFinished == totalExpected)
                             {
-                                for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                                for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                                 {
-                                    VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                                    VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                                     memset(var->control, 1, sizeof(var->control));
                                 }
-                                this->statusFx = FX_END;
+                                this->impl->statusFx = FX_END;
                             }
                         }
                         break;
@@ -391,7 +431,7 @@ namespace mbm
                             // Do Nothing
                         }
                         break;
-                        default: { this->statusFx = FX_GROWING;
+                        default: { this->impl->statusFx = FX_GROWING;
                         }
                         break;
                     }
@@ -399,15 +439,15 @@ namespace mbm
                 break;
                 case TYPE_ANIMATION_RECURSIVE_LOOP:
                 {
-                    switch (this->statusFx)
+                    switch (this->impl->statusFx)
                     {
                         case FX_GROWING: // crescente
                         {
                             int totalFinished = 0;
                             int totalExpected = 0;
-                            for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                            for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                             {
-                                VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                                VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                                 totalExpected += var->sizeVar;
                                 for (int j = 0; j < var->sizeVar; ++j)
                                 {
@@ -440,12 +480,12 @@ namespace mbm
                             }
                             if (totalFinished == totalExpected)
                             {
-                                for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                                for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                                 {
-                                    VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                                    VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                                     memset(var->control, 1, sizeof(var->control));
                                 }
-                                this->statusFx = FX_DECREASING;
+                                this->impl->statusFx = FX_DECREASING;
                             }
                         }
                         break;
@@ -453,9 +493,9 @@ namespace mbm
                         {
                             int totalFinished = 0;
                             int totalExpected = 0;
-                            for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                            for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                             {
-                                VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                                VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                                 totalExpected += var->sizeVar;
                                 for (int j = 0; j < var->sizeVar; ++j)
                                 {
@@ -488,16 +528,16 @@ namespace mbm
                             }
                             if (totalFinished == totalExpected)
                             {
-                                for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                                for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                                 {
-                                    VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
+                                    VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(i);
                                     memset(var->control, 1, sizeof(var->control));
                                 }
-                                this->statusFx = FX_GROWING;
+                                this->impl->statusFx = FX_GROWING;
                             }
                         }
                         break;
-                        default: { this->statusFx = FX_GROWING;
+                        default: { this->impl->statusFx = FX_GROWING;
                         }
                         break;
                     }
@@ -513,26 +553,26 @@ namespace mbm
 
     bool EFFECT_SHADER::isEndedFx()const
     {
-        if(this->statusFx == FX_END)
+        if(this->impl->statusFx == FX_END)
             return true;
-        if(this->statusFx == FX_END_CALLBACK)
+        if(this->impl->statusFx == FX_END_CALLBACK)
             return true;
         return false;
     }
 
     void EFFECT_SHADER::forceEndFx()
     {
-        if(this->ptrCurrentShader)
+        if(this->impl->ptrCurrentShader)
         {
-            switch (this->typeAnim)
+            switch (this->impl->typeAnim)
             {
                 case TYPE_ANIMATION_PAUSED:
                 case TYPE_ANIMATION_GROWING:
                 case TYPE_ANIMATION_GROWING_LOOP:
                 {
-                    for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                    for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                     {
-                        VAR_SHADER *thisVar = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *thisVar = this->impl->ptrCurrentShader->getVar(i);
                         memcpy(thisVar->current, thisVar->max, sizeof(thisVar->current));
                     }
                 }
@@ -542,23 +582,23 @@ namespace mbm
                 case TYPE_ANIMATION_RECURSIVE:
                 case TYPE_ANIMATION_RECURSIVE_LOOP:
                 {
-                    for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+                    for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
                     {
-                        VAR_SHADER *thisVar = this->ptrCurrentShader->getVar(i);
+                        VAR_SHADER *thisVar = this->impl->ptrCurrentShader->getVar(i);
                         memcpy(thisVar->current, thisVar->min, sizeof(thisVar->current));
                     }
                 }
                 break;
             }
         }
-        this->statusFx = FX_END;
+        this->impl->statusFx = FX_END;
     }
 
     bool EFFECT_SHADER::endEffect()
     {
-        if (this->statusFx == FX_END)
+        if (this->impl->statusFx == FX_END)
         {
-            this->statusFx = FX_END_CALLBACK;
+            this->impl->statusFx = FX_END_CALLBACK;
             return true;
         }
         return false;
@@ -566,16 +606,16 @@ namespace mbm
 
     bool EFFECT_SHADER::setNewTimeAnim(const float newTimeAnim)
     {
-        this->timeAnimation = newTimeAnim;
-        if (this->ptrCurrentShader == nullptr)
+        this->impl->timeAnimation = newTimeAnim;
+        if (this->impl->ptrCurrentShader == nullptr)
             return false;
-        if (this->ptrCurrentShader->getTotalVar() == 0)
+        if (this->impl->ptrCurrentShader->getTotalVar() == 0)
         {
             return true;
         }
-        for (uint32_t i = 0; i < this->ptrCurrentShader->getTotalVar(); ++i)
+        for (uint32_t i = 0; i < this->impl->ptrCurrentShader->getTotalVar(); ++i)
         {
-            VAR_SHADER *thisVar = this->ptrCurrentShader->getVar(i);
+            VAR_SHADER *thisVar = this->impl->ptrCurrentShader->getVar(i);
             thisVar->set(thisVar->min, thisVar->max, newTimeAnim);
         }
         return true;
@@ -583,13 +623,13 @@ namespace mbm
 
     bool EFFECT_SHADER::adjustMinMax(const uint32_t indexVar, const float min[4], const float max[4], const float timeAnim)
     {
-        if (this->ptrCurrentShader == nullptr)
+        if (this->impl->ptrCurrentShader == nullptr)
             return false;
-        if (this->ptrCurrentShader->getTotalVar() == 0)
+        if (this->impl->ptrCurrentShader->getTotalVar() == 0)
             return true;
-        if (indexVar >= this->ptrCurrentShader->getTotalVar())
+        if (indexVar >= this->impl->ptrCurrentShader->getTotalVar())
             return false;
-        VAR_SHADER *var = this->ptrCurrentShader->getVar(indexVar);
+        VAR_SHADER *var = this->impl->ptrCurrentShader->getVar(indexVar);
         var->set(min, max, timeAnim);
         return true;
     }
@@ -637,8 +677,8 @@ namespace mbm
             fx.fxPS->updateEffect(delta);
             if (fx.fxPS->endEffect())
             {
-                if (onEndFX && fx.fxPS->ptrCurrentShader)
-                    onEndFX(fx.fxPS->ptrCurrentShader->fileName.c_str(),me);
+                if (onEndFX && fx.fxPS->getCurrentShader())
+                    onEndFX(fx.fxPS->getCurrentShader()->fileName.c_str(),me);
             }
         }
         if (fx.fxVS->isEndedFx() == false)
@@ -646,8 +686,8 @@ namespace mbm
             fx.fxVS->updateEffect(delta);
             if (fx.fxVS->endEffect())
             {
-                if (onEndFX && fx.fxVS->ptrCurrentShader)
-                    onEndFX(fx.fxVS->ptrCurrentShader->fileName.c_str(), me);
+                if (onEndFX && fx.fxVS->getCurrentShader())
+                    onEndFX(fx.fxVS->getCurrentShader()->fileName.c_str(), me);
             }
         }
         if (type != TYPE_ANIMATION_PAUSED)
@@ -858,7 +898,7 @@ namespace mbm
             if (infoShaderStep && infoShaderStep->dataPS)
             {
                 util::INFO_SHADER_DATA *data   = infoShaderStep->dataPS;
-                anim->fx.fxPS->timeAnimation  = data->timeAnimation;
+                anim->fx.fxPS->setTimeAnimation(data->timeAnimation);
                 anim->fx.blendOperation          = infoShaderStep->blendOperation;
                 if (data->fileNameTextureStage2)
                     anim->fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
@@ -882,7 +922,7 @@ namespace mbm
             if (infoShaderStep && infoShaderStep->dataVS)
             {
                 util::INFO_SHADER_DATA *data   = infoShaderStep->dataVS;
-                anim->fx.fxVS->timeAnimation  = data->timeAnimation;
+                anim->fx.fxVS->setTimeAnimation(data->timeAnimation);
                 anim->fx.blendOperation          = infoShaderStep->blendOperation;
                 if (data->fileNameTextureStage2)
                     anim->fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
@@ -907,38 +947,38 @@ namespace mbm
         // compile shader in pair
         util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->infoAnimation.lsHeaderAnim[index];
         const FVF_PROVIDE_BY_ENGINE fvf = mesh->getBuffer(0)->pBufferGL->fvf;
-        if (anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, fvf))
+        if (anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), fvf))
         {
             if(infoHead->effectShader && infoHead->effectShader->blendOperation != 0)
                 anim->fx.blendOperation = infoHead->effectShader->blendOperation;
 
-            if (anim->fx.fxPS->ptrCurrentShader)
+            if (anim->fx.fxPS->getCurrentShader())
             {
                 util::INFO_FX *infoShaderStep = infoHead->effectShader;
                 if (infoShaderStep && infoShaderStep->dataPS && infoShaderStep->dataPS->fileNameShader)
                 {
                     util::INFO_SHADER_DATA *data  = infoShaderStep->dataPS;
-                    anim->fx.fxPS->timeAnimation = data->timeAnimation;
-                    anim->fx.fxPS->typeAnim      = static_cast<TYPE_ANIMATION>(data->typeAnimation);
+                    anim->fx.fxPS->setTimeAnimation(data->timeAnimation);
+                    anim->fx.fxPS->setTypeAnim(static_cast<TYPE_ANIMATION>(data->typeAnimation));
                     SHADER_CFG *cfgShader          = device->getShaderConfig().getShader(data->fileNameShader);
                     if (cfgShader)
                     {
                         void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
                         for (auto var : cfgShader->lsVar)
                         {
-                            if (!anim->fx.fxPS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default,
+                            if (!anim->fx.fxPS->getCurrentShader()->addVar(var->name.c_str(), var->type, var->Default,
                                                                             backendShaderSpecific, true))
                             {
                                 ERROR_LOG( "failed to include variable %s shader %s!",var->name.c_str(), data->fileNameShader);
                                 return false;
                             }
                         }
-                        if(infoShaderStep->dataPS->lenVars == static_cast<int>(anim->fx.fxPS->ptrCurrentShader->getTotalVar()))
+                        if(infoShaderStep->dataPS->lenVars == static_cast<int>(anim->fx.fxPS->getCurrentShader()->getTotalVar()))
                         {
                             int indexVar = 0;
-                            for (uint32_t i = 0; i < anim->fx.fxPS->ptrCurrentShader->getTotalVar(); ++i)
+                            for (uint32_t i = 0; i < anim->fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
                             {
-                                VAR_SHADER *varShader = anim->fx.fxPS->ptrCurrentShader->getVar(i);
+                                VAR_SHADER *varShader = anim->fx.fxPS->getCurrentShader()->getVar(i);
                                 if (varShader)
                                 {
                                     varShader->set(&data->min[indexVar], &data->max[indexVar], data->timeAnimation);
@@ -948,7 +988,7 @@ namespace mbm
                         }
                         else
                         {
-                            ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataPS->lenVars,anim->fx.fxPS->ptrCurrentShader->getTotalVar());
+                            ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataPS->lenVars,anim->fx.fxPS->getCurrentShader()->getTotalVar());
                         }
                         if (data->fileNameTextureStage2)
                         {
@@ -963,33 +1003,33 @@ namespace mbm
                     }
                 }
             }
-            if (anim->fx.fxVS->ptrCurrentShader)
+            if (anim->fx.fxVS->getCurrentShader())
             {
                 util::INFO_FX *infoShaderStep = infoHead->effectShader;
                 if (infoShaderStep && infoShaderStep->dataVS && infoShaderStep->dataVS->fileNameShader)
                 {
                     util::INFO_SHADER_DATA *data  = infoShaderStep->dataVS;
-                    anim->fx.fxVS->timeAnimation = data->timeAnimation;
-                    anim->fx.fxVS->typeAnim      = static_cast<TYPE_ANIMATION>(data->typeAnimation);
+                    anim->fx.fxVS->setTimeAnimation(data->timeAnimation);
+                    anim->fx.fxVS->setTypeAnim(static_cast<TYPE_ANIMATION>(data->typeAnimation));
                     SHADER_CFG *cfgShader          = device->getShaderConfig().getShader(data->fileNameShader);
                     if (cfgShader)
                     {
                         void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
                         for (auto var : cfgShader->lsVar)
                         {
-                            if (!anim->fx.fxVS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default,
+                            if (!anim->fx.fxVS->getCurrentShader()->addVar(var->name.c_str(), var->type, var->Default,
                                                                             backendShaderSpecific, false))
                             {
                                 ERROR_LOG( "failed to include variable [%s] shader [%s]!",var->name.c_str(), data->fileNameShader);
                                 return false;
                             }
                         }
-                        if(infoShaderStep->dataVS->lenVars == static_cast<int>(anim->fx.fxVS->ptrCurrentShader->getTotalVar()))
+                        if(infoShaderStep->dataVS->lenVars == static_cast<int>(anim->fx.fxVS->getCurrentShader()->getTotalVar()))
                         {
                             int indexVar = 0;
-                            for (uint32_t i = 0; i < anim->fx.fxVS->ptrCurrentShader->getTotalVar(); ++i)
+                            for (uint32_t i = 0; i < anim->fx.fxVS->getCurrentShader()->getTotalVar(); ++i)
                             {
-                                VAR_SHADER *varShader = anim->fx.fxVS->ptrCurrentShader->getVar(i);
+                                VAR_SHADER *varShader = anim->fx.fxVS->getCurrentShader()->getVar(i);
                                 if (varShader)
                                 {
                                     varShader->set(&data->min[indexVar], &data->max[indexVar], data->timeAnimation);
@@ -999,7 +1039,7 @@ namespace mbm
                         }
                         else
                         {
-                            ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataVS->lenVars,anim->fx.fxVS->ptrCurrentShader->getTotalVar());
+                            ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataVS->lenVars,anim->fx.fxVS->getCurrentShader()->getTotalVar());
                         }
                         if (data->fileNameTextureStage2)
                         {
@@ -1148,7 +1188,7 @@ namespace mbm
         this->setIndexAnimation(this->getTotalAnimation() - 1);
         RENDERIZABLE* r = dynamic_cast<RENDERIZABLE*>(this);
         const FVF_PROVIDE_BY_ENGINE fvf = r ? r->getFvfFromBuffer() : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, fvf))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), fvf))
         {
             ERROR_AT(__LINE__,__FILE__, "error on add animation");
         }
@@ -1323,18 +1363,18 @@ namespace mbm
     }
 
     ANIMATION_BACKUP::Impl::FX_BACKUP::FX_BACKUP(const ANIMATION& anim) noexcept:
-        statusFxPs(anim.fx.fxPS ? anim.fx.fxPS->statusFx : STATUS_FX::FX_GROWING),
-		statusFxVs(anim.fx.fxVS ? anim.fx.fxVS->statusFx : STATUS_FX::FX_GROWING),
-		typeAnimPs(anim.fx.fxPS ? anim.fx.fxPS->typeAnim : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
-		typeAnimVs(anim.fx.fxVS ? anim.fx.fxVS->typeAnim : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
-		timeAnimationPs(anim.fx.fxPS ? anim.fx.fxPS->timeAnimation : 0.0f),
-		timeAnimationVs(anim.fx.fxVS ? anim.fx.fxVS->timeAnimation : 0.0f)
+        statusFxPs(anim.fx.fxPS ? anim.fx.fxPS->getStatusFx() : STATUS_FX::FX_GROWING),
+		statusFxVs(anim.fx.fxVS ? anim.fx.fxVS->getStatusFx() : STATUS_FX::FX_GROWING),
+		typeAnimPs(anim.fx.fxPS ? anim.fx.fxPS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
+		typeAnimVs(anim.fx.fxVS ? anim.fx.fxVS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
+		timeAnimationPs(anim.fx.fxPS ? anim.fx.fxPS->getTimeAnimation() : 0.0f),
+		timeAnimationVs(anim.fx.fxVS ? anim.fx.fxVS->getTimeAnimation() : 0.0f)
     {		
-        if (anim.fx.fxPS->ptrCurrentShader)
+        if (anim.fx.fxPS->getCurrentShader())
         {
-            for (uint32_t i = 0; i < anim.fx.fxPS->ptrCurrentShader->getTotalVar(); ++i)
+            for (uint32_t i = 0; i < anim.fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
             {
-                VAR_SHADER *var = anim.fx.fxPS->ptrCurrentShader->getVar(i);
+                VAR_SHADER *var = anim.fx.fxPS->getCurrentShader()->getVar(i);
                 if (var)
                 {
                     VAR_SHADER_BACKUP* varCopy = new VAR_SHADER_BACKUP(var);
@@ -1342,11 +1382,11 @@ namespace mbm
                 }
             }
         }
-        if (anim.fx.fxVS->ptrCurrentShader)
+        if (anim.fx.fxVS->getCurrentShader())
         {
-            for (uint32_t i = 0; i < anim.fx.fxVS->ptrCurrentShader->getTotalVar(); ++i)
+            for (uint32_t i = 0; i < anim.fx.fxVS->getCurrentShader()->getTotalVar(); ++i)
             {
-                VAR_SHADER *var = anim.fx.fxVS->ptrCurrentShader->getVar(i);
+                VAR_SHADER *var = anim.fx.fxVS->getCurrentShader()->getVar(i);
                 if (var)
                 {
                     VAR_SHADER_BACKUP* varCopy = new VAR_SHADER_BACKUP(var);
@@ -1380,30 +1420,30 @@ namespace mbm
 
     void ANIMATION_BACKUP::Impl::FX_BACKUP::restoreFX(mbm::ANIMATION& anim) const noexcept
     {
-		if (anim.fx.fxPS && anim.fx.fxPS->ptrCurrentShader)
+		if (anim.fx.fxPS && anim.fx.fxPS->getCurrentShader())
         {
-            anim.fx.fxPS->statusFx = this->statusFxPs;
-            anim.fx.fxPS->typeAnim = this->typeAnimPs;
-            anim.fx.fxPS->timeAnimation = this->timeAnimationPs;
+            anim.fx.fxPS->setStatusFx(this->statusFxPs);
+            anim.fx.fxPS->setTypeAnim(this->typeAnimPs);
+            anim.fx.fxPS->setTimeAnimation(this->timeAnimationPs);
             for (std::vector<VAR_SHADER_BACKUP*>::size_type i = 0; i < this->varsPS.size(); ++i)
             {
                 const VAR_SHADER_BACKUP* varBackup = this->varsPS[i];
                 if (varBackup)
                 {
-                    VAR_SHADER *var = anim.fx.fxPS->ptrCurrentShader->getVarByName(varBackup->name.c_str());
+                    VAR_SHADER *var = anim.fx.fxPS->getCurrentShader()->getVarByName(varBackup->name.c_str());
                     if (var)
                     {
                         if (var->typeVar != varBackup->typeVar)
                         {
-                            ERROR_LOG("Unexpected variable type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->ptrCurrentShader->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         if (var->isPS != varBackup->isPS)
                         {
-                            ERROR_LOG("Unexpected variable shader type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->ptrCurrentShader->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable shader type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         if (var->sizeVar != varBackup->sizeVar)
                         {
-                            ERROR_LOG("Unexpected variable size for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->ptrCurrentShader->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable size for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         memcpy(var->current, varBackup->current, sizeof(var->current));
                         memcpy(var->min, varBackup->min, sizeof(var->min));
@@ -1415,30 +1455,30 @@ namespace mbm
                 }
             }
         }
-        if (anim.fx.fxVS && anim.fx.fxVS->ptrCurrentShader)
+        if (anim.fx.fxVS && anim.fx.fxVS->getCurrentShader())
         {
-            anim.fx.fxVS->statusFx = this->statusFxVs;
-            anim.fx.fxVS->typeAnim = this->typeAnimVs;
-            anim.fx.fxVS->timeAnimation = this->timeAnimationVs;
+            anim.fx.fxVS->setStatusFx(this->statusFxVs);
+            anim.fx.fxVS->setTypeAnim(this->typeAnimVs);
+            anim.fx.fxVS->setTimeAnimation(this->timeAnimationVs);
             for (std::vector<VAR_SHADER_BACKUP*>::size_type i = 0; i < this->varsVS.size(); ++i)
             {
                 const VAR_SHADER_BACKUP* varBackup = this->varsVS[i];
                 if (varBackup)
                 {
-                    VAR_SHADER *var = anim.fx.fxVS->ptrCurrentShader->getVarByName(varBackup->name.c_str());
+                    VAR_SHADER *var = anim.fx.fxVS->getCurrentShader()->getVarByName(varBackup->name.c_str());
                     if (var)
                     {
                         if (var->typeVar != varBackup->typeVar)
                         {
-                            ERROR_LOG("Unexpected variable type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->ptrCurrentShader->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         if (var->isPS != varBackup->isPS)
                         {
-                            ERROR_LOG("Unexpected variable shader type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->ptrCurrentShader->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable shader type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         if (var->sizeVar != varBackup->sizeVar)
                         {
-                            ERROR_LOG("Unexpected variable size for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->ptrCurrentShader->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable size for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         memcpy(var->current, varBackup->current, sizeof(var->current));
                         memcpy(var->min, varBackup->min, sizeof(var->min));

@@ -475,7 +475,7 @@ namespace mbm
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->appendAnimation(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         return true;
     }

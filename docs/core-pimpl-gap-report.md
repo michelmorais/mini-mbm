@@ -40,7 +40,7 @@ High-impact examples:
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`. Scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
-| `include/core_mbm/animation.h` | `ANIMATION` frame state and `fx`. `ANIMATION_MANAGER` restore backup, animation list, current index, and callbacks are now behind `Impl`. |
+| `include/core_mbm/animation.h` | `ANIMATION` frame state and `fx`. `EFFECT_SHADER` state and `ANIMATION_MANAGER` restore backup, animation list, current index, and callbacks are now behind `Impl`. |
 | `include/core_mbm/scene.h` | `endScene`, `wasUnloadedScene`, `nextScene`, `goToNextScene`, `userData`. |
 
 A broad scan for direct member access on the main exposed state returned more than 2,000 hits across `include/`, `src/`, `plugins/`, `platform-*`, and `editor/`. That number is only a sizing signal, but it confirms this cannot be a single mechanical header edit.
@@ -1488,6 +1488,14 @@ Milestone 170 implementation note:
 - Removed all public data members from `ANIMATION_MANAGER`; its public animation state is now method-backed.
 - This is a strict `ANIMATION_MANAGER` PIMPL step. It changes source compatibility for code that still reads those fields directly, but the repo call sites had already been migrated.
 
+Milestone 171 implementation note:
+
+- Moved the remaining public `EFFECT_SHADER` state behind `EFFECT_SHADER::Impl`: `statusFx`, `typeAnim`, `ptrCurrentShader`, and `timeAnimation`.
+- Added explicit `EFFECT_SHADER` accessors/mutators for status, animation type, current shader, and animation time.
+- Migrated core animation loading/backup, `FX` shader helpers, render default-effect setup paths, plugin shader Lua helpers, mesh-debug Lua export, and tiled editor shader save/load paths to the new accessors.
+- Removed all public data members from `EFFECT_SHADER`; shader effect state is now method-backed.
+- This is a strict `EFFECT_SHADER` PIMPL step. It changes source compatibility for code that still reads those fields directly, but the repo call sites had already been migrated.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1512,14 +1520,14 @@ Manager backend-leakage pre-audit:
 |---|---|---|---|
 | `TEXTURE_MANAGER` | No direct DirectX/OpenGL ES/Metal/Win32/macOS types. `TEXTURE` backend handles are already behind `BackendData`. | Manager cache/path/capability storage moved behind `Impl`. Public TTF API still exposes `stbtt_aligned_quad` by signature. | Done for manager private layout. Further texture header cleanup would require a public TTF API decision. |
 | `ANIMATION_BACKUP` | No OS/backend SDK types. | Backup vectors and nested backup structs moved behind `Impl`. | Done for backup private layout. |
-| `EFFECT_SHADER` | No OS/backend SDK types. | Private shader cache map moved behind `Impl`; public state fields remain visible and are used by core/plugins/editor. | Partly done. Hiding public effect state still requires accessor policy for `statusFx`, `typeAnim`, `ptrCurrentShader`, and `timeAnimation`. |
+| `EFFECT_SHADER` | No OS/backend SDK types. | Private shader cache map and public effect state moved behind `Impl`. | Done for effect layout. |
 | `MESH_MANAGER` | No direct DirectX/OpenGL ES/Metal/Win32/macOS SDK types. It still carries legacy GLES-named engine value types such as `MATERIAL_GLES`, but those are engine/file-format structs, not backend handles. | Manager cache/fake-release state moved behind `Impl`. Header still exposes large `MESH_MBM` and `MESH_MBM_DEBUG` layouts. | Done for manager private layout. Any future mesh cleanup must review `MESH_MBM`/debug compatibility separately. |
 
 Future ABI/header hygiene could move private containers and counters into `Impl` for:
 
 - `TEXTURE_MANAGER`, done for manager cache/path/capability layout.
 - `ANIMATION_BACKUP`, done for backup nested structs/vectors.
-- `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
+- `EFFECT_SHADER`, done for shader cache map and effect state behind `Impl`.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
 - `ANIMATION_MANAGER`, done for restore backup object, animation list, current index, and callback fields behind `Impl`; Lua/render/backup/internal current-index reads migrated to `getIndexAnimation()`, raw current-index writes migrated to `setIndexAnimation()`, Lua callback writes migrated to callback setters, render/tiled callback reads migrated to callback getters, straightforward render-side list reads migrated to `getAnimation()`/`getTotalAnimation()`, backup list reads migrated to list accessors, straightforward setup appends migrated to `appendAnimation()`, tiled editor fixed-slot reads migrated to `getAnimation(index)`, read-only internal manager list use migrated to list accessors, and `removeAnimation()` bounds/clamp logic migrated to list accessors.
 - `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
@@ -1556,8 +1564,8 @@ Only after engine internals, Lua bindings, plugins, examples, and editors use th
 This is future work only. It is not required for the completed OS/backend isolation goal.
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
-2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, the private `EFFECT_SHADER` shader cache, `MESH_MANAGER` singleton cache, `ANIMATION_MANAGER` state, selected `CORE_MANAGER` flags, and early `CORE_MANAGER::getDevice()` compatibility migrations done.
-3. Add complete accessor/mutator coverage for `EFFECT_SHADER`, `RENDERIZABLE`, `SCENE`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
+2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, `EFFECT_SHADER` state, `MESH_MANAGER` singleton cache, `ANIMATION_MANAGER` state, selected `CORE_MANAGER` flags, and early `CORE_MANAGER::getDevice()` compatibility migrations done.
+3. Add complete accessor/mutator coverage for `RENDERIZABLE`, `SCENE`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
 6. Split public and private headers further where STL-heavy internals still leak compile dependencies.
@@ -1582,7 +1590,7 @@ Current decision:
 1. Continue with selected ABI/header hygiene even when the header has no direct DirectX/OpenGL ES/Metal/Win32/macOS SDK type.
 2. `TEXTURE_MANAGER` manager internals are now behind `Impl`.
 3. `ANIMATION_BACKUP` backup internals are now behind `Impl`.
-4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
+4. `EFFECT_SHADER` private shader cache and public effect state are now behind `Impl`.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
 6. `ANIMATION_MANAGER` restore backup storage, animation list, current index, and callback fields are now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index writes use `setIndexAnimation()`, Lua callback writes use callback setters, render/tiled callback reads use callback getters, straightforward render-side list reads use `getAnimation()`/`getTotalAnimation()`, backup list reads use list accessors, straightforward setup appends use `appendAnimation()`, tiled editor fixed-slot reads use `getAnimation(index)`, read-only internal manager list use is accessor-backed, and `removeAnimation()` bounds/clamp logic uses list accessors.
 7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.

@@ -273,21 +273,21 @@ namespace mbm
             const char* fileNamePs = "__steered_particle.ps";
             const char* fileNameVs = "__steered_particle.vs";
 
-            anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING);
-            anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING);
+            anim->fx.fxPS->setCurrentShader(anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING));
+            anim->fx.fxVS->setCurrentShader(anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING));
             anim->fx.shader.releaseShader();
-            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+            if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
                 return false;
 
             const float defaultVar[4] = { p_color->r, p_color->g, p_color->b, p_color->a };
-            if (anim->fx.fxPS->ptrCurrentShader)
+            if (anim->fx.fxPS->getCurrentShader())
             {
                 void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
-                if (anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar, backendShaderSpecific, true) == false)
+                if (anim->fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, defaultVar, backendShaderSpecific, true) == false)
                 {
                     PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
                 }
-                VAR_SHADER* colorVar = anim->fx.fxPS->ptrCurrentShader->getVarByName("color");
+                VAR_SHADER* colorVar = anim->fx.fxPS->getCurrentShader()->getVarByName("color");
                 if (colorVar)
                 {
                     colorVar->set(defaultVar, defaultVar, 1.0f);
@@ -305,10 +305,10 @@ namespace mbm
             const char* fileNamePs = "__steered_particle_no_color.ps";
             const char* fileNameVs = "__steered_particle.vs";
 
-            anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED);
-            anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
+            anim->fx.fxPS->setCurrentShader(anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED));
+            anim->fx.fxVS->setCurrentShader(anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
             anim->fx.shader.releaseShader();
-            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+            if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
                 return false;
         }
         return true;

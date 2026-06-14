@@ -209,22 +209,22 @@ namespace mbm
 
         ANIMATION* anim = this->getAnimation();
 
-        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_PAUSED);
-        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
+        anim->fx.fxPS->setCurrentShader(anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_PAUSED));
+        anim->fx.fxVS->setCurrentShader(anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
         anim->fx.shader.releaseShader();
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         float defaultVar[4] = { 1, 1, 1, 1 };
         void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
-        if (anim->fx.fxPS->ptrCurrentShader == nullptr ||
-            anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,
+        if (anim->fx.fxPS->getCurrentShader() == nullptr ||
+            anim->fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, defaultVar,
                 backendShaderSpecific, true) == false)
         {
 #if defined _DEBUG
             PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
 #endif
         }
-        if (anim->fx.fxPS->ptrCurrentShader == nullptr || anim->fx.fxPS->ptrCurrentShader->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
+        if (anim->fx.fxPS->getCurrentShader() == nullptr || anim->fx.fxPS->getCurrentShader()->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
             backendShaderSpecific, true) == false)
         {
 #if defined _DEBUG
