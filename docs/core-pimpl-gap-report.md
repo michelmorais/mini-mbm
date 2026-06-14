@@ -1853,6 +1853,12 @@ Milestone 220 implementation note:
 - Cached `is2dScreenObject()` in Lua text-offset helpers while migrating their text type check to the accessor API.
 - Focused scan for direct `renderizable->typeClass` / `ptr->typeClass` style access in `src/lua-wrap`, `plugins`, and `renderizable-clone.cpp` is clean.
 
+Milestone 221 implementation note:
+
+- Migrated `DEVICE::removeObjectByIdSceneScene()` render-list scene ownership checks from direct `RENDERIZABLE::idScene` reads to `RENDERIZABLE::getIdScene()`.
+- Touched only `src/core_mbm/device-common.cpp`; `FONT_DRAW::idScene`, `PHYSICS::idScene`, `AUDIO::idScene`, and `SCENE::idScene` are separate class state and remain outside this renderizable accessor milestone.
+- Focused scan shows remaining `idScene` hits are non-`RENDERIZABLE` state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

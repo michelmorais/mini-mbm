@@ -642,7 +642,7 @@ namespace mbm
         for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render3D.size(); ++i)
         {
             RENDERIZABLE *ptr = impl->render3D[i];
-            if (ptr->idScene == idScene)
+            if (ptr->getIdScene() == idScene)
             {
                 impl->render3D.erase(impl->render3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                 i--;
@@ -651,7 +651,7 @@ namespace mbm
         for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DW.size(); ++i)
         {
             RENDERIZABLE *ptr = impl->render2DW[i];
-            if (ptr->idScene == idScene)
+            if (ptr->getIdScene() == idScene)
             {
                 impl->render2DW.erase(impl->render2DW.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                 i--;
@@ -660,7 +660,7 @@ namespace mbm
         for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DS.size(); ++i)
         {
             RENDERIZABLE *ptr = impl->render2DS[i];
-            if (ptr->idScene == idScene)
+            if (ptr->getIdScene() == idScene)
             {
                 impl->render2DS.erase(impl->render2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                 i--;
