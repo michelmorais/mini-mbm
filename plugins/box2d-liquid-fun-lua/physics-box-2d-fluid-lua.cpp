@@ -45,7 +45,7 @@ namespace mbm
     b2ParticleSystem* getParticleSystemBox2lfdFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         mbm::STEERED_PARTICLE * p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,rawi,indexTable);
-        auto *userData         = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
+        auto *userData         = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->getUserData());
         mbm::INFO_FLUID*  info = static_cast<mbm::INFO_FLUID*>(userData->extra);
         return info->particleSystem;
     }
@@ -208,7 +208,7 @@ namespace mbm
         mbm::STEERED_PARTICLE * p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         const int indexTable                       = 2;
         const int indexSubTable                    = lua_gettop(lua)+1;
-        USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
+        USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->getUserData());
         mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
         b2ParticleSystem* pSystem                  = info->particleSystem;
         RENDERIZABLE * the_ptr                     = getRenderizableNoThrowFromRawTable(lua, 1, indexTable);
@@ -221,9 +221,11 @@ namespace mbm
             {
                 return lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
             }
-            const b2Vec2 pos(the_ptr->position.x / scale,the_ptr->position.y / scale);
+            const VEC3 &position = the_ptr->getPosition();
+            const VEC3 &angle    = the_ptr->getAngle();
+            const b2Vec2 pos(position.x / scale,position.y / scale);
             int32 particles_destroyed = 0;
-            bTransform.Set(pos,the_ptr->angle.z);
+            bTransform.Set(pos,angle.z);
             for(const CUBE * cube :const_info_physics->lsCube)
             {
                 b2PolygonShape  bBox;
@@ -524,7 +526,7 @@ namespace mbm
         {
             b2AABB b2_aabb;
             mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
-            USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
+            USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->getUserData());
             mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
             b2ParticleSystem* pSystem                  = info->particleSystem;
             const float scale                          = p_steered_particle->getScalePhysicsEngine();
@@ -555,7 +557,7 @@ namespace mbm
             const int indexTable                       = top + 1;
             mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
             RENDERIZABLE * the_ptr                     = getRenderizableNoThrowFromRawTable(lua, 1, 2);
-            USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
+            USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->getUserData());
             mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
             b2ParticleSystem* pSystem                  = info->particleSystem;
             const float scale                          = p_steered_particle->getScalePhysicsEngine();
@@ -570,8 +572,10 @@ namespace mbm
                 {
                     return lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
                 }
-                const b2Vec2 pos(the_ptr->position.x / scale,the_ptr->position.y / scale);
-                bTransform.Set(pos,the_ptr->angle.z);
+                const VEC3 &position = the_ptr->getPosition();
+                const VEC3 &angle    = the_ptr->getAngle();
+                const b2Vec2 pos(position.x / scale,position.y / scale);
+                bTransform.Set(pos,angle.z);
                 for(const CUBE * cube :const_info_physics->lsCube)
                 {
                     b2PolygonShape  bBox;
@@ -685,7 +689,7 @@ namespace mbm
     {
         b2AABB b2_aabb;
         mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
-        USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
+        USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->getUserData());
         mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
         b2ParticleSystem* pSystem                  = info->particleSystem;
         const float scale                          = p_steered_particle->getScalePhysicsEngine();
@@ -771,7 +775,7 @@ namespace mbm
     int onRayCastParticleBox2d(lua_State *lua)
     {
         mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
-        USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
+        USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->getUserData());
         mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
         b2ParticleSystem* pSystem                  = info->particleSystem;
         const float scale                          = p_steered_particle->getScalePhysicsEngine();
@@ -859,10 +863,10 @@ namespace mbm
         }
         mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         RENDERIZABLE * the_ptr    = getRenderizableNoThrowFromRawTable(lua, 1, 2);
-        auto *userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
+        auto *userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->getUserData());
         mbm::INFO_FLUID*  info    = static_cast<mbm::INFO_FLUID*>(userData->extra);
         const float scalePhysics  = p_steered_particle->getScalePhysicsEngine();
-        VEC3 position(p_steered_particle->position);
+        VEC3 position(p_steered_particle->getPosition());
         VEC3 scale(1,1,1);
         INFO_PHYSICS  info_physics;
         INFO_PHYSICS*  local_info_physics = &info_physics;
@@ -877,8 +881,8 @@ namespace mbm
             {
                 return lua_error_debug(lua, "Failed to clone phisics from [%s]", the_ptr->getTypeClassName());
             }
-            position = the_ptr->position;
-            scale    = the_ptr->scale;
+            position = the_ptr->getPosition();
+            scale    = the_ptr->getScale();
         }
         else
         {

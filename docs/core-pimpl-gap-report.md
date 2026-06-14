@@ -1746,6 +1746,13 @@ Milestone 206 implementation note:
 - Replaced body creation position reads with local `getPosition()` references and fluid renderizable z-position setup with `getPosition().z`.
 - Remaining focused hits in this file are LiquidFun wrapper scale fields or `INFO_PHYSICS::scale`, not `RENDERIZABLE` state.
 
+Milestone 207 implementation note:
+
+- Migrated LiquidFun fluid Lua renderizable state access in `plugins/box2d-liquid-fun-lua/physics-box-2d-fluid-lua.cpp` to the accessor API.
+- Replaced fluid renderizable `userData` reads with `getUserData()`.
+- Replaced particle destroy/query shape transform reads with local `getPosition()` / `getAngle()` references.
+- Replaced add-particle default/source transform reads with `getPosition()` / `getScale()` copies.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
