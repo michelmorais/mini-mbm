@@ -368,8 +368,8 @@ namespace mbm
         const float       b              = luaL_checknumber(lua, 4);
         const float       a              = top > 4 ? luaL_checknumber(lua, 5) : 1.0f;
 
-        COLOR color(r, g, b, a);
-        render2texture->colorClearBackGround = (unsigned int)color;
+        const COLOR color(r, g, b, a);
+        render2texture->setRenderTargetClearColor(color);
         return 0;
     }
 
@@ -402,8 +402,8 @@ namespace mbm
         const char*        fileName         = luaL_checkstring(lua, 2);
         const int x                         = top > 2 ? luaL_checkinteger(lua,3) : 0;
         const int y                         = top > 3 ? luaL_checkinteger(lua,4) : 0;
-        const int w                         = top > 4 ? luaL_checkinteger(lua,5) : render2texture->widthTexture;
-        const int h                         = top > 5 ? luaL_checkinteger(lua,6) : render2texture->heightTexture;
+        const int w                         = top > 4 ? luaL_checkinteger(lua,5) : render2texture->getRenderTargetWidth();
+        const int h                         = top > 5 ? luaL_checkinteger(lua,6) : render2texture->getRenderTargetHeight();
         if(render2texture->saveAsPNG(fileName,x,y,w,h))
             lua_pushboolean(lua,1);
         else

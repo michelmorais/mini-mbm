@@ -35,10 +35,8 @@ namespace mbm
         RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
     {
         setRenderTargetSpecificConfig(new RENDER2TARGET_DIRECTX9());
-        this->colorClearBackGround = COLOR(255, 255, 255); // alpha em 0 significa transparente
-        this->colorClearBackGround.a = 1.0f;
-        this->widthTexture = 0;
-        this->heightTexture = 0;
+        this->setRenderTargetClearColor(COLOR(255, 255, 255)); // alpha em 0 significa transparente
+        this->setRenderTargetSize(0, 0);
     }
 
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
@@ -83,10 +81,12 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(strcasecmp(newFileOutNamePNG,this->getInternalFileName()) == 0)
             return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",this->getInternalFileName());
-        if(x < 0 || _width <= 0 || (_width + x) > static_cast<int>(this->widthTexture))
-            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
-        if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(this->heightTexture))
-            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
+        const uint32_t renderTargetWidth = this->getRenderTargetWidth();
+        const uint32_t renderTargetHeight = this->getRenderTargetHeight();
+        if(x < 0 || _width <= 0 || (_width + x) > static_cast<int>(renderTargetWidth))
+            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
+        if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(renderTargetHeight))
+            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
 
         //the render target surface (sf->pRenderSurface) is created with:
         //Pool : D3DPOOL_DEFAULT(GPU memory only)
@@ -114,7 +114,7 @@ namespace mbm
         IDirect3DSurface9* stagingSurface = nullptr;
         D3DFORMAT requested_format = this->texture->useAlphaChannel ? D3DFMT_A8R8G8B8 : D3DFMT_R8G8B8;
         HRESULT hrCreateStaging = pd3dDevice->CreateOffscreenPlainSurface(
-            this->widthTexture, this->heightTexture,
+            renderTargetWidth, renderTargetHeight,
             requested_format,
             D3DPOOL_SYSTEMMEM,
             &stagingSurface,

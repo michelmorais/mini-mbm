@@ -161,12 +161,14 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
                 continue;
             void *renderTargetSpecificConfig = renderTarget->getRenderTargetSpecificConfig();
             const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTargetSpecificConfig);
-            GLViewport(0, 0, static_cast<GLsizei>(renderTarget->widthTexture), static_cast<GLsizei>(renderTarget->heightTexture));
+            const uint32_t renderTargetWidth = renderTarget->getRenderTargetWidth();
+            const uint32_t renderTargetHeight = renderTarget->getRenderTargetHeight();
+            GLViewport(0, 0, static_cast<GLsizei>(renderTargetWidth), static_cast<GLsizei>(renderTargetHeight));
             GLBindFramebuffer(GL_FRAMEBUFFER, sf->idFrameBuffer);
             GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sf->idTextureDynamic,0);
             GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, sf->idDepthRenderbuffer);
-            GLClearColor(renderTarget->colorClearBackGround.r, renderTarget->colorClearBackGround.g,
-                         renderTarget->colorClearBackGround.b, renderTarget->colorClearBackGround.a);
+            const COLOR &clearColor = renderTarget->getRenderTargetClearColor();
+            GLClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
             GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             GLClearDepthf(1.0f);
             const GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);

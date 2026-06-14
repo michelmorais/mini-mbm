@@ -86,8 +86,7 @@ namespace mbm
                 #endif
                 return false;
             }
-            this->widthTexture  = _widthTexture;  // 400
-            this->heightTexture = _heightTexture; // 600
+            this->setRenderTargetSize(_widthTexture, _heightTexture);  // 400x600 default
             this->texture = TEXTURE_MANAGER::getInstance()->createTextureRenderTarget(this, nickName, hasAlpha);
             if (this->texture)
             {
@@ -120,8 +119,8 @@ namespace mbm
                 if (!createAnimationAndShader2Render2Texture())
                     return false;
                 char strTemp[300]="";
-                snprintf(strTemp,sizeof(strTemp)-1, "rende2texture|%s|%u|%u|%u|%u|%s", nickName, widthFrame, heightFrame, widthTexture,
-                        heightTexture, hasAlpha ? "true" : "false");
+                snprintf(strTemp,sizeof(strTemp)-1, "rende2texture|%s|%u|%u|%u|%u|%s", nickName, widthFrame, heightFrame,
+                        this->getRenderTargetWidth(), this->getRenderTargetHeight(), hasAlpha ? "true" : "false");
 
                 this->setInternalFileName(strTemp);
             }

@@ -155,8 +155,8 @@ namespace mbm
                                               const bool enableAlpha)
     {
         std::string fileNameBase    = util::getBaseName(nickName);
-        const auto width         = static_cast<GLsizei>(renderToTarget->widthTexture);
-        const auto height        = static_cast<GLsizei>(renderToTarget->heightTexture);
+        const auto width         = static_cast<GLsizei>(renderToTarget->getRenderTargetWidth());
+        const auto height        = static_cast<GLsizei>(renderToTarget->getRenderTargetHeight());
         if (fileNameBase.size() == 0)
             return nullptr;
         const uint32_t maxTextureSize = getMaxTextureSize();

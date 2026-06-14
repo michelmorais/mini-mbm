@@ -176,7 +176,7 @@ namespace mbm
                 continue;
 
             // Update clear colour from the render target definition.
-            const COLOR& bg = renderTarget->colorClearBackGround;
+            const COLOR& bg = renderTarget->getRenderTargetClearColor();
             rf->passDescriptor.colorAttachments[0].clearColor =
                 MTLClearColorMake(
                     static_cast<double>(bg.r),

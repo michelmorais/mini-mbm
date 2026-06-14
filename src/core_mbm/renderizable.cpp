@@ -102,6 +102,37 @@ namespace mbm
         delete data;
     }
 
+    uint32_t RENDERIZABLE_TO_TARGET::getRenderTargetWidth() const noexcept
+    {
+        return this->widthTexture;
+    }
+
+    uint32_t RENDERIZABLE_TO_TARGET::getRenderTargetHeight() const noexcept
+    {
+        return this->heightTexture;
+    }
+
+    void RENDERIZABLE_TO_TARGET::setRenderTargetSize(const uint32_t width, const uint32_t height) noexcept
+    {
+        this->widthTexture = width;
+        this->heightTexture = height;
+    }
+
+    COLOR & RENDERIZABLE_TO_TARGET::getRenderTargetClearColor() noexcept
+    {
+        return this->colorClearBackGround;
+    }
+
+    const COLOR & RENDERIZABLE_TO_TARGET::getRenderTargetClearColor() const noexcept
+    {
+        return this->colorClearBackGround;
+    }
+
+    void RENDERIZABLE_TO_TARGET::setRenderTargetClearColor(const COLOR &color) noexcept
+    {
+        this->colorClearBackGround = color;
+    }
+
     void * RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig() const noexcept
     {
         return backendData ? backendData->specificConfig : nullptr;

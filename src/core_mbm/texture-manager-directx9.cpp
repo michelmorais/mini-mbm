@@ -429,8 +429,8 @@ namespace mbm
                                                         const bool enableAlpha)
     {
         std::string fileNameBase    = util::getBaseName(nickName);
-        const auto width            = static_cast<int>(renderToTarget->widthTexture);
-        const auto height           = static_cast<int>(renderToTarget->heightTexture);
+        const auto width            = static_cast<int>(renderToTarget->getRenderTargetWidth());
+        const auto height           = static_cast<int>(renderToTarget->getRenderTargetHeight());
         auto pd3dDevice             = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
 
         if (fileNameBase.size() == 0)

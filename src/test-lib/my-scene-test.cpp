@@ -298,7 +298,9 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
     }
     if(key == 1 && render2Texture)
     {
-        if(render2Texture->saveAsPNG("render2texture-out.png", 0, 0, render2Texture->widthTexture, render2Texture->heightTexture))
+        if(render2Texture->saveAsPNG("render2texture-out.png", 0, 0,
+                                     render2Texture->getRenderTargetWidth(),
+                                     render2Texture->getRenderTargetHeight()))
         {
             INFO_LOG("Saved render2Texture content to render2texture-out.png");
         }
@@ -1262,8 +1264,8 @@ void MY_SCENE::applyPosPreset(int idx)
     if(render2Texture && row.object != render2Texture)
     {
         // If the object is inside render2Texture, use its dimensions instead of the device backbuffer for positioning
-        backBufferHeight = static_cast<float>(render2Texture->heightTexture);
-        backBufferWidth = static_cast<float>(render2Texture->widthTexture);
+        backBufferHeight = static_cast<float>(render2Texture->getRenderTargetHeight());
+        backBufferWidth = static_cast<float>(render2Texture->getRenderTargetWidth());
     }
     switch (idx)
     {

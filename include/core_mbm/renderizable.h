@@ -155,6 +155,12 @@ namespace mbm
         API_IMPL virtual ~RENDERIZABLE_TO_TARGET();
         API_IMPL virtual bool render2Texture() = 0;
         API_IMPL virtual void removeFromRender2Texture(RENDERIZABLE *ptr) = 0;
+        API_IMPL uint32_t getRenderTargetWidth() const noexcept;
+        API_IMPL uint32_t getRenderTargetHeight() const noexcept;
+        API_IMPL void setRenderTargetSize(uint32_t width, uint32_t height) noexcept;
+        API_IMPL COLOR & getRenderTargetClearColor() noexcept;
+        API_IMPL const COLOR & getRenderTargetClearColor() const noexcept;
+        API_IMPL void setRenderTargetClearColor(const COLOR &color) noexcept;
         API_IMPL void * getRenderTargetSpecificConfig() const noexcept;
         API_IMPL void setRenderTargetSpecificConfig(void *specificConfig) noexcept;
       private:

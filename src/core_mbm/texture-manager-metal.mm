@@ -152,8 +152,8 @@ namespace mbm
         if (fileNameBase.empty())
             return nullptr;
 
-        const auto width  = static_cast<int>(renderToTarget->widthTexture);
-        const auto height = static_cast<int>(renderToTarget->heightTexture);
+        const auto width  = static_cast<int>(renderToTarget->getRenderTargetWidth());
+        const auto height = static_cast<int>(renderToTarget->getRenderTargetHeight());
 
         const uint32_t maxTextureSize = getMaxTextureSize();
         if (static_cast<uint32_t>(width) > maxTextureSize || static_cast<uint32_t>(height) > maxTextureSize)

@@ -148,8 +148,7 @@ namespace mbm
                 PRINT_IF_DEBUG("nickName == nullptr || widthTexture == 0 || heightTexture == 0");
                 return nullptr;
             }
-            this->widthTexture  = _widthTexture;
-            this->heightTexture = _heightTexture;
+            this->setRenderTargetSize(_widthTexture, _heightTexture);
             this->texture = mbm::TEXTURE_MANAGER::getInstance()->createTextureRenderTarget(this, nickName, hasAlpha);
             if (this->texture)
             {
@@ -178,8 +177,8 @@ namespace mbm
                     nickName, 
                     widthFrame, 
                     heightFrame, 
-                    widthTexture,
-                    heightTexture, 
+                    this->getRenderTargetWidth(),
+                    this->getRenderTargetHeight(),
                     hasAlpha ? "true" : "false");
                 mbm::CUBE *cube = nullptr;
                 if (this->infoPhysics.lsCube.size())

@@ -423,9 +423,11 @@ namespace mbm
             // The viewport stays at the back-buffer dimensions, so any content that falls below
             // the window height (e.g. a 1024x1024 canvas on a 900px-tall window) is silently
             // clipped. Set the viewport explicitly to the render target dimensions.
+            const uint32_t renderTargetWidth = renderTarget->getRenderTargetWidth();
+            const uint32_t renderTargetHeight = renderTarget->getRenderTargetHeight();
             const D3DVIEWPORT9 rtViewport = { 0, 0,
-                static_cast<DWORD>(renderTarget->widthTexture),
-                static_cast<DWORD>(renderTarget->heightTexture),
+                static_cast<DWORD>(renderTargetWidth),
+                static_cast<DWORD>(renderTargetHeight),
                 0.0f, 1.0f };
             pd3dDevice->SetViewport(&rtViewport);
 
@@ -439,7 +441,8 @@ namespace mbm
                 pd3dDevice->SetDepthStencilSurface(sf->pDepthStencilSurface);
             }
 
-            hr = pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, renderTarget->colorClearBackGround, 1.0f, 0);
+            const COLOR &clearColor = renderTarget->getRenderTargetClearColor();
+            hr = pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, clearColor, 1.0f, 0);
             //clear color and z-buffer
             if (FAILED(hr))
             {
@@ -458,7 +461,7 @@ namespace mbm
                 return false;
             }
             
-            //this->device->getCamera().updateCam(false, static_cast<float>(renderTarget->widthTexture), static_cast<float>(renderTarget->heightTexture));
+            //this->device->getCamera().updateCam(false, static_cast<float>(renderTarget->getRenderTargetWidth()), static_cast<float>(renderTarget->getRenderTargetHeight()));
             //RENDER_2_TEXTURE::render2Texture() update the matrix of projection, so, later we need to restore, see this->device->getCamera().updateCam
             if (!renderTarget->render2Texture())
             {
