@@ -190,9 +190,12 @@ namespace mbm
     // Defined here (not in the header) because it is X11-specific.
     int getX11DisplayFd() noexcept
     {
-        DEVICE* dev = DEVICE::getInstance();
-        if (dev && dev->getSpecificContextDevice() && dev->getSpecificContextDevice()->display_x11)
-            return ConnectionNumber(dev->getSpecificContextDevice()->display_x11);
+        DEVICE *device = DEVICE::getInstance();
+        if (device == nullptr)
+            return -1;
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        if (context != nullptr && context->display_x11 != nullptr)
+            return ConnectionNumber(context->display_x11);
         return -1;
     }
 
