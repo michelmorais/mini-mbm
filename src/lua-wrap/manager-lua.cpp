@@ -130,7 +130,7 @@ namespace mbm
                 auto *curScene = static_cast<SCENE_SCRIPT*>(device->getScene());
                 if(curScene && curScene->splashRenderizable)
                 {
-                    auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(curScene->splashRenderizable->userData);
+                    auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(curScene->splashRenderizable->getUserData());
                     if(userData == nullptr)
                     {
                         return newNoGCFromRenderizable(lua,curScene->splashRenderizable);
@@ -224,9 +224,10 @@ namespace mbm
                         this->scriptLua = "main.lua";
                     log_util::replaceString(this->scriptLua, "\\", "\\\\");
                     log_util::replaceString(restoreLua, "\\", "\\\\");
-                    this->textureLogo->position.x = device->getScaleBackBufferWidth() / 2.0f;
-                    this->textureLogo->position.y = device->getScaleBackBufferHeight() / 2.0f;
-                    this->textureLogo->position.z = -110.0f;
+                    VEC3 &logoPosition = this->textureLogo->getPosition();
+                    logoPosition.x = device->getScaleBackBufferWidth() / 2.0f;
+                    logoPosition.y = device->getScaleBackBufferHeight() / 2.0f;
+                    logoPosition.z = -110.0f;
                     std::string luaFile           = "function onTimeOutChangeScene(ti) ";
                     luaFile += " mbm.loadScene(\"";
                     luaFile += exitsFile ? restoreLua : this->scriptLua;
@@ -486,7 +487,7 @@ namespace mbm
             while (this->dataScene.lsLuaCallBackOnTouchSynchronous.size())
             {
                 auto *dataRenderer =
-                    static_cast<USER_DATA_RENDER_LUA *>(this->dataScene.lsLuaCallBackOnTouchSynchronous[0]->userData);
+                    static_cast<USER_DATA_RENDER_LUA *>(this->dataScene.lsLuaCallBackOnTouchSynchronous[0]->getUserData());
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, dataRenderer->ref_CallBackTouchDown);
                 if (lua_isfunction(this->lua, -1))
                 {
@@ -612,10 +613,12 @@ namespace mbm
                     this->textureRestore = new TEXTURE_VIEW(false,true);
                     if (this->textureRestore && this->textureRestore->load(& resource_loading))
                     {
-                        this->textureRestore->position.x = device->getScaleBackBufferWidth() / 2.0f;
-                        this->textureRestore->position.y = device->getScaleBackBufferHeight() / 2.0f;
-                        this->textureRestore->scale.x    = 0.5f;
-                        this->textureRestore->scale.y    = 0.5f;
+                        VEC3 &restorePosition = this->textureRestore->getPosition();
+                        VEC3 &restoreScale = this->textureRestore->getScale();
+                        restorePosition.x = device->getScaleBackBufferWidth() / 2.0f;
+                        restorePosition.y = device->getScaleBackBufferHeight() / 2.0f;
+                        restoreScale.x    = 0.5f;
+                        restoreScale.y    = 0.5f;
                         device->renderToRestore(this->textureRestore);
                     }
                 }
@@ -625,7 +628,7 @@ namespace mbm
                 if (this->textureRestore)
                 {
                     device->clearDepthColored();
-                    this->textureRestore->angle.z = util::degreeToRadian((180.0f / 100.0f) * percent);
+                    this->textureRestore->getAngle().z = util::degreeToRadian((180.0f / 100.0f) * percent);
                     device->renderToRestore(this->textureRestore);
                 }
                 if(percent == 100)
@@ -655,7 +658,7 @@ namespace mbm
                     }
                     if (this->textureRestore)
                     {
-                        this->textureRestore->enableRender = false;
+                        this->textureRestore->setEnableRender(false);
                         delete this->textureRestore;
                         this->textureRestore = nullptr;
                     }
@@ -685,10 +688,10 @@ namespace mbm
             }
             for (auto obj : this->dataScene.lsLuaCallBackOnTouchAsynchronous)
             {
-                if (!obj->enableRender)
+                if (!obj->isRenderEnabled())
                     continue;
-                auto *dataRenderer = static_cast<USER_DATA_RENDER_LUA *>(obj->userData);
-                if (obj->is3D)
+                auto *dataRenderer = static_cast<USER_DATA_RENDER_LUA *>(obj->getUserData());
+                if (obj->is3DObject())
                 {
                     if (obj->isOver3d(device, x, y))
                     {
@@ -698,7 +701,7 @@ namespace mbm
                         this->dataScene.lsLuaCallBackOnTouchSynchronous.push_back(obj);
                     }
                 }
-                else if (obj->is2dS)
+                else if (obj->is2dScreenObject())
                 {
                     if (obj->isOver2ds(device, x, y))
                     {
@@ -970,7 +973,7 @@ namespace mbm
                 if(this->textureLogo)
                     delete this->textureLogo;
                 this->textureLogo = nullptr;
-                this->splashRenderizable->enableRender = true;
+                this->splashRenderizable->setEnableRender(true);
                 RENDERIZABLE* oldRenderizable = this->splashRenderizable;
                 this->splashRenderizable = mbm::clone(this,oldRenderizable);//the new 
                 delete oldRenderizable;
@@ -982,11 +985,13 @@ namespace mbm
                 device->setColorClearBackGround(COLOR(1.0f,1.0f,1.0f,1.0f));
                 if (this->textureLogo && this->textureLogo->load(& resource_loading))
                 {
-                    this->textureLogo->position.x = device->getScaleBackBufferWidth() / 2.0f;
-                    this->textureLogo->position.y = device->getScaleBackBufferHeight() / 2.0f;
-                    this->textureLogo->position.z = -1000;
-                    this->textureLogo->scale.x    = 0.5f;
-                    this->textureLogo->scale.y    = 0.5f;
+                    VEC3 &logoPosition = this->textureLogo->getPosition();
+                    VEC3 &logoScale = this->textureLogo->getScale();
+                    logoPosition.x = device->getScaleBackBufferWidth() / 2.0f;
+                    logoPosition.y = device->getScaleBackBufferHeight() / 2.0f;
+                    logoPosition.z = -1000;
+                    logoScale.x    = 0.5f;
+                    logoScale.y    = 0.5f;
                     device->disableAllButThis(this->textureLogo);
                 }
             }
@@ -1009,7 +1014,7 @@ namespace mbm
                 lua_getglobal(lua,"cCoroutineLoadScene");
                 const int type  = lua_type(lua,-1);
                 if (type != LUA_TTHREAD)
-                    this->splashRenderizable->enableRender = false;
+                    this->splashRenderizable->setEnableRender(false);
                 
                 lua_settop(lua,0);
             }

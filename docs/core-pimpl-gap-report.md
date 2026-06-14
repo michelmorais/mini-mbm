@@ -1679,6 +1679,13 @@ Milestone 196 implementation note:
 - Replaced mesh-load default transform application in `MESH_MBM::load()` and `MESH_MANAGER::load()` with `getPosition()` and `setAngle()`.
 - Left false positives alone where `position`/`angle` belong to mesh buffers, camera state, or physics primitives rather than `RENDERIZABLE`.
 
+Milestone 197 implementation note:
+
+- Migrated `src/lua-wrap/manager-lua.cpp` splash/loading renderizable state usage to the `RENDERIZABLE` accessor API.
+- Replaced direct logo/restore texture position, scale, angle, and visibility writes with `getPosition()`, `getScale()`, `getAngle()`, and `setEnableRender()`.
+- Replaced Lua touch callback render-state checks with `isRenderEnabled()`, `is3DObject()`, `is2dScreenObject()`, and `getUserData()`.
+- This keeps Lua splash/loading and touch callback behavior unchanged while removing direct `RENDERIZABLE` state/user-data field use from `manager-lua.cpp`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
