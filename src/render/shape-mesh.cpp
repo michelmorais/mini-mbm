@@ -1098,7 +1098,8 @@ namespace mbm
     
     bool SHAPE_MESH::render()
     {
-        if (this->mesh && this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (this->mesh && indexAnimation < this->lsAnimation.size())
         {
             if(this->alwaysRenderize && this->dynamicVertex.size() > 0 && onRenderDynamicBuffer)
             {
@@ -1122,7 +1123,7 @@ namespace mbm
             }
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            ANIMATION *animation = this->lsAnimation[this->indexCurrentAnimation];
+            ANIMATION *animation = this->lsAnimation[indexAnimation];
             animation->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
             if (this->is3D)
             {

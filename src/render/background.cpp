@@ -170,7 +170,7 @@ namespace mbm
             {
                 this->text = result[2];
             }
-            this->lsAnimation[this->indexCurrentAnimation]->restartAnimation();
+            this->lsAnimation[this->getIndexAnimation()]->restartAnimation();
 #if defined DEBUG
             PRINT_INFO_IF_DEBUG("background [%s] successfully restored", log_util::basename(fileName));
 #endif
@@ -321,12 +321,13 @@ namespace mbm
     {
         if (this->type == util::TYPE_MESH_UNKNOWN)
             return false;
-        if (this->lasIndexAnimation != this->indexCurrentAnimation)
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (this->lasIndexAnimation != indexAnimation)
         {
             if (!this->setScale(this->isMajorScale))
                 return false;
         }
-        if (this->indexCurrentAnimation >= this->lsAnimation.size())
+        if (indexAnimation >= this->lsAnimation.size())
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         const float w = device->getScaleBackBufferWidth() * 0.5f;
@@ -563,10 +564,11 @@ namespace mbm
                 if (mesh == nullptr)
                     return false;
                 unsigned int index = 0;
+                const uint32_t indexAnimation = this->getIndexAnimation();
                 if (mesh->infoPhysics.lsCube.size())
                 {
-                    if (this->indexCurrentAnimation < mesh->infoPhysics.lsCube.size())
-                        index = this->indexCurrentAnimation;
+                    if (indexAnimation < mesh->infoPhysics.lsCube.size())
+                        index = indexAnimation;
                     if (index < mesh->infoPhysics.lsCube.size())
                     {
                         CUBE *cube            = mesh->infoPhysics.lsCube[index];
@@ -577,8 +579,8 @@ namespace mbm
                 }
                 else if (mesh->infoPhysics.lsSphere.size())
                 {
-                    if (this->indexCurrentAnimation < mesh->infoPhysics.lsSphere.size())
-                        index = this->indexCurrentAnimation;
+                    if (indexAnimation < mesh->infoPhysics.lsSphere.size())
+                        index = indexAnimation;
                     if (index < mesh->infoPhysics.lsSphere.size())
                     {
                         mbm::SPHERE *sphere   = mesh->infoPhysics.lsSphere[index];
@@ -705,7 +707,7 @@ namespace mbm
             default: { return false;}
                 
         }
-        this->lasIndexAnimation = this->indexCurrentAnimation;
+        this->lasIndexAnimation = this->getIndexAnimation();
         if (this->is3D)
         {
             VEC3 dimNear, dimFar;

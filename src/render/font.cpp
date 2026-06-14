@@ -433,7 +433,8 @@ namespace mbm
     
     bool TEXT_DRAW::isOnFrustum()
     {
-        if (this->mesh && mesh->isLoaded() && this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (this->mesh && mesh->isLoaded() && indexAnimation < this->lsAnimation.size())
         {
             float w = 0.0f;
             float h = 0.0f;
@@ -496,11 +497,12 @@ namespace mbm
     
     bool TEXT_DRAW::renderText(const bool doRender)
     {
-        if (this->mesh && this->isLoaded() && this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (this->mesh && this->isLoaded() && indexAnimation < this->lsAnimation.size())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
+            ANIMATION *anim = this->lsAnimation[indexAnimation];
             if (doRender)
                 anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
             const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
