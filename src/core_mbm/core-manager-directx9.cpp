@@ -381,8 +381,11 @@ namespace mbm
 
     bool CORE_MANAGER::renderToTargets()
     {
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        CAMERA &camera = device->getCamera();
         bool oneRender                 = false;
-        IDirect3DDevice9* pd3dDevice   = this->device->getSpecificContextDevice()->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice   = context->pd3dDevice;
         IDirect3DSurface9* pBackBuffer = NULL;
         
         pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
@@ -391,10 +394,10 @@ namespace mbm
             ERROR_AT(__LINE__, __FILE__, "failed to backup backbuffer before render to target");
             return false;
         }
-        const uint32_t totalRenderTargets = this->device->getTotalRenderTargets();
+        const uint32_t totalRenderTargets = device->getTotalRenderTargets();
         for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
-            auto renderTarget = this->device->getRenderTarget(i);
+            auto renderTarget = device->getRenderTarget(i);
             if (!renderTarget)
                 continue;
             if (!renderTarget->isObjectOnFrustum)
@@ -462,7 +465,7 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "Error render2Texture!");
                 if (pOldDepthStencil) { pd3dDevice->SetDepthStencilSurface(pOldDepthStencil); pOldDepthStencil->Release(); }
                 pd3dDevice->SetRenderTarget(0, pBackBuffer);
-                this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+                camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             hr = pd3dDevice->EndScene();
@@ -471,8 +474,8 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "Error EndScene of render 2 texture HRESULT: 0x%h use DXErr to verify!", hr);
                 if (pOldDepthStencil) { pd3dDevice->SetDepthStencilSurface(pOldDepthStencil); pOldDepthStencil->Release(); }
                 pd3dDevice->SetRenderTarget(0, pBackBuffer);
-                this->device->getCamera().updateCam(false, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
-                this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+                camera.updateCam(false, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+                camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             if (pOldDepthStencil) { pd3dDevice->SetDepthStencilSurface(pOldDepthStencil); pOldDepthStencil->Release(); }
@@ -487,7 +490,7 @@ namespace mbm
                 static_cast<DWORD>(device->getBackBufferHeight()),
                 0.0f, 1.0f };
             pd3dDevice->SetViewport(&bbViewport);
-            this->device->getCamera().updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
+            camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
