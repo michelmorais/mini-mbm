@@ -1901,6 +1901,13 @@ Milestone 227 implementation note:
 - Updated `src/core_mbm/renderizable-architecture.md` so the simplified `TILE::onRestoreDevice()` example uses `getInternalFileName()` instead of teaching direct `fileName` access.
 - Focused scan for direct `RENDERIZABLE::fileName` use now reports only the helper implementation itself; `src/render/font.cpp` hits remain `FONT_DRAW` private storage, not `RENDERIZABLE`.
 
+Milestone 228 implementation note:
+
+- Added `RENDERIZABLE::Impl` and moved the internal restore filename plus render-sort distance storage behind it.
+- Removed `std::string fileName` and `float __distFromView` from the visible `RENDERIZABLE` class layout.
+- Kept all external behavior routed through the existing public/protected helpers: `getFileName()`, `getInternalFileName()`, `setInternalFileName(...)`, `clearInternalFileName()`, `getDistanceFromView()`, and `setDistanceFromView()`.
+- Public gameplay fields remain unchanged; this milestone only hides already-migrated internal state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

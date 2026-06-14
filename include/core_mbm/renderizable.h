@@ -156,8 +156,8 @@ namespace mbm
         API_IMPL virtual void updateAABB();
 
       protected:
-        std::string fileName;
-        float       __distFromView;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 
     class RENDERIZABLE_TO_TARGET : public RENDERIZABLE

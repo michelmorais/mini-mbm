@@ -30,6 +30,17 @@
 namespace mbm
 
 {
+    struct RENDERIZABLE::Impl
+    {
+        std::string fileName;
+        float       distanceFromView;
+
+        Impl() noexcept :
+            distanceFromView(0.0f)
+        {
+        }
+    };
+
     RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d,
                                const bool _is2ds) noexcept : idScene(idSceneMe),
                                                              typeClass(newTypeClass),
@@ -38,12 +49,12 @@ namespace mbm
                                                              position(0, 0, 0),
                                                              scale(1, 1, 1),
                                                              angle(0, 0, 0),
-                                                             bounding_AABB(0, 0, 0)
+                                                             bounding_AABB(0, 0, 0),
+                                                             impl(std::make_unique<Impl>())
     {
         this->enableRender      = true;
         this->alwaysRenderize   = false;
         this->isRender2Texture  = false;
-        this->__distFromView    = 0;
         this->userData          = nullptr;
         this->isObjectOnFrustum = true;
     }
@@ -166,12 +177,12 @@ namespace mbm
 
     float RENDERIZABLE::getDistanceFromView() const noexcept
     {
-        return this->__distFromView;
+        return this->impl->distanceFromView;
     }
 
     void RENDERIZABLE::setDistanceFromView(const float distance) noexcept
     {
-        this->__distFromView = distance;
+        this->impl->distanceFromView = distance;
     }
 
     bool RENDERIZABLE::isAlwaysRenderizeEnabled() const noexcept
@@ -257,37 +268,37 @@ namespace mbm
     }
     const char * RENDERIZABLE::getFileName() const noexcept
     {
-        return this->fileName.c_str();
+        return this->impl->fileName.c_str();
     }
 
     const char * RENDERIZABLE::getInternalFileName() const noexcept
     {
-        return this->fileName.c_str();
+        return this->impl->fileName.c_str();
     }
 
     const std::string & RENDERIZABLE::getInternalFileNameString() const noexcept
     {
-        return this->fileName;
+        return this->impl->fileName;
     }
 
     void RENDERIZABLE::setInternalFileName(const char *newFileName)
     {
-        this->fileName = newFileName ? newFileName : "";
+        this->impl->fileName = newFileName ? newFileName : "";
     }
 
     void RENDERIZABLE::setInternalFileName(const std::string &newFileName)
     {
-        this->fileName = newFileName;
+        this->impl->fileName = newFileName;
     }
 
     void RENDERIZABLE::setInternalFileName(std::string &&newFileName)
     {
-        this->fileName = std::move(newFileName);
+        this->impl->fileName = std::move(newFileName);
     }
 
     void RENDERIZABLE::clearInternalFileName() noexcept
     {
-        this->fileName.clear();
+        this->impl->fileName.clear();
     }
     void RENDERIZABLE::getAABB(float *w, float *h) const
     {
