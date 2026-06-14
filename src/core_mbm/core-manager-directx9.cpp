@@ -305,8 +305,10 @@ namespace mbm
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)// need to be implemented in each backend engine
     {
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
         // Reset D3D device with new dimensions
-        D3DPRESENT_PARAMETERS d3dParams = getd3dPARAMETERS(static_cast<UINT>(newWidth), static_cast<UINT>(newHeight), device->getSpecificContextDevice()->window.getHwnd());
+        D3DPRESENT_PARAMETERS d3dParams = getd3dPARAMETERS(static_cast<UINT>(newWidth), static_cast<UINT>(newHeight), context->window.getHwnd());
 
         // Verify window handle is valid
         if (!IsWindow(d3dParams.hDeviceWindow))
@@ -315,7 +317,7 @@ namespace mbm
             return false;
         }
         // Attempt reset
-        HRESULT hr = this->device->getSpecificContextDevice()->pd3dDevice->Reset(&d3dParams);
+        HRESULT hr = context->pd3dDevice->Reset(&d3dParams);
 
         if (FAILED(hr))
         {
@@ -353,7 +355,9 @@ namespace mbm
 
     bool CORE_MANAGER::beginRender()
     {
-        HRESULT hr = this->device->getSpecificContextDevice()->pd3dDevice->BeginScene();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        HRESULT hr = context->pd3dDevice->BeginScene();
         if (CHECK_AND_LOG_HRESULT_DX(hr))
         {
             return true;
@@ -363,12 +367,16 @@ namespace mbm
 
     void CORE_MANAGER::endRender()
     {
-        this->device->getSpecificContextDevice()->pd3dDevice->EndScene();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        context->pd3dDevice->EndScene();
     }
 
     void CORE_MANAGER::swapBuffers()
     {
-        this->device->getSpecificContextDevice()->pd3dDevice->Present(NULL, NULL, NULL, NULL);
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        context->pd3dDevice->Present(NULL, NULL, NULL, NULL);
     }
 
     bool CORE_MANAGER::renderToTargets()
