@@ -365,6 +365,7 @@ namespace mbm
         else
             return false;
         const CAMERA &camera = device->getCamera();
+        FX &fx = animation->getFx();
         switch (this->type)
         {
             case util::TYPE_MESH_TEXTURE:
@@ -380,13 +381,13 @@ namespace mbm
                     MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
                 }
-                this->blend.set(animation->blendState);
-                animation->fx.shader.update(); // glUseProgram
-                animation->fx.setBlendOp();
+                this->blend.set(animation->getBlendState());
+                fx.shader.update(); // glUseProgram
+                fx.setBlendOp();
 
-                if (animation->fx.textureOverrideStage2)
-                    this->buffer->setTextureByStage(animation->fx.textureOverrideStage2, 1, 0);
-                if (!animation->fx.shader.render(this->buffer))
+                if (fx.textureOverrideStage2)
+                    this->buffer->setTextureByStage(fx.textureOverrideStage2, 1, 0);
+                if (!fx.shader.render(this->buffer))
                     return false;
                 return true;
             }
@@ -408,18 +409,18 @@ namespace mbm
                     MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
                 }
-                this->blend.set(animation->blendState);
-                animation->fx.shader.update(); // glUseProgram
-                animation->fx.setBlendOp();
-                if (animation->fx.textureOverrideStage2)
+                this->blend.set(animation->getBlendState());
+                fx.shader.update(); // glUseProgram
+                fx.setBlendOp();
+                if (fx.textureOverrideStage2)
                 {
-                    if (!this->mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,
-                                            animation->fx.textureOverrideStage2))
+                    if (!this->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
+                                            fx.textureOverrideStage2))
                         return false;
                 }
                 else
                 {
-                    if (!this->mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,0))
+                    if (!this->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0))
                         return false;
                 }
                 return true;
@@ -436,17 +437,17 @@ namespace mbm
                     MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
                 }
-                this->blend.set(animation->blendState);
-                animation->fx.shader.update(); // glUseProgram
-                animation->fx.setBlendOp();
-                if (animation->fx.textureOverrideStage2)
+                this->blend.set(animation->getBlendState());
+                fx.shader.update(); // glUseProgram
+                fx.setBlendOp();
+                if (fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,fx.textureOverrideStage2))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader, nullptr))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader, nullptr))
                         return false;
                 }
                 return true;
@@ -461,7 +462,7 @@ namespace mbm
                     device->setBillboard(&SHADER::modelView, &posTemp2d, &this->scale);
                 else
                     MatrixTranslationRotationScale(&SHADER::modelView, &posTemp2d, &this->angle, &this->scale);
-                this->blend.set(animation->blendState);
+                this->blend.set(animation->getBlendState());
                 float curWidthLetter = 0;
                 const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
                 if(infoFont == nullptr)
@@ -522,16 +523,16 @@ namespace mbm
                                     else
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
                                                        &camera.matrixPerspective2d);
-                                    animation->fx.shader.update(); // glUseProgram
-                                    animation->fx.setBlendOp();
-                                    if (animation->fx.textureOverrideStage2)
+                                    fx.shader.update(); // glUseProgram
+                                    fx.setBlendOp();
+                                    if (fx.textureOverrideStage2)
                                     {
-                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &animation->fx.shader,animation->fx.textureOverrideStage2))
+                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &fx.shader,fx.textureOverrideStage2))
                                             return false;
                                     }
                                     else
                                     {
-                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &animation->fx.shader, nullptr))
+                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &fx.shader, nullptr))
                                             return false;
                                     }
                                 }
@@ -803,7 +804,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 

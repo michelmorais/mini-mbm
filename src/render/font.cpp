@@ -527,7 +527,7 @@ namespace mbm
             MatrixTranslationRotationScale(&SHADER::modelView, &posTemp2d, &this->angle, &this->scale);
             endText.x = -FLT_MAX;
             if (doRender)
-                this->blend.set(anim->blendState);
+                this->blend.set(anim->getBlendState());
             SHADER::modelView._42 -= infoFont->heightLetter * 0.5f  * this->scale.y;
             beginText.x          = SHADER::modelView._41;
             beginText.y          = SHADER::modelView._42;
@@ -717,16 +717,17 @@ namespace mbm
                                     SHADER::modelView._42 -= infoFont->letterDiffY[index];
                                     if (doRender)
                                     {
-                                        anim->fx.shader.update(); // glUseProgram
-                                        anim->fx.setBlendOp();
-                                        if (anim->fx.textureOverrideStage2)
+                                        FX &fx = anim->getFx();
+                                        fx.shader.update(); // glUseProgram
+                                        fx.setBlendOp();
+                                        if (fx.textureOverrideStage2)
                                         {
-                                            if (!this->mesh->render(detail->indexFrame, &anim->fx.shader,anim->fx.textureOverrideStage2))
+                                            if (!this->mesh->render(detail->indexFrame, &fx.shader, fx.textureOverrideStage2))
                                                 return false;
                                         }
                                         else
                                         {
-                                            if (!this->mesh->render(detail->indexFrame, &anim->fx.shader,0))
+                                            if (!this->mesh->render(detail->indexFrame, &fx.shader,0))
                                                 return false;
                                         }
                                     }
@@ -885,7 +886,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -896,6 +897,7 @@ namespace mbm
         mbm::ANIMATION *anim = this->getAnimation();
         if (anim)
         {
+            FX &fx = anim->getFx();
             TEXTURE *newTex = TEXTURE_MANAGER::getInstance()->load(fileNametexture, hasAlpha);
             if (newTex)
             {
@@ -921,13 +923,13 @@ namespace mbm
                     }
                     else
                     {
-                        anim->fx.textureOverrideStage2 = newTex;
+                        fx.textureOverrideStage2 = newTex;
                         return true;
                     }
                 }
                 else if (stage)
                 {
-                    anim->fx.textureOverrideStage2 = newTex;
+                    fx.textureOverrideStage2 = newTex;
                     return true;
                 }
             }

@@ -230,8 +230,9 @@ namespace mbm
             {
                 auto anim = new ANIMATION();
                 this->appendAnimation(anim);
-                strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
-                if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+                anim->setNameAnimation("unic-anim");
+                FX &fx = anim->getFx();
+                if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                     return false;
             }
             this->fileName = nickName;
@@ -335,8 +336,9 @@ namespace mbm
             mesh->infoPhysics.lsSphere.push_back(sphere);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
-            strncpy(anim->nameAnimation, "circle",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            anim->setNameAnimation("circle");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -497,8 +499,9 @@ namespace mbm
             mesh->infoPhysics.lsCube.push_back(cube);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
-            strncpy(anim->nameAnimation, "rectangle",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            anim->setNameAnimation("rectangle");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -588,8 +591,9 @@ namespace mbm
             mesh->infoPhysics.lsTriangle.push_back(triangle);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
-            strncpy(anim->nameAnimation, "triangle",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            anim->setNameAnimation("triangle");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -747,8 +751,9 @@ namespace mbm
             mesh->infoPhysics.lsTriangle.push_back(triangle);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
-            strncpy(anim->nameAnimation, "triangle",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            anim->setNameAnimation("triangle");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -890,8 +895,9 @@ namespace mbm
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             this->mesh->infoPhysics.lsCube.push_back(cube);
-            strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            anim->setNameAnimation("unic-anim");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -1033,9 +1039,10 @@ namespace mbm
             }
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
-            strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
+            anim->setNameAnimation("unic-anim");
             this->mesh->infoPhysics.lsCube.push_back(cube);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -1143,23 +1150,24 @@ namespace mbm
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
-            this->blend.set(animation->blendState);
+            FX &fx = animation->getFx();
+            this->blend.set(animation->getBlendState());
             if (this->dynamicVertex.size() > 0)
             {
-                animation->fx.shader.update();
-                animation->fx.setBlendOp();
-                if (animation->fx.textureOverrideStage2)
+                fx.shader.update();
+                fx.setBlendOp();
+                if (fx.textureOverrideStage2)
                 {
-                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,
+                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 nullptr,
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),
-                                                animation->fx.textureOverrideStage2))
+                                                fx.textureOverrideStage2))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,
+                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 nullptr,
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),0))
@@ -1168,16 +1176,16 @@ namespace mbm
             }
             else
             {
-                animation->fx.shader.update();
-                animation->fx.setBlendOp();
-                if (animation->fx.textureOverrideStage2)
+                fx.shader.update();
+                fx.setBlendOp();
+                if (fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,fx.textureOverrideStage2))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,0))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0))
                         return false;
                 }
             }
@@ -1213,7 +1221,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
