@@ -31,7 +31,7 @@ namespace mbm
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_SHAPE_MESH, _is3d && _is2dScreen == false, _is2dScreen)
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->onRenderDynamicBuffer = nullptr;
         device->addRenderizable(this);
@@ -47,7 +47,7 @@ namespace mbm
     void SHAPE_MESH::release()
     {
         this->releaseAnimation();
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         // Dynamic meshes store CPU-side vertex data in this instance's dynamicVertex.
         // The MESH_MANAGER cache entry (vboIndexSubsetIB only, no static vboVertNorTexIB)
         // cannot be reused by a new SHAPE_MESH instance — evict it so the next load

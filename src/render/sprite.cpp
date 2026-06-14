@@ -45,7 +45,7 @@ namespace mbm
     {
         this->releaseAnimation();
         this->mesh                  = nullptr;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
     }
     
     bool SPRITE::load(const char *fileName)

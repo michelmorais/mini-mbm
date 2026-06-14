@@ -43,7 +43,7 @@ namespace mbm
     {
         this->releaseAnimation();
         this->mesh                  = nullptr;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->wildCardChangeAnim      = 0;
     }
     
@@ -51,7 +51,7 @@ namespace mbm
         : RENDERIZABLE(idScene, TYPE_CLASS_TEXT, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->widthFirstLetter      = 0;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->onRestoreFont         = ptrOnRestoreFont;
         this->parentFONT_DRAW       = _parentFONT_DRAW;
@@ -73,7 +73,7 @@ namespace mbm
         : RENDERIZABLE(idScene, TYPE_CLASS_TEXT, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->widthFirstLetter      = 0;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->onRestoreFont         = ptrOnRestoreFont;
         this->parentFONT_DRAW       = _parentFONT_DRAW;
@@ -99,7 +99,7 @@ namespace mbm
     {
         this->widthFirstLetter      = 0;
         this->position              = position;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->onRestoreFont         = ptrOnRestoreFont;
         this->parentFONT_DRAW       = _parentFONT_DRAW;
@@ -126,7 +126,7 @@ namespace mbm
         this->widthFirstLetter      = 0;
         this->position.x            = position.x;
         this->position.y            = position.y;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);

@@ -131,6 +131,7 @@ namespace mbm
         API_IMPL ANIMATION *getAnimation(const uint32_t index) const;
         API_IMPL uint32_t getTotalAnimation() const;
         API_IMPL uint32_t getIndexAnimation() const;
+        API_IMPL void setIndexAnimation(const uint32_t newIndex) noexcept;
         API_IMPL bool setAnimationByIndex(const uint32_t newIndex);
         API_IMPL void setAnimation(const char *name);
         API_IMPL void restartAnimation();

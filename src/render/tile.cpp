@@ -55,7 +55,7 @@ namespace mbm
         this->releaseAnimation();
         this->lsVisible.clear();
         this->mesh                  = nullptr;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         if(clone_bTileInfo)
             delete clone_bTileInfo;
         clone_bTileInfo = nullptr;

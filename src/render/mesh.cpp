@@ -31,7 +31,7 @@ namespace mbm
     MESH::MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_MESH, _is3d && _is2dScreen == false, _is2dScreen)
     {
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
@@ -47,7 +47,7 @@ namespace mbm
     void MESH::release()
     {
         this->releaseAnimation();
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
     }
     

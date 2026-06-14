@@ -1128,7 +1128,7 @@ namespace mbm
             }
             if(transparency > 0.0f)
             {
-                this->indexCurrentAnimation = 3;
+                this->setIndexAnimation(3);
                 this->blend.set(transparent->blendState);
                 layer->fx.setBlendOp();
                 transparent->fx.fxPS->updateEffect(device->delta);
@@ -1136,7 +1136,7 @@ namespace mbm
             }
             else
             {
-                this->indexCurrentAnimation = 1;
+                this->setIndexAnimation(1);
                 this->blend.set(anim_normal->blendState);
                 layer->fx.setBlendOp();
                 layer->fx.fxPS->updateEffect(device->delta);
@@ -1279,7 +1279,7 @@ namespace mbm
             }
             position.x  = 0;
             position.y  = 0;
-            this->indexCurrentAnimation = 0;
+            this->setIndexAnimation(0);
             return true;
         }
         return false;
@@ -1304,11 +1304,11 @@ namespace mbm
         if(transparency)
         {
             anim_normal = transparent;
-            this->indexCurrentAnimation = 3;
+            this->setIndexAnimation(3);
         }
         else
         {
-            this->indexCurrentAnimation = 1;
+            this->setIndexAnimation(1);
         }
         float displacement = 0.0f;
         if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
@@ -1938,7 +1938,7 @@ namespace mbm
             anim->fx.setMaxVarPShader("alpha", alpha);
             anim->fx.setMinVarPShader("alpha", alpha);
         }
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         return true;
     }
 

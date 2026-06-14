@@ -61,7 +61,7 @@ namespace mbm
             delete this->buffer;
         this->buffer                = nullptr;
         this->mesh                  = nullptr;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->text.clear();
     }
     
@@ -589,7 +589,7 @@ namespace mbm
                         this->bound.halfDim.z = sphere->ray;
                     }
                 }
-                this->indexCurrentAnimation = index;
+                this->setIndexAnimation(index);
             }
             break;
             
@@ -691,7 +691,7 @@ namespace mbm
                 //      }
                 //  }
                 //}
-                this->indexCurrentAnimation = index;
+                this->setIndexAnimation(index);
             }
             break;
             

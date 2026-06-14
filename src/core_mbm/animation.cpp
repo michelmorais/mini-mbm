@@ -1042,6 +1042,11 @@ namespace mbm
         return this->indexCurrentAnimation;
     }
 
+    void ANIMATION_MANAGER::setIndexAnimation(const uint32_t newIndex) noexcept
+    {
+        this->indexCurrentAnimation = newIndex;
+    }
+
     bool ANIMATION_MANAGER::setAnimationByIndex(const uint32_t newIndex)
     {
         if (newIndex < this->lsAnimation.size())
