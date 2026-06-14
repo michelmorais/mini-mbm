@@ -1760,6 +1760,13 @@ Milestone 208 implementation note:
 - Replaced `line_tileSetPreview` visibility/transform writes with `setEnableRender()`, `getPosition()`, and `getScale()`.
 - Remaining focused Tiled hits are `TRIANGLE::position`, `BUFFER_GL::position`, and tile-editor `scale_tile` helper state, not `RENDERIZABLE` state.
 
+Milestone 209 implementation note:
+
+- Migrated `TEXTURE_VIEW` and `BACKGROUND` Lua render-table ownership/position paths to the `RENDERIZABLE` accessor API.
+- Replaced Lua `userData` ownership reads/writes in `texture-view-lua.cpp` and `background-lua.cpp` with `getUserData()` / `setUserData()`.
+- Replaced texture constructor position writes with a local `getPosition()` reference and background front/back z adjustment with a local `getPosition()` reference.
+- Focused scans for direct `RENDERIZABLE` fields in both files are clean.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

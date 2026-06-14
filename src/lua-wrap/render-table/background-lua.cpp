@@ -47,13 +47,13 @@ namespace mbm
     int onDestroyBackGroundLua(lua_State *lua)
     {
         BACKGROUND *          backGround = getBackGroundFromRawTable(lua, 1, 1);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(backGround->userData);
+        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(backGround->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        backGround->userData = nullptr;
+        backGround->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         const char *fileName = backGround->getFileName();
         static int  num      = 1;
@@ -69,13 +69,13 @@ namespace mbm
 	int onDestroyNoGcBackGroundLua(lua_State *lua)
     {
         BACKGROUND *          backGround = getBackGroundFromRawTable(lua, 1, 1);
-        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(backGround->userData);
+        auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(backGround->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        backGround->userData = nullptr;
+        backGround->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         const char *fileName = backGround->getFileName();
         static int  num      = 1;
@@ -136,15 +136,16 @@ namespace mbm
     {
         BACKGROUND *backGround = getBackGroundFromRawTable(lua, 1, 1);
         const bool  isFront    = lua_toboolean(lua, 2) ? true : false;
+        VEC3 &position         = backGround->getPosition();
         if (isFront)
         {
-            if (backGround->position.z > 0.0f)
-                backGround->position.z *= -1.0f;
+            if (position.z > 0.0f)
+                position.z *= -1.0f;
         }
         else
         {
-            if (backGround->position.z < 0.0f)
-                backGround->position.z *= -1.0f;
+            if (position.z < 0.0f)
+                position.z *= -1.0f;
         }
         return 0;
     }
@@ -152,7 +153,7 @@ namespace mbm
 	int onNewBackGroundNoGcLua(lua_State *lua,RENDERIZABLE * renderizable)
 	{
 		lua_settop(lua,0);
-		if(renderizable == nullptr || renderizable->userData != nullptr)
+		if(renderizable == nullptr || renderizable->getUserData() != nullptr)
 			return false;
 		
 		//table
@@ -183,7 +184,7 @@ namespace mbm
 		auto ** udata             = static_cast<BACKGROUND **>(lua_newuserdata(lua, sizeof(BACKGROUND *)));
         auto background           = static_cast<BACKGROUND*>(renderizable);
 		auto user_data            = new USER_DATA_RENDER_LUA();
-        renderizable->userData    = user_data;
+        renderizable->setUserData(user_data);
         *udata                    = background;
         
 		/* trick to ensure that we will receive the expected metatable type expected metatable type. */
@@ -224,7 +225,7 @@ namespace mbm
         auto **udata      = static_cast<BACKGROUND **>(lua_newuserdata(lua, sizeof(BACKGROUND *)));
         DEVICE *device     = DEVICE::getInstance();
         auto  backGround = new BACKGROUND(device->getScene(), is3d);
-        backGround->userData    = new USER_DATA_RENDER_LUA();
+        backGround->setUserData(new USER_DATA_RENDER_LUA());
         *udata                  = backGround;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
