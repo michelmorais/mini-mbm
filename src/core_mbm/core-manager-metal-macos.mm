@@ -146,6 +146,7 @@ namespace mbm
                                      const int px, const int py,
                                      const bool border, const bool enable_resize)
     {
+        DEVICE *device = this->getDevice();
         this->setNameApplication(nameApplication);
         this->setWindowOptions(border, enable_resize);
 
@@ -170,7 +171,7 @@ namespace mbm
             // inside AppKit, which produces a non-zero exit code in Xcode.
             if (!s_quitHandler)
                 s_quitHandler = [[MBMQuitHandler alloc] init];
-            s_quitHandler.device = this->device;
+            s_quitHandler.device = device;
 
             NSMenu     *appMenu   = [[NSMenu alloc] initWithTitle:appName];
             NSString   *quitTitle = [@"Quit " stringByAppendingString:appName];
@@ -183,8 +184,8 @@ namespace mbm
             [NSApp setMainMenu:menuBar];
         }
 
-        this->device->initializeSpecificContext();
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->getSpecificContextDevice();
+        device->initializeSpecificContext();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
 
         // ---- Metal device + command queue ----
         ctx->mtlDevice = MTLCreateSystemDefaultDevice();
@@ -301,7 +302,7 @@ namespace mbm
 
         // Window delegate — handles close / resize notifications.
         MBMWindowDelegate* delegate = [[MBMWindowDelegate alloc] init];
-        delegate.device = this->device;
+        delegate.device = device;
         [ctx->window setDelegate:delegate];
         ctx->windowDelegate = delegate;
 
@@ -323,7 +324,7 @@ namespace mbm
         // OS has had a chance to constrain the window to the screen.
         ctx->metalLayer.drawableSize = CGSizeMake(width * scale, height * scale);
 
-        this->device->setWindowPosition(px, py);
+        device->setWindowPosition(px, py);
 
         // ---- Show window ----
         [ctx->window makeKeyAndOrderFront:nil];
@@ -342,13 +343,13 @@ namespace mbm
         // cap the window; we must use those capped dimensions as the backbuffer
         // size so that expectedScreen == backBufferSize and scaleScreen2d == 1.0.
         NSRect actualBounds = [ctx->window contentView].bounds;
-        this->device->setBackBufferSize(static_cast<float>(actualBounds.size.width),
-                                        static_cast<float>(actualBounds.size.height));
+        device->setBackBufferSize(static_cast<float>(actualBounds.size.width),
+                                  static_cast<float>(actualBounds.size.height));
         ctx->metalLayer.drawableSize   = CGSizeMake(actualBounds.size.width  * scale,
                                                      actualBounds.size.height * scale);
 
         // Mark device as running.
-        this->device->setRun(true);
+        device->setRun(true);
 
         // Log so any OS-imposed size difference is immediately visible.
         INFO_LOG("Metal device: %s", [ctx->mtlDevice.name UTF8String]);
