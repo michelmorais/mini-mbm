@@ -848,8 +848,8 @@ namespace mbm
         mesh = mehManager->load(nickName, vertex.ls_xyz, nullptr, vertex.ls_uv, sizeVertexBuffer,info_draw_mode);
         if (mesh)
         {
-            this->position += mesh->positionOffset;
-            this->angle = mesh->angleDefault;
+            this->getPosition() += mesh->positionOffset;
+            this->setAngle(mesh->angleDefault);
             this->mesh->infoPhysics.release();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
@@ -994,8 +994,8 @@ namespace mbm
         mesh = mehManager->loadIndex(nickName, vertex.ls_xyz, nullptr, vertex.ls_uv, sizeVertexBuffer, index,autoVertex->sizeIndex,info_draw_mode);
         if (mesh)
         {
-            this->position += mesh->positionOffset;
-            this->angle = mesh->angleDefault;
+            this->getPosition() += mesh->positionOffset;
+            this->setAngle(mesh->angleDefault);
             this->mesh->infoPhysics.release();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
@@ -1071,7 +1071,7 @@ namespace mbm
         if (this->mesh && this->mesh->isLoaded())
         {
             IS_ON_FRUSTUM verify(this);
-            const bool is_on_frustum = verify.isOnFrustum(this->is3D, this->is2dS);
+            const bool is_on_frustum = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
             if(is_on_frustum)
             {
                 if (this->dynamicVertex.size() > 0)
@@ -1109,7 +1109,7 @@ namespace mbm
         ANIMATION *animation = this->getAnimation(indexAnimation);
         if (this->mesh && animation)
         {
-            if(this->alwaysRenderize && this->dynamicVertex.size() > 0 && onRenderDynamicBuffer)
+            if(this->isAlwaysRenderizeEnabled() && this->dynamicVertex.size() > 0 && onRenderDynamicBuffer)
             {
                 const auto last_size_vertex = dynamicVertex.size();
                 const auto last_size_uv     = dynamicUV.size();
@@ -1132,26 +1132,29 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
             animation->updateAnimation(device->delta, this, this->getOnEndAnimation(),this->getOnEndFx());
-            if (this->is3D)
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
-                                    this->position.y * camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             FX &fx = animation->getFx();
-            this->blend.set(animation->getBlendState());
+            this->setBlendState(animation->getBlendState());
             if (this->dynamicVertex.size() > 0)
             {
                 fx.shader.update();

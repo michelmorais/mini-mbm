@@ -1622,6 +1622,14 @@ Milestone 188 implementation note:
 - Replaced direct blend-state writes with `setBlendState()` in the affected render paths.
 - This is still a compatibility-preserving migration; no `RENDERIZABLE` public field has moved behind `Impl` yet.
 
+Milestone 189 implementation note:
+
+- Migrated the next renderer batch to the `RENDERIZABLE` accessor API: `RENDER_2_TEXTURE`, `HMD`, and the render/frustum portions of `SHAPE_MESH`.
+- Replaced direct render-target membership flag reads/writes with `isRender2TextureEnabled()` and `setRender2Texture()`.
+- Replaced render-to-texture child render scheduling flag access with `isRenderEnabled()`, `isAlwaysRenderizeEnabled()`, and `setAlwaysRenderize()`.
+- Replaced direct transform/blend reads in the affected render matrix paths with cached `getPosition()`, `getAngle()`, `getScale()`, and `setBlendState()`.
+- Shape generation/load helper paths in `SHAPE_MESH` still have direct coordinate flag reads and remain a separate shape-specific follow-up.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

@@ -67,7 +67,7 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
         device->addObjectRender2Texture(this);
-        this->isRender2Texture = false;
+        this->setRender2Texture(false);
         this->texture          = nullptr;
     }
     
@@ -220,13 +220,13 @@ namespace mbm
         for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
         {
             RENDERIZABLE *ptr = lsObjects3dRender[i];
-            ptr->isRender2Texture = false;
+            ptr->setRender2Texture(false);
         }
         this->lsObjects3dRender.clear();
         for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
         {
             RENDERIZABLE *ptr = lsObjects2dRender[i];
-            ptr->isRender2Texture = false;
+            ptr->setRender2Texture(false);
         }
         this->lsObjects2dRender.clear();
     }
@@ -236,14 +236,14 @@ namespace mbm
         if (ptr == nullptr)
             return false;
         // isRender2Texture is shared state across render targets; membership must be checked against this target's list.
-        if (ptr->is3D)
+        if (ptr->is3DObject())
         {
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
             {
                 RENDERIZABLE *other = lsObjects3dRender[i];
                 if (ptr == other)
                 {
-                    ptr->isRender2Texture = false;
+                    ptr->setRender2Texture(false);
                     lsObjects3dRender.erase(lsObjects3dRender.begin() + i);
                     return true;
                 }
@@ -256,7 +256,7 @@ namespace mbm
                 RENDERIZABLE *other = lsObjects2dRender[i];
                 if (ptr == other)
                 {
-                    ptr->isRender2Texture = false;
+                    ptr->setRender2Texture(false);
                     lsObjects2dRender.erase(lsObjects2dRender.begin() + i);
                     return true;
                 }
@@ -270,7 +270,7 @@ namespace mbm
         if (ptr == nullptr)
             return false;
         // isRender2Texture is shared state across render targets; membership must be checked against this target's list.
-        if (ptr->is3D)
+        if (ptr->is3DObject())
         {
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
             {
@@ -279,7 +279,7 @@ namespace mbm
                     return true;
             }
             lsObjects3dRender.push_back(ptr);
-            ptr->isRender2Texture = true;
+            ptr->setRender2Texture(true);
         }
         else
         {
@@ -290,7 +290,7 @@ namespace mbm
                     return true;
             }
             lsObjects2dRender.push_back(ptr);
-            ptr->isRender2Texture = true;
+            ptr->setRender2Texture(true);
         }
         return true;
     }
@@ -303,29 +303,32 @@ namespace mbm
                 return true;
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            if (this->is3D)
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
-                                    this->position.y * camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             mbm::ANIMATION *anim = this->getAnimation();
             if (anim)
             {
                 FX &fx = anim->getFx();
-                this->blend.set(anim->getBlendState());
+                this->setBlendState(anim->getBlendState());
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(),this->getOnEndFx());
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
@@ -351,7 +354,7 @@ namespace mbm
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr = lsObjects3dRender[i];
-                const VEC3 distFromCam(ptr->position - this->camera3d.position);
+                const VEC3 distFromCam(ptr->getPosition() - this->camera3d.position);
                 ptr->__distFromView = distFromCam.length();
             }
             std::sort(lsObjects3dRender.begin(), lsObjects3dRender.end(),
@@ -359,12 +362,12 @@ namespace mbm
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr = lsObjects3dRender[i];
-                if (ptr->enableRender)
+                if (ptr->isRenderEnabled())
                 {
-                    const bool oldAlwaysRender = ptr->alwaysRenderize;
-                    ptr->alwaysRenderize       = false; // for not animate twice
+                    const bool oldAlwaysRender = ptr->isAlwaysRenderizeEnabled();
+                    ptr->setAlwaysRenderize(false); // for not animate twice
                     const bool ret             = ptr->render();
-                    ptr->alwaysRenderize       = oldAlwaysRender;
+                    ptr->setAlwaysRenderize(oldAlwaysRender);
                     if (!ret)
                         return false;
                 }
@@ -377,19 +380,19 @@ namespace mbm
             for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr   = lsObjects2dRender[i];
-                ptr->__distFromView = ptr->position.z;
+                ptr->__distFromView = ptr->getPosition().z;
             }
             std::sort(lsObjects2dRender.begin(), lsObjects2dRender.end(),
                       [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
             for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr = lsObjects2dRender[i];
-                if (ptr->enableRender)
+                if (ptr->isRenderEnabled())
                 {
-                    const bool oldAlwaysRender = ptr->alwaysRenderize;
-                    ptr->alwaysRenderize       = false; // to not animate twice
+                    const bool oldAlwaysRender = ptr->isAlwaysRenderizeEnabled();
+                    ptr->setAlwaysRenderize(false); // to not animate twice
                     const bool ret             = ptr->render();
-                    ptr->alwaysRenderize       = oldAlwaysRender;
+                    ptr->setAlwaysRenderize(oldAlwaysRender);
                     if (!ret)
                         return false;
                 }
@@ -402,10 +405,10 @@ namespace mbm
     {
         if (this->bufferGL.isLoadedBuffer())
         {
-            if (this->isRender2Texture)
+            if (this->isRender2TextureEnabled())
                 return false;
             IS_ON_FRUSTUM verify(this);
-            bool ret = verify.isOnFrustum(this->is3D, this->is2dS);
+            bool ret = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();

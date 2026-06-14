@@ -116,7 +116,7 @@ namespace mbm
                     return false;
                 }
 
-                this->alwaysRenderize = true;
+                this->setAlwaysRenderize(true);
                 if (!createAnimationAndShader2Render2Texture())
                     return false;
                 char strTemp[300]="";
@@ -143,7 +143,7 @@ namespace mbm
     bool HMD::render()
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        if (this->alwaysRenderize)
+        if (this->isAlwaysRenderizeEnabled())
         {
             const CAMERA &camera = device->getCamera();
             this->camera2d.position.x = camera.position2d.x;
@@ -151,11 +151,12 @@ namespace mbm
             this->camera3d.position   = camera.position;
             this->camera3d.focus      = camera.focus;
         }
-        this->position.x = device->getScaleBackBufferWidth() * 0.25f;
-        this->position.y = device->getScaleBackBufferHeight() * 0.5f;
+        VEC3 &position = this->getPosition();
+        position.x = device->getScaleBackBufferWidth() * 0.25f;
+        position.y = device->getScaleBackBufferHeight() * 0.5f;
         if (!this->renderVR(&this->bufferGL)) // left
             return false;
-        this->position.x = device->getScaleBackBufferWidth() * 0.75f;
+        position.x = device->getScaleBackBufferWidth() * 0.75f;
         if (!this->renderVR(&this->bufferGLRight)) // right
             return false;
         return true;
@@ -169,29 +170,32 @@ namespace mbm
                 return true;
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            if (this->is3D)
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * camera.scaleScreen2d.x,
-                                    this->position.y * camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             ANIMATION *anim = this->getAnimation();
             if (anim)
             {
                 FX &fx = anim->getFx();
-                this->blend.set(anim->getBlendState());
+                this->setBlendState(anim->getBlendState());
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
