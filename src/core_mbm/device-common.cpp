@@ -688,7 +688,7 @@ namespace mbm
         // to prevent stale (dangling) pointers from remaining in those lists after this object is freed.
         this->stopRender2Texture2(object);
 
-        if (object->is3D)
+        if (object->is3DObject())
         {
             for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render3D.size(); ++i)
             {
@@ -704,7 +704,7 @@ namespace mbm
                 }
             }
         }
-        else if (object->is2dS == false)
+        else if (object->is2dScreenObject() == false)
         {
             for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DW.size(); ++i)
             {

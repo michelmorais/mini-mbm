@@ -4428,8 +4428,8 @@ namespace mbm
 
         if (renderizable)
         {
-            renderizable->position += this->positionOffset;
-            renderizable->angle     = this->angleDefault;
+            renderizable->getPosition() += this->positionOffset;
+            renderizable->setAngle(this->angleDefault);
         }
         return true;
     }
@@ -4576,8 +4576,8 @@ namespace mbm
         {
             if (renderizable)
             {
-                renderizable->position += mesh->positionOffset;
-                renderizable->angle     = mesh->angleDefault;
+                renderizable->getPosition() += mesh->positionOffset;
+                renderizable->setAngle(mesh->angleDefault);
             }
             return mesh;
         }

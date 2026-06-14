@@ -1672,6 +1672,13 @@ Milestone 195 implementation note:
 - Cached `position`, `scale`, `angle`, and coordinate flags in tile render, tile size/position helpers, tile-object construction, and tile-object render paths to follow the accessor reuse rule.
 - This keeps tile map rendering, layer z ordering, and tile-object physics setup unchanged while removing direct `RENDERIZABLE` transform/flag/blend field use from `tile.cpp`.
 
+Milestone 196 implementation note:
+
+- Migrated the remaining small `src/core_mbm` direct `RENDERIZABLE` call sites outside `renderizable.cpp` itself.
+- Replaced `DEVICE::removeRenderizable()` coordinate-list selection with `is3DObject()` / `is2dScreenObject()`.
+- Replaced mesh-load default transform application in `MESH_MBM::load()` and `MESH_MANAGER::load()` with `getPosition()` and `setAngle()`.
+- Left false positives alone where `position`/`angle` belong to mesh buffers, camera state, or physics primitives rather than `RENDERIZABLE`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
