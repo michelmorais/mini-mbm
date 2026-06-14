@@ -59,7 +59,7 @@ namespace mbm
         if (anim)
         {
             lua_pushstring(lua, anim->nameAnimation);
-            lua_pushinteger(lua, animations->indexCurrentAnimation + 1);
+            lua_pushinteger(lua, animations->getIndexAnimation() + 1);
         }
         else
         {
