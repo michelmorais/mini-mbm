@@ -1587,7 +1587,8 @@ namespace mbm
             for (unsigned int i=0; i < animations->getTotalAnimation(); ++i)
             {
                 ANIMATION* anim             = animations->getAnimation(i);
-                const char* textureStage2   = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->getFileNameTexture() : nullptr;
+                FX &fx                      = anim->getFx();
+                const char* textureStage2   = fx.textureOverrideStage2 ? fx.textureOverrideStage2->getFileNameTexture() : nullptr;
 
                 util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = nullptr;
                 if(i < meshDebug->mesh.infoAnimation.lsHeaderAnim.size())
@@ -1600,9 +1601,9 @@ namespace mbm
                     auto headerAnim = new util::HEADER_ANIMATION();
                     meshDebug->mesh.infoAnimation.lsHeaderAnim.push_back(infoHead);
                     infoHead->headerAnim = headerAnim;
-                    strncpy(headerAnim->nameAnimation,anim->nameAnimation,sizeof(headerAnim->nameAnimation));
-                    headerAnim->typeAnimation = anim->type;
-                    headerAnim->timeBetweenFrame = anim->intervalChangeFrame;
+                    strncpy(headerAnim->nameAnimation,anim->getNameAnimation(),sizeof(headerAnim->nameAnimation));
+                    headerAnim->typeAnimation = anim->getType();
+                    headerAnim->timeBetweenFrame = anim->getIntervalChangeFrame();
                 }
                 if(infoHead)
                 {
@@ -1611,23 +1612,23 @@ namespace mbm
                     infoHead->effectShader = nullptr;
                     util::HEADER_ANIMATION *headerAnim  = infoHead->headerAnim;
 					headerAnim->hasShaderEffect = 1;
-                    headerAnim->blendState        = static_cast<unsigned short int>(anim->blendState);
-                    meshDebug->mesh.lsBlendOperation[i] = anim->fx.blendOperation;
+                    headerAnim->blendState        = static_cast<unsigned short int>(anim->getBlendState());
+                    meshDebug->mesh.lsBlendOperation[i] = fx.blendOperation;
 
-                    if(anim->fx.fxPS->getCurrentShader())
+                    if(fx.fxPS->getCurrentShader())
                     {
                         infoHead->effectShader = new util::INFO_FX();
-                        infoHead->effectShader->blendOperation = anim->fx.blendOperation;
-                        fillEffect(anim->fx.fxPS,textureStage2,&infoHead->effectShader->dataPS);
+                        infoHead->effectShader->blendOperation = fx.blendOperation;
+                        fillEffect(fx.fxPS,textureStage2,&infoHead->effectShader->dataPS);
                     }
-                    if(anim->fx.fxVS->getCurrentShader())
+                    if(fx.fxVS->getCurrentShader())
                     {
                         if(infoHead->effectShader == nullptr)
                         {
                             infoHead->effectShader = new util::INFO_FX();
-                            infoHead->effectShader->blendOperation = anim->fx.blendOperation;
+                            infoHead->effectShader->blendOperation = fx.blendOperation;
                         }
-                        fillEffect(anim->fx.fxVS,textureStage2,&infoHead->effectShader->dataVS);
+                        fillEffect(fx.fxVS,textureStage2,&infoHead->effectShader->dataVS);
                     }
                 }
             }
