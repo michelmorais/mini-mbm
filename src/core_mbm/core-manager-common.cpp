@@ -543,9 +543,9 @@ namespace mbm
     }
     
     void CORE_MANAGER::prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,
-                                std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d)
+                                std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d,
+                                const VEC3 &cameraPosition)
     {
-        mbm::DEVICE *      device  = mbm::DEVICE::getInstance();
         const std::vector<RENDERIZABLE*>::size_type total3d = lsAllObjects3d.size();
         for (std::vector<RENDERIZABLE*>::size_type i = 0; i < total3d; ++i)
         {
@@ -576,7 +576,7 @@ namespace mbm
                 if (ptr->isObjectOnFrustum)
                 {
                     lsRenderOnFrustum3d.push_back(ptr);
-                    const VEC3 distFromCam(ptr->position - device->getCamera().position);
+                    const VEC3 distFromCam(ptr->position - cameraPosition);
                     ptr->__distFromView = distFromCam.length();
                 }
             }
@@ -609,11 +609,12 @@ namespace mbm
         auto &render2DWList               = device->getRender2DWList();
         const auto total2dw       = static_cast<uint32_t>(render2DWList.size());
         device->setTotalObjects2D(total2ds + total2dw);
+        const VEC3 cameraPosition = device->getCamera().position;
 
 #if defined USE_THREAD
         std::thread thread2ds(prepareRender2d, std::ref(render2DSList), std::ref(lsRender2ds));
         std::thread thread2dw(prepareRender2d, std::ref(render2DWList), std::ref(lsRender2dw));
-        std::thread thread3d(prepareRender3d, std::ref(render3DList), std::ref(lsRender3d));
+        std::thread thread3d(prepareRender3d, std::ref(render3DList), std::ref(lsRender3d), std::cref(cameraPosition));
         if (thread2ds.joinable())
             thread2ds.join();
         if (thread2dw.joinable())
@@ -623,7 +624,7 @@ namespace mbm
 #else
         prepareRender2d(std::ref(render2DSList), std::ref(lsRender2ds)); //-V525
         prepareRender2d(std::ref(render2DWList), std::ref(lsRender2dw));
-        prepareRender3d(std::ref(render3DList), std::ref(lsRender3d));
+        prepareRender3d(std::ref(render3DList), std::ref(lsRender3d), cameraPosition);
 #endif
 
         device->setTotalObjectsOnFrustum2D(static_cast<uint32_t>(lsRender2ds.size() + lsRender2dw.size()));

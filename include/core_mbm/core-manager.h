@@ -34,6 +34,7 @@ namespace mbm
     class DEVICE;
     class SCENE;
     class RENDERIZABLE;
+    struct VEC3;
 
     
     enum EVENT_TYPE_ACTIONS
@@ -218,7 +219,7 @@ namespace mbm
         API_IMPL void update();
         API_IMPL bool renderToTargets();
         API_IMPL static void prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d);
-        API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d);
+        API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d,const VEC3 &cameraPosition);
         API_IMPL void render();
         API_IMPL void ReleaseGraphics(const bool wasDeviceLost);//this function release the graphics device and all resources
         API_IMPL void forceRestore(const bool doSwapBuffers);
