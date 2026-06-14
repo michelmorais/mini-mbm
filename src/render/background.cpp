@@ -122,7 +122,7 @@ namespace mbm
     bool BACKGROUND::onRestoreDevice()
     {
         std::vector<std::string> result;
-        util::split(result, this->fileName.c_str(), '|');
+        util::split(result, this->getInternalFileName(), '|');
         if (result.size() <= 1)
             return false;
         if (result[0].compare("load") == 0 || result[0].compare("loadFont") == 0)
@@ -147,7 +147,7 @@ namespace mbm
             else // Textura
             {
 #if defined DEBUG
-                PRINT_IF_DEBUG("Failed to restore [%s]", log_util::basename(this->fileName.c_str()));
+                PRINT_IF_DEBUG("Failed to restore [%s]", log_util::basename(this->getInternalFileName()));
 #endif
                 return false;
             }

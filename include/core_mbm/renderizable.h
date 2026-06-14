@@ -146,6 +146,12 @@ namespace mbm
         API_IMPL virtual bool onRestoreDevice() = 0;// In this function, make sure that the object is loaded, later the engine will fill in the animation state with onRestoreAnimationsState
         API_IMPL virtual void onStop() final;
         API_IMPL virtual void onRestoreAnimationsState() final;
+        API_IMPL const char *getInternalFileName() const noexcept;
+        API_IMPL const std::string &getInternalFileNameString() const noexcept;
+        API_IMPL void setInternalFileName(const char *newFileName);
+        API_IMPL void setInternalFileName(const std::string &newFileName);
+        API_IMPL void setInternalFileName(std::string &&newFileName);
+        API_IMPL void clearInternalFileName() noexcept;
       public:
         API_IMPL virtual void updateAABB();
 

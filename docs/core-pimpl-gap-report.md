@@ -1879,6 +1879,14 @@ Milestone 224 implementation note:
 - Updated `src/core_mbm/renderizable-architecture.md` so the documented render-sort flow uses `setDistanceFromView()`, `getDistanceFromView()`, and `getPosition()`.
 - Focused scan shows remaining `__distFromView` hits are the private member, constructor initialization, and helper implementation.
 
+Milestone 225 implementation note:
+
+- Added protected `RENDERIZABLE` internal filename helpers: `getInternalFileName()`, `getInternalFileNameString()`, `setInternalFileName(...)`, and `clearInternalFileName()`.
+- Migrated low-risk restore/read paths in `MESH`, `SPRITE`, `PARTICLE`, `STEERED_PARTICLE`, `TEXTURE_VIEW`, `GIF_VIEW`, `BACKGROUND`, `TILE`, `RENDER_2_TEXTURE`, and render-to-texture PNG save checks from direct `this->fileName.c_str()` reads to `getInternalFileName()`.
+- Migrated `TEXTURE_VIEW` and `GIF_VIEW` restore-texture update paths to read the internal filename through the accessor and write it back through `setInternalFileName()`.
+- Focused scan shows remaining `this->fileName.c_str()` hits in `src/render` belong to `FONT_DRAW`, which owns a separate font filename string and is not `RENDERIZABLE` storage.
+- Left broader direct `RENDERIZABLE::fileName` assignment builders for later milestones so construction/load behavior stays easy to review.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

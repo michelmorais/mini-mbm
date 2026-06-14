@@ -477,7 +477,7 @@ namespace mbm
     {
         std::vector<std::string> result;
         this->texture = nullptr;
-        util::split(result, this->fileName.c_str(), '@');
+        util::split(result, this->getInternalFileName(), '@');
         if (result.size() < 3)
             return this->releaseOnFail();
 

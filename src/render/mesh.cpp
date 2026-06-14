@@ -142,17 +142,18 @@ namespace mbm
     bool MESH::onRestoreDevice()
     {
 		this->mesh = nullptr;
-        const bool ret = this->load(this->fileName.c_str());
+        const char *internalFileName = this->getInternalFileName();
+        const bool ret = this->load(internalFileName);
         if (ret)
         {
             #if defined DEBUG
-            PRINT_INFO_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(internalFileName));
             #endif
         }
         #if defined DEBUG
         else
         {
-            PRINT_IF_DEBUG( "Failed to restore mesh [%s]",log_util::basename( this->fileName.c_str()));
+            PRINT_IF_DEBUG( "Failed to restore mesh [%s]",log_util::basename(internalFileName));
         }
         #endif
         return ret;

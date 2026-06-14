@@ -335,7 +335,7 @@ namespace mbm
     bool GIF_VIEW::onRestoreDevice()
     {
         std::vector<std::string> result;
-        util::split(result, this->fileName.c_str(), '|');
+        util::split(result, this->getInternalFileName(), '|');
         if (result.size() != 3)
         {
 #if defined DEBUG
@@ -370,17 +370,19 @@ namespace mbm
 
     void GIF_VIEW::updateRestoreTexture(const float w, const float h)
     {
-        if (this->fileName.size())
+        const std::string currentFileName = this->getInternalFileNameString();
+        if (currentFileName.size())
         {
             std::vector<std::string> result;
-            util::split(result, this->fileName.c_str(), '|');
+            util::split(result, currentFileName.c_str(), '|');
             if (result.size() != 3)
                 return;
-            this->fileName = result[0];
-            this->fileName += '|';
-            this->fileName += std::to_string(w);
-            this->fileName += '|';
-            this->fileName += std::to_string(h);
+            std::string restoreFileName = result[0];
+            restoreFileName += '|';
+            restoreFileName += std::to_string(w);
+            restoreFileName += '|';
+            restoreFileName += std::to_string(h);
+            this->setInternalFileName(restoreFileName);
         }
     }
     

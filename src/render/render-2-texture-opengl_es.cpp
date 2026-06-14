@@ -66,8 +66,8 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(this->texture == nullptr)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
-        if(strcasecmp(newFileOutNamePNG,this->fileName.c_str()) == 0)
-            return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",fileName.c_str());
+        if(strcasecmp(newFileOutNamePNG,this->getInternalFileName()) == 0)
+            return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",this->getInternalFileName());
         if(x < 0 || _width <= 0 || (_width + x) > static_cast<int>(this->widthTexture))
             return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
         if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(this->heightTexture))

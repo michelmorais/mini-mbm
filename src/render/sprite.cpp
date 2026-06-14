@@ -159,17 +159,18 @@ namespace mbm
     bool SPRITE::onRestoreDevice()
     {
         this->mesh = nullptr;
-        if(this->load(this->fileName.c_str()))
+        const char *internalFileName = this->getInternalFileName();
+        if(this->load(internalFileName))
         {
             #if defined DEBUG
-            PRINT_INFO_IF_DEBUG("sprite [%s] successfully restored", log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG("sprite [%s] successfully restored", log_util::basename(internalFileName));
             #endif
             return true;
         }
         else
         {
             #if defined DEBUG
-            PRINT_IF_DEBUG("Failed to restore sprite  [%s]", log_util::basename(this->fileName.c_str()));
+            PRINT_IF_DEBUG("Failed to restore sprite  [%s]", log_util::basename(internalFileName));
             #endif
             return false;
         }

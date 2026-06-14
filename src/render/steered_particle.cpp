@@ -370,7 +370,7 @@ namespace mbm
         if (this->lsParticleGroup.size() == 0)
             return this->releaseOnFail();
 		std::vector<FLUID_GROUP*> lsParticleGroupBackup = std::move(this->lsParticleGroup);
-        const char * fileNameTexture = this->fileName.c_str();
+        const char * fileNameTexture = this->getInternalFileName();
 		mbm::INFO_PHYSICS otherInfoPhysics;
 		otherInfoPhysics.clone(&this->infoPhysics);
 		COLOR* p_color = lsParticleGroupBackup.size() > 0 ? lsParticleGroupBackup[0]->color : nullptr;

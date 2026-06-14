@@ -25,6 +25,7 @@
 #include <util-interface.h>
 #include <algorithm>
 #include <cfloat>
+#include <utility>
 
 namespace mbm
 
@@ -257,6 +258,36 @@ namespace mbm
     const char * RENDERIZABLE::getFileName() const noexcept
     {
         return this->fileName.c_str();
+    }
+
+    const char * RENDERIZABLE::getInternalFileName() const noexcept
+    {
+        return this->fileName.c_str();
+    }
+
+    const std::string & RENDERIZABLE::getInternalFileNameString() const noexcept
+    {
+        return this->fileName;
+    }
+
+    void RENDERIZABLE::setInternalFileName(const char *newFileName)
+    {
+        this->fileName = newFileName ? newFileName : "";
+    }
+
+    void RENDERIZABLE::setInternalFileName(const std::string &newFileName)
+    {
+        this->fileName = newFileName;
+    }
+
+    void RENDERIZABLE::setInternalFileName(std::string &&newFileName)
+    {
+        this->fileName = std::move(newFileName);
+    }
+
+    void RENDERIZABLE::clearInternalFileName() noexcept
+    {
+        this->fileName.clear();
     }
     void RENDERIZABLE::getAABB(float *w, float *h) const
     {

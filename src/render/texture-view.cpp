@@ -294,7 +294,7 @@ namespace mbm
     {
         this->texture = nullptr; // we can not release texture after device lost
         std::vector<std::string> result;
-        util::split(result, this->fileName.c_str(), '|');
+        util::split(result, this->getInternalFileName(), '|');
         if (result.size() <= 1)
         {
             this->bufferGL.release();
@@ -319,13 +319,13 @@ namespace mbm
             }
             else
             {
-                PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename( this->fileName.c_str()));
+                PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename(this->getInternalFileName()));
             }
 #endif
             return ret;
         }
         #if defined DEBUG
-        PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename(this->fileName.c_str()));
+        PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename(this->getInternalFileName()));
         #endif
         return false;
     }
@@ -337,15 +337,16 @@ namespace mbm
 
     void TEXTURE_VIEW::updateRestoreTexture(const float w, const float h)
     {
-        if (this->fileName.size())
+        const std::string currentFileName = this->getInternalFileNameString();
+        if (currentFileName.size())
         {
             char                     strTemp[255] = "";
             std::vector<std::string> result;
-            util::split(result, this->fileName.c_str(), '|');
+            util::split(result, currentFileName.c_str(), '|');
             if (result.size() <= 1 || result[0].compare("texture") != 0)
                 return;
             snprintf(strTemp, sizeof(strTemp), "texture|%s|%f|%f|%s", result[1].c_str(), w, h, result[4].c_str());
-            this->fileName = strTemp;
+            this->setInternalFileName(strTemp);
         }
     }
     

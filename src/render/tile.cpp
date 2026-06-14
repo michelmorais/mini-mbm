@@ -564,13 +564,14 @@ namespace mbm
         lsLayerRenderizables.clear();
 
         this->mesh = nullptr;
-        if(this->load(this->fileName.c_str()))
+        const char *internalFileName = this->getInternalFileName();
+        if(this->load(internalFileName))
         {
             // Restore user-modified z values (load resets them from file data)
             for (size_t i = 0; i < lsLayerRenderizables.size() && i < savedLayerZ.size(); ++i)
                 lsLayerRenderizables[i]->getPosition().z = savedLayerZ[i];
             #if defined DEBUG
-            PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(internalFileName));
             #endif
             for( auto & tileObj : lsTileObjs)
             {
@@ -581,7 +582,7 @@ namespace mbm
         else
         {
             #if defined DEBUG
-            PRINT_IF_DEBUG( "Failed to restore tile  [%s]", log_util::basename(this->fileName.c_str()));
+            PRINT_IF_DEBUG( "Failed to restore tile  [%s]", log_util::basename(internalFileName));
             #endif
             return false;
         }

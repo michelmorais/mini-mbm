@@ -425,7 +425,7 @@ namespace mbm
         std::vector<std::string> result;
         this->texture = nullptr;
         this->bufferGL.release();
-        util::split(result, this->fileName.c_str(), '|');
+        util::split(result, this->getInternalFileName(), '|');
         if (result.size() != 7)
             return false;
         if (result[0].compare("rende2texture") == 0)
@@ -447,7 +447,7 @@ namespace mbm
             return true;
         }
         #if defined DEBUG
-        PRINT_IF_DEBUG("Failed to restore rende2texture [%s]",log_util::basename(this->fileName.c_str()));
+        PRINT_IF_DEBUG("Failed to restore rende2texture [%s]",log_util::basename(this->getInternalFileName()));
         #endif
         return false;
     }

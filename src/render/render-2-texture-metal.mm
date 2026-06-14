@@ -62,10 +62,10 @@ namespace mbm
         if (!rf || !rf->renderTexture)
             return log_util::fail(__LINE__, __FILE__, "Metal render texture is not created!");
 
-        if (strcasecmp(newFileOutNamePNG, this->fileName.c_str()) == 0)
+        if (strcasecmp(newFileOutNamePNG, this->getInternalFileName()) == 0)
             return log_util::fail(__LINE__, __FILE__,
                                   "file name texture in is the same as render2texture [%s]!",
-                                  fileName.c_str());
+                                  this->getInternalFileName());
         if (x < 0 || _width <= 0 || (_width + x) > static_cast<int>(this->widthTexture))
             return log_util::fail(__LINE__, __FILE__,
                                   "size expected [0-0 %dx%d] got [%d-%d %dx%d]",
