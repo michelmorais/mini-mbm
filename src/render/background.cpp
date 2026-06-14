@@ -42,7 +42,7 @@ namespace mbm
         this->mesh              = nullptr;
         this->lasIndexAnimation = 0xffffffff;
         mbm::DEVICE* device     = mbm::DEVICE::getInstance();
-        this->position.z        = device->getOrderRender().getNextZOrderControl2dBackground();
+        this->getPosition().z   = device->getOrderRender().getNextZOrderControl2dBackground();
         this->isFrontGround     = false;
         device->addRenderizable(this);
     }
@@ -333,27 +333,28 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         const float w = device->getScaleBackBufferWidth() * 0.5f;
         const float h = device->getScaleBackBufferHeight() * 0.5f;
-        if (this->is3D)
+        VEC3 &position = this->getPosition();
+        if (this->is3DObject())
         {
             if (this->isFrontGround)
-                device->transformeScreen2dToWorld3d_scaled(w, h, &this->position, 60);
+                device->transformeScreen2dToWorld3d_scaled(w, h, &position, 60);
             else
-                device->transformeScreen2dToWorld3d_scaled(w, h, &this->position, this->howFar3d);
+                device->transformeScreen2dToWorld3d_scaled(w, h, &position, this->howFar3d);
         }
         else
         {
-            this->position.x = w;
-            this->position.y = h;
-            device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, this->position);
+            position.x = w;
+            position.y = h;
+            device->transformeScreen2dToWorld2d_scaled(position.x, position.y, position);
         }
-        if (this->isRender2Texture)
+        if (this->isRender2TextureEnabled())
             return false;
         return true; // always renderize
     }
     
     bool BACKGROUND::render()
     {
-        if (this->alwaysRenderize)
+        if (this->isAlwaysRenderizeEnabled())
         {
             if (this->isOnFrustum() == false)
                 return false;
@@ -366,22 +367,26 @@ namespace mbm
             return false;
         const CAMERA &camera = device->getCamera();
         FX &fx = animation->getFx();
+        VEC3 &position = this->getPosition();
+        VEC3 &angle = this->getAngle();
+        VEC3 &scale = this->getScale();
+        const bool is3dObject = this->is3DObject();
         switch (this->type)
         {
             case util::TYPE_MESH_TEXTURE:
             {
-                if (this->is3D)
+                if (is3dObject)
                 {
-                    device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
+                    device->setBillboard(&SHADER::modelView, &position, &scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
                 }
                 else
                 {
-                    const VEC3 positionWorld(this->position.x, this->position.y, this->position.z);
-                    MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
+                    const VEC3 positionWorld(position.x, position.y, position.z);
+                    MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &angle, &scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
                 }
-                this->blend.set(animation->getBlendState());
+                this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
 
@@ -399,17 +404,17 @@ namespace mbm
             break;
             case util::TYPE_MESH_SPRITE:
             {
-                if (this->is3D)
+                if (is3dObject)
                 {
-                    device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
+                    device->setBillboard(&SHADER::modelView, &position, &scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
                 }
                 else
                 {
-                    MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                    MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
                 }
-                this->blend.set(animation->getBlendState());
+                this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
                 if (fx.textureOverrideStage2)
@@ -427,17 +432,17 @@ namespace mbm
             }
             case util::TYPE_MESH_3D:
             {
-                if (this->is3D)
+                if (is3dObject)
                 {
-                    device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
+                    device->setBillboard(&SHADER::modelView, &position, &scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
                 }
                 else
                 {
-                    MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+                    MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                     MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
                 }
-                this->blend.set(animation->getBlendState());
+                this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
                 if (fx.textureOverrideStage2)
@@ -458,11 +463,11 @@ namespace mbm
                 const auto s = static_cast<unsigned int>(textDraw.size());
                 static VEC3     posTemp2d(0, 0, 0);
 
-                if (this->is3D)
-                    device->setBillboard(&SHADER::modelView, &posTemp2d, &this->scale);
+                if (is3dObject)
+                    device->setBillboard(&SHADER::modelView, &posTemp2d, &scale);
                 else
-                    MatrixTranslationRotationScale(&SHADER::modelView, &posTemp2d, &this->angle, &this->scale);
-                this->blend.set(animation->getBlendState());
+                    MatrixTranslationRotationScale(&SHADER::modelView, &posTemp2d, &angle, &scale);
+                this->setBlendState(animation->getBlendState());
                 float curWidthLetter = 0;
                 const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
                 if(infoFont == nullptr)
@@ -517,7 +522,7 @@ namespace mbm
                                 {
                                     curWidthLetter = static_cast<float>(detail->widthLetter) * 0.5f;
                                     SHADER::modelView._41 += curWidthLetter;
-                                    if (this->is3D)
+                                    if (is3dObject)
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
                                                        &camera.matrixPerspective);
                                     else
@@ -710,7 +715,8 @@ namespace mbm
                 
         }
         this->lasIndexAnimation = this->getIndexAnimation();
-        if (this->is3D)
+        VEC3 &scale = this->getScale();
+        if (this->is3DObject())
         {
             VEC3 dimNear, dimFar;
             device->getDimFromFrustum(&dimNear, &dimFar);
@@ -721,26 +727,26 @@ namespace mbm
             {
                 if (percX >= percY)
                 {
-                    this->scale.x = percX;
-                    this->scale.y = percX; //-V537
+                    scale.x = percX;
+                    scale.y = percX; //-V537
                 }
                 else
                 {
-                    this->scale.x = percY; //-V537
-                    this->scale.y = percY;
+                    scale.x = percY; //-V537
+                    scale.y = percY;
                 }
             }
             else
             {
                 if (percX <= percY)
                 {
-                    this->scale.x = percX;
-                    this->scale.y = percX; //-V537
+                    scale.x = percX;
+                    scale.y = percX; //-V537
                 }
                 else
                 {
-                    this->scale.x = percY; //-V537
-                    this->scale.y = percY;
+                    scale.x = percY; //-V537
+                    scale.y = percY;
                 }
             }
         }
@@ -754,26 +760,26 @@ namespace mbm
             {
                 if (percX >= percY)
                 {
-                    this->scale.x = percX;
-                    this->scale.y = percX; //-V537
+                    scale.x = percX;
+                    scale.y = percX; //-V537
                 }
                 else
                 {
-                    this->scale.x = percY; //-V537
-                    this->scale.y = percY;
+                    scale.x = percY; //-V537
+                    scale.y = percY;
                 }
             }
             else
             {
                 if (percX <= percY)
                 {
-                    this->scale.x = percX;
-                    this->scale.y = percX; //-V537
+                    scale.x = percX;
+                    scale.y = percX; //-V537
                 }
                 else
                 {
-                    this->scale.x = percY; //-V537
-                    this->scale.y = percY;
+                    scale.x = percY; //-V537
+                    scale.y = percY;
                 }
             }
         }

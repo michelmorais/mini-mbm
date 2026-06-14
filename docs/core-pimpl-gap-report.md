@@ -1644,6 +1644,13 @@ Milestone 191 implementation note:
 - Replaced particle blend-state writes with `setBlendState()`.
 - This keeps particle behavior unchanged while removing direct `RENDERIZABLE` transform/flag/blend field use from `particle.cpp`.
 
+Milestone 192 implementation note:
+
+- Migrated `BACKGROUND` to the `RENDERIZABLE` accessor API.
+- Replaced background constructor z-order writes, frustum position updates, render-to-texture checks, render matrix setup, billboard calls, blend-state writes, and scale recalculation with accessor-backed state.
+- Cached `position`, `angle`, `scale`, and the 3D coordinate flag inside render/scale paths to follow the accessor reuse rule.
+- This keeps background behavior unchanged while removing direct `RENDERIZABLE` transform/flag/blend field use from `background.cpp`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
