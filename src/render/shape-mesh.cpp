@@ -226,10 +226,10 @@ namespace mbm
                 const float diff = zAbs2 - zAbs1;
                 cube->halfDim.z += diff * 0.5f;
             }
-            if (this->lsAnimation.size() == 0)
+            if (this->getTotalAnimation() == 0)
             {
                 auto anim = new ANIMATION();
-                this->lsAnimation.push_back(anim);
+                this->appendAnimation(anim);
                 strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
                 if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                     return false;
@@ -334,7 +334,7 @@ namespace mbm
             sphere->ray = width > height ? width * 0.5f : height * 0.5f;
             mesh->infoPhysics.lsSphere.push_back(sphere);
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
+            this->appendAnimation(anim);
             strncpy(anim->nameAnimation, "circle",sizeof(anim->nameAnimation)-1);
             if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
@@ -496,7 +496,7 @@ namespace mbm
             mbm::CUBE* cube = new mbm::CUBE(width,height,0.0f);
             mesh->infoPhysics.lsCube.push_back(cube);
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
+            this->appendAnimation(anim);
             strncpy(anim->nameAnimation, "rectangle",sizeof(anim->nameAnimation)-1);
             if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
@@ -587,7 +587,7 @@ namespace mbm
             
             mesh->infoPhysics.lsTriangle.push_back(triangle);
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
+            this->appendAnimation(anim);
             strncpy(anim->nameAnimation, "triangle",sizeof(anim->nameAnimation)-1);
             if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
@@ -746,7 +746,7 @@ namespace mbm
             
             mesh->infoPhysics.lsTriangle.push_back(triangle);
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
+            this->appendAnimation(anim);
             strncpy(anim->nameAnimation, "triangle",sizeof(anim->nameAnimation)-1);
             if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
@@ -888,7 +888,7 @@ namespace mbm
             }
 
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
+            this->appendAnimation(anim);
             this->mesh->infoPhysics.lsCube.push_back(cube);
             strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
             if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
@@ -1032,7 +1032,7 @@ namespace mbm
                 cube->halfDim.z += diff * 0.5f;
             }
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
+            this->appendAnimation(anim);
             strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
             this->mesh->infoPhysics.lsCube.push_back(cube);
             if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))

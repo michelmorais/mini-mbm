@@ -352,7 +352,7 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
-        this->lsAnimation.push_back(anim);
+        this->appendAnimation(anim);
         if (!loadShaderDefault())
             return false;
         return true;

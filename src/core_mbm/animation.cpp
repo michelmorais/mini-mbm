@@ -845,7 +845,7 @@ namespace mbm
             strncpy(anim->nameAnimation, header->nameAnimation, sizeof(anim->nameAnimation));
         else
             strncpy(anim->nameAnimation, "default",sizeof(anim->nameAnimation));
-        this->lsAnimation.push_back(anim);
+        this->appendAnimation(anim);
         if (index < mesh->infoAnimation.lsHeaderAnim.size()) // animation total 
         {
             util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->infoAnimation.lsHeaderAnim[index];
@@ -1143,7 +1143,7 @@ namespace mbm
     uint32_t ANIMATION_MANAGER::addAnimation()
     {
         auto anim = new ANIMATION();
-        this->lsAnimation.push_back(anim);
+        this->appendAnimation(anim);
         this->setIndexAnimation(static_cast<uint32_t>(this->lsAnimation.size() - 1));
         RENDERIZABLE* r = dynamic_cast<RENDERIZABLE*>(this);
         const FVF_PROVIDE_BY_ENGINE fvf = r ? r->getFvfFromBuffer() : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
@@ -1152,6 +1152,11 @@ namespace mbm
             ERROR_AT(__LINE__,__FILE__, "error on add animation");
         }
         return this->getIndexAnimation();
+    }
+
+    void ANIMATION_MANAGER::appendAnimation(ANIMATION *animation)
+    {
+        this->lsAnimation.push_back(animation);
     }
 
     bool ANIMATION_MANAGER::isEndedAnimation() const noexcept

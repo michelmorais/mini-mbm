@@ -533,7 +533,7 @@ namespace mbm
         anim->currentWayGrowingOfAnimation = false;
         anim->type = TYPE_ANIMATION_PAUSED;
         anim->blendState = (BLEND_ONE);
-        this->lsAnimation.push_back(anim);
+        this->appendAnimation(anim);
         if (!this->loadParticleShader(operatorShader, newCodeLine))
             return false;
         return true;

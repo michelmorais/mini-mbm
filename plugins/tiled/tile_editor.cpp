@@ -1878,7 +1878,7 @@ namespace mbm
         for (int i=0; i < 3; ++i)
         {
             auto anim = new mbm::ANIMATION();
-            this->lsAnimation.push_back(anim);
+            this->appendAnimation(anim);
             auto pShaderCfg = device->getShaderConfig().getShader("color it.ps");
             if(anim->fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
             {
@@ -1931,7 +1931,7 @@ namespace mbm
             }
         }
         auto anim = new mbm::ANIMATION();
-        this->lsAnimation.push_back(anim);
+        this->appendAnimation(anim);
         auto pShaderCfg = device->getShaderConfig().getShader("transparent.ps");
         if(anim->fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
         {

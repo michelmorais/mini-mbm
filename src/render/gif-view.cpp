@@ -72,7 +72,7 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
-        this->lsAnimation.push_back(anim);
+        this->appendAnimation(anim);
         if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
             return false;
         return true;

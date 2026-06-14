@@ -143,6 +143,7 @@ namespace mbm
         API_IMPL char *getNameAnimation(const uint32_t index) const;
         API_IMPL char *getNameAnimation() const;
         API_IMPL uint32_t addAnimation();
+        API_IMPL void appendAnimation(ANIMATION *animation);
         API_IMPL bool isEndedAnimation() const noexcept;
         API_IMPL void releaseAnimation();
         API_IMPL virtual bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha);
