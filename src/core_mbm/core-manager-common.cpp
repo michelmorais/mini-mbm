@@ -517,30 +517,30 @@ namespace mbm
             if (ptr)
             {
                 ptr->updateAABB();
-                if (ptr->isRender2Texture)
+                if (ptr->isRender2TextureEnabled())
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                else if (!ptr->enableRender)
+                else if (!ptr->isRenderEnabled())
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                else if (ptr->alwaysRenderize)
+                else if (ptr->isAlwaysRenderizeEnabled())
                 {
-                    ptr->isObjectOnFrustum = true;
+                    ptr->setIsObjectOnFrustum(true);
                 }
                 else if (ptr->isOnFrustum())
                 {
-                    ptr->isObjectOnFrustum = true;
+                    ptr->setIsObjectOnFrustum(true);
                 }
                 else
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                if (ptr->isObjectOnFrustum)
+                if (ptr->getIsObjectOnFrustum())
                 {
                     lsRenderOnFrustum2d.push_back(ptr);
-                    ptr->__distFromView = ptr->position.z;
+                    ptr->__distFromView = ptr->getPosition().z;
                 }
             }
         }
@@ -559,30 +559,30 @@ namespace mbm
             if (ptr)
             {
                 ptr->updateAABB();
-                if (ptr->isRender2Texture)
+                if (ptr->isRender2TextureEnabled())
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                else if (!ptr->enableRender)
+                else if (!ptr->isRenderEnabled())
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                else if (ptr->alwaysRenderize)
+                else if (ptr->isAlwaysRenderizeEnabled())
                 {
-                    ptr->isObjectOnFrustum = true;
+                    ptr->setIsObjectOnFrustum(true);
                 }
                 else if (ptr->isOnFrustum())
                 {
-                    ptr->isObjectOnFrustum = true;
+                    ptr->setIsObjectOnFrustum(true);
                 }
                 else
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                if (ptr->isObjectOnFrustum)
+                if (ptr->getIsObjectOnFrustum())
                 {
                     lsRenderOnFrustum3d.push_back(ptr);
-                    const VEC3 distFromCam(ptr->position - cameraPosition);
+                    const VEC3 distFromCam(ptr->getPosition() - cameraPosition);
                     ptr->__distFromView = distFromCam.length();
                 }
             }
@@ -825,21 +825,21 @@ namespace mbm
         {
             if (ptr != nullptr)
             {
-                ptr->enableRender = false;
+                ptr->setEnableRender(false);
             }
         }
         for (auto ptr : device->getRender2DSList())
         {
             if (ptr != nullptr)
             {
-                ptr->enableRender = false;
+                ptr->setEnableRender(false);
             }
         }
         for (auto ptr : device->getRender2DWList())
         {
             if (ptr != nullptr)
             {
-                ptr->enableRender = false;
+                ptr->setEnableRender(false);
             }
         }
     }
@@ -933,7 +933,7 @@ namespace mbm
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
+                    ptr->setEnableRender(true);
             }
         }
         for (auto ptr : device->getRender2DSList())
@@ -941,7 +941,7 @@ namespace mbm
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
+                    ptr->setEnableRender(true);
             }
         }
         for (auto ptr : device->getRender2DWList())
@@ -949,7 +949,7 @@ namespace mbm
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
+                    ptr->setEnableRender(true);
             }
         }
     }
@@ -962,7 +962,7 @@ namespace mbm
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
+                    ptr->setEnableRender(false);
             }
         }
         for (auto ptr : device->getRender2DSList())
@@ -970,7 +970,7 @@ namespace mbm
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
+                    ptr->setEnableRender(false);
             }
         }
         for (auto ptr : device->getRender2DWList())
@@ -978,7 +978,7 @@ namespace mbm
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
+                    ptr->setEnableRender(false);
             }
         }
     }
@@ -1168,21 +1168,21 @@ namespace mbm
                     for (uint32_t i = impl->indexOnRestore, j = 0; i < render2DWList.size(); ++i)
                     {
                         RENDERIZABLE* ptr = render2DWList[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender = ptr->enableRender;
-                        ptr->alwaysRenderize = false;
-                        ptr->enableRender = false;
+                        const bool    alwaysRenderize = ptr->isAlwaysRenderizeEnabled();
+                        const bool    enableRender = ptr->isRenderEnabled();
+                        ptr->setAlwaysRenderize(false);
+                        ptr->setEnableRender(false);
                         //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
-                        const VEC3 positionBefore = ptr->position;
-                        const VEC3 angleBefore = ptr->angle;
+                        const VEC3 positionBefore = ptr->getPosition();
+                        const VEC3 angleBefore = ptr->getAngle();
                         if (ptr->onRestoreDevice())
                         {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender = enableRender;
+                            ptr->setAlwaysRenderize(alwaysRenderize);
+                            ptr->setEnableRender(enableRender);
                             ptr->onRestoreAnimationsState();
                         }
-                        ptr->position = positionBefore;
-                        ptr->angle = angleBefore;
+                        ptr->setPosition(positionBefore);
+                        ptr->setAngle(angleBefore);
                         impl->indexOnRestore = (i + 1);
                         if (++j >= impl->totalForByLoop)
                         {
@@ -1214,21 +1214,21 @@ namespace mbm
                     for (uint32_t i = impl->indexOnRestore, j = 0; i < render2DSList.size(); ++i)
                     {
                         RENDERIZABLE* ptr = render2DSList[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender = ptr->enableRender;
-                        ptr->alwaysRenderize = false;
-                        ptr->enableRender = false;
+                        const bool    alwaysRenderize = ptr->isAlwaysRenderizeEnabled();
+                        const bool    enableRender = ptr->isRenderEnabled();
+                        ptr->setAlwaysRenderize(false);
+                        ptr->setEnableRender(false);
                         //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
-                        const VEC3 positionBefore = ptr->position;
-                        const VEC3 angleBefore = ptr->angle;
+                        const VEC3 positionBefore = ptr->getPosition();
+                        const VEC3 angleBefore = ptr->getAngle();
                         if (ptr->onRestoreDevice())
                         {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender = enableRender;
+                            ptr->setAlwaysRenderize(alwaysRenderize);
+                            ptr->setEnableRender(enableRender);
                             ptr->onRestoreAnimationsState();
                         }
-                        ptr->position = positionBefore;
-                        ptr->angle = angleBefore;
+                        ptr->setPosition(positionBefore);
+                        ptr->setAngle(angleBefore);
                         impl->indexOnRestore = (i + 1);
                         if (++j >= impl->totalForByLoop)
                         {
@@ -1260,21 +1260,21 @@ namespace mbm
                     for (uint32_t i = impl->indexOnRestore, j = 0; i < render3DList.size(); ++i)
                     {
                         RENDERIZABLE* ptr = render3DList[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender = ptr->enableRender;
-                        ptr->alwaysRenderize = false;
-                        ptr->enableRender = false;
+                        const bool    alwaysRenderize = ptr->isAlwaysRenderizeEnabled();
+                        const bool    enableRender = ptr->isRenderEnabled();
+                        ptr->setAlwaysRenderize(false);
+                        ptr->setEnableRender(false);
                         //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
-                        const VEC3 positionBefore = ptr->position;
-                        const VEC3 angleBefore = ptr->angle;
+                        const VEC3 positionBefore = ptr->getPosition();
+                        const VEC3 angleBefore = ptr->getAngle();
                         if (ptr->onRestoreDevice())
                         {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender = enableRender;
+                            ptr->setAlwaysRenderize(alwaysRenderize);
+                            ptr->setEnableRender(enableRender);
                             ptr->onRestoreAnimationsState();
                         }
-                        ptr->position = positionBefore;
-                        ptr->angle = angleBefore;
+                        ptr->setPosition(positionBefore);
+                        ptr->setAngle(angleBefore);
                         impl->indexOnRestore = (i + 1);
                         if (++j >= impl->totalForByLoop)
                         {

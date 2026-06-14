@@ -555,24 +555,27 @@ namespace mbm
     {
         if (renderizable != nullptr)
         {
-            if (renderizable->is3D)
+            VEC3 &position = renderizable->getPosition();
+            const bool is2dScreen = renderizable->is2dScreenObject();
+            const TYPE_CLASS typeClass = renderizable->getTypeClass();
+            if (renderizable->is3DObject())
             {
-                if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = impl->orderRender.getNextZOrderControl3d();
+                if (position.z == 0.0f)
+                    position.z = impl->orderRender.getNextZOrderControl3d();
                 impl->render3D.push_back(renderizable);
             }
-            else if (renderizable->is2dS)
+            else if (is2dScreen)
             {
-                if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = impl->orderRender.getNextZOrderControl2d(
-                        renderizable->is2dS, renderizable->typeClass == TYPE_CLASS_TEXT);
+                if (position.z == 0.0f)
+                    position.z = impl->orderRender.getNextZOrderControl2d(
+                        is2dScreen, typeClass == TYPE_CLASS_TEXT);
                 impl->render2DS.push_back(renderizable);
             }
             else
             {
-                if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = impl->orderRender.getNextZOrderControl2d(
-                        renderizable->is2dS, renderizable->typeClass == TYPE_CLASS_TEXT);
+                if (position.z == 0.0f)
+                    position.z = impl->orderRender.getNextZOrderControl2d(
+                        is2dScreen, typeClass == TYPE_CLASS_TEXT);
                 impl->render2DW.push_back(renderizable);
             }
         }
@@ -617,17 +620,17 @@ namespace mbm
     {
         for (auto ptr : impl->render3D)
         {
-            ptr->enableRender = false;
+            ptr->setEnableRender(false);
         }
         for (auto ptr : impl->render2DS)
         {
-            ptr->enableRender = false;
+            ptr->setEnableRender(false);
         }
         for (auto ptr : impl->render2DW)
         {
-            ptr->enableRender = false;
+            ptr->setEnableRender(false);
         }
-        draw->enableRender = true;
+        draw->setEnableRender(true);
     }
     
     void DEVICE::removeObjectByIdSceneScene(const int idScene)

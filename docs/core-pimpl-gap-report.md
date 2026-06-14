@@ -1606,6 +1606,14 @@ Milestone 186 implementation note:
 - Migrated the contained `renderizable.cpp` self-use paths, frustum checks, and backend render-to-texture frustum guards to the new accessor API.
 - This is the first strict-PIMPL preparation step for `RENDERIZABLE`; it does not move fields behind `Impl` yet.
 
+Milestone 187 implementation note:
+
+- Migrated core render scheduling and scene render enable/disable paths to the new `RENDERIZABLE` accessor API.
+- Replaced direct render/frustum flag reads and writes in `CORE_MANAGER::prepareRender2d()`, `prepareRender3d()`, `initEnableRenders()`, `enableRender()`, `disableRender()`, and restore-device loops.
+- Replaced direct renderable type/coordinate/position access in `DEVICE::addRenderizable()` with cached accessor-backed locals, preserving z-order assignment behavior.
+- Replaced `DEVICE::disableAllButThis()` direct render-enable writes with `setEnableRender()`.
+- This keeps public `RENDERIZABLE` fields in place, but removes the core scheduler's dependency on those public flag/transform fields.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
