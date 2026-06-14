@@ -1513,6 +1513,14 @@ Milestone 173 implementation note:
 - Updated the backend implementation guide example that still referenced `this->device`.
 - This is a strict `CORE_MANAGER` PIMPL step. It changes source compatibility for code that still reads or writes `CORE_MANAGER::device` directly, but the repo call sites had already been migrated.
 
+Milestone 174 implementation note:
+
+- Added accessor/mutator coverage for `ANIMATION` state: animation name, frame interval/range/current frame, blend state, ended flag, current direction, animation type, and `FX`.
+- Added private timer helpers for `ANIMATION::currentTimeToChangeAnimation`.
+- Migrated `src/core_mbm/animation.cpp` animation update, mesh population, animation manager, texture-stage update, and backup/restore paths to the new `ANIMATION` accessors.
+- Cached `FX &fx = anim->getFx()` locally where the same animation effect object is reused inside a function.
+- Kept the public `ANIMATION` fields in place for compatibility; this milestone prepares the strict field move but does not perform it yet.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1566,6 +1574,7 @@ Before hiding public fields, add and use methods for:
 - `RENDERIZABLE`: transform, visibility, blend, user data, dynamic vars.
 - `SCENE`: scene transition state and user data done.
 - `ANIMATION_MANAGER`: animation list/index/callback access done; remaining public layout is `ANIMATION` frame state and `fx`.
+- `ANIMATION`: accessor coverage started for frame state and `fx`; core animation implementation migrated.
 
 Keep direct fields during transition if source compatibility matters.
 
@@ -1583,7 +1592,7 @@ This is future work only. It is not required for the completed OS/backend isolat
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
 2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, `EFFECT_SHADER` state, `MESH_MANAGER` singleton cache, `ANIMATION_MANAGER` state, `SCENE` state, and `CORE_MANAGER` public state done.
-3. Add complete accessor/mutator coverage for `RENDERIZABLE`, `ANIMATION` frame state, and any manager state that external code currently reads.
+3. Add complete accessor/mutator coverage for `RENDERIZABLE`, remaining external `ANIMATION` frame/`fx` call sites, and any manager state that external code currently reads.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
 6. Split public and private headers further where STL-heavy internals still leak compile dependencies.
@@ -1613,6 +1622,7 @@ Current decision:
 6. `ANIMATION_MANAGER` restore backup storage, animation list, current index, and callback fields are now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index writes use `setIndexAnimation()`, Lua callback writes use callback setters, render/tiled callback reads use callback getters, straightforward render-side list reads use `getAnimation()`/`getTotalAnimation()`, backup list reads use list accessors, straightforward setup appends use `appendAnimation()`, tiled editor fixed-slot reads use `getAnimation(index)`, read-only internal manager list use is accessor-backed, and `removeAnimation()` bounds/clamp logic uses list accessors.
 7. `SCENE` scene transition state and scene user data are now behind `Impl`; core scene transitions, Lua scene loading, Android callback routing, physics plugins, and Lua wrappers use the accessor API.
 8. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and device pointer are now behind `Impl`; internal/backend/platform/Lua call sites use accessor-backed device access.
-9. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
+9. `ANIMATION` now has accessor coverage for frame state and `fx`; core animation implementation uses it, while render/plugin/Lua call sites still need migration before the public fields can move.
+10. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

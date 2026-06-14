@@ -636,33 +636,152 @@ namespace mbm
 
     ANIMATION::ANIMATION()
     {
-        blendState                   = BLEND_DISABLE;
-        currentTimeToChangeAnimation = 0.0f;
-        indexInitialFrame            = 0;
-        indexFinalFrame              = 0;
-        intervalChangeFrame          = 1;
-        indexCurrentFrame            = 0;
-        isEndedThisAnimation         = false;
-        currentWayGrowingOfAnimation = true;
-        memset(nameAnimation, 0, sizeof(nameAnimation));
-        type						= TYPE_ANIMATION_PAUSED;
+        this->setBlendState(BLEND_DISABLE);
+        this->setCurrentTimeToChangeAnimation(0.0f);
+        this->setIndexInitialFrame(0);
+        this->setIndexFinalFrame(0);
+        this->setIntervalChangeFrame(1);
+        this->setIndexCurrentFrame(0);
+        this->setEnded(false);
+        this->setCurrentWayGrowing(true);
+        this->setNameAnimation("");
+        this->setType(TYPE_ANIMATION_PAUSED);
+    }
+
+    const char *ANIMATION::getNameAnimation() const noexcept
+    {
+        return this->nameAnimation;
+    }
+
+    void ANIMATION::setNameAnimation(const char *name) noexcept
+    {
+        memset(this->nameAnimation, 0, sizeof(this->nameAnimation));
+        if (name)
+            strncpy(this->nameAnimation, name, sizeof(this->nameAnimation) - 1);
+    }
+
+    float ANIMATION::getIntervalChangeFrame() const noexcept
+    {
+        return this->intervalChangeFrame;
+    }
+
+    void ANIMATION::setIntervalChangeFrame(const float interval) noexcept
+    {
+        this->intervalChangeFrame = interval;
+    }
+
+    int ANIMATION::getIndexInitialFrame() const noexcept
+    {
+        return this->indexInitialFrame;
+    }
+
+    void ANIMATION::setIndexInitialFrame(const int index) noexcept
+    {
+        this->indexInitialFrame = index;
+    }
+
+    int ANIMATION::getIndexFinalFrame() const noexcept
+    {
+        return this->indexFinalFrame;
+    }
+
+    void ANIMATION::setIndexFinalFrame(const int index) noexcept
+    {
+        this->indexFinalFrame = index;
+    }
+
+    int ANIMATION::getIndexCurrentFrame() const noexcept
+    {
+        return this->indexCurrentFrame;
+    }
+
+    void ANIMATION::setIndexCurrentFrame(const int index) noexcept
+    {
+        this->indexCurrentFrame = index;
+    }
+
+    BLEND_STATE ANIMATION::getBlendState() const noexcept
+    {
+        return this->blendState;
+    }
+
+    void ANIMATION::setBlendState(const BLEND_STATE blend) noexcept
+    {
+        this->blendState = blend;
+    }
+
+    bool ANIMATION::isEnded() const noexcept
+    {
+        return this->isEndedThisAnimation;
+    }
+
+    void ANIMATION::setEnded(const bool ended) noexcept
+    {
+        this->isEndedThisAnimation = ended;
+    }
+
+    bool ANIMATION::isCurrentWayGrowing() const noexcept
+    {
+        return this->currentWayGrowingOfAnimation;
+    }
+
+    void ANIMATION::setCurrentWayGrowing(const bool growing) noexcept
+    {
+        this->currentWayGrowingOfAnimation = growing;
+    }
+
+    TYPE_ANIMATION ANIMATION::getType() const noexcept
+    {
+        return this->type;
+    }
+
+    void ANIMATION::setType(const TYPE_ANIMATION typeAnimation) noexcept
+    {
+        this->type = typeAnimation;
+    }
+
+    FX &ANIMATION::getFx() noexcept
+    {
+        return this->fx;
+    }
+
+    const FX &ANIMATION::getFx() const noexcept
+    {
+        return this->fx;
+    }
+
+    float ANIMATION::getCurrentTimeToChangeAnimation() const noexcept
+    {
+        return this->currentTimeToChangeAnimation;
+    }
+
+    void ANIMATION::setCurrentTimeToChangeAnimation(const float time) noexcept
+    {
+        this->currentTimeToChangeAnimation = time;
+    }
+
+    void ANIMATION::addCurrentTimeToChangeAnimation(const float delta) noexcept
+    {
+        this->currentTimeToChangeAnimation += delta;
     }
 
     void ANIMATION::restartAnimation()
     {
-        isEndedThisAnimation = false;
+        this->setEnded(false);
+        FX &fx = this->getFx();
         fx.fxPS->restart();
         fx.fxVS->restart();
         
-        if (type == TYPE_ANIMATION_DECREASING || type == TYPE_ANIMATION_DECREASING_LOOP)
+        const TYPE_ANIMATION typeAnimation = this->getType();
+        if (typeAnimation == TYPE_ANIMATION_DECREASING || typeAnimation == TYPE_ANIMATION_DECREASING_LOOP)
         {
-            this->currentWayGrowingOfAnimation = false;
-            indexCurrentFrame                  = this->indexFinalFrame;
+            this->setCurrentWayGrowing(false);
+            this->setIndexCurrentFrame(this->getIndexFinalFrame());
         }
         else
         {
-            this->currentWayGrowingOfAnimation = true;
-            indexCurrentFrame                  = this->indexInitialFrame;
+            this->setCurrentWayGrowing(true);
+            this->setIndexCurrentFrame(this->getIndexInitialFrame());
         }
     }
 
@@ -672,6 +791,7 @@ namespace mbm
     {
         if (delta <= 0.0f)
             return;
+        FX &fx = this->getFx();
         if(fx.fxPS->isEndedFx() == false)
         {
             fx.fxPS->updateEffect(delta);
@@ -690,9 +810,10 @@ namespace mbm
                     onEndFX(fx.fxVS->getCurrentShader()->fileName.c_str(), me);
             }
         }
-        if (type != TYPE_ANIMATION_PAUSED)
+        const TYPE_ANIMATION typeAnimation = this->getType();
+        if (typeAnimation != TYPE_ANIMATION_PAUSED)
         {
-            switch (type)
+            switch (typeAnimation)
             {
                 case TYPE_ANIMATION_GROWING:
                 case TYPE_ANIMATION_DECREASING:
@@ -704,110 +825,111 @@ namespace mbm
                 break;
                 default: break;
             }
-            currentTimeToChangeAnimation += delta;
+            this->addCurrentTimeToChangeAnimation(delta);
             uint32_t incrDiff = 0;
-            if (currentTimeToChangeAnimation >= intervalChangeFrame)
+            const float intervalChangeFrame = this->getIntervalChangeFrame();
+            if (this->getCurrentTimeToChangeAnimation() >= intervalChangeFrame)
             {
-                incrDiff = static_cast<uint32_t>(currentTimeToChangeAnimation / intervalChangeFrame);
-                currentTimeToChangeAnimation -= (incrDiff * intervalChangeFrame);
+                incrDiff = static_cast<uint32_t>(this->getCurrentTimeToChangeAnimation() / intervalChangeFrame);
+                this->setCurrentTimeToChangeAnimation(this->getCurrentTimeToChangeAnimation() - (incrDiff * intervalChangeFrame));
             }
             if (incrDiff)
             {
-                switch (type)
+                switch (typeAnimation)
                 {
                     case 1: // 1:Crescente
                     {
-                        indexCurrentFrame += incrDiff;
-                        if (indexCurrentFrame > indexFinalFrame)
+                        this->setIndexCurrentFrame(this->getIndexCurrentFrame() + static_cast<int>(incrDiff));
+                        if (this->getIndexCurrentFrame() > this->getIndexFinalFrame())
                         {
-                            indexCurrentFrame            = indexFinalFrame;
-                            isEndedThisAnimation         = true;
-                            currentWayGrowingOfAnimation = true;
+                            this->setIndexCurrentFrame(this->getIndexFinalFrame());
+                            this->setEnded(true);
+                            this->setCurrentWayGrowing(true);
                             if (onEndAnimation)
-                                onEndAnimation(this->nameAnimation, me);
+                                onEndAnimation(this->getNameAnimation(), me);
                         }
                     }
                     break;
                     case 2: // 2:Crescente Com Loop
                     {
-                        indexCurrentFrame += incrDiff;
-                        if (indexCurrentFrame > indexFinalFrame)
-                            indexCurrentFrame        = (indexCurrentFrame - indexFinalFrame) - 1 + indexInitialFrame;
-                        currentWayGrowingOfAnimation = true;
+                        this->setIndexCurrentFrame(this->getIndexCurrentFrame() + static_cast<int>(incrDiff));
+                        if (this->getIndexCurrentFrame() > this->getIndexFinalFrame())
+                            this->setIndexCurrentFrame((this->getIndexCurrentFrame() - this->getIndexFinalFrame()) - 1 + this->getIndexInitialFrame());
+                        this->setCurrentWayGrowing(true);
                     }
                     break;
                     case 3: // 3:Decrescente
                     {
-                        indexCurrentFrame -= incrDiff;
-                        if (indexCurrentFrame < indexInitialFrame)
+                        this->setIndexCurrentFrame(this->getIndexCurrentFrame() - static_cast<int>(incrDiff));
+                        if (this->getIndexCurrentFrame() < this->getIndexInitialFrame())
                         {
-                            isEndedThisAnimation = true;
-                            indexCurrentFrame    = indexInitialFrame;
+                            this->setEnded(true);
+                            this->setIndexCurrentFrame(this->getIndexInitialFrame());
                             if (onEndAnimation)
-                                onEndAnimation(this->nameAnimation, me);
+                                onEndAnimation(this->getNameAnimation(), me);
                         }
-                        currentWayGrowingOfAnimation = false;
+                        this->setCurrentWayGrowing(false);
                     }
                     break;
                     case 4: // 4:Decrescente Com Loop
                     {
-                        indexCurrentFrame -= incrDiff;
-                        if (indexCurrentFrame < indexInitialFrame)
+                        this->setIndexCurrentFrame(this->getIndexCurrentFrame() - static_cast<int>(incrDiff));
+                        if (this->getIndexCurrentFrame() < this->getIndexInitialFrame())
                         {
-                            incrDiff          = static_cast<uint32_t>(indexInitialFrame - indexCurrentFrame - 1);
-                            indexCurrentFrame = static_cast<int>(indexFinalFrame) - static_cast<int>(incrDiff);
+                            incrDiff = static_cast<uint32_t>(this->getIndexInitialFrame() - this->getIndexCurrentFrame() - 1);
+                            this->setIndexCurrentFrame(static_cast<int>(this->getIndexFinalFrame()) - static_cast<int>(incrDiff));
                         }
-                        currentWayGrowingOfAnimation = false;
+                        this->setCurrentWayGrowing(false);
                     }
                     break;
                     case 5: // 5:Recursiva
                     {
-                        if (currentWayGrowingOfAnimation)
+                        if (this->isCurrentWayGrowing())
                         {
-                            indexCurrentFrame += incrDiff;
-                            if (indexCurrentFrame > indexFinalFrame)
+                            this->setIndexCurrentFrame(this->getIndexCurrentFrame() + static_cast<int>(incrDiff));
+                            if (this->getIndexCurrentFrame() > this->getIndexFinalFrame())
                             {
-                                indexCurrentFrame            = indexFinalFrame - 1;
-                                if (indexCurrentFrame < indexInitialFrame)
-                                    indexCurrentFrame = indexInitialFrame;
-                                currentWayGrowingOfAnimation = false;
+                                this->setIndexCurrentFrame(this->getIndexFinalFrame() - 1);
+                                if (this->getIndexCurrentFrame() < this->getIndexInitialFrame())
+                                    this->setIndexCurrentFrame(this->getIndexInitialFrame());
+                                this->setCurrentWayGrowing(false);
                             }
                         }
                         else
                         {
-                            indexCurrentFrame -= incrDiff;
-                            if (indexCurrentFrame < indexInitialFrame)
+                            this->setIndexCurrentFrame(this->getIndexCurrentFrame() - static_cast<int>(incrDiff));
+                            if (this->getIndexCurrentFrame() < this->getIndexInitialFrame())
                             {
-                                isEndedThisAnimation = true;
-                                indexCurrentFrame    = indexInitialFrame;
+                                this->setEnded(true);
+                                this->setIndexCurrentFrame(this->getIndexInitialFrame());
                                 if (onEndAnimation)
-                                    onEndAnimation(this->nameAnimation, me);
+                                    onEndAnimation(this->getNameAnimation(), me);
                             }
                         }
                     }
                     break;
                     case 6: // 6:Recursiva Com Loop
                     {
-                        if (currentWayGrowingOfAnimation)
+                        if (this->isCurrentWayGrowing())
                         {
-                            indexCurrentFrame += incrDiff;
-                            if (indexCurrentFrame > indexFinalFrame)
+                            this->setIndexCurrentFrame(this->getIndexCurrentFrame() + static_cast<int>(incrDiff));
+                            if (this->getIndexCurrentFrame() > this->getIndexFinalFrame())
                             {
-                                indexCurrentFrame = indexFinalFrame - 1;
-                                if(indexCurrentFrame < indexInitialFrame)
-                                    indexCurrentFrame = indexInitialFrame;
-                                currentWayGrowingOfAnimation = false;
+                                this->setIndexCurrentFrame(this->getIndexFinalFrame() - 1);
+                                if(this->getIndexCurrentFrame() < this->getIndexInitialFrame())
+                                    this->setIndexCurrentFrame(this->getIndexInitialFrame());
+                                this->setCurrentWayGrowing(false);
                             }
                         }
                         else
                         {
-                            indexCurrentFrame -= incrDiff;
-                            if (indexCurrentFrame < indexInitialFrame)
+                            this->setIndexCurrentFrame(this->getIndexCurrentFrame() - static_cast<int>(incrDiff));
+                            if (this->getIndexCurrentFrame() < this->getIndexInitialFrame())
                             {
-                                currentWayGrowingOfAnimation = true;
-                                indexCurrentFrame = indexInitialFrame + 1;
-                                if(indexCurrentFrame > indexFinalFrame)
-                                    indexCurrentFrame = indexFinalFrame;
+                                this->setCurrentWayGrowing(true);
+                                this->setIndexCurrentFrame(this->getIndexInitialFrame() + 1);
+                                if(this->getIndexCurrentFrame() > this->getIndexFinalFrame())
+                                    this->setIndexCurrentFrame(this->getIndexFinalFrame());
                             }
                         }
                     }
@@ -815,10 +937,10 @@ namespace mbm
                     default: break;
                 }
             }
-            if (indexCurrentFrame < indexInitialFrame)
-                indexCurrentFrame = indexInitialFrame;
-            else if (indexCurrentFrame > indexFinalFrame)
-                indexCurrentFrame = indexFinalFrame;
+            if (this->getIndexCurrentFrame() < this->getIndexInitialFrame())
+                this->setIndexCurrentFrame(this->getIndexInitialFrame());
+            else if (this->getIndexCurrentFrame() > this->getIndexFinalFrame())
+                this->setIndexCurrentFrame(this->getIndexFinalFrame());
         }
     }
 
@@ -856,7 +978,7 @@ namespace mbm
                 {
                     TEXTURE *  tex  = texMan->load(infoPS->fileNameTextureStage2, true);
                     if (anim && tex)
-                        anim->fx.textureOverrideStage2 = tex;
+                        anim->getFx().textureOverrideStage2 = tex;
                 }
 
                 util::INFO_SHADER_DATA *infoVS = infoHead->effectShader->dataVS;
@@ -864,10 +986,10 @@ namespace mbm
                 {
                     TEXTURE *  tex  = texMan->load(infoVS->fileNameTextureStage2, true);
                     if (anim && tex)
-                        anim->fx.textureOverrideStage2 = tex;
+                        anim->getFx().textureOverrideStage2 = tex;
                 }
                 if(anim)
-                    anim->blendState = static_cast<mbm::BLEND_STATE>(infoHead->headerAnim->blendState);
+                    anim->setBlendState(static_cast<mbm::BLEND_STATE>(infoHead->headerAnim->blendState));
             }
         }
     }
@@ -882,15 +1004,16 @@ namespace mbm
         mbm::DEVICE *          device = mbm::DEVICE::getInstance();
         mbm::TEXTURE_MANAGER *texMan  = mbm::TEXTURE_MANAGER::getInstance();
         auto                   anim   = new ANIMATION();
-        anim->indexFinalFrame         = header->finalFrame;
-        anim->indexInitialFrame       = header->initialFrame;
-        anim->intervalChangeFrame     = header->timeBetweenFrame;
-        anim->type                    = static_cast<TYPE_ANIMATION>(header->typeAnimation);
+        anim->setIndexFinalFrame(header->finalFrame);
+        anim->setIndexInitialFrame(header->initialFrame);
+        anim->setIntervalChangeFrame(header->timeBetweenFrame);
+        anim->setType(static_cast<TYPE_ANIMATION>(header->typeAnimation));
         if (strlen(header->nameAnimation) >= 1)
-            strncpy(anim->nameAnimation, header->nameAnimation, sizeof(anim->nameAnimation));
+            anim->setNameAnimation(header->nameAnimation);
         else
-            strncpy(anim->nameAnimation, "default",sizeof(anim->nameAnimation));
+            anim->setNameAnimation("default");
         this->appendAnimation(anim);
+        FX &fx = anim->getFx();
         if (index < mesh->infoAnimation.lsHeaderAnim.size()) // animation total 
         {
             util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->infoAnimation.lsHeaderAnim[index];
@@ -898,14 +1021,14 @@ namespace mbm
             if (infoShaderStep && infoShaderStep->dataPS)
             {
                 util::INFO_SHADER_DATA *data   = infoShaderStep->dataPS;
-                anim->fx.fxPS->setTimeAnimation(data->timeAnimation);
-                anim->fx.blendOperation          = infoShaderStep->blendOperation;
+                fx.fxPS->setTimeAnimation(data->timeAnimation);
+                fx.blendOperation          = infoShaderStep->blendOperation;
                 if (data->fileNameTextureStage2)
-                    anim->fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
+                    fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
                 SHADER_CFG *cfgShader              = device->getShaderConfig().getShader(data->fileNameShader);
                 if (cfgShader)
                 {
-                    if (!anim->fx.fxPS->loadEffect(data->fileNameShader,
+                    if (!fx.fxPS->loadEffect(data->fileNameShader,
                                                         cfgShader->codeShader.c_str(), // Code
                                                         static_cast<TYPE_ANIMATION>(data->typeAnimation)))
                     {
@@ -922,14 +1045,14 @@ namespace mbm
             if (infoShaderStep && infoShaderStep->dataVS)
             {
                 util::INFO_SHADER_DATA *data   = infoShaderStep->dataVS;
-                anim->fx.fxVS->setTimeAnimation(data->timeAnimation);
-                anim->fx.blendOperation          = infoShaderStep->blendOperation;
+                fx.fxVS->setTimeAnimation(data->timeAnimation);
+                fx.blendOperation          = infoShaderStep->blendOperation;
                 if (data->fileNameTextureStage2)
-                    anim->fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
+                    fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
                 SHADER_CFG *cfgShader              = device->getShaderConfig().getShader(data->fileNameShader);
                 if (cfgShader)
                 {
-                    if (!anim->fx.fxVS->loadEffect(data->fileNameShader,
+                    if (!fx.fxVS->loadEffect(data->fileNameShader,
                                                         cfgShader->codeShader.c_str(), // Code
                                                         static_cast<TYPE_ANIMATION>(data->typeAnimation)))
                     {
@@ -947,38 +1070,38 @@ namespace mbm
         // compile shader in pair
         util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->infoAnimation.lsHeaderAnim[index];
         const FVF_PROVIDE_BY_ENGINE fvf = mesh->getBuffer(0)->pBufferGL->fvf;
-        if (anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), fvf))
+        if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf))
         {
             if(infoHead->effectShader && infoHead->effectShader->blendOperation != 0)
-                anim->fx.blendOperation = infoHead->effectShader->blendOperation;
+                fx.blendOperation = infoHead->effectShader->blendOperation;
 
-            if (anim->fx.fxPS->getCurrentShader())
+            if (fx.fxPS->getCurrentShader())
             {
                 util::INFO_FX *infoShaderStep = infoHead->effectShader;
                 if (infoShaderStep && infoShaderStep->dataPS && infoShaderStep->dataPS->fileNameShader)
                 {
                     util::INFO_SHADER_DATA *data  = infoShaderStep->dataPS;
-                    anim->fx.fxPS->setTimeAnimation(data->timeAnimation);
-                    anim->fx.fxPS->setTypeAnim(static_cast<TYPE_ANIMATION>(data->typeAnimation));
+                    fx.fxPS->setTimeAnimation(data->timeAnimation);
+                    fx.fxPS->setTypeAnim(static_cast<TYPE_ANIMATION>(data->typeAnimation));
                     SHADER_CFG *cfgShader          = device->getShaderConfig().getShader(data->fileNameShader);
                     if (cfgShader)
                     {
-                        void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
+                        void *backendShaderSpecific = fx.shader.getBackendShaderSpecific();
                         for (auto var : cfgShader->lsVar)
                         {
-                            if (!anim->fx.fxPS->getCurrentShader()->addVar(var->name.c_str(), var->type, var->Default,
+                            if (!fx.fxPS->getCurrentShader()->addVar(var->name.c_str(), var->type, var->Default,
                                                                             backendShaderSpecific, true))
                             {
                                 ERROR_LOG( "failed to include variable %s shader %s!",var->name.c_str(), data->fileNameShader);
                                 return false;
                             }
                         }
-                        if(infoShaderStep->dataPS->lenVars == static_cast<int>(anim->fx.fxPS->getCurrentShader()->getTotalVar()))
+                        if(infoShaderStep->dataPS->lenVars == static_cast<int>(fx.fxPS->getCurrentShader()->getTotalVar()))
                         {
                             int indexVar = 0;
-                            for (uint32_t i = 0; i < anim->fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
+                            for (uint32_t i = 0; i < fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
                             {
-                                VAR_SHADER *varShader = anim->fx.fxPS->getCurrentShader()->getVar(i);
+                                VAR_SHADER *varShader = fx.fxPS->getCurrentShader()->getVar(i);
                                 if (varShader)
                                 {
                                     varShader->set(&data->min[indexVar], &data->max[indexVar], data->timeAnimation);
@@ -988,12 +1111,12 @@ namespace mbm
                         }
                         else
                         {
-                            ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataPS->lenVars,anim->fx.fxPS->getCurrentShader()->getTotalVar());
+                            ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataPS->lenVars,fx.fxPS->getCurrentShader()->getTotalVar());
                         }
                         if (data->fileNameTextureStage2)
                         {
                             TEXTURE_MANAGER *man = TEXTURE_MANAGER::getInstance();
-                            anim->fx.textureOverrideStage2   = man->load(data->fileNameTextureStage2, true);
+                            fx.textureOverrideStage2   = man->load(data->fileNameTextureStage2, true);
                         }
                     }
                     else
@@ -1003,33 +1126,33 @@ namespace mbm
                     }
                 }
             }
-            if (anim->fx.fxVS->getCurrentShader())
+            if (fx.fxVS->getCurrentShader())
             {
                 util::INFO_FX *infoShaderStep = infoHead->effectShader;
                 if (infoShaderStep && infoShaderStep->dataVS && infoShaderStep->dataVS->fileNameShader)
                 {
                     util::INFO_SHADER_DATA *data  = infoShaderStep->dataVS;
-                    anim->fx.fxVS->setTimeAnimation(data->timeAnimation);
-                    anim->fx.fxVS->setTypeAnim(static_cast<TYPE_ANIMATION>(data->typeAnimation));
+                    fx.fxVS->setTimeAnimation(data->timeAnimation);
+                    fx.fxVS->setTypeAnim(static_cast<TYPE_ANIMATION>(data->typeAnimation));
                     SHADER_CFG *cfgShader          = device->getShaderConfig().getShader(data->fileNameShader);
                     if (cfgShader)
                     {
-                        void *backendShaderSpecific = anim->fx.shader.getBackendShaderSpecific();
+                        void *backendShaderSpecific = fx.shader.getBackendShaderSpecific();
                         for (auto var : cfgShader->lsVar)
                         {
-                            if (!anim->fx.fxVS->getCurrentShader()->addVar(var->name.c_str(), var->type, var->Default,
+                            if (!fx.fxVS->getCurrentShader()->addVar(var->name.c_str(), var->type, var->Default,
                                                                             backendShaderSpecific, false))
                             {
                                 ERROR_LOG( "failed to include variable [%s] shader [%s]!",var->name.c_str(), data->fileNameShader);
                                 return false;
                             }
                         }
-                        if(infoShaderStep->dataVS->lenVars == static_cast<int>(anim->fx.fxVS->getCurrentShader()->getTotalVar()))
+                        if(infoShaderStep->dataVS->lenVars == static_cast<int>(fx.fxVS->getCurrentShader()->getTotalVar()))
                         {
                             int indexVar = 0;
-                            for (uint32_t i = 0; i < anim->fx.fxVS->getCurrentShader()->getTotalVar(); ++i)
+                            for (uint32_t i = 0; i < fx.fxVS->getCurrentShader()->getTotalVar(); ++i)
                             {
-                                VAR_SHADER *varShader = anim->fx.fxVS->getCurrentShader()->getVar(i);
+                                VAR_SHADER *varShader = fx.fxVS->getCurrentShader()->getVar(i);
                                 if (varShader)
                                 {
                                     varShader->set(&data->min[indexVar], &data->max[indexVar], data->timeAnimation);
@@ -1039,12 +1162,12 @@ namespace mbm
                         }
                         else
                         {
-                            ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataVS->lenVars,anim->fx.fxVS->getCurrentShader()->getTotalVar());
+                            ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataVS->lenVars,fx.fxVS->getCurrentShader()->getTotalVar());
                         }
                         if (data->fileNameTextureStage2)
                         {
                             TEXTURE_MANAGER *man = TEXTURE_MANAGER::getInstance();
-                            anim->fx.textureOverrideStage2   = man->load(data->fileNameTextureStage2, true);
+                            fx.textureOverrideStage2   = man->load(data->fileNameTextureStage2, true);
                         }
                     }
                     else
@@ -1057,7 +1180,7 @@ namespace mbm
         }
         else
         {
-            ERROR_LOG( "Error on compile shader animation:[%s]", anim->nameAnimation);
+            ERROR_LOG( "Error on compile shader animation:[%s]", anim->getNameAnimation());
             return false;
         }
         return true;
@@ -1131,7 +1254,7 @@ namespace mbm
         for (uint32_t i = 0; i < s; ++i)
         {
             ANIMATION * anim = this->getAnimation(i);
-            if (anim && strcmp(anim->nameAnimation, name) == 0)
+            if (anim && strcmp(anim->getNameAnimation(), name) == 0)
             {
                 this->setIndexAnimation(i);
                 anim->restartAnimation();
@@ -1172,7 +1295,7 @@ namespace mbm
     {
         ANIMATION *anim = this->getAnimation(index);
         if (anim)
-            return anim->nameAnimation;
+            return const_cast<char *>(anim->getNameAnimation());
         return nullptr;
     }
 
@@ -1188,7 +1311,8 @@ namespace mbm
         this->setIndexAnimation(this->getTotalAnimation() - 1);
         RENDERIZABLE* r = dynamic_cast<RENDERIZABLE*>(this);
         const FVF_PROVIDE_BY_ENGINE fvf = r ? r->getFvfFromBuffer() : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->getCurrentShader(), anim->fx.fxVS->getCurrentShader(), fvf))
+        FX &fx = anim->getFx();
+        if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf))
         {
             ERROR_AT(__LINE__,__FILE__, "error on add animation");
         }
@@ -1205,7 +1329,7 @@ namespace mbm
         mbm::ANIMATION *anim = this->getAnimation();
         if (anim)
         {
-            return anim->isEndedThisAnimation;
+            return anim->isEnded();
         }
         return false;
     }
@@ -1246,7 +1370,7 @@ namespace mbm
                 {
                     if (stage == 0)
                     {
-                        for (int i = anim->indexInitialFrame; i <= anim->indexFinalFrame; ++i)
+                        for (int i = anim->getIndexInitialFrame(); i <= anim->getIndexFinalFrame(); ++i)
                         {
                             mbm::BUFFER_MESH *buff = mesh->getBuffer(static_cast<uint32_t>(i));
                             if (buff)
@@ -1263,13 +1387,13 @@ namespace mbm
                     }
                     else
                     {
-                        anim->fx.textureOverrideStage2 = newTex;
+                        anim->getFx().textureOverrideStage2 = newTex;
                         return true;
                     }
                 }
                 else if (stage)
                 {
-                    anim->fx.textureOverrideStage2 = newTex;
+                    anim->getFx().textureOverrideStage2 = newTex;
                     return true;
                 }
             }
@@ -1314,7 +1438,7 @@ namespace mbm
 
             void restoreFX(mbm::ANIMATION& anim) const noexcept;
 
-            FX_BACKUP(const ANIMATION& anim) noexcept;
+            explicit FX_BACKUP(const FX& fx) noexcept;
             ~FX_BACKUP() noexcept;
             FX_BACKUP(FX_BACKUP&& other) = delete;
             FX_BACKUP& operator=(FX_BACKUP&& other) = delete;
@@ -1362,19 +1486,19 @@ namespace mbm
         }
     }
 
-    ANIMATION_BACKUP::Impl::FX_BACKUP::FX_BACKUP(const ANIMATION& anim) noexcept:
-        statusFxPs(anim.fx.fxPS ? anim.fx.fxPS->getStatusFx() : STATUS_FX::FX_GROWING),
-		statusFxVs(anim.fx.fxVS ? anim.fx.fxVS->getStatusFx() : STATUS_FX::FX_GROWING),
-		typeAnimPs(anim.fx.fxPS ? anim.fx.fxPS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
-		typeAnimVs(anim.fx.fxVS ? anim.fx.fxVS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
-		timeAnimationPs(anim.fx.fxPS ? anim.fx.fxPS->getTimeAnimation() : 0.0f),
-		timeAnimationVs(anim.fx.fxVS ? anim.fx.fxVS->getTimeAnimation() : 0.0f)
+    ANIMATION_BACKUP::Impl::FX_BACKUP::FX_BACKUP(const FX& fx) noexcept:
+        statusFxPs(fx.fxPS ? fx.fxPS->getStatusFx() : STATUS_FX::FX_GROWING),
+		statusFxVs(fx.fxVS ? fx.fxVS->getStatusFx() : STATUS_FX::FX_GROWING),
+		typeAnimPs(fx.fxPS ? fx.fxPS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
+		typeAnimVs(fx.fxVS ? fx.fxVS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
+		timeAnimationPs(fx.fxPS ? fx.fxPS->getTimeAnimation() : 0.0f),
+		timeAnimationVs(fx.fxVS ? fx.fxVS->getTimeAnimation() : 0.0f)
     {		
-        if (anim.fx.fxPS->getCurrentShader())
+        if (fx.fxPS->getCurrentShader())
         {
-            for (uint32_t i = 0; i < anim.fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
+            for (uint32_t i = 0; i < fx.fxPS->getCurrentShader()->getTotalVar(); ++i)
             {
-                VAR_SHADER *var = anim.fx.fxPS->getCurrentShader()->getVar(i);
+                VAR_SHADER *var = fx.fxPS->getCurrentShader()->getVar(i);
                 if (var)
                 {
                     VAR_SHADER_BACKUP* varCopy = new VAR_SHADER_BACKUP(var);
@@ -1382,11 +1506,11 @@ namespace mbm
                 }
             }
         }
-        if (anim.fx.fxVS->getCurrentShader())
+        if (fx.fxVS->getCurrentShader())
         {
-            for (uint32_t i = 0; i < anim.fx.fxVS->getCurrentShader()->getTotalVar(); ++i)
+            for (uint32_t i = 0; i < fx.fxVS->getCurrentShader()->getTotalVar(); ++i)
             {
-                VAR_SHADER *var = anim.fx.fxVS->getCurrentShader()->getVar(i);
+                VAR_SHADER *var = fx.fxVS->getCurrentShader()->getVar(i);
                 if (var)
                 {
                     VAR_SHADER_BACKUP* varCopy = new VAR_SHADER_BACKUP(var);
@@ -1420,30 +1544,31 @@ namespace mbm
 
     void ANIMATION_BACKUP::Impl::FX_BACKUP::restoreFX(mbm::ANIMATION& anim) const noexcept
     {
-		if (anim.fx.fxPS && anim.fx.fxPS->getCurrentShader())
+        FX &fx = anim.getFx();
+		if (fx.fxPS && fx.fxPS->getCurrentShader())
         {
-            anim.fx.fxPS->setStatusFx(this->statusFxPs);
-            anim.fx.fxPS->setTypeAnim(this->typeAnimPs);
-            anim.fx.fxPS->setTimeAnimation(this->timeAnimationPs);
+            fx.fxPS->setStatusFx(this->statusFxPs);
+            fx.fxPS->setTypeAnim(this->typeAnimPs);
+            fx.fxPS->setTimeAnimation(this->timeAnimationPs);
             for (std::vector<VAR_SHADER_BACKUP*>::size_type i = 0; i < this->varsPS.size(); ++i)
             {
                 const VAR_SHADER_BACKUP* varBackup = this->varsPS[i];
                 if (varBackup)
                 {
-                    VAR_SHADER *var = anim.fx.fxPS->getCurrentShader()->getVarByName(varBackup->name.c_str());
+                    VAR_SHADER *var = fx.fxPS->getCurrentShader()->getVarByName(varBackup->name.c_str());
                     if (var)
                     {
                         if (var->typeVar != varBackup->typeVar)
                         {
-                            ERROR_LOG("Unexpected variable type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable type for shader [%s] variable [%s]!\nDid the shader change???", fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         if (var->isPS != varBackup->isPS)
                         {
-                            ERROR_LOG("Unexpected variable shader type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable shader type for shader [%s] variable [%s]!\nDid the shader change???", fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         if (var->sizeVar != varBackup->sizeVar)
                         {
-                            ERROR_LOG("Unexpected variable size for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable size for shader [%s] variable [%s]!\nDid the shader change???", fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         memcpy(var->current, varBackup->current, sizeof(var->current));
                         memcpy(var->min, varBackup->min, sizeof(var->min));
@@ -1455,30 +1580,30 @@ namespace mbm
                 }
             }
         }
-        if (anim.fx.fxVS && anim.fx.fxVS->getCurrentShader())
+        if (fx.fxVS && fx.fxVS->getCurrentShader())
         {
-            anim.fx.fxVS->setStatusFx(this->statusFxVs);
-            anim.fx.fxVS->setTypeAnim(this->typeAnimVs);
-            anim.fx.fxVS->setTimeAnimation(this->timeAnimationVs);
+            fx.fxVS->setStatusFx(this->statusFxVs);
+            fx.fxVS->setTypeAnim(this->typeAnimVs);
+            fx.fxVS->setTimeAnimation(this->timeAnimationVs);
             for (std::vector<VAR_SHADER_BACKUP*>::size_type i = 0; i < this->varsVS.size(); ++i)
             {
                 const VAR_SHADER_BACKUP* varBackup = this->varsVS[i];
                 if (varBackup)
                 {
-                    VAR_SHADER *var = anim.fx.fxVS->getCurrentShader()->getVarByName(varBackup->name.c_str());
+                    VAR_SHADER *var = fx.fxVS->getCurrentShader()->getVarByName(varBackup->name.c_str());
                     if (var)
                     {
                         if (var->typeVar != varBackup->typeVar)
                         {
-                            ERROR_LOG("Unexpected variable type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable type for shader [%s] variable [%s]!\nDid the shader change???", fx.fxVS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         if (var->isPS != varBackup->isPS)
                         {
-                            ERROR_LOG("Unexpected variable shader type for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable shader type for shader [%s] variable [%s]!\nDid the shader change???", fx.fxVS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         if (var->sizeVar != varBackup->sizeVar)
                         {
-                            ERROR_LOG("Unexpected variable size for shader [%s] variable [%s]!\nDid the shader change???", anim.fx.fxPS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
+                            ERROR_LOG("Unexpected variable size for shader [%s] variable [%s]!\nDid the shader change???", fx.fxVS->getCurrentShader()->fileName.c_str(), varBackup->name.c_str());
                         }
                         memcpy(var->current, varBackup->current, sizeof(var->current));
                         memcpy(var->min, varBackup->min, sizeof(var->min));
@@ -1518,24 +1643,25 @@ namespace mbm
                 ANIMATION* anim = animationManager->getAnimation(i);
 				if (anim)
                 {
+                    FX &fx = anim->getFx();
                     Impl::ANIMATION_STATE state         = {};
-                    strncpy(state.nameAnimation, anim->nameAnimation, sizeof(state.nameAnimation));
-                    state.intervalChangeFrame           = anim->intervalChangeFrame;
-                    state.indexInitialFrame             = anim->indexInitialFrame;
-                    state.indexFinalFrame               = anim->indexFinalFrame;
-                    state.indexCurrentFrame             = anim->indexCurrentFrame;
-                    state.blendState                    = anim->blendState;
-                    state.isEndedThisAnimation          = anim->isEndedThisAnimation;
-                    state.currentWayGrowingOfAnimation  = anim->currentWayGrowingOfAnimation;
-                    state.type                          = anim->type;
-                    state.currentTimeToChangeAnimation  = anim->currentTimeToChangeAnimation;
+                    strncpy(state.nameAnimation, anim->getNameAnimation(), sizeof(state.nameAnimation));
+                    state.intervalChangeFrame           = anim->getIntervalChangeFrame();
+                    state.indexInitialFrame             = anim->getIndexInitialFrame();
+                    state.indexFinalFrame               = anim->getIndexFinalFrame();
+                    state.indexCurrentFrame             = anim->getIndexCurrentFrame();
+                    state.blendState                    = anim->getBlendState();
+                    state.isEndedThisAnimation          = anim->isEnded();
+                    state.currentWayGrowingOfAnimation  = anim->isCurrentWayGrowing();
+                    state.type                          = anim->getType();
+                    state.currentTimeToChangeAnimation  = anim->getCurrentTimeToChangeAnimation();
                     //fx
-                    state.fx_textureOverrideStage2      = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->getFileNameTexture() : "";
-                    state.fx_textureOverrideStage2Alpha = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->useAlphaChannel : false;
-                    state.fx_blendOperation             = anim->fx.blendOperation;
+                    state.fx_textureOverrideStage2      = fx.textureOverrideStage2 ? fx.textureOverrideStage2->getFileNameTexture() : "";
+                    state.fx_textureOverrideStage2Alpha = fx.textureOverrideStage2 ? fx.textureOverrideStage2->useAlphaChannel : false;
+                    state.fx_blendOperation             = fx.blendOperation;
                     this->impl->lsAnimationState.push_back(state);
 
-                    Impl::FX_BACKUP* fxBackup = new Impl::FX_BACKUP(*anim);
+                    Impl::FX_BACKUP* fxBackup = new Impl::FX_BACKUP(fx);
                     this->impl->lsFxBackup.push_back(fxBackup);
                 }
             }
@@ -1560,19 +1686,20 @@ namespace mbm
                 }
                 if (anim)
                 {
-                    strncpy(anim->nameAnimation, state.nameAnimation, sizeof(anim->nameAnimation));
-                    anim->intervalChangeFrame          = state.intervalChangeFrame;
-                    anim->indexInitialFrame            = state.indexInitialFrame;
-                    anim->indexFinalFrame              = state.indexFinalFrame;
-                    anim->indexCurrentFrame            = state.indexCurrentFrame;
-                    anim->blendState                   = state.blendState;
-                    anim->isEndedThisAnimation         = state.isEndedThisAnimation;
-                    anim->currentWayGrowingOfAnimation = state.currentWayGrowingOfAnimation;
-                    anim->type                         = state.type;
-                    anim->currentTimeToChangeAnimation = state.currentTimeToChangeAnimation;
+                    FX &fx = anim->getFx();
+                    anim->setNameAnimation(state.nameAnimation);
+                    anim->setIntervalChangeFrame(state.intervalChangeFrame);
+                    anim->setIndexInitialFrame(state.indexInitialFrame);
+                    anim->setIndexFinalFrame(state.indexFinalFrame);
+                    anim->setIndexCurrentFrame(state.indexCurrentFrame);
+                    anim->setBlendState(state.blendState);
+                    anim->setEnded(state.isEndedThisAnimation);
+                    anim->setCurrentWayGrowing(state.currentWayGrowingOfAnimation);
+                    anim->setType(state.type);
+                    anim->setCurrentTimeToChangeAnimation(state.currentTimeToChangeAnimation);
                     //fx
-                    anim->fx.textureOverrideStage2     = state.fx_textureOverrideStage2.size() > 0 ? texManager->load(state.fx_textureOverrideStage2.c_str(), state.fx_textureOverrideStage2Alpha) : nullptr;
-                    anim->fx.blendOperation            = state.fx_blendOperation;
+                    fx.textureOverrideStage2     = state.fx_textureOverrideStage2.size() > 0 ? texManager->load(state.fx_textureOverrideStage2.c_str(), state.fx_textureOverrideStage2Alpha) : nullptr;
+                    fx.blendOperation            = state.fx_blendOperation;
                     if (i < this->impl->lsFxBackup.size())
                     {
                         Impl::FX_BACKUP* it = this->impl->lsFxBackup[i];

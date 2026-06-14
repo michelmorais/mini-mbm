@@ -77,7 +77,9 @@ namespace mbm
         friend class ANIMATION_MANAGER;
         friend class ANIMATION_BACKUP;
       public:
-        char           nameAnimation[32];
+        static constexpr int NAME_ANIMATION_SIZE = 32;
+
+        char           nameAnimation[NAME_ANIMATION_SIZE];
         float          intervalChangeFrame;  
         int            indexInitialFrame;    
         int            indexFinalFrame;      
@@ -93,11 +95,34 @@ namespace mbm
     
         API_IMPL ANIMATION();
         inline virtual ~ ANIMATION() = default;
+        API_IMPL const char *getNameAnimation() const noexcept;
+        API_IMPL void setNameAnimation(const char *name) noexcept;
+        API_IMPL float getIntervalChangeFrame() const noexcept;
+        API_IMPL void setIntervalChangeFrame(const float interval) noexcept;
+        API_IMPL int getIndexInitialFrame() const noexcept;
+        API_IMPL void setIndexInitialFrame(const int index) noexcept;
+        API_IMPL int getIndexFinalFrame() const noexcept;
+        API_IMPL void setIndexFinalFrame(const int index) noexcept;
+        API_IMPL int getIndexCurrentFrame() const noexcept;
+        API_IMPL void setIndexCurrentFrame(const int index) noexcept;
+        API_IMPL BLEND_STATE getBlendState() const noexcept;
+        API_IMPL void setBlendState(const BLEND_STATE blend) noexcept;
+        API_IMPL bool isEnded() const noexcept;
+        API_IMPL void setEnded(const bool ended) noexcept;
+        API_IMPL bool isCurrentWayGrowing() const noexcept;
+        API_IMPL void setCurrentWayGrowing(const bool growing) noexcept;
+        API_IMPL TYPE_ANIMATION getType() const noexcept;
+        API_IMPL void setType(const TYPE_ANIMATION typeAnimation) noexcept;
+        API_IMPL FX &getFx() noexcept;
+        API_IMPL const FX &getFx() const noexcept;
         API_IMPL void restartAnimation();
         API_IMPL void updateAnimation(const float delta, RENDERIZABLE *me,
                                         OnEndAnimation onEndAnimation,
                                         OnEndEffect onEndFX);
       private:
+        float getCurrentTimeToChangeAnimation() const noexcept;
+        void setCurrentTimeToChangeAnimation(const float time) noexcept;
+        void addCurrentTimeToChangeAnimation(const float delta) noexcept;
         float currentTimeToChangeAnimation; 
     };
 
