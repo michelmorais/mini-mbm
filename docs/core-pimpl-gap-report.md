@@ -1422,6 +1422,14 @@ Milestone 161 implementation note:
 - Kept the public callback fields for source compatibility while render-side callback reads migrate in later milestones.
 - This is a callback accessor-surface cleanup only; it does not change Lua callback ownership or animation/effect callback behavior.
 
+Milestone 162 implementation note:
+
+- Migrated render-side animation callback reads to `ANIMATION_MANAGER::getOnEndAnimation()` and `getOnEndFx()`.
+- Covered `MESH`, `SPRITE`, `TEXTURE_VIEW`, `GIF_VIEW`, `BACKGROUND`, `TEXT_DRAW`, `SHAPE_MESH`, `LINE_MESH`, `PARTICLE`, `STEERED_PARTICLE`, `TILE`, `TILE_LAYER`, `RENDER_2_TEXTURE`, `HMD`, and the tiled editor plugin.
+- Stored callback accessor results once in local variables in `TEXT_DRAW::renderText()` and `TILE_EDITOR::renderBrickMap()` because those functions reuse the callbacks.
+- Kept callback fields public for source compatibility until the final strict-PIMPL field-hiding decision.
+- This is a render-side accessor-use cleanup only; it does not change animation update timing or callback dispatch behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1455,7 +1463,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `ANIMATION_BACKUP`, done for backup nested structs/vectors.
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
-- `ANIMATION_MANAGER`, restore backup object done; Lua/render/backup/internal current-index reads migrated to `getIndexAnimation()`, raw current-index compatibility setter added, render/tiled/backup/internal writer call sites migrated to `setIndexAnimation()`, and Lua callback writes migrated to callback setters, while the public field/list/callbacks remain pending broader accessor migration.
+- `ANIMATION_MANAGER`, restore backup object done; Lua/render/backup/internal current-index reads migrated to `getIndexAnimation()`, raw current-index compatibility setter added, render/tiled/backup/internal writer call sites migrated to `setIndexAnimation()`, Lua callback writes migrated to callback setters, and render/tiled callback reads migrated to callback getters, while the public field/list/callbacks remain for compatibility pending the strict field-hiding decision.
 - `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
@@ -1518,7 +1526,7 @@ Current decision:
 3. `ANIMATION_BACKUP` backup internals are now behind `Impl`.
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
-6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index compatibility writes use `setIndexAnimation()`, and Lua callback writes use callback setters. Public animation list/callback fields remain pending broader accessor migration.
+6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index compatibility writes use `setIndexAnimation()`, Lua callback writes use callback setters, and render/tiled callback reads use callback getters. Public animation list/callback fields remain for compatibility pending the strict field-hiding decision.
 7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 

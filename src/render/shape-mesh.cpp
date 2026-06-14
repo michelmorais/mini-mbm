@@ -1124,7 +1124,7 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
             ANIMATION *animation = this->lsAnimation[indexAnimation];
-            animation->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
+            animation->updateAnimation(device->delta, this, this->getOnEndAnimation(),this->getOnEndFx());
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);

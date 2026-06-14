@@ -280,7 +280,7 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->disableFilteringForPixelPerfect();
 
-        anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+        anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
         anim->fx.shader.update();
         this->blend.set(anim->blendState);
         anim->fx.setBlendOp();
@@ -1020,8 +1020,8 @@ namespace mbm
             {
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 anim->updateAnimation(device->delta, ptr_tileMap,
-                                      ptr_tileMap->onEndAnimation,
-                                      ptr_tileMap->onEndFx);
+                                      ptr_tileMap->getOnEndAnimation(),
+                                      ptr_tileMap->getOnEndFx());
             }
         }
         return ret;

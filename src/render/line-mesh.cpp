@@ -308,7 +308,7 @@ namespace mbm
             }
             mbm::ANIMATION *anim = this->getAnimation();
             this->blend.set(anim->blendState);
-            anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+            anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             anim->fx.shader.update(); // glUseProgram
             anim->fx.setBlendOp();
             for (auto line : this->lsLines)

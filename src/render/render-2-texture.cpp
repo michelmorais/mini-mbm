@@ -325,7 +325,7 @@ namespace mbm
             if (anim)
             {
                 this->blend.set(anim->blendState);
-                anim->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(),this->getOnEndFx());
                 anim->fx.shader.update(); // glUseProgram
                 anim->fx.setBlendOp();
                 if (anim->fx.textureOverrideStage2)
@@ -409,7 +409,7 @@ namespace mbm
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }

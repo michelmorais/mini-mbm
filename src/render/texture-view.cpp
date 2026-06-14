@@ -240,7 +240,7 @@ namespace mbm
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }
@@ -273,7 +273,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             this->blend.set(anim->blendState);
-            anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+            anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             anim->fx.setBlendOp();
             anim->fx.shader.update();
             if (anim->fx.textureOverrideStage2)

@@ -546,7 +546,7 @@ namespace mbm
         anim->fx.shader.update();
         anim->fx.setBlendOp();
         this->blend.set(anim->blendState);
-        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
+        anim->updateAnimation(device->delta, this, nullptr, this->getOnEndFx());
         this->control.updateParticleStage(sPart, device->delta);
 
         return anim->fx.shader.renderParticle(&this->bufferGl, &this->control);

@@ -98,7 +98,7 @@ namespace mbm
             ANIMATION *anim = this->lsAnimation[indexAnimation];
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
+            anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
@@ -164,7 +164,7 @@ namespace mbm
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }

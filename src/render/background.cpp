@@ -360,7 +360,7 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION *animation = this->getAnimation();
         if (animation)
-            animation->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+            animation->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
         else
             return false;
         const CAMERA &camera = device->getCamera();

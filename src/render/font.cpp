@@ -488,7 +488,7 @@ namespace mbm
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }
@@ -503,8 +503,10 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
             ANIMATION *anim = this->lsAnimation[indexAnimation];
+            const OnEndAnimation onEndAnimation = this->getOnEndAnimation();
+            const OnEndEffect onEndFx = this->getOnEndFx();
             if (doRender)
-                anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
+                anim->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
             const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
             if(infoFont == nullptr)
                 return false;
@@ -686,7 +688,7 @@ namespace mbm
                                 if (doRender && lsUpdateAnimation.find(indexNewAnim) == lsUpdateAnimation.end())
                                 {
                                     lsUpdateAnimation.insert(indexNewAnim);
-                                    anim->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
+                                    anim->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
                                 }
                             }
                         }

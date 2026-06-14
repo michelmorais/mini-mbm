@@ -267,7 +267,7 @@ namespace mbm
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }
@@ -300,7 +300,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             this->blend.set(animation->blendState);
-            animation->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+            animation->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             if(animation->indexCurrentFrame < static_cast<int>(this->textures.size()))
             {
                 if(animation->indexCurrentFrame < static_cast<int>(interval.size()))

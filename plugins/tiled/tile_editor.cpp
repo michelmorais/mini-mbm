@@ -863,7 +863,7 @@ namespace mbm
         }
 
         this->blend.set(anim->blendState);
-        anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+        anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
         anim->fx.setBlendOp();
         anim->fx.shader.update();
         //only 2dw
@@ -1301,6 +1301,8 @@ namespace mbm
         ANIMATION *anim_selected  = lsAnimation[1];
         ANIMATION *anim_over      = lsAnimation[2];
         ANIMATION *transparent    = lsAnimation[3];
+        const OnEndAnimation onEndAnimation = this->getOnEndAnimation();
+        const OnEndEffect onEndFx = this->getOnEndFx();
         if(transparency)
         {
             anim_normal = transparent;
@@ -1342,7 +1344,7 @@ namespace mbm
             if(bOverBrick)//only one
             {
                 this->blend.set(anim_over->blendState);
-                anim_over->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim_over->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
                 anim_over->fx.setBlendOp();
                 anim_over->fx.shader.update();
                 if(brick->render(&anim_over->fx.shader,layer->fx.textureOverrideStage2) == false)
@@ -1354,7 +1356,7 @@ namespace mbm
                 if(updatedSelected == false)
                 {
                     updatedSelected = true;
-                    anim_selected->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                    anim_selected->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
                     anim_selected->fx.setBlendOp();
                     anim_selected->fx.shader.update();
                 }

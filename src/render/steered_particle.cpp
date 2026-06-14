@@ -252,7 +252,7 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION* anim = this->getAnimation();
         this->blend.set(anim->blendState);
-        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
+        anim->updateAnimation(device->delta, this, nullptr, this->getOnEndFx());
         anim->fx.setBlendOp();
         anim->fx.shader.update();
 
