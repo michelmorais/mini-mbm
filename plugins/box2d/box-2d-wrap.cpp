@@ -594,8 +594,10 @@ namespace mbm
         {
             if(info->body)
             {
-                const b2Vec2 position(info->ptr->position.x * this->scalePercentage,info->ptr->position.y * this->scalePercentage);
-                info->body->SetTransform(position,info->ptr->angle.z);
+                const VEC3 &renderPosition = info->ptr->getPosition();
+                const VEC3 &renderAngle    = info->ptr->getAngle();
+                const b2Vec2 position(renderPosition.x * this->scalePercentage,renderPosition.y * this->scalePercentage);
+                info->body->SetTransform(position,renderAngle.z);
                 info->body->SetAwake(true);
             }
         }
@@ -645,9 +647,11 @@ namespace mbm
             if(info->typePhysics != b2_staticBody)
             {
                 const b2Vec2 pos        =   info->body->GetPosition();
-                info->ptr->position.x   =   pos.x * this->scale;
-                info->ptr->position.y   =   pos.y * this->scale;
-                info->ptr->angle.z      =   info->body->GetAngle();
+                VEC3 &renderPosition    =   info->ptr->getPosition();
+                VEC3 &renderAngle       =   info->ptr->getAngle();
+                renderPosition.x        =   pos.x * this->scale;
+                renderPosition.y        =   pos.y * this->scale;
+                renderAngle.z           =   info->body->GetAngle();
             }
         }
         // Instruct the world to perform a single step of simulation.
@@ -867,7 +871,8 @@ namespace mbm
                 b2BodyDef       bodyDef;
                 bodyDef.bullet = isBullet;
                 bodyDef.type = iskinematicBody ? b2_kinematicBody : b2_dynamicBody;
-                bodyDef.position.Set(info->ptr->position.x * this->scalePercentage,info->ptr->position.y * this->scalePercentage);
+                const VEC3 &renderPosition = info->ptr->getPosition();
+                bodyDef.position.Set(renderPosition.x * this->scalePercentage,renderPosition.y * this->scalePercentage);
                 info->body = world->CreateBody(&bodyDef);
                 info->body->CreateFixture(&fd);
                 interference(info);
@@ -892,8 +897,9 @@ namespace mbm
                 b2BodyDef       bodyDef;
                 bodyDef.bullet = isBullet;
                 bodyDef.type = iskinematicBody ? b2_kinematicBody : b2_dynamicBody;
-                bodyDef.position.Set(   info->ptr->position.x * this->scalePercentage,
-                                        info->ptr->position.y * this->scalePercentage);
+                const VEC3 &renderPosition = info->ptr->getPosition();
+                bodyDef.position.Set(   renderPosition.x * this->scalePercentage,
+                                        renderPosition.y * this->scalePercentage);
                 info->body = world->CreateBody(&bodyDef);
                 info->body->CreateFixture(&fd);
                 interference(info);
@@ -1059,4 +1065,3 @@ namespace mbm
         }
     }
 };
-

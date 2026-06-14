@@ -1725,6 +1725,13 @@ Milestone 203 implementation note:
 - Replaced `onInterfereBox2d()` fallback position/angle reads with local `getPosition()` / `getAngle()` references.
 - Remaining focused hits in this file are `PHYSICS_BOX2D::userData`, not `RENDERIZABLE` state.
 
+Milestone 204 implementation note:
+
+- Migrated plain Box2D wrapper renderizable transform synchronization in `plugins/box2d/box-2d-wrap.cpp` to the accessor API.
+- Replaced body transform reads with local `getPosition()` / `getAngle()` references and Box2D-to-render sync writes with mutable `getPosition()` / `getAngle()` references.
+- Replaced body creation position reads with local `getPosition()` references.
+- Remaining focused hits in this file are Box2D wrapper scale fields or `INFO_PHYSICS::scale`, not `RENDERIZABLE` state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
