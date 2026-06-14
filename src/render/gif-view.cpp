@@ -209,9 +209,10 @@ namespace mbm
     
     TEXTURE * GIF_VIEW::getTexture() const
     {
-        if(this->indexCurrentAnimation < this->lsAnimation.size() )
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if(indexAnimation < this->lsAnimation.size() )
         {
-            ANIMATION* anim = this->lsAnimation[this->indexCurrentAnimation];
+            ANIMATION* anim = this->lsAnimation[indexAnimation];
             if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                 return this->textures[anim->indexCurrentFrame];
         }
@@ -227,9 +228,10 @@ namespace mbm
             mbm::TEXTURE *newTex = mbm::TEXTURE_MANAGER::getInstance()->load(fileNametexture, hasAlpha);
             if (newTex)
             {
-                if(this->indexCurrentAnimation < this->lsAnimation.size() )
+                const uint32_t indexAnimation = this->getIndexAnimation();
+                if(indexAnimation < this->lsAnimation.size() )
                 {
-                    ANIMATION* anim = this->lsAnimation[this->indexCurrentAnimation];
+                    ANIMATION* anim = this->lsAnimation[indexAnimation];
                     if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                         this->textures[anim->indexCurrentFrame] = newTex;
                 }
@@ -246,9 +248,10 @@ namespace mbm
     
     void GIF_VIEW::setTextureToNull()
     {
-        if(this->indexCurrentAnimation < this->lsAnimation.size() )
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if(indexAnimation < this->lsAnimation.size() )
         {
-            ANIMATION* anim = this->lsAnimation[this->indexCurrentAnimation];
+            ANIMATION* anim = this->lsAnimation[indexAnimation];
             if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                 this->textures[anim->indexCurrentFrame] = nullptr;
         }
@@ -388,4 +391,3 @@ namespace mbm
     }
     
 }
-

@@ -1379,6 +1379,13 @@ Milestone 155 implementation note:
 - Kept release compatibility writes to `indexCurrentAnimation` unchanged.
 - This is an internal accessor-use cleanup only; it does not change sprite animation update or render behavior.
 
+Milestone 156 implementation note:
+
+- Migrated `GIF_VIEW::getTexture()`, `setTexture()`, and `setTextureToNull()` current-animation read clusters to use `ANIMATION_MANAGER::getIndexAnimation()` instead of reading `indexCurrentAnimation` directly.
+- Stored the accessor result once per function scope and reused it for the bounds check and animation lookup.
+- Kept texture frame selection, stage-0 texture replacement, fallback `ANIMATION_MANAGER::setTexture()` behavior, and null texture assignment unchanged.
+- This is an internal accessor-use cleanup only; it does not change GIF texture selection behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1412,7 +1419,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `ANIMATION_BACKUP`, done for backup nested structs/vectors.
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
-- `ANIMATION_MANAGER`, restore backup object done; Lua, mesh render, and sprite render current-index reads migrated to `getIndexAnimation()`, while animation list/index/callback fields remain public pending broader accessor migration.
+- `ANIMATION_MANAGER`, restore backup object done; Lua, mesh render, sprite render, and GIF texture current-index reads migrated to `getIndexAnimation()`, while animation list/index/callback fields remain public pending broader accessor migration.
 - `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
@@ -1475,7 +1482,7 @@ Current decision:
 3. `ANIMATION_BACKUP` backup internals are now behind `Impl`.
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
-6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; Lua, mesh render, and sprite render current-index reads now use `getIndexAnimation()`, while public animation list/index/callback state remains pending broader accessor migration.
+6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; Lua, mesh render, sprite render, and GIF texture current-index reads now use `getIndexAnimation()`, while public animation list/index/callback state remains pending broader accessor migration.
 7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
