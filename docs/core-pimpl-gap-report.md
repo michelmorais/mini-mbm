@@ -40,7 +40,7 @@ High-impact examples:
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`. Scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
-| `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, vector of animations, backup object. |
+| `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, and vector of animations. |
 | `include/core_mbm/scene.h` | `endScene`, `wasUnloadedScene`, `nextScene`, `goToNextScene`, `userData`. |
 
 A broad scan for direct member access on the main exposed state returned more than 2,000 hits across `include/`, `src/`, `plugins/`, `platform-*`, and `editor/`. That number is only a sizing signal, but it confirms this cannot be a single mechanical header edit.
@@ -1415,6 +1415,13 @@ Milestone 160 implementation note:
 - Preserved the previous `removeAnimation()` clamp behavior and `setAnimationByIndex()` restart behavior.
 - This is an internal accessor-use cleanup only; it does not change animation lifecycle behavior.
 
+Milestone 161 implementation note:
+
+- Added callback accessors to `ANIMATION_MANAGER`: `getOnEndAnimation()`, `setOnEndAnimation()`, `getOnEndFx()`, and `setOnEndFx()`.
+- Migrated Lua callback registration in `animation-lua.cpp` to use the new setters instead of assigning `onEndAnimation` and `onEndFx` directly.
+- Kept the public callback fields for source compatibility while render-side callback reads migrate in later milestones.
+- This is a callback accessor-surface cleanup only; it does not change Lua callback ownership or animation/effect callback behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1448,7 +1455,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `ANIMATION_BACKUP`, done for backup nested structs/vectors.
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
-- `ANIMATION_MANAGER`, restore backup object done; Lua/render/backup/internal current-index reads migrated to `getIndexAnimation()`, raw current-index compatibility setter added, and render/tiled/backup/internal writer call sites migrated to `setIndexAnimation()`, while the public field/list/callbacks remain pending broader accessor migration.
+- `ANIMATION_MANAGER`, restore backup object done; Lua/render/backup/internal current-index reads migrated to `getIndexAnimation()`, raw current-index compatibility setter added, render/tiled/backup/internal writer call sites migrated to `setIndexAnimation()`, and Lua callback writes migrated to callback setters, while the public field/list/callbacks remain pending broader accessor migration.
 - `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
@@ -1511,7 +1518,7 @@ Current decision:
 3. `ANIMATION_BACKUP` backup internals are now behind `Impl`.
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
-6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index compatibility writes use `setIndexAnimation()`, and public animation list/callback state remains pending broader accessor migration.
+6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index compatibility writes use `setIndexAnimation()`, and Lua callback writes use callback setters. Public animation list/callback fields remain pending broader accessor migration.
 7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 

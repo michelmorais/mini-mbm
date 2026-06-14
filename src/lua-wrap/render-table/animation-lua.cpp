@@ -181,9 +181,9 @@ namespace mbm
                 userData->refTableLua(lua, 1, &userData->ref_MeAsTable);
                 userData->refFunctionLua(lua, 2, &userData->ref_CallBackAnimation);
                 if(userData->ref_CallBackAnimation == LUA_NOREF)
-                    animations->onEndAnimation = nullptr;
+                    animations->setOnEndAnimation(nullptr);
                 else
-                    animations->onEndAnimation = onEndAnimationCallBackAnimationsLua; //-V522
+                    animations->setOnEndAnimation(onEndAnimationCallBackAnimationsLua); //-V522
             }
         }
         return 0;
@@ -202,9 +202,9 @@ namespace mbm
                 userData->refTableLua(lua, 1, &userData->ref_MeAsTable);
                 userData->refFunctionLua(lua, 2, &userData->ref_CallBackEffectShader);
                 if(userData->ref_CallBackEffectShader == LUA_NOREF)
-                    animations->onEndFx = nullptr;
+                    animations->setOnEndFx(nullptr);
                 else
-                    animations->onEndFx = onEndEffectCallBackAnimationsLua; //-V522
+                    animations->setOnEndFx(onEndEffectCallBackAnimationsLua); //-V522
             }
         }
         return 0;

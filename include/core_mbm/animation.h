@@ -132,6 +132,10 @@ namespace mbm
         API_IMPL uint32_t getTotalAnimation() const;
         API_IMPL uint32_t getIndexAnimation() const;
         API_IMPL void setIndexAnimation(const uint32_t newIndex) noexcept;
+        API_IMPL OnEndAnimation getOnEndAnimation() const noexcept;
+        API_IMPL void setOnEndAnimation(OnEndAnimation callback) noexcept;
+        API_IMPL OnEndEffect getOnEndFx() const noexcept;
+        API_IMPL void setOnEndFx(OnEndEffect callback) noexcept;
         API_IMPL bool setAnimationByIndex(const uint32_t newIndex);
         API_IMPL void setAnimation(const char *name);
         API_IMPL void restartAnimation();

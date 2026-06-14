@@ -1048,6 +1048,26 @@ namespace mbm
         this->indexCurrentAnimation = newIndex;
     }
 
+    OnEndAnimation ANIMATION_MANAGER::getOnEndAnimation() const noexcept
+    {
+        return this->onEndAnimation;
+    }
+
+    void ANIMATION_MANAGER::setOnEndAnimation(OnEndAnimation callback) noexcept
+    {
+        this->onEndAnimation = callback;
+    }
+
+    OnEndEffect ANIMATION_MANAGER::getOnEndFx() const noexcept
+    {
+        return this->onEndFx;
+    }
+
+    void ANIMATION_MANAGER::setOnEndFx(OnEndEffect callback) noexcept
+    {
+        this->onEndFx = callback;
+    }
+
     bool ANIMATION_MANAGER::setAnimationByIndex(const uint32_t newIndex)
     {
         if (newIndex < this->lsAnimation.size())
