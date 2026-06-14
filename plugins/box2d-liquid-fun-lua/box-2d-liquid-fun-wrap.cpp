@@ -793,6 +793,7 @@ namespace mbm
             delete info;
             return nullptr;
         }
+        const VEC3 &controllerScale = controller->getScale();
         if(infoPhysics->lsCube.size())
         {
             const std::vector<CUBE*>::size_type sizeSubset = infoPhysics->lsCube.size();
@@ -805,8 +806,8 @@ namespace mbm
                 groundBodyDef.type = b2_staticBody;
                 
                 b2Vec2 center(cube->absCenter.x * this->scalePercentage,cube->absCenter.y * this->scalePercentage);
-                groundBox.SetAsBox( cube->halfDim.x * controller->scale.x * this->scalePercentage * reduceX,
-                                    cube->halfDim.y * controller->scale.y * this->scalePercentage * reduceY,
+                groundBox.SetAsBox( cube->halfDim.x * controllerScale.x * this->scalePercentage * reduceX,
+                                    cube->halfDim.y * controllerScale.y * this->scalePercentage * reduceY,
                                     center ,0);
                 if(info->body)
                 {
@@ -826,9 +827,9 @@ namespace mbm
                 const SPHERE* sphere =  infoPhysics->lsSphere[i];
                 b2CircleShape   shape;
                 fd.shape        = &shape; //-V506
-                shape.m_radius  = sphere->ray * controller->scale.x * this->scalePercentage * reduceX;
-                shape.m_p.Set(  sphere->absCenter[0] * controller->scale.x * this->scalePercentage,
-                                sphere->absCenter[1] * controller->scale.y * this->scalePercentage);
+                shape.m_radius  = sphere->ray * controllerScale.x * this->scalePercentage * reduceX;
+                shape.m_p.Set(  sphere->absCenter[0] * controllerScale.x * this->scalePercentage,
+                                sphere->absCenter[1] * controllerScale.y * this->scalePercentage);
                 if(info->body)
                 {
                     info->body->CreateFixture(&fd);
@@ -850,10 +851,10 @@ namespace mbm
                 const CUBE_COMPLEX* cube = infoPhysics->lsCubeComplex[i];
                 b2PolygonShape  groundPolygn;
                 b2Vec2 vertices[4];
-                vertices[0].Set(cube->a.x * this->scalePercentage * reduceX * controller->scale.x,cube->a.y * this->scalePercentage * reduceY * controller->scale.y);
-                vertices[1].Set(cube->b.x * this->scalePercentage * reduceX * controller->scale.x,cube->b.y * this->scalePercentage * reduceY * controller->scale.y);
-                vertices[2].Set(cube->c.x * this->scalePercentage * reduceX * controller->scale.x,cube->c.y * this->scalePercentage * reduceY * controller->scale.y);
-                vertices[3].Set(cube->d.x * this->scalePercentage * reduceX * controller->scale.x,cube->d.y * this->scalePercentage * reduceY * controller->scale.y);
+                vertices[0].Set(cube->a.x * this->scalePercentage * reduceX * controllerScale.x,cube->a.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[1].Set(cube->b.x * this->scalePercentage * reduceX * controllerScale.x,cube->b.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[2].Set(cube->c.x * this->scalePercentage * reduceX * controllerScale.x,cube->c.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[3].Set(cube->d.x * this->scalePercentage * reduceX * controllerScale.x,cube->d.y * this->scalePercentage * reduceY * controllerScale.y);
                 groundPolygn.Set(vertices, 4);
                                 
                 b2BodyDef       groundBodyDef;
@@ -877,9 +878,9 @@ namespace mbm
                 const TRIANGLE* triangle = infoPhysics->lsTriangle[i];
                 b2PolygonShape  groundTriangle;
                 b2Vec2 vertices[3];
-                vertices[0].Set(triangle->point[0].x * this->scalePercentage  * reduceX * controller->scale.x,triangle->point[0].y * this->scalePercentage * reduceY* controller->scale.y);
-                vertices[1].Set(triangle->point[1].x * this->scalePercentage  * reduceX * controller->scale.x,triangle->point[1].y * this->scalePercentage * reduceY* controller->scale.y);
-                vertices[2].Set(triangle->point[2].x * this->scalePercentage  * reduceX * controller->scale.x,triangle->point[2].y * this->scalePercentage * reduceY* controller->scale.y);
+                vertices[0].Set(triangle->point[0].x * this->scalePercentage  * reduceX * controllerScale.x,triangle->point[0].y * this->scalePercentage * reduceY* controllerScale.y);
+                vertices[1].Set(triangle->point[1].x * this->scalePercentage  * reduceX * controllerScale.x,triangle->point[1].y * this->scalePercentage * reduceY* controllerScale.y);
+                vertices[2].Set(triangle->point[2].x * this->scalePercentage  * reduceX * controllerScale.x,triangle->point[2].y * this->scalePercentage * reduceY* controllerScale.y);
                 groundTriangle.Set(vertices, 3);
                         
                 b2BodyDef       groundBodyDef;
@@ -927,6 +928,7 @@ namespace mbm
             delete info;
             return nullptr;
         }
+        const VEC3 &controllerScale = controller->getScale();
         if(infoPhysics->lsCube.size())
         {
             const std::vector<CUBE*>::size_type sizeSubset = infoPhysics->lsCube.size();
@@ -935,10 +937,10 @@ namespace mbm
                 const CUBE* cube = infoPhysics->lsCube[i];
                 b2PolygonShape  dynamicBox;
                 fd.shape        = &dynamicBox; //-V506
-                b2Vec2 center(  cube->absCenter.x * controller->scale.x * this->scalePercentage,
-                                cube->absCenter.y * controller->scale.y * this->scalePercentage);
-                dynamicBox.SetAsBox(cube->halfDim.x * controller->scale.x * this->scalePercentage * reduceX,
-                                    cube->halfDim.y * controller->scale.y * this->scalePercentage * reduceY,
+                b2Vec2 center(  cube->absCenter.x * controllerScale.x * this->scalePercentage,
+                                cube->absCenter.y * controllerScale.y * this->scalePercentage);
+                dynamicBox.SetAsBox(cube->halfDim.x * controllerScale.x * this->scalePercentage * reduceX,
+                                    cube->halfDim.y * controllerScale.y * this->scalePercentage * reduceY,
                     center,0);
                 if(info->body)
                 {
@@ -963,9 +965,9 @@ namespace mbm
                 const mbm::SPHERE* sphere = infoPhysics->lsSphere[i];
                 b2CircleShape   shape;
                 fd.shape        = &shape; //-V506
-                shape.m_radius  = sphere->ray * controller->scale.x * this->scalePercentage  * reduceX;
-                shape.m_p.Set(  sphere->absCenter[0] * controller->scale.x * this->scalePercentage,
-                                sphere->absCenter[1] * controller->scale.y * this->scalePercentage);
+                shape.m_radius  = sphere->ray * controllerScale.x * this->scalePercentage  * reduceX;
+                shape.m_p.Set(  sphere->absCenter[0] * controllerScale.x * this->scalePercentage,
+                                sphere->absCenter[1] * controllerScale.y * this->scalePercentage);
                 if(info->body)
                 {
                     info->body->CreateFixture(&fd);
@@ -990,10 +992,10 @@ namespace mbm
                 const CUBE_COMPLEX* cube = infoPhysics->lsCubeComplex[i];
                 b2PolygonShape  groundPolygn;
                 b2Vec2 vertices[4];
-                vertices[0].Set(cube->a.x * this->scalePercentage * reduceX * controller->scale.x,cube->a.y * this->scalePercentage * reduceY * controller->scale.y);
-                vertices[1].Set(cube->b.x * this->scalePercentage * reduceX * controller->scale.x,cube->b.y * this->scalePercentage * reduceY * controller->scale.y);
-                vertices[2].Set(cube->c.x * this->scalePercentage * reduceX * controller->scale.x,cube->c.y * this->scalePercentage * reduceY * controller->scale.y);
-                vertices[3].Set(cube->d.x * this->scalePercentage * reduceX * controller->scale.x,cube->d.y * this->scalePercentage * reduceY * controller->scale.y);
+                vertices[0].Set(cube->a.x * this->scalePercentage * reduceX * controllerScale.x,cube->a.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[1].Set(cube->b.x * this->scalePercentage * reduceX * controllerScale.x,cube->b.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[2].Set(cube->c.x * this->scalePercentage * reduceX * controllerScale.x,cube->c.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[3].Set(cube->d.x * this->scalePercentage * reduceX * controllerScale.x,cube->d.y * this->scalePercentage * reduceY * controllerScale.y);
                 groundPolygn.Set(vertices, 4);
                                 
                 b2BodyDef       groundBodyDef;
@@ -1018,9 +1020,9 @@ namespace mbm
                 const TRIANGLE* triangle = infoPhysics->lsTriangle[i];
                 b2PolygonShape  groundTriangle;
                 b2Vec2 vertices[3];
-                vertices[0].Set(triangle->point[0].x* this->scalePercentage * reduceX * controller->scale.x,triangle->point[0].y* this->scalePercentage * reduceY * controller->scale.y);
-                vertices[1].Set(triangle->point[1].x* this->scalePercentage * reduceX * controller->scale.x,triangle->point[1].y* this->scalePercentage * reduceY * controller->scale.y);
-                vertices[2].Set(triangle->point[2].x* this->scalePercentage * reduceX * controller->scale.x,triangle->point[2].y* this->scalePercentage * reduceY * controller->scale.y);
+                vertices[0].Set(triangle->point[0].x* this->scalePercentage * reduceX * controllerScale.x,triangle->point[0].y* this->scalePercentage * reduceY * controllerScale.y);
+                vertices[1].Set(triangle->point[1].x* this->scalePercentage * reduceX * controllerScale.x,triangle->point[1].y* this->scalePercentage * reduceY * controllerScale.y);
+                vertices[2].Set(triangle->point[2].x* this->scalePercentage * reduceX * controllerScale.x,triangle->point[2].y* this->scalePercentage * reduceY * controllerScale.y);
                 groundTriangle.Set(vertices, 3);
             
                 b2BodyDef       groundBodyDef;

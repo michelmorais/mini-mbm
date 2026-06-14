@@ -1832,6 +1832,13 @@ Milestone 217 implementation note:
 - Focused scan for `ptr` / `controller` / `infoBullet->ptr` direct `RENDERIZABLE` field access in `plugins/bullet3d` is clean.
 - Remaining broad Bullet3D scan hits are plugin-private `PHYSICS_BULLET::scale/userData` and primitive physics geometry fields, not `RENDERIZABLE` fields.
 
+Milestone 218 implementation note:
+
+- Migrated Box2D and LiquidFun wrapper collision-shape `RENDERIZABLE` scale reads to the accessor API.
+- Replaced repeated `controller->scale.x/y` use in `completeStaticBody()` and `completeDynamicBody()` with local `const VEC3 &controllerScale = controller->getScale();` references.
+- Touched `plugins/box2d/box-2d-wrap.cpp` and `plugins/box2d-liquid-fun-lua/box-2d-liquid-fun-wrap.cpp`.
+- Focused scan for direct `controller->scale` / transform / user-data fields in Box2D and LiquidFun wrappers is clean.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
