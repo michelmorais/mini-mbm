@@ -540,10 +540,9 @@ namespace mbm
         }
     }
 
-    int getDynamicVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what)
+    static int getDynamicVariableFromPtr(lua_State *lua, DYNAMIC_VAR *dyVar, const char *what)
     {
         const char *      strinChar = nullptr;
-        DYNAMIC_VAR *dyVar     = lsDynamicVar[what];
         if (dyVar == nullptr)
         {
             lua_pushnil(lua);
@@ -610,9 +609,14 @@ namespace mbm
         return 1;
     }
 
+    int getDynamicVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what)
+    {
+        return getDynamicVariableFromPtr(lua, lsDynamicVar[what], what);
+    }
+
     int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what)
     {
-        return getDynamicVariable(lua, ptr->lsDynamicVar, what);
+        return getDynamicVariableFromPtr(lua, ptr->getDynamicVar(what), what);
     }
 
     void getFieldUnsignedFromTable(lua_State *lua, const int indexTable, const char *fieldName,uint32_t *ptrRet)
@@ -828,9 +832,118 @@ namespace mbm
         return 0;
     }
 
+    static int setDynamicVariableOnRenderizable(lua_State *lua, RENDERIZABLE *ptr, const char *what)
+    {
+        const int         top   = lua_gettop(lua);
+        const int         type  = lua_type(lua, top);
+        DYNAMIC_VAR *dyVar = ptr->getDynamicVar(what);
+        switch (type)
+        {
+            case LUA_TNIL:
+            {
+                unrefTableByIdTableRef(dyVar, lua);
+                ptr->setDynamicVar(what, nullptr);
+            }
+            break;
+            case LUA_TNUMBER:
+            {
+                float var = lua_tonumber(lua, top);
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_FLOAT)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_FLOAT, &var));
+                }
+                else
+                {
+                    switch(dyVar->type)
+                    {
+                        case DYNAMIC_FLOAT:
+                        {
+                            dyVar->setFloat(var);
+                        }
+                        break;
+                        case DYNAMIC_INT:
+                        {
+                            dyVar->setInt(static_cast<int>(var));
+                        }
+                        break;
+                        case DYNAMIC_SHORT:
+                        {
+                            dyVar->setShort(static_cast<short int>(var));
+                        }
+                        break;
+                        default:{}
+                    }
+                }
+            }
+            break;
+            case LUA_TBOOLEAN:
+            {
+                bool var = lua_toboolean(lua, top) ? true : false;
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_BOOL)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_BOOL, &var));
+                }
+                else if (dyVar->type == DYNAMIC_BOOL)
+                {
+                    dyVar->setBool(var);
+                }
+            }
+            break;
+            case LUA_TSTRING:
+            {
+                const char *var = lua_tostring(lua, top);
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_CSTRING)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_CSTRING,var));
+                }
+                else if (dyVar->type == DYNAMIC_CSTRING)
+                {
+                    dyVar->setString(var);
+                }
+            }
+            break;
+            case LUA_TTABLE:
+            {
+                const int tref = luaL_ref(lua, LUA_REGISTRYINDEX);
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_TABLE)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_TABLE,&tref));
+                }
+                else if (dyVar->type == DYNAMIC_TABLE)
+                {
+                    dyVar->setVoid(static_cast<const void*>(&tref));
+                }
+            }
+            break;
+            case LUA_TFUNCTION:
+            {
+                const int tref = luaL_ref(lua, LUA_REGISTRYINDEX);
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_FUNCTION)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_FUNCTION,&tref));
+                }
+                else if (dyVar->type == DYNAMIC_FUNCTION)
+                {
+                    dyVar->setVoid(static_cast<const void*>(&tref));
+                }
+            }
+            break;
+            case LUA_TUSERDATA: { return lua_error_debug(lua, "variable [%s] userdata not allowed!", what);}
+            case LUA_TTHREAD: { return lua_error_debug(lua, "variable [%s] thread not allowed!", what);}
+            case LUA_TLIGHTUSERDATA: { return lua_error_debug(lua, "variable [%s] light userdata not allowed!", what);}
+            default: { return lua_error_debug(lua, "variable [%s] unknown!", what);}
+        }
+        return 0;
+    }
+
     int setVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what)
     {
-        return setDynamicVariable(lua, ptr->lsDynamicVar, what);
+        return setDynamicVariableOnRenderizable(lua, ptr, what);
     }
 
     const char *getRandomNameTexture()

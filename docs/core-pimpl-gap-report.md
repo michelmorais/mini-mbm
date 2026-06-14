@@ -1839,6 +1839,13 @@ Milestone 218 implementation note:
 - Touched `plugins/box2d/box-2d-wrap.cpp` and `plugins/box2d-liquid-fun-lua/box-2d-liquid-fun-wrap.cpp`.
 - Focused scan for direct `controller->scale` / transform / user-data fields in Box2D and LiquidFun wrappers is clean.
 
+Milestone 219 implementation note:
+
+- Migrated the shared plugin-helper Lua variable bridge away from direct `RENDERIZABLE::lsDynamicVar` access.
+- Kept the exported map-based dynamic-variable helper functions unchanged for non-renderizable callers such as mesh-debug.
+- Routed renderizable `getVariable()` / `setVariable()` through `RENDERIZABLE::getDynamicVar()` and `RENDERIZABLE::setDynamicVar()`.
+- Focused plugin scan for direct `RENDERIZABLE::lsDynamicVar` access is clean; remaining `lsDynamicVar` hits are generic map helpers or camera user-data maps.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
