@@ -1104,21 +1104,22 @@ namespace mbm
 
     void ANIMATION_MANAGER::removeAnimation(const uint32_t index)
     {
-        if (index < this->lsAnimation.size())
+        mbm::ANIMATION *anim = this->getAnimation(index);
+        if (anim)
         {
-            mbm::ANIMATION *anim = this->lsAnimation[index];
             delete anim;
             this->lsAnimation.erase(this->lsAnimation.begin() + index);
             const uint32_t indexAnimation = this->getIndexAnimation();
-            if (indexAnimation > this->lsAnimation.size())
+            const uint32_t totalAnimation = this->getTotalAnimation();
+            if (indexAnimation > totalAnimation)
             {
-                if (this->lsAnimation.size())
-                    this->setIndexAnimation(static_cast<uint32_t>(this->lsAnimation.size() - 1));
+                if (totalAnimation)
+                    this->setIndexAnimation(totalAnimation - 1);
                 else
                     this->setIndexAnimation(0);
             }
-            else if (this->lsAnimation.size())
-                this->setIndexAnimation(static_cast<uint32_t>(this->lsAnimation.size() - 1));
+            else if (totalAnimation)
+                this->setIndexAnimation(totalAnimation - 1);
         }
     }
 
