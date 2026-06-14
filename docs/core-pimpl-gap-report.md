@@ -1806,6 +1806,13 @@ Milestone 214 implementation note:
 - Focused scan for direct `RENDERIZABLE` fields in `animation-lua.cpp` is clean.
 - Remaining render-table scan hits are `CAMERA_TARGET` fields in `render-2-texture-lua.cpp` and mesh-debug buffer fields in `mesh-debug-lua.cpp`, not `RENDERIZABLE` fields.
 
+Milestone 215 implementation note:
+
+- Migrated `src/render/renderizable-clone.cpp` clone construction mode checks from direct `is3D` / `is2dS` field reads to cached `is3DObject()` / `is2dScreenObject()` accessor values.
+- Focused scan for direct `RENDERIZABLE` fields in `renderizable-clone.cpp` is clean.
+- Remaining always-built `src/render` / `src/core_mbm` scan hits are non-`RENDERIZABLE` state: `TRIANGLE` physics copy data, `AUDIO` user data, `SCENE` impl user data, `CAMERA` state, and `CAMERA_TARGET` state.
+- Next real direct `RENDERIZABLE` cleanup area is optional plugin code, especially Bullet3D.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

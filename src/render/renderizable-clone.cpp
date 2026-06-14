@@ -54,21 +54,23 @@ namespace mbm
 		}
 
 		RENDERIZABLE * the_clone = nullptr;
+		const bool is3DObject = clone_from->is3DObject();
+		const bool is2dScreenObject = clone_from->is2dScreenObject();
 
 		switch(clone_from->typeClass)
 		{
-			case TYPE_CLASS_MESH:          the_clone = new MESH(scene,clone_from->is3D,clone_from->is2dS); break;
-			case TYPE_CLASS_SPRITE:        the_clone = new SPRITE(scene,clone_from->is3D,clone_from->is2dS); break;
-			case TYPE_CLASS_TEXTURE:       the_clone = new TEXTURE_VIEW(scene,clone_from->is3D,clone_from->is2dS); break;
-			case TYPE_CLASS_BACKGROUND:    the_clone = new BACKGROUND(scene,clone_from->is3D); break;
-			case TYPE_CLASS_GIF:           the_clone = new GIF_VIEW(scene,clone_from->is3D,clone_from->is2dS); break;
-			//case TYPE_CLASS_TEXT:          the_clone = new TEXT_DRAW(scene,clone_from->is3D,clone_from->is2dS); break;
-			case TYPE_CLASS_SHAPE_MESH:    the_clone = new SHAPE_MESH(scene,clone_from->is3D,clone_from->is2dS); break;
-			case TYPE_CLASS_LINE_MESH:     the_clone = new LINE_MESH(scene,clone_from->is3D,clone_from->is2dS); break;
-			case TYPE_CLASS_PARTICLE:      the_clone = new PARTICLE(scene,clone_from->is3D,clone_from->is2dS); break;
-			case TYPE_CLASS_RENDER_2_TEX:  the_clone = new RENDER_2_TEXTURE(scene,clone_from->is3D,clone_from->is2dS); break;
-			case TYPE_CLASS_TILE:          the_clone = new TILE(scene,clone_from->is3D,clone_from->is2dS); break;
-			//case TYPE_CLASS_TILE_OBJ:      the_clone = new TILE_OBJ(scene,clone_from->is3D,clone_from->is2dS); break;
+			case TYPE_CLASS_MESH:          the_clone = new MESH(scene,is3DObject,is2dScreenObject); break;
+			case TYPE_CLASS_SPRITE:        the_clone = new SPRITE(scene,is3DObject,is2dScreenObject); break;
+			case TYPE_CLASS_TEXTURE:       the_clone = new TEXTURE_VIEW(scene,is3DObject,is2dScreenObject); break;
+			case TYPE_CLASS_BACKGROUND:    the_clone = new BACKGROUND(scene,is3DObject); break;
+			case TYPE_CLASS_GIF:           the_clone = new GIF_VIEW(scene,is3DObject,is2dScreenObject); break;
+			//case TYPE_CLASS_TEXT:          the_clone = new TEXT_DRAW(scene,is3DObject,is2dScreenObject); break;
+			case TYPE_CLASS_SHAPE_MESH:    the_clone = new SHAPE_MESH(scene,is3DObject,is2dScreenObject); break;
+			case TYPE_CLASS_LINE_MESH:     the_clone = new LINE_MESH(scene,is3DObject,is2dScreenObject); break;
+			case TYPE_CLASS_PARTICLE:      the_clone = new PARTICLE(scene,is3DObject,is2dScreenObject); break;
+			case TYPE_CLASS_RENDER_2_TEX:  the_clone = new RENDER_2_TEXTURE(scene,is3DObject,is2dScreenObject); break;
+			case TYPE_CLASS_TILE:          the_clone = new TILE(scene,is3DObject,is2dScreenObject); break;
+			//case TYPE_CLASS_TILE_OBJ:      the_clone = new TILE_OBJ(scene,is3DObject,is2dScreenObject); break;
 			default:
 			{
 				PRINT_IF_DEBUG("Could not clone object [%s] [%s]",clone_from->getTypeClassName(),clone_from->getFileName());
@@ -92,4 +94,3 @@ namespace mbm
 		return the_clone;
 	}
 }
-
