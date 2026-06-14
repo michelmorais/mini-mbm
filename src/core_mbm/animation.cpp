@@ -1469,7 +1469,7 @@ namespace mbm
                 }
             }
             
-            this->impl->indexCurrentAnimation = animationManager->indexCurrentAnimation;
+            this->impl->indexCurrentAnimation = animationManager->getIndexAnimation();
             animationManager->releaseAnimation();
         }
     }
@@ -1515,11 +1515,11 @@ namespace mbm
             }
             if (this->impl->indexCurrentAnimation < animationManager->lsAnimation.size())
             {
-                animationManager->indexCurrentAnimation = this->impl->indexCurrentAnimation;
+                animationManager->setIndexAnimation(this->impl->indexCurrentAnimation);
             }
             else
             {
-                animationManager->indexCurrentAnimation = 0;
+                animationManager->setIndexAnimation(0);
             }
         }
         this->clearBackup();
