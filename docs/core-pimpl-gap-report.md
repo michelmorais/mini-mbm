@@ -1706,6 +1706,12 @@ Milestone 200 implementation note:
 - Replaced the `addOnTouchMeshLua()` direct `userData` read with `getUserData()`.
 - This keeps Lua touch callback registration behavior unchanged while removing direct `RENDERIZABLE::userData` access from `framework-lua.cpp`.
 
+Milestone 201 implementation note:
+
+- Migrated the isolated `plugins/plugin-helper/user-data-lua.cpp` renderizable visibility write to the `RENDERIZABLE` accessor API.
+- Replaced the direct `enableRender` write in `USER_DATA_SCENE_LUA::remove(RENDERIZABLE *)` with `setEnableRender(false)`.
+- This keeps Lua callback removal behavior unchanged while removing one more direct plugin-helper dependency on the public `RENDERIZABLE::enableRender` field.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

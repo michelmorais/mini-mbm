@@ -67,7 +67,7 @@ namespace mbm
     }
     void USER_DATA_SCENE_LUA::remove(RENDERIZABLE *obj)
     {
-        obj->enableRender = false;
+        obj->setEnableRender(false);
         unsigned int s = static_cast<unsigned int>(lsLuaCallBackOnTouchAsynchronous.size());
         for (unsigned int i = 0; i < s; ++i)
         {
