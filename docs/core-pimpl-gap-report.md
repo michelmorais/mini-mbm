@@ -1781,6 +1781,14 @@ Milestone 211 implementation note:
 - Replaced render-to-texture constructor position writes with a local `getPosition()` reference.
 - Remaining focused `render-2-texture-lua.cpp` hits are `CAMERA_TARGET` position/scale/angle state, not `RENDERIZABLE` state.
 
+Milestone 212 implementation note:
+
+- Migrated `TILE` / `TILE_OBJ` Lua render-table ownership and tile object export transform paths to the `RENDERIZABLE` accessor API.
+- Replaced Lua `userData` ownership reads/writes in `tile-lua.cpp` with `getUserData()` / `setUserData()`.
+- Replaced tile object export coordinate scaling/offset calculations with local `getScale()` / `getPosition()` references.
+- Replaced tile constructor position writes with a local `getPosition()` reference.
+- Focused scan for direct `RENDERIZABLE` fields in `tile-lua.cpp` is clean.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
