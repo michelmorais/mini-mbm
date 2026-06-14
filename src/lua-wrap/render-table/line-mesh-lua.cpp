@@ -177,9 +177,10 @@ namespace mbm
 		auto * anim = lineMesh->getAnimation();
         if(anim)
         {
-            anim->fx.setVarPShader("color", d);
-            anim->fx.setMaxVarPShader("color", d);
-            anim->fx.setMinVarPShader("color", d);
+            FX &fx = anim->getFx();
+            fx.setVarPShader("color", d);
+            fx.setMaxVarPShader("color", d);
+            fx.setMinVarPShader("color", d);
         }
         return 0;
     }
