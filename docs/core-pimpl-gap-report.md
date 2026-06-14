@@ -1739,6 +1739,13 @@ Milestone 205 implementation note:
 - Replaced default fluid angle and `onInterfereBox2dlf()` fallback transform reads with `getAngle()` / `getPosition()` references.
 - Remaining focused hits in this file are `PHYSICS_BOX2D_LIQUID_FUN::userData`, not `RENDERIZABLE` state.
 
+Milestone 206 implementation note:
+
+- Migrated LiquidFun Box2D wrapper renderizable transform synchronization in `plugins/box2d-liquid-fun-lua/box-2d-liquid-fun-wrap.cpp` to the accessor API.
+- Replaced body transform reads with local `getPosition()` / `getAngle()` references and LiquidFun-to-render sync writes with mutable `getPosition()` / `getAngle()` references.
+- Replaced body creation position reads with local `getPosition()` references and fluid renderizable z-position setup with `getPosition().z`.
+- Remaining focused hits in this file are LiquidFun wrapper scale fields or `INFO_PHYSICS::scale`, not `RENDERIZABLE` state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
