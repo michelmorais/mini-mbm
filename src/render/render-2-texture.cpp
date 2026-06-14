@@ -26,9 +26,21 @@
 #include <algorithm>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/scene.h>
+#include <vector>
 
 namespace mbm
 {
+    struct RENDER_2_TEXTURE::Impl
+    {
+        std::vector<RENDERIZABLE *> lsObjects2dRender;
+        std::vector<RENDERIZABLE *> lsObjects3dRender;
+        bool                        modeTextureOnly;
+
+        Impl() noexcept:
+            modeTextureOnly(false)
+        {
+        }
+    };
 
     CAMERA_TARGET::CAMERA_TARGET() noexcept : position(0, 0, 0), scale(1, 1, 1), angle(0, 0, 0), focus(0, 0, 0), up(0, 1, 0), zNear(0.1f), zFar(1000.0f)
     {
@@ -61,9 +73,9 @@ namespace mbm
     }
     
     RENDER_2_TEXTURE::RENDER_2_TEXTURE(const SCENE *scene, const bool _is3d, const bool _is2dScreen) :
-        RENDERIZABLE_TO_TARGET(scene, TYPE_CLASS_RENDER_2_TEX, _is3d && _is2dScreen == false, _is2dScreen)
+        RENDERIZABLE_TO_TARGET(scene, TYPE_CLASS_RENDER_2_TEX, _is3d && _is2dScreen == false, _is2dScreen),
+        impl(new Impl())
     {
-        this->modeTextureOnly = false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
         device->addObjectRender2Texture(this);
@@ -85,22 +97,24 @@ namespace mbm
     {
         if (ptr)
         {
-            for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
+            auto &objects2d = this->impl->lsObjects2dRender;
+            for (unsigned int i = 0; i < objects2d.size(); ++i)
             {
-                RENDERIZABLE *other = this->lsObjects2dRender[i];
+                RENDERIZABLE *other = objects2d[i];
                 if (ptr == other)
                 {
-                    this->lsObjects2dRender.erase(this->lsObjects2dRender.begin() + i);
+                    objects2d.erase(objects2d.begin() + i);
                     break;
                 }
             }
 
-            for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
+            auto &objects3d = this->impl->lsObjects3dRender;
+            for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
-                RENDERIZABLE *other = this->lsObjects3dRender[i];
+                RENDERIZABLE *other = objects3d[i];
                 if (ptr == other)
                 {
-                    this->lsObjects3dRender.erase(this->lsObjects3dRender.begin() + i);
+                    objects3d.erase(objects3d.begin() + i);
                     break;
                 }
             }
@@ -216,18 +230,21 @@ namespace mbm
     
     void RENDER_2_TEXTURE::clear()
     {
-        for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
+        auto &objects3d = this->impl->lsObjects3dRender;
+        for (unsigned int i = 0; i < objects3d.size(); ++i)
         {
-            RENDERIZABLE *ptr = lsObjects3dRender[i];
+            RENDERIZABLE *ptr = objects3d[i];
             ptr->setRender2Texture(false);
         }
-        this->lsObjects3dRender.clear();
-        for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
+        objects3d.clear();
+
+        auto &objects2d = this->impl->lsObjects2dRender;
+        for (unsigned int i = 0; i < objects2d.size(); ++i)
         {
-            RENDERIZABLE *ptr = lsObjects2dRender[i];
+            RENDERIZABLE *ptr = objects2d[i];
             ptr->setRender2Texture(false);
         }
-        this->lsObjects2dRender.clear();
+        objects2d.clear();
     }
 
     bool RENDER_2_TEXTURE::removeObject2Render(RENDERIZABLE *ptr)
@@ -237,26 +254,28 @@ namespace mbm
         // isRender2Texture is shared state across render targets; membership must be checked against this target's list.
         if (ptr->is3DObject())
         {
-            for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
+            auto &objects3d = this->impl->lsObjects3dRender;
+            for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
-                RENDERIZABLE *other = lsObjects3dRender[i];
+                RENDERIZABLE *other = objects3d[i];
                 if (ptr == other)
                 {
                     ptr->setRender2Texture(false);
-                    lsObjects3dRender.erase(lsObjects3dRender.begin() + i);
+                    objects3d.erase(objects3d.begin() + i);
                     return true;
                 }
             }
         }
         else
         {
-            for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
+            auto &objects2d = this->impl->lsObjects2dRender;
+            for (unsigned int i = 0; i < objects2d.size(); ++i)
             {
-                RENDERIZABLE *other = lsObjects2dRender[i];
+                RENDERIZABLE *other = objects2d[i];
                 if (ptr == other)
                 {
                     ptr->setRender2Texture(false);
-                    lsObjects2dRender.erase(lsObjects2dRender.begin() + i);
+                    objects2d.erase(objects2d.begin() + i);
                     return true;
                 }
             }
@@ -271,24 +290,26 @@ namespace mbm
         // isRender2Texture is shared state across render targets; membership must be checked against this target's list.
         if (ptr->is3DObject())
         {
-            for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
+            auto &objects3d = this->impl->lsObjects3dRender;
+            for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
-                RENDERIZABLE *other = lsObjects3dRender[i];
+                RENDERIZABLE *other = objects3d[i];
                 if (ptr == other)
                     return true;
             }
-            lsObjects3dRender.push_back(ptr);
+            objects3d.push_back(ptr);
             ptr->setRender2Texture(true);
         }
         else
         {
-            for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
+            auto &objects2d = this->impl->lsObjects2dRender;
+            for (unsigned int i = 0; i < objects2d.size(); ++i)
             {
-                RENDERIZABLE *other = lsObjects2dRender[i];
+                RENDERIZABLE *other = objects2d[i];
                 if (ptr == other)
                     return true;
             }
-            lsObjects2dRender.push_back(ptr);
+            objects2d.push_back(ptr);
             ptr->setRender2Texture(true);
         }
         return true;
@@ -298,7 +319,7 @@ namespace mbm
     {
         if (this->bufferGL.isLoadedBuffer())
         {
-            if (this->modeTextureOnly)
+            if (this->isTextureOnlyModeEnabled())
                 return true;
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
@@ -343,24 +364,25 @@ namespace mbm
     
     bool RENDER_2_TEXTURE::render2Texture()
     {
-        if (this->lsObjects3dRender.size())
+        auto &objects3d = this->impl->lsObjects3dRender;
+        if (objects3d.size())
         {
             mbm::DEVICE* device     = mbm::DEVICE::getInstance();
             const CUBE *cube        = this->infoPhysics.lsCube[0];
             const float widthFrame  = cube->halfDim.x * 2.0f;
             const float heightFrame = cube->halfDim.y * 2.0f;
             this->camera3d.enableMode3D(device, widthFrame, heightFrame);
-            for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
+            for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
-                RENDERIZABLE *ptr = lsObjects3dRender[i];
+                RENDERIZABLE *ptr = objects3d[i];
                 const VEC3 distFromCam(ptr->getPosition() - this->camera3d.position);
                 ptr->setDistanceFromView(distFromCam.length());
             }
-            std::sort(lsObjects3dRender.begin(), lsObjects3dRender.end(),
+            std::sort(objects3d.begin(), objects3d.end(),
                       [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
-            for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
+            for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
-                RENDERIZABLE *ptr = lsObjects3dRender[i];
+                RENDERIZABLE *ptr = objects3d[i];
                 if (ptr->isRenderEnabled())
                 {
                     const bool oldAlwaysRender = ptr->isAlwaysRenderizeEnabled();
@@ -372,20 +394,21 @@ namespace mbm
                 }
             }
         }
-        if (this->lsObjects2dRender.size())
+        auto &objects2d = this->impl->lsObjects2dRender;
+        if (objects2d.size())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             this->camera2d.enableMode2D(device, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
-            for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
+            for (unsigned int i = 0; i < objects2d.size(); ++i)
             {
-                RENDERIZABLE *ptr   = lsObjects2dRender[i];
+                RENDERIZABLE *ptr   = objects2d[i];
                 ptr->setDistanceFromView(ptr->getPosition().z);
             }
-            std::sort(lsObjects2dRender.begin(), lsObjects2dRender.end(),
+            std::sort(objects2d.begin(), objects2d.end(),
                       [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
-            for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
+            for (unsigned int i = 0; i < objects2d.size(); ++i)
             {
-                RENDERIZABLE *ptr = lsObjects2dRender[i];
+                RENDERIZABLE *ptr = objects2d[i];
                 if (ptr->isRenderEnabled())
                 {
                     const bool oldAlwaysRender = ptr->isAlwaysRenderizeEnabled();
@@ -398,6 +421,22 @@ namespace mbm
             }
         }
         return true;
+    }
+
+    bool RENDER_2_TEXTURE::isTextureOnlyModeEnabled() const noexcept
+    {
+        return this->impl->modeTextureOnly;
+    }
+
+    void RENDER_2_TEXTURE::setTextureOnlyMode(const bool mode) noexcept
+    {
+        this->impl->modeTextureOnly = mode;
+    }
+
+    void RENDER_2_TEXTURE::clearRenderObjectLists() noexcept
+    {
+        this->impl->lsObjects2dRender.clear();
+        this->impl->lsObjects3dRender.clear();
     }
     
     bool RENDER_2_TEXTURE::isOnFrustum()

@@ -1982,6 +1982,14 @@ Milestone 239 implementation note:
 - Kept the render-target size/clear-color accessor API added in Milestone 238 unchanged.
 - Focused scan shows remaining `widthTexture` / `heightTexture` / `colorClearBackGround` hits are private accessor implementation, unrelated `INFO_GIF`/`DEVICE` state, or historical docs.
 
+Milestone 240 implementation note:
+
+- Moved `RENDER_2_TEXTURE::lsObjects2dRender`, `RENDER_2_TEXTURE::lsObjects3dRender`, and `RENDER_2_TEXTURE::modeTextureOnly` into private `RENDER_2_TEXTURE::Impl`.
+- Added narrow accessors/helpers for the remaining users: `isTextureOnlyModeEnabled()`, `setTextureOnlyMode()`, and protected `clearRenderObjectLists()`.
+- Migrated `RENDER_2_TEXTURE`, `HMD`, and the render-to-texture Lua binding away from direct list/flag access.
+- Kept `CAMERA_TARGET` and public `camera2d`/`camera3d` unchanged because the Lua camera table exposes that object heavily and it needs a separate compatibility pass.
+- Focused scan shows `lsObjects2dRender`, `lsObjects3dRender`, and `modeTextureOnly` now appear only in the private implementation and the new accessor/helper calls.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2085,5 +2093,6 @@ Current decision:
 8. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and device pointer are now behind `Impl`; internal/backend/platform/Lua call sites use accessor-backed device access.
 9. `ANIMATION` frame state, blend state, flags, type, `FX`, and timer are now behind `Impl`; direct repo call sites found by the `anim->...` / `animation->...` public field scan use the accessor API.
 10. `RENDERIZABLE` base state is now behind `Impl`; `RENDERIZABLE_TO_TARGET` render-target size/clear-color state is now accessor-backed and hidden.
+11. `RENDER_2_TEXTURE` render-object lists and texture-only flag are now behind `Impl`; `CAMERA_TARGET` remains public compatibility surface for a separate pass.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

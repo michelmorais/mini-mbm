@@ -35,8 +35,7 @@ namespace mbm
     HMD::~HMD()
     {
         this->texture = nullptr;
-        this->lsObjects2dRender.clear();
-        this->lsObjects3dRender.clear();
+        this->clearRenderObjectLists();
         this->clearInternalFileName();
         this->bufferGLRight.release();
         this->bufferGL.release();
@@ -165,7 +164,7 @@ namespace mbm
     {
         if (bufferSide->isLoadedBuffer())
         {
-            if (this->modeTextureOnly)
+            if (this->isTextureOnlyModeEnabled())
                 return true;
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();

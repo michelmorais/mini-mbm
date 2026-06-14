@@ -377,7 +377,7 @@ namespace mbm
     {
         RENDER_2_TEXTURE *render2texture = getRender2TextureTargetFromRawTable(lua, 1, 1);
         const bool        mode           = lua_toboolean(lua, 2) == 0;
-        render2texture->modeTextureOnly  = mode;
+        render2texture->setTextureOnlyMode(mode);
         return 0;
     }
 
