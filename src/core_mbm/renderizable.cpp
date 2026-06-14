@@ -45,6 +45,7 @@ namespace mbm
         bool        enableRender;
         void *      userData;
         RENDER_STATE blend;
+        VEC3        boundingAABB;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
 
         Impl(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
@@ -57,7 +58,8 @@ namespace mbm
             isRender2Texture(false),
             alwaysRenderize(false),
             enableRender(true),
-            userData(nullptr)
+            userData(nullptr),
+            boundingAABB(0, 0, 0)
         {
         }
     };
@@ -66,7 +68,6 @@ namespace mbm
                                const bool _is2ds) noexcept : position(0, 0, 0),
                                                              scale(1, 1, 1),
                                                              angle(0, 0, 0),
-                                                             bounding_AABB(0, 0, 0),
                                                              impl(std::make_unique<Impl>(idSceneMe, newTypeClass, _is3d, _is2ds))
     {
     }
@@ -174,17 +175,17 @@ namespace mbm
 
     VEC3 & RENDERIZABLE::getBoundingAABB() noexcept
     {
-        return this->bounding_AABB;
+        return this->impl->boundingAABB;
     }
 
     const VEC3 & RENDERIZABLE::getBoundingAABB() const noexcept
     {
-        return this->bounding_AABB;
+        return this->impl->boundingAABB;
     }
 
     void RENDERIZABLE::setBoundingAABB(const VEC3 &newBoundingAABB) noexcept
     {
-        this->bounding_AABB = newBoundingAABB;
+        this->impl->boundingAABB = newBoundingAABB;
     }
 
     float RENDERIZABLE::getDistanceFromView() const noexcept

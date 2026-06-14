@@ -22,16 +22,16 @@ An object is added to the correct list automatically by
 `DEVICE::addRenderizable(this)` — call this in your constructor.
 Remove it with `DEVICE::removeRenderizable(this)` — call this in your destructor.
 
-### Key public members
+### Key render state
 
-| Member | Purpose |
-|--------|---------|
+| State | Purpose |
+|-------|---------|
 | `position` | World position. **`position.z` is the depth-sort key.** |
 | `scale` / `angle` | Transform |
-| `bounding_AABB` | Populated by `updateAABB()`, used for frustum culling |
-| `enableRender` | Set to `false` to hide without removing from the list |
-| `alwaysRenderize` | Skip frustum culling when `true` |
-| `blend` | Blend state for this object |
+| `getBoundingAABB()` / `setBoundingAABB()` | AABB populated by `updateAABB()`, used for frustum culling |
+| `isRenderEnabled()` / `setEnableRender()` | Hide without removing from the render list |
+| `isAlwaysRenderizeEnabled()` / `setAlwaysRenderize()` | Skip frustum culling when enabled |
+| `getBlend()` / `setBlendState()` | Blend state for this object |
 
 ### Pure virtual methods you **must** implement
 

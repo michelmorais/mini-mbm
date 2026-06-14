@@ -38,7 +38,7 @@ High-impact examples:
 | Header | Public state that blocks strict PIMPL |
 |---|---|
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
-| `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, and `bounding_AABB`; blend state, internal flags, dynamic vars, user data, identity/classification, file name, and distance-from-view state are now behind `RENDERIZABLE::Impl`. |
+| `include/core_mbm/renderizable.h` | `position`, `scale`, and `angle`; bounding AABB, blend state, internal flags, dynamic vars, user data, identity/classification, file name, and distance-from-view state are now behind `RENDERIZABLE::Impl`. |
 | `include/core_mbm/core-manager.h` | No direct public data members remain; device pointer, scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
 | `include/core_mbm/animation.h` | No direct public data members remain in `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER`; animation/effect state is behind `Impl`. |
 | `include/core_mbm/scene.h` | No direct public data members remain; scene transition state and scene user data are accessor-backed and stored behind `Impl`. |
@@ -1949,6 +1949,13 @@ Milestone 234 implementation note:
 - Kept blend behavior routed through the existing `getBlend()` and `setBlendState()` API.
 - Focused scan showed no external direct `RENDERIZABLE::blend` field access before the move; existing render/Lua/plugin paths already used the accessor API.
 - Kept `blend.h` included by `renderizable.h` because the public `setBlendState(BLEND_STATE)` signature still needs the enum declaration.
+
+Milestone 235 implementation note:
+
+- Moved `RENDERIZABLE::bounding_AABB` into `RENDERIZABLE::Impl`.
+- Kept AABB behavior routed through the existing `getBoundingAABB()` and `setBoundingAABB()` API.
+- Focused scan showed direct AABB use was already limited to constructor/accessor implementation; render/text paths use the accessor API.
+- Left `position`, `scale`, and `angle` public for now because they still have broad direct gameplay/test usage and need a separate migration pass.
 
 ### Phase 3 - Hide renderer backend handles
 
