@@ -69,10 +69,6 @@ namespace mbm
         friend class ANIMATION_MANAGER;
 
       public:
-        const int        idScene;
-        const TYPE_CLASS typeClass;
-        const bool       is3D;
-        const bool       is2dS;
         mbm::VEC3        position;
         mbm::VEC3        scale;
         mbm::VEC3        angle;

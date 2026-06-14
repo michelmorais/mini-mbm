@@ -180,7 +180,7 @@ void MY_SCENE::onLoop()
         {
             notificationTimer = 0.0f;
             if (notificationText)
-                notificationText->enableRender = false;
+                notificationText->setEnableRender(false);
         }
     }
     for(size_t i = 0; i < menuItems.size(); i++)
@@ -188,13 +188,14 @@ void MY_SCENE::onLoop()
         MenuRow& row = menuItems[i];
         if (row.object)
         {
-            if(row.object->is3D)
+            mbm::VEC3 &angle = row.object->getAngle();
+            if(row.object->is3DObject())
             {
-                row.object->angle.y += device->delta * 3.0f;
+                angle.y += device->delta * 3.0f;
             }
             else
             {
-                row.object->angle.y = 0.0f;
+                angle.y = 0.0f;
             }
         }
     }
@@ -319,18 +320,19 @@ void MY_SCENE::onTouchMove(int, float x, float y)
     mouseScreenY = y;
     if(trackMouse)
     {
-        if(trackMouse->is3D)
+        mbm::VEC3 &position = trackMouse->getPosition();
+        if(trackMouse->is3DObject())
         {
-            device->transformeScreen2dToWorld3d_scaled(x, y, &trackMouse->position, 800.0f);
+            device->transformeScreen2dToWorld3d_scaled(x, y, &position, 800.0f);
         }
-        else if(trackMouse->is2dS)
+        else if(trackMouse->is2dScreenObject())
         {
-            trackMouse->position.x = x;
-            trackMouse->position.y = y;
+            position.x = x;
+            position.y = y;
         }
         else
         {
-            device->transformeScreen2dToWorld2d_scaled(x, y, trackMouse->position);
+            device->transformeScreen2dToWorld2d_scaled(x, y, position);
         }
     }
     if(lineFontIsOver && lineFontIsOver->getTotalLines() > 0)
@@ -1545,7 +1547,8 @@ void MY_SCENE::applyCurrentShaders()
         return;
     if (currentPsShaderIdx < 0 && currentVsShaderIdx < 0)
     {
-        if(obj->typeClass != mbm::TYPE_CLASS_STEERED_PARTICLE && obj->typeClass != mbm::TYPE_CLASS_PARTICLE)
+        const mbm::TYPE_CLASS typeClass = obj->getTypeClass();
+        if(typeClass != mbm::TYPE_CLASS_STEERED_PARTICLE && typeClass != mbm::TYPE_CLASS_PARTICLE)
         {
             mbm::SHADER_CFG* psCfg = nullptr;
             mbm::SHADER_CFG* vsCfg = nullptr;

@@ -33,13 +33,21 @@ namespace mbm
 {
     struct RENDERIZABLE::Impl
     {
+        const int        idScene;
+        const TYPE_CLASS typeClass;
+        const bool       is3D;
+        const bool       is2dS;
         std::string fileName;
         float       distanceFromView;
         bool        isObjectOnFrustum;
         bool        isRender2Texture;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
 
-        Impl() noexcept :
+        Impl(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
+            idScene(idSceneMe),
+            typeClass(newTypeClass),
+            is3D(_is3d),
+            is2dS(_is2ds),
             distanceFromView(0.0f),
             isObjectOnFrustum(true),
             isRender2Texture(false)
@@ -48,15 +56,11 @@ namespace mbm
     };
 
     RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d,
-                               const bool _is2ds) noexcept : idScene(idSceneMe),
-                                                             typeClass(newTypeClass),
-                                                             is3D(_is3d),
-                                                             is2dS(_is2ds),
-                                                             position(0, 0, 0),
+                               const bool _is2ds) noexcept : position(0, 0, 0),
                                                              scale(1, 1, 1),
                                                              angle(0, 0, 0),
                                                              bounding_AABB(0, 0, 0),
-                                                             impl(std::make_unique<Impl>())
+                                                             impl(std::make_unique<Impl>(idSceneMe, newTypeClass, _is3d, _is2ds))
     {
         this->enableRender      = true;
         this->alwaysRenderize   = false;
@@ -106,17 +110,17 @@ namespace mbm
 
     TYPE_CLASS RENDERIZABLE::getTypeClass() const noexcept
     {
-        return this->typeClass;
+        return this->impl->typeClass;
     }
 
     bool RENDERIZABLE::is3DObject() const noexcept
     {
-        return this->is3D;
+        return this->impl->is3D;
     }
 
     bool RENDERIZABLE::is2dScreenObject() const noexcept
     {
-        return this->is2dS;
+        return this->impl->is2dS;
     }
 
     VEC3 & RENDERIZABLE::getPosition() noexcept
@@ -268,7 +272,7 @@ namespace mbm
     }
     int RENDERIZABLE::getIdScene() const noexcept
     {
-        return idScene;
+        return this->impl->idScene;
     }
     const char * RENDERIZABLE::getFileName() const noexcept
     {

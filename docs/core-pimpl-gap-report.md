@@ -1922,6 +1922,14 @@ Milestone 230 implementation note:
 - Removed `<map>` from `renderizable.h`; the map storage is now private to `renderizable.cpp`.
 - Focused scan shows remaining `lsDynamicVar` hits are either the private `RENDERIZABLE::Impl` storage, generic plugin-helper map utilities, camera/device dynamic variable maps, or mesh-debug private state.
 
+Milestone 231 implementation note:
+
+- Moved `RENDERIZABLE` identity/classification fields (`idScene`, `typeClass`, `is3D`, and `is2dS`) into `RENDERIZABLE::Impl`.
+- Kept behavior routed through `getIdScene()`, `getTypeClass()`, `is3DObject()`, and `is2dScreenObject()`.
+- Migrated the remaining test-lib direct `RENDERIZABLE` field reads in `my-scene-test.cpp` to accessors and local transform references.
+- Fixed the unqualified inherited `is2dS` uses in `LINE_MESH` by using `is2dScreenObject()`.
+- Remaining broad scan hits for `idScene` / `is3D` / `is2dS` are other owner types, constructor parameters, docs, or local variables.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

@@ -133,7 +133,8 @@ namespace mbm
         if (index < this->lsLines.size())
         {
             MY_LINES *myLine = this->lsLines[index];
-            if (myLine && myLine->setLines(std::move(arrayLines), is2dS))
+            const bool is2dScreen = this->is2dScreenObject();
+            if (myLine && myLine->setLines(std::move(arrayLines), is2dScreen))
             {
                 return index;
             }
@@ -144,7 +145,8 @@ namespace mbm
     unsigned int LINE_MESH::add(std::vector<VEC3> && arrayLines)
     {
         auto myLine = new MY_LINES();
-        if (!myLine->setLines(std::move(arrayLines), is2dS))
+        const bool is2dScreen = this->is2dScreenObject();
+        if (!myLine->setLines(std::move(arrayLines), is2dScreen))
         {
             delete myLine;
             return 0xffffffff;
