@@ -45,6 +45,9 @@ namespace mbm
         bool        enableRender;
         void *      userData;
         RENDER_STATE blend;
+        VEC3        position;
+        VEC3        scale;
+        VEC3        angle;
         VEC3        boundingAABB;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
 
@@ -59,16 +62,16 @@ namespace mbm
             alwaysRenderize(false),
             enableRender(true),
             userData(nullptr),
+            position(0, 0, 0),
+            scale(1, 1, 1),
+            angle(0, 0, 0),
             boundingAABB(0, 0, 0)
         {
         }
     };
 
     RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d,
-                               const bool _is2ds) noexcept : position(0, 0, 0),
-                                                             scale(1, 1, 1),
-                                                             angle(0, 0, 0),
-                                                             impl(std::make_unique<Impl>(idSceneMe, newTypeClass, _is3d, _is2ds))
+                               const bool _is2ds) noexcept : impl(std::make_unique<Impl>(idSceneMe, newTypeClass, _is3d, _is2ds))
     {
     }
 
@@ -130,47 +133,47 @@ namespace mbm
 
     VEC3 & RENDERIZABLE::getPosition() noexcept
     {
-        return this->position;
+        return this->impl->position;
     }
 
     const VEC3 & RENDERIZABLE::getPosition() const noexcept
     {
-        return this->position;
+        return this->impl->position;
     }
 
     void RENDERIZABLE::setPosition(const VEC3 &newPosition) noexcept
     {
-        this->position = newPosition;
+        this->impl->position = newPosition;
     }
 
     VEC3 & RENDERIZABLE::getScale() noexcept
     {
-        return this->scale;
+        return this->impl->scale;
     }
 
     const VEC3 & RENDERIZABLE::getScale() const noexcept
     {
-        return this->scale;
+        return this->impl->scale;
     }
 
     void RENDERIZABLE::setScale(const VEC3 &newScale) noexcept
     {
-        this->scale = newScale;
+        this->impl->scale = newScale;
     }
 
     VEC3 & RENDERIZABLE::getAngle() noexcept
     {
-        return this->angle;
+        return this->impl->angle;
     }
 
     const VEC3 & RENDERIZABLE::getAngle() const noexcept
     {
-        return this->angle;
+        return this->impl->angle;
     }
 
     void RENDERIZABLE::setAngle(const VEC3 &newAngle) noexcept
     {
-        this->angle = newAngle;
+        this->impl->angle = newAngle;
     }
 
     VEC3 & RENDERIZABLE::getBoundingAABB() noexcept

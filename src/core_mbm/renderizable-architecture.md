@@ -26,8 +26,8 @@ Remove it with `DEVICE::removeRenderizable(this)` — call this in your destruct
 
 | State | Purpose |
 |-------|---------|
-| `position` | World position. **`position.z` is the depth-sort key.** |
-| `scale` / `angle` | Transform |
+| `getPosition()` / `setPosition()` | World position. **Position Z is the depth-sort key.** |
+| `getScale()` / `setScale()` and `getAngle()` / `setAngle()` | Transform |
 | `getBoundingAABB()` / `setBoundingAABB()` | AABB populated by `updateAABB()`, used for frustum culling |
 | `isRenderEnabled()` / `setEnableRender()` | Hide without removing from the render list |
 | `isAlwaysRenderizeEnabled()` / `setAlwaysRenderize()` | Skip frustum culling when enabled |
@@ -161,7 +161,7 @@ Pattern:
    bounding box drives culling. Update the sub-object's specific animation when
    off-frustum.
 4. Implement `render()` to call an internal method on the parent, passing
-   `this->position.z` so the parent builds the MVP matrix with the correct depth.
+   `this->getPosition().z` so the parent builds the MVP matrix with the correct depth.
 5. Implement `onRestoreDevice()` to return `true` — the parent handles all GPU
    resource reloading.
 6. Because the proxy calls private methods on the parent, declare

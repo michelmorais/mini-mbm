@@ -38,7 +38,7 @@ High-impact examples:
 | Header | Public state that blocks strict PIMPL |
 |---|---|
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
-| `include/core_mbm/renderizable.h` | `position`, `scale`, and `angle`; bounding AABB, blend state, internal flags, dynamic vars, user data, identity/classification, file name, and distance-from-view state are now behind `RENDERIZABLE::Impl`. |
+| `include/core_mbm/renderizable.h` | No direct public data members remain in `RENDERIZABLE`; transform, bounding AABB, blend state, internal flags, dynamic vars, user data, identity/classification, file name, and distance-from-view state are now behind `RENDERIZABLE::Impl`. |
 | `include/core_mbm/core-manager.h` | No direct public data members remain; device pointer, scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
 | `include/core_mbm/animation.h` | No direct public data members remain in `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER`; animation/effect state is behind `Impl`. |
 | `include/core_mbm/scene.h` | No direct public data members remain; scene transition state and scene user data are accessor-backed and stored behind `Impl`. |
@@ -1962,6 +1962,13 @@ Milestone 236 implementation note:
 - Migrated `src/test-lib/my-scene-test.cpp` direct `RENDERIZABLE` transform reads/writes to `getPosition()`, `setScale()`, and local `VEC3` references.
 - Kept camera and `CAMERA_TARGET` direct transform fields unchanged because they are not `RENDERIZABLE` state.
 - This is a call-site migration milestone only; `RENDERIZABLE::position`, `RENDERIZABLE::scale`, and `RENDERIZABLE::angle` remain public until remaining engine/render/Lua call sites are migrated.
+
+Milestone 237 implementation note:
+
+- Moved `RENDERIZABLE::position`, `RENDERIZABLE::scale`, and `RENDERIZABLE::angle` into `RENDERIZABLE::Impl`.
+- Kept transform behavior routed through the existing `getPosition()`, `setPosition()`, `getScale()`, `setScale()`, `getAngle()`, and `setAngle()` API.
+- Focused scan showed the remaining direct `position`/`scale`/`angle` hits are camera, mesh-buffer, physics-plugin, triangle, shader-source, or `CAMERA_TARGET` state, not `RENDERIZABLE` base fields.
+- `RENDERIZABLE_TO_TARGET` still exposes render-target dimensions/clear color separately; this milestone only completes the base `RENDERIZABLE` data-member cleanup.
 
 ### Phase 3 - Hide renderer backend handles
 

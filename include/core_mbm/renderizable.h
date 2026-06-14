@@ -69,9 +69,6 @@ namespace mbm
         friend class ANIMATION_MANAGER;
 
       public:
-        mbm::VEC3        position;
-        mbm::VEC3        scale;
-        mbm::VEC3        angle;
         API_IMPL RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds)noexcept;
         API_IMPL virtual ~RENDERIZABLE()noexcept;
         API_IMPL TYPE_CLASS getTypeClass() const noexcept;
