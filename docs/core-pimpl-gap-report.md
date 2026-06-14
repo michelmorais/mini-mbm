@@ -1813,6 +1813,15 @@ Milestone 215 implementation note:
 - Remaining always-built `src/render` / `src/core_mbm` scan hits are non-`RENDERIZABLE` state: `TRIANGLE` physics copy data, `AUDIO` user data, `SCENE` impl user data, `CAMERA` state, and `CAMERA_TARGET` state.
 - Next real direct `RENDERIZABLE` cleanup area is optional plugin code, especially Bullet3D.
 
+Milestone 216 implementation note:
+
+- Fixed Linux CMake wiring for `USE_BULLET3D=1`.
+- Re-enabled the Bullet3D Lua plugin subdirectory for Linux/Windows when Lua is enabled.
+- Added a Lua-required configuration error for `USE_BULLET3D=1` without `USE_LUA=1`.
+- Added Bullet3D to the final built-target dependency list so `show_built` waits for `bullet3d.so`.
+- Added `USE_BULLET3D` to the Linux/Windows engine feature summary.
+- Verified Linux `-DUSE_LUA=1 -DUSE_BULLET3D=1` builds `bullet3d.so`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
