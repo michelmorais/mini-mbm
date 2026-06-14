@@ -634,7 +634,23 @@ namespace mbm
         return true;
     }
 
+    struct ANIMATION::Impl
+    {
+        char           nameAnimation[NAME_ANIMATION_SIZE] = {};
+        float          intervalChangeFrame = 1.0f;
+        int            indexInitialFrame = 0;
+        int            indexFinalFrame = 0;
+        int            indexCurrentFrame = 0;
+        BLEND_STATE    blendState = BLEND_DISABLE;
+        bool           isEndedThisAnimation = false;
+        bool           currentWayGrowingOfAnimation = true;
+        TYPE_ANIMATION type = TYPE_ANIMATION_PAUSED;
+        FX             fx;
+        float          currentTimeToChangeAnimation = 0.0f;
+    };
+
     ANIMATION::ANIMATION()
+        : impl(std::make_unique<Impl>())
     {
         this->setBlendState(BLEND_DISABLE);
         this->setCurrentTimeToChangeAnimation(0.0f);
@@ -648,121 +664,123 @@ namespace mbm
         this->setType(TYPE_ANIMATION_PAUSED);
     }
 
+    ANIMATION::~ANIMATION() = default;
+
     const char *ANIMATION::getNameAnimation() const noexcept
     {
-        return this->nameAnimation;
+        return this->impl->nameAnimation;
     }
 
     void ANIMATION::setNameAnimation(const char *name) noexcept
     {
-        memset(this->nameAnimation, 0, sizeof(this->nameAnimation));
+        memset(this->impl->nameAnimation, 0, sizeof(this->impl->nameAnimation));
         if (name)
-            strncpy(this->nameAnimation, name, sizeof(this->nameAnimation) - 1);
+            strncpy(this->impl->nameAnimation, name, sizeof(this->impl->nameAnimation) - 1);
     }
 
     float ANIMATION::getIntervalChangeFrame() const noexcept
     {
-        return this->intervalChangeFrame;
+        return this->impl->intervalChangeFrame;
     }
 
     void ANIMATION::setIntervalChangeFrame(const float interval) noexcept
     {
-        this->intervalChangeFrame = interval;
+        this->impl->intervalChangeFrame = interval;
     }
 
     int ANIMATION::getIndexInitialFrame() const noexcept
     {
-        return this->indexInitialFrame;
+        return this->impl->indexInitialFrame;
     }
 
     void ANIMATION::setIndexInitialFrame(const int index) noexcept
     {
-        this->indexInitialFrame = index;
+        this->impl->indexInitialFrame = index;
     }
 
     int ANIMATION::getIndexFinalFrame() const noexcept
     {
-        return this->indexFinalFrame;
+        return this->impl->indexFinalFrame;
     }
 
     void ANIMATION::setIndexFinalFrame(const int index) noexcept
     {
-        this->indexFinalFrame = index;
+        this->impl->indexFinalFrame = index;
     }
 
     int ANIMATION::getIndexCurrentFrame() const noexcept
     {
-        return this->indexCurrentFrame;
+        return this->impl->indexCurrentFrame;
     }
 
     void ANIMATION::setIndexCurrentFrame(const int index) noexcept
     {
-        this->indexCurrentFrame = index;
+        this->impl->indexCurrentFrame = index;
     }
 
     BLEND_STATE ANIMATION::getBlendState() const noexcept
     {
-        return this->blendState;
+        return this->impl->blendState;
     }
 
     void ANIMATION::setBlendState(const BLEND_STATE blend) noexcept
     {
-        this->blendState = blend;
+        this->impl->blendState = blend;
     }
 
     bool ANIMATION::isEnded() const noexcept
     {
-        return this->isEndedThisAnimation;
+        return this->impl->isEndedThisAnimation;
     }
 
     void ANIMATION::setEnded(const bool ended) noexcept
     {
-        this->isEndedThisAnimation = ended;
+        this->impl->isEndedThisAnimation = ended;
     }
 
     bool ANIMATION::isCurrentWayGrowing() const noexcept
     {
-        return this->currentWayGrowingOfAnimation;
+        return this->impl->currentWayGrowingOfAnimation;
     }
 
     void ANIMATION::setCurrentWayGrowing(const bool growing) noexcept
     {
-        this->currentWayGrowingOfAnimation = growing;
+        this->impl->currentWayGrowingOfAnimation = growing;
     }
 
     TYPE_ANIMATION ANIMATION::getType() const noexcept
     {
-        return this->type;
+        return this->impl->type;
     }
 
     void ANIMATION::setType(const TYPE_ANIMATION typeAnimation) noexcept
     {
-        this->type = typeAnimation;
+        this->impl->type = typeAnimation;
     }
 
     FX &ANIMATION::getFx() noexcept
     {
-        return this->fx;
+        return this->impl->fx;
     }
 
     const FX &ANIMATION::getFx() const noexcept
     {
-        return this->fx;
+        return this->impl->fx;
     }
 
     float ANIMATION::getCurrentTimeToChangeAnimation() const noexcept
     {
-        return this->currentTimeToChangeAnimation;
+        return this->impl->currentTimeToChangeAnimation;
     }
 
     void ANIMATION::setCurrentTimeToChangeAnimation(const float time) noexcept
     {
-        this->currentTimeToChangeAnimation = time;
+        this->impl->currentTimeToChangeAnimation = time;
     }
 
     void ANIMATION::addCurrentTimeToChangeAnimation(const float delta) noexcept
     {
-        this->currentTimeToChangeAnimation += delta;
+        this->impl->currentTimeToChangeAnimation += delta;
     }
 
     void ANIMATION::restartAnimation()
@@ -819,7 +837,7 @@ namespace mbm
                 case TYPE_ANIMATION_DECREASING:
                 case TYPE_ANIMATION_RECURSIVE:
                 {
-                    if (isEndedThisAnimation)
+                    if (this->isEnded())
                         return;
                 }
                 break;

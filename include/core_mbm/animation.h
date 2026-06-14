@@ -78,23 +78,9 @@ namespace mbm
         friend class ANIMATION_BACKUP;
       public:
         static constexpr int NAME_ANIMATION_SIZE = 32;
-
-        char           nameAnimation[NAME_ANIMATION_SIZE];
-        float          intervalChangeFrame;  
-        int            indexInitialFrame;    
-        int            indexFinalFrame;      
-        int            indexCurrentFrame;    
-        BLEND_STATE    blendState;
-        bool           isEndedThisAnimation; 
-        bool           currentWayGrowingOfAnimation;
-        TYPE_ANIMATION type; // 0:Pause animation 1:Increasing (e.g. 1 to 5, stops at 5)
-                             // 2:Increasing with loop (e.g. 1 to 5, loops) 3:Decreasing (e.g. 5 to 1, stops at 1)
-                             // 4:Decreasing with loop 5:Recursive (increasing then decreasing)
-                             // 6:Recursive with loop
-        FX					fx;//the effect shader to this animations
     
         API_IMPL ANIMATION();
-        inline virtual ~ ANIMATION() = default;
+        API_IMPL virtual ~ANIMATION();
         API_IMPL const char *getNameAnimation() const noexcept;
         API_IMPL void setNameAnimation(const char *name) noexcept;
         API_IMPL float getIntervalChangeFrame() const noexcept;
@@ -120,10 +106,11 @@ namespace mbm
                                         OnEndAnimation onEndAnimation,
                                         OnEndEffect onEndFX);
       private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
         float getCurrentTimeToChangeAnimation() const noexcept;
         void setCurrentTimeToChangeAnimation(const float time) noexcept;
         void addCurrentTimeToChangeAnimation(const float delta) noexcept;
-        float currentTimeToChangeAnimation; 
     };
 
     class ANIMATION_BACKUP
