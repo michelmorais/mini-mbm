@@ -575,27 +575,27 @@ namespace mbm
                 {
                     const char * value = blend.c_str();
                     if (strcasecmp("disable", value) == 0)
-                        anim->blendState = BLEND_DISABLE;
+                        anim->setBlendState(BLEND_DISABLE);
                     else if (strcasecmp("zero", value) == 0)
-                        anim->blendState = BLEND_ZERO;
+                        anim->setBlendState(BLEND_ZERO);
                     else if (strcasecmp("one", value) == 0)
-                        anim->blendState = BLEND_ONE;
+                        anim->setBlendState(BLEND_ONE);
                     else if (strcasecmp("src_color", value) == 0)
-                        anim->blendState = BLEND_SRCCOLOR;
+                        anim->setBlendState(BLEND_SRCCOLOR);
                     else if (strcasecmp("inv_src_color", value) == 0)
-                        anim->blendState = BLEND_INVSRCCOLOR;
+                        anim->setBlendState(BLEND_INVSRCCOLOR);
                     else if (strcasecmp("src_alpha", value) == 0)
-                        anim->blendState = BLEND_SRCALPHA;
+                        anim->setBlendState(BLEND_SRCALPHA);
                     else if (strcasecmp("inv_src_alpha", value) == 0)
-                        anim->blendState = BLEND_INVSRCALPHA;
+                        anim->setBlendState(BLEND_INVSRCALPHA);
                     else if (strcasecmp("dest_alpha", value) == 0)
-                        anim->blendState = BLEND_DESTALPHA;
+                        anim->setBlendState(BLEND_DESTALPHA);
                     else if (strcasecmp("inv_dest_alpha", value) == 0)
-                        anim->blendState = BLEND_INVDESTALPHA;
+                        anim->setBlendState(BLEND_INVDESTALPHA);
                     else if (strcasecmp("dest_color", value) == 0)
-                        anim->blendState = BLEND_DESTCOLOR;
+                        anim->setBlendState(BLEND_DESTCOLOR);
                     else if (strcasecmp("inv_dest_color", value) == 0)
-                        anim->blendState = BLEND_INVDESTCOLOR;
+                        anim->setBlendState(BLEND_INVDESTCOLOR);
                     else
                     {
                         box2d->destroyFluid(info);
@@ -609,17 +609,18 @@ namespace mbm
                 auto anim = animManager ? animManager->getAnimation() : nullptr;
                 if(anim)
                 {
+                    FX &fx = anim->getFx();
                     const char * blendFunc = operation.c_str();
                     if(strcasecmp(blendFunc,"ADD") == 0)
-                        anim->fx.blendOperation = 1;
+                        fx.blendOperation = 1;
                     else if(strcasecmp(blendFunc,"SUBTRACT") == 0)
-                        anim->fx.blendOperation = 2;
+                        fx.blendOperation = 2;
                     else if(strcasecmp(blendFunc,"REVERSE_SUBTRACT") == 0)
-                        anim->fx.blendOperation = 3;
+                        fx.blendOperation = 3;
                     else if(strcasecmp(blendFunc,"MIN") == 0)
-                        anim->fx.blendOperation = 4;
+                        fx.blendOperation = 4;
                     else if(strcasecmp(blendFunc,"MAX") == 0)
-                        anim->fx.blendOperation = 5;
+                        fx.blendOperation = 5;
                     else
                     {
                         box2d->destroyFluid(info);
