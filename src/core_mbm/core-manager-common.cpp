@@ -540,12 +540,12 @@ namespace mbm
                 if (ptr->getIsObjectOnFrustum())
                 {
                     lsRenderOnFrustum2d.push_back(ptr);
-                    ptr->__distFromView = ptr->getPosition().z;
+                    ptr->setDistanceFromView(ptr->getPosition().z);
                 }
             }
         }
         std::sort(lsRenderOnFrustum2d.begin(), lsRenderOnFrustum2d.end(),
-                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
+                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
     }
     
     void CORE_MANAGER::prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,
@@ -583,12 +583,12 @@ namespace mbm
                 {
                     lsRenderOnFrustum3d.push_back(ptr);
                     const VEC3 distFromCam(ptr->getPosition() - cameraPosition);
-                    ptr->__distFromView = distFromCam.length();
+                    ptr->setDistanceFromView(distFromCam.length());
                 }
             }
         }
         std::sort(lsRenderOnFrustum3d.begin(), lsRenderOnFrustum3d.end(),
-                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
+                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
     }
 
     void CORE_MANAGER::render()

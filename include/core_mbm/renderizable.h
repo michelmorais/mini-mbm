@@ -102,6 +102,8 @@ namespace mbm
         API_IMPL VEC3 & getBoundingAABB() noexcept;
         API_IMPL const VEC3 & getBoundingAABB() const noexcept;
         API_IMPL void setBoundingAABB(const VEC3 &newBoundingAABB) noexcept;
+        API_IMPL float getDistanceFromView() const noexcept;
+        API_IMPL void setDistanceFromView(const float distance) noexcept;
         API_IMPL bool isAlwaysRenderizeEnabled() const noexcept;
         API_IMPL void setAlwaysRenderize(const bool enabled) noexcept;
         API_IMPL bool getIsObjectOnFrustum() const noexcept;

@@ -355,10 +355,10 @@ namespace mbm
             {
                 RENDERIZABLE *ptr = lsObjects3dRender[i];
                 const VEC3 distFromCam(ptr->getPosition() - this->camera3d.position);
-                ptr->__distFromView = distFromCam.length();
+                ptr->setDistanceFromView(distFromCam.length());
             }
             std::sort(lsObjects3dRender.begin(), lsObjects3dRender.end(),
-                      [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
+                      [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr = lsObjects3dRender[i];
@@ -380,10 +380,10 @@ namespace mbm
             for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr   = lsObjects2dRender[i];
-                ptr->__distFromView = ptr->getPosition().z;
+                ptr->setDistanceFromView(ptr->getPosition().z);
             }
             std::sort(lsObjects2dRender.begin(), lsObjects2dRender.end(),
-                      [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
+                      [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
             for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr = lsObjects2dRender[i];

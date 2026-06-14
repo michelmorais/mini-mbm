@@ -57,8 +57,8 @@ Each frame `CORE_MANAGER::render()` calls `prepareRender2d()` /
 1. Calls `ptr->updateAABB()` for every registered object.
 2. Calls `ptr->isOnFrustum()` — adds the object to a *per-frame* visible list if
    it returns `true`.
-3. Sets `ptr->__distFromView = ptr->position.z` (2-D) or camera distance (3-D).
-4. **Sorts the visible list descending by `__distFromView`** — higher `z` = further
+3. Sets `ptr->setDistanceFromView(ptr->getPosition().z)` (2-D) or camera distance (3-D).
+4. **Sorts the visible list descending by `getDistanceFromView()`** — higher `z` = further
    back = drawn first.
 
 The engine then iterates the sorted list and calls `ptr->render()` for each object.
@@ -185,7 +185,7 @@ Example — `TILE` with `TILE_LAYER`:
 // TILE::onRestoreDevice (simplified)
 std::vector<float> savedZ(lsLayerRenderizables.size());
 for (size_t i = 0; i < lsLayerRenderizables.size(); ++i)
-    savedZ[i] = lsLayerRenderizables[i]->position.z;
+    savedZ[i] = lsLayerRenderizables[i]->getPosition().z;
 for (auto* l : lsLayerRenderizables) delete l;
 lsLayerRenderizables.clear();
 
@@ -193,7 +193,7 @@ this->mesh = nullptr;
 if (this->load(this->fileName.c_str()))
 {
     for (size_t i = 0; i < lsLayerRenderizables.size() && i < savedZ.size(); ++i)
-        lsLayerRenderizables[i]->position.z = savedZ[i];
+        lsLayerRenderizables[i]->getPosition().z = savedZ[i];
     return true;
 }
 return false;

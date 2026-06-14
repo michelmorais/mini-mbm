@@ -163,6 +163,16 @@ namespace mbm
         this->bounding_AABB = newBoundingAABB;
     }
 
+    float RENDERIZABLE::getDistanceFromView() const noexcept
+    {
+        return this->__distFromView;
+    }
+
+    void RENDERIZABLE::setDistanceFromView(const float distance) noexcept
+    {
+        this->__distFromView = distance;
+    }
+
     bool RENDERIZABLE::isAlwaysRenderizeEnabled() const noexcept
     {
         return this->alwaysRenderize;

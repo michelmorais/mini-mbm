@@ -1872,6 +1872,13 @@ Milestone 223 implementation note:
 - Touched `platform-android/my-scene.cpp` and `platform-android/scene-1.cpp`.
 - Focused platform scan for direct `position` / `scale` / `angle` renderizable access is clean.
 
+Milestone 224 implementation note:
+
+- Added narrow `RENDERIZABLE::getDistanceFromView()` / `setDistanceFromView()` helpers for the internal render-sort distance field.
+- Migrated `CORE_MANAGER` 2D/3D render preparation and `RENDER_2_TEXTURE` 2D/3D object sorting from direct `__distFromView` access to the helper API.
+- Updated `src/core_mbm/renderizable-architecture.md` so the documented render-sort flow uses `setDistanceFromView()`, `getDistanceFromView()`, and `getPosition()`.
+- Focused scan shows remaining `__distFromView` hits are the private member, constructor initialization, and helper implementation.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
