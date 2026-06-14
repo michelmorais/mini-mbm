@@ -25,6 +25,7 @@
 #include <util-interface.h>
 #include <algorithm>
 #include <cfloat>
+#include <map>
 #include <utility>
 
 namespace mbm
@@ -36,6 +37,7 @@ namespace mbm
         float       distanceFromView;
         bool        isObjectOnFrustum;
         bool        isRender2Texture;
+        std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
 
         Impl() noexcept :
             distanceFromView(0.0f),
@@ -64,13 +66,13 @@ namespace mbm
     RENDERIZABLE::~RENDERIZABLE() noexcept
     {
         std::map<std::string, DYNAMIC_VAR *>::const_iterator it;
-        for (it = this->lsDynamicVar.cbegin(); it != this->lsDynamicVar.cend(); ++it)
+        for (it = this->impl->lsDynamicVar.cbegin(); it != this->impl->lsDynamicVar.cend(); ++it)
         {
             DYNAMIC_VAR *dVar = it->second;
             if (dVar)
                 delete dVar;
         }
-        this->lsDynamicVar.clear();
+        this->impl->lsDynamicVar.clear();
     }
 
     struct RENDERIZABLE_TO_TARGET::BackendData
@@ -254,15 +256,15 @@ namespace mbm
 
     DYNAMIC_VAR * RENDERIZABLE::getDynamicVar(const char *nameVar)noexcept
     {
-        return this->lsDynamicVar[nameVar];
+        return this->impl->lsDynamicVar[nameVar];
     }
     void RENDERIZABLE::setDynamicVar(const char *nameVar, DYNAMIC_VAR *nDvar)noexcept
     {
-        DYNAMIC_VAR *oldVar = this->lsDynamicVar[nameVar];
+        DYNAMIC_VAR *oldVar = this->impl->lsDynamicVar[nameVar];
         if (oldVar)
             delete oldVar;
         oldVar                      = nullptr;
-        this->lsDynamicVar[nameVar] = nDvar;
+        this->impl->lsDynamicVar[nameVar] = nDvar;
     }
     int RENDERIZABLE::getIdScene() const noexcept
     {

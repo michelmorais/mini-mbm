@@ -1915,6 +1915,13 @@ Milestone 229 implementation note:
 - Focused scan shows no direct call-site access to those fields outside constructor/accessor implementation before the move.
 - Public gameplay convenience fields such as transform, render enable, blend, user data, and dynamic vars remain unchanged.
 
+Milestone 230 implementation note:
+
+- Moved `RENDERIZABLE::lsDynamicVar` into `RENDERIZABLE::Impl`.
+- Kept dynamic variable behavior routed through `getDynamicVar()` and `setDynamicVar()`.
+- Removed `<map>` from `renderizable.h`; the map storage is now private to `renderizable.cpp`.
+- Focused scan shows remaining `lsDynamicVar` hits are either the private `RENDERIZABLE::Impl` storage, generic plugin-helper map utilities, camera/device dynamic variable maps, or mesh-debug private state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
