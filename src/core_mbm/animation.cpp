@@ -793,7 +793,7 @@ namespace mbm
 
     ANIMATION_MANAGER::~ANIMATION_MANAGER()
     {
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->releaseAnimation();
     }
 
@@ -1020,8 +1020,9 @@ namespace mbm
 
     ANIMATION * ANIMATION_MANAGER::getAnimation() const
     {
-        if (this->indexCurrentAnimation < this->lsAnimation.size())
-            return this->lsAnimation[this->indexCurrentAnimation];
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (indexAnimation < this->lsAnimation.size())
+            return this->lsAnimation[indexAnimation];
         return nullptr;
     }
 
@@ -1051,8 +1052,8 @@ namespace mbm
     {
         if (newIndex < this->lsAnimation.size())
         {
-            this->indexCurrentAnimation = newIndex;
-            ANIMATION *anim             = this->lsAnimation[this->indexCurrentAnimation];
+            this->setIndexAnimation(newIndex);
+            ANIMATION *anim = this->lsAnimation[newIndex];
             anim->restartAnimation();
             return true;
         }
@@ -1067,7 +1068,7 @@ namespace mbm
             ANIMATION * anim = lsAnimation[i];
             if (anim && strcmp(anim->nameAnimation, name) == 0)
             {
-                this->indexCurrentAnimation = static_cast<uint32_t>(i);
+                this->setIndexAnimation(static_cast<uint32_t>(i));
                 anim->restartAnimation();
                 break;
             }
@@ -1076,9 +1077,10 @@ namespace mbm
 
     void ANIMATION_MANAGER::restartAnimation()
     {
-        if (this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (indexAnimation < this->lsAnimation.size())
         {
-            ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
+            ANIMATION *anim = this->lsAnimation[indexAnimation];
             anim->restartAnimation();
         }
     }
@@ -1090,15 +1092,16 @@ namespace mbm
             mbm::ANIMATION *anim = this->lsAnimation[index];
             delete anim;
             this->lsAnimation.erase(this->lsAnimation.begin() + index);
-            if (this->indexCurrentAnimation > this->lsAnimation.size())
+            const uint32_t indexAnimation = this->getIndexAnimation();
+            if (indexAnimation > this->lsAnimation.size())
             {
                 if (this->lsAnimation.size())
-                    this->indexCurrentAnimation = static_cast<uint32_t>(this->lsAnimation.size() - 1);
+                    this->setIndexAnimation(static_cast<uint32_t>(this->lsAnimation.size() - 1));
                 else
-                    this->indexCurrentAnimation = 0;
+                    this->setIndexAnimation(0);
             }
             else if (this->lsAnimation.size())
-                this->indexCurrentAnimation = static_cast<uint32_t>(this->lsAnimation.size() - 1);
+                this->setIndexAnimation(static_cast<uint32_t>(this->lsAnimation.size() - 1));
         }
     }
 
@@ -1111,8 +1114,9 @@ namespace mbm
 
     char * ANIMATION_MANAGER::getNameAnimation() const
     {
-        if (this->indexCurrentAnimation < lsAnimation.size())
-            return lsAnimation[this->indexCurrentAnimation]->nameAnimation;
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (indexAnimation < lsAnimation.size())
+            return lsAnimation[indexAnimation]->nameAnimation;
         return nullptr;
     }
 
@@ -1120,21 +1124,22 @@ namespace mbm
     {
         auto anim = new ANIMATION();
         this->lsAnimation.push_back(anim);
-        this->indexCurrentAnimation = static_cast<uint32_t>(this->lsAnimation.size() - 1);
+        this->setIndexAnimation(static_cast<uint32_t>(this->lsAnimation.size() - 1));
         RENDERIZABLE* r = dynamic_cast<RENDERIZABLE*>(this);
         const FVF_PROVIDE_BY_ENGINE fvf = r ? r->getFvfFromBuffer() : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
         if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, fvf))
         {
             ERROR_AT(__LINE__,__FILE__, "error on add animation");
         }
-        return this->indexCurrentAnimation;
+        return this->getIndexAnimation();
     }
 
     bool ANIMATION_MANAGER::isEndedAnimation() const noexcept
     {
-        if (this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        if (indexAnimation < this->lsAnimation.size())
         {
-            mbm::ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
+            mbm::ANIMATION *anim = this->lsAnimation[indexAnimation];
             return anim->isEndedThisAnimation;
         }
         return false;
