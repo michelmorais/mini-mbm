@@ -1732,6 +1732,13 @@ Milestone 204 implementation note:
 - Replaced body creation position reads with local `getPosition()` references.
 - Remaining focused hits in this file are Box2D wrapper scale fields or `INFO_PHYSICS::scale`, not `RENDERIZABLE` state.
 
+Milestone 205 implementation note:
+
+- Migrated LiquidFun Box2D Lua binding renderizable state access in `plugins/box2d-liquid-fun-lua/physics-box-2d-liquid-fun-lua.cpp` to the accessor API.
+- Replaced callback/body/fluid helper `RENDERIZABLE::userData` reads with `getUserData()` and new fluid renderizable user-data assignment with `setUserData()`.
+- Replaced default fluid angle and `onInterfereBox2dlf()` fallback transform reads with `getAngle()` / `getPosition()` references.
+- Remaining focused hits in this file are `PHYSICS_BOX2D_LIQUID_FUN::userData`, not `RENDERIZABLE` state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
