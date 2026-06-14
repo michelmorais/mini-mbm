@@ -40,7 +40,7 @@ High-impact examples:
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
 | `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
 | `include/core_mbm/core-manager.h` | `device`. Scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
-| `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, callbacks, and vector of animations. |
+| `include/core_mbm/animation.h` | `ANIMATION` frame state, `fx`, `ANIMATION_MANAGER::indexCurrentAnimation`, and callbacks. The manager animation list is now behind `Impl`. |
 | `include/core_mbm/scene.h` | `endScene`, `wasUnloadedScene`, `nextScene`, `goToNextScene`, `userData`. |
 
 A broad scan for direct member access on the main exposed state returned more than 2,000 hits across `include/`, `src/`, `plugins/`, `platform-*`, and `editor/`. That number is only a sizing signal, but it confirms this cannot be a single mechanical header edit.
@@ -996,7 +996,7 @@ Milestone 100 implementation note:
 Milestone 101 implementation note:
 
 - Moved the `ANIMATION_MANAGER` restore backup object behind `ANIMATION_MANAGER::Impl`.
-- Kept public animation state fields unchanged: `indexCurrentAnimation`, `onEndAnimation`, `onEndFx`, and `lsAnimation`.
+- At this milestone, public animation state fields were kept unchanged: `indexCurrentAnimation`, `onEndAnimation`, `onEndFx`, and `lsAnimation`. Later milestones moved `lsAnimation` behind `Impl`.
 - This hides the restore-only backup storage from the public manager layout without changing animation playback, Lua callbacks, render-type update code, or plugin/editor direct animation access.
 - Hiding the remaining `ANIMATION_MANAGER` fields still requires a separate accessor migration because many render types, Lua bindings, and the tiled editor use them directly.
 
@@ -1473,6 +1473,13 @@ Milestone 168 implementation note:
 - Preserved the previous post-removal behavior that selects the last remaining animation when any animation remains, or zero when none remain.
 - This is an internal animation-list mutation cleanup only; it does not change removal ownership or current-index fallback behavior.
 
+Milestone 169 implementation note:
+
+- Moved `ANIMATION_MANAGER::lsAnimation` from the public `animation.h` layout into `ANIMATION_MANAGER::Impl`.
+- Updated the existing list accessor and ownership methods to use `impl->lsAnimation`: `getAnimation()`, `getTotalAnimation()`, `removeAnimation()`, `appendAnimation()`, and `releaseAnimation()`.
+- Removed the public vector field from `ANIMATION_MANAGER`; animation-list access now goes through the accessor/mutation API.
+- This is a strict animation-list PIMPL step. It changes source compatibility for code that still reads `ANIMATION_MANAGER::lsAnimation` directly, but the repo call sites had already been migrated.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1506,7 +1513,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `ANIMATION_BACKUP`, done for backup nested structs/vectors.
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
-- `ANIMATION_MANAGER`, restore backup object done; Lua/render/backup/internal current-index reads migrated to `getIndexAnimation()`, raw current-index compatibility setter added, render/tiled/backup/internal writer call sites migrated to `setIndexAnimation()`, Lua callback writes migrated to callback setters, render/tiled callback reads migrated to callback getters, straightforward render-side list reads migrated to `getAnimation()`/`getTotalAnimation()`, backup list reads migrated to list accessors, straightforward setup appends migrated to `appendAnimation()`, tiled editor fixed-slot reads migrated to `getAnimation(index)`, read-only internal manager list use migrated to list accessors, and `removeAnimation()` bounds/clamp logic migrated to list accessors, while the public field/list/callbacks remain for compatibility pending the strict field-hiding decision.
+- `ANIMATION_MANAGER`, restore backup object done; animation list moved behind `Impl`; Lua/render/backup/internal current-index reads migrated to `getIndexAnimation()`, raw current-index compatibility setter added, render/tiled/backup/internal writer call sites migrated to `setIndexAnimation()`, Lua callback writes migrated to callback setters, render/tiled callback reads migrated to callback getters, straightforward render-side list reads migrated to `getAnimation()`/`getTotalAnimation()`, backup list reads migrated to list accessors, straightforward setup appends migrated to `appendAnimation()`, tiled editor fixed-slot reads migrated to `getAnimation(index)`, read-only internal manager list use migrated to list accessors, and `removeAnimation()` bounds/clamp logic migrated to list accessors, while the public index/callback fields remain for compatibility pending the strict field-hiding decision.
 - `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
@@ -1542,7 +1549,7 @@ This is future work only. It is not required for the completed OS/backend isolat
 
 1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
 2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, the private `EFFECT_SHADER` shader cache, `MESH_MANAGER` singleton cache, the `ANIMATION_MANAGER` restore backup object, selected `CORE_MANAGER` flags, and early `CORE_MANAGER::getDevice()` compatibility migrations done.
-3. Add complete accessor/mutator coverage for `EFFECT_SHADER`, `RENDERIZABLE`, `SCENE`, `ANIMATION_MANAGER`, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
+3. Add complete accessor/mutator coverage for `EFFECT_SHADER`, `RENDERIZABLE`, `SCENE`, remaining `ANIMATION_MANAGER` public fields, remaining `CORE_MANAGER` state, and any manager state that external code currently reads.
 4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
 5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
 6. Split public and private headers further where STL-heavy internals still leak compile dependencies.
@@ -1569,7 +1576,7 @@ Current decision:
 3. `ANIMATION_BACKUP` backup internals are now behind `Impl`.
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
-6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index compatibility writes use `setIndexAnimation()`, Lua callback writes use callback setters, render/tiled callback reads use callback getters, straightforward render-side list reads use `getAnimation()`/`getTotalAnimation()`, backup list reads use list accessors, straightforward setup appends use `appendAnimation()`, tiled editor fixed-slot reads use `getAnimation(index)`, read-only internal manager list use is accessor-backed, and `removeAnimation()` bounds/clamp logic uses list accessors. Public animation list/callback fields remain for compatibility pending the strict field-hiding decision.
+6. `ANIMATION_MANAGER` restore backup storage and animation list are now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index compatibility writes use `setIndexAnimation()`, Lua callback writes use callback setters, render/tiled callback reads use callback getters, straightforward render-side list reads use `getAnimation()`/`getTotalAnimation()`, backup list reads use list accessors, straightforward setup appends use `appendAnimation()`, tiled editor fixed-slot reads use `getAnimation(index)`, read-only internal manager list use is accessor-backed, and `removeAnimation()` bounds/clamp logic uses list accessors. Public animation index/callback fields remain for compatibility pending the strict field-hiding decision.
 7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/command-thread/prepare-render/X11-init/event-loop/utility/display-fd/audit, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/init/release/reset/frame-lifecycle/render-target/plugin-subscribe/window-size, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 

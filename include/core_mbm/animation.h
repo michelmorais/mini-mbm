@@ -153,7 +153,6 @@ namespace mbm
         uint32_t                    indexCurrentAnimation;
         OnEndAnimation              onEndAnimation;
         OnEndEffect                 onEndFx;
-        std::vector<ANIMATION *>    lsAnimation;
       private:
         struct Impl;
         std::unique_ptr<Impl> impl;

@@ -28,6 +28,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 
 namespace mbm
@@ -784,6 +785,7 @@ namespace mbm
     struct ANIMATION_MANAGER::Impl
     {
         ANIMATION_BACKUP animationBackup;
+        std::vector<ANIMATION *> lsAnimation;
     };
 
     ANIMATION_MANAGER::ANIMATION_MANAGER() noexcept
@@ -1021,21 +1023,21 @@ namespace mbm
     ANIMATION * ANIMATION_MANAGER::getAnimation() const
     {
         const uint32_t indexAnimation = this->getIndexAnimation();
-        if (indexAnimation < this->lsAnimation.size())
-            return this->lsAnimation[indexAnimation];
+        if (indexAnimation < this->impl->lsAnimation.size())
+            return this->impl->lsAnimation[indexAnimation];
         return nullptr;
     }
 
     ANIMATION * ANIMATION_MANAGER::getAnimation(const uint32_t index) const
     {
-        if (index < this->lsAnimation.size())
-            return this->lsAnimation[index];
+        if (index < this->impl->lsAnimation.size())
+            return this->impl->lsAnimation[index];
         return nullptr;
     }
 
     uint32_t ANIMATION_MANAGER::getTotalAnimation() const
     {
-        return static_cast<uint32_t>(this->lsAnimation.size());
+        return static_cast<uint32_t>(this->impl->lsAnimation.size());
     }
 
     uint32_t ANIMATION_MANAGER::getIndexAnimation() const
@@ -1108,7 +1110,7 @@ namespace mbm
         if (anim)
         {
             delete anim;
-            this->lsAnimation.erase(this->lsAnimation.begin() + index);
+            this->impl->lsAnimation.erase(this->impl->lsAnimation.begin() + index);
             const uint32_t indexAnimation = this->getIndexAnimation();
             const uint32_t totalAnimation = this->getTotalAnimation();
             if (indexAnimation > totalAnimation)
@@ -1152,7 +1154,7 @@ namespace mbm
 
     void ANIMATION_MANAGER::appendAnimation(ANIMATION *animation)
     {
-        this->lsAnimation.push_back(animation);
+        this->impl->lsAnimation.push_back(animation);
     }
 
     bool ANIMATION_MANAGER::isEndedAnimation() const noexcept
@@ -1167,14 +1169,14 @@ namespace mbm
 
     void ANIMATION_MANAGER::releaseAnimation()
     {
-        for (auto & i : this->lsAnimation)
+        for (auto & i : this->impl->lsAnimation)
         {
             ANIMATION *anim = i;
             if (anim)
                 delete anim;
             i = nullptr;
         }
-        this->lsAnimation.clear();
+        this->impl->lsAnimation.clear();
     }
 
     void ANIMATION_MANAGER::backupAnimations() noexcept
