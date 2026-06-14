@@ -831,10 +831,34 @@ namespace mbm
             iLastIndexBrickOver        = std::numeric_limits<uint16_t>::max()-1;
         switch (render_what)
         {
-            case mbm::RENDER_MAP:      scale.x = scale_map.x;   scale.y = scale_map.y;   break;
-            case mbm::RENDER_TILE_SET: scale.x = scale_tile.x;  scale.y = scale_tile.y;  break;
-            case mbm::RENDER_LAYER:    scale.x = scale_layer.x; scale.y = scale_layer.y; break;
-            case mbm::RENDER_BRICK:    scale.x = scale_brick.x; scale.y = scale_brick.y; break;
+            case mbm::RENDER_MAP:
+            {
+                VEC3 &renderScale = this->getScale();
+                renderScale.x = scale_map.x;
+                renderScale.y = scale_map.y;
+            }
+            break;
+            case mbm::RENDER_TILE_SET:
+            {
+                VEC3 &renderScale = this->getScale();
+                renderScale.x = scale_tile.x;
+                renderScale.y = scale_tile.y;
+            }
+            break;
+            case mbm::RENDER_LAYER:
+            {
+                VEC3 &renderScale = this->getScale();
+                renderScale.x = scale_layer.x;
+                renderScale.y = scale_layer.y;
+            }
+            break;
+            case mbm::RENDER_BRICK:
+            {
+                VEC3 &renderScale = this->getScale();
+                renderScale.x = scale_brick.x;
+                renderScale.y = scale_brick.y;
+            }
+            break;
         }
         return true;
     }
@@ -854,7 +878,7 @@ namespace mbm
             }
             anim = this->getAnimation();
         }
-        if (this->alwaysRenderize)
+        if (this->isAlwaysRenderizeEnabled())
         {
             if (this->isOnFrustum() == false)
             {
@@ -864,12 +888,16 @@ namespace mbm
         }
 
         FX &fx = anim->getFx();
-        this->blend.set(anim->getBlendState());
+        RENDER_STATE &renderBlend = this->getBlend();
+        VEC3 &renderPosition = this->getPosition();
+        VEC3 &renderScale = this->getScale();
+        VEC3 &renderAngle = this->getAngle();
+        renderBlend.set(anim->getBlendState());
         anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
         fx.setBlendOp();
         fx.shader.update();
         //only 2dw
-        MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+        MatrixTranslationRotationScale(&SHADER::modelView, &renderPosition, &renderAngle, &renderScale);
         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
         bool result = false;
         switch (render_what)
@@ -877,7 +905,7 @@ namespace mbm
             case RENDER_MAP:
             {
                 if(line_tileSetPreview)
-                    line_tileSetPreview->enableRender = false;
+                    line_tileSetPreview->setEnableRender(false);
                 result = renderMap(&fx.shader);
             }
             break;
@@ -890,8 +918,8 @@ namespace mbm
             {
                 positionSelectedBrick.clear();
                 if(line_tileSetPreview)
-                    line_tileSetPreview->enableRender = false;
-                const VEC2 scale_offset(scale.x,scale.y);
+                    line_tileSetPreview->setEnableRender(false);
+                const VEC2 scale_offset(renderScale.x,renderScale.y);
 
                 result = true;
                 for (uint32_t i = 0; i < tileMap.layers.size(); i++)
@@ -909,7 +937,7 @@ namespace mbm
             case RENDER_BRICK:
             {
                 if(line_tileSetPreview)
-                    line_tileSetPreview->enableRender = false;
+                    line_tileSetPreview->setEnableRender(false);
                 result = renderBrick();
             }
             break;
@@ -925,6 +953,9 @@ namespace mbm
 
     bool TILE_EDITOR::renderMap(SHADER *shader)
     {
+        VEC3 &renderPosition = this->getPosition();
+        const VEC3 &renderScale = this->getScale();
+        const VEC3 &renderAngle = this->getAngle();
         if(tileMap.background.a > 0 || tileMap.background_texture)
         {
             if(backGroundMap.isLoadedBuffer() == false)
@@ -953,8 +984,8 @@ namespace mbm
                 multiply = 0.5f;
             }
 
-            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * scale.x);
-            const float height_tile   = static_cast<float>(tileMap.size_height_tile * scale.y) * multiply;
+            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+            const float height_tile   = static_cast<float>(tileMap.size_height_tile * renderScale.y) * multiply;
             const float width_map     = static_cast<float>(width_tile  * tileMap.count_width_tile);
             const float height_map    = static_cast<float>(height_tile * tileMap.count_height_tile);
 
@@ -969,7 +1000,7 @@ namespace mbm
             }
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
 
-            MatrixTranslationRotationScale(&SHADER::modelView, &backGroundPosition, &this->angle, &backGround_scale);
+            MatrixTranslationRotationScale(&SHADER::modelView, &backGroundPosition, &renderAngle, &backGround_scale);
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             if(shader->render(&this->backGroundMap) == false)
                 return false;
@@ -988,19 +1019,22 @@ namespace mbm
             }
             tileMap.layers[i]->visible = oldStateVisible;
         }
-        position.z = 0;
+        renderPosition.z = 0;
         
         return true;
     }
     bool TILE_EDITOR::renderTileSet()
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        VEC3 &renderPosition = this->getPosition();
+        const VEC3 &renderScale = this->getScale();
+        const VEC3 &renderAngle = this->getAngle();
         if(textureTileSetPreview)
         {
             if(line_tileSetPreview)
-                line_tileSetPreview->enableRender = true;
-            position.x = 0;
-            position.y = 0;
+                line_tileSetPreview->setEnableRender(true);
+            renderPosition.x = 0;
+            renderPosition.y = 0;
             ANIMATION *anim = this->getAnimation(0);
             if(anim == nullptr)
                 return false;
@@ -1009,10 +1043,12 @@ namespace mbm
             const float width  = static_cast<float>(textureTileSetPreview->getWidth());
             const float height = static_cast<float>(textureTileSetPreview->getHeight());
             const VEC3 tex_scale(width * this->scale_tile.x,height * this->scale_tile.y,1);
-            line_tileSetPreview->position.z = position.z - 2;
-            line_tileSetPreview->scale.x = this->scale_tile.x;
-            line_tileSetPreview->scale.y = this->scale_tile.y;
-            MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &tex_scale);
+            VEC3 &linePosition = line_tileSetPreview->getPosition();
+            VEC3 &lineScale = line_tileSetPreview->getScale();
+            linePosition.z = renderPosition.z - 2;
+            lineScale.x = this->scale_tile.x;
+            lineScale.y = this->scale_tile.y;
+            MatrixTranslationRotationScale(&SHADER::modelView, &renderPosition, &renderAngle, &tex_scale);
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             if(shader->render(&this->tileSetPreview) == false)
                 return false;
@@ -1021,11 +1057,11 @@ namespace mbm
         else if(index_render_what < tileMap.tile_sets.size())
         {
             if(line_tileSetPreview)
-                line_tileSetPreview->enableRender = false;
+                line_tileSetPreview->setEnableRender(false);
             auto & tileSet = tileMap.tile_sets[index_render_what];
             const size_t m_max = static_cast<size_t>(std::ceil(std::sqrt(tileSet->bricks.size()))) + 1;
-            position.x = position_aux_tileset.x;
-            position.y = position_aux_tileset.y;
+            renderPosition.x = position_aux_tileset.x;
+            renderPosition.y = position_aux_tileset.y;
             
             ANIMATION *anim = this->getAnimation(0);
             FX &fx = anim->getFx();
@@ -1042,11 +1078,11 @@ namespace mbm
                     if(index < tileSet->bricks.size())
                     {
                         const auto & brick = tileSet->bricks[index];
-                        m_pmax.x = std::max(position.x,m_pmax.x);
-                        m_pmax.y = std::max(position.y,m_pmax.y);
-                        m_pmin.x = std::min(position.x,m_pmin.x);
-                        m_pmin.y = std::min(position.y,m_pmin.y);
-                        position.x += (brick->width * this->scale.x) + space_between;
+                        m_pmax.x = std::max(renderPosition.x,m_pmax.x);
+                        m_pmax.y = std::max(renderPosition.y,m_pmax.y);
+                        m_pmin.x = std::min(renderPosition.x,m_pmin.x);
+                        m_pmin.y = std::min(renderPosition.y,m_pmin.y);
+                        renderPosition.x += (brick->width * renderScale.x) + space_between;
                     }
                     else
                     {
@@ -1054,11 +1090,11 @@ namespace mbm
                     }
                     index++;
                 }
-                position.x = position_aux_tileset.x;
+                renderPosition.x = position_aux_tileset.x;
                 if(index < tileSet->bricks.size())
                 {
                     auto & brick = tileSet->bricks[index];
-                    position.y += (brick->height * this->scale.y) + space_between;
+                    renderPosition.y += (brick->height * renderScale.y) + space_between;
                 }
             }
 
@@ -1066,8 +1102,8 @@ namespace mbm
             index = 0;
             position_aux_tileset.x = (std::abs(m_pmax.x) + std::abs(m_pmin.x)) * -0.5f;
             position_aux_tileset.y = (std::abs(m_pmax.y) + std::abs(m_pmin.y)) * -0.5f;
-            position.x             = position_aux_tileset.x;
-            position.y             = position_aux_tileset.y;
+            renderPosition.x       = position_aux_tileset.x;
+            renderPosition.y       = position_aux_tileset.y;
             for (size_t i = 0; i < m_max; i++)
             {
                 for (size_t j = 0; j < m_max; j++)
@@ -1076,12 +1112,12 @@ namespace mbm
                     {
                         auto & brick = tileSet->bricks[index];
 
-                        SHADER::modelView._41 = position.x;
-                        SHADER::modelView._42 = position.y;
+                        SHADER::modelView._41 = renderPosition.x;
+                        SHADER::modelView._42 = renderPosition.y;
                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->getCamera().matrixPerspective2d);
 
                         brick->render(&fx.shader,0);
-                        position.x += (brick->width * this->scale.x) + 5;
+                        renderPosition.x += (brick->width * renderScale.x) + 5;
                     }
                     else
                     {
@@ -1089,15 +1125,15 @@ namespace mbm
                     }
                     index++;
                 }
-                position.x = position_aux_tileset.x;
+                renderPosition.x = position_aux_tileset.x;
                 if(index < tileSet->bricks.size())
                 {
                     auto & brick = tileSet->bricks[index];
-                    position.y += (brick->height * this->scale.y) + 5;
+                    renderPosition.y += (brick->height * renderScale.y) + 5;
                 }
             }
-            position.x = 0;
-            position.y = 0;
+            renderPosition.x = 0;
+            renderPosition.y = 0;
             return true;
         }
         return false;
@@ -1108,6 +1144,9 @@ namespace mbm
         if(index_layer < tileMap.layers.size())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            VEC3 &renderPosition      = this->getPosition();
+            const VEC3 &renderScale   = this->getScale();
+            RENDER_STATE &renderBlend = this->getBlend();
             auto & layer              = tileMap.layers[index_layer];
             if(layer->visible == false)
                 return true;
@@ -1116,18 +1155,18 @@ namespace mbm
             if (anim_normal == nullptr || transparent == nullptr)
                 return false;
             const uint32_t total      = tileMap.count_width_tile * tileMap.count_height_tile;
-            position.x                = layer->offset.x * scale_offset.x;
-            position.y                = layer->offset.y * scale_offset.y;
-            position.z                = layer->offset.z;
+            renderPosition.x          = layer->offset.x * scale_offset.x;
+            renderPosition.y          = layer->offset.y * scale_offset.y;
+            renderPosition.z          = layer->offset.z;
             float  multiply           = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
                 multiply              = 0.5f;
-            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * scale.x);
-            const float height_tile   = static_cast<float>(tileMap.size_height_tile * scale.y) * multiply;
+            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+            const float height_tile   = static_cast<float>(tileMap.size_height_tile * renderScale.y) * multiply;
             const float width_map     = static_cast<float>(width_tile  * tileMap.count_width_tile);
             const float height_map    = static_cast<float>(height_tile * tileMap.count_height_tile);
-            const float initial_x     = width_map  * -0.5f + (width_tile  * 0.5f) + position.x;
-            const float initial_y     = height_map * -0.5f + (height_tile * 0.5f) + position.y;
+            const float initial_x     = width_map  * -0.5f + (width_tile  * 0.5f) + renderPosition.x;
+            const float initial_y     = height_map * -0.5f + (height_tile * 0.5f) + renderPosition.y;
             if(layer->bricks.size() !=  total)
             {
                 layer->bricks.resize(total);
@@ -1136,7 +1175,7 @@ namespace mbm
             {
                 FX &transparentFx = transparent->getFx();
                 this->setIndexAnimation(3);
-                this->blend.set(transparent->getBlendState());
+                renderBlend.set(transparent->getBlendState());
                 layer->fx.setBlendOp();
                 transparentFx.fxPS->updateEffect(device->delta);
                 transparentFx.shader.update();
@@ -1144,7 +1183,7 @@ namespace mbm
             else
             {
                 this->setIndexAnimation(1);
-                this->blend.set(anim_normal->getBlendState());
+                renderBlend.set(anim_normal->getBlendState());
                 layer->fx.setBlendOp();
                 layer->fx.fxPS->updateEffect(device->delta);
                 layer->fx.shader.update();
@@ -1284,8 +1323,8 @@ namespace mbm
                     }
                 }
             }
-            position.x  = 0;
-            position.y  = 0;
+            renderPosition.x  = 0;
+            renderPosition.y  = 0;
             this->setIndexAnimation(0);
             return true;
         }
@@ -1325,6 +1364,10 @@ namespace mbm
         FX &selectedFx    = anim_selected->getFx();
         FX &overFx        = anim_over->getFx();
         FX &transparentFx = transparent->getFx();
+        const VEC3 &renderPosition = this->getPosition();
+        const VEC3 &renderAngle = this->getAngle();
+        const VEC3 &renderScale = this->getScale();
+        RENDER_STATE &renderBlend = this->getBlend();
         float displacement = 0.0f;
         if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
         {
@@ -1333,7 +1376,7 @@ namespace mbm
         }
         const float x        = (i * width_tile  ) + initial_x + displacement;
         const float y        = (j * height_tile ) + initial_y;
-        const VEC3 brick_position(x,y,position.z);
+        const VEC3 brick_position(x,y,renderPosition.z);
         const uint32_t index = j + (i  * tileMap.count_height_tile);
         auto & brick         = layer->bricks[index];
 
@@ -1342,7 +1385,7 @@ namespace mbm
             if(enable_highlights)
             {
                 const VEC3 empty_scale(width_tile,height_tile,1.0f);
-                MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &empty_scale);
+                MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &renderAngle, &empty_scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
                 if(renderEmptyBrick(&normalFx.shader,iLastIndexBrickOver == index,selectedBrick[index]) == false)
                     return false;
@@ -1350,13 +1393,13 @@ namespace mbm
         }
         else
         {
-            MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &scale);
+            MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &renderAngle, &renderScale);
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             const bool bSelected  = enable_highlights && selectedBrick[index];
             const bool bOverBrick = enable_highlights && iLastIndexBrickOver == index;
             if(bOverBrick)//only one
             {
-                this->blend.set(anim_over->getBlendState());
+                renderBlend.set(anim_over->getBlendState());
                 anim_over->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
                 overFx.setBlendOp();
                 overFx.shader.update();
@@ -1365,7 +1408,7 @@ namespace mbm
             }
             else if(bSelected)
             {
-                this->blend.set(anim_selected->getBlendState());
+                renderBlend.set(anim_selected->getBlendState());
                 if(updatedSelected == false)
                 {
                     updatedSelected = true;
@@ -1425,15 +1468,16 @@ namespace mbm
         if((render_what == RENDER_LAYER || render_what == RENDER_MAP) && index_render_what < tileMap.layers.size())
         {
             mbm::DEVICE* device     = mbm::DEVICE::getInstance();
+            const VEC3 &renderScale = this->getScale();
             const int total         = tileMap.count_width_tile * tileMap.count_height_tile;
             const auto & layer      = tileMap.layers[index_render_what];
             VEC2 pos;
-            device->transformeScreen2dToWorld2d_scaled(x - (layer->offset.x * scale.x),y + (layer->offset.y * scale.y),pos);
+            device->transformeScreen2dToWorld2d_scaled(x - (layer->offset.x * renderScale.x),y + (layer->offset.y * renderScale.y),pos);
             float multiply          = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
                 multiply            = 0.5f;
-            const float width_tile  = static_cast<float>(tileMap.size_width_tile  * scale.x);
-            const float height_tile = static_cast<float>(tileMap.size_height_tile * scale.y) * multiply;
+            const float width_tile  = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+            const float height_tile = static_cast<float>(tileMap.size_height_tile * renderScale.y) * multiply;
             const float width_map   = static_cast<float>(width_tile  * tileMap.count_width_tile);
             const float height_map  = static_cast<float>(height_tile * tileMap.count_height_tile);
             const float initial_x   = width_map  * -0.5f + (width_tile  );
@@ -2550,18 +2594,20 @@ namespace mbm
 
             const uint32_t tileCount         =   tileInfo->map.count_width_tile * tileInfo->map.count_height_tile;
 
-            scale.x = 1;
-            scale.y = 1;
+            VEC3 &renderScale = this->getScale();
+            const VEC3 &renderPosition = this->getPosition();
+            renderScale.x = 1;
+            renderScale.y = 1;
             float multiply = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
                 multiply = 0.5f;
 
-            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * scale.x);
-            const float height_tile   = static_cast<float>(tileMap.size_height_tile * scale.y) * multiply;
+            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+            const float height_tile   = static_cast<float>(tileMap.size_height_tile * renderScale.y) * multiply;
             const float width_map     = static_cast<float>(width_tile  * tileMap.count_width_tile);
             const float height_map    = static_cast<float>(height_tile * tileMap.count_height_tile);
-            const float initial_x     = width_map  * -0.5f + (width_tile  * 0.5f) + position.x;
-            const float initial_y     = height_map * -0.5f + (height_tile * 0.5f) + position.y;
+            const float initial_x     = width_map  * -0.5f + (width_tile  * 0.5f) + renderPosition.x;
+            const float initial_y     = height_map * -0.5f + (height_tile * 0.5f) + renderPosition.y;
 
             tileInfo->layers				= new util::BTILE_LAYER[tileInfo->map.layerCount];
             for(size_t k=0; k < tileMap.layers.size(); k++)
@@ -2829,8 +2875,9 @@ namespace mbm
             if(index_render_what < tileMap.layers.size())
             {
                 const auto & layer          = tileMap.layers[index_render_what];
-                const float width_tile      = static_cast<float>(tileMap.size_width_tile  * scale.x);
-                const float height_tile     = static_cast<float>(tileMap.size_height_tile * scale.y);
+                const VEC3 &renderScale     = this->getScale();
+                const float width_tile      = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+                const float height_tile     = static_cast<float>(tileMap.size_height_tile * renderScale.y);
                 
                 for(float x = start.x; x <= end.x; x += width_tile)
                 {

@@ -1753,6 +1753,13 @@ Milestone 207 implementation note:
 - Replaced particle destroy/query shape transform reads with local `getPosition()` / `getAngle()` references.
 - Replaced add-particle default/source transform reads with `getPosition()` / `getScale()` copies.
 
+Milestone 208 implementation note:
+
+- Migrated Tiled editor renderizable render-path state access in `plugins/tiled/tile_editor.cpp` to the accessor API.
+- Replaced `TILE_EDITOR` transform/blend/always-render reads and writes with `getPosition()`, `getScale()`, `getAngle()`, `getBlend()`, and `isAlwaysRenderizeEnabled()`.
+- Replaced `line_tileSetPreview` visibility/transform writes with `setEnableRender()`, `getPosition()`, and `getScale()`.
+- Remaining focused Tiled hits are `TRIANGLE::position`, `BUFFER_GL::position`, and tile-editor `scale_tile` helper state, not `RENDERIZABLE` state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
