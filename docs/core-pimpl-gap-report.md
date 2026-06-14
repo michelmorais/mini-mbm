@@ -1658,6 +1658,13 @@ Milestone 193 implementation note:
 - Replaced the `STEERED_PARTICLE` load-time direct `alwaysRenderize` write with `setAlwaysRenderize()`.
 - This removes direct `enableRender`/`alwaysRenderize` field writes from these small render classes without changing render or ownership behavior.
 
+Milestone 194 implementation note:
+
+- Migrated `TEXT_DRAW`/`FONT_DRAW` render-state usage in `font.cpp` to the `RENDERIZABLE` accessor API.
+- Replaced constructor position writes, AABB position reads, overlap helpers, frustum-centering adjustments, render matrix setup, coordinate flag reads, scale reads, and blend-state writes with accessor-backed state.
+- Cached `position`, `scale`, `angle`, and coordinate flags in the text render/frustum paths to follow the accessor reuse rule.
+- This keeps text layout/render behavior unchanged while removing direct `RENDERIZABLE` transform/flag/blend field use from `font.cpp`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
