@@ -1636,6 +1636,14 @@ Milestone 190 implementation note:
 - Replaced the remaining direct `SHAPE_MESH::is3D` reads in dynamic/indexed shape load and vertex conversion helpers with `is3DObject()`.
 - This keeps shape mesh load behavior unchanged while removing the last direct `RENDERIZABLE` coordinate flag reads from `shape-mesh.cpp`.
 
+Milestone 191 implementation note:
+
+- Migrated `PARTICLE` to the `RENDERIZABLE` accessor API.
+- Replaced load-time render flag writes with `setEnableRender()` and `setAlwaysRenderize()`.
+- Replaced frustum checks and render matrix setup with cached `getPosition()`, `getScale()`, and `getAngle()` locals plus `is3DObject()`, `is2dScreenObject()`, and `isRender2TextureEnabled()`.
+- Replaced particle blend-state writes with `setBlendState()`.
+- This keeps particle behavior unchanged while removing direct `RENDERIZABLE` transform/flag/blend field use from `particle.cpp`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
