@@ -210,9 +210,9 @@ namespace mbm
     TEXTURE * GIF_VIEW::getTexture() const
     {
         const uint32_t indexAnimation = this->getIndexAnimation();
-        if(indexAnimation < this->lsAnimation.size() )
+        ANIMATION* anim = this->getAnimation(indexAnimation);
+        if(anim)
         {
-            ANIMATION* anim = this->lsAnimation[indexAnimation];
             if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                 return this->textures[anim->indexCurrentFrame];
         }
@@ -229,9 +229,9 @@ namespace mbm
             if (newTex)
             {
                 const uint32_t indexAnimation = this->getIndexAnimation();
-                if(indexAnimation < this->lsAnimation.size() )
+                ANIMATION* anim = this->getAnimation(indexAnimation);
+                if(anim)
                 {
-                    ANIMATION* anim = this->lsAnimation[indexAnimation];
                     if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                         this->textures[anim->indexCurrentFrame] = newTex;
                 }
@@ -249,9 +249,9 @@ namespace mbm
     void GIF_VIEW::setTextureToNull()
     {
         const uint32_t indexAnimation = this->getIndexAnimation();
-        if(indexAnimation < this->lsAnimation.size() )
+        ANIMATION* anim = this->getAnimation(indexAnimation);
+        if(anim)
         {
-            ANIMATION* anim = this->lsAnimation[indexAnimation];
             if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                 this->textures[anim->indexCurrentFrame] = nullptr;
         }
@@ -387,7 +387,7 @@ namespace mbm
     
     bool GIF_VIEW::isLoaded() const
     {
-        return this->bufferGL.isLoadedBuffer() && this->textures.size() && this->lsAnimation.size() > 0;
+        return this->bufferGL.isLoadedBuffer() && this->textures.size() && this->getTotalAnimation() > 0;
     }
     
 }

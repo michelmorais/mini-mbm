@@ -369,7 +369,6 @@ namespace mbm
     
     bool TEXTURE_VIEW::isLoaded() const
     {
-        return this->bufferGL.isLoadedBuffer() && this->texture && this->lsAnimation.size() > 0;
+        return this->bufferGL.isLoadedBuffer() && this->texture && this->getTotalAnimation() > 0;
     }
 }
-

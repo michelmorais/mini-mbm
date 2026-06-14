@@ -434,7 +434,8 @@ namespace mbm
     bool TEXT_DRAW::isOnFrustum()
     {
         const uint32_t indexAnimation = this->getIndexAnimation();
-        if (this->mesh && mesh->isLoaded() && indexAnimation < this->lsAnimation.size())
+        ANIMATION *animation = this->getAnimation(indexAnimation);
+        if (this->mesh && mesh->isLoaded() && animation)
         {
             float w = 0.0f;
             float h = 0.0f;
@@ -498,11 +499,11 @@ namespace mbm
     bool TEXT_DRAW::renderText(const bool doRender)
     {
         const uint32_t indexAnimation = this->getIndexAnimation();
-        if (this->mesh && this->isLoaded() && indexAnimation < this->lsAnimation.size())
+        ANIMATION *anim = this->getAnimation(indexAnimation);
+        if (this->mesh && this->isLoaded() && anim)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
-            ANIMATION *anim = this->lsAnimation[indexAnimation];
             const OnEndAnimation onEndAnimation = this->getOnEndAnimation();
             const OnEndEffect onEndFx = this->getOnEndFx();
             if (doRender)
@@ -802,11 +803,10 @@ namespace mbm
             const char * nextAnimstrNextAnim  = nextAnim.c_str();
             const auto indexAnim = static_cast<unsigned int>(std::atoi(nextAnimstrNextAnim)-1);
             *curIndex                    = indexForChangelocal;
-            if (indexAnim < static_cast<unsigned int>(this->lsAnimation.size()))
+            mbm::ANIMATION* newAnim = this->getAnimation(indexAnim);
+            if (newAnim)
             {
-                mbm::ANIMATION* newAnim = this->lsAnimation[indexAnim];
-                if(newAnim)
-                    indexNewAnim = indexAnim;
+                indexNewAnim = indexAnim;
                 return newAnim;
             }
         }

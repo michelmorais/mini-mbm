@@ -170,7 +170,8 @@ namespace mbm
             {
                 this->text = result[2];
             }
-            this->lsAnimation[this->getIndexAnimation()]->restartAnimation();
+            if (ANIMATION *animation = this->getAnimation())
+                animation->restartAnimation();
 #if defined DEBUG
             PRINT_INFO_IF_DEBUG("background [%s] successfully restored", log_util::basename(fileName));
 #endif
@@ -327,7 +328,7 @@ namespace mbm
             if (!this->setScale(this->isMajorScale))
                 return false;
         }
-        if (indexAnimation >= this->lsAnimation.size())
+        if (indexAnimation >= this->getTotalAnimation())
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         const float w = device->getScaleBackBufferWidth() * 0.5f;
