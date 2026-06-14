@@ -404,7 +404,7 @@ namespace mbm
         float              h   = 0;
         if (top > 1 && lua_toboolean(lua, 2))
             ptr->updateAABB();
-        if (ptr->is3D)
+        if (ptr->is3DObject())
         {
             float d = 0;
             ptr->getAABB(&w, &h, &d);
@@ -431,30 +431,33 @@ namespace mbm
             if(top == 2 && lua_type(lua,2) == LUA_TTABLE)
             {
                 RENDERIZABLE *that = getRenderizableFromRawTable(lua, 1, 2);
-                ptr->position.x = that->position.x;
-                ptr->position.y = that->position.y;
-                if(ptr->is3D)
-                    ptr->position.z = that->position.z;
+                VEC3 &position = ptr->getPosition();
+                const VEC3 &thatPosition = that->getPosition();
+                position.x = thatPosition.x;
+                position.y = thatPosition.y;
+                if(ptr->is3DObject())
+                    position.z = thatPosition.z;
             }
             else
             {
+                VEC3 &position = ptr->getPosition();
                 for (int i = 2; i <= top; ++i)
                 {
                     switch (i)
                     {
                         case 2: // x
                         {
-                            ptr->position.x = luaL_checknumber(lua, i);
+                            position.x = luaL_checknumber(lua, i);
                         }
                         break;
                         case 3: // y
                         {
-                            ptr->position.y = luaL_checknumber(lua, i);
+                            position.y = luaL_checknumber(lua, i);
                         }
                         break;
                         case 4: // z
                         {
-                            ptr->position.z = luaL_checknumber(lua, i);
+                            position.z = luaL_checknumber(lua, i);
                         }
                         break;
                         default: {
@@ -470,7 +473,7 @@ namespace mbm
     int onGetPosRenderizableLua(lua_State *lua)
     {
         RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
-        return onNewVec3LuaNoGC(lua, &ptr->position);
+        return onNewVec3LuaNoGC(lua, &ptr->getPosition());
     }
 
     int onSetAngleRenderizableLua(lua_State *lua)
@@ -482,32 +485,35 @@ namespace mbm
             if(top == 2 && lua_type(lua,2) == LUA_TTABLE)
             {
                 RENDERIZABLE *that = getRenderizableFromRawTable(lua, 1, 2);
-                ptr->angle.z = that->angle.z;
-                if(ptr->is3D)
+                VEC3 &angle = ptr->getAngle();
+                const VEC3 &thatAngle = that->getAngle();
+                angle.z = thatAngle.z;
+                if(ptr->is3DObject())
                 {
-                    ptr->angle.x = that->angle.x;
-                    ptr->angle.y = that->angle.y;
+                    angle.x = thatAngle.x;
+                    angle.y = thatAngle.y;
                 }
             }
             else
             {
+                VEC3 &angle = ptr->getAngle();
                 for (int i = 2; i <= top; ++i)
                 {
                     switch (i)
                     {
                         case 2: // x
                         {
-                            ptr->angle.x = luaL_checknumber(lua, i);
+                            angle.x = luaL_checknumber(lua, i);
                         }
                         break;
                         case 3: // y
                         {
-                            ptr->angle.y = luaL_checknumber(lua, i);
+                            angle.y = luaL_checknumber(lua, i);
                         }
                         break;
                         case 4: // z
                         {
-                            ptr->angle.z = luaL_checknumber(lua, i);
+                            angle.z = luaL_checknumber(lua, i);
                         }
                         break;
                         default: {
@@ -523,7 +529,7 @@ namespace mbm
     int onGetAngleRenderizableLua(lua_State *lua)
     {
         RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
-        return onNewVec3LuaNoGC(lua, &ptr->angle);
+        return onNewVec3LuaNoGC(lua, &ptr->getAngle());
     }
 
     int onSetScaleRenderizableLua(lua_State *lua)
@@ -535,30 +541,33 @@ namespace mbm
             if(top == 2 && lua_type(lua,2) == LUA_TTABLE)
             {
                 RENDERIZABLE *that = getRenderizableFromRawTable(lua, 1, 2);
-                ptr->scale.x = that->scale.x;
-                ptr->scale.y = that->scale.y;
-                if(ptr->is3D)
-                    ptr->scale.z = that->scale.z;
+                VEC3 &scale = ptr->getScale();
+                const VEC3 &thatScale = that->getScale();
+                scale.x = thatScale.x;
+                scale.y = thatScale.y;
+                if(ptr->is3DObject())
+                    scale.z = thatScale.z;
             }
             else
             {
+                VEC3 &scale = ptr->getScale();
                 for (int i = 2; i <= top; ++i)
                 {
                     switch (i)
                     {
                         case 2: // x
                         {
-                            ptr->scale.x = luaL_checknumber(lua, i);
+                            scale.x = luaL_checknumber(lua, i);
                         }
                         break;
                         case 3: // y
                         {
-                            ptr->scale.y = luaL_checknumber(lua, i);
+                            scale.y = luaL_checknumber(lua, i);
                         }
                         break;
                         case 4: // z
                         {
-                            ptr->scale.z = luaL_checknumber(lua, i);
+                            scale.z = luaL_checknumber(lua, i);
                         }
                         break;
                         default: {
@@ -574,7 +583,7 @@ namespace mbm
     int isOnFrustumRenderizable(lua_State *lua)
     {
         RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
-        lua_pushboolean(lua, ptr->isObjectOnFrustum);
+        lua_pushboolean(lua, ptr->getIsObjectOnFrustum());
         return 1;
     }
 
@@ -599,7 +608,7 @@ namespace mbm
         RENDERIZABLE *        ptr            = getRenderizableFromRawTable(lua, 1, 1);
         DEVICE *              device         = DEVICE::getInstance();
         auto * userScene      = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
-        auto *userDataRender = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto *userDataRender = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         if (userDataRender)
             userDataRender->unrefAllTableLua(lua); // destroy all
         userScene->remove(ptr);
@@ -609,7 +618,7 @@ namespace mbm
     int onGetScaleRenderizableLua(lua_State *lua)
     {
         RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
-        return onNewVec3LuaNoGC(lua, &ptr->scale);
+        return onNewVec3LuaNoGC(lua, &ptr->getScale());
     }
 
     int onMoveRenderizableLua(lua_State *lua)
@@ -617,20 +626,21 @@ namespace mbm
         RENDERIZABLE *ptr    = getRenderizableFromRawTable(lua, 1, 1);
         const int          top    = lua_gettop(lua);
         DEVICE *      device = DEVICE::getInstance();
+        VEC3 &position = ptr->getPosition();
         switch (top)
         {
             case 2:
             {
                 const float x = luaL_checknumber(lua, 2);
-                ptr->position.x += (device->delta * x);
+                position.x += (device->delta * x);
             }
             break;
             case 3:
             {
                 const float x = luaL_checknumber(lua, 2);
                 const float y = luaL_checknumber(lua, 3);
-                ptr->position.x += (device->delta * x);
-                ptr->position.y += (device->delta * y);
+                position.x += (device->delta * x);
+                position.y += (device->delta * y);
             }
             break;
             case 4:
@@ -638,9 +648,9 @@ namespace mbm
                 const float x = luaL_checknumber(lua, 2);
                 const float y = luaL_checknumber(lua, 3);
                 const float z = luaL_checknumber(lua, 4);
-                ptr->position.x += (device->delta * x);
-                ptr->position.y += (device->delta * y);
-                ptr->position.z += (device->delta * z);
+                position.x += (device->delta * x);
+                position.y += (device->delta * y);
+                position.z += (device->delta * z);
             }
             break;
             default: {
@@ -659,18 +669,19 @@ namespace mbm
             const char *       angle  = luaL_checkstring(lua, 2);
             const float        radian = luaL_checknumber(lua, 3);
             DEVICE *      device = DEVICE::getInstance();
+            VEC3 &rotation = ptr->getAngle();
             if (angle)
             {
                 switch (angle[0])
                 {
                     case 'x':
-                    case 'X': { ptr->angle.x += (device->delta * radian);}
+                    case 'X': { rotation.x += (device->delta * radian);}
                     break;
                     case 'y':
-                    case 'Y': { ptr->angle.y += (device->delta * radian);}
+                    case 'Y': { rotation.y += (device->delta * radian);}
                     break;
                     case 'z':
-                    case 'Z': { ptr->angle.z += (device->delta * radian);}
+                    case 'Z': { rotation.z += (device->delta * radian);}
                     break;
                     default: { return lua_error_debug(lua, "expected: string angle: x, y or z, number(radian)");}
                 }
@@ -827,11 +838,12 @@ namespace mbm
         {
             case 1:
             {
+                VEC3 &position = ptr->getPosition();
                 switch (what[0])
                 {
-                    case 'x': ptr->position.x = luaL_checknumber(lua, 3); break;
-                    case 'y': ptr->position.y = luaL_checknumber(lua, 3); break;
-                    case 'z': ptr->position.z = luaL_checknumber(lua, 3); break;
+                    case 'x': position.x = luaL_checknumber(lua, 3); break;
+                    case 'y': position.y = luaL_checknumber(lua, 3); break;
+                    case 'z': position.z = luaL_checknumber(lua, 3); break;
                     default: { return setVariable(lua, ptr, what);
                     }
                 }
@@ -843,11 +855,12 @@ namespace mbm
                 {
                     case 's':
                     {
+                        VEC3 &scale = ptr->getScale();
                         switch (what[1])
                         {
-                            case 'x': ptr->scale.x = luaL_checknumber(lua, 3); break;
-                            case 'y': ptr->scale.y = luaL_checknumber(lua, 3); break;
-                            case 'z': ptr->scale.z = luaL_checknumber(lua, 3); break;
+                            case 'x': scale.x = luaL_checknumber(lua, 3); break;
+                            case 'y': scale.y = luaL_checknumber(lua, 3); break;
+                            case 'z': scale.z = luaL_checknumber(lua, 3); break;
                             default: { return setVariable(lua, ptr, what);
                             }
                         }
@@ -855,11 +868,12 @@ namespace mbm
                     break;
                     case 'a':
                     {
+                        VEC3 &angle = ptr->getAngle();
                         switch (what[1])
                         {
-                            case 'x': ptr->angle.x = luaL_checknumber(lua, 3); break;
-                            case 'y': ptr->angle.y = luaL_checknumber(lua, 3); break;
-                            case 'z': ptr->angle.z = luaL_checknumber(lua, 3); break;
+                            case 'x': angle.x = luaL_checknumber(lua, 3); break;
+                            case 'y': angle.y = luaL_checknumber(lua, 3); break;
+                            case 'z': angle.z = luaL_checknumber(lua, 3); break;
                             default: { return setVariable(lua, ptr, what);
                             }
                         }
@@ -874,9 +888,9 @@ namespace mbm
             {
                 if (strcmp("visible", what) == 0)
                 {
-                    ptr->enableRender = lua_toboolean(lua, 3) ? true : false;
-                    if (ptr->enableRender)//force on frustum at least this frame
-                        ptr->isObjectOnFrustum = true;
+                    ptr->setEnableRender(lua_toboolean(lua, 3) ? true : false);
+                    if (ptr->isRenderEnabled())//force on frustum at least this frame
+                        ptr->setIsObjectOnFrustum(true);
                 }
                 else
                     return setVariable(lua, ptr, what);
@@ -886,11 +900,11 @@ namespace mbm
             {
                 if (strcmp("alwaysRender", what) == 0)
                 {
-                    ptr->alwaysRenderize = lua_toboolean(lua, 3) ? true : false;
-                    if (ptr->alwaysRenderize)//force on frustum at least this frame
+                    ptr->setAlwaysRenderize(lua_toboolean(lua, 3) ? true : false);
+                    if (ptr->isAlwaysRenderizeEnabled())//force on frustum at least this frame
                     {
-                        ptr->enableRender = true;
-                        ptr->isObjectOnFrustum = true;
+                        ptr->setEnableRender(true);
+                        ptr->setIsObjectOnFrustum(true);
                     }
                 }
                 else
@@ -919,11 +933,12 @@ namespace mbm
         {
             case 1:
             {
+                const VEC3 &position = ptr->getPosition();
                 switch (what[0])
                 {
-                    case 'x': lua_pushnumber(lua, ptr->position.x); break;
-                    case 'y': lua_pushnumber(lua, ptr->position.y); break;
-                    case 'z': lua_pushnumber(lua, ptr->position.z); break;
+                    case 'x': lua_pushnumber(lua, position.x); break;
+                    case 'y': lua_pushnumber(lua, position.y); break;
+                    case 'z': lua_pushnumber(lua, position.z); break;
                     default: { return getVariable(lua, ptr, what);
                     }
                 }
@@ -935,11 +950,12 @@ namespace mbm
                 {
                     case 's':
                     {
+                        const VEC3 &scale = ptr->getScale();
                         switch (what[1])
                         {
-                            case 'x': lua_pushnumber(lua, ptr->scale.x); break;
-                            case 'y': lua_pushnumber(lua, ptr->scale.y); break;
-                            case 'z': lua_pushnumber(lua, ptr->scale.z); break;
+                            case 'x': lua_pushnumber(lua, scale.x); break;
+                            case 'y': lua_pushnumber(lua, scale.y); break;
+                            case 'z': lua_pushnumber(lua, scale.z); break;
                             default: { return getVariable(lua, ptr, what);
                             }
                         }
@@ -947,11 +963,12 @@ namespace mbm
                     break;
                     case 'a':
                     {
+                        const VEC3 &angle = ptr->getAngle();
                         switch (what[1])
                         {
-                            case 'x': lua_pushnumber(lua, ptr->angle.x); break;
-                            case 'y': lua_pushnumber(lua, ptr->angle.y); break;
-                            case 'z': lua_pushnumber(lua, ptr->angle.z); break;
+                            case 'x': lua_pushnumber(lua, angle.x); break;
+                            case 'y': lua_pushnumber(lua, angle.y); break;
+                            case 'z': lua_pushnumber(lua, angle.z); break;
                             default: { return getVariable(lua, ptr, what);
                             }
                         }
@@ -965,7 +982,7 @@ namespace mbm
             case 7:
             {
                 if (strcmp("visible", what) == 0)
-                    lua_pushboolean(lua, ptr->enableRender);
+                    lua_pushboolean(lua, ptr->isRenderEnabled());
                 else
                     return getVariable(lua, ptr, what);
             }
@@ -973,7 +990,7 @@ namespace mbm
             case 12:
             {
                 if (strcmp("alwaysRender", what) == 0)
-                    lua_pushboolean(lua, ptr->alwaysRenderize);
+                    lua_pushboolean(lua, ptr->isAlwaysRenderizeEnabled());
                 else
                     return getVariable(lua, ptr, what);
             }

@@ -1686,6 +1686,13 @@ Milestone 197 implementation note:
 - Replaced Lua touch callback render-state checks with `isRenderEnabled()`, `is3DObject()`, `is2dScreenObject()`, and `getUserData()`.
 - This keeps Lua splash/loading and touch callback behavior unchanged while removing direct `RENDERIZABLE` state/user-data field use from `manager-lua.cpp`.
 
+Milestone 198 implementation note:
+
+- Migrated the first `src/lua-wrap/common-methods-lua.cpp` property-accessor chunk to the `RENDERIZABLE` accessor API.
+- Replaced Lua position, angle, scale, visibility, always-render, frustum-state, user-data, move, rotate, and AABB dimensionality access with `getPosition()`, `getAngle()`, `getScale()`, `setEnableRender()`, `setAlwaysRenderize()`, `setIsObjectOnFrustum()`, `getUserData()`, and coordinate flag accessors.
+- Updated the Lua `__index` / `__newindex` renderizable property paths for `x/y/z`, `sx/sy/sz`, `ax/ay/az`, `visible`, and `alwaysRender`.
+- Left collision/overlap helpers for a separate milestone because they require a broader coordinate-space audit.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
