@@ -39,16 +39,18 @@ namespace mbm
 {
     void CORE_MANAGER::handleEventFromWindow()
     {
-        this->device->getSpecificContextDevice()->window.doEvents();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        context->window.doEvents();
         bool first_menu = true;
-        while (mbm::WINDOW::isAnyMenuVisible() && this->device->getSpecificContextDevice()->window.run)
+        while (mbm::WINDOW::isAnyMenuVisible() && context->window.run)
         {
             if (first_menu)
             {
                 Sleep(50);
                 mbm::WINDOW::refreshMenu();
             }
-            this->device->getSpecificContextDevice()->window.doEvents();
+            context->window.doEvents();
             if (first_menu)
             {
                 Sleep(50);
@@ -56,19 +58,20 @@ namespace mbm
             }
             first_menu = false;
         }
-        if (this->device->getSpecificContextDevice()->window.run)
+        if (context->window.run)
         {
             INFO_JOYSTICK_INIT_PLAYER info;
             while (this->popEvent(&info))
             {
-                if (this->device->getScene() && this->isSceneInitialized())
-                    this->device->getScene()->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
+                SCENE *scene = device->getScene();
+                if (scene && this->isSceneInitialized())
+                    scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
                         info.extraInfo.c_str());
             }
         }
         else
         {
-            this->device->setRun(false);
+            device->setRun(false);
         }
     }
 
