@@ -70,7 +70,7 @@ namespace mbm
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         unsigned int  sizeVertexBuffer = 0;
-        if (this->is3D)
+        if (this->is3DObject())
             sizeVertexBuffer = _sizeVertexArray;
         else
             sizeVertexBuffer = (_sizeVertexArray / 2) * 3;
@@ -106,7 +106,7 @@ namespace mbm
             this->dynamicUV.resize(sizeUv);
         }
 
-        if (this->is3D)
+        if (this->is3DObject())
         {
             auto vertex = dynamicVertex.data();
             for (unsigned int p = 0; p < sizeVertexBuffer; p += 3)
@@ -770,14 +770,14 @@ namespace mbm
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         unsigned int  sizeVertexBuffer = 0;
-        if (this->is3D)
+        if (this->is3DObject())
             sizeVertexBuffer = autoVertex->sizeArray;
         else
             sizeVertexBuffer = (autoVertex->sizeArray / 2) * 3;
         VEC3        vMin(FLT_MAX, FLT_MAX, FLT_MAX);
         VEC3        vMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
         AUTO_VERTEX vertex;
-        if (this->is3D)
+        if (this->is3DObject())
         {
             const unsigned sizeUv = (sizeVertexBuffer / 3) * 2;
             vertex.ls_xyz         = new float[sizeVertexBuffer];
@@ -915,7 +915,7 @@ namespace mbm
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         unsigned int  sizeVertexBuffer = 0;
-        if (this->is3D)
+        if (this->is3DObject())
             sizeVertexBuffer = autoVertex->sizeArray;
         else
             sizeVertexBuffer = (autoVertex->sizeArray / 2) * 3;
@@ -923,7 +923,7 @@ namespace mbm
         VEC3                vMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
         AUTO_VERTEX         vertex;
         unsigned short int *index = autoVertex->ls_index;
-        if (this->is3D)
+        if (this->is3DObject())
         {
             const unsigned sizeUv = (sizeVertexBuffer / 3) * 2;
             vertex.ls_xyz         = new float[sizeVertexBuffer];

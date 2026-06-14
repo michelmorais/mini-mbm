@@ -1630,6 +1630,12 @@ Milestone 189 implementation note:
 - Replaced direct transform/blend reads in the affected render matrix paths with cached `getPosition()`, `getAngle()`, `getScale()`, and `setBlendState()`.
 - Shape generation/load helper paths in `SHAPE_MESH` still have direct coordinate flag reads and remain a separate shape-specific follow-up.
 
+Milestone 190 implementation note:
+
+- Completed the shape-specific `SHAPE_MESH` coordinate flag follow-up from Milestone 189.
+- Replaced the remaining direct `SHAPE_MESH::is3D` reads in dynamic/indexed shape load and vertex conversion helpers with `is3DObject()`.
+- This keeps shape mesh load behavior unchanged while removing the last direct `RENDERIZABLE` coordinate flag reads from `shape-mesh.cpp`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
