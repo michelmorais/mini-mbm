@@ -1011,7 +1011,7 @@ namespace mbm
             posix_spawnattr_destroy(&attr);
             // Do NOT waitpid — the shell command uses & to detach the game process
         };
-        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
+        DEVICE *device                   = this->getDevice();
         std::string  name                = fNextThreadName();
         // Copy command into the thread by value to avoid race with the next call
         std::thread* exec_thread         = new std::thread(fExecute, std::string(command), x11_fd);
@@ -1038,7 +1038,7 @@ namespace mbm
                 ERROR_LOG("CreateProcessA failed (error %lu) for: %s", GetLastError(), cmd.c_str());
             }
         };
-        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
+        DEVICE *device                   = this->getDevice();
         std::string  name                = fNextThreadName();
         std::thread* exec_thread         = new std::thread(fExecute, std::string(command));
 #else
@@ -1046,7 +1046,7 @@ namespace mbm
         {
             system(cmd.c_str());
         };
-        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
+        DEVICE *device                   = this->getDevice();
         std::string  name                = fNextThreadName();
         std::thread* exec_thread         = new std::thread(fExecute, std::string(command));
 #endif
