@@ -190,7 +190,8 @@ for (auto* l : lsLayerRenderizables) delete l;
 lsLayerRenderizables.clear();
 
 this->mesh = nullptr;
-if (this->load(this->fileName.c_str()))
+const char *internalFileName = this->getInternalFileName();
+if (this->load(internalFileName))
 {
     for (size_t i = 0; i < lsLayerRenderizables.size() && i < savedZ.size(); ++i)
         lsLayerRenderizables[i]->getPosition().z = savedZ[i];

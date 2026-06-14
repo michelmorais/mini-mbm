@@ -1895,6 +1895,12 @@ Milestone 226 implementation note:
 - Focused scan for direct `this->fileName` writes in `src/render` now only reports `FONT_DRAW`, which owns a separate font filename string and is not `RENDERIZABLE` storage.
 - Remaining broad direct filename writes belong to non-renderizable owner classes such as `TEXTURE`, `AUDIO`, `MESH_MBM`, `SHADER`, and the `RENDERIZABLE` helper implementation.
 
+Milestone 227 implementation note:
+
+- Migrated `RENDERIZABLE::clone()` restore filename setup from direct `renderizable_clone->fileName = this->fileName` to `setInternalFileName(getInternalFileNameString())`.
+- Updated `src/core_mbm/renderizable-architecture.md` so the simplified `TILE::onRestoreDevice()` example uses `getInternalFileName()` instead of teaching direct `fileName` access.
+- Focused scan for direct `RENDERIZABLE::fileName` use now reports only the helper implementation itself; `src/render/font.cpp` hits remain `FONT_DRAW` private storage, not `RENDERIZABLE`.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

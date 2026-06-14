@@ -465,7 +465,7 @@ namespace mbm
     {
         if(renderizable_clone && this->isLoaded())
         {
-            renderizable_clone->fileName = this->fileName;
+            renderizable_clone->setInternalFileName(this->getInternalFileNameString());
             if(renderizable_clone->onRestoreDevice())
             {
                 renderizable_clone->setPosition(this->getPosition());
