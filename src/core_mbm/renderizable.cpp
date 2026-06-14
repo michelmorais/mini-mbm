@@ -43,6 +43,7 @@ namespace mbm
         bool        isRender2Texture;
         bool        alwaysRenderize;
         bool        enableRender;
+        void *      userData;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
 
         Impl(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
@@ -54,7 +55,8 @@ namespace mbm
             isObjectOnFrustum(true),
             isRender2Texture(false),
             alwaysRenderize(false),
-            enableRender(true)
+            enableRender(true),
+            userData(nullptr)
         {
         }
     };
@@ -66,7 +68,6 @@ namespace mbm
                                                              bounding_AABB(0, 0, 0),
                                                              impl(std::make_unique<Impl>(idSceneMe, newTypeClass, _is3d, _is2ds))
     {
-        this->userData          = nullptr;
     }
 
     RENDERIZABLE::~RENDERIZABLE() noexcept
@@ -237,12 +238,12 @@ namespace mbm
 
     void * RENDERIZABLE::getUserData() const noexcept
     {
-        return this->userData;
+        return this->impl->userData;
     }
 
     void RENDERIZABLE::setUserData(void *data) noexcept
     {
-        this->userData = data;
+        this->impl->userData = data;
     }
 
     RENDER_STATE & RENDERIZABLE::getBlend() noexcept

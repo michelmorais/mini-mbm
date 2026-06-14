@@ -38,7 +38,7 @@ High-impact examples:
 | Header | Public state that blocks strict PIMPL |
 |---|---|
 | `include/core_mbm/device.h` | No direct public data members remain; gameplay-facing state is accessor-backed. |
-| `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, `alwaysRenderize`, `isObjectOnFrustum`, `enableRender`, dynamic vars, `isRender2Texture`, `userData`, `blend`, `fileName`, `__distFromView`. |
+| `include/core_mbm/renderizable.h` | `position`, `scale`, `angle`, `bounding_AABB`, and `blend`; internal flags, dynamic vars, user data, identity/classification, file name, and distance-from-view state are now behind `RENDERIZABLE::Impl`. |
 | `include/core_mbm/core-manager.h` | No direct public data members remain; device pointer, scene initialization, scene-change, Caps Lock, and window restore options are hidden behind `CORE_MANAGER::Impl`. |
 | `include/core_mbm/animation.h` | No direct public data members remain in `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER`; animation/effect state is behind `Impl`. |
 | `include/core_mbm/scene.h` | No direct public data members remain; scene transition state and scene user data are accessor-backed and stored behind `Impl`. |
@@ -1936,6 +1936,12 @@ Milestone 232 implementation note:
 - Kept behavior routed through `isRenderEnabled()`, `setEnableRender()`, `isAlwaysRenderizeEnabled()`, and `setAlwaysRenderize()`.
 - Migrated remaining `testLib` direct visibility flag reads/writes in `my-scene-test.cpp` to the accessor API.
 - Focused scan shows no direct visibility flag access outside the private `RENDERIZABLE::Impl` storage and accessor implementation.
+
+Milestone 233 implementation note:
+
+- Moved `RENDERIZABLE::userData` into `RENDERIZABLE::Impl`.
+- Kept Lua/plugin ownership behavior routed through the existing `getUserData()` and `setUserData()` API.
+- Focused scan shows remaining `userData` hits are either the private `RENDERIZABLE::Impl` storage/accessors or unrelated owner types such as `AUDIO`, `SCENE`, and physics plugin state.
 
 ### Phase 3 - Hide renderer backend handles
 
