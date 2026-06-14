@@ -104,7 +104,9 @@ namespace mbm
         this->setSceneInitialized(false);
         this->setKeyCapsLockState(false);
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-        this->device->getSpecificContextDevice()->initializeWi32Callbacks(this);
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        context->initializeWi32Callbacks(this);
 #endif
     }
     
@@ -117,9 +119,11 @@ namespace mbm
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->getSpecificContextDevice()->window.setCallEventsManager(nullptr);
-        this->device->getSpecificContextDevice()->win32_joystickByPass->releaseJoystick(&this->device->getSpecificContextDevice()->window);
-        this->device->getSpecificContextDevice()->release();
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
+        context->window.setCallEventsManager(nullptr);
+        context->win32_joystickByPass->releaseJoystick(&context->window);
+        context->release();
     }
     
     bool CORE_MANAGER::initGraphics(const char* nameApplication, int width, int height, const int px, const int py, const bool border, const bool enable_resize)

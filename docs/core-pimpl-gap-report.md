@@ -1286,6 +1286,13 @@ Milestone 142 implementation note:
 - Kept menu refresh timing, window event pumping, joystick event dispatch, and engine stop behavior unchanged.
 - This is an internal accessor-consistency cleanup only; it does not change DirectX9 event-loop behavior.
 
+Milestone 143 implementation note:
+
+- Migrated DirectX9 `CORE_MANAGER` constructor Win32 callback setup and `ReleaseGraphics()` device/context reads to local `DEVICE *device` and `SPECIFIC_AUX_CONTEXT_DEVICE *context` variables.
+- Reused the local context for Win32 callback initialization, event-manager detachment, joystick release, and backend context release.
+- Kept constructor compatibility device assignment, texture/mesh manager release order, joystick release target, and context release behavior unchanged.
+- This is an internal accessor-consistency cleanup only; it does not change DirectX9 construction or release behavior.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1320,7 +1327,7 @@ Future ABI/header hygiene could move private containers and counters into `Impl`
 - `EFFECT_SHADER`, private shader cache map done; public effect state requires accessors before hiding.
 - `MESH_MANAGER`, done for singleton cache/fake-release layout; `MESH_MBM` and debug layouts remain future work.
 - `ANIMATION_MANAGER`, restore backup object done; animation list/index/callback fields remain public pending accessor migration.
-- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/X11-init/event-loop/utility, Win32-OpenGL-ES event-loop/init/release, DirectX9 event-loop, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
+- `CORE_MANAGER`, window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/X11-init/event-loop/utility, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/release, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release accessor cleanup done; `getDevice()` compatibility accessor added, Lua manager reads migrated, and Android/iOS platform reads migrated before any broader `device` field migration.
 
 This mainly improves header hygiene and ABI layout. It is intentionally separate from the completed backend/OS isolation scope.
 
@@ -1383,7 +1390,7 @@ Current decision:
 4. `EFFECT_SHADER` private shader cache is now behind `Impl`; public effect state remains pending accessor policy.
 5. `MESH_MANAGER` singleton cache/fake-release internals are now behind `Impl`; `MESH_MBM` and debug mesh layouts remain separate future work.
 6. `ANIMATION_MANAGER` restore backup storage is now behind `Impl`; public animation list/index/callback state remains pending accessor migration.
-7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/X11-init/event-loop/utility, Win32-OpenGL-ES event-loop/init/release, DirectX9 event-loop, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.
+7. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, and scene-initialized flag are now behind `Impl`; `getDevice()` exists and Lua/Android/iOS platform reads plus early lifecycle/update/audio/physics/render/camera/timer/render-enable/render-init/scene-assignment/event-queue/logic/restore/input-coordinate/OpenGL-ES-startup/swap/reset/render-target/plugin-subscribe/window-size/X11-init/event-loop/utility, Win32-OpenGL-ES event-loop/init/release, DirectX9 constructor/event-loop/release, dummy backend, Metal common lifecycle/render-target/plugin-subscribe/window-size, iOS Metal init/release, and macOS Metal init/event-loop/utility/release helpers use it, but `device` remains a public compatibility field.
 8. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.
