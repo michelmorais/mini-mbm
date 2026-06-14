@@ -1578,6 +1578,13 @@ Milestone 182 implementation note:
 - Replaced direct blend-operation writes with locally cached `FX &fx = anim->getFx()`.
 - Remaining direct `ANIMATION` field migration is now concentrated in the tiled plugin.
 
+Milestone 183 implementation note:
+
+- Migrated the tiled plugin direct `ANIMATION` field users to the accessor API.
+- Replaced tiled plugin direct blend-state reads with `getBlendState()`.
+- Replaced tiled plugin direct `FX` shader/effect access with locally cached `FX &fx = anim->getFx()` in preview setup, render paths, brick rendering, and shader creation.
+- This completes the repo scan cleanup for direct `anim->...` / `animation->...` public `ANIMATION` frame/state/`FX` field access.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -1631,7 +1638,7 @@ Before hiding public fields, add and use methods for:
 - `RENDERIZABLE`: transform, visibility, blend, user data, dynamic vars.
 - `SCENE`: scene transition state and user data done.
 - `ANIMATION_MANAGER`: animation list/index/callback access done; remaining public layout is `ANIMATION` frame state and `fx`.
-- `ANIMATION`: accessor coverage started for frame state and `fx`; core animation implementation, render-side direct users, particle-control state transitions, Lua wrappers, mesh debug export, and Box2D LiquidFun plugin setup migrated.
+- `ANIMATION`: accessor coverage started for frame state and `fx`; repo call sites found by direct `anim->...` / `animation->...` public field scan are migrated.
 
 Keep direct fields during transition if source compatibility matters.
 
@@ -1679,7 +1686,7 @@ Current decision:
 6. `ANIMATION_MANAGER` restore backup storage, animation list, current index, and callback fields are now behind `Impl`; Lua/render/backup/internal current-index reads now use `getIndexAnimation()`, raw current-index writes use `setIndexAnimation()`, Lua callback writes use callback setters, render/tiled callback reads use callback getters, straightforward render-side list reads use `getAnimation()`/`getTotalAnimation()`, backup list reads use list accessors, straightforward setup appends use `appendAnimation()`, tiled editor fixed-slot reads use `getAnimation(index)`, read-only internal manager list use is accessor-backed, and `removeAnimation()` bounds/clamp logic uses list accessors.
 7. `SCENE` scene transition state and scene user data are now behind `Impl`; core scene transitions, Lua scene loading, Android callback routing, physics plugins, and Lua wrappers use the accessor API.
 8. `CORE_MANAGER` window restore options, scene-change flag, Caps Lock state, scene-initialized flag, and device pointer are now behind `Impl`; internal/backend/platform/Lua call sites use accessor-backed device access.
-9. `ANIMATION` now has accessor coverage for frame state and `fx`; core animation implementation, render-side direct users, particle-control state transitions, Lua wrappers, mesh debug export, and Box2D LiquidFun plugin setup use it, while remaining tiled plugin call sites still need migration before the public fields can move.
+9. `ANIMATION` now has accessor coverage for frame state and `fx`; direct repo call sites found by the `anim->...` / `animation->...` public field scan now use it. The public fields still remain temporarily for source compatibility until the strict field move is chosen.
 10. Keep direct gameplay public fields as convenience API unless a deliberate future strict-PIMPL cleanup is chosen.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

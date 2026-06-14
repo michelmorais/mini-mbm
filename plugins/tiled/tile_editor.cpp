@@ -792,9 +792,10 @@ namespace mbm
                 auto * anim = line_tileSetPreview->getAnimation(0);
                 if(anim)
                 {
-                    anim->fx.setVarPShader("color", d);
-                    anim->fx.setMaxVarPShader("color", d);
-                    anim->fx.setMinVarPShader("color", d);
+                    FX &fx = anim->getFx();
+                    fx.setVarPShader("color", d);
+                    fx.setMaxVarPShader("color", d);
+                    fx.setMinVarPShader("color", d);
                 }
                 tileSetPreview.setTextureByStage(textureTileSetPreview, 0, 0);
                 tileSetPreview.setTextureByStage(nullptr, 1, 0);
@@ -862,10 +863,11 @@ namespace mbm
             }
         }
 
-        this->blend.set(anim->blendState);
+        FX &fx = anim->getFx();
+        this->blend.set(anim->getBlendState());
         anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
-        anim->fx.setBlendOp();
-        anim->fx.shader.update();
+        fx.setBlendOp();
+        fx.shader.update();
         //only 2dw
         MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
@@ -876,7 +878,7 @@ namespace mbm
             {
                 if(line_tileSetPreview)
                     line_tileSetPreview->enableRender = false;
-                result = renderMap(&anim->fx.shader);
+                result = renderMap(&fx.shader);
             }
             break;
             case RENDER_TILE_SET:
@@ -1002,7 +1004,8 @@ namespace mbm
             ANIMATION *anim = this->getAnimation(0);
             if(anim == nullptr)
                 return false;
-            auto shader = &anim->fx.shader;
+            FX &fx = anim->getFx();
+            auto shader = &fx.shader;
             const float width  = static_cast<float>(textureTileSetPreview->getWidth());
             const float height = static_cast<float>(textureTileSetPreview->getHeight());
             const VEC3 tex_scale(width * this->scale_tile.x,height * this->scale_tile.y,1);
@@ -1025,6 +1028,7 @@ namespace mbm
             position.y = position_aux_tileset.y;
             
             ANIMATION *anim = this->getAnimation(0);
+            FX &fx = anim->getFx();
             VEC2 m_pmax(std::numeric_limits<float>::min() ,std::numeric_limits<float>::min());
             VEC2 m_pmin(std::numeric_limits<float>::max() ,std::numeric_limits<float>::max());
             size_t index = 0;
@@ -1076,7 +1080,7 @@ namespace mbm
                         SHADER::modelView._42 = position.y;
                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->getCamera().matrixPerspective2d);
 
-                        brick->render(&anim->fx.shader,0);
+                        brick->render(&fx.shader,0);
                         position.x += (brick->width * this->scale.x) + 5;
                     }
                     else
@@ -1130,16 +1134,17 @@ namespace mbm
             }
             if(transparency > 0.0f)
             {
+                FX &transparentFx = transparent->getFx();
                 this->setIndexAnimation(3);
-                this->blend.set(transparent->blendState);
+                this->blend.set(transparent->getBlendState());
                 layer->fx.setBlendOp();
-                transparent->fx.fxPS->updateEffect(device->delta);
-                transparent->fx.shader.update();
+                transparentFx.fxPS->updateEffect(device->delta);
+                transparentFx.shader.update();
             }
             else
             {
                 this->setIndexAnimation(1);
-                this->blend.set(anim_normal->blendState);
+                this->blend.set(anim_normal->getBlendState());
                 layer->fx.setBlendOp();
                 layer->fx.fxPS->updateEffect(device->delta);
                 layer->fx.shader.update();
@@ -1316,6 +1321,10 @@ namespace mbm
         {
             this->setIndexAnimation(1);
         }
+        FX &normalFx      = anim_normal->getFx();
+        FX &selectedFx    = anim_selected->getFx();
+        FX &overFx        = anim_over->getFx();
+        FX &transparentFx = transparent->getFx();
         float displacement = 0.0f;
         if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
         {
@@ -1335,7 +1344,7 @@ namespace mbm
                 const VEC3 empty_scale(width_tile,height_tile,1.0f);
                 MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &empty_scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
-                if(renderEmptyBrick(&anim_normal->fx.shader,iLastIndexBrickOver == index,selectedBrick[index]) == false)
+                if(renderEmptyBrick(&normalFx.shader,iLastIndexBrickOver == index,selectedBrick[index]) == false)
                     return false;
             }
         }
@@ -1347,29 +1356,29 @@ namespace mbm
             const bool bOverBrick = enable_highlights && iLastIndexBrickOver == index;
             if(bOverBrick)//only one
             {
-                this->blend.set(anim_over->blendState);
+                this->blend.set(anim_over->getBlendState());
                 anim_over->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
-                anim_over->fx.setBlendOp();
-                anim_over->fx.shader.update();
-                if(brick->render(&anim_over->fx.shader,layer->fx.textureOverrideStage2) == false)
+                overFx.setBlendOp();
+                overFx.shader.update();
+                if(brick->render(&overFx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else if(bSelected)
             {
-                this->blend.set(anim_selected->blendState);
+                this->blend.set(anim_selected->getBlendState());
                 if(updatedSelected == false)
                 {
                     updatedSelected = true;
                     anim_selected->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
-                    anim_selected->fx.setBlendOp();
-                    anim_selected->fx.shader.update();
+                    selectedFx.setBlendOp();
+                    selectedFx.shader.update();
                 }
-                if(brick->render(&anim_selected->fx.shader,layer->fx.textureOverrideStage2) == false)
+                if(brick->render(&selectedFx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else if(transparency == true)
             {
-                if(brick->render(&transparent->fx.shader,layer->fx.textureOverrideStage2) == false)
+                if(brick->render(&transparentFx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else
@@ -1870,7 +1879,8 @@ namespace mbm
         if(it != tileMap.bricks.end())
         {
             ANIMATION *anim = this->getAnimation(0);
-            return it->second->render(&anim->fx.shader,0);
+            FX &fx = anim->getFx();
+            return it->second->render(&fx.shader,0);
         }
         return false;
     }
@@ -1883,49 +1893,50 @@ namespace mbm
         {
             auto anim = new mbm::ANIMATION();
             this->appendAnimation(anim);
+            FX &fx = anim->getFx();
             auto pShaderCfg = device->getShaderConfig().getShader("color it.ps");
-            if(anim->fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
+            if(fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
             {
                 if(i == 0) // normal
                 {
                     constexpr float enable[4] = {0,0,0,0};
-                    anim->fx.setVarPShader("enable",    enable);
-                    anim->fx.setMaxVarPShader("enable", enable);
-                    anim->fx.setMinVarPShader("enable", enable);
+                    fx.setVarPShader("enable",    enable);
+                    fx.setMaxVarPShader("enable", enable);
+                    fx.setMinVarPShader("enable", enable);
 
                     const float * color_back     = enable;
                     constexpr float color_red[4] = {0,0,0,0};
-                    anim->fx.setVarPShader("color",    color_back);
-                    anim->fx.setMaxVarPShader("color", color_red);
-                    anim->fx.setMinVarPShader("color", color_back);
+                    fx.setVarPShader("color",    color_back);
+                    fx.setMaxVarPShader("color", color_red);
+                    fx.setMinVarPShader("color", color_back);
                 }
                 else if(i == 1) // selected
                 {
                     constexpr float enable[4] = {1,0,0,0};
-                    anim->fx.setTypePS(TYPE_ANIMATION_RECURSIVE_LOOP);
-                    anim->fx.setVarPShader("enable",    enable);
-                    anim->fx.setMaxVarPShader("enable", enable);
-                    anim->fx.setMinVarPShader("enable", enable);
+                    fx.setTypePS(TYPE_ANIMATION_RECURSIVE_LOOP);
+                    fx.setVarPShader("enable",    enable);
+                    fx.setMaxVarPShader("enable", enable);
+                    fx.setMinVarPShader("enable", enable);
 
                     constexpr float color_from[4] = {1,1,1,0};
                     constexpr float color_to[4]  = {0,1,0,0};
-                    anim->fx.setVarPShader("color",    color_from);
-                    anim->fx.setMinVarPShader("color", color_from);
-                    anim->fx.setMaxVarPShader("color", color_to);
+                    fx.setVarPShader("color",    color_from);
+                    fx.setMinVarPShader("color", color_from);
+                    fx.setMaxVarPShader("color", color_to);
 
                 }
                 else // over
                 {
                     constexpr float enable[4] = {1,0,0,0};
-                    anim->fx.setVarPShader("enable",    enable);
-                    anim->fx.setMaxVarPShader("enable", enable);
-                    anim->fx.setMinVarPShader("enable", enable);
+                    fx.setVarPShader("enable",    enable);
+                    fx.setMaxVarPShader("enable", enable);
+                    fx.setMinVarPShader("enable", enable);
 
                     constexpr float color_back[4] = {0,0,0,0};
                     constexpr float color_green[4]  = {0,1,0,0};
-                    anim->fx.setVarPShader("color",    color_green);
-                    anim->fx.setMaxVarPShader("color", color_green);
-                    anim->fx.setMinVarPShader("color", color_back);
+                    fx.setVarPShader("color",    color_green);
+                    fx.setMaxVarPShader("color", color_green);
+                    fx.setMinVarPShader("color", color_back);
                 }
             }
             else
@@ -1936,13 +1947,14 @@ namespace mbm
         }
         auto anim = new mbm::ANIMATION();
         this->appendAnimation(anim);
+        FX &fx = anim->getFx();
         auto pShaderCfg = device->getShaderConfig().getShader("transparent.ps");
-        if(anim->fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
+        if(fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
         {
             constexpr float alpha[4] = {0.7f,0,0,0};
-            anim->fx.setVarPShader("alpha",    alpha);
-            anim->fx.setMaxVarPShader("alpha", alpha);
-            anim->fx.setMinVarPShader("alpha", alpha);
+            fx.setVarPShader("alpha",    alpha);
+            fx.setMaxVarPShader("alpha", alpha);
+            fx.setMinVarPShader("alpha", alpha);
         }
         this->setIndexAnimation(0);
         return true;
