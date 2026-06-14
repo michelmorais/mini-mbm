@@ -1712,6 +1712,12 @@ Milestone 201 implementation note:
 - Replaced the direct `enableRender` write in `USER_DATA_SCENE_LUA::remove(RENDERIZABLE *)` with `setEnableRender(false)`.
 - This keeps Lua callback removal behavior unchanged while removing one more direct plugin-helper dependency on the public `RENDERIZABLE::enableRender` field.
 
+Milestone 202 implementation note:
+
+- Migrated real `RENDERIZABLE` transform usage in `plugins/plugin-helper/plugin-helper.cpp` to the accessor API.
+- Replaced Lua userdata position pointer extraction with `getPosition()`, debug line mesh position copies with `setPosition()`, and repeated line mesh position component writes with a local `VEC3 &position`.
+- Left `TRIANGLE::position` physics shape fields unchanged because they are not `RENDERIZABLE` state.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:

@@ -205,7 +205,7 @@ namespace mbm
                 auto **ud = static_cast<mbm::RENDERIZABLE **>(user_type);
                 auto *ptr = static_cast<mbm::RENDERIZABLE *>(*ud); //-V522
                 static mbm::VEC3 * p;
-                p = &(ptr->position);
+                p = &(ptr->getPosition());
                 return &p;
             }
             else 
@@ -329,7 +329,7 @@ namespace mbm
                 auto **ud = static_cast<mbm::RENDERIZABLE **>(user_type);
                 auto *ptr = static_cast<mbm::RENDERIZABLE *>(*ud); //-V522
                 static mbm::VEC3 * p;
-                p = &(ptr->position);
+                p = &(ptr->getPosition());
                 return &p;
             }
             else 
@@ -922,7 +922,7 @@ namespace mbm
                 }
                 if (lineMesh)
                 {
-                    lineMesh->position = ptr->position;
+                    lineMesh->setPosition(ptr->getPosition());
 
                     for (auto cube : pInfoPhysics->lsCube)
                     {
@@ -1099,8 +1099,9 @@ namespace mbm
 
                                 if (moveIfNotSingle(vertex,singleObj) == true)
                                 {
-                                    lineMesh->position.x = pos.x;
-                                    lineMesh->position.y = pos.y;
+                                    VEC3 &position = lineMesh->getPosition();
+                                    position.x = pos.x;
+                                    position.y = pos.y;
                                 }
                                 
                                 lineMesh->add(std::move(vertex));
@@ -1143,8 +1144,9 @@ namespace mbm
                             
                             if (singleObj)
                             {
-                                lineMesh->position.x = pos.x;
-                                lineMesh->position.y = pos.y;
+                                VEC3 &position = lineMesh->getPosition();
+                                position.x = pos.x;
+                                position.y = pos.y;
                             }
                             else
                             {
@@ -1223,8 +1225,9 @@ namespace mbm
                             vertex[3].y = -cube->halfDim.y;
                             vertex[4].x = -cube->halfDim.x;
                             vertex[4].y = -cube->halfDim.y;
-                            lineMesh->position.x = cube->absCenter.x;
-                            lineMesh->position.y = cube->absCenter.y;
+                            VEC3 &position = lineMesh->getPosition();
+                            position.x = cube->absCenter.x;
+                            position.y = cube->absCenter.y;
                         }
                         else
                         {
@@ -1420,8 +1423,9 @@ namespace mbm
                                 circleLine[i].x = sinf(util::degreeToRadian(static_cast<float>(i))) * halfDim.x ;
                                 circleLine[i].y = cosf(util::degreeToRadian(static_cast<float>(i))) * halfDim.y ;
                             }
-                            lineMesh->position.x = pos.x;
-                            lineMesh->position.y = pos.y;
+                            VEC3 &position = lineMesh->getPosition();
+                            position.x = pos.x;
+                            position.y = pos.y;
                         }
                         else
                         {
@@ -1468,9 +1472,10 @@ namespace mbm
                                 circleLine[i].x = sinf(util::degreeToRadian(static_cast<float>(i))) * sphere->ray ;
                                 circleLine[i].y = cosf(util::degreeToRadian(static_cast<float>(i))) * sphere->ray ;
                             }
-                            lineMesh->position.x = sphere->absCenter[0];
-                            lineMesh->position.y = sphere->absCenter[1];
-                            lineMesh->position.z = sphere->absCenter[2];
+                            VEC3 &position = lineMesh->getPosition();
+                            position.x = sphere->absCenter[0];
+                            position.y = sphere->absCenter[1];
+                            position.z = sphere->absCenter[2];
                         }
                         else
                         {
@@ -1558,8 +1563,9 @@ namespace mbm
                                     vertex[2].y = triangle->point[2].y;
                                     vertex[3].x = triangle->point[0].x;
                                     vertex[3].y = triangle->point[0].y;
-                                    lineMesh->position.x = pos.x;
-                                    lineMesh->position.y = pos.y;
+                                    VEC3 &position = lineMesh->getPosition();
+                                    position.x = pos.x;
+                                    position.y = pos.y;
                                 }
                                 else
                                 {
