@@ -88,8 +88,6 @@ namespace mbm
         const BUFFER_GL & getRenderTargetBuffer() const noexcept;
         INFO_PHYSICS & getRenderTargetInfoPhysics() noexcept;
         const INFO_PHYSICS & getRenderTargetInfoPhysics() const noexcept;
-        
-        mbm::INFO_PHYSICS infoPhysics;
 
       private:
         struct Impl;

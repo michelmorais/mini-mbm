@@ -2044,6 +2044,13 @@ Milestone 247 implementation note:
 - Kept the protected `infoPhysics` storage in the header for this review milestone; the next storage-hiding milestone can move it into `Impl`.
 - Focused scan shows direct `infoPhysics` storage access is now limited to the accessor implementation and protected storage declaration.
 
+Milestone 248 implementation note:
+
+- Moved `RENDER_2_TEXTURE::infoPhysics` into private `RENDER_2_TEXTURE::Impl`.
+- Kept the Milestone 247 physics accessor API unchanged: `getRenderTargetInfoPhysics()` const and non-const overloads.
+- Removed the protected physics storage from `include/render/render-2-texture.h`.
+- Focused scan shows render-target physics storage now appears only in private `Impl`; load/setup, 3D render sizing, restore sizing, and `getInfoPhysics()` use the accessor API.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2151,6 +2158,6 @@ Current decision:
 12. `RENDER_2_TEXTURE` camera storage is now behind `Impl`; `getCamera2d()` / `getCamera3d()` remain the compatibility API for C++ and Lua camera access.
 13. `RENDER_2_TEXTURE` texture storage is now behind `Impl`; `getRenderTargetTexture()` / `setRenderTargetTexture()` remain the protected compatibility API.
 14. `RENDER_2_TEXTURE` buffer storage is now behind `Impl`; `getRenderTargetBuffer()` remains the protected compatibility API.
-15. `RENDER_2_TEXTURE` physics access is accessor-backed through `getRenderTargetInfoPhysics()`; protected storage remains for one review milestone before hiding.
+15. `RENDER_2_TEXTURE` physics storage is now behind `Impl`; `getRenderTargetInfoPhysics()` remains the protected compatibility API.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

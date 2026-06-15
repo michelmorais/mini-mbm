@@ -36,6 +36,7 @@ namespace mbm
         CAMERA_TARGET               camera3d;
         TEXTURE *                    texture;
         BUFFER_GL                    bufferGL;
+        INFO_PHYSICS                 infoPhysics;
         std::vector<RENDERIZABLE *> lsObjects2dRender;
         std::vector<RENDERIZABLE *> lsObjects3dRender;
         bool                        modeTextureOnly;
@@ -611,12 +612,12 @@ namespace mbm
 
     INFO_PHYSICS & RENDER_2_TEXTURE::getRenderTargetInfoPhysics() noexcept
     {
-        return this->infoPhysics;
+        return this->impl->infoPhysics;
     }
 
     const INFO_PHYSICS & RENDER_2_TEXTURE::getRenderTargetInfoPhysics() const noexcept
     {
-        return this->infoPhysics;
+        return this->impl->infoPhysics;
     }
     
 };
