@@ -137,7 +137,7 @@ namespace mbm
         }
         this->clear();
         this->clearInternalFileName();
-        this->bufferGL.release();
+        this->getRenderTargetBuffer().release();
     }
     
     TEXTURE* RENDER_2_TEXTURE::load(const uint32_t widthFrame, const uint32_t heightFrame, const uint32_t _widthTexture,const uint32_t _heightTexture, const char *nickName, const bool hasAlpha)
@@ -179,9 +179,10 @@ namespace mbm
                 VEC2            uv[4];
                 unsigned short int index[6] = {0, 1, 2, 2, 1, 3};
                 this->fillvertexQuad(_position, nullptr, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
-                if (this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
+                BUFFER_GL &renderTargetBuffer = this->getRenderTargetBuffer();
+                if (renderTargetBuffer.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.setTextureByStage(renderTargetTexture, 0, 0 );
+                    renderTargetBuffer.setTextureByStage(renderTargetTexture, 0, 0 );
                 }
                 else
                 {
@@ -324,7 +325,8 @@ namespace mbm
     
     bool RENDER_2_TEXTURE::render() // Renderiza a textura
     {
-        if (this->bufferGL.isLoadedBuffer())
+        BUFFER_GL &renderTargetBuffer = this->getRenderTargetBuffer();
+        if (renderTargetBuffer.isLoadedBuffer())
         {
             if (this->isTextureOnlyModeEnabled())
                 return true;
@@ -360,8 +362,8 @@ namespace mbm
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
                 if (fx.textureOverrideStage2)
-                    this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
-                if (!fx.shader.render(&this->bufferGL))
+                    renderTargetBuffer.setTextureByStage(fx.textureOverrideStage2, 1, 0);
+                if (!fx.shader.render(&renderTargetBuffer))
                     return false;
                 return true;
             }
@@ -471,7 +473,8 @@ namespace mbm
     
     bool RENDER_2_TEXTURE::isOnFrustum()
     {
-        if (this->bufferGL.isLoadedBuffer())
+        const BUFFER_GL &renderTargetBuffer = this->getRenderTargetBuffer();
+        if (renderTargetBuffer.isLoadedBuffer())
         {
             if (this->isRender2TextureEnabled())
                 return false;
@@ -492,7 +495,7 @@ namespace mbm
     {
         std::vector<std::string> result;
         this->setRenderTargetTexture(nullptr);
-        this->bufferGL.release();
+        this->getRenderTargetBuffer().release();
         util::split(result, this->getInternalFileName(), '|');
         if (result.size() != 7)
             return false;
@@ -539,7 +542,8 @@ namespace mbm
     
     FVF_PROVIDE_BY_ENGINE RENDER_2_TEXTURE::getFvfFromBuffer() const noexcept
     {
-        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+        const BUFFER_GL &renderTargetBuffer = this->getRenderTargetBuffer();
+        return renderTargetBuffer.isLoadedBuffer() ? renderTargetBuffer.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     bool RENDER_2_TEXTURE::createAnimationAndShader2Render2Texture()
@@ -578,7 +582,7 @@ namespace mbm
     
     bool RENDER_2_TEXTURE::isLoaded() const
     {
-        return this->bufferGL.isLoadedBuffer();
+        return this->getRenderTargetBuffer().isLoadedBuffer();
     }
 
     TEXTURE * RENDER_2_TEXTURE::getRenderTargetTexture() const noexcept
@@ -589,6 +593,16 @@ namespace mbm
     void RENDER_2_TEXTURE::setRenderTargetTexture(TEXTURE *renderTargetTexture) noexcept
     {
         this->impl->texture = renderTargetTexture;
+    }
+
+    BUFFER_GL & RENDER_2_TEXTURE::getRenderTargetBuffer() noexcept
+    {
+        return this->bufferGL;
+    }
+
+    const BUFFER_GL & RENDER_2_TEXTURE::getRenderTargetBuffer() const noexcept
+    {
+        return this->bufferGL;
     }
     
 };

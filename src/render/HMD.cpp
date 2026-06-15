@@ -38,7 +38,7 @@ namespace mbm
         this->clearRenderObjectLists();
         this->clearInternalFileName();
         this->bufferGLRight.release();
-        this->bufferGL.release();
+        this->getRenderTargetBuffer().release();
     }
     
     bool HMD::load()
@@ -98,9 +98,10 @@ namespace mbm
                 VEC2            uv[4];
                 unsigned short int index[6] = {0, 2, 1, 2, 3, 1};
                 this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
-                if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
+                BUFFER_GL &renderTargetBuffer = this->getRenderTargetBuffer();
+                if (renderTargetBuffer.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.setTextureByStage(renderTargetTexture, 0, 0);
+                    renderTargetBuffer.setTextureByStage(renderTargetTexture, 0, 0);
                 }
                 else
                 {
@@ -158,7 +159,7 @@ namespace mbm
         VEC3 &position = this->getPosition();
         position.x = device->getScaleBackBufferWidth() * 0.25f;
         position.y = device->getScaleBackBufferHeight() * 0.5f;
-        if (!this->renderVR(&this->bufferGL)) // left
+        if (!this->renderVR(&this->getRenderTargetBuffer())) // left
             return false;
         position.x = device->getScaleBackBufferWidth() * 0.75f;
         if (!this->renderVR(&this->bufferGLRight)) // right
