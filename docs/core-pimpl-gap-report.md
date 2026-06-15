@@ -2028,6 +2028,14 @@ Milestone 245 implementation note:
 - Kept the protected `bufferGL` storage in the header for this review milestone; `HMD::bufferGLRight` remains separate HMD-owned state.
 - Focused scan shows `RENDER_2_TEXTURE::bufferGL` direct access is now limited to the accessor implementation and protected storage declaration.
 
+Milestone 246 implementation note:
+
+- Moved `RENDER_2_TEXTURE::bufferGL` into private `RENDER_2_TEXTURE::Impl`.
+- Kept the Milestone 245 buffer accessor API unchanged: `getRenderTargetBuffer()` const and non-const overloads.
+- Removed the protected buffer storage from `include/render/render-2-texture.h`.
+- Focused scan shows inherited render-target buffer storage now appears only in private `Impl`; base render target and `HMD` left-eye paths use the accessor API.
+- `HMD::bufferGLRight` remains separate HMD-owned state and is not part of `RENDER_2_TEXTURE` storage.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2134,6 +2142,6 @@ Current decision:
 11. `RENDER_2_TEXTURE` render-object lists and texture-only flag are now behind `Impl`; `CAMERA_TARGET` remains public compatibility surface for a separate pass.
 12. `RENDER_2_TEXTURE` camera storage is now behind `Impl`; `getCamera2d()` / `getCamera3d()` remain the compatibility API for C++ and Lua camera access.
 13. `RENDER_2_TEXTURE` texture storage is now behind `Impl`; `getRenderTargetTexture()` / `setRenderTargetTexture()` remain the protected compatibility API.
-14. `RENDER_2_TEXTURE` buffer access is accessor-backed through `getRenderTargetBuffer()`; protected storage remains for one review milestone before hiding.
+14. `RENDER_2_TEXTURE` buffer storage is now behind `Impl`; `getRenderTargetBuffer()` remains the protected compatibility API.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

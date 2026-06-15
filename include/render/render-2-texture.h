@@ -87,7 +87,6 @@ namespace mbm
         BUFFER_GL & getRenderTargetBuffer() noexcept;
         const BUFFER_GL & getRenderTargetBuffer() const noexcept;
         
-        BUFFER_GL         bufferGL;
         mbm::INFO_PHYSICS infoPhysics;
 
       private:

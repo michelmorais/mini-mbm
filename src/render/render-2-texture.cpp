@@ -35,6 +35,7 @@ namespace mbm
         CAMERA_TARGET               camera2d;
         CAMERA_TARGET               camera3d;
         TEXTURE *                    texture;
+        BUFFER_GL                    bufferGL;
         std::vector<RENDERIZABLE *> lsObjects2dRender;
         std::vector<RENDERIZABLE *> lsObjects3dRender;
         bool                        modeTextureOnly;
@@ -597,12 +598,12 @@ namespace mbm
 
     BUFFER_GL & RENDER_2_TEXTURE::getRenderTargetBuffer() noexcept
     {
-        return this->bufferGL;
+        return this->impl->bufferGL;
     }
 
     const BUFFER_GL & RENDER_2_TEXTURE::getRenderTargetBuffer() const noexcept
     {
-        return this->bufferGL;
+        return this->impl->bufferGL;
     }
     
 };
