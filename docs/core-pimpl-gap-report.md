@@ -1,8 +1,27 @@
 # Core MBM PIMPL Gap Report
 
-Date: 2026-06-11
+Date: 2026-06-15
 
 This report checks what is still missing for the main `core_mbm` API to move toward a PIMPL-style design. It focuses on the public engine boundary under `include/core_mbm/` and the implementation files under `src/core_mbm/`.
+
+## Status: backend/OS PIMPL complete
+
+The original PIMPL goal is complete for this branch: public headers no longer expose concrete DirectX9, OpenGL ES, Metal, Win32, macOS, Android, or dummy backend implementation layouts as normal class storage. Backend-owned render handles and platform context storage have been moved behind `Impl`, `BackendData`, or private backend headers.
+
+Completed scope:
+
+- Backend resource handles: `TEXTURE`, `BUFFER_GL`, `SHADER`, `RENDERIZABLE_TO_TARGET`, and `DEVICE` context storage.
+- Concrete backend headers: DirectX9, OpenGL ES, Metal, and dummy backend layouts moved to `src/core_mbm/private/`.
+- Main manager/helper hygiene that was worth doing now: `TEXTURE_MANAGER`, `MESH_MANAGER` manager cache, `ANIMATION_BACKUP`, `EFFECT_SHADER`, `ANIMATION_MANAGER`, `ANIMATION`, `SCENE`, `CORE_MANAGER`, `RENDERIZABLE`, and `RENDER_2_TEXTURE` core storage.
+- Cross-platform validation reported by review/test cycles: Linux, Android, macOS, iOS, MinGW, and MSVS have all built during this branch after the private-header migration.
+
+Out of completed scope:
+
+- Public gameplay/editor value fields that are not backend SDK types or backend-owned handles.
+- File-format and debug data layouts such as mesh headers, mesh debug buffers, and editable asset data.
+- Plugin ABI redesign, especially opaque `void *context` / `void *renderDevice` callback handles.
+- Pure comment/name cleanup where an API mentions a platform but does not expose a concrete platform layout.
+- Full strict PIMPL for every render type. That remains future ABI/header hygiene, not backend/OS isolation.
 
 ## Target
 
@@ -14,7 +33,7 @@ A strict PIMPL-style core API would mean:
 - Users, Lua bindings, render classes, and plugins use methods instead of reading or mutating internal fields directly.
 - Adding a backend or changing manager internals does not require changing the public object layout.
 
-The current codebase is not designed this way yet. It is mostly a public-data engine API with some backend state already isolated. A PIMPL migration should be staged.
+The current codebase is not a fully strict PIMPL API. The backend/OS isolation scope is complete, and remaining work should be treated as optional strict-PIMPL ABI/header hygiene. Any future migration should stay staged.
 
 ## Existing PIMPL-style work
 
@@ -24,14 +43,14 @@ The current codebase is not designed this way yet. It is mostly a public-data en
 | `AUDIO_MANAGER` | Partly converted | Shared manager code delegates setup, teardown, and update through private backend hooks. |
 | `DEVICE::specificContextDevice` | Converted | The pointer is now stored behind `DEVICE::Impl`; backend code reaches it through `DEVICE::getSpecificContextDevice()`. |
 | `TEXTURE` backend handle | Converted | `TEXTURE` stores the GPU handle behind `BackendData`; backend code uses helper methods for integer or pointer handles. |
-| Shader resources | Partly hidden | Built-in shader code is hidden behind functions, but runtime shader/buffer objects still expose backend handles. |
-| Manager caches | Private but not PIMPL | Several managers keep private containers in public headers. That hides access, but still exposes layout and forces container includes. |
+| Shader resources | Converted for backend handles | Built-in shader code is hidden behind functions, and runtime shader/buffer backend handles are behind `BackendData`. |
+| Manager caches | Mostly converted for selected managers | `TEXTURE_MANAGER`, `MESH_MANAGER`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, `EFFECT_SHADER`, `SCENE`, and `CORE_MANAGER` have moved the targeted private layout behind `Impl`; file-format/debug/helper layouts remain separate future decisions. |
 
-## Main gaps
+## Original main gaps and remaining gaps
 
 ### 1. Public data members are the largest blocker
 
-Several core classes expose mutable state as part of the public API. Hiding these fields without a compatibility layer would break a large amount of engine code, platform samples, Lua wrapping, and likely external game code.
+The original blocker was broad public mutable state. The main core classes targeted by this branch have now moved their storage behind accessors and `Impl`, but derived render types, file-format structs, and editor/debug-facing value objects can still expose state. Hiding those without a compatibility policy would break engine code, platform samples, Lua wrapping, editor tooling, and likely external game code.
 
 High-impact examples:
 
@@ -43,7 +62,7 @@ High-impact examples:
 | `include/core_mbm/animation.h` | No direct public data members remain in `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, or `EFFECT_SHADER`; animation/effect state is behind `Impl`. |
 | `include/core_mbm/scene.h` | No direct public data members remain; scene transition state and scene user data are accessor-backed and stored behind `Impl`. |
 
-A broad scan for direct member access on the main exposed state returned more than 2,000 hits across `include/`, `src/`, `plugins/`, `platform-*`, and `editor/`. That number is only a sizing signal, but it confirms this cannot be a single mechanical header edit.
+An early broad scan for direct member access on the main exposed state returned more than 2,000 hits across `include/`, `src/`, `plugins/`, `platform-*`, and `editor/`. That number is now historical, not the current open count. It remains useful only as a sizing signal for why strict PIMPL cleanup must stay staged.
 
 What is missing:
 
@@ -2051,7 +2070,7 @@ Milestone 248 implementation note:
 - Removed the protected physics storage from `include/render/render-2-texture.h`.
 - Focused scan shows render-target physics storage now appears only in private `Impl`; load/setup, 3D render sizing, restore sizing, and `getInfoPhysics()` use the accessor API.
 
-### Phase 3 - Hide renderer backend handles
+### Phase 3 - Hide renderer backend handles - COMPLETE
 
 Order:
 
@@ -2061,7 +2080,9 @@ Order:
 4. `RENDERIZABLE_TO_TARGET::specificConfig` - done
 5. `DEVICE::specificContextDevice` - done
 
-This phase removes most backend leakage while keeping gameplay-facing APIs mostly unchanged.
+Status: complete.
+
+This phase removed the backend leakage that mattered for the original PIMPL goal while keeping gameplay-facing APIs mostly unchanged. Do not reopen this phase unless a public header introduces a concrete SDK/backend type, a concrete backend-owned handle, or a concrete platform/backend layout again.
 
 ### Phase 4 - PIMPL manager/helper internals
 
@@ -2120,14 +2141,44 @@ Only after engine internals, Lua bindings, plugins, examples, and editors use th
 
 This is future work only. It is not required for the completed OS/backend isolation goal.
 
-1. Define a compatibility policy: decide whether public fields remain supported or whether a breaking API cleanup is acceptable.
-2. Move selected backend-neutral manager/helper internals behind `Impl`, with `TEXTURE_MANAGER`, `ANIMATION_BACKUP`, `EFFECT_SHADER` state, `MESH_MANAGER` singleton cache, `ANIMATION_MANAGER` state, `SCENE` state, and `CORE_MANAGER` public state done.
-3. Continue derived render-type header hygiene only where public fields expose internals or cause ABI pressure.
-4. Migrate engine internals, Lua bindings, plugins, examples, editor tools, and platform samples from direct field access to the stable API.
-5. Move remaining backend-neutral private containers into `Impl` only after call sites no longer depend on their layout.
-6. Split public and private headers further where STL-heavy internals still leak compile dependencies.
-7. Revisit plugin ABI separately if `PLUGIN::onSubscribe(void *context, void *renderDevice)` ever needs a stable cross-version ABI instead of opaque backend handles.
-8. Decide whether value-heavy inheritance such as `DEVICE : public TIME_CONTROL, public FRUSTUM` should remain source-compatible or move behind composition.
+Future strict-PIMPL work should be picked from the audit table below. The rule is: do not move state only because it is visible. Move it when it improves ABI stability, reduces public header weight, protects invariants, or removes accidental coupling to implementation details.
+
+| Area/header | Current state | Why it remains | Risk | Safe future milestone |
+|---|---|---|---|---|
+| `include/render/render-2-texture.h` / `CAMERA_TARGET` | Public camera value fields remain: `position`, `scale`, `angle`, `focus`, `up`, near/far values, and matrices. `RENDER_2_TEXTURE` itself has moved render lists, camera storage, texture, buffer, and physics state behind `Impl`. | `CAMERA_TARGET` is a gameplay/Lua-facing camera value object, not backend SDK storage. Lua code and render-to-texture camera bindings still expect direct field-style access. | Medium. Moving it would affect Lua/editor behavior and C++ source compatibility. | First add `CAMERA_TARGET` accessors and migrate internal repeated access. Only move fields to `CAMERA_TARGET::Impl` if a breaking compatibility decision is accepted. |
+| `include/render/HMD.h` | `HMD` still owns protected `BUFFER_GL bufferGLRight` for the right-eye target. The inherited left-eye/render-target buffer is already behind `RENDER_2_TEXTURE::Impl`. | This is engine render-resource layout, not a direct SDK type after `BUFFER_GL` itself was PIMPL-ed. It remains visible because HMD is a specialized render type. | Medium. VR/HMD paths are platform-sensitive and less broadly exercised. | Add `getRightEyeBuffer()` protected helpers, migrate HMD/backend use, then move `bufferGLRight` behind `HMD::Impl` in a separate milestone. |
+| `include/core_mbm/mesh-manager.h` / `MESH_MBM`, `MESH_MBM_DEBUG`, `BUFFER_MESH` | `MESH_MANAGER` cache/fake-release state is behind `Impl`, but mesh file/debug structs still expose large public layouts, vectors, maps, `INFO_PHYSICS`, material, animation, and editor/debug data. | These are file-format/editor/debug data contracts, not OS/backend SDK handles. Some fields are likely used by mesh loading, Lua debug tooling, editor tooling, and tests. | High. Broad source compatibility and asset-format behavior risk. | Do a read-only compatibility audit first. Split internal-only debug state from file-format value state before any accessors or storage moves. |
+| `include/core_mbm/texture-manager.h` / `TEXTURE`, TTF helpers | `TEXTURE_MANAGER` internals and `TEXTURE` backend handle are hidden. `TEXTURE::useAlphaChannel` remains public, and TTF methods expose `stbtt_aligned_quad` in public signatures. | `useAlphaChannel` is a simple asset property. `stbtt_aligned_quad` is a third-party type leak, but not a backend/OS leak. | Medium. Texture/font code is used widely by Lua, editor, and render types. | Add `TEXTURE::hasAlphaChannel()` / setter and migrate internal call sites. Separately decide whether the TTF API should wrap or keep `stbtt_aligned_quad`. |
+| `include/core_mbm/device.h` | No direct public data members remain. Some layout is still visible through value-heavy inheritance and public methods returning mutable engine objects. | `DEVICE` remains a central gameplay singleton. Further hiding may be a source/API design change rather than backend isolation. | High. It touches the main loop, platform code, Lua, plugins, and samples. | Leave as complete unless formal ABI stability becomes a goal. If revisited, start with documentation of source compatibility expectations. |
+| `include/core_mbm/plugin-callback.h` | `PLUGIN::onSubscribe(void *context, void *renderDevice)` still passes opaque backend/platform handles. | The types are opaque `void *`, so no concrete backend layout leaks through the header. This is a plugin ABI/design issue, not current PIMPL leakage. | High. Plugin binary/source compatibility risk. | Revisit only if plugin ABI versioning becomes formal. Introduce a stable plugin context wrapper before changing callbacks. |
+| `include/core_mbm/header-mesh.h` and mesh file-format structs | Public file-format value structs remain visible. | They describe serialized data and compatibility with existing asset files. | High. Asset compatibility risk. | Do not PIMPL first. Only revisit during a mesh format redesign. |
+| Public comments/API names mentioning platforms | Some comments, names, or bridge functions may mention Android, Metal, DirectX, OpenGL ES, Win32, or macOS. | Names/comments are not a concrete layout leak. Opaque bridges are acceptable for platform integration. | Low. Mostly documentation consistency. | Optional documentation cleanup only. Do not treat this as backend/OS PIMPL work. |
+| Derived render-type headers such as `sprite.h`, `mesh.h`, `font.h`, `particle.h`, `tile.h`, `shape-mesh.h`, `line-mesh.h`, `background.h`, `gif-view.h`, `texture-view.h` | Base `RENDERIZABLE` state is hidden. Derived classes may still expose gameplay, asset, editor, or render-type-specific fields. | Most remaining state is not an explicit backend/OS dependency. Some is part of long-standing C++/Lua/editor ergonomics. | Medium to high depending on type. | Continue only when a field is clearly internal or creates ABI pressure. Batch similar render types only after focused scans show the same safe accessor pattern. |
+| `include/core_mbm/animation.h` | `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` state is behind `Impl`. | No known remaining strict-PIMPL blocker in this header from the current branch. | Low. | Treat as complete. Reopen only for bugs, missing accessors, or new public-state regressions. |
+| `include/core_mbm/core-manager.h`, `scene.h`, `renderizable.h` | Main state is behind `Impl` and repo call sites use accessor APIs. | These headers still define the public engine API, but no longer expose the main storage targeted by this cleanup. | Low to medium. | Treat as complete. Future changes should be normal API design, not cleanup for its own sake. |
+
+### Future pickup checklist
+
+Use this checklist when resuming the work months later:
+
+1. Do not reopen backend/OS PIMPL unless a public header exposes a concrete SDK/backend type, a backend-owned handle, or a concrete platform/backend layout again.
+2. Pick exactly one row from the audit table unless the rows share the same trivial accessor pattern.
+3. First milestone: add accessors/helpers and migrate internal call sites. Keep storage in place.
+4. Second milestone: move storage into `Impl` only after focused scans are clean.
+5. Preserve the project accessor rule: if a function uses the same accessor-backed object more than once, store it once in a local variable or reference.
+6. Run focused scans before and after the move. Prefer exact field names plus owner class context to avoid false positives from camera, physics, mesh-buffer, or file-format fields.
+7. For code changes, run at least `git diff --check` and a Linux or Android build locally when possible. Ask for macOS, iOS, MSVS, or MinGW validation when the touched area is platform-sensitive.
+8. Update this report after each milestone with what moved, what was intentionally left, and the next safe target.
+
+### Suggested future milestone queue
+
+1. `HMD::bufferGLRight` accessor prep.
+2. `HMD::bufferGLRight` storage move behind `HMD::Impl`.
+3. `TEXTURE::useAlphaChannel` accessor prep and internal call-site migration.
+4. TTF public API decision for `stbtt_aligned_quad`: keep as accepted third-party API or wrap it.
+5. `CAMERA_TARGET` accessor prep only. Do not move storage until Lua/editor compatibility is explicitly accepted.
+6. `MESH_MBM` / `MESH_MBM_DEBUG` read-only compatibility audit. Do not edit storage in the audit milestone.
+7. Derived render-type header audit by family: simple texture-like types first, mesh/debug/editor-heavy types last.
 
 ## Not worth PIMPL first
 
@@ -2140,7 +2191,7 @@ These can stay as normal public value/API types unless there is a specific ABI g
 
 ## Summary
 
-The core has completed the original backend/OS PIMPL scope: backend resource-handle cleanup, public backend/platform header isolation, and private backend-header organization. ABI/header hygiene has also moved the base `RENDERIZABLE` layout behind `Impl`.
+The core has completed the original backend/OS PIMPL scope: backend resource-handle cleanup, public backend/platform header isolation, and private backend-header organization. ABI/header hygiene has also moved the major core/render base layouts behind `Impl`.
 
 Current decision:
 
@@ -2159,5 +2210,6 @@ Current decision:
 13. `RENDER_2_TEXTURE` texture storage is now behind `Impl`; `getRenderTargetTexture()` / `setRenderTargetTexture()` remain the protected compatibility API.
 14. `RENDER_2_TEXTURE` buffer storage is now behind `Impl`; `getRenderTargetBuffer()` remains the protected compatibility API.
 15. `RENDER_2_TEXTURE` physics storage is now behind `Impl`; `getRenderTargetInfoPhysics()` remains the protected compatibility API.
+16. Backend/OS PIMPL is formally complete. Remaining items in this report are future strict-PIMPL, ABI, source-compatibility, or header-hygiene work.
 
-For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.
+For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is optional strict PIMPL and ABI/header hygiene, not backend isolation.
