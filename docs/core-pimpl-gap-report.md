@@ -2036,6 +2036,14 @@ Milestone 246 implementation note:
 - Focused scan shows inherited render-target buffer storage now appears only in private `Impl`; base render target and `HMD` left-eye paths use the accessor API.
 - `HMD::bufferGLRight` remains separate HMD-owned state and is not part of `RENDER_2_TEXTURE` storage.
 
+Milestone 247 implementation note:
+
+- Added protected render-target physics accessors: `getRenderTargetInfoPhysics()` with const and non-const overloads.
+- Migrated direct `RENDER_2_TEXTURE::infoPhysics` use in load/setup, 3D render sizing, restore sizing, and `getInfoPhysics()` to the accessor API.
+- Applied the accessor reuse rule with local `INFO_PHYSICS &` / `const INFO_PHYSICS &` references where the function uses the physics object more than once.
+- Kept the protected `infoPhysics` storage in the header for this review milestone; the next storage-hiding milestone can move it into `Impl`.
+- Focused scan shows direct `infoPhysics` storage access is now limited to the accessor implementation and protected storage declaration.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2143,5 +2151,6 @@ Current decision:
 12. `RENDER_2_TEXTURE` camera storage is now behind `Impl`; `getCamera2d()` / `getCamera3d()` remain the compatibility API for C++ and Lua camera access.
 13. `RENDER_2_TEXTURE` texture storage is now behind `Impl`; `getRenderTargetTexture()` / `setRenderTargetTexture()` remain the protected compatibility API.
 14. `RENDER_2_TEXTURE` buffer storage is now behind `Impl`; `getRenderTargetBuffer()` remains the protected compatibility API.
+15. `RENDER_2_TEXTURE` physics access is accessor-backed through `getRenderTargetInfoPhysics()`; protected storage remains for one review milestone before hiding.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

@@ -203,13 +203,14 @@ namespace mbm
                     this->getRenderTargetWidth(),
                     this->getRenderTargetHeight(),
                     hasAlpha ? "true" : "false");
+                INFO_PHYSICS &infoPhysics = this->getRenderTargetInfoPhysics();
                 mbm::CUBE *cube = nullptr;
-                if (this->infoPhysics.lsCube.size())
-                    cube = this->infoPhysics.lsCube[0];
+                if (infoPhysics.lsCube.size())
+                    cube = infoPhysics.lsCube[0];
                 else
                 {
                     cube = new mbm::CUBE();
-                    this->infoPhysics.lsCube.push_back(cube);
+                    infoPhysics.lsCube.push_back(cube);
                 }
                 cube->halfDim.x               = widthFrame * 0.5f;
                 cube->halfDim.y               = heightFrame * 0.5f;
@@ -378,7 +379,8 @@ namespace mbm
         if (objects3d.size())
         {
             mbm::DEVICE* device     = mbm::DEVICE::getInstance();
-            const CUBE *cube        = this->infoPhysics.lsCube[0];
+            const INFO_PHYSICS &infoPhysics = this->getRenderTargetInfoPhysics();
+            const CUBE *cube        = infoPhysics.lsCube[0];
             const float widthFrame  = cube->halfDim.x * 2.0f;
             const float heightFrame = cube->halfDim.y * 2.0f;
             CAMERA_TARGET &camera3dTarget = this->getCamera3d();
@@ -510,7 +512,8 @@ namespace mbm
             bool     hasAlpha = result[6].compare("true") == 0 ? true : false;
             float widthFrame  = 0;
             float heightFrame = 0;
-            this->infoPhysics.getBounds(&widthFrame, &heightFrame);
+            const INFO_PHYSICS &infoPhysics = this->getRenderTargetInfoPhysics();
+            infoPhysics.getBounds(&widthFrame, &heightFrame);
             if (this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha) == nullptr)
                 return false;
 #if defined DEBUG
@@ -560,7 +563,7 @@ namespace mbm
     
     const mbm::INFO_PHYSICS * RENDER_2_TEXTURE::getInfoPhysics() const
     {
-        return &this->infoPhysics;
+        return &this->getRenderTargetInfoPhysics();
     }
     
     const MESH_MBM * RENDER_2_TEXTURE::getMesh() const
@@ -604,6 +607,16 @@ namespace mbm
     const BUFFER_GL & RENDER_2_TEXTURE::getRenderTargetBuffer() const noexcept
     {
         return this->impl->bufferGL;
+    }
+
+    INFO_PHYSICS & RENDER_2_TEXTURE::getRenderTargetInfoPhysics() noexcept
+    {
+        return this->infoPhysics;
+    }
+
+    const INFO_PHYSICS & RENDER_2_TEXTURE::getRenderTargetInfoPhysics() const noexcept
+    {
+        return this->infoPhysics;
     }
     
 };
