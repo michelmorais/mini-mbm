@@ -51,7 +51,6 @@ namespace mbm
     class RENDER_2_TEXTURE : public RENDERIZABLE_TO_TARGET, public ANIMATION_MANAGER
     {
       public:
-        CAMERA_TARGET               camera2d, camera3d;
         API_IMPL RENDER_2_TEXTURE(const SCENE* scene, const bool _is3d, const bool _is2dScreen);
         API_IMPL virtual ~RENDER_2_TEXTURE();
         API_IMPL void removeFromRender2Texture(RENDERIZABLE *ptr) override;

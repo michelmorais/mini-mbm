@@ -32,6 +32,8 @@ namespace mbm
 {
     struct RENDER_2_TEXTURE::Impl
     {
+        CAMERA_TARGET               camera2d;
+        CAMERA_TARGET               camera3d;
         std::vector<RENDERIZABLE *> lsObjects2dRender;
         std::vector<RENDERIZABLE *> lsObjects3dRender;
         bool                        modeTextureOnly;
@@ -437,22 +439,22 @@ namespace mbm
 
     CAMERA_TARGET & RENDER_2_TEXTURE::getCamera2d() noexcept
     {
-        return this->camera2d;
+        return this->impl->camera2d;
     }
 
     const CAMERA_TARGET & RENDER_2_TEXTURE::getCamera2d() const noexcept
     {
-        return this->camera2d;
+        return this->impl->camera2d;
     }
 
     CAMERA_TARGET & RENDER_2_TEXTURE::getCamera3d() noexcept
     {
-        return this->camera3d;
+        return this->impl->camera3d;
     }
 
     const CAMERA_TARGET & RENDER_2_TEXTURE::getCamera3d() const noexcept
     {
-        return this->camera3d;
+        return this->impl->camera3d;
     }
 
     void RENDER_2_TEXTURE::clearRenderObjectLists() noexcept

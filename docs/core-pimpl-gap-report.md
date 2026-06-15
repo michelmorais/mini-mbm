@@ -1998,6 +1998,13 @@ Milestone 241 implementation note:
 - Applied the accessor reuse rule by storing camera accessor results in local `CAMERA_TARGET &` references when a function uses the same camera more than once.
 - Focused scan shows remaining direct `camera2d`/`camera3d` hits are the public compatibility declarations, accessor implementation, historical docs, and unrelated Lua local variable strings.
 
+Milestone 242 implementation note:
+
+- Moved `RENDER_2_TEXTURE::camera2d` and `RENDER_2_TEXTURE::camera3d` into private `RENDER_2_TEXTURE::Impl`.
+- Kept the Milestone 241 accessor API unchanged so Lua camera userdata still receives stable `CAMERA_TARGET *` pointers from `getCamera2d()` / `getCamera3d()`.
+- Removed the public camera storage from `include/render/render-2-texture.h`.
+- Focused scan shows remaining `camera2d` / `camera3d` hits are private `Impl` storage, accessor implementation, migrated accessor users, historical docs, and unrelated Lua local variable strings.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2102,6 +2109,6 @@ Current decision:
 9. `ANIMATION` frame state, blend state, flags, type, `FX`, and timer are now behind `Impl`; direct repo call sites found by the `anim->...` / `animation->...` public field scan use the accessor API.
 10. `RENDERIZABLE` base state is now behind `Impl`; `RENDERIZABLE_TO_TARGET` render-target size/clear-color state is now accessor-backed and hidden.
 11. `RENDER_2_TEXTURE` render-object lists and texture-only flag are now behind `Impl`; `CAMERA_TARGET` remains public compatibility surface for a separate pass.
-12. `RENDER_2_TEXTURE` camera access now has `getCamera2d()` / `getCamera3d()` compatibility accessors; direct internal users are migrated, but public `camera2d` / `camera3d` storage remains until the next storage-hiding milestone.
+12. `RENDER_2_TEXTURE` camera storage is now behind `Impl`; `getCamera2d()` / `getCamera3d()` remain the compatibility API for C++ and Lua camera access.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.
