@@ -86,7 +86,6 @@ namespace mbm
         void setRenderTargetTexture(mbm::TEXTURE *renderTargetTexture) noexcept;
         
         BUFFER_GL         bufferGL;
-        mbm::TEXTURE *    texture;
         mbm::INFO_PHYSICS infoPhysics;
 
       private:

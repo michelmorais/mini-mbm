@@ -2013,6 +2013,13 @@ Milestone 243 implementation note:
 - Kept the protected `texture` storage in the header for this review milestone; the next storage-hiding milestone can move it into `Impl` without touching backend save paths again.
 - Focused scan shows real direct `this->texture` access is now limited to the helper implementation; an old OpenGL ES comment still contains the historical text.
 
+Milestone 244 implementation note:
+
+- Moved `RENDER_2_TEXTURE::texture` into private `RENDER_2_TEXTURE::Impl`.
+- Kept the Milestone 243 helper API unchanged: `getRenderTargetTexture()` and `setRenderTargetTexture()`.
+- Removed the protected texture pointer from `include/render/render-2-texture.h`.
+- Focused scan shows render-target texture storage now appears only in private `Impl`; base, HMD, and backend save paths use the helper API.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2118,6 +2125,6 @@ Current decision:
 10. `RENDERIZABLE` base state is now behind `Impl`; `RENDERIZABLE_TO_TARGET` render-target size/clear-color state is now accessor-backed and hidden.
 11. `RENDER_2_TEXTURE` render-object lists and texture-only flag are now behind `Impl`; `CAMERA_TARGET` remains public compatibility surface for a separate pass.
 12. `RENDER_2_TEXTURE` camera storage is now behind `Impl`; `getCamera2d()` / `getCamera3d()` remain the compatibility API for C++ and Lua camera access.
-13. `RENDER_2_TEXTURE` texture access is accessor-backed through `getRenderTargetTexture()` / `setRenderTargetTexture()`; protected storage remains for one review milestone before hiding.
+13. `RENDER_2_TEXTURE` texture storage is now behind `Impl`; `getRenderTargetTexture()` / `setRenderTargetTexture()` remain the protected compatibility API.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

@@ -34,11 +34,13 @@ namespace mbm
     {
         CAMERA_TARGET               camera2d;
         CAMERA_TARGET               camera3d;
+        TEXTURE *                    texture;
         std::vector<RENDERIZABLE *> lsObjects2dRender;
         std::vector<RENDERIZABLE *> lsObjects3dRender;
         bool                        modeTextureOnly;
 
         Impl() noexcept:
+            texture(nullptr),
             modeTextureOnly(false)
         {
         }
@@ -581,12 +583,12 @@ namespace mbm
 
     TEXTURE * RENDER_2_TEXTURE::getRenderTargetTexture() const noexcept
     {
-        return this->texture;
+        return this->impl->texture;
     }
 
     void RENDER_2_TEXTURE::setRenderTargetTexture(TEXTURE *renderTargetTexture) noexcept
     {
-        this->texture = renderTargetTexture;
+        this->impl->texture = renderTargetTexture;
     }
     
 };
