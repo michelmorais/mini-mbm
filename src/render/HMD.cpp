@@ -34,7 +34,7 @@ namespace mbm
     
     HMD::~HMD()
     {
-        this->texture = nullptr;
+        this->setRenderTargetTexture(nullptr);
         this->clearRenderObjectLists();
         this->clearInternalFileName();
         this->bufferGLRight.release();
@@ -70,7 +70,8 @@ namespace mbm
             "512x512 \n"
             "and wasn't allow me to render scene in textures with proper size.\n";
         #endif
-        if (this->texture == nullptr)
+        TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if (renderTargetTexture == nullptr)
         {
             if (_widthTexture == 0 || _heightTexture == 0)
             {
@@ -86,8 +87,9 @@ namespace mbm
                 return false;
             }
             this->setRenderTargetSize(_widthTexture, _heightTexture);  // 400x600 default
-            this->texture = TEXTURE_MANAGER::getInstance()->createTextureRenderTarget(this, nickName, hasAlpha);
-            if (this->texture)
+            renderTargetTexture = TEXTURE_MANAGER::getInstance()->createTextureRenderTarget(this, nickName, hasAlpha);
+            this->setRenderTargetTexture(renderTargetTexture);
+            if (renderTargetTexture)
             {
                 int                indexStart = 0;
                 int                indexCount = 6;
@@ -98,7 +100,7 @@ namespace mbm
                 this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
                 if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.setTextureByStage(this->texture, 0, 0);
+                    this->bufferGL.setTextureByStage(renderTargetTexture, 0, 0);
                 }
                 else
                 {
@@ -107,7 +109,7 @@ namespace mbm
 
                 if (this->bufferGLRight.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGLRight.setTextureByStage(this->texture, 0, 0);
+                    this->bufferGLRight.setTextureByStage(renderTargetTexture, 0, 0);
                 }
                 else
                 {
@@ -124,7 +126,7 @@ namespace mbm
                 this->setInternalFileName(strTemp);
             }
         }
-        return (this->texture != nullptr);
+        return (this->getRenderTargetTexture() != nullptr);
     }
 
     bool HMD::isOnFrustum()

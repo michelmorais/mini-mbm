@@ -51,7 +51,8 @@ namespace mbm
     {
         if (newFileOutNamePNG == nullptr)
             return log_util::fail(__LINE__, __FILE__, "file name to save png is null");
-        if (this->texture == nullptr)
+        const TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if (renderTargetTexture == nullptr)
             return log_util::fail(__LINE__, __FILE__, "render-to-texture: texture is not created!");
 
         void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
@@ -118,7 +119,7 @@ namespace mbm
         }
 
         // --- Convert BGRA → RGBA (or BGR → RGB) and feed to lodepng -------------
-        const int channel     = this->texture->useAlphaChannel ? 4 : 3;
+        const int channel     = renderTargetTexture->useAlphaChannel ? 4 : 3;
         const int sizeImage   = _width * _height * channel;
         auto* image           = new unsigned char[sizeImage];
         const auto* src       = static_cast<const uint8_t*>([stagingBuf contents]);

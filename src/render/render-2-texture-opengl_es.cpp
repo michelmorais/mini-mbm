@@ -62,7 +62,8 @@ namespace mbm
         const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTargetSpecificConfig);
         if(sf->idTextureDynamic == 0)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
-        if(this->texture == nullptr)
+        const TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if(renderTargetTexture == nullptr)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(strcasecmp(newFileOutNamePNG,this->getInternalFileName()) == 0)
             return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",this->getInternalFileName());
@@ -72,7 +73,7 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
         if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(renderTargetHeight))
             return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
-        const int channel = this->texture->useAlphaChannel ? 4 : 3;
+        const int channel = renderTargetTexture->useAlphaChannel ? 4 : 3;
         const int sizeImage = _width * _height * channel;
         auto  image = new unsigned char[sizeImage];
 

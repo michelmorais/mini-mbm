@@ -82,6 +82,8 @@ namespace mbm
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;
         void clearRenderObjectLists() noexcept;
+        mbm::TEXTURE * getRenderTargetTexture() const noexcept;
+        void setRenderTargetTexture(mbm::TEXTURE *renderTargetTexture) noexcept;
         
         BUFFER_GL         bufferGL;
         mbm::TEXTURE *    texture;

@@ -82,7 +82,7 @@ namespace mbm
         device->addRenderizable(this);
         device->addObjectRender2Texture(this);
         this->setRender2Texture(false);
-        this->texture          = nullptr;
+        this->setRenderTargetTexture(nullptr);
     }
     
     RENDER_2_TEXTURE::~RENDER_2_TEXTURE()
@@ -127,10 +127,11 @@ namespace mbm
     {
         // Evict from TEXTURE_MANAGER cache so the next load() with the same nickname
         // creates a fresh FBO rather than returning this now-dead texture.
-        if (this->texture != nullptr)
+        TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if (renderTargetTexture != nullptr)
         {
-            TEXTURE_MANAGER::getInstance()->releaseRenderTarget(this->texture->getFileNameTexture());
-            this->texture = nullptr;
+            TEXTURE_MANAGER::getInstance()->releaseRenderTarget(renderTargetTexture->getFileNameTexture());
+            this->setRenderTargetTexture(nullptr);
         }
         this->clear();
         this->clearInternalFileName();
@@ -157,7 +158,8 @@ namespace mbm
             "512x512 \n"
             "and wasn't allow me to render scene in textures with proper size.\n";
         #endif
-        if (this->texture == nullptr)
+        TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if (renderTargetTexture == nullptr)
         {
             if (nickName == nullptr || _widthTexture == 0 || _heightTexture == 0)
             {
@@ -165,8 +167,9 @@ namespace mbm
                 return nullptr;
             }
             this->setRenderTargetSize(_widthTexture, _heightTexture);
-            this->texture = mbm::TEXTURE_MANAGER::getInstance()->createTextureRenderTarget(this, nickName, hasAlpha);
-            if (this->texture)
+            renderTargetTexture = mbm::TEXTURE_MANAGER::getInstance()->createTextureRenderTarget(this, nickName, hasAlpha);
+            this->setRenderTargetTexture(renderTargetTexture);
+            if (renderTargetTexture)
             {
                 int             indexStart = 0;
                 int             indexCount = 6;
@@ -176,17 +179,17 @@ namespace mbm
                 this->fillvertexQuad(_position, nullptr, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
                 if (this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.setTextureByStage(this->texture, 0, 0 );
+                    this->bufferGL.setTextureByStage(renderTargetTexture, 0, 0 );
                 }
                 else
                 {
-                    this->texture = nullptr;
-                    return this->texture;
+                    this->setRenderTargetTexture(nullptr);
+                    return nullptr;
                 }
                 if (!createAnimationAndShader2Render2Texture())
                 {
-                    this->texture = nullptr;
-                    return this->texture;
+                    this->setRenderTargetTexture(nullptr);
+                    return nullptr;
                 }
                 char strTemp[255];
                 snprintf(strTemp,sizeof(strTemp) -1, "rende2texture|%s|%u|%u|%u|%u|%s", 
@@ -211,7 +214,7 @@ namespace mbm
                 this->updateAABB();
             }
         }
-        return this->texture;
+        return this->getRenderTargetTexture();
     }
     
     void RENDER_2_TEXTURE::flip_vertically(unsigned char *pixels, const int width, const int height, const int bytes_per_pixel)
@@ -402,7 +405,8 @@ namespace mbm
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             CAMERA_TARGET &camera2dTarget = this->getCamera2d();
-            camera2dTarget.enableMode2D(device, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
+            TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+            camera2dTarget.enableMode2D(device, static_cast<float>(renderTargetTexture->getWidth()), static_cast<float>(renderTargetTexture->getHeight()));
             for (unsigned int i = 0; i < objects2d.size(); ++i)
             {
                 RENDERIZABLE *ptr   = objects2d[i];
@@ -485,7 +489,7 @@ namespace mbm
     bool RENDER_2_TEXTURE::onRestoreDevice()
     {
         std::vector<std::string> result;
-        this->texture = nullptr;
+        this->setRenderTargetTexture(nullptr);
         this->bufferGL.release();
         util::split(result, this->getInternalFileName(), '|');
         if (result.size() != 7)
@@ -573,6 +577,16 @@ namespace mbm
     bool RENDER_2_TEXTURE::isLoaded() const
     {
         return this->bufferGL.isLoadedBuffer();
+    }
+
+    TEXTURE * RENDER_2_TEXTURE::getRenderTargetTexture() const noexcept
+    {
+        return this->texture;
+    }
+
+    void RENDER_2_TEXTURE::setRenderTargetTexture(TEXTURE *renderTargetTexture) noexcept
+    {
+        this->texture = renderTargetTexture;
     }
     
 };

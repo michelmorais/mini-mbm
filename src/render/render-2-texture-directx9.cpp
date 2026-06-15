@@ -77,7 +77,8 @@ namespace mbm
         const RENDER2TARGET_DIRECTX9* sf = static_cast<const RENDER2TARGET_DIRECTX9*>(renderTargetSpecificConfig);
         if(sf->pRenderSurface == nullptr)
             return log_util::fail(__LINE__,__FILE__,"Surface is null, texture is not created!");
-        if(this->texture == nullptr)
+        const TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if(renderTargetTexture == nullptr)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(strcasecmp(newFileOutNamePNG,this->getInternalFileName()) == 0)
             return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",this->getInternalFileName());
@@ -93,7 +94,7 @@ namespace mbm
         //Usage : D3DUSAGE_RENDERTARGET(used as render target)
         //DirectX9 rule : Surfaces in D3DPOOL_DEFAULT with D3DUSAGE_RENDERTARGET cannot be locked -
         // they are GPU - exclusive.You need to use GetRenderTargetData() to copy from GPU to system memory first.
-        const int channel = this->texture->useAlphaChannel ? 4 : 3;
+        const int channel = renderTargetTexture->useAlphaChannel ? 4 : 3;
         const int sizeImage = _width * _height * channel;
         IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         D3DSURFACE_DESC	descSurfaceDest;
@@ -112,7 +113,7 @@ namespace mbm
 
         // Create a staging surface in SYSTEMMEM to copy the render target to
         IDirect3DSurface9* stagingSurface = nullptr;
-        D3DFORMAT requested_format = this->texture->useAlphaChannel ? D3DFMT_A8R8G8B8 : D3DFMT_R8G8B8;
+        D3DFORMAT requested_format = renderTargetTexture->useAlphaChannel ? D3DFMT_A8R8G8B8 : D3DFMT_R8G8B8;
         HRESULT hrCreateStaging = pd3dDevice->CreateOffscreenPlainSurface(
             renderTargetWidth, renderTargetHeight,
             requested_format,

@@ -2005,6 +2005,14 @@ Milestone 242 implementation note:
 - Removed the public camera storage from `include/render/render-2-texture.h`.
 - Focused scan shows remaining `camera2d` / `camera3d` hits are private `Impl` storage, accessor implementation, migrated accessor users, historical docs, and unrelated Lua local variable strings.
 
+Milestone 243 implementation note:
+
+- Added protected render-target texture helpers: `getRenderTargetTexture()` and `setRenderTargetTexture()`.
+- Migrated direct `RENDER_2_TEXTURE::texture` access in the base render target, `HMD`, and OpenGL ES/DirectX9/Metal/dummy PNG save paths to the helper API.
+- Applied the accessor reuse rule by storing `getRenderTargetTexture()` results in local `TEXTURE *` / `const TEXTURE *` variables where each function uses the texture more than once.
+- Kept the protected `texture` storage in the header for this review milestone; the next storage-hiding milestone can move it into `Impl` without touching backend save paths again.
+- Focused scan shows real direct `this->texture` access is now limited to the helper implementation; an old OpenGL ES comment still contains the historical text.
+
 ### Phase 3 - Hide renderer backend handles
 
 Order:
@@ -2110,5 +2118,6 @@ Current decision:
 10. `RENDERIZABLE` base state is now behind `Impl`; `RENDERIZABLE_TO_TARGET` render-target size/clear-color state is now accessor-backed and hidden.
 11. `RENDER_2_TEXTURE` render-object lists and texture-only flag are now behind `Impl`; `CAMERA_TARGET` remains public compatibility surface for a separate pass.
 12. `RENDER_2_TEXTURE` camera storage is now behind `Impl`; `getCamera2d()` / `getCamera3d()` remain the compatibility API for C++ and Lua camera access.
+13. `RENDER_2_TEXTURE` texture access is accessor-backed through `getRenderTargetTexture()` / `setRenderTargetTexture()`; protected storage remains for one review milestone before hiding.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is ABI/header hygiene, not backend isolation.

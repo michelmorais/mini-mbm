@@ -70,7 +70,8 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"file name to save png is null");
         if(!this->isLoaded())
             return log_util::fail(__LINE__,__FILE__,"render to texture is not loaded!");
-        if(this->texture == nullptr)
+        const TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if(renderTargetTexture == nullptr)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(strcasecmp(newFileOutNamePNG,this->getInternalFileName()) == 0)
             return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",this->getInternalFileName());
@@ -81,7 +82,7 @@ namespace mbm
         if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(renderTargetHeight))
             return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
 
-        const int channel = this->texture->useAlphaChannel ? 4 : 3;
+        const int channel = renderTargetTexture->useAlphaChannel ? 4 : 3;
         const int sizeImage = _width * _height * channel;
         REMINDER_TODO
         std::vector<uint8_t> imageData(sizeImage);
