@@ -31,6 +31,11 @@ namespace mbm
         bool goToNextScene = true;
         void *userData = nullptr;
     };
+
+    void SCENE::ImplDeleter::operator()(Impl *ptr) const
+    {
+        delete ptr;
+    }
     
     CONTROL_SCENE::CONTROL_SCENE() noexcept
     {
@@ -48,7 +53,7 @@ namespace mbm
     }
    
     SCENE::SCENE() noexcept
-        : impl(std::make_unique<Impl>())
+        : impl(new Impl())
     {
     }
 

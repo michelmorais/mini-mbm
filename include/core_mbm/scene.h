@@ -84,7 +84,11 @@ namespace mbm
 
       private:
         struct Impl;
-        std::unique_ptr<Impl> impl;
+        struct ImplDeleter
+        {
+            void operator()(Impl *ptr) const;
+        };
+        std::unique_ptr<Impl, ImplDeleter> impl;
     };
 
 }

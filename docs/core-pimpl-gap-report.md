@@ -2155,7 +2155,7 @@ Future strict-PIMPL work should be picked from the audit table below. The rule i
 | Public comments/API names mentioning platforms | Some comments, names, or bridge functions may mention Android, Metal, DirectX, OpenGL ES, Win32, or macOS. | Names/comments are not a concrete layout leak. Opaque bridges are acceptable for platform integration. | Low. Mostly documentation consistency. | Optional documentation cleanup only. Do not treat this as backend/OS PIMPL work. |
 | Derived render-type headers such as `sprite.h`, `mesh.h`, `font.h`, `particle.h`, `tile.h`, `shape-mesh.h`, `line-mesh.h`, `background.h`, `gif-view.h`, `texture-view.h` | Base `RENDERIZABLE` state is hidden. Derived classes may still expose gameplay, asset, editor, or render-type-specific fields. | Most remaining state is not an explicit backend/OS dependency. Some is part of long-standing C++/Lua/editor ergonomics. | Medium to high depending on type. | Continue only when a field is clearly internal or creates ABI pressure. Batch similar render types only after focused scans show the same safe accessor pattern. |
 | `include/core_mbm/animation.h` | `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` state is behind `Impl`. | No known remaining strict-PIMPL blocker in this header from the current branch. | Low. | Treat as complete. Reopen only for bugs, missing accessors, or new public-state regressions. |
-| `include/core_mbm/core-manager.h`, `scene.h`, `renderizable.h` | Main state is behind `Impl` and repo call sites use accessor APIs. | These headers still define the public engine API, but no longer expose the main storage targeted by this cleanup. | Low to medium. | Treat as complete. Future changes should be normal API design, not cleanup for its own sake. |
+| `include/core_mbm/core-manager.h`, `scene.h`, `renderizable.h` | Main state is behind `Impl` and repo call sites use accessor APIs. `SCENE` uses a custom out-of-line `ImplDeleter` so MSVC does not require `std::default_delete<SCENE::Impl>` to have a DLL interface. | These headers still define the public engine API, but no longer expose the main storage targeted by this cleanup. | Low to medium. | Treat as complete. Future changes should be normal API design, not cleanup for its own sake. |
 
 ### Future pickup checklist
 
@@ -2211,5 +2211,6 @@ Current decision:
 14. `RENDER_2_TEXTURE` buffer storage is now behind `Impl`; `getRenderTargetBuffer()` remains the protected compatibility API.
 15. `RENDER_2_TEXTURE` physics storage is now behind `Impl`; `getRenderTargetInfoPhysics()` remains the protected compatibility API.
 16. Backend/OS PIMPL is formally complete. Remaining items in this report are future strict-PIMPL, ABI, source-compatibility, or header-hygiene work.
+17. `SCENE::impl` uses a custom out-of-line deleter to avoid MSVC C4251 DLL-interface warnings for `std::unique_ptr<SCENE::Impl>`.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is optional strict PIMPL and ABI/header hygiene, not backend isolation.
