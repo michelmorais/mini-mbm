@@ -41,46 +41,46 @@ namespace mbm
         int getIdScene() const noexcept;
     };
 
-    class API_IMPL SCENE : public CONTROL_SCENE
+    class SCENE : public CONTROL_SCENE
     {
       public:
-        SCENE() noexcept;
-        virtual ~SCENE();
+        API_IMPL SCENE() noexcept;
+        API_IMPL virtual ~SCENE();
 
         virtual void onInitScene() = 0;
         virtual void onLoop() = 0;
         virtual void startLoading() = 0;
-        virtual void * get_lua_state();//if we are using lua we should be able to retrieve the current state
+        API_IMPL virtual void * get_lua_state();//if we are using lua we should be able to retrieve the current state
         virtual void endLoading() = 0;
         virtual void onResizeWindow() = 0;
 
-        virtual const char *getSceneName() noexcept;
+        API_IMPL virtual const char *getSceneName() noexcept;
 
-        virtual void onRestore(const int /*initRestore*/);
-        virtual void onTouchDown(int, float, float);
-        virtual void onTouchUp(int, float, float);
-        virtual void onTouchMove(int, float, float);
-        virtual void onTouchZoom(float);
-        virtual void onFinalizeScene();
-        virtual void onKeyDown(int);
-        virtual void onKeyUp(int);
-        virtual void onKeyDownJoystick(int, int);
-        virtual void onKeyUpJoystick(int, int);
-        virtual void onMoveJoystick(int, float, float, float,float);
-        virtual void onInfoDeviceJoystick(int, int, const char *,const char *);
-        virtual void onDoubleClick(float, float, int);
-        virtual void onCallBackCommands(const char *,const char *);
+        API_IMPL virtual void onRestore(const int /*initRestore*/);
+        API_IMPL virtual void onTouchDown(int, float, float);
+        API_IMPL virtual void onTouchUp(int, float, float);
+        API_IMPL virtual void onTouchMove(int, float, float);
+        API_IMPL virtual void onTouchZoom(float);
+        API_IMPL virtual void onFinalizeScene();
+        API_IMPL virtual void onKeyDown(int);
+        API_IMPL virtual void onKeyUp(int);
+        API_IMPL virtual void onKeyDownJoystick(int, int);
+        API_IMPL virtual void onKeyUpJoystick(int, int);
+        API_IMPL virtual void onMoveJoystick(int, float, float, float,float);
+        API_IMPL virtual void onInfoDeviceJoystick(int, int, const char *,const char *);
+        API_IMPL virtual void onDoubleClick(float, float, int);
+        API_IMPL virtual void onCallBackCommands(const char *,const char *);
 
-        bool isEndScene() const noexcept;
-        void setEndScene(bool value) noexcept;
-        bool wasSceneUnloaded() const noexcept;
-        void setWasUnloadedScene(bool value) noexcept;
-        SCENE *getNextScene() const noexcept;
-        void setNextScene(SCENE *_nextScene);
-        bool shouldGoToNextScene() const noexcept;
-        void setGoToNextScene(bool value) noexcept;
-        void *getUserData() const noexcept;
-        void setUserData(void *_userData) noexcept;
+        API_IMPL bool isEndScene() const noexcept;
+        API_IMPL void setEndScene(bool value) noexcept;
+        API_IMPL bool wasSceneUnloaded() const noexcept;
+        API_IMPL void setWasUnloadedScene(bool value) noexcept;
+        API_IMPL SCENE *getNextScene() const noexcept;
+        API_IMPL void setNextScene(SCENE *_nextScene);
+        API_IMPL bool shouldGoToNextScene() const noexcept;
+        API_IMPL void setGoToNextScene(bool value) noexcept;
+        API_IMPL void *getUserData() const noexcept;
+        API_IMPL void setUserData(void *_userData) noexcept;
 
       private:
         struct Impl;
