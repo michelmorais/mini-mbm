@@ -316,11 +316,19 @@ namespace mbm
         if(GetModuleFileNameA(HMod, myExe, sizeof(myExe)))
         {
             my_args.insert(my_args.begin(),myExe);
+			auto p = std::string(myExe).find_last_of("\\/");
+			if (p != std::string::npos)
+			{
+				std::string path = std::string(myExe).substr(0, p);
+				my_args.push_back("--addPath");
+                my_args.push_back(path);
+			}
         }
         else
         {
             my_args.insert(my_args.begin(),"mini_mbm.exe");
         }
+        
 #if _DEBUG
         my_args.push_back("--addPath");
         my_args.push_back("C:\\Users\\miche\\Documents\\mini-mbm\\editor");
