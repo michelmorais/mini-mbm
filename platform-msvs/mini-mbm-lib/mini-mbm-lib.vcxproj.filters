@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
@@ -569,7 +569,7 @@
     <ClInclude Include="..\..\include\core_mbm\specific-dummy.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h">
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h">

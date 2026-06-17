@@ -22,9 +22,7 @@
 
 #include <vector>
 #include <string>
-#include <map>
-#include <list>
-#include <mutex>
+#include <memory>
 #include <cstdint>
 #include "core-exports.h"
 #include <core_mbm/joystick-base.h>
@@ -36,6 +34,7 @@ namespace mbm
     class DEVICE;
     class SCENE;
     class RENDERIZABLE;
+    struct VEC3;
 
     
     enum EVENT_TYPE_ACTIONS
@@ -193,8 +192,6 @@ namespace mbm
     class CORE_MANAGER : public EVENTS
     {
       public:
-        DEVICE *device;
-        bool    changeScene;
         API_IMPL CORE_MANAGER();
         API_IMPL virtual ~CORE_MANAGER();
     
@@ -210,6 +207,9 @@ namespace mbm
         API_IMPL bool initGraphics(const char *nameApplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
 
         API_IMPL int onLoop(const bool singleLoop, const bool doSwapBuffers);
+        API_IMPL DEVICE *getDevice() const noexcept;
+        API_IMPL bool isKeyCapsLockOn() const noexcept;
+        API_IMPL bool isSceneInitialized() const noexcept;
     
 
         API_IMPL void getScreenSize(int *width,int *height);
@@ -218,7 +218,7 @@ namespace mbm
         API_IMPL void update();
         API_IMPL bool renderToTargets();
         API_IMPL static void prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d);
-        API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d);
+        API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d,const VEC3 &cameraPosition);
         API_IMPL void render();
         API_IMPL void ReleaseGraphics(const bool wasDeviceLost);//this function release the graphics device and all resources
         API_IMPL void forceRestore(const bool doSwapBuffers);
@@ -243,6 +243,21 @@ namespace mbm
         void pushEvent(INFO_JOYSTICK_INIT_PLAYER *info);
         bool popEvent(INFO_JOYSTICK_INIT_PLAYER *info);
         void moveWindow(int x, int y);//specific function to handle window move event depending on OS windowing system
+        void initializeImpl();
+        uint32_t getTotalPlugins() const noexcept;
+        PLUGIN *getPlugin(const uint32_t index) const noexcept;
+        unsigned int appendPlugin(PLUGIN *plugin);
+        void clearPlugins();
+        void setNameApplication(const char *nameApplication);
+        const char *getNameApplication() const noexcept;
+        void setWindowOptions(const bool border, const bool enableResize) noexcept;
+        bool getWindowBorder() const noexcept;
+        bool getEnableResizeWindow() const noexcept;
+        void setChangeScene(const bool change) noexcept;
+        bool isChangeScene() const noexcept;
+        void setKeyCapsLockState(const bool enabled) noexcept;
+        void setSceneInitialized(const bool initialized) noexcept;
+        void setDevice(DEVICE *device) noexcept;
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;
@@ -259,28 +274,14 @@ namespace mbm
         API_IMPL void onResizeWindow(int width, int height) override;
         API_IMPL void onMoveWindow(int width, int height) override;
 
-      public:
-        bool __sceneWasInit;
-        bool keyCapsLockState;
-        bool windowBorder;
-        bool enableResizeWindow;
-        STEP_RETORE getStepRestore() const noexcept { return stepRestore; }
+        API_IMPL STEP_RETORE getStepRestore() const noexcept;
       private:
-        bool                                    wasGamePausedBeforeOnStop;
-        bool                                    loopVariablesInitialized;
-        std::map<int, bool>                     __keyPressed;
-        std::list<EVENT_KEY>                    lsEvents;
-        std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
-        std::vector<PLUGIN*>                    lsPlugins;
-        std::mutex mutexEvents;
-        std::string  nameApplication;
-        EVENT_KEY    lastEvent;
-        WHICH_FOR    which_for;
-        STEP_RETORE  stepRestore;
-        uint32_t     indexOnRestore;
-        uint32_t     totalForByLoop;
-        float        stepRestoreInfo;
-        float        percentRestoreInfo;
+        struct Impl;
+        struct ImplDeleter
+        {
+            void operator()(Impl *ptr) const;
+        };
+        std::unique_ptr<Impl, ImplDeleter> impl;
     };
 
     

@@ -24,8 +24,8 @@
 #include "primitives.h"
 #include "blend.h"
 #include "shader.h"
+#include <memory>
 #include <string>
-#include <map>
 
 
 namespace mbm
@@ -69,23 +69,38 @@ namespace mbm
         friend class ANIMATION_MANAGER;
 
       public:
-        const int        idScene;
-        const TYPE_CLASS typeClass;
-        const bool       is3D;
-        const bool       is2dS;
-        mbm::VEC3        position;
-        mbm::VEC3        scale;
-        mbm::VEC3        angle;
-        mbm::VEC3        bounding_AABB;
-        bool             alwaysRenderize;
-        bool             isObjectOnFrustum;
-        bool             enableRender;
-        std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
-        bool             isRender2Texture;
-        void *           userData;
-        RENDER_STATE     blend;
         API_IMPL RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds)noexcept;
         API_IMPL virtual ~RENDERIZABLE()noexcept;
+        API_IMPL TYPE_CLASS getTypeClass() const noexcept;
+        API_IMPL bool is3DObject() const noexcept;
+        API_IMPL bool is2dScreenObject() const noexcept;
+        API_IMPL VEC3 & getPosition() noexcept;
+        API_IMPL const VEC3 & getPosition() const noexcept;
+        API_IMPL void setPosition(const VEC3 &newPosition) noexcept;
+        API_IMPL VEC3 & getScale() noexcept;
+        API_IMPL const VEC3 & getScale() const noexcept;
+        API_IMPL void setScale(const VEC3 &newScale) noexcept;
+        API_IMPL VEC3 & getAngle() noexcept;
+        API_IMPL const VEC3 & getAngle() const noexcept;
+        API_IMPL void setAngle(const VEC3 &newAngle) noexcept;
+        API_IMPL VEC3 & getBoundingAABB() noexcept;
+        API_IMPL const VEC3 & getBoundingAABB() const noexcept;
+        API_IMPL void setBoundingAABB(const VEC3 &newBoundingAABB) noexcept;
+        API_IMPL float getDistanceFromView() const noexcept;
+        API_IMPL void setDistanceFromView(const float distance) noexcept;
+        API_IMPL bool isAlwaysRenderizeEnabled() const noexcept;
+        API_IMPL void setAlwaysRenderize(const bool enabled) noexcept;
+        API_IMPL bool getIsObjectOnFrustum() const noexcept;
+        API_IMPL void setIsObjectOnFrustum(const bool onFrustum) noexcept;
+        API_IMPL bool isRenderEnabled() const noexcept;
+        API_IMPL void setEnableRender(const bool enabled) noexcept;
+        API_IMPL bool isRender2TextureEnabled() const noexcept;
+        API_IMPL void setRender2Texture(const bool enabled) noexcept;
+        API_IMPL void * getUserData() const noexcept;
+        API_IMPL void setUserData(void *data) noexcept;
+        API_IMPL RENDER_STATE & getBlend() noexcept;
+        API_IMPL const RENDER_STATE & getBlend() const noexcept;
+        API_IMPL void setBlendState(const BLEND_STATE blendState) noexcept;
         API_IMPL DYNAMIC_VAR *getDynamicVar(const char *nameVar)noexcept;
         API_IMPL void setDynamicVar(const char *nameVar, DYNAMIC_VAR *nDvar)noexcept;
         API_IMPL int getIdScene() const noexcept;
@@ -115,26 +130,46 @@ namespace mbm
         API_IMPL virtual bool onRestoreDevice() = 0;// In this function, make sure that the object is loaded, later the engine will fill in the animation state with onRestoreAnimationsState
         API_IMPL virtual void onStop() final;
         API_IMPL virtual void onRestoreAnimationsState() final;
+        API_IMPL const char *getInternalFileName() const noexcept;
+        API_IMPL const std::string &getInternalFileNameString() const noexcept;
+        API_IMPL void setInternalFileName(const char *newFileName);
+        API_IMPL void setInternalFileName(const std::string &newFileName);
+        API_IMPL void setInternalFileName(std::string &&newFileName);
+        API_IMPL void clearInternalFileName() noexcept;
       public:
         API_IMPL virtual void updateAABB();
 
       protected:
-        std::string fileName;
-        float       __distFromView;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 
     class RENDERIZABLE_TO_TARGET : public RENDERIZABLE
     {
       public:
         FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
-        void* specificConfig; // specific configuration for each graphic API (backend)
-        uint32_t widthTexture;
-        uint32_t heightTexture;
-        COLOR        colorClearBackGround;
         API_IMPL RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept;
         API_IMPL virtual ~RENDERIZABLE_TO_TARGET();
         API_IMPL virtual bool render2Texture() = 0;
         API_IMPL virtual void removeFromRender2Texture(RENDERIZABLE *ptr) = 0;
+        API_IMPL uint32_t getRenderTargetWidth() const noexcept;
+        API_IMPL uint32_t getRenderTargetHeight() const noexcept;
+        API_IMPL void setRenderTargetSize(uint32_t width, uint32_t height) noexcept;
+        API_IMPL COLOR & getRenderTargetClearColor() noexcept;
+        API_IMPL const COLOR & getRenderTargetClearColor() const noexcept;
+        API_IMPL void setRenderTargetClearColor(const COLOR &color) noexcept;
+        API_IMPL void * getRenderTargetSpecificConfig() const noexcept;
+        API_IMPL void setRenderTargetSpecificConfig(void *specificConfig) noexcept;
+      private:
+        struct BackendData;
+        struct BackendDataDeleter
+        {
+            void operator()(BackendData *data) const noexcept;
+        };
+
+        BackendData * ensureRenderTargetBackendData() noexcept;
+        const BackendData * getRenderTargetBackendData() const noexcept;
+        std::unique_ptr<BackendData, BackendDataDeleter> backendData;
     };
 
 }

@@ -35,7 +35,7 @@ namespace mbm
     void STEERED_PARTICLE::release()
     {
         this->releaseAnimation();
-        this->enableRender = false;
+        this->setEnableRender(false);
         this->bufferGl.release();
         for (unsigned int i = 0; i < this->lsParticleGroup.size(); ++i)
         {
@@ -182,9 +182,9 @@ namespace mbm
         ANIMATION* anim = this->getAnimation();
         if (anim)
         {
-            anim->isEndedThisAnimation = false;
-            anim->currentWayGrowingOfAnimation = false;
-            snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "group:%d", 1);
+            anim->setEnded(false);
+            anim->setCurrentWayGrowing(false);
+            anim->setNameAnimation("group:1");
         }
     }
 
@@ -197,7 +197,7 @@ namespace mbm
     
     bool STEERED_PARTICLE::isOnFrustum()
     {
-        if (this->isRender2Texture)
+        if (this->isRender2TextureEnabled())
             return false;
         if (this->getTotalParticleToRender() > 0)
             return true;
@@ -229,9 +229,9 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
                 return false;
             }
-            this->fileName = fileNameTexture;
-            this->enableRender = true;
-            this->alwaysRenderize = true;
+            this->setInternalFileName(fileNameTexture);
+            this->setEnableRender(true);
+            this->setAlwaysRenderize(true);
             this->updateAABB();
             return true;
         }
@@ -251,17 +251,19 @@ namespace mbm
         }
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION* anim = this->getAnimation();
-        this->blend.set(anim->blendState);
-        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
-        anim->fx.setBlendOp();
-        anim->fx.shader.update();
+        FX &fx = anim->getFx();
+        this->setBlendState(anim->getBlendState());
+        anim->updateAnimation(device->delta, this, nullptr, this->getOnEndFx());
+        fx.setBlendOp();
+        fx.shader.update();
 
-        return anim->fx.shader.renderParticle(&this->bufferGl, pGroup);
+        return fx.shader.renderParticle(&this->bufferGl, pGroup);
     }
 
     bool STEERED_PARTICLE::loadParticleShader(const COLOR* p_color)
     {
         ANIMATION* anim = this->getAnimation();
+        FX &fx = anim->getFx();
         if (p_color)
         {
             if (this->loadedColored)
@@ -273,20 +275,21 @@ namespace mbm
             const char* fileNamePs = "__steered_particle.ps";
             const char* fileNameVs = "__steered_particle.vs";
 
-            anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING);
-            anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING);
-            anim->fx.shader.releaseShader();
-            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+            fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING));
+            fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING));
+            fx.shader.releaseShader();
+            if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
                 return false;
 
             const float defaultVar[4] = { p_color->r, p_color->g, p_color->b, p_color->a };
-            if (anim->fx.fxPS->ptrCurrentShader)
+            if (fx.fxPS->getCurrentShader())
             {
-                if (anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar, anim->fx.shader.ptrShaderSpecific, true) == false)
+                void *backendShaderSpecific = fx.shader.getBackendShaderSpecific();
+                if (fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, defaultVar, backendShaderSpecific, true) == false)
                 {
                     PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
                 }
-                VAR_SHADER* colorVar = anim->fx.fxPS->ptrCurrentShader->getVarByName("color");
+                VAR_SHADER* colorVar = fx.fxPS->getCurrentShader()->getVarByName("color");
                 if (colorVar)
                 {
                     colorVar->set(defaultVar, defaultVar, 1.0f);
@@ -304,10 +307,10 @@ namespace mbm
             const char* fileNamePs = "__steered_particle_no_color.ps";
             const char* fileNameVs = "__steered_particle.vs";
 
-            anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED);
-            anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
-            anim->fx.shader.releaseShader();
-            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+            fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED));
+            fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
+            fx.shader.releaseShader();
+            if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
                 return false;
         }
         return true;
@@ -323,23 +326,27 @@ namespace mbm
         if (this->getTotalParticleToRender() > 0)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            if (this->is3D)
+            const CAMERA &camera = device->getCamera();
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
-                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             for (FLUID_GROUP* pGroup : this->lsParticleGroup)
             {
@@ -363,7 +370,7 @@ namespace mbm
         if (this->lsParticleGroup.size() == 0)
             return this->releaseOnFail();
 		std::vector<FLUID_GROUP*> lsParticleGroupBackup = std::move(this->lsParticleGroup);
-        const char * fileNameTexture = this->fileName.c_str();
+        const char * fileNameTexture = this->getInternalFileName();
 		mbm::INFO_PHYSICS otherInfoPhysics;
 		otherInfoPhysics.clone(&this->infoPhysics);
 		COLOR* p_color = lsParticleGroupBackup.size() > 0 ? lsParticleGroupBackup[0]->color : nullptr;
@@ -395,7 +402,8 @@ namespace mbm
                 mbm::ANIMATION *anim = this->getAnimation();
                 if(anim)
                 {
-                    anim->fx.textureOverrideStage2 = newTex;
+                    FX &fx = anim->getFx();
+                    fx.textureOverrideStage2 = newTex;
                     bufferGl.setTextureByStage(newTex, stage, 0);
                     return true;
                 }
@@ -408,12 +416,12 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new ANIMATION();
-        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "group:%d", 1);
-        anim->isEndedThisAnimation = false;
-        anim->currentWayGrowingOfAnimation = false;
-        anim->type = TYPE_ANIMATION_PAUSED;
-        anim->blendState = BLEND_ONE;
-        this->lsAnimation.push_back(anim);
+        anim->setNameAnimation("group:1");
+        anim->setEnded(false);
+        anim->setCurrentWayGrowing(false);
+        anim->setType(TYPE_ANIMATION_PAUSED);
+        anim->setBlendState(BLEND_ONE);
+        this->appendAnimation(anim);
         if (!this->loadParticleShader(p_color))
             return false;
         return true;
@@ -433,7 +441,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -452,5 +460,3 @@ namespace mbm
         return infoPhysics.clone(new_info_physics);
     }
 }
-
-

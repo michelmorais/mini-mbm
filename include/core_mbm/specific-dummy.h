@@ -21,48 +21,9 @@
 #ifndef DUMMY_SPECIFIC_H
 #define DUMMY_SPECIFIC_H
 
-#include <primitives.h>
-#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
-#include <plusWindows/plusWindows.h>
-#endif
-
 namespace mbm
 {
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-        SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-        ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
-        void release(const bool wasDeviceLost) noexcept;
-        
-    private:
-        void * yourBackendSpecificData = nullptr;
-#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
-    public:
-        WINDOW window;
-        int idIcon;
-#endif
-    };
-
-    struct BUFFER_SPECIFIC
-    {
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        void release();
-    };
-
-    struct RENDER2TARGET_DUMMY
-    {
-        void * pRenderSurface = nullptr;
-        void release() noexcept;
-        RENDER2TARGET_DUMMY() noexcept = default;
-        ~RENDER2TARGET_DUMMY();
-        // Prevent copying (COM objects should not be copied)
-        RENDER2TARGET_DUMMY(const RENDER2TARGET_DUMMY&) = delete;
-        RENDER2TARGET_DUMMY& operator=(const RENDER2TARGET_DUMMY&) = delete;
-    };
-    
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 }
 
 #endif

@@ -30,6 +30,13 @@
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <specific-opengl_es.h>
+#if defined(_WIN32)
+    #include "specific-opengl_es-windows-context.h"
+#elif defined(ANDROID)
+    #include "specific-opengl_es-android-context.h"
+#elif !defined(ANDROID) && (defined(__linux__) || defined(__APPLE__))
+    #include "specific-opengl_es-x11-context.h"
+#endif
 #include <dynamic-var.h>
 
 #if defined ANDROID
@@ -45,15 +52,16 @@ namespace mbm
     void DEVICE::initializeSpecificContext()
     {
         this->destroySpecificContext();
-        this->specificContextDevice = new SPECIFIC_AUX_CONTEXT_DEVICE();
+        setSpecificContextDevice(new SPECIFIC_AUX_CONTEXT_DEVICE());
         
     }
     void DEVICE::destroySpecificContext()
     {
-        if(this->specificContextDevice)
+        auto *context = getSpecificContextDevice();
+        if(context)
         {
-            delete this->specificContextDevice;
-            this->specificContextDevice = nullptr;
+            delete context;
+            setSpecificContextDevice(nullptr);
         }
     }
 
@@ -65,7 +73,7 @@ namespace mbm
         if (instanceDevice)
         {
             constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
-            instanceDevice->specificContextDevice->release(wasDeviceLost);
+            instanceDevice->getSpecificContextDevice()->release(wasDeviceLost);
             delete instanceDevice;
         }
         instanceDevice = nullptr;
@@ -92,11 +100,12 @@ namespace mbm
     }
     void DEVICE::clearDepthColored()
     {
+        const COLOR &background = this->getColorClearBackGround();
         GLClearDepthf(1.0f);
-        GLClearColor(this->colorClearBackGround.r,
-                        this->colorClearBackGround.g,
-                        this->colorClearBackGround.b,
-                        this->colorClearBackGround.a);
+        GLClearColor(background.r,
+                        background.g,
+                        background.b,
+                        background.a);
         GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
@@ -121,17 +130,17 @@ namespace mbm
             GLViewport(0, 0, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
         }
         if (width > 0)
-            backBufferWidth = width;
+            setBackBufferWidth(width);
         if (height > 0)
-            backBufferHeight = height;
+            setBackBufferHeight(height);
         if (width > 0 && height > 0)
-            this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+            this->getCamera().updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
     }
 
     const char* DEVICE::copyFileFromAsset(const char* assetName, const char* mode)// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
     {
         #if defined ANDROID
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = this->specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = getSpecificContextDevice();
         return cJni->copyFileFromAsset(assetName, mode);
         #else
         return assetName;
@@ -140,16 +149,17 @@ namespace mbm
 
     void DEVICE::disableFilteringForPixelPerfect() noexcept//backend specific way to disable texture filtering for pixel perfect rendering
     {
-        _pixelPerfectRenderingActive = true;
+        setPixelPerfectRenderingActive(true);
 		// Store current texture filtering
 		// In OPENGL this does not seem to be affecting the texture. what is affecting is to set those GLTexParameteri while loading the texture.
         // TODO: maybe investigate??
         constexpr GLint index[2] = { GL_TEXTURE1 , GL_TEXTURE0 };
+        auto *context = getSpecificContextDevice();
         GLActiveTexture(GL_TEXTURE0);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &this->specificContextDevice->filter_GL_TEXTURE_WRAP_S);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &this->specificContextDevice->filter_GL_TEXTURE_WRAP_T);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &this->specificContextDevice->filter_GL_TEXTURE_MIN_FILTER);
-        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &this->specificContextDevice->filter_GL_TEXTURE_MAG_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &context->filter_GL_TEXTURE_WRAP_S);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &context->filter_GL_TEXTURE_WRAP_T);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &context->filter_GL_TEXTURE_MIN_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &context->filter_GL_TEXTURE_MAG_FILTER);
 
         for (int i = 0; i < 2; i++)
         {
@@ -164,7 +174,7 @@ namespace mbm
     }
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept//backend specific way to restore texture filtering
     {
-        _pixelPerfectRenderingActive = false;
+        setPixelPerfectRenderingActive(false);
         constexpr GLint index[2] = { GL_TEXTURE1, GL_TEXTURE0 };
         for (int i = 0; i < 2; i++)
         {

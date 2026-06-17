@@ -23,20 +23,13 @@
 #include "core-exports.h"
 #include <stdint.h>
 
-#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
-    #include <joystick-win32/joystick-win32.h>
-    #include <plusWindows/plusWindows.h>
-    #include <core-manager.h>
-    #include <platform/win32-platform.h>
+#if defined(ANDROID)
+    #include "android-bridge.h"
 #endif
 
 #if defined ANDROID
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
-    #include <jni.h>
-    #include <string>
-    #include <android/asset_manager.h>
-    #include <android/native_window.h>
 #elif defined __MINGW32__ || defined __CYGWIN__
     #include <gles/EGL/egl.h>
     #include <gles/GLES2/gl2.h>
@@ -50,10 +43,6 @@
 #elif defined __linux__  || defined(__APPLE__)
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
-
-    #include <X11/Xlib.h>
-    #include <X11/Xutil.h>
-    #include <X11/XKBlib.h>
 #endif
 
 #ifdef _DEBUG
@@ -577,254 +566,19 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #if defined(ANDROID)
 
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-      public:
-        JNIEnv *         jenv;
-        std::string      absPath, apkPath;
-        AAssetManager*   assetManager;   // NDK asset manager — replaces FileJniEngine JNI
-        ANativeWindow*   nativeWindow;   // current ANativeWindow for EGL surface creation
-        jclass           jclassDoCommandsJniEngine;     // thin MbmActivity: vibrate / doCommands
-        jclass           jclassFileJniEngine;           // Lua file dialogs
-        jclass           jclassKeyCodeJniEngine;        // Lua key mapping
-        jobject          jclassLoaderGlobal;            // app ClassLoader (for FindClass on native threads)
-        jmethodID        jmethodLoadClass;              // ClassLoader.loadClass method
-
-        // EGL context created and owned by NativeActivity C++ code
-        EGLDisplay       eglDisplay;
-        EGLSurface       eglSurface;
-        EGLContext       eglContext;
-        EGLConfig        eglConfig;
-
-        GLint filter_GL_TEXTURE_WRAP_S;
-        GLint filter_GL_TEXTURE_WRAP_T;
-        GLint filter_GL_TEXTURE_MIN_FILTER;
-        GLint filter_GL_TEXTURE_MAG_FILTER;
-
-        SPECIFIC_AUX_CONTEXT_DEVICE();
-        ~SPECIFIC_AUX_CONTEXT_DEVICE();
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        
-        void release(const bool wasDeviceLost);
-        const char *getStrToDelete(const char *str);
-        void initClassLoader(jobject activityObj);  // must be called before cacheJavaClasses on native threads
-        void cacheJavaClasses(const char *_packageNameMiniMBMClasses);
-        void callQuit();
-
-      private:
-        char              packageName[255];
-        char              packageNameMiniMBMClasses[255];
-        std::string       retPath;
-        std::string       buffer_new_stringUTF[10];
-        int               index_string_utf;
-        jclass getClass(const char *nameClass);       // aborts if class not found
-        jclass tryGetClass(const char *nameClass);    // returns nullptr silently if not found
-      public:
-        const char* get_safe_string_utf(const char* string_input);
-        #if _DEBUG
-            FILE *onFailOpenFile(const int lineNumber, const char *fileName, const char *message);
-        #else
-            FILE *onFailOpenFile(const int, const char *, const char *);
-        #endif
-        const int onFailExistFile(const int lineNumber, const char *fileName, const char *message);
-        void addPathDroid(const char *fileName);
-        int existFileOnAssets(const char *fileName);
-        const char *copyFileFromAsset(const char *fileName, const char *mode);
-        uint8_t *getImageDataFromDroid(const char *fileName, int *width, int *height);
-        FILE *fopenAsset(const char *fileName, const char *mode = "rb");
-    };
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 
 
     #elif (defined(__linux__) || defined(__APPLE__))
 
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-        EGLDisplay eglDisplay;
-        EGLSurface eglSurface;
-        EGLContext eglContext;
-        EGLConfig  eglConfig;  // Store config for surface recreation
-        Window     window_x11;
-        Display *  display_x11;
-
-        GLint filter_GL_TEXTURE_WRAP_S;
-        GLint filter_GL_TEXTURE_WRAP_T;
-        GLint filter_GL_TEXTURE_MIN_FILTER;
-        GLint filter_GL_TEXTURE_MAG_FILTER;
-    
-    void make_x_window(const char *name,const int px, const int py,const uint32_t width,const uint32_t height, const bool border, const bool enable_resize);
-    bool recreateEGLSurface();  // Recreate EGL surface on resize
-            
-        SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-            this->eglDisplay = EGL_NO_DISPLAY;
-            this->eglSurface = EGL_NO_SURFACE;
-            this->eglContext = EGL_NO_CONTEXT;
-            this->eglConfig = nullptr;
-            this->window_x11 = 0;
-            this->display_x11 = nullptr;
-
-            filter_GL_TEXTURE_WRAP_S = GL_CLAMP_TO_EDGE;
-            filter_GL_TEXTURE_WRAP_T = GL_CLAMP_TO_EDGE;
-            filter_GL_TEXTURE_MIN_FILTER = GL_NEAREST;
-            filter_GL_TEXTURE_MAG_FILTER = GL_LINEAR;
-        }
-
-        ~SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-            constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
-            release(wasDeviceLost);
-        }
-
-        void release(bool wasDeviceLost)
-        {
-            if(this->eglDisplay != EGL_NO_DISPLAY)
-                eglTerminate(this->eglDisplay);
-            if(this->eglSurface != EGL_NO_SURFACE)
-                eglDestroySurface(this->eglDisplay, this->eglSurface);
-            if(this->eglContext != EGL_NO_CONTEXT)
-                eglDestroyContext(this->eglDisplay, this->eglContext);
-            if(wasDeviceLost == false) // we keep the window and display if we are lost device, because we will reuse them
-            {
-                if (this->display_x11 != nullptr && this->window_x11 != 0)
-                {
-                    XDestroyWindow(this->display_x11, this->window_x11);
-                    XCloseDisplay(this->display_x11);
-                    this->display_x11 = nullptr;
-                    this->window_x11 = 0;
-                }
-            }
-            this->eglDisplay = EGL_NO_DISPLAY;
-            this->eglSurface = EGL_NO_SURFACE;
-            this->eglContext = EGL_NO_CONTEXT;
-            this->eglConfig = nullptr;
-        }
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-    };
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 
 #elif (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-        WINDOW window;
-        DWORD idIcon;
-        EGLDisplay eglDisplay;
-        EGLSurface eglSurface;
-        EGLContext eglContext;
-
-        WIN_EVENT_BY_PASS* win32_EventByPass;
-        WIN_JOYSTICK_BY_PASS* win32_joystickByPass;
-        
-        GLint filter_GL_TEXTURE_WRAP_S;
-        GLint filter_GL_TEXTURE_WRAP_T;
-        GLint filter_GL_TEXTURE_MIN_FILTER;
-        GLint filter_GL_TEXTURE_MAG_FILTER;
-        
-        SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-            this->idIcon = 0;
-            this->win32_joystickByPass = nullptr;
-            this->win32_EventByPass = nullptr;
-            this->eglDisplay = EGL_NO_DISPLAY;
-            this->eglSurface = EGL_NO_SURFACE;
-            this->eglContext = EGL_NO_CONTEXT;
-
-            filter_GL_TEXTURE_WRAP_S     =  GL_CLAMP_TO_EDGE;
-            filter_GL_TEXTURE_WRAP_T     =  GL_CLAMP_TO_EDGE;
-            filter_GL_TEXTURE_MIN_FILTER =  GL_NEAREST;
-            filter_GL_TEXTURE_MAG_FILTER =  GL_LINEAR;
-        }
-
-        ~SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-            constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
-            release(wasDeviceLost);
-            // do not need to release  the win32 events and joystick here, because the core manager is still the same (in case of lost device)
-            if (this->win32_EventByPass)
-                delete this->win32_EventByPass;
-            this->win32_EventByPass = nullptr;
-            if (this->win32_joystickByPass)
-                delete this->win32_joystickByPass;
-            this->win32_joystickByPass = nullptr;
-        }
-
-        void initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr)
-        {
-            if (this->win32_EventByPass)
-                delete this->win32_EventByPass;
-            this->win32_EventByPass = nullptr;
-            if (this->win32_joystickByPass)
-                delete this->win32_joystickByPass;
-            this->win32_joystickByPass = nullptr;
-            this->win32_EventByPass = new WIN_EVENT_BY_PASS(core_manager_ptr ? reinterpret_cast<EVENTS*>(core_manager_ptr) : nullptr);
-            this->win32_joystickByPass = new WIN_JOYSTICK_BY_PASS(core_manager_ptr ? reinterpret_cast<JOYSTICK_BASE*>(core_manager_ptr) : nullptr);
-        }
-
-        void release(bool wasDeviceLost)
-        {
-            if (this->eglDisplay != EGL_NO_DISPLAY)
-                eglTerminate(this->eglDisplay);
-            if (this->eglSurface != EGL_NO_SURFACE)
-                eglDestroySurface(this->eglDisplay, this->eglSurface);
-            if (this->eglContext != EGL_NO_CONTEXT)
-                eglDestroyContext(this->eglDisplay, this->eglContext);
-            this->eglDisplay = EGL_NO_DISPLAY;
-            this->eglSurface = EGL_NO_SURFACE;
-            this->eglContext = EGL_NO_CONTEXT;
-            
-            //window.release(); // The window release is done in the WINDOW destructor
-        }
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-    };
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 
 #endif
 
-    struct BUFFER_SPECIFIC
-    {
-        BUFFER_SPECIFIC() noexcept;
-        ~BUFFER_SPECIFIC();
-        // Index buffer
-        uint32_t    vboVertNorTexIB[3]; //(Index buffer: Vertex, Normal, texture) (vertex buffer: Normal, texture, unused)
-        uint32_t     *vboIndexSubsetIB; // vbo index buffer IB
-        // Vertex buffer
-        uint32_t    *vboVertexSubsetVB;  // Vertex buffer do subset VB
-        uint32_t    *vboNormalSubsetVB;  // Normal buffer do subset VB
-        uint32_t    *vboTextureSubsetVB; // Textura buffer do subset VB
-        void release();
-    };
-
-    struct RENDER2TARGET_GLES
-    {
-        GLuint  idFrameBuffer;
-        GLuint  idDepthRenderbuffer;
-        GLuint  idTextureDynamic;
-        void     release();
-        RENDER2TARGET_GLES();
-        ~RENDER2TARGET_GLES();
-    };
-
-    struct GLES_PS_VS
-    {
-        GLint positionHandle;
-        GLint texCoordHandle;
-        GLint normalHandle;
-        GLint mvpMatrixHandle; // Handle para matrix x projection
-        GLint mvMatrixHandle;  // Handle para a matrix do modelo
-        GLint samplerHandle0;
-        GLint samplerHandle1;
-
-        GLuint programObject;
-
-        GLES_PS_VS() noexcept;
-        ~GLES_PS_VS();
-        void release() noexcept;
-        // Prevent copying (COM objects should not be copied)
-        GLES_PS_VS(const GLES_PS_VS&) = delete;
-        GLES_PS_VS& operator=(const GLES_PS_VS&) = delete;
-    };
-    
 }
 #endif
 

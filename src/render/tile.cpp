@@ -55,7 +55,7 @@ namespace mbm
         this->releaseAnimation();
         this->lsVisible.clear();
         this->mesh                  = nullptr;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         if(clone_bTileInfo)
             delete clone_bTileInfo;
         clone_bTileInfo = nullptr;
@@ -94,12 +94,13 @@ namespace mbm
                 }
             }
             this->populateTextureStage2FromMesh(this->mesh);
-            this->fileName = fileName;
+            this->setInternalFileName(fileName);
             this->restartAnimation();
             const auto * ptr_TileInfo = this->mesh->getInfoTile();
             if (ptr_TileInfo)
             {
                 CUBE * cube               = nullptr;
+                const VEC3 &scale         = this->getScale();
                 const float width_tile    = static_cast<float>(ptr_TileInfo->map.size_width_tile  * scale.x);
                 const float height_tile   = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y);
                 const float width_map     = static_cast<float>(width_tile  * ptr_TileInfo->map.count_width_tile);
@@ -212,7 +213,7 @@ namespace mbm
         if (this->mesh)
         {
             IS_ON_FRUSTUM verify(this);
-            return verify.isOnFrustum(this->is3D, this->is2dS);
+            return verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
         }
         return false;
     }
@@ -228,6 +229,9 @@ namespace mbm
             auto * anim               = this->getAnimation(0);
             if(loadBufferBackGroundTexture() && anim)
             {
+                VEC3 &position           = this->getPosition();
+                VEC3 &angle              = this->getAngle();
+                VEC3 &scale              = this->getScale();
                 const float width_tile    = static_cast<float>(ptr_TileInfo->map.size_width_tile  * scale.x);
                 const float height_tile   = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y);
                 const float width_map     = static_cast<float>(width_tile  * ptr_TileInfo->map.count_width_tile);
@@ -242,9 +246,10 @@ namespace mbm
                     backPos.x += width_tile * 0.25f;
                 }
 
-                MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &this->angle, &backGround_scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
-                if (anim->fx.shader.render(&this->backGroundMap) == false)
+                FX &fx = anim->getFx();
+                MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &angle, &backGround_scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                if (fx.shader.render(&this->backGroundMap) == false)
                 {
                     device->enableFilteringAfterPixelPerfect();
                     return false;
@@ -270,6 +275,9 @@ namespace mbm
             return false;
         }
         const util::BTILE_LAYER* layer = & ptr_TileInfo->layers[index_layer];
+        VEC3 &position                 = this->getPosition();
+        VEC3 &angle                    = this->getAngle();
+        VEC3 &scale                    = this->getScale();
         const float offset_x           = layer->offset[0] * scale.x;
         const float offset_y           = layer->offset[1] * scale.y;
 
@@ -280,31 +288,33 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->disableFilteringForPixelPerfect();
 
-        anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
-        anim->fx.shader.update();
-        this->blend.set(anim->blendState);
-        anim->fx.setBlendOp();
+        anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
+        FX &fx = anim->getFx();
+        fx.shader.update();
+        this->setBlendState(anim->getBlendState());
+        fx.setBlendOp();
 
-        TEXTURE* idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2 : nullptr;
+        TEXTURE* idTextureOverrideStage2 = fx.textureOverrideStage2 ? fx.textureOverrideStage2 : nullptr;
         VEC3 thePosBrick(renderPos);
         const MATRIX *matrixPerspective = nullptr;
-        if (this->is3D)
+        const CAMERA &camera = device->getCamera();
+        if (this->is3DObject())
         {
-            MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &this->angle, &this->scale);
-            matrixPerspective = &device->camera.matrixPerspective;
+            MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &angle, &scale);
+            matrixPerspective = &camera.matrixPerspective;
         }
-        else if(this->is2dS)
+        else if(this->is2dScreenObject())
         {
-            thePosBrick = VEC3(this->position.x * device->camera.scaleScreen2d.x,
-                                    this->position.y * device->camera.scaleScreen2d.y, z_value);
-            device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, thePosBrick);
-            MatrixTranslationRotationScale(&SHADER::modelView, &thePosBrick, &this->angle, &this->scale);
-            matrixPerspective = &device->camera.matrixPerspective2d;
+            thePosBrick = VEC3(position.x * camera.scaleScreen2d.x,
+                                    position.y * camera.scaleScreen2d.y, z_value);
+            device->transformeScreen2dToWorld2d_scaled(position.x, position.y, thePosBrick);
+            MatrixTranslationRotationScale(&SHADER::modelView, &thePosBrick, &angle, &scale);
+            matrixPerspective = &camera.matrixPerspective2d;
         }
         else
         {
-            MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &this->angle, &scale);
-            matrixPerspective = &device->camera.matrixPerspective2d;
+            MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &angle, &scale);
+            matrixPerspective = &camera.matrixPerspective2d;
         }
         const bool render_left_to_right = ptr_TileInfo->map.renderDirection[0] == 1; // render_left_to_right == 1
         const bool render_top_to_down   = ptr_TileInfo->map.renderDirection[1] == 1; // render_top_to_down == 1
@@ -321,7 +331,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i,
                                 j - 1,
@@ -344,7 +354,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i,
                                 j,
@@ -370,7 +380,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i - 1,
                                 j - 1,
@@ -393,7 +403,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i - 1,
                                 j,
@@ -422,7 +432,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i,
                                 j - 1,
@@ -445,7 +455,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i,
                                 j,
@@ -471,7 +481,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i - 1,
                                 j - 1,
@@ -494,7 +504,7 @@ namespace mbm
                         {
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
-                                &anim->fx.shader,
+                                &fx.shader,
                                 idTextureOverrideStage2,
                                 i - 1,
                                 j,
@@ -530,6 +540,7 @@ namespace mbm
         const auto * bTileIndex  = &lsIndexTiles[index];
         if(bTileIndex->index < ptr_TileInfo->map.countRawTiles)
         {
+            const VEC3 &scale = this->getScale();
             SHADER::modelView._41 = (bTileIndex->x * scale.x) + offset_x + pos->x;
             SHADER::modelView._42 = (bTileIndex->y * scale.y) + offset_y + pos->y;
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, matrixPerspective);
@@ -546,20 +557,21 @@ namespace mbm
         // Preserve runtime z values (may have been changed via setZLayer)
         std::vector<float> savedLayerZ(lsLayerRenderizables.size());
         for (size_t i = 0; i < lsLayerRenderizables.size(); ++i)
-            savedLayerZ[i] = lsLayerRenderizables[i]->position.z;
+            savedLayerZ[i] = lsLayerRenderizables[i]->getPosition().z;
         // Destroy layer renderizables; load() will recreate them
         for (auto* l : lsLayerRenderizables)
             delete l;
         lsLayerRenderizables.clear();
 
         this->mesh = nullptr;
-        if(this->load(this->fileName.c_str()))
+        const char *internalFileName = this->getInternalFileName();
+        if(this->load(internalFileName))
         {
             // Restore user-modified z values (load resets them from file data)
             for (size_t i = 0; i < lsLayerRenderizables.size() && i < savedLayerZ.size(); ++i)
-                lsLayerRenderizables[i]->position.z = savedLayerZ[i];
+                lsLayerRenderizables[i]->getPosition().z = savedLayerZ[i];
             #if defined DEBUG
-            PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(internalFileName));
             #endif
             for( auto & tileObj : lsTileObjs)
             {
@@ -570,7 +582,7 @@ namespace mbm
         else
         {
             #if defined DEBUG
-            PRINT_IF_DEBUG( "Failed to restore tile  [%s]", log_util::basename(this->fileName.c_str()));
+            PRINT_IF_DEBUG( "Failed to restore tile  [%s]", log_util::basename(internalFileName));
             #endif
             return false;
         }
@@ -620,7 +632,7 @@ namespace mbm
         if (index < lsVisible.size())
             lsVisible[index] = visible;
         if (index < lsLayerRenderizables.size())
-            lsLayerRenderizables[index]->enableRender = visible;
+            lsLayerRenderizables[index]->setEnableRender(visible);
     }
 
     unsigned int TILE::getTotalLayer()const
@@ -638,6 +650,7 @@ namespace mbm
         mbm::DEVICE* device     = mbm::DEVICE::getInstance();
         const int total         = ptr_cTileInfo->map.count_width_tile * ptr_cTileInfo->map.count_height_tile;
         const auto * layer      = &ptr_cTileInfo->layers[index_layer];
+        const VEC3 &scale       = this->getScale();
         VEC2 pos;
         device->transformeScreen2dToWorld2d_scaled(x,y,pos);
         pos.x                  -= layer->offset[0];
@@ -769,6 +782,7 @@ namespace mbm
         const auto * ptr_TileInfo = this->getTileInfo();
         if(ptr_TileInfo == nullptr)
             return positionsIdOut;
+        const VEC3 &scale = this->getScale();
         
         if (indexLayer < 0)
         {
@@ -812,7 +826,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -826,6 +840,7 @@ namespace mbm
         const auto * ptr_TileInfo = this->getTileInfo();
         if(ptr_TileInfo)
         {
+            const VEC3 &scale = this->getScale();
             width  = static_cast<float>(ptr_TileInfo->map.size_width_tile * scale.x);
             height = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y);
         }
@@ -836,8 +851,10 @@ namespace mbm
         const auto * ptr_TileInfo = this->getTileInfo();
         if(ptr_TileInfo && tileID < (ptr_TileInfo->map.count_height_tile * ptr_TileInfo->map.count_width_tile) && ptr_TileInfo->map.layerCount > 0)
         {
-            x = (ptr_TileInfo->layers[0].lsIndexTiles[tileID].x * this->scale.x) + position.x;
-            y = (ptr_TileInfo->layers[0].lsIndexTiles[tileID].y * this->scale.y) + position.y;
+            const VEC3 &position = this->getPosition();
+            const VEC3 &scale = this->getScale();
+            x = (ptr_TileInfo->layers[0].lsIndexTiles[tileID].x * scale.x) + position.x;
+            y = (ptr_TileInfo->layers[0].lsIndexTiles[tileID].y * scale.y) + position.y;
             return true;
         }
         return false;
@@ -853,8 +870,10 @@ namespace mbm
             if(tile_ID_found < iTotalTile)
             {
                 const util::BTILE_LAYER* layer = & ptr_TileInfo->layers[indexLayer];
-                x_in_out = (layer->lsIndexTiles[tile_ID_found].x * this->scale.x) + position.x;
-                y_in_out = (layer->lsIndexTiles[tile_ID_found].y * this->scale.y) + position.y;
+                const VEC3 &position = this->getPosition();
+                const VEC3 &scale = this->getScale();
+                x_in_out = (layer->lsIndexTiles[tile_ID_found].x * scale.x) + position.x;
+                y_in_out = (layer->lsIndexTiles[tile_ID_found].y * scale.y) + position.y;
             }
         }
     }
@@ -864,6 +883,7 @@ namespace mbm
         const auto * ptr_TileInfo = this->getTileInfo();
         if(ptr_TileInfo)
         {
+            const VEC3 &scale = this->getScale();
             width  = static_cast<float>(ptr_TileInfo->map.size_width_tile  * scale.x * ptr_TileInfo->map.count_width_tile);
             height = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y * ptr_TileInfo->map.count_height_tile);
             if(ptr_TileInfo->map.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
@@ -879,14 +899,14 @@ namespace mbm
     float TILE::getZLayer(const uint32_t indexLayer) const
     {
         if (indexLayer < lsLayerRenderizables.size())
-            return lsLayerRenderizables[indexLayer]->position.z;
+            return lsLayerRenderizables[indexLayer]->getPosition().z;
         return 0.0f;
     }
 
     void  TILE::setZLayer(const uint32_t indexLayer, const float z)
     {
         if (indexLayer < lsLayerRenderizables.size())
-            lsLayerRenderizables[indexLayer]->position.z = z;
+            lsLayerRenderizables[indexLayer]->getPosition().z = z;
     }
 
 
@@ -941,7 +961,7 @@ namespace mbm
 
     TILE_LAYER::TILE_LAYER(TILE* parent, uint32_t layerIndex)
     : RENDERIZABLE(parent->getIdScene(), TYPE_CLASS_TILE_LAYER,
-                   parent->is3D, parent->is2dS)
+                   parent->is3DObject(), parent->is2dScreenObject())
     , indexLayer(layerIndex)// indexLayer is stored here, immutable for the lifetime of this object
     , ptr_tileMap(parent)
     {
@@ -952,7 +972,7 @@ namespace mbm
         {
             const float layerZ = ptr_TileInfo->layers[layerIndex].offset[2];
             if (layerZ != 0.0f)
-                position.z = layerZ;
+                this->getPosition().z = layerZ;
         }
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
@@ -988,7 +1008,7 @@ namespace mbm
     {
         ANIMATION* anim = ptr_tileMap->getAnimation(indexLayer);
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -1004,13 +1024,13 @@ namespace mbm
 
     bool TILE_LAYER::isOnFrustum()
     {
-        if (!ptr_tileMap->enableRender)
+        if (!ptr_tileMap->isRenderEnabled())
             return false;
         if (!ptr_tileMap->isLoaded())
             return false;
         // All layers share the same spatial extent as the parent TILE.
         IS_ON_FRUSTUM verify(ptr_tileMap);
-        bool ret = verify.isOnFrustum(ptr_tileMap->is3D, ptr_tileMap->is2dS);
+        bool ret = verify.isOnFrustum(ptr_tileMap->is3DObject(), ptr_tileMap->is2dScreenObject());
         if (!ret)
         {
             // Update this layer's animation even when off-screen so timing stays correct.
@@ -1019,8 +1039,8 @@ namespace mbm
             {
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 anim->updateAnimation(device->delta, ptr_tileMap,
-                                      ptr_tileMap->onEndAnimation,
-                                      ptr_tileMap->onEndFx);
+                                      ptr_tileMap->getOnEndAnimation(),
+                                      ptr_tileMap->getOnEndFx());
             }
         }
         return ret;
@@ -1028,7 +1048,7 @@ namespace mbm
 
     bool TILE_LAYER::render()
     {
-        return ptr_tileMap->renderLayer(indexLayer, this->position.z);
+        return ptr_tileMap->renderLayer(indexLayer, this->getPosition().z);
     }
 
     bool TILE_LAYER::onRestoreDevice()
@@ -1039,7 +1059,7 @@ namespace mbm
     // -------------------------------------------------------------------------
 
     TILE_OBJ::TILE_OBJ(TILE* tileMap, MESH_MBM * pMesh, const uint32_t tileID, const uint32_t indexLayer)
-    : RENDERIZABLE(tileMap->getIdScene(), TYPE_CLASS_TILE_OBJ, tileMap->is3D && tileMap->is2dS == false, tileMap->is2dS),
+    : RENDERIZABLE(tileMap->getIdScene(), TYPE_CLASS_TILE_OBJ, tileMap->is3DObject() && tileMap->is2dScreenObject() == false, tileMap->is2dScreenObject()),
       brickID(std::numeric_limits<uint32_t>::max()),
       index_layer(indexLayer),
       ptr_tileMap(tileMap),
@@ -1056,16 +1076,19 @@ namespace mbm
                 auto * layer_clone          = &ptr_cTileInfo->layers[indexLayer];
                 if(tileID < static_cast<uint32_t>(total))
                 {
+                    VEC3 &position                   = this->getPosition();
+                    VEC3 &scale                      = this->getScale();
+                    const VEC3 &tileScale            = ptr_tileMap->getScale();
                     const auto * indexTile_original = & layer_original->lsIndexTiles[tileID];
                     auto * indexTile_clone          = & layer_clone->lsIndexTiles[tileID];
                     brickID                         = indexTile_original->index;
                     indexTile_clone->index          = std::numeric_limits<uint32_t>::max();
-                    position.x                      = indexTile_clone->x * ptr_tileMap->scale.x;
-                    position.y                      = indexTile_clone->y * ptr_tileMap->scale.y;
+                    position.x                      = indexTile_clone->x * tileScale.x;
+                    position.y                      = indexTile_clone->y * tileScale.y;
                     position.z                      = layer_original->offset[2];
-                    scale.x                         = ptr_tileMap->scale.x;
-                    scale.y                         = ptr_tileMap->scale.y;
-                    scale.z                         = ptr_tileMap->scale.z;
+                    scale.x                         = tileScale.x;
+                    scale.y                         = tileScale.y;
+                    scale.z                         = tileScale.z;
                     std::string  physic_name("physic-");
                     physic_name                    += std::to_string(brickID);
 
@@ -1159,7 +1182,7 @@ namespace mbm
     {
         auto anim = ptr_tileMap->getAnimation(index_layer);
         if(anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -1171,7 +1194,7 @@ namespace mbm
     bool TILE_OBJ::isOnFrustum() 
     {
         IS_ON_FRUSTUM verify(this);
-        return verify.isOnFrustum(this->is3D, this->is2dS);
+        return verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
     }
 
     bool TILE_OBJ::render()
@@ -1180,31 +1203,36 @@ namespace mbm
         auto anim            = ptr_tileMap->getAnimation(index_layer);
         if(anim && index_layer < ptr_cTileInfo->map.layerCount && brickID < ptr_cTileInfo->map.countRawTiles)
         {
-            anim->fx.shader.update();
-            this->blend.set(anim->blendState);
-            anim->fx.setBlendOp();
+            FX &fx = anim->getFx();
+            fx.shader.update();
+            this->setBlendState(anim->getBlendState());
+            fx.setBlendOp();
             auto * device = DEVICE::getInstance();
+            const CAMERA &camera = device->getCamera();
+            VEC3 &position = this->getPosition();
+            VEC3 &angle = this->getAngle();
+            VEC3 &scale = this->getScale();
             
-            if (this->is3D)
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
-                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
 
-            return this->ptr_Mesh->render(brickID, &anim->fx.shader, anim->fx.textureOverrideStage2);
+            return this->ptr_Mesh->render(brickID, &fx.shader, fx.textureOverrideStage2);
         }
         return false;
     }

@@ -130,9 +130,12 @@ void MY_SCENE::endLoading()
 void MY_SCENE::onInitScene()
 {
     mbm::DEVICE* device    = mbm::DEVICE::getInstance();
-    device->camera.position = mbm::VEC3(0, 280, -900);
-    device->camera.focus    = mbm::VEC3(0, 280, 0);
-    device->colorClearBackGround.b = 0.5f;
+    mbm::CAMERA &camera = device->getCamera();
+    camera.position = mbm::VEC3(0, 280, -900);
+    camera.focus    = mbm::VEC3(0, 280, 0);
+    mbm::COLOR backgroundColor = device->getColorClearBackGround();
+    backgroundColor.b = 0.5f;
+    device->setColorClearBackGround(backgroundColor);
 
     util::addPath(__FILE__);
 
@@ -163,11 +166,12 @@ void MY_SCENE::onLoop()
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     if (statusText)
     {
+        const mbm::CAMERA &camera = device->getCamera();
         statusText->setText(
             "Mouse(%.0f,%.0f)  Cam2D(%.0f,%.0f)  Cam3D(%.0f,%.0f,%.0f)",
             mouseScreenX, mouseScreenY,
-            device->camera.position2d.x, device->camera.position2d.y,
-            device->camera.position.x, device->camera.position.y, device->camera.position.z);
+            camera.position2d.x, camera.position2d.y,
+            camera.position.x, camera.position.y, camera.position.z);
     }
     if (notificationTimer > 0.0f)
     {
@@ -176,7 +180,7 @@ void MY_SCENE::onLoop()
         {
             notificationTimer = 0.0f;
             if (notificationText)
-                notificationText->enableRender = false;
+                notificationText->setEnableRender(false);
         }
     }
     for(size_t i = 0; i < menuItems.size(); i++)
@@ -184,13 +188,14 @@ void MY_SCENE::onLoop()
         MenuRow& row = menuItems[i];
         if (row.object)
         {
-            if(row.object->is3D)
+            mbm::VEC3 &angle = row.object->getAngle();
+            if(row.object->is3DObject())
             {
-                row.object->angle.y += device->delta * 3.0f;
+                angle.y += device->delta * 3.0f;
             }
             else
             {
-                row.object->angle.y = 0.0f;
+                angle.y = 0.0f;
             }
         }
     }
@@ -293,7 +298,9 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
     }
     if(key == 1 && render2Texture)
     {
-        if(render2Texture->saveAsPNG("render2texture-out.png", 0, 0, render2Texture->widthTexture, render2Texture->heightTexture))
+        if(render2Texture->saveAsPNG("render2texture-out.png", 0, 0,
+                                     render2Texture->getRenderTargetWidth(),
+                                     render2Texture->getRenderTargetHeight()))
         {
             INFO_LOG("Saved render2Texture content to render2texture-out.png");
         }
@@ -315,18 +322,19 @@ void MY_SCENE::onTouchMove(int, float x, float y)
     mouseScreenY = y;
     if(trackMouse)
     {
-        if(trackMouse->is3D)
+        mbm::VEC3 &position = trackMouse->getPosition();
+        if(trackMouse->is3DObject())
         {
-            device->transformeScreen2dToWorld3d_scaled(x, y, &trackMouse->position, 800.0f);
+            device->transformeScreen2dToWorld3d_scaled(x, y, &position, 800.0f);
         }
-        else if(trackMouse->is2dS)
+        else if(trackMouse->is2dScreenObject())
         {
-            trackMouse->position.x = x;
-            trackMouse->position.y = y;
+            position.x = x;
+            position.y = y;
         }
         else
         {
-            device->transformeScreen2dToWorld2d_scaled(x, y, trackMouse->position);
+            device->transformeScreen2dToWorld2d_scaled(x, y, position);
         }
     }
     if(lineFontIsOver && lineFontIsOver->getTotalLines() > 0)
@@ -420,11 +428,11 @@ void MY_SCENE::onTouchMove(int, float x, float y)
 
         if(found)
         {
-            lineFontIsOver->enableRender = true;
+            lineFontIsOver->setEnableRender(true);
         }
         else
         {
-            lineFontIsOver->enableRender = false;
+            lineFontIsOver->setEnableRender(false);
         }
     }
 }
@@ -439,10 +447,11 @@ void MY_SCENE::updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw)
         // TEXT_DRAW::position is the top-left starting corner in screen coords (Y-down).
         // getAABB() returns screen-pixel dimensions, so the box spans
         // [position.x .. position.x+w] x [position.y .. position.y+h].
-        linePoints[0] = mbm::VEC3(textDraw->position.x,     textDraw->position.y,     textDraw->position.z);
-        linePoints[1] = mbm::VEC3(textDraw->position.x + w, textDraw->position.y,     textDraw->position.z);
-        linePoints[2] = mbm::VEC3(textDraw->position.x + w, textDraw->position.y + h, textDraw->position.z);
-        linePoints[3] = mbm::VEC3(textDraw->position.x,     textDraw->position.y + h, textDraw->position.z);
+        const mbm::VEC3 &position = textDraw->getPosition();
+        linePoints[0] = mbm::VEC3(position.x,     position.y,     position.z);
+        linePoints[1] = mbm::VEC3(position.x + w, position.y,     position.z);
+        linePoints[2] = mbm::VEC3(position.x + w, position.y + h, position.z);
+        linePoints[3] = mbm::VEC3(position.x,     position.y + h, position.z);
 
         lineFontIsOver->set(std::move(linePoints), 0);
     }
@@ -480,14 +489,15 @@ void MY_SCENE::onKeyDown(int key)
         return;
     }
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    mbm::CAMERA &camera = device->getCamera();
     if (key == 39)      // right
-        device->camera.position2d.x += 10;
+        camera.position2d.x += 10;
     else if (key == 37) // left
-        device->camera.position2d.x -= 10;
+        camera.position2d.x -= 10;
     else if (key == 38) // up
-        device->camera.position2d.y += 10;
+        camera.position2d.y += 10;
     else if (key == 40) // down
-        device->camera.position2d.y -= 10;
+        camera.position2d.y -= 10;
 }
 
 void MY_SCENE::onKeyUp(int)
@@ -550,11 +560,11 @@ void MY_SCENE::buildMenu()
         char labelBuf[64];
         snprintf(labelBuf, sizeof(labelBuf), "[ ] %s", defs[i].name);
         row.labelText = this->fontDrawNoShader->addText(labelBuf, mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-        row.labelText->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+        row.labelText->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
         row.labelText->forceCalcSize();
-        row.labelText->position.z    = -1.0f;
-        row.labelText->alwaysRenderize = true;
-        row.labelText->enableRender  = false;
+        row.labelText->getPosition().z = -1.0f;
+        row.labelText->setAlwaysRenderize(true);
+        row.labelText->setEnableRender(false);
 
         menuItems.push_back(row);
     }
@@ -562,32 +572,35 @@ void MY_SCENE::buildMenu()
     for (size_t i = 0; i < sizeof(defs) / sizeof(defs[0]); i++)
     {
         MenuRow& row = menuItems[i];
-        row.labelText->position.x = 10.0f;
-        row.labelText->position.y = 10.0f + static_cast<float>(i) * 50.0f;
-        latestY = row.labelText->position.y;
+        mbm::VEC3 &position = row.labelText->getPosition();
+        position.x = 10.0f;
+        position.y = 10.0f + static_cast<float>(i) * 50.0f;
+        latestY = position.y;
     }
     // Hints text — always visible at the bottom of the screen
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     hintsText = this->fontDrawNoShader->addText("[M] menu | [P] pos | [S] shader | [Arrows] camera", IS_2D_FONT, IS_SCREEN);
-    hintsText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    hintsText->setScale(mbm::VEC3(0.5f, 0.5f, 0.5f));
     hintsText->forceCalcSize();
     float hw = 0.0f, hh = 0.0f;
     hintsText->getAABB(&hw, &hh);
-    hintsText->position.x      = 10.0f;
-    hintsText->position.y      = static_cast<float>(device->backBufferHeight) - hh - 5.0f;
-    hintsText->position.z      = -1.0f;
-    hintsText->alwaysRenderize = true;
-    hintsText->enableRender    = true;
+    mbm::VEC3 &hintsPosition = hintsText->getPosition();
+    hintsPosition.x = 10.0f;
+    hintsPosition.y = static_cast<float>(device->getBackBufferHeight()) - hh - 5.0f;
+    hintsPosition.z = -1.0f;
+    hintsText->setAlwaysRenderize(true);
+    hintsText->setEnableRender(true);
 
 
     shaderInfoText = this->fontDrawNoShader->addText("Shader information", IS_2D_FONT, IS_SCREEN);
-    shaderInfoText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    shaderInfoText->setScale(mbm::VEC3(0.5f, 0.5f, 0.5f));
     shaderInfoText->forceCalcSize();
-    shaderInfoText->position.x      = 10.0f;
-    shaderInfoText->position.y      = latestY + 50.0f;
-    shaderInfoText->position.z      = -1.0f;
-    shaderInfoText->alwaysRenderize = true;
-    shaderInfoText->enableRender    = true;
+    mbm::VEC3 &shaderInfoPosition = shaderInfoText->getPosition();
+    shaderInfoPosition.x = 10.0f;
+    shaderInfoPosition.y = latestY + 50.0f;
+    shaderInfoPosition.z = -1.0f;
+    shaderInfoText->setAlwaysRenderize(true);
+    shaderInfoText->setEnableRender(true);
 
     // Show initial menu state
     for (size_t i = 0; i < menuItems.size(); i++)
@@ -604,7 +617,7 @@ void MY_SCENE::updateMenuRow(size_t i)
     else
         row.labelText->setText("[ ] %s", row.typeName);
 
-    row.labelText->enableRender  = menuVisible;
+    row.labelText->setEnableRender(menuVisible);
 }
 
 void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
@@ -691,7 +704,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             mesh = new mbm::MESH(this, is3d, is2dS);
             if (mesh->load("Barrel_NoTop.msh"))
             {
-                mesh->scale = mbm::VEC3(3.5f, 3.5f, 3.5f);
+                mesh->setScale(mbm::VEC3(3.5f, 3.5f, 3.5f));
                 INFO_LOG("MESH loaded (%s)", modeToStr(mode));
                 row.object = mesh;
             }
@@ -783,7 +796,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
                 std::vector<mbm::VEC3> d2 = { mbm::VEC3(-H, H, 0.0f), mbm::VEC3(H, -H, 0.0f) };
                 line->add(std::move(d2));
             }
-            line->enableRender = true;
+            line->setEnableRender(true);
             INFO_LOG("LINE_MESH loaded (%s)", modeToStr(mode));
             row.object = line;
         }
@@ -841,8 +854,8 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             render2Texture      = new mbm::RENDER_2_TEXTURE(this, is3d, is2dS);
-            const uint32_t widthFrame = static_cast<uint32_t>(device->backBufferWidth * 0.60f);
-            const uint32_t heightFrame = static_cast<uint32_t>(device->backBufferHeight * 0.60f);
+            const uint32_t widthFrame = static_cast<uint32_t>(device->getBackBufferWidth() * 0.60f);
+            const uint32_t heightFrame = static_cast<uint32_t>(device->getBackBufferHeight() * 0.60f);
             if (render2Texture->load(widthFrame, heightFrame, widthFrame, heightFrame, "my-render", true))
             {
                 if (gif)
@@ -866,7 +879,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             tile = new mbm::TILE(this, is3d, is2dS);
             if (tile->load("tile-map-test.tile"))
             {
-                tile->scale = mbm::VEC3(0.3f, 0.3f, 0.3f);
+                tile->setScale(mbm::VEC3(0.3f, 0.3f, 0.3f));
                 INFO_LOG("TILE loaded (%s)", modeToStr(mode));
                 row.object = tile;
             }
@@ -886,7 +899,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         lastLoadedRowIdx = static_cast<int>(i);
         // Ensure loaded 2D objects sit behind menu text (z=-1)
         if (!is3d)
-            row.object->position.z = 0.0f;
+            row.object->getPosition().z = 0.0f;
     }
     addObjectsToRender2Texture();
     updateMenuRow(i);
@@ -894,10 +907,11 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
     if (row.object)
     {
         const bool insideR2T = (render2Texture != nullptr) && (row.object != render2Texture);
+        const mbm::VEC3 &position = row.object->getPosition();
         showNotification("%s loaded (%s) %s | pos(%.0f,%.0f,%.0f)",
             row.typeName, modeToStr(mode),
             insideR2T ? "in render2texture" : "in scene",
-            row.object->position.x, row.object->position.y, row.object->position.z);
+            position.x, position.y, position.z);
     }
     //Do not apply shader since some object are loaded with shader.
     //applyCurrentShaders();
@@ -1033,7 +1047,7 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
     for (size_t i = 0; i < menuItems.size(); i++)
     {
         MenuRow& row = menuItems[i];
-        if (btn2dS->enableRender && btn2dS->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn2dS->isRenderEnabled() && btn2dS->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
             if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
@@ -1041,7 +1055,7 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
                 loadObjectAt(i, RenderMode::SCREEN_2D);
             return true;
         }
-        if (btn2dW->enableRender && btn2dW->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn2dW->isRenderEnabled() && btn2dW->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
             if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
@@ -1049,7 +1063,7 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
                 loadObjectAt(i, RenderMode::WORLD_2D);
             return true;
         }
-        if (btn3d->enableRender && btn3d->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn3d->isRenderEnabled() && btn3d->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
             if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
@@ -1085,11 +1099,11 @@ void MY_SCENE::buildPosMenu()
         char buf[64];
         snprintf(buf, sizeof(buf), "%s %s", j == 0 ? "[X]" : "[ ]", baseLabels[j]);
         posMenuTexts[j] = this->fontDrawNoShader->addText(buf, mbm::VEC2(0, 0), IS_2D_FONT, IS_SCREEN);
-        posMenuTexts[j]->scale         = mbm::VEC3(1.0f, 1.0f, 1.0f);
+        posMenuTexts[j]->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
         posMenuTexts[j]->forceCalcSize();
-        posMenuTexts[j]->position.z    = -1.0f;
-        posMenuTexts[j]->alwaysRenderize = true;
-        posMenuTexts[j]->enableRender  = true;
+        posMenuTexts[j]->getPosition().z = -1.0f;
+        posMenuTexts[j]->setAlwaysRenderize(true);
+        posMenuTexts[j]->setEnableRender(true);
 
         float w = 0.0f, h = 0.0f;
         posMenuTexts[j]->getAABB(&w, &h);
@@ -1103,8 +1117,9 @@ void MY_SCENE::buildPosMenu()
     {
         if (posMenuTexts[j])
         {
-            posMenuTexts[j]->position.x = static_cast<float>(device->backBufferWidth) - maxWidth - 10.0f;
-            posMenuTexts[j]->position.y = 10.0f + static_cast<float>(j) * (maxHeight + 5.0f);
+            mbm::VEC3 &position = posMenuTexts[j]->getPosition();
+            position.x = static_cast<float>(device->getBackBufferWidth()) - maxWidth - 10.0f;
+            position.y = 10.0f + static_cast<float>(j) * (maxHeight + 5.0f);
         }
     }
 
@@ -1112,23 +1127,23 @@ void MY_SCENE::buildPosMenu()
     float hw = 0.0f, hh = 0.0f;
     if (hintsText)
         hintsText->getAABB(&hw, &hh);
-    const float statusY = static_cast<float>(device->backBufferHeight) - hh * 2.0f - 12.0f;
+    const float statusY = static_cast<float>(device->getBackBufferHeight()) - hh * 2.0f - 12.0f;
     statusText = this->fontDrawNoShader->addText(
         "Mouse(0,0)  Cam2D(0,0)  Cam3D(0,0,0)", mbm::VEC2(10.0f, statusY), IS_2D_FONT, IS_SCREEN);
-    statusText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    statusText->setScale(mbm::VEC3(0.5f, 0.5f, 0.5f));
     statusText->forceCalcSize();
-    statusText->position.z    = -1.0f;
-    statusText->alwaysRenderize = true;
-    statusText->enableRender  = true;
+    statusText->getPosition().z = -1.0f;
+    statusText->setAlwaysRenderize(true);
+    statusText->setEnableRender(true);
 
     // Notification text: one line above statusText
     const float notifyY = statusY - hh - 5.0f;
     notificationText = this->fontDrawNoShader->addText("", mbm::VEC2(10.0f, notifyY), IS_2D_FONT, IS_SCREEN);
-    notificationText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    notificationText->setScale(mbm::VEC3(0.5f, 0.5f, 0.5f));
     notificationText->forceCalcSize();
-    notificationText->position.z    = -1.0f;
-    notificationText->alwaysRenderize = true;
-    notificationText->enableRender  = false;
+    notificationText->getPosition().z = -1.0f;
+    notificationText->setAlwaysRenderize(true);
+    notificationText->setEnableRender(false);
 }
 
 void MY_SCENE::buildWorldMenu()
@@ -1139,19 +1154,19 @@ void MY_SCENE::buildWorldMenu()
     constexpr bool  IS_2D_FONT  = true;
     constexpr bool  IS_SCREEN   = true;
     btn2dS = this->fontDrawNoShader->addText("[x](2dS)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-    btn2dS->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn2dS->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
     btn2dS->forceCalcSize();
-    btn2dS->position.z    = -1.0f;
-    btn2dS->alwaysRenderize = true;
-    btn2dS->enableRender  = true;
+    btn2dS->getPosition().z = -1.0f;
+    btn2dS->setAlwaysRenderize(true);
+    btn2dS->setEnableRender(true);
     btn2dS->getAABB(&maxWidth, &maxHeight);
 
     btn2dW = this->fontDrawNoShader->addText("[ ](2dW)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-    btn2dW->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn2dW->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
     btn2dW->forceCalcSize();
-    btn2dW->position.z    = -1.0f;
-    btn2dW->alwaysRenderize = true;
-    btn2dW->enableRender  = true;
+    btn2dW->getPosition().z = -1.0f;
+    btn2dW->setAlwaysRenderize(true);
+    btn2dW->setEnableRender(true);
     btn2dW->getAABB(&hw, &hh);
     if (hw > maxWidth)        
     {
@@ -1163,11 +1178,11 @@ void MY_SCENE::buildWorldMenu()
     }
 
     btn3d = this->fontDrawNoShader->addText("[ ](3d)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-    btn3d->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn3d->setScale(mbm::VEC3(1.0f, 1.0f, 1.0f));
     btn3d->forceCalcSize();
-    btn3d->position.z    = -1.0f;
-    btn3d->alwaysRenderize = true;
-    btn3d->enableRender  = true;
+    btn3d->getPosition().z = -1.0f;
+    btn3d->setAlwaysRenderize(true);
+    btn3d->setEnableRender(true);
     btn3d->getAABB(&hw, &hh);
     if (hw > maxWidth)        
     {
@@ -1182,13 +1197,16 @@ void MY_SCENE::buildWorldMenu()
     float widthM = 0;
     float heightM = 0;
     btn3d->getWidthHeightString(&widthM, &heightM,"M");
-    const float defaultPosY = device->backBufferHeight - maxHeight;
-    btn2dS->position.x  = device->backBufferWidth - (maxWidth * 3) - widthM;
-    btn2dS->position.y  = defaultPosY;
-    btn2dW->position.x  = device->backBufferWidth - (maxWidth * 2) - widthM;
-    btn2dW->position.y  = defaultPosY;
-    btn3d->position.x   = device->backBufferWidth - maxWidth;
-    btn3d->position.y   = defaultPosY;
+    const float defaultPosY = device->getBackBufferHeight() - maxHeight;
+    mbm::VEC3 &position2dS = btn2dS->getPosition();
+    mbm::VEC3 &position2dW = btn2dW->getPosition();
+    mbm::VEC3 &position3d  = btn3d->getPosition();
+    position2dS.x = device->getBackBufferWidth() - (maxWidth * 3) - widthM;
+    position2dS.y = defaultPosY;
+    position2dW.x = device->getBackBufferWidth() - (maxWidth * 2) - widthM;
+    position2dW.y = defaultPosY;
+    position3d.x  = device->getBackBufferWidth() - maxWidth;
+    position3d.y  = defaultPosY;
 }
 
 void MY_SCENE::updatePosMenu()
@@ -1209,7 +1227,7 @@ void MY_SCENE::updatePosMenu()
         posMenuTexts[j]->setText("%s %s", static_cast<size_t>(j) == static_cast<size_t>(posMenuSelected) ? "[X]" : "[ ]", baseLabels[j]);
         // If render2Texture is active, only show the "Apply (X=0,Y=0,Z=0)" preset since the others don't make sense inside the texture frame
         // Uncommenting the line below will show all presets, but they will all apply the position based on the main screen dimensions, which can be confusing when the object is inside render2texture
-        //posMenuTexts[j]->enableRender = posMenuVisible && (render2Texture == nullptr || j == 0);
+        //posMenuTexts[j]->setEnableRender(posMenuVisible && (render2Texture == nullptr || j == 0));
     }
 }
 
@@ -1231,22 +1249,23 @@ void MY_SCENE::applyPosPreset(int idx)
 
     if (idx == 0) // explicit origin
     {
-        row.object->position.x = 0.0f;
-        row.object->position.y = 0.0f;
-        row.object->position.z = (row.currentMode == RenderMode::WORLD_3D) ? 0.0f : row.object->position.z;
+        mbm::VEC3 &position = row.object->getPosition();
+        position.x = 0.0f;
+        position.y = 0.0f;
+        position.z = (row.currentMode == RenderMode::WORLD_3D) ? 0.0f : position.z;
         return;
     }
 
     trackMouse = nullptr;
     // Compute desired screen-space anchor
     float sx = 0.0f, sy = 0.0f;
-    float backBufferHeight = static_cast<float>(device->backBufferHeight);
-    float backBufferWidth = static_cast<float>(device->backBufferWidth);
+    float backBufferHeight = static_cast<float>(device->getBackBufferHeight());
+    float backBufferWidth = static_cast<float>(device->getBackBufferWidth());
     if(render2Texture && row.object != render2Texture)
     {
         // If the object is inside render2Texture, use its dimensions instead of the device backbuffer for positioning
-        backBufferHeight = static_cast<float>(render2Texture->heightTexture);
-        backBufferWidth = static_cast<float>(render2Texture->widthTexture);
+        backBufferHeight = static_cast<float>(render2Texture->getRenderTargetHeight());
+        backBufferWidth = static_cast<float>(render2Texture->getRenderTargetWidth());
     }
     switch (idx)
     {
@@ -1273,7 +1292,8 @@ void MY_SCENE::applyPosPreset(int idx)
             return;
     }
 
-    const float savedZ = row.object->position.z;
+    mbm::VEC3 &position = row.object->getPosition();
+    const float savedZ = position.z;
     const bool insideR2T = (render2Texture != nullptr) && (row.object != render2Texture);
     if (row.currentMode == RenderMode::SCREEN_2D)
     {
@@ -1283,15 +1303,15 @@ void MY_SCENE::applyPosPreset(int idx)
             // calls transformeScreen2dToWorld2d_scaled(position) at draw time, then applies
             // matrixPerspective2d. We need world = (sx - tw/2, -(sy - th/2)), so store the
             // main-screen-equivalent pixel coords that produce those world coords.
-            row.object->position.x = device->backBufferWidth * 0.5f + sx - backBufferWidth * 0.5f;
-            row.object->position.y = device->backBufferHeight * 0.5f - backBufferHeight * 0.5f + sy;
+            position.x = device->getBackBufferWidth() * 0.5f + sx - backBufferWidth * 0.5f;
+            position.y = device->getBackBufferHeight() * 0.5f - backBufferHeight * 0.5f + sy;
         }
         else
         {
-            row.object->position.x = sx;
-            row.object->position.y = sy;
+            position.x = sx;
+            position.y = sy;
         }
-        row.object->position.z = savedZ;
+        position.z = savedZ;
     }
     else if (row.currentMode == RenderMode::WORLD_2D)
     {
@@ -1299,19 +1319,19 @@ void MY_SCENE::applyPosPreset(int idx)
         {
             // render2texture camera uses matrixOrthoLH(tw, th) which maps [-tw/2, tw/2] to
             // clip space. WORLD_2D render path uses position directly — place in texture world.
-            row.object->position.x = sx - backBufferWidth * 0.5f;
-            row.object->position.y = -(sy - backBufferHeight * 0.5f);
-            row.object->position.z = savedZ;
+            position.x = sx - backBufferWidth * 0.5f;
+            position.y = -(sy - backBufferHeight * 0.5f);
+            position.z = savedZ;
         }
         else
         {
-            device->transformeScreen2dToWorld2d_scaled(sx, sy, row.object->position);
-            row.object->position.z = savedZ;
+            device->transformeScreen2dToWorld2d_scaled(sx, sy, position);
+            position.z = savedZ;
         }
     }
     else // WORLD_3D
     {
-        device->transformeScreen2dToWorld3d_scaled(sx, sy, &row.object->position, 800.0f);
+        device->transformeScreen2dToWorld3d_scaled(sx, sy, &position, 800.0f);
         // z is determined by the 3D transform — intentional (how far)
     }
 }
@@ -1319,7 +1339,7 @@ void MY_SCENE::applyPosPreset(int idx)
 bool MY_SCENE::handleWorldMenuTouchDown(float x, float y, RenderMode& mode_selected)
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    if(btn3d && btn3d->enableRender && btn3d->isOver2ds(device, x, y))
+    if(btn3d && btn3d->isRenderEnabled() && btn3d->isOver2ds(device, x, y))
     {
         btn2dS->setText("[ ](2dS)");
         btn2dW->setText("[ ](2dW)");
@@ -1328,7 +1348,7 @@ bool MY_SCENE::handleWorldMenuTouchDown(float x, float y, RenderMode& mode_selec
         return true;
     }
 
-    if(btn2dW && btn2dW->enableRender && btn2dW->isOver2ds(device, x, y))
+    if(btn2dW && btn2dW->isRenderEnabled() && btn2dW->isOver2ds(device, x, y))
     {
         btn2dS->setText("[ ](2dS)");
         btn2dW->setText("[x](2dW)");
@@ -1337,7 +1357,7 @@ bool MY_SCENE::handleWorldMenuTouchDown(float x, float y, RenderMode& mode_selec
         return true;
     }
 
-    if(btn2dS && btn2dS->enableRender && btn2dS->isOver2ds(device, x, y))
+    if(btn2dS && btn2dS->isRenderEnabled() && btn2dS->isOver2ds(device, x, y))
     {
         btn2dS->setText("[x](2dS)");
         btn2dW->setText("[ ](2dW)");
@@ -1354,7 +1374,7 @@ bool MY_SCENE::handlePosMenuTouchDown(float x, float y)
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
-        if (posMenuTexts[j] && posMenuTexts[j]->enableRender &&
+        if (posMenuTexts[j] && posMenuTexts[j]->isRenderEnabled() &&
             posMenuTexts[j]->isOver2ds(device, x, y))
         {
             applyPosPreset(j);
@@ -1374,8 +1394,8 @@ void MY_SCENE::randomSteeredParticlePositions()
         {
             static std::random_device rd;
             static std::mt19937 gen(rd());
-            std::uniform_real_distribution<float> disX(-static_cast<float>(device->backBufferWidth) * 0.25f, static_cast<float>(device->backBufferWidth) * 0.25f);
-            std::uniform_real_distribution<float> disY(-static_cast<float>(device->backBufferHeight) * 0.25f, static_cast<float>(device->backBufferHeight) * 0.25f);
+            std::uniform_real_distribution<float> disX(-static_cast<float>(device->getBackBufferWidth()) * 0.25f, static_cast<float>(device->getBackBufferWidth()) * 0.25f);
+            std::uniform_real_distribution<float> disY(-static_cast<float>(device->getBackBufferHeight()) * 0.25f, static_cast<float>(device->getBackBufferHeight()) * 0.25f);
 
             for (uint32_t i = 0; i < group->size_particle_array; i++)
             {
@@ -1397,7 +1417,7 @@ void MY_SCENE::showNotification(const char* fmt, ...)
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     notificationText->setText("%s", buf);
-    notificationText->enableRender = true;
+    notificationText->setEnableRender(true);
     notificationTimer = 5.0f;
 }
 
@@ -1410,11 +1430,11 @@ void MY_SCENE::buildShaderMenu()
     auto makeText = [&](const char* txt) -> mbm::TEXT_DRAW*
     {
         mbm::TEXT_DRAW* t = this->fontDrawNoShader->addText(txt, mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-        t->scale           = mbm::VEC3(0.75f, 0.75f, 0.75f);
+        t->setScale(mbm::VEC3(0.75f, 0.75f, 0.75f));
         t->forceCalcSize();
-        t->position.z      = -1.0f;
-        t->alwaysRenderize = true;
-        t->enableRender    = true;// initially visible
+        t->getPosition().z = -1.0f;
+        t->setAlwaysRenderize(true);
+        t->setEnableRender(true);// initially visible
         return t;
     };
 
@@ -1428,7 +1448,7 @@ void MY_SCENE::buildShaderMenu()
 
     // Measure the widest possible label across all ps/vs shader names
     float maxLabelW = 0.0f;
-    for (auto* s : device->cfg.lsPs)
+    for (auto* s : device->getShaderConfig().lsPs)
     {
         shaderRowPS.labelText->setText("[X] %s", s->fileName.c_str());
         shaderRowPS.labelText->forceCalcSize();
@@ -1436,7 +1456,7 @@ void MY_SCENE::buildShaderMenu()
         shaderRowPS.labelText->getAABB(&w, &h);
         if (w > maxLabelW) maxLabelW = w;
     }
-    for (auto* s : device->cfg.lsVs)
+    for (auto* s : device->getShaderConfig().lsVs)
     {
         shaderRowPS.labelText->setText("[X] %s", s->fileName.c_str());
         shaderRowPS.labelText->forceCalcSize();
@@ -1459,33 +1479,40 @@ void MY_SCENE::buildShaderMenu()
     if (pauseH > rowH) rowH = pauseH;
 
     const float gap       = 8.0f;
-    const float rightEdge = static_cast<float>(device->backBufferWidth) - 10.0f;
+    const float rightEdge = static_cast<float>(device->getBackBufferWidth()) - 10.0f;
     const float labelX    = rightEdge - nextW - gap - prevW - gap - maxLabelW;
     const float prevX     = rightEdge - nextW - gap - prevW;
     const float nextX     = rightEdge - nextW;
 
     const float spacing    = rowH + 8.0f;
-    //float rowY = static_cast<float>(device->backBufferHeight) / 2.0f - totalMenuH / 2.0f;
+    //float rowY = static_cast<float>(device->getBackBufferHeight()) / 2.0f - totalMenuH / 2.0f;
     float rowY = 510.0f;
 
-    shaderRowPS.labelText->position.x = labelX;
-    shaderRowPS.labelText->position.y = rowY;
-    shaderRowPS.btnPrev->position.x   = prevX;
-    shaderRowPS.btnPrev->position.y   = rowY;
-    shaderRowPS.btnNext->position.x   = nextX;
-    shaderRowPS.btnNext->position.y   = rowY;
+    mbm::VEC3 &psLabelPosition = shaderRowPS.labelText->getPosition();
+    mbm::VEC3 &psPrevPosition  = shaderRowPS.btnPrev->getPosition();
+    mbm::VEC3 &psNextPosition  = shaderRowPS.btnNext->getPosition();
+    psLabelPosition.x = labelX;
+    psLabelPosition.y = rowY;
+    psPrevPosition.x  = prevX;
+    psPrevPosition.y  = rowY;
+    psNextPosition.x  = nextX;
+    psNextPosition.y  = rowY;
     rowY += spacing;
 
-    shaderRowVS.labelText->position.x = labelX;
-    shaderRowVS.labelText->position.y = rowY;
-    shaderRowVS.btnPrev->position.x   = prevX;
-    shaderRowVS.btnPrev->position.y   = rowY;
-    shaderRowVS.btnNext->position.x   = nextX;
-    shaderRowVS.btnNext->position.y   = rowY;
+    mbm::VEC3 &vsLabelPosition = shaderRowVS.labelText->getPosition();
+    mbm::VEC3 &vsPrevPosition  = shaderRowVS.btnPrev->getPosition();
+    mbm::VEC3 &vsNextPosition  = shaderRowVS.btnNext->getPosition();
+    vsLabelPosition.x = labelX;
+    vsLabelPosition.y = rowY;
+    vsPrevPosition.x  = prevX;
+    vsPrevPosition.y  = rowY;
+    vsNextPosition.x  = nextX;
+    vsNextPosition.y  = rowY;
     rowY += spacing;
 
-    shaderBtnPause->position.x = labelX;
-    shaderBtnPause->position.y = rowY;
+    mbm::VEC3 &pausePosition = shaderBtnPause->getPosition();
+    pausePosition.x = labelX;
+    pausePosition.y = rowY;
 }
 
 void MY_SCENE::updateShaderMenu()
@@ -1496,21 +1523,21 @@ void MY_SCENE::updateShaderMenu()
     mbm::DEVICE* device  = mbm::DEVICE::getInstance();
     const bool   visible = shaderMenuVisible;
 
-    if (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->cfg.lsPs.size()))
-        shaderRowPS.labelText->setText("[X] %s", device->cfg.lsPs[static_cast<size_t>(currentPsShaderIdx)]->fileName.c_str());
+    if (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->getShaderConfig().lsPs.size()))
+        shaderRowPS.labelText->setText("[X] %s", device->getShaderConfig().lsPs[static_cast<size_t>(currentPsShaderIdx)]->fileName.c_str());
     else
         shaderRowPS.labelText->setText("[ ] (PS none)");
-    shaderRowPS.labelText->enableRender = visible;
-    shaderRowPS.btnPrev->enableRender   = visible;
-    shaderRowPS.btnNext->enableRender   = visible;
+    shaderRowPS.labelText->setEnableRender(visible);
+    shaderRowPS.btnPrev->setEnableRender(visible);
+    shaderRowPS.btnNext->setEnableRender(visible);
 
-    if (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->cfg.lsVs.size()))
-        shaderRowVS.labelText->setText("[X] %s", device->cfg.lsVs[static_cast<size_t>(currentVsShaderIdx)]->fileName.c_str());
+    if (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->getShaderConfig().lsVs.size()))
+        shaderRowVS.labelText->setText("[X] %s", device->getShaderConfig().lsVs[static_cast<size_t>(currentVsShaderIdx)]->fileName.c_str());
     else
         shaderRowVS.labelText->setText("[ ] (VS none)");
-    shaderRowVS.labelText->enableRender = visible;
-    shaderRowVS.btnPrev->enableRender   = visible;
-    shaderRowVS.btnNext->enableRender   = visible;
+    shaderRowVS.labelText->setEnableRender(visible);
+    shaderRowVS.btnPrev->setEnableRender(visible);
+    shaderRowVS.btnNext->setEnableRender(visible);
 
     bool paused = false;
     if (lastLoadedRowIdx >= 0 && lastLoadedRowIdx < static_cast<int>(menuItems.size()))
@@ -1525,7 +1552,7 @@ void MY_SCENE::updateShaderMenu()
         }
     }
     shaderBtnPause->setText(paused ? "[X] Pause shader animation" : "[ ] Pause shader animation");
-    shaderBtnPause->enableRender = visible;
+    shaderBtnPause->setEnableRender(visible);
 }
 
 void MY_SCENE::applyCurrentShaders()
@@ -1540,7 +1567,8 @@ void MY_SCENE::applyCurrentShaders()
         return;
     if (currentPsShaderIdx < 0 && currentVsShaderIdx < 0)
     {
-        if(obj->typeClass != mbm::TYPE_CLASS_STEERED_PARTICLE && obj->typeClass != mbm::TYPE_CLASS_PARTICLE)
+        const mbm::TYPE_CLASS typeClass = obj->getTypeClass();
+        if(typeClass != mbm::TYPE_CLASS_STEERED_PARTICLE && typeClass != mbm::TYPE_CLASS_PARTICLE)
         {
             mbm::SHADER_CFG* psCfg = nullptr;
             mbm::SHADER_CFG* vsCfg = nullptr;
@@ -1554,10 +1582,10 @@ void MY_SCENE::applyCurrentShaders()
     }
 
     mbm::DEVICE*     device = mbm::DEVICE::getInstance();
-    mbm::SHADER_CFG* psCfg  = (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->cfg.lsPs.size()))
-                               ? device->cfg.lsPs[static_cast<size_t>(currentPsShaderIdx)] : nullptr;
-    mbm::SHADER_CFG* vsCfg  = (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->cfg.lsVs.size()))
-                               ? device->cfg.lsVs[static_cast<size_t>(currentVsShaderIdx)] : nullptr;
+    mbm::SHADER_CFG* psCfg  = (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->getShaderConfig().lsPs.size()))
+                               ? device->getShaderConfig().lsPs[static_cast<size_t>(currentPsShaderIdx)] : nullptr;
+    mbm::SHADER_CFG* vsCfg  = (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->getShaderConfig().lsVs.size()))
+                               ? device->getShaderConfig().lsVs[static_cast<size_t>(currentVsShaderIdx)] : nullptr;
 
     fx->loadNewShader(psCfg, vsCfg,
                       mbm::TYPE_ANIMATION_GROWING_LOOP, 1.0f,
@@ -1572,10 +1600,10 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         return false;
 
     mbm::DEVICE* device  = mbm::DEVICE::getInstance();
-    const int    psCount = static_cast<int>(device->cfg.lsPs.size());
-    const int    vsCount = static_cast<int>(device->cfg.lsVs.size());
+    const int    psCount = static_cast<int>(device->getShaderConfig().lsPs.size());
+    const int    vsCount = static_cast<int>(device->getShaderConfig().lsVs.size());
 
-    if (shaderRowPS.btnPrev->enableRender && shaderRowPS.btnPrev->isOver2ds(device, x, y))
+    if (shaderRowPS.btnPrev->isRenderEnabled() && shaderRowPS.btnPrev->isOver2ds(device, x, y))
     {
         if (psCount > 0)
         {
@@ -1584,7 +1612,7 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         }
         return true;
     }
-    if (shaderRowPS.btnNext->enableRender && shaderRowPS.btnNext->isOver2ds(device, x, y))
+    if (shaderRowPS.btnNext->isRenderEnabled() && shaderRowPS.btnNext->isOver2ds(device, x, y))
     {
         if (psCount > 0)
         {
@@ -1593,14 +1621,14 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         }
         return true;
     }
-    if (shaderRowPS.labelText->enableRender && shaderRowPS.labelText->isOver2ds(device, x, y))
+    if (shaderRowPS.labelText->isRenderEnabled() && shaderRowPS.labelText->isOver2ds(device, x, y))
     {
         currentPsShaderIdx = (currentPsShaderIdx >= 0) ? -1 : (psCount > 0 ? 0 : -1);
         applyCurrentShaders();
         return true;
     }
 
-    if (shaderRowVS.btnPrev->enableRender && shaderRowVS.btnPrev->isOver2ds(device, x, y))
+    if (shaderRowVS.btnPrev->isRenderEnabled() && shaderRowVS.btnPrev->isOver2ds(device, x, y))
     {
         if (vsCount > 0)
         {
@@ -1609,7 +1637,7 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         }
         return true;
     }
-    if (shaderRowVS.btnNext->enableRender && shaderRowVS.btnNext->isOver2ds(device, x, y))
+    if (shaderRowVS.btnNext->isRenderEnabled() && shaderRowVS.btnNext->isOver2ds(device, x, y))
     {
         if (vsCount > 0)
         {
@@ -1618,14 +1646,14 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
         }
         return true;
     }
-    if (shaderRowVS.labelText->enableRender && shaderRowVS.labelText->isOver2ds(device, x, y))
+    if (shaderRowVS.labelText->isRenderEnabled() && shaderRowVS.labelText->isOver2ds(device, x, y))
     {
         currentVsShaderIdx = (currentVsShaderIdx >= 0) ? -1 : (vsCount > 0 ? 0 : -1);
         applyCurrentShaders();
         return true;
     }
 
-    if (shaderBtnPause->enableRender && shaderBtnPause->isOver2ds(device, x, y))
+    if (shaderBtnPause->isRenderEnabled() && shaderBtnPause->isOver2ds(device, x, y))
     {
         if (lastLoadedRowIdx >= 0 && lastLoadedRowIdx < static_cast<int>(menuItems.size()))
         {

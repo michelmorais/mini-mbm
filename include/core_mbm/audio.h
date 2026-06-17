@@ -24,7 +24,6 @@
 #include "audio-interface.h"
 #include <memory>
 #include <string>
-#include <vector>
 
 namespace mbm
 {
@@ -90,8 +89,9 @@ namespace mbm
 		void initializeBackend();
 		void finalizeBackend();
 		void updateBackend();
-		std::vector<AUDIO*> audios;
-		std::vector<AUDIO*> audiosToDelete;
+		void updateManagedAudiosBackend();
+		struct Impl;
+		std::unique_ptr<Impl> impl;
 	};
 }
 

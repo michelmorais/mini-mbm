@@ -10,28 +10,28 @@ including every corner case.
 
 `mbm::RENDERIZABLE` (`include/core_mbm/renderizable.h`) is the abstract base class
 for every object that can be drawn on screen.  The engine maintains three **render
-lists** inside `DEVICE` (private members):
+list categories** inside `DEVICE`:
 
-| List | Objects |
+| Category | Objects |
 |------|---------|
-| `lsObjectRender3D` | Objects with `is3D == true` |
-| `lsObjectRender2DW` | 2-D world-space objects (`is3D == false`, `is2dS == false`) |
-| `lsObjectRender2DS` | 2-D screen-space objects (`is2dS == true`) |
+| 3-D render list | Objects with `is3D == true` |
+| 2-D world render list | 2-D world-space objects (`is3D == false`, `is2dS == false`) |
+| 2-D screen render list | 2-D screen-space objects (`is2dS == true`) |
 
 An object is added to the correct list automatically by
 `DEVICE::addRenderizable(this)` — call this in your constructor.
 Remove it with `DEVICE::removeRenderizable(this)` — call this in your destructor.
 
-### Key public members
+### Key render state
 
-| Member | Purpose |
-|--------|---------|
-| `position` | World position. **`position.z` is the depth-sort key.** |
-| `scale` / `angle` | Transform |
-| `bounding_AABB` | Populated by `updateAABB()`, used for frustum culling |
-| `enableRender` | Set to `false` to hide without removing from the list |
-| `alwaysRenderize` | Skip frustum culling when `true` |
-| `blend` | Blend state for this object |
+| State | Purpose |
+|-------|---------|
+| `getPosition()` / `setPosition()` | World position. **Position Z is the depth-sort key.** |
+| `getScale()` / `setScale()` and `getAngle()` / `setAngle()` | Transform |
+| `getBoundingAABB()` / `setBoundingAABB()` | AABB populated by `updateAABB()`, used for frustum culling |
+| `isRenderEnabled()` / `setEnableRender()` | Hide without removing from the render list |
+| `isAlwaysRenderizeEnabled()` / `setAlwaysRenderize()` | Skip frustum culling when enabled |
+| `getBlend()` / `setBlendState()` | Blend state for this object |
 
 ### Pure virtual methods you **must** implement
 
@@ -57,8 +57,8 @@ Each frame `CORE_MANAGER::render()` calls `prepareRender2d()` /
 1. Calls `ptr->updateAABB()` for every registered object.
 2. Calls `ptr->isOnFrustum()` — adds the object to a *per-frame* visible list if
    it returns `true`.
-3. Sets `ptr->__distFromView = ptr->position.z` (2-D) or camera distance (3-D).
-4. **Sorts the visible list descending by `__distFromView`** — higher `z` = further
+3. Sets `ptr->setDistanceFromView(ptr->getPosition().z)` (2-D) or camera distance (3-D).
+4. **Sorts the visible list descending by `getDistanceFromView()`** — higher `z` = further
    back = drawn first.
 
 The engine then iterates the sorted list and calls `ptr->render()` for each object.
@@ -161,7 +161,7 @@ Pattern:
    bounding box drives culling. Update the sub-object's specific animation when
    off-frustum.
 4. Implement `render()` to call an internal method on the parent, passing
-   `this->position.z` so the parent builds the MVP matrix with the correct depth.
+   `this->getPosition().z` so the parent builds the MVP matrix with the correct depth.
 5. Implement `onRestoreDevice()` to return `true` — the parent handles all GPU
    resource reloading.
 6. Because the proxy calls private methods on the parent, declare
@@ -185,15 +185,16 @@ Example — `TILE` with `TILE_LAYER`:
 // TILE::onRestoreDevice (simplified)
 std::vector<float> savedZ(lsLayerRenderizables.size());
 for (size_t i = 0; i < lsLayerRenderizables.size(); ++i)
-    savedZ[i] = lsLayerRenderizables[i]->position.z;
+    savedZ[i] = lsLayerRenderizables[i]->getPosition().z;
 for (auto* l : lsLayerRenderizables) delete l;
 lsLayerRenderizables.clear();
 
 this->mesh = nullptr;
-if (this->load(this->fileName.c_str()))
+const char *internalFileName = this->getInternalFileName();
+if (this->load(internalFileName))
 {
     for (size_t i = 0; i < lsLayerRenderizables.size() && i < savedZ.size(); ++i)
-        lsLayerRenderizables[i]->position.z = savedZ[i];
+        lsLayerRenderizables[i]->getPosition().z = savedZ[i];
     return true;
 }
 return false;

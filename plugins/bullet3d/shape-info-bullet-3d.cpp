@@ -55,14 +55,12 @@ namespace mbm
         
     void SHAPE_INFO_3D::getWorldTransform(btTransform& worldTrans)const
     {
-        //const btVector3 pos(myObject->position.x * (*this->scaleWorld),
-        //                  myObject->position.y * (*this->scaleWorld),
-        //                  myObject->position.z * (*this->scaleWorld));
-        //
-        const btVector3 pos(ptr->position.x * (*scale),ptr->position.y * (*scale),ptr->position.z * (*scale));
-        const btQuaternion QuatAroundX = btQuaternion(btVector3(1.0, 0.0, 0.0), ptr->angle.x);
-        const btQuaternion QuatAroundY = btQuaternion(btVector3(0.0, 1.0, 0.0), ptr->angle.y);
-        const btQuaternion QuatAroundZ = btQuaternion(btVector3(0.0, 0.0, 1.0), ptr->angle.z);
+        const VEC3 &renderPosition = ptr->getPosition();
+        const VEC3 &renderAngle = ptr->getAngle();
+        const btVector3 pos(renderPosition.x * (*scale), renderPosition.y * (*scale), renderPosition.z * (*scale));
+        const btQuaternion QuatAroundX = btQuaternion(btVector3(1.0, 0.0, 0.0), renderAngle.x);
+        const btQuaternion QuatAroundY = btQuaternion(btVector3(0.0, 1.0, 0.0), renderAngle.y);
+        const btQuaternion QuatAroundZ = btQuaternion(btVector3(0.0, 0.0, 1.0), renderAngle.z);
         const btQuaternion rotation = QuatAroundX * QuatAroundY * QuatAroundZ;
         worldTrans.setIdentity();
         worldTrans.setOrigin(pos);
@@ -74,10 +72,12 @@ namespace mbm
     {
         btQuaternion rotation(worldTrans.getRotation());
         const btVector3 origin = worldTrans.getOrigin();
-        ptr->position.x = origin.getX() /  (*scale);
-        ptr->position.y = origin.getY() /  (*scale);
-        ptr->position.z = origin.getZ() /  (*scale);
-        this->quaternionToEuler(&rotation, &ptr->angle);
+        VEC3 &renderPosition = ptr->getPosition();
+        VEC3 &renderAngle = ptr->getAngle();
+        renderPosition.x = origin.getX() /  (*scale);
+        renderPosition.y = origin.getY() /  (*scale);
+        renderPosition.z = origin.getZ() /  (*scale);
+        this->quaternionToEuler(&rotation, &renderAngle);
     }
         
     void SHAPE_INFO_3D::quaternionToEuler(btQuaternion *quat, VEC3 *euler)

@@ -495,37 +495,41 @@ namespace mbm
                         }
                     }
                 }
-                if (anim->isEndedThisAnimation == false && this->currentTimeArise > sPart->stageTime)
+                if (anim->isEnded() == false && this->currentTimeArise > sPart->stageTime)
                 {
-                    anim->isEndedThisAnimation = true;
+                    anim->setEnded(true);
                     if (onEndAnimationParticleControl)
                     {
-                        //onEndAnimation(anim->nameAnimation, this);
-                        onEndAnimationParticleControl(owner, anim->nameAnimation);
+                        //onEndAnimation(anim->getNameAnimation(), this);
+                        onEndAnimationParticleControl(owner, anim->getNameAnimation());
                     }
                     if ((this->indexStage + 1) < this->lsParticleStage.size())
                     {
                         this->indexStage++;
-                        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "stage:%d", static_cast<int>(this->indexStage + 1));
-                        anim->isEndedThisAnimation = false;
-                        anim->currentWayGrowingOfAnimation = false;
+                        char nameAnimation[ANIMATION::NAME_ANIMATION_SIZE];
+                        snprintf(nameAnimation, sizeof(nameAnimation), "stage:%d", static_cast<int>(this->indexStage + 1));
+                        anim->setNameAnimation(nameAnimation);
+                        anim->setEnded(false);
+                        anim->setCurrentWayGrowing(false);
                         this->currentTimeArise = 0.0f;
                     }
                 }
-                if (anim->currentWayGrowingOfAnimation == false &&
+                if (anim->isCurrentWayGrowing() == false &&
                     this->currentTimeArise > delta &&
                     this->totalAlive == 0)
                 {
-                    anim->currentWayGrowingOfAnimation = true;
+                    anim->setCurrentWayGrowing(true);
                     if (onEndAnimationParticleControl)
                     {
-                        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "particle:0");
-                        //onEndAnimation(anim->nameAnimation, this);
-                        onEndAnimationParticleControl(owner, anim->nameAnimation);
+                        anim->setNameAnimation("particle:0");
+                        //onEndAnimation(anim->getNameAnimation(), this);
+                        onEndAnimationParticleControl(owner, anim->getNameAnimation());
                     }
                     if ((this->indexStage) < this->lsParticleStage.size())
                     {
-                        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "stage:%d", static_cast<int>(this->indexStage));
+                        char nameAnimation[ANIMATION::NAME_ANIMATION_SIZE];
+                        snprintf(nameAnimation, sizeof(nameAnimation), "stage:%d", static_cast<int>(this->indexStage));
+                        anim->setNameAnimation(nameAnimation);
                     }
                 }
             }

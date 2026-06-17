@@ -22,7 +22,7 @@
 #include <texture-manager.h>
 #include <mesh-manager.h>
 #include <device.h>
-#include <specific-metal.h>
+#include "specific-metal-context.h"
 #include <audio-interface.h>
 #include <util-interface.h>
 
@@ -40,20 +40,20 @@
 
 // ---------------------------------------------------------------------------
 // MBMQuitHandler — handles the "Quit" menu item action.
-// Sets device->run = false so the engine loop exits cleanly and main()
+// Calls DEVICE::setRun(false) so the engine loop exits cleanly and main()
 // returns 0, instead of calling exit() from inside AppKit (which bypasses
 // C++ destructors and produces a non-zero exit code in Xcode).
 // ---------------------------------------------------------------------------
 @interface MBMQuitHandler : NSObject
-@property (nonatomic, assign) bool* runFlag;
+@property (nonatomic, assign) mbm::DEVICE* device;
 - (void)quit:(id)sender;
 @end
 @implementation MBMQuitHandler
 - (void)quit:(id)sender
 {
     (void)sender;
-    if (_runFlag)
-        *_runFlag = false;
+    if (_device)
+        _device->setRun(false);
 }
 @end
 
@@ -64,15 +64,15 @@ static MBMQuitHandler* s_quitHandler = nil;
 // MBMWindowDelegate — forwards macOS window events into the engine.
 // ---------------------------------------------------------------------------
 @interface MBMWindowDelegate : NSObject <NSWindowDelegate>
-@property (nonatomic, assign) bool* runFlag;
+@property (nonatomic, assign) mbm::DEVICE* device;
 @end
 
 @implementation MBMWindowDelegate
 
 - (BOOL)windowShouldClose:(NSWindow*)__unused sender
 {
-    if (_runFlag)
-        *_runFlag = false;
+    if (_device)
+        _device->setRun(false);
     return YES;
 }
 
@@ -146,9 +146,9 @@ namespace mbm
                                      const int px, const int py,
                                      const bool border, const bool enable_resize)
     {
-        this->nameApplication       = nameApplication ? nameApplication : "Mini-mbm";
-        this->windowBorder         = border;
-        this->enableResizeWindow   = enable_resize;
+        DEVICE *device = this->getDevice();
+        this->setNameApplication(nameApplication);
+        this->setWindowOptions(border, enable_resize);
 
         // Initialise NSApplication (safe to call multiple times).
         [NSApplication sharedApplication];
@@ -160,18 +160,18 @@ namespace mbm
         // skeletal menu bar when NSApplicationActivationPolicyRegular is set,
         // leaving the app-name item present but with an empty submenu.
         {
-            NSString   *appName  = [NSString stringWithUTF8String:this->nameApplication.c_str()];
+            NSString   *appName  = [NSString stringWithUTF8String:this->getNameApplication()];
             NSMenu     *menuBar  = [[NSMenu alloc] initWithTitle:@"MainMenu"];
             // The first item's title is shown as the app name in the menu bar.
             NSMenuItem *appItem  = [[NSMenuItem alloc] initWithTitle:appName action:nil keyEquivalent:@""];
             [menuBar addItem:appItem];
 
             // Route Quit through MBMQuitHandler so the engine loop exits
-            // cleanly (device->run = false) instead of calling exit() from
+            // cleanly (DEVICE::setRun(false)) instead of calling exit() from
             // inside AppKit, which produces a non-zero exit code in Xcode.
             if (!s_quitHandler)
                 s_quitHandler = [[MBMQuitHandler alloc] init];
-            s_quitHandler.runFlag = &this->device->run;
+            s_quitHandler.device = device;
 
             NSMenu     *appMenu   = [[NSMenu alloc] initWithTitle:appName];
             NSString   *quitTitle = [@"Quit " stringByAppendingString:appName];
@@ -184,8 +184,8 @@ namespace mbm
             [NSApp setMainMenu:menuBar];
         }
 
-        this->device->initializeSpecificContext();
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        device->initializeSpecificContext();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
 
         // ---- Metal device + command queue ----
         ctx->mtlDevice = MTLCreateSystemDefaultDevice();
@@ -282,7 +282,7 @@ namespace mbm
             ERROR_LOG("Metal: failed to create NSWindow.");
             return false;
         }
-        [ctx->window setTitle:[NSString stringWithUTF8String:this->nameApplication.c_str()]];
+        [ctx->window setTitle:[NSString stringWithUTF8String:this->getNameApplication()]];
         // Disable AppKit's automatic release-on-close so non-ARC code controls the
         // window lifetime explicitly via [window release] in release().
         // Without this, [window close] calls [self release] while autoreleased
@@ -302,7 +302,7 @@ namespace mbm
 
         // Window delegate — handles close / resize notifications.
         MBMWindowDelegate* delegate = [[MBMWindowDelegate alloc] init];
-        delegate.runFlag = &this->device->run;
+        delegate.device = device;
         [ctx->window setDelegate:delegate];
         ctx->windowDelegate = delegate;
 
@@ -324,8 +324,7 @@ namespace mbm
         // OS has had a chance to constrain the window to the screen.
         ctx->metalLayer.drawableSize = CGSizeMake(width * scale, height * scale);
 
-        this->device->windowPositionX  = px;
-        this->device->windowPositionY  = py;
+        device->setWindowPosition(px, py);
 
         // ---- Show window ----
         [ctx->window makeKeyAndOrderFront:nil];
@@ -344,13 +343,13 @@ namespace mbm
         // cap the window; we must use those capped dimensions as the backbuffer
         // size so that expectedScreen == backBufferSize and scaleScreen2d == 1.0.
         NSRect actualBounds = [ctx->window contentView].bounds;
-        this->device->backBufferWidth  = static_cast<float>(actualBounds.size.width);
-        this->device->backBufferHeight = static_cast<float>(actualBounds.size.height);
+        device->setBackBufferSize(static_cast<float>(actualBounds.size.width),
+                                  static_cast<float>(actualBounds.size.height));
         ctx->metalLayer.drawableSize   = CGSizeMake(actualBounds.size.width  * scale,
                                                      actualBounds.size.height * scale);
 
         // Mark device as running.
-        this->device->run = true;
+        device->setRun(true);
 
         // Log so any OS-imposed size difference is immediately visible.
         INFO_LOG("Metal device: %s", [ctx->mtlDevice.name UTF8String]);
@@ -380,19 +379,20 @@ namespace mbm
 
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+            DEVICE *device = this->getDevice();
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
             if (!ctx || !ctx->window) return;
 
-            // backBufferWidth/Height are in logical points (not scaled).
+            // The backbuffer size is in logical points (not scaled).
             // NSEvent coordinates arrive in logical points — no scale needed.
 
             // Converts a logical-point NSPoint (origin bottom-left) to engine coords
             // (origin top-left, physical pixels).
             // NSEvent coordinates are already in logical points (same space as
-            // backBufferWidth/Height).  No scale multiplication needed.
+            // the backbuffer size).  No scale multiplication needed.
             auto toEngineXY = [&](NSPoint p, float& ex, float& ey) {
                 ex = static_cast<float>(p.x);
-                ey = static_cast<float>(this->device->backBufferHeight) -
+                ey = static_cast<float>(device->getBackBufferHeight()) -
                      static_cast<float>(p.y);
             };
 
@@ -526,15 +526,15 @@ namespace mbm
                     {
                         // Window geometry may have changed; check actual content size.
                         // Use logical points (not physical pixels) to stay consistent
-                        // with backBufferWidth/Height and the end-of-frame poll below.
+                        // with the logical backbuffer size and the end-of-frame poll below.
                         if (ctx->window)
                         {
                             NSRect bounds = [ctx->window contentView].bounds;
                             int newW = static_cast<int>(bounds.size.width);
                             int newH = static_cast<int>(bounds.size.height);
                             if (newW > 0 && newH > 0 &&
-                                (newW != static_cast<int>(device->backBufferWidth) ||
-                                 newH != static_cast<int>(device->backBufferHeight)))
+                                (newW != static_cast<int>(device->getBackBufferWidth()) ||
+                                 newH != static_cast<int>(device->getBackBufferHeight())))
                             {
                                 this->onResizeWindow(newW, newH);
                             }
@@ -551,18 +551,18 @@ namespace mbm
 
             // If the window was closed by the delegate, stop the engine.
             if (ctx->window && ![ctx->window isVisible])
-                this->device->run = false;
+                device->setRun(false);
 
             // Poll for window resize every frame (catches programmatic resizes too).
             if (ctx->window && ctx->metalLayer)
             {
                 NSRect bounds = [ctx->window contentView].bounds;
-                // Logical point size — consistent with backBufferWidth/Height.
+                // Logical point size, consistent with the backbuffer size.
                 int newW = static_cast<int>(bounds.size.width);
                 int newH = static_cast<int>(bounds.size.height);
                 if (newW > 0 && newH > 0 &&
-                    (newW != static_cast<int>(device->backBufferWidth) ||
-                     newH != static_cast<int>(device->backBufferHeight)))
+                    (newW != static_cast<int>(device->getBackBufferWidth()) ||
+                     newH != static_cast<int>(device->getBackBufferHeight())))
                 {
                     this->onResizeWindow(newW, newH);
                 }
@@ -579,7 +579,9 @@ namespace mbm
 
     void CORE_MANAGER::moveWindow(int x, int y)
     {
-        NSWindow* win = this->device->specificContextDevice->window;
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
+        NSWindow* win = ctx->window;
         if (!win) return;
         NSRect screenFrame = [[NSScreen mainScreen] frame];
         CGFloat macY = screenFrame.size.height - y - win.frame.size.height;
@@ -592,7 +594,9 @@ namespace mbm
         [NSApp setPresentationOptions:NSApplicationPresentationDefault];
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->release(wasDeviceLost);
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
+        ctx->release(wasDeviceLost);
     }
 
 } // namespace mbm

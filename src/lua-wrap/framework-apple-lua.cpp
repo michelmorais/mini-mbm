@@ -32,8 +32,7 @@
 #include <core_mbm/util-interface.h>
 
 #if defined USE_METAL
-    // No extra header needed here: Metal-specific types live in specific-metal.h
-    //  and are only required from .mm files that include them with Objective-C imports.
+    // No extra header needed here: Metal-specific types live in private .mm-only headers.
 #elif defined USE_DUMMY_BACK_END_ENGINE
     #include <core_mbm/specific-dummy.h>
 #else
@@ -166,7 +165,7 @@ namespace mbm
         int width  = 0;
         int height = 0;
         DEVICE *device = DEVICE::getInstance();
-        device->ptrManager->getScreenSize(&width, &height);
+        device->getCoreManager()->getScreenSize(&width, &height);
         if (width > 0 && height > 0)
         {
             lua_pushnumber(lua, width);
@@ -182,9 +181,9 @@ namespace mbm
     {
         DEVICE *device    = DEVICE::getInstance();
         const int   top   = lua_gettop(lua);
-        device->run       = false;
+        device->setRun(false);
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
-        device->scene->onFinalizeScene();
+        device->getScene()->onFinalizeScene();
         return 0;
     }
 
@@ -694,7 +693,7 @@ namespace mbm
     int onPanic(lua_State *lua)
     {
         DEVICE *    device    = DEVICE::getInstance();
-        auto *userScene       = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene       = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         const char *error     = lua_tostring(lua, -1);
         std::string strErr(error ? error : "undefined");
         ERROR_LOG("%s", strErr.c_str());

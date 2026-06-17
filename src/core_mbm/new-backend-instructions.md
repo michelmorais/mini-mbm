@@ -21,6 +21,29 @@ Each backend is selected by a preprocessor define, e.g.:
 - `USE_METAL`     — Apple Metal (macOS / iOS)
 - `USE_DUMMY_BACK_END_ENGINE` — stub template for new backends (start here)
 
+### Public/private header rule
+
+The existing `include/core_mbm/specific-*.h` headers are legacy compatibility headers.
+They still expose concrete backend structs and platform SDK types because older backend,
+platform, plugin, and Lua-wrapper code includes them directly.
+
+For new backend work, prefer this boundary:
+
+- Public headers may forward-declare opaque backend context types when a public signature
+  really needs a type name.
+- Backend-only resource structs, such as buffer objects, shader objects, render-target
+  attachments, pipeline state, swap-chain state, and command objects, should live in the
+  backend implementation file or a private backend header.
+- Public engine classes should expose backend state through narrow helper methods, following
+  the existing `TEXTURE::BackendData`, `BUFFER_GL::BackendData`, `SHADER::BackendData`,
+  `RENDERIZABLE_TO_TARGET::BackendData`, and `DEVICE::getSpecificContextDevice()` pattern.
+- Do not add broad accessors to strongly typed gameplay/core fields only because they are
+  public. Add accessors when they hide layout, preserve invariants, provide compatibility
+  while moving storage, or avoid repeated accessor-backed object lookup inside one function.
+
+If a platform entry point still needs native handles during bootstrapping, keep that bridge
+narrow and document it. Do not make general render-resource structs public for convenience.
+
 ---
 
 ## 2. Getting started
@@ -145,8 +168,9 @@ This is the single object that owns everything backend-specific at the device le
 - Per-frame command encoder / command buffer
 - Shared state (default sampler, depth-stencil state, etc.)
 
-It is stored as `DEVICE::specificContextDevice` (forward-declared in `device.h`; the concrete
-type lives in your `specific-<backend>.h`).
+It is stored behind `DEVICE::Impl`. Backend code should access it through
+`DEVICE::getSpecificContextDevice()` and update ownership through the private
+`DEVICE::setSpecificContextDevice()` helper.
 
 The struct **must** provide:
 ```cpp
@@ -187,7 +211,7 @@ MVP = modelView × projection
 In code this looks like:
 ```cpp
 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective);
 ```
 
 ### Passing matrices to the GPU
@@ -328,6 +352,13 @@ the source string at compile time based on the FVF.
 
 All functions call `release()` first, so they are safe to call multiple times.
 
+Backend code that needs the concrete `BUFFER_SPECIFIC` object should go through
+`BUFFER_GL::getBackendBuffer()` / `setBackendBuffer()` instead of reading or writing
+`BUFFER_GL::bs` directly.  The old public member no longer exists; the storage is private
+`BUFFER_GL::BackendData`.
+If a function needs the backend buffer more than once, store the accessor result in a
+local `BUFFER_SPECIFIC *backendBuffer` for that function scope.
+
 For `loadBufferDynamic` + `updateDynamic` the key insight is that the vertex buffer must be
 CPU-writable every frame.  On Metal use `MTLResourceStorageModeShared`; on Vulkan use a
 host-visible + host-coherent memory type; on D3D use `D3DUSAGE_DYNAMIC | D3DPOOL_DEFAULT`
@@ -363,39 +394,52 @@ floats).  You can extend the uniform struct or use a separate uniform buffer per
 variables.  However, on Metal everything is pushed inline at draw time so this is a no-op
 there — choose the approach that fits your backend.
 
+Backend code that needs the concrete shader-specific object should go through
+`SHADER::getBackendShaderSpecific()` / `setBackendShaderSpecific()` instead of reading or
+writing `SHADER::ptrShaderSpecific` directly. The old public member no longer exists; the
+storage is private `SHADER::BackendData`.
+If a function needs the shader-specific object more than once, store the accessor result in
+a local `void *backendShaderSpecific` for that function scope.
+
 ---
 
 ## 11. Texture upload
 
-`TEXTURE` uses a union field for the GPU handle:
+`TEXTURE` stores the GPU handle behind private `TEXTURE::BackendData`. The current
+implementation still uses an internal split between integer and pointer handles:
 ```cpp
 union { uint32_t idTexture; void* ptrTexture; };
 ```
 
-- OpenGL ES uses `idTexture` (GLuint texture object).
-- Metal/Vulkan/D3D12 use `ptrTexture` (store a retained pointer / descriptor, cast via
+- Backend/core code must use `getBackendTextureId()` / `setBackendTextureId()` /
+  `getBackendTextureIdAddress()` for OpenGL-style integer handles.
+- Backend/core code must use `getBackendTexturePointer()` /
+  `setBackendTexturePointer()` / `getBackendTexturePointerAddress()` for pointer-backed
+  handles.
+- OpenGL ES uses the texture-id helper path (GLuint texture object).
+- Metal/Vulkan/D3D12 use the pointer helper path (store a retained pointer / descriptor, cast via
   `(__bridge_retained void*)` on Metal, via raw pointer on others).
 
-> **CRITICAL — 64-bit platforms: always use `ptrTexture`, never `idTexture`**  
+> **CRITICAL — 64-bit platforms: always use the pointer helper path, never the id helper path**
 > On 32-bit platforms `sizeof(void*) == sizeof(uint32_t)` so both union members alias
 > cleanly.  On **64-bit** platforms (macOS, Linux x86_64, Windows x64) `sizeof(void*)` is
 > 8 bytes, but `sizeof(uint32_t)` is only 4 bytes.  Storing a Metal/Vulkan/D3D12 pointer
-> in `ptrTexture` and then reading it back through `idTexture` silently truncates the
+> in the pointer slot and then reading it back through the id slot silently truncates the
 > upper 32 bits, yielding a garbage or null value that will crash when used as a pointer.
 >
-> - **OpenGL ES (any bitness):** use `idTexture` exclusively.  `GLGenTextures(1, &idTexture)`
->   and `GLDeleteTextures(1, &idTexture)` take a `GLuint*` (4 bytes).  Widening `idTexture`
->   to 64 bits would corrupt those calls because the GL functions only write/read 4 bytes.
->   The union is intentionally split by backend for this reason — never widen `idTexture`.
-> - **Metal / Vulkan / D3D12 on 64-bit:** use `ptrTexture` everywhere.  Never read or
->   compare `idTexture` in these backends, not even for null checks.
+> - **OpenGL ES (any bitness):** use the texture-id helpers exclusively.  `GLGenTextures`
+>   and `GLDeleteTextures` take a `GLuint*` (4 bytes), so use `getBackendTextureIdAddress()`.
+>   Widening the id storage to 64 bits would corrupt those calls because the GL functions
+>   only write/read 4 bytes.
+> - **Metal / Vulkan / D3D12 on 64-bit:** use the texture-pointer helpers everywhere.
+>   Never use the texture-id helpers in these backends, not even for null checks.
 >
 > **Real crash (macOS/Metal, tilemap plugin):** a code path checked `texture->idTexture`
 > to test whether a Metal texture was loaded.  The Metal texture had a valid non-null
-> `ptrTexture`, but the lower 32 bits of the pointer happened to be zero, so the equality
+> the pointer slot, but the lower 32 bits of the pointer happened to be zero, so the equality
 > test returned `true` and the texture was treated as missing — causing a null dereference
-> one call later.  The fix: use `ptrTexture` (or `ptrTexture != nullptr`) exclusively in
-> all Metal code paths.
+> one call later.  The fix: use `getBackendTexturePointer()` exclusively in all Metal
+> code paths.
 
 `TEXTURE::release()` must free the GPU texture when called.  `loadFromData()` receives a
 decoded RGBA byte buffer + dimensions; upload it to the GPU and store the handle.
@@ -411,8 +455,10 @@ as a regular 2D object in the main scene.
 
 Required steps:
 1. `createTextureRenderTarget(w, h)` — create an off-screen color texture +
-   depth texture, store in `SPECIFIC_AUX_CONTEXT_DEVICE` or via `specificConfig`.
-2. `CORE_MANAGER::renderToTargets()` — iterate `device->lsObjectRenderToTarget`,
+   depth texture, store in `SPECIFIC_AUX_CONTEXT_DEVICE` or private render-target config via
+   `RENDERIZABLE_TO_TARGET::getRenderTargetSpecificConfig()`.
+2. `CORE_MANAGER::renderToTargets()` — iterate render targets with
+   `device->getTotalRenderTargets()` and `device->getRenderTarget(index)`,
    begin a secondary render pass for each target, render its object list, end the pass.
 3. The result texture is then available for sampling in the main pass.
 
@@ -444,26 +490,28 @@ Required steps:
 
 1. Process OS events (window messages, input callbacks).
 2. Translate pointer/touch coordinates from OS units to **logical points** before pushing
-   events.  `backBufferWidth/Height` is always in **logical points** — the coordinate
+   events.  `DEVICE::getBackBufferWidth()` / `DEVICE::getBackBufferHeight()` always return **logical points** — the coordinate
    space the game scene uses.  The rendering-surface size (swapchain extent,
    `drawableSize`, EGL surface, etc.) uses *physical* pixels (`logical × scale`), but
    that is a separate value the game loop never reads directly.  Do **not** multiply
-   input coordinates by the scale factor before comparing with `backBufferWidth/Height`.
-3. Push events into `CORE_MANAGER::lsEvents` using `EVENT_KEY` structs.
+   input coordinates by the scale factor before comparing with the backbuffer size.
+3. Push events through the `CORE_MANAGER::onTouch*`, `onKey*`, `onResizeWindow`,
+   `onMoveWindow`, and joystick callback methods. These methods enqueue `EVENT_KEY`
+   internally; do not access the event queue storage directly.
 4. Call `CORE_MANAGER::onLoop(singleLoop, doSwapBuffers)` to drive the game loop.
 
 Mouse/touch Y origin: the engine origin is **bottom-left** (Y increases upward), matching
 OpenGL convention.  Most desktop OSes put Y=0 at the top of the window.  Apply Y-flip:
 ```cpp
-float ey = backBufferHeight - os_y;  // both in logical points — no scale factor
+float ey = device->getBackBufferHeight() - os_y;  // both in logical points — no scale factor
 ```
 
-> **CRITICAL — `backBufferWidth/Height` = logical points, rendering surface = physical pixels**  
-> Storing physical pixels (e.g. `width * retinaScale`) in `backBufferWidth/Height` makes
+> **CRITICAL — backbuffer size = logical points, rendering surface = physical pixels**
+> Storing physical pixels (e.g. `width * retinaScale`) with `DEVICE::setBackBufferSize()` makes
 > the orthographic camera span physical pixels, so every 2-D object appears at *half*
 > the expected size on a 2× Retina / HiDPI display compared with a non-Retina machine.  
 > Rule of thumb:
-> - `backBufferWidth/Height` — logical points (what the programmer thinks of as screen size)
+> - `DEVICE::getBackBufferWidth()` / `DEVICE::getBackBufferHeight()` — logical points (what the programmer thinks of as screen size)
 > - `drawableSize` / swapchain extent — physical pixels = logical × `contentsScale` / DPI scale  
 > - Input event coordinates — logical points (no multiplication needed on macOS/Windows)
 
@@ -473,16 +521,16 @@ float ey = backBufferHeight - os_y;  // both in logical points — no scale fact
 > `ShowWindow` / `XMapWindow`, **not** when you create the window object.  Reading
 > `contentView.bounds` (macOS) or the equivalent before the window is visible gives the
 > *requested* size, not the *actual* size.  This creates a mismatch: `expectedScreen` is
-> set once on the first `onLoop()` tick from `backBufferWidth/Height`, and if those values
+> set once on the first `onLoop()` tick from the backbuffer size, and if those values
 > are wrong (e.g. 1 600 instead of 1 470) then `adjustScaleScreen2d()` computes a scale
 > ≠ 1 every frame, offsetting every `is2dS` object.  
 > Fix: pump the run-loop for ≥ 50 ms after showing the window, then read the actual
-> bounds and assign both `backBufferWidth/Height` **and** the native surface size from them.
+> bounds and assign both `DEVICE::setBackBufferSize()` **and** the native surface size from them.
 
 > **CRITICAL — `setProjectionMode` must only rebuild camera matrices**  
 > `setProjectionMode` is called every frame from inside the render loop.  It must contain
 > **only** a call to `updateCam` (or equivalent matrix rebuild).  Never reassign
-> `backBufferWidth/Height` or the native surface size (e.g. `drawableSize`) from inside
+> the backbuffer size or the native surface size (e.g. `drawableSize`) from inside
 > this function.  Doing so overwrites the values set by `initGraphics()` and
 > `resetDeviceWithNewDimensions()` every frame, corrupting the coordinate system
 > (sub-pixel gaps, wrong scale, lost Retina resolution).  Those values belong exclusively
@@ -741,8 +789,9 @@ whether a Metal texture was loaded.  On the 64-bit macOS build the Metal texture
 was stored in `ptrTexture` (8 bytes); its lower 32 bits happened to be zero, so the
 `idTexture == 0` check incorrectly concluded the texture was missing and proceeded to
 dereference a null pointer.  
-*Fix:* use `ptrTexture != nullptr` for Metal (or any pointer-based backend) everywhere in
-plugin code.  See §11 for the full explanation of the union layout.
+*Fix:* use `texture->getBackendTexturePointer() != nullptr` for Metal (or any pointer-backed
+backend) everywhere in plugin code.  See §11 for the full explanation of the compatibility
+handle layout.
 
 **`TILE_EDITOR::renderTileSet()` missing null guard:**  
 After a tile set is successfully created (at least one entry in `tile_sets`), the next
@@ -762,8 +811,9 @@ platform (64-bit struct sizes, endianness) before enabling them.
 
 ### General plugin checklist for a new 64-bit backend
 
-- [ ] Replace every `texture->idTexture` check with `texture->ptrTexture != nullptr` in
-      plugin code that runs on the new backend.
+- [ ] Replace every `texture->idTexture` check with
+      `texture->getBackendTexturePointer() != nullptr` in plugin code that runs on a
+      pointer-backed backend.
 - [ ] Verify `onPrepare()` / `onRender()` split: GPU resource creation in `onPrepare()`,
       draw calls in `onRender()` (encoder active).
 - [ ] Any backend-specific `NewFrame()` call (ImGui, etc.) must be deferred to
@@ -771,7 +821,7 @@ platform (64-bit struct sizes, endianness) before enabling them.
 - [ ] `DisplayFramebufferScale` (or equivalent HiDPI scale) must be set explicitly;
       default `{1, 1}` produces half-size UI on Retina / HiDPI displays.
 - [ ] Event-handler resize paths must use **logical points**, not physical pixels, when
-      updating `backBufferWidth/Height`.  See §13.
+      updating the backbuffer size. See §13.
 
 ---
 
@@ -807,8 +857,8 @@ Call `device->clearDepth()` immediately after `setProjectionMode(false)` and bef
 first `setDepthTest(true)` / 2dw draw loop:
 
 ```cpp
-device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-device->totalObjectsIsRendering2D = 0;
+device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
+device->setTotalObjectsIsRendering2D(0);
 // Clear the depth buffer so 3D perspective depth values do not occlude 2dw
 // objects whose depth comes from the orthographic projection.
 device->clearDepth();
@@ -836,7 +886,8 @@ void DEVICE::clearDepth()
 ```cpp
 void DEVICE::clearDepth()
 {
-    specificContextDevice->pd3dDevice->Clear(0, NULL,
+    auto* ctx = getSpecificContextDevice();
+    ctx->pd3dDevice->Clear(0, NULL,
         D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL,  // NOT D3DCLEAR_TARGET
         D3DCOLOR_XRGB(0,0,0), 1.0f, 0);
 }
@@ -851,7 +902,7 @@ new one.  To preserve the 3D scene in the colour attachment, open the new pass w
 ```objc
 void DEVICE::clearDepth()
 {
-    auto* ctx = specificContextDevice.get();
+    auto* ctx = getSpecificContextDevice();
     if (!ctx->currentEncoder || !ctx->currentCommandBuffer) return;
 
     [ctx->currentEncoder endEncoding];
@@ -890,7 +941,8 @@ two states and switch between them at draw time.
    ```objc
    void DEVICE::setDepthTest(const bool enable)
    {
-       specificContextDevice->depthTestEnabled = enable;
+       auto* ctx = getSpecificContextDevice();
+       ctx->depthTestEnabled = enable;
    }
    ```
 
@@ -1040,8 +1092,9 @@ This covers the two modes used by all current engine content.
    void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
    {
        auto* dev = mbm::DEVICE::getInstance();
-       if (dev && dev->specificContextDevice)
-           dev->specificContextDevice->currentBlendState = static_cast<int>(blendState);
+       auto* context = dev ? dev->getSpecificContextDevice() : nullptr;
+       if (context)
+           context->currentBlendState = static_cast<int>(blendState);
    }
    ```
 
@@ -1098,7 +1151,7 @@ needed to read back vertex data.
 ### Implementation
 
 ```objc
-const uint8_t* raw = static_cast<const uint8_t*>(bs->vertexBuffer.contents);
+const uint8_t* raw = static_cast<const uint8_t*>(backendBuffer->vertexBuffer.contents);
 ```
 
 The interleaved layout (built by `buildInterleavedVB` in `shader-metal.mm`) is:
@@ -1118,8 +1171,8 @@ expects.
 
 | Case | How handled |
 |---|---|
-| Index Buffer meshes (3D models) | Copies indices from `bs->indexBuffer.contents`; scans each subset to find `maxIndex`, derives `vertexCount` |
-| Vertex Buffer meshes (2D quads, lines) | Reads from `bs->vertexBuffer.contents` directly |
+| Index Buffer meshes (3D models) | Copies indices from `backendBuffer->indexBuffer.contents`; scans each subset to find `maxIndex`, derives `vertexCount` |
+| Vertex Buffer meshes (2D quads, lines) | Reads from `backendBuffer->vertexBuffer.contents` directly |
 | Dynamic shapes (fonts, skinned meshes) | Uses CPU-side `infoShape->dynamicVertex` / `dynamicUV` arrays — no GPU readback needed |
 | Font letter offsets | Applies per-frame `letterDiffX` / `letterDiffY` offsets after copying position data |
 
@@ -1415,7 +1468,8 @@ extern "C" void mbm_ios_setMetalLayer(CAMetalLayer* layer) {
 
 void CORE_MANAGER::initGraphics() {
     // initializeSpecificContext() was called inside initializeSceneLua()
-    auto* ctx = specificContextDevice.get();
+    DEVICE *device = this->getDevice();
+    auto* ctx = device->getSpecificContextDevice();
     ctx->metalLayer = s_pendingMetalLayer;   // read back after context reset
     ...
 }

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -79,7 +79,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\src\core_mbm;..\..\src\core_mbm\private;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
     <CodeAnalysisRuleSet>C:\Program Files (x86)\Microsoft Visual Studio 14.0\Team Tools\Static Analysis Tools\Rule Sets\NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <LibraryPath>C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Lib\x86;$(LibraryPath);$(Outdir);$(SolutionDir)..\third-party\gles\libs;$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
@@ -88,11 +88,11 @@
     </CustomBuildAfterTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;..\..\third-party\rapidxml;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\src\core_mbm;..\..\src\core_mbm\private;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;..\..\third-party\rapidxml;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Lib\x86;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(Outdir);$(SolutionDir)..\third-party\gles\libs;$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\src\core_mbm;..\..\src\core_mbm\private;..\..\include\plusWindows;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath);$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -197,8 +197,10 @@
     <ClInclude Include="..\..\include\core_mbm\core-exports.h" />
     <ClInclude Include="..\..\include\core_mbm\core-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\d3dx9-mingw.h" />
     <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
+    <ClInclude Include="..\..\include\core_mbm\dialog-util.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
     <ClInclude Include="..\..\include\core_mbm\frustum.h" />
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
@@ -211,6 +213,7 @@
     <ClInclude Include="..\..\include\core_mbm\parse-launcher-args.hpp" />
     <ClInclude Include="..\..\include\core_mbm\particle-control.h" />
     <ClInclude Include="..\..\include\core_mbm\physics.h" />
+    <ClInclude Include="..\..\include\core_mbm\platform-win32.h" />
     <ClInclude Include="..\..\include\core_mbm\plugin-callback.h" />
     <ClInclude Include="..\..\include\core_mbm\primitives.h" />
     <ClInclude Include="..\..\include\core_mbm\renderizable-clone.h" />
@@ -225,7 +228,27 @@
     <ClInclude Include="..\..\include\core_mbm\audio.h" />
     <ClInclude Include="..\..\include\core_mbm\specific-directx9.h" />
     <ClInclude Include="..\..\include\core_mbm\specific-dummy.h" />
-    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-metal.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-buffer.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-context.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-d3dx.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-hresult.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-render-target.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-shader.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-vertex.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-buffer.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-context.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-render-target.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-metal-buffer.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-metal-context.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-metal-render-target.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-android-context.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-buffer.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-render-target.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-shader.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-windows-context.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-x11-context.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es.h" />
     <ClInclude Include="..\..\include\core_mbm\strings-pt-br.h" />
     <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\time-control.h" />
@@ -259,7 +282,6 @@
     <ClInclude Include="..\..\include\version\version.h" />
     <ClInclude Include="..\..\src\core_mbm\mesh-manager-legacy-internal.h" />
     <ClInclude Include="..\..\src\core_mbm\mesh-v8-io.h" />
-
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
     <ClInclude Include="..\..\third-party\miniz\miniz_common.h" />
@@ -293,7 +315,6 @@
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
-
     <ClCompile Include="..\..\src\core_mbm\blend.cpp" />
     <ClCompile Include="..\..\src\core_mbm\blend-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\camera.cpp" />

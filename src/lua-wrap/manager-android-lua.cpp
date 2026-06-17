@@ -33,7 +33,7 @@ extern "C"
 #include <core_mbm/scene.h>
 
 #if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
+    #include <core_mbm/android-bridge.h>
 #elif defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
     #include <core_mbm/specific-dummy.h> // for specific context of dummy engine
 #else
@@ -46,6 +46,8 @@ namespace mbm
     // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
     LUA_MANAGER::LUA_MANAGER()
     {
+        this->windowBorder = true;
+        this->enableResizeWindow = false;
     }
     #else
 
@@ -61,6 +63,8 @@ namespace mbm
         this->widthWindow        = 800;
         this->heightWindow       = 600;
         this->maximizedWindow    = false;
+        this->windowBorder       = true;
+        this->enableResizeWindow = false;
         this->fileNameInitialLua = "main.lua";
 #if defined _DEBUG
         this->noSplash = true;

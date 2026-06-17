@@ -45,7 +45,7 @@ namespace mbm
     {
         this->releaseAnimation();
         this->mesh                  = nullptr;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
     }
     
     bool SPRITE::load(const char *fileName)
@@ -73,7 +73,7 @@ namespace mbm
                 }
             }
             this->populateTextureStage2FromMesh(this->mesh);
-            this->fileName = fileName;
+            this->setInternalFileName(fileName);
             this->restartAnimation();
             this->updateAABB();
             return true;
@@ -93,12 +93,12 @@ namespace mbm
         if (this->mesh)
         {
             IS_ON_FRUSTUM verify(this);
-            bool ret = verify.isOnFrustum(this->is3D, this->is2dS);
+            bool ret = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }
@@ -109,40 +109,46 @@ namespace mbm
     {
         if (!this->mesh)
             return false;
-        if (this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        ANIMATION *anim = this->getAnimation(indexAnimation);
+        if (anim)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
-            anim->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
-            if (this->is3D)
+            const CAMERA &camera = device->getCamera();
+            anim->updateAnimation(device->delta, this, this->getOnEndAnimation(),this->getOnEndFx());
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
-                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
-            this->blend.set(anim->blendState);
-            anim->fx.shader.update();
-            anim->fx.setBlendOp();
-            if (anim->fx.textureOverrideStage2)
+            FX &fx = anim->getFx();
+            this->setBlendState(anim->getBlendState());
+            fx.shader.update();
+            fx.setBlendOp();
+            if (fx.textureOverrideStage2)
             {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader,anim->fx.textureOverrideStage2))
+                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, fx.textureOverrideStage2))
                     return false;
             }
             else
             {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader,0))
+                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader,0))
                     return false;
             }
             return true;
@@ -153,17 +159,18 @@ namespace mbm
     bool SPRITE::onRestoreDevice()
     {
         this->mesh = nullptr;
-        if(this->load(this->fileName.c_str()))
+        const char *internalFileName = this->getInternalFileName();
+        if(this->load(internalFileName))
         {
             #if defined DEBUG
-            PRINT_INFO_IF_DEBUG("sprite [%s] successfully restored", log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG("sprite [%s] successfully restored", log_util::basename(internalFileName));
             #endif
             return true;
         }
         else
         {
             #if defined DEBUG
-            PRINT_IF_DEBUG("Failed to restore sprite  [%s]", log_util::basename(this->fileName.c_str()));
+            PRINT_IF_DEBUG("Failed to restore sprite  [%s]", log_util::basename(internalFileName));
             #endif
             return false;
         }
@@ -185,7 +192,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 

@@ -53,13 +53,13 @@ namespace mbm
         for (unsigned int i = 0; i < font->getTotalText(); ++i)
         {
             TEXT_DRAW *           myText   = font->getText((unsigned char)i);
-            auto *userData = static_cast<USER_DATA_RENDER_LUA *>(myText->userData);
+            auto *userData = static_cast<USER_DATA_RENDER_LUA *>(myText->getUserData());
             if (userData)
             {
                 userData->unrefAllTableLua(lua);
                 delete userData;
             }
-            myText->userData = nullptr;
+            myText->setUserData(nullptr);
         }
     #if DEBUG_FREE_LUA
         const char *fileName = font->getFileName();
@@ -115,15 +115,18 @@ namespace mbm
         TEXT_DRAW * draw = getTextDrawFromRawTable(lua, 1, 1);
         const char *what = luaL_checkstring(lua, 2);
         const int   len  = static_cast<int>(strlen(what));
+        VEC3 &      drawPosition = draw->getPosition();
+        VEC3 &      drawScale = draw->getScale();
+        VEC3 &      drawAngle = draw->getAngle();
         switch (len)
         {
             case 1:
             {
                 switch (what[0])
                 {
-                    case 'x': draw->position.x = luaL_checknumber(lua, 3); break;
-                    case 'y': draw->position.y = luaL_checknumber(lua, 3); break;
-                    case 'z': draw->position.z = luaL_checknumber(lua, 3); break;
+                    case 'x': drawPosition.x = luaL_checknumber(lua, 3); break;
+                    case 'y': drawPosition.y = luaL_checknumber(lua, 3); break;
+                    case 'z': drawPosition.z = luaL_checknumber(lua, 3); break;
                     default: { return setVariable(lua, draw, what);
                     }
                 }
@@ -137,9 +140,9 @@ namespace mbm
                     {
                         switch (what[1])
                         {
-                            case 'x': draw->scale.x = luaL_checknumber(lua, 3); break;
-                            case 'y': draw->scale.y = luaL_checknumber(lua, 3); break;
-                            case 'z': draw->scale.z = luaL_checknumber(lua, 3); break;
+                            case 'x': drawScale.x = luaL_checknumber(lua, 3); break;
+                            case 'y': drawScale.y = luaL_checknumber(lua, 3); break;
+                            case 'z': drawScale.z = luaL_checknumber(lua, 3); break;
                             default: { return setVariable(lua, draw, what);
                             }
                         }
@@ -149,9 +152,9 @@ namespace mbm
                     {
                         switch (what[1])
                         {
-                            case 'x': draw->angle.x = luaL_checknumber(lua, 3); break;
-                            case 'y': draw->angle.y = luaL_checknumber(lua, 3); break;
-                            case 'z': draw->angle.z = luaL_checknumber(lua, 3); break;
+                            case 'x': drawAngle.x = luaL_checknumber(lua, 3); break;
+                            case 'y': drawAngle.y = luaL_checknumber(lua, 3); break;
+                            case 'z': drawAngle.z = luaL_checknumber(lua, 3); break;
                             default: { return setVariable(lua, draw, what);
                             }
                         }
@@ -191,7 +194,7 @@ namespace mbm
             case 7:
             {
                 if (strcmp("visible", what) == 0)
-                    draw->enableRender = lua_toboolean(lua, 3) ? true : false;
+                    draw->setEnableRender(lua_toboolean(lua, 3) ? true : false);
                 else
                     return setVariable(lua, draw, what);
             }
@@ -199,7 +202,7 @@ namespace mbm
             case 12:
             {
                 if (strcmp("alwaysRender", what) == 0)
-                    draw->alwaysRenderize = lua_toboolean(lua, 3) ? true : false;
+                    draw->setAlwaysRenderize(lua_toboolean(lua, 3) ? true : false);
                 else
                     return setVariable(lua, draw, what);
             }
@@ -222,15 +225,18 @@ namespace mbm
         TEXT_DRAW * draw = getTextDrawFromRawTable(lua, 1, 1);
         const char *what = luaL_checkstring(lua, 2);
         const int   len  = static_cast<int>(strlen(what));
+        const VEC3 &drawPosition = draw->getPosition();
+        const VEC3 &drawScale = draw->getScale();
+        const VEC3 &drawAngle = draw->getAngle();
         switch (len)
         {
             case 1:
             {
                 switch (what[0])
                 {
-                    case 'x': lua_pushnumber(lua, draw->position.x); break;
-                    case 'y': lua_pushnumber(lua, draw->position.y); break;
-                    case 'z': lua_pushnumber(lua, draw->position.z); break;
+                    case 'x': lua_pushnumber(lua, drawPosition.x); break;
+                    case 'y': lua_pushnumber(lua, drawPosition.y); break;
+                    case 'z': lua_pushnumber(lua, drawPosition.z); break;
                     default: { return getVariable(lua, draw, what);
                     }
                 }
@@ -244,9 +250,9 @@ namespace mbm
                     {
                         switch (what[1])
                         {
-                            case 'x': lua_pushnumber(lua, draw->scale.x); break;
-                            case 'y': lua_pushnumber(lua, draw->scale.y); break;
-                            case 'z': lua_pushnumber(lua, draw->scale.z); break;
+                            case 'x': lua_pushnumber(lua, drawScale.x); break;
+                            case 'y': lua_pushnumber(lua, drawScale.y); break;
+                            case 'z': lua_pushnumber(lua, drawScale.z); break;
                             default: { return getVariable(lua, draw, what);
                             }
                         }
@@ -256,9 +262,9 @@ namespace mbm
                     {
                         switch (what[1])
                         {
-                            case 'x': lua_pushnumber(lua, draw->angle.x); break;
-                            case 'y': lua_pushnumber(lua, draw->angle.y); break;
-                            case 'z': lua_pushnumber(lua, draw->angle.z); break;
+                            case 'x': lua_pushnumber(lua, drawAngle.x); break;
+                            case 'y': lua_pushnumber(lua, drawAngle.y); break;
+                            case 'z': lua_pushnumber(lua, drawAngle.z); break;
                             default: { return getVariable(lua, draw, what);
                             }
                         }
@@ -307,7 +313,7 @@ namespace mbm
             case 7:
             {
                 if (strcmp("visible", what) == 0)
-                    lua_pushboolean(lua, draw->enableRender);
+                    lua_pushboolean(lua, draw->isRenderEnabled());
                 else
                     return getVariable(lua, draw, what);
             }
@@ -315,7 +321,7 @@ namespace mbm
             case 12:
             {
                 if (strcmp("alwaysRender", what) == 0)
-                    lua_pushboolean(lua, draw->alwaysRenderize);
+                    lua_pushboolean(lua, draw->isAlwaysRenderizeEnabled());
                 else
                     return getVariable(lua, draw, what);
             }
@@ -438,6 +444,7 @@ namespace mbm
         const int   top  = lua_gettop(lua);
         const char *text = luaL_checkstring(lua, 2);
         TEXT_DRAW * draw = nullptr;
+        VEC3 *      drawPosition = nullptr;
         if (top > 2)
         {
             for (int i = 3; i <= top; ++i)
@@ -451,21 +458,23 @@ namespace mbm
                         bool is3d = false;
                         getTypeWordRenderizableLua(lua,i,is2dw,is2ds,is3d);
                         draw              = font->addText(text, is2dw | is2ds, is2ds);
+                        if (draw)
+                            drawPosition = &draw->getPosition();
                     }
                     break;
                     case 4: // x
                     {
-                        draw->position.x = luaL_checknumber(lua, i);
+                        drawPosition->x = luaL_checknumber(lua, i);
                     }
                     break;
                     case 5: // y
                     {
-                        draw->position.y = luaL_checknumber(lua, i);
+                        drawPosition->y = luaL_checknumber(lua, i);
                     }
                     break;
                     case 6: // z
                     {
-                        draw->position.z = luaL_checknumber(lua, i);
+                        drawPosition->z = luaL_checknumber(lua, i);
                     }
                     break;
                     default: {
@@ -497,7 +506,7 @@ namespace mbm
 
             auto **udata = static_cast<TEXT_DRAW **>(lua_newuserdata(lua, sizeof(FONT_DRAW *)));
             *udata            = draw;
-            draw->userData    = new USER_DATA_RENDER_LUA();
+            draw->setUserData(new USER_DATA_RENDER_LUA());
 
             /* trick to ensure that we will receive the expected metatable type expected metatable type. */
             const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_TEXT);
@@ -598,7 +607,7 @@ namespace mbm
         const int    top              = lua_gettop(lua);
         const char * fileName         = luaL_checkstring(lua, 2);
         DEVICE *device                = DEVICE::getInstance();
-        auto   font                   = new FONT_DRAW(device->scene);
+        auto   font                   = new FONT_DRAW(device->getScene());
         const float  heightFont       = top > 2 ? luaL_checknumber(lua, 3) : 50.0f;
         const short  spaceWidth       = top > 3 ? (short)luaL_checkinteger(lua, 4) : (const short)(heightFont*0.1f);
         const short  spaceHeight      = top > 4 ? (short)luaL_checkinteger(lua, 5) : 0;

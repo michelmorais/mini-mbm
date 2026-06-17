@@ -7,7 +7,8 @@
 
 #if defined(USE_METAL)
 
-#include <specific-metal.h>
+#include "specific-metal-context.h"
+#include "specific-metal-render-target.h"
 #include <texture-manager.h>
 #include <util-interface.h>
 #include <image-resource.h>
@@ -21,14 +22,16 @@ namespace mbm
     static id<MTLDevice> getMetalDevice()
     {
         DEVICE* dev = DEVICE::getInstance();
-        return (dev && dev->specificContextDevice) ? dev->specificContextDevice->mtlDevice : nil;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = dev ? dev->getSpecificContextDevice() : nullptr;
+        return ctx ? ctx->mtlDevice : nil;
     }
     void TEXTURE::release()
     {
-        if (ptrTexture)
+        void *texturePointer = getBackendTexturePointer();
+        if (texturePointer)
         {
-            CFBridgingRelease(ptrTexture);
-            ptrTexture = nullptr;
+            CFBridgingRelease(texturePointer);
+            setBackendTexturePointer(nullptr);
         }
         width           = 0;
         height          = 0;
@@ -92,8 +95,9 @@ namespace mbm
                    mipmapLevel:0
                      withBytes:rgbaData
                    bytesPerRow:w * 4];
-            if (ptrTexture) CFBridgingRelease(ptrTexture);
-            ptrTexture = (__bridge_retained void*)tex;
+            void *texturePointer = getBackendTexturePointer();
+            if (texturePointer) CFBridgingRelease(texturePointer);
+            setBackendTexturePointer((__bridge_retained void*)tex);
         }
         delete[] tempBuf;
         if (!tex) return false;
@@ -121,8 +125,9 @@ namespace mbm
                mipmapLevel:0
                  withBytes:image->data
                bytesPerRow:image->width * 4];
-        if (ptrTexture) CFBridgingRelease(ptrTexture);
-        ptrTexture        = (__bridge_retained void*)tex;
+        void *texturePointer = getBackendTexturePointer();
+        if (texturePointer) CFBridgingRelease(texturePointer);
+        setBackendTexturePointer((__bridge_retained void*)tex);
         this->width           = image->width;
         this->height          = image->height;
         this->useAlphaChannel = true;
@@ -147,16 +152,17 @@ namespace mbm
         if (fileNameBase.empty())
             return nullptr;
 
-        const auto width  = static_cast<int>(renderToTarget->widthTexture);
-        const auto height = static_cast<int>(renderToTarget->heightTexture);
+        const auto width  = static_cast<int>(renderToTarget->getRenderTargetWidth());
+        const auto height = static_cast<int>(renderToTarget->getRenderTargetHeight());
 
-        if (width > this->maxTextureSize || height > this->maxTextureSize)
+        const uint32_t maxTextureSize = getMaxTextureSize();
+        if (static_cast<uint32_t>(width) > maxTextureSize || static_cast<uint32_t>(height) > maxTextureSize)
         {
             PRINT_IF_DEBUG("max size to generate texture is %d/%d.",
-                           width > height ? width : height, this->maxTextureSize);
+                           width > height ? width : height, maxTextureSize);
             return nullptr;
         }
-        TEXTURE* texture = lsTextures[fileNameBase];
+        TEXTURE* texture = getCachedTexture(fileNameBase);
         if (texture)
             return texture;
 
@@ -207,7 +213,8 @@ namespace mbm
             }
 
             // Store GPU objects in the render-target's backend config.
-            RENDER2TARGET_METAL* rf = static_cast<RENDER2TARGET_METAL*>(renderToTarget->specificConfig);
+            void *renderTargetSpecificConfig = renderToTarget->getRenderTargetSpecificConfig();
+            RENDER2TARGET_METAL* rf = static_cast<RENDER2TARGET_METAL*>(renderTargetSpecificConfig);
             rf->renderTexture  = colorTex;
             rf->depthTexture   = depthTex;
             rf->passDescriptor = passDesc;
@@ -216,12 +223,12 @@ namespace mbm
 
             // Build the TEXTURE record used for sampling in the main pass.
             newTexture = new TEXTURE();
-            newTexture->ptrTexture      = (__bridge_retained void*)colorTex;
+            newTexture->setBackendTexturePointer((__bridge_retained void*)colorTex);
             newTexture->width           = static_cast<uint32_t>(tw);
             newTexture->height          = static_cast<uint32_t>(th);
             newTexture->useAlphaChannel = enableAlpha;
             newTexture->fileName        = std::move(fileNameBase);
-            lsTextures[newTexture->fileName] = newTexture;
+            cacheTexture(newTexture->fileName, newTexture);
         }
         return newTexture;
     }

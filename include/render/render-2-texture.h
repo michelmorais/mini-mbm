@@ -26,6 +26,7 @@
 #include <core_mbm/renderizable.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
+#include <memory>
 
 namespace mbm
 {
@@ -50,10 +51,6 @@ namespace mbm
     class RENDER_2_TEXTURE : public RENDERIZABLE_TO_TARGET, public ANIMATION_MANAGER
     {
       public:
-        CAMERA_TARGET               camera2d, camera3d;
-        std::vector<RENDERIZABLE *> lsObjects2dRender;
-        std::vector<RENDERIZABLE *> lsObjects3dRender;
-        bool                        modeTextureOnly;
         API_IMPL RENDER_2_TEXTURE(const SCENE* scene, const bool _is3d, const bool _is2dScreen);
         API_IMPL virtual ~RENDER_2_TEXTURE();
         API_IMPL void removeFromRender2Texture(RENDERIZABLE *ptr) override;
@@ -66,6 +63,12 @@ namespace mbm
         API_IMPL void clear();
         API_IMPL FX*  getFx() const override;
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+        API_IMPL bool isTextureOnlyModeEnabled() const noexcept;
+        API_IMPL void setTextureOnlyMode(const bool mode) noexcept;
+        API_IMPL CAMERA_TARGET & getCamera2d() noexcept;
+        API_IMPL const CAMERA_TARGET & getCamera2d() const noexcept;
+        API_IMPL CAMERA_TARGET & getCamera3d() noexcept;
+        API_IMPL const CAMERA_TARGET & getCamera3d() const noexcept;
     
       protected:
         virtual bool render() override;
@@ -78,10 +81,17 @@ namespace mbm
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;
-        
-        BUFFER_GL         bufferGL;
-        mbm::TEXTURE *    texture;
-        mbm::INFO_PHYSICS infoPhysics;
+        void clearRenderObjectLists() noexcept;
+        mbm::TEXTURE * getRenderTargetTexture() const noexcept;
+        void setRenderTargetTexture(mbm::TEXTURE *renderTargetTexture) noexcept;
+        BUFFER_GL & getRenderTargetBuffer() noexcept;
+        const BUFFER_GL & getRenderTargetBuffer() const noexcept;
+        INFO_PHYSICS & getRenderTargetInfoPhysics() noexcept;
+        const INFO_PHYSICS & getRenderTargetInfoPhysics() const noexcept;
+
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 };
 

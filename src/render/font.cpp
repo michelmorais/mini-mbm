@@ -43,7 +43,7 @@ namespace mbm
     {
         this->releaseAnimation();
         this->mesh                  = nullptr;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->wildCardChangeAnim      = 0;
     }
     
@@ -51,7 +51,7 @@ namespace mbm
         : RENDERIZABLE(idScene, TYPE_CLASS_TEXT, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->widthFirstLetter      = 0;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->onRestoreFont         = ptrOnRestoreFont;
         this->parentFONT_DRAW       = _parentFONT_DRAW;
@@ -73,7 +73,7 @@ namespace mbm
         : RENDERIZABLE(idScene, TYPE_CLASS_TEXT, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->widthFirstLetter      = 0;
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->onRestoreFont         = ptrOnRestoreFont;
         this->parentFONT_DRAW       = _parentFONT_DRAW;
@@ -98,8 +98,8 @@ namespace mbm
         : RENDERIZABLE(idScene, TYPE_CLASS_TEXT, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->widthFirstLetter      = 0;
-        this->position              = position;
-        this->indexCurrentAnimation = 0;
+        this->setPosition(position);
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->onRestoreFont         = ptrOnRestoreFont;
         this->parentFONT_DRAW       = _parentFONT_DRAW;
@@ -124,9 +124,10 @@ namespace mbm
         : RENDERIZABLE(idScene, TYPE_CLASS_TEXT, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->widthFirstLetter      = 0;
-        this->position.x            = position.x;
-        this->position.y            = position.y;
-        this->indexCurrentAnimation = 0;
+        VEC3 &textPosition          = this->getPosition();
+        textPosition.x              = position.x;
+        textPosition.y              = position.y;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
@@ -310,7 +311,9 @@ namespace mbm
             {
                 cube = this->mesh->infoPhysics.lsCube[0];
             }
-            if (this->is2dS)
+            const VEC3 &position = this->getPosition();
+            VEC3 &boundingAABB = this->getBoundingAABB();
+            if (this->is2dScreenObject())
             {
                 // Convert world-2D dimensions to screen pixels so that
                 // getAABB(), isOver2ds(), and isOnFrustum() all work at any camera scale.
@@ -323,22 +326,22 @@ namespace mbm
                 cube->halfDim.x       = sw * 0.5f;
                 cube->halfDim.y       = sh * 0.5f;
                 cube->halfDim.z       = 1.0f;
-                this->bounding_AABB.x = sw;
-                this->bounding_AABB.y = sh;
+                boundingAABB.x        = sw;
+                boundingAABB.y        = sh;
                 // position is the top-left corner in screen coords (Y-down)
-                this->aabbMin = VEC2(this->position.x, this->position.y);
-                this->aabbMax = VEC2(this->position.x + sw, this->position.y + sh);
+                this->aabbMin = VEC2(position.x, position.y);
+                this->aabbMax = VEC2(position.x + sw, position.y + sh);
             }
             else
             {
                 cube->halfDim.x       = w * 0.5f;
                 cube->halfDim.y       = h * 0.5f;
                 cube->halfDim.z       = 1.0f;
-                this->bounding_AABB.x = w;
-                this->bounding_AABB.y = h;
+                boundingAABB.x        = w;
+                boundingAABB.y        = h;
                 // position is the top-origin corner in world coords (Y-up); text extends right and down
-                this->aabbMin = VEC2(this->position.x, this->position.y - h);
-                this->aabbMax = VEC2(this->position.x + w, this->position.y);
+                this->aabbMin = VEC2(position.x, position.y - h);
+                this->aabbMax = VEC2(position.x + w, position.y);
             }
         }
     }
@@ -383,7 +386,8 @@ namespace mbm
         h *= 0.5f;
         d *= 0.5f;
         // After *= 0.5f, w/h/d are half-dimensions; center = position + halfDim offset
-        const VEC3 pos(this->position.x + w, this->position.y - h, this->position.z);
+        const VEC3 &position = this->getPosition();
+        const VEC3 pos(position.x + w, position.y - h, position.z);
         // dir is unit direction vector of ray
         const VEC3 dirfrac(dir.x != 0.0f ? 1.0f / dir.x : 0.0f, dir.y != 0.0f ? 1.0f / dir.y : 0.0f,
                            dir.z != 0.0f ? 1.0f / dir.z : 0.0f);
@@ -412,7 +416,8 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         const VEC2 point(x, y);
         VEC2       halfDim(w * 0.5f, h * 0.5f);
-        const VEC3 pos(this->position.x + halfDim.x, this->position.y - halfDim.y, this->position.z);
+        const VEC3 &position = this->getPosition();
+        const VEC3 pos(position.x + halfDim.x, position.y - halfDim.y, position.z);
         if (device->isPointScreen2DOnRectangleWorld2d(point, halfDim, pos))
             return true;
         return false;
@@ -425,7 +430,8 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         const VEC2 point(x, y);
         VEC2       halfDim(w * 0.5f, h * 0.5f);
-        const VEC3 pos(this->position.x + halfDim.x , this->position.y + halfDim.y, this->position.z);
+        const VEC3 &position = this->getPosition();
+        const VEC3 pos(position.x + halfDim.x , position.y + halfDim.y, position.z);
         if (device->isPointScreen2DOnRectangleScreen2d(point, halfDim, pos))
             return true;
         return false;
@@ -433,8 +439,11 @@ namespace mbm
     
     bool TEXT_DRAW::isOnFrustum()
     {
-        if (this->mesh && mesh->isLoaded() && this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        ANIMATION *animation = this->getAnimation(indexAnimation);
+        if (this->mesh && mesh->isLoaded() && animation)
         {
+            const bool is2dScreen = this->is2dScreenObject();
             float w = 0.0f;
             float h = 0.0f;
             if (this->getWidthHeight(&w, &h))
@@ -449,7 +458,7 @@ namespace mbm
                 {
                     cube = this->mesh->infoPhysics.lsCube[0];
                 }
-                if (this->is2dS)
+                if (is2dScreen)
                 {
                     // Convert to screen pixels so frustum test uses the correct space
                     mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -461,8 +470,9 @@ namespace mbm
                     cube->halfDim.x       = sw * 0.5f;
                     cube->halfDim.y       = sh * 0.5f;
                     cube->halfDim.z       = 1.0f;
-                    this->bounding_AABB.x = sw;
-                    this->bounding_AABB.y = sh;
+                    VEC3 &boundingAABB    = this->getBoundingAABB();
+                    boundingAABB.x        = sw;
+                    boundingAABB.y        = sh;
                     w = sw; h = sh;
                 }
                 else
@@ -470,24 +480,26 @@ namespace mbm
                     cube->halfDim.x       = w * 0.5f;
                     cube->halfDim.y       = h * 0.5f;
                     cube->halfDim.z       = 1.0f;
-                    this->bounding_AABB.x = w;
-                    this->bounding_AABB.y = h;
+                    VEC3 &boundingAABB    = this->getBoundingAABB();
+                    boundingAABB.x        = w;
+                    boundingAABB.y        = h;
                 }
             }
             const float ws = w * 0.5f;
             const float hs = h * 0.5f;
-            this->position.x += ws;
+            VEC3 &position = this->getPosition();
+            position.x += ws;
             // For screen-2D (Y-down) the center is below the top-left; for world (Y-up) it is above the bottom.
-            this->position.y += (this->is2dS ? hs : -hs);
+            position.y += (is2dScreen ? hs : -hs);
             IS_ON_FRUSTUM verify(this);
-            const bool ret = verify.isOnFrustum(this->is3D, this->is2dS);
-            this->position.x -= ws;
-            this->position.y -= (this->is2dS ? hs : -hs);
+            const bool ret = verify.isOnFrustum(this->is3DObject(), is2dScreen);
+            position.x -= ws;
+            position.y -= (is2dScreen ? hs : -hs);
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }
@@ -496,33 +508,42 @@ namespace mbm
     
     bool TEXT_DRAW::renderText(const bool doRender)
     {
-        if (this->mesh && this->isLoaded() && this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        ANIMATION *anim = this->getAnimation(indexAnimation);
+        if (this->mesh && this->isLoaded() && anim)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
+            const CAMERA &camera = device->getCamera();
+            const OnEndAnimation onEndAnimation = this->getOnEndAnimation();
+            const OnEndEffect onEndFx = this->getOnEndFx();
             if (doRender)
-                anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
+                anim->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
             const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
             if(infoFont == nullptr)
                 return false;
             const std::string  textDraw(this->text);
             const auto s = static_cast<unsigned int>(textDraw.size());
             static VEC3     posTemp2d(0, 0, 0);
-            if (this->is3D)
-                posTemp2d = this->position;
-            else if (this->is2dS)
+            VEC3 &position = this->getPosition();
+            VEC3 &scale = this->getScale();
+            VEC3 &angle = this->getAngle();
+            const bool is3dObject = this->is3DObject();
+            const bool is2dScreen = this->is2dScreenObject();
+            if (is3dObject)
+                posTemp2d = position;
+            else if (is2dScreen)
             {
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, posTemp2d);
-                posTemp2d.x -= this->widthFirstLetter * this->scale.x;
-                posTemp2d.z = this->position.z;
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, posTemp2d);
+                posTemp2d.x -= this->widthFirstLetter * scale.x;
+                posTemp2d.z = position.z;
             }
             else
-                posTemp2d = this->position;
-            MatrixTranslationRotationScale(&SHADER::modelView, &posTemp2d, &this->angle, &this->scale);
+                posTemp2d = position;
+            MatrixTranslationRotationScale(&SHADER::modelView, &posTemp2d, &angle, &scale);
             endText.x = -FLT_MAX;
             if (doRender)
-                this->blend.set(anim->blendState);
-            SHADER::modelView._42 -= infoFont->heightLetter * 0.5f  * this->scale.y;
+                this->setBlendState(anim->getBlendState());
+            SHADER::modelView._42 -= infoFont->heightLetter * 0.5f  * scale.y;
             beginText.x          = SHADER::modelView._41;
             beginText.y          = SHADER::modelView._42;
             if(s == 0)
@@ -610,7 +631,7 @@ namespace mbm
                     case '\n':
                     {
                         SHADER::modelView._41 = beginText.x;
-                        SHADER::modelView._42 -= static_cast<float>(infoFont->heightLetter + this->spaceYCharacter)  * this->scale.y;
+                        SHADER::modelView._42 -= static_cast<float>(infoFont->heightLetter + this->spaceYCharacter)  * scale.y;
                         if (doRender && aligned != ALIGN_LEFT)
                         {
                             beginText_x        = beginText.x;
@@ -669,7 +690,7 @@ namespace mbm
                         }
                     }
                     break;
-                    case '\t': { SHADER::modelView._41 += ((curWidthLetter * 4) + (this->spaceXCharacter > 0.0f ? this->spaceXCharacter * 4.0f : 0.0f)) * this->scale.x;}
+                    case '\t': { SHADER::modelView._41 += ((curWidthLetter * 4) + (this->spaceXCharacter > 0.0f ? this->spaceXCharacter * 4.0f : 0.0f)) * scale.x;}
                     break;
                     default:
                     {
@@ -683,7 +704,7 @@ namespace mbm
                                 if (doRender && lsUpdateAnimation.find(indexNewAnim) == lsUpdateAnimation.end())
                                 {
                                     lsUpdateAnimation.insert(indexNewAnim);
-                                    anim->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
+                                    anim->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
                                 }
                             }
                         }
@@ -695,32 +716,33 @@ namespace mbm
                                 BUFFER_MESH *frame = this->mesh->getBuffer(detail->indexFrame);
                                 if (frame)
                                 {
-                                    curWidthLetter = static_cast<float>(detail->widthLetter) * 0.5f  * this->scale.x;
+                                    curWidthLetter = static_cast<float>(detail->widthLetter) * 0.5f  * scale.x;
                                     if (i == 0)
                                         this->widthFirstLetter = curWidthLetter * 0.5f;
                                     SHADER::modelView._41 += curWidthLetter;
                                     SHADER::modelView._41 += infoFont->letterDiffX[index];
                                     SHADER::modelView._42 += infoFont->letterDiffY[index];
-                                    if (this->is3D)
+                                    if (is3dObject)
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &device->camera.matrixPerspective);
+                                                       &camera.matrixPerspective);
                                     else
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &device->camera.matrixPerspective2d);
+                                                       &camera.matrixPerspective2d);
                                     SHADER::modelView._41 -= infoFont->letterDiffX[index];
                                     SHADER::modelView._42 -= infoFont->letterDiffY[index];
                                     if (doRender)
                                     {
-                                        anim->fx.shader.update(); // glUseProgram
-                                        anim->fx.setBlendOp();
-                                        if (anim->fx.textureOverrideStage2)
+                                        FX &fx = anim->getFx();
+                                        fx.shader.update(); // glUseProgram
+                                        fx.setBlendOp();
+                                        if (fx.textureOverrideStage2)
                                         {
-                                            if (!this->mesh->render(detail->indexFrame, &anim->fx.shader,anim->fx.textureOverrideStage2))
+                                            if (!this->mesh->render(detail->indexFrame, &fx.shader, fx.textureOverrideStage2))
                                                 return false;
                                         }
                                         else
                                         {
-                                            if (!this->mesh->render(detail->indexFrame, &anim->fx.shader,0))
+                                            if (!this->mesh->render(detail->indexFrame, &fx.shader,0))
                                                 return false;
                                         }
                                     }
@@ -738,7 +760,7 @@ namespace mbm
                 }
             }
             endText.y = SHADER::modelView._42;
-            endText.y -= (static_cast<float>(infoFont->heightLetter)  * this->scale.y);
+            endText.y -= (static_cast<float>(infoFont->heightLetter)  * scale.y);
             return true;
         }
         return false;
@@ -797,11 +819,10 @@ namespace mbm
             const char * nextAnimstrNextAnim  = nextAnim.c_str();
             const auto indexAnim = static_cast<unsigned int>(std::atoi(nextAnimstrNextAnim)-1);
             *curIndex                    = indexForChangelocal;
-            if (indexAnim < static_cast<unsigned int>(this->lsAnimation.size()))
+            mbm::ANIMATION* newAnim = this->getAnimation(indexAnim);
+            if (newAnim)
             {
-                mbm::ANIMATION* newAnim = this->lsAnimation[indexAnim];
-                if(newAnim)
-                    indexNewAnim = indexAnim;
+                indexNewAnim = indexAnim;
                 return newAnim;
             }
         }
@@ -880,7 +901,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -891,6 +912,7 @@ namespace mbm
         mbm::ANIMATION *anim = this->getAnimation();
         if (anim)
         {
+            FX &fx = anim->getFx();
             TEXTURE *newTex = TEXTURE_MANAGER::getInstance()->load(fileNametexture, hasAlpha);
             if (newTex)
             {
@@ -916,13 +938,13 @@ namespace mbm
                     }
                     else
                     {
-                        anim->fx.textureOverrideStage2 = newTex;
+                        fx.textureOverrideStage2 = newTex;
                         return true;
                     }
                 }
                 else if (stage)
                 {
-                    anim->fx.textureOverrideStage2 = newTex;
+                    fx.textureOverrideStage2 = newTex;
                     return true;
                 }
             }
@@ -980,8 +1002,9 @@ namespace mbm
         this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
-        text->bounding_AABB.x = text->endText.x - text->beginText.x;
-        text->bounding_AABB.y = text->beginText.y - text->endText.y;
+        VEC3 &boundingAABB = text->getBoundingAABB();
+        boundingAABB.x = text->endText.x - text->beginText.x;
+        boundingAABB.y = text->beginText.y - text->endText.y;
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -995,8 +1018,9 @@ namespace mbm
         this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
-        text->bounding_AABB.x = text->endText.x - text->beginText.x;
-        text->bounding_AABB.y = text->beginText.y - text->endText.y;
+        VEC3 &boundingAABB = text->getBoundingAABB();
+        boundingAABB.x = text->endText.x - text->beginText.x;
+        boundingAABB.y = text->beginText.y - text->endText.y;
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1011,8 +1035,9 @@ namespace mbm
         this->fillAnimation(text);
         text->restartAnimation();
         text->renderText(false);
-        text->bounding_AABB.x = text->endText.x - text->beginText.x;
-        text->bounding_AABB.y = text->beginText.y - text->endText.y;
+        VEC3 &boundingAABB = text->getBoundingAABB();
+        boundingAABB.x = text->endText.x - text->beginText.x;
+        boundingAABB.y = text->beginText.y - text->endText.y;
         text->isOnFrustum();
         text->updateAABB();
         return text;

@@ -19,7 +19,8 @@
 #include <core-manager.h>
 #include <device.h>
 #include <renderizable.h>
-#include <specific-metal.h>
+#include "specific-metal-context.h"
+#include "specific-metal-render-target.h"
 #include <util-interface.h>
 #include <cr-static-local.h>
 #include <plugin-callback.h>
@@ -31,30 +32,19 @@ namespace mbm
 
     CORE_MANAGER::CORE_MANAGER()
     {
-        this->device                    = DEVICE::getInstance();
-        this->indexOnRestore            = 0;
-        this->totalForByLoop            = 0;
-        this->percentRestoreInfo        = 0.0f;
-        this->stepRestoreInfo           = 0.1f;
-        this->stepRestore               = STEP_RES_INIT_GL;
-        this->which_for                 = WFOR_INITIAL;
-        this->changeScene               = true;
-        this->__sceneWasInit            = false;
-        this->loopVariablesInitialized  = false;
-        this->keyCapsLockState          = false;
-        this->wasGamePausedBeforeOnStop  = false;
-    }
-
-    CORE_MANAGER::~CORE_MANAGER()
-    {
-        DEVICE::quit();
+        this->initializeImpl();
+        this->setDevice(DEVICE::getInstance());
+        this->setChangeScene(true);
+        this->setSceneInitialized(false);
+        this->setKeyCapsLockState(false);
     }
 
     void CORE_MANAGER::swapBuffers()
     {
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+            DEVICE *device = this->getDevice();
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
             if (!ctx) return;
             if (ctx->currentCommandBuffer && ctx->currentDrawable)
             {
@@ -68,15 +58,15 @@ namespace mbm
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         if (!ctx || !ctx->metalLayer) return true;
 
         // newWidth/newHeight are in logical points; scale up to physical pixels
         // for the Metal drawable (so Retina displays render at full resolution).
         const CGFloat sc = ctx->metalLayer.contentsScale > 0.0 ? ctx->metalLayer.contentsScale : 1.0;
         ctx->metalLayer.drawableSize = CGSizeMake(newWidth * sc, newHeight * sc);
-        this->device->backBufferWidth  = static_cast<float>(newWidth);
-        this->device->backBufferHeight = static_cast<float>(newHeight);
+        device->setBackBufferSize(static_cast<float>(newWidth), static_cast<float>(newHeight));
         return true;
     }
 
@@ -84,7 +74,8 @@ namespace mbm
     {
         @autoreleasepool
         {
-            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+            DEVICE *device = this->getDevice();
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
             if (!ctx || !ctx->commandQueue || !ctx->metalLayer) return false;
 
             ctx->currentDrawable = [ctx->metalLayer nextDrawable];
@@ -99,11 +90,12 @@ namespace mbm
             // Color attachment: clear to background colour
             desc.colorAttachments[0].texture     = ctx->currentDrawable.texture;
             desc.colorAttachments[0].loadAction  = MTLLoadActionClear;
+            const COLOR &background = device->getColorClearBackGround();
             desc.colorAttachments[0].clearColor  = MTLClearColorMake(
-                static_cast<double>(device->colorClearBackGround.r),
-                static_cast<double>(device->colorClearBackGround.g),
-                static_cast<double>(device->colorClearBackGround.b),
-                static_cast<double>(device->colorClearBackGround.a));
+                static_cast<double>(background.r),
+                static_cast<double>(background.g),
+                static_cast<double>(background.b),
+                static_cast<double>(background.a));
             desc.colorAttachments[0].storeAction = MTLStoreActionStore;
 
             // Depth attachment — create or resize to match the current drawable.
@@ -151,7 +143,8 @@ namespace mbm
 
     void CORE_MANAGER::endRender()
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         if (!ctx) return;
         if (ctx->currentEncoder)
         {
@@ -163,21 +156,27 @@ namespace mbm
 
     bool CORE_MANAGER::renderToTargets()
     {
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
         if (!ctx || !ctx->mtlDevice || !ctx->commandQueue) return true;
 
         bool oneRender = false;
-        for (auto renderTarget : this->device->lsObjectRenderToTarget)
+        const uint32_t totalRenderTargets = device->getTotalRenderTargets();
+        for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
-            if (!renderTarget->isObjectOnFrustum)
+            auto renderTarget = device->getRenderTarget(i);
+            if (!renderTarget)
                 continue;
+            if (!renderTarget->getIsObjectOnFrustum())
+                continue;
+            void *renderTargetSpecificConfig = renderTarget->getRenderTargetSpecificConfig();
             RENDER2TARGET_METAL* rf =
-                static_cast<RENDER2TARGET_METAL*>(renderTarget->specificConfig);
+                static_cast<RENDER2TARGET_METAL*>(renderTargetSpecificConfig);
             if (!rf || !rf->renderTexture || !rf->passDescriptor)
                 continue;
 
             // Update clear colour from the render target definition.
-            const COLOR& bg = renderTarget->colorClearBackGround;
+            const COLOR& bg = renderTarget->getRenderTargetClearColor();
             rf->passDescriptor.colorAttachments[0].clearColor =
                 MTLClearColorMake(
                     static_cast<double>(bg.r),
@@ -211,36 +210,39 @@ namespace mbm
         {
             // Restore the camera to main backbuffer dimensions in case render2Texture()
             // updated it for the off-screen target.
-            this->device->camera.updateCam(
+            CAMERA &camera = device->getCamera();
+            camera.updateCam(
                 true,
-                static_cast<float>(device->backBufferWidth),
-                static_cast<float>(device->backBufferHeight));
+                static_cast<float>(device->getBackBufferWidth()),
+                static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
 
     unsigned int CORE_MANAGER::addPlugin(PLUGIN* plugin)
     {
-        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+        DEVICE *device = this->getDevice();
+        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
         {
-            if (this->lsPlugins[i] == plugin)
+            if (this->getPlugin(i) == plugin)
                 return i;
         }
         if (plugin)
         {
-            this->lsPlugins.push_back(plugin);
+            const unsigned int indexPlugin = this->appendPlugin(plugin);
+            SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
             // Provide the window/view as the platform handle (cast to void*).
 #if TARGET_OS_IOS
-            void* handle = (__bridge void*)this->device->specificContextDevice->metalView;
+            void* handle = (__bridge void*)ctx->metalView;
 #else
-            void* handle = (__bridge void*)this->device->specificContextDevice->window;
+            void* handle = (__bridge void*)ctx->window;
 #endif
             plugin->onSubscribe(
-                static_cast<int>(this->device->backBufferWidth),
-                static_cast<int>(this->device->backBufferHeight),
+                static_cast<int>(device->getBackBufferWidth()),
+                static_cast<int>(device->getBackBufferHeight()),
                 handle,
-                (__bridge void*)this->device->specificContextDevice->mtlDevice);
-            return static_cast<unsigned int>(this->lsPlugins.size() - 1);
+                (__bridge void*)ctx->mtlDevice);
+            return indexPlugin;
         }
         return 0xffffffff;
     }
@@ -251,7 +253,9 @@ namespace mbm
         (void)min_x; (void)min_y; (void)max_x; (void)max_y;
         // iOS windows are always full-screen; min/max size is not applicable.
 #else
-        NSWindow* win = this->device->specificContextDevice->window;
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = device->getSpecificContextDevice();
+        NSWindow* win = ctx->window;
         if (!win) return;
 
         NSSize minSize = NSMakeSize(min_x > 0 ? min_x : 100, min_y > 0 ? min_y : 100);

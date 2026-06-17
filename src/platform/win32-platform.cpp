@@ -25,11 +25,11 @@
 #include <core_mbm/device.h>
 
 #if defined (USE_DIRECTX9)
-    #include <specific-directx9.h>
+    #include "specific-directx9-context.h"
 #elif defined (USE_OPENGL_ES)
-    #include <specific-opengl_es.h>
+    #include "specific-opengl_es-windows-context.h"
 #elif defined (USE_DUMMY_BACK_END_ENGINE)
-    #include <specific-dummy.h>
+    #include "specific-dummy-context.h"
 #endif
 
 
@@ -101,12 +101,12 @@ namespace mbm
     void setWin32IconToBeUsed(const int ID_ICON)
     {
         DEVICE* device = DEVICE::getInstance();
-        device->specificContextDevice->idIcon = ID_ICON;
+        device->getSpecificContextDevice()->idIcon = ID_ICON;
     }
 
     const char* selectFolderDialog(char* folderPathOut)
     {
-        HWND hwnd = mbm::DEVICE::getInstance()->specificContextDevice->window.getHwnd();
+        HWND hwnd = mbm::DEVICE::getInstance()->getSpecificContextDevice()->window.getHwnd();
         const char* path = mbm::selectetDirectory(hwnd, folderPathOut);
         return path;
     }

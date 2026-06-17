@@ -32,6 +32,50 @@
 
 namespace mbm
 {
+    struct DEVICE::Impl
+    {
+        int                      returnCodeApp = 0;
+        AUDIO_MANAGER_INTERFACE* audioInterface = nullptr;
+        bool                     isGamePaused = false;
+        float                    percXcam2dScale = 1.0f;
+        float                    percYcam2dScale = 1.0f;
+        bool                     pixelPerfectRenderingActive = false;
+        std::vector<PHYSICS *>   physics;
+        std::vector<RENDERIZABLE_TO_TARGET *> renderTargets;
+        std::vector<RENDERIZABLE *> render3D;
+        std::vector<RENDERIZABLE *> render2DW;
+        std::vector<RENDERIZABLE *> render2DS;
+        bool verbose = true;
+        bool run = true;
+        float backBufferWidth = 0.0f;
+        float backBufferHeight = 0.0f;
+        CORE_MANAGER *ptrManager = nullptr;
+        SHADER_CFG_LOADER cfg;
+        mbm::ORDER_RENDER orderRender;
+        std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
+        SPECIFIC_AUX_CONTEXT_DEVICE *specificContextDevice = nullptr;
+        SCENE *scene = nullptr;
+        CAMERA camera;
+        uint32_t totalObjectsOnFrustum3D = 0;
+        uint32_t totalObjectsOnFrustum2D = 0;
+        uint32_t totalObjectsIsRendering3D = 0;
+        uint32_t totalObjectsIsRendering2D = 0;
+        uint32_t totalObjects3D = 0;
+        uint32_t totalObjects2D = 0;
+        VEC3 dimFarFrustum3d = VEC3(0, 0, 0);
+        VEC3 dimNearFrustum3d = VEC3(0, 0, 0);
+        COLOR colorClearBackGround = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        bool clearBackGround = true;
+        bool stopScriptOnError = false;
+        int swapBackBufferStep = 3;
+        int windowPositionX = 0;
+        int windowPositionY = 0;
+    };
+
+    void DEVICE::ImplDeleter::operator()(Impl *ptr) const
+    {
+        delete ptr;
+    }
 
     DEVICE * DEVICE::getInstance()
     {
@@ -44,62 +88,361 @@ namespace mbm
     }
 
     DEVICE::DEVICE()
+        : impl(new Impl())
     {
-        bOnErrorStopScript         = false;
-        clearBackGround            = true;
-        ptrManager                 = nullptr;
-        scene                      = nullptr;
-        run                        = true;
-        verbose					   = true;
-        backBufferWidth            = 0;
-        backBufferHeight           = 0;
-        colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
-        totalObjectsOnFrustum3D    = 0;
-        totalObjectsOnFrustum2D    = 0;
-        totalObjectsIsRendering3D  = 0;
-        totalObjectsIsRendering2D  = 0;
-        totalObjects3D             = 0;
-        totalObjects2D             = 0;
-        dimFarFrustum3d            = VEC3(0, 0, 0);
-        dimNearFrustum3d           = VEC3(0, 0, 0);
-        __percXcam2dScale          = 1.0f;
-        __percYcam2dScale          = 1.0f;
-        __swapBackBufferStep	   = 3;
-        returnCodeApp              = 0;
-        windowPositionX            = 0;
-        windowPositionY            = 0;
-        _isGamePaused              = false;
-        audioInterface			   = nullptr;
+    }
+
+    void DEVICE::setCamera2dScaleCache(const float percX, const float percY) noexcept
+    {
+        impl->percXcam2dScale = percX;
+        impl->percYcam2dScale = percY;
+    }
+
+    void DEVICE::setPixelPerfectRenderingActive(const bool active) noexcept
+    {
+        impl->pixelPerfectRenderingActive = active;
+    }
+
+    void DEVICE::setSpecificContextDevice(SPECIFIC_AUX_CONTEXT_DEVICE *context) noexcept
+    {
+        impl->specificContextDevice = context;
+    }
+
+    SPECIFIC_AUX_CONTEXT_DEVICE * DEVICE::getSpecificContextDevice() const noexcept
+    {
+        return impl->specificContextDevice;
+    }
+
+    CAMERA & DEVICE::getCamera() noexcept
+    {
+        return impl->camera;
+    }
+
+    const CAMERA & DEVICE::getCamera() const noexcept
+    {
+        return impl->camera;
+    }
+
+    void DEVICE::setScene(SCENE *scene) noexcept
+    {
+        impl->scene = scene;
+    }
+
+    SCENE * DEVICE::getScene() const noexcept
+    {
+        return impl->scene;
+    }
+
+    void DEVICE::setTotalObjectsOnFrustum3D(const uint32_t total) noexcept
+    {
+        impl->totalObjectsOnFrustum3D = total;
+    }
+
+    void DEVICE::setTotalObjectsOnFrustum2D(const uint32_t total) noexcept
+    {
+        impl->totalObjectsOnFrustum2D = total;
+    }
+
+    void DEVICE::setTotalObjectsIsRendering3D(const uint32_t total) noexcept
+    {
+        impl->totalObjectsIsRendering3D = total;
+    }
+
+    void DEVICE::setTotalObjectsIsRendering2D(const uint32_t total) noexcept
+    {
+        impl->totalObjectsIsRendering2D = total;
+    }
+
+    void DEVICE::incrementTotalObjectsIsRendering3D() noexcept
+    {
+        ++impl->totalObjectsIsRendering3D;
+    }
+
+    void DEVICE::incrementTotalObjectsIsRendering2D() noexcept
+    {
+        ++impl->totalObjectsIsRendering2D;
+    }
+
+    void DEVICE::setTotalObjects3D(const uint32_t total) noexcept
+    {
+        impl->totalObjects3D = total;
+    }
+
+    void DEVICE::setTotalObjects2D(const uint32_t total) noexcept
+    {
+        impl->totalObjects2D = total;
+    }
+
+    void DEVICE::setNearFrustumDimension(const VEC3 &dimension) noexcept
+    {
+        impl->dimNearFrustum3d = dimension;
+    }
+
+    void DEVICE::setFarFrustumDimension(const VEC3 &dimension) noexcept
+    {
+        impl->dimFarFrustum3d = dimension;
+    }
+
+    void DEVICE::setNearFrustumDimensionX(const float value) noexcept
+    {
+        impl->dimNearFrustum3d.x = value;
+    }
+
+    void DEVICE::setNearFrustumDimensionY(const float value) noexcept
+    {
+        impl->dimNearFrustum3d.y = value;
+    }
+
+    void DEVICE::setFarFrustumDimensionX(const float value) noexcept
+    {
+        impl->dimFarFrustum3d.x = value;
+    }
+
+    void DEVICE::setFarFrustumDimensionY(const float value) noexcept
+    {
+        impl->dimFarFrustum3d.y = value;
+    }
+
+    uint32_t DEVICE::getTotalPhysics() const noexcept
+    {
+        return static_cast<uint32_t>(impl->physics.size());
+    }
+
+    PHYSICS * DEVICE::getPhysics(const uint32_t index) const noexcept
+    {
+        return index < impl->physics.size() ? impl->physics[index] : nullptr;
+    }
+
+    uint32_t DEVICE::getTotalRenderTargets() const noexcept
+    {
+        return static_cast<uint32_t>(impl->renderTargets.size());
+    }
+
+    RENDERIZABLE_TO_TARGET * DEVICE::getRenderTarget(const uint32_t index) const noexcept
+    {
+        return index < impl->renderTargets.size() ? impl->renderTargets[index] : nullptr;
+    }
+
+    std::vector<RENDERIZABLE *> & DEVICE::getRender3DList() noexcept
+    {
+        return impl->render3D;
+    }
+
+    std::vector<RENDERIZABLE *> & DEVICE::getRender2DWList() noexcept
+    {
+        return impl->render2DW;
+    }
+
+    std::vector<RENDERIZABLE *> & DEVICE::getRender2DSList() noexcept
+    {
+        return impl->render2DS;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
     {
-        returnCodeApp = returnCode;
+        impl->returnCodeApp = returnCode;
     }
 
     int DEVICE::getAppReturnCode() const noexcept
     {
-        return returnCodeApp;
+        return impl->returnCodeApp;
+    }
+
+    void DEVICE::setRun(const bool run) noexcept
+    {
+        impl->run = run;
+    }
+
+    bool DEVICE::isRunning() const noexcept
+    {
+        return impl->run;
+    }
+
+    void DEVICE::setCoreManager(CORE_MANAGER *manager) noexcept
+    {
+        impl->ptrManager = manager;
+    }
+
+    CORE_MANAGER * DEVICE::getCoreManager() const noexcept
+    {
+        return impl->ptrManager;
+    }
+
+    SHADER_CFG_LOADER & DEVICE::getShaderConfig() noexcept
+    {
+        return impl->cfg;
+    }
+
+    const SHADER_CFG_LOADER & DEVICE::getShaderConfig() const noexcept
+    {
+        return impl->cfg;
+    }
+
+    mbm::ORDER_RENDER & DEVICE::getOrderRender() noexcept
+    {
+        return impl->orderRender;
+    }
+
+    const mbm::ORDER_RENDER & DEVICE::getOrderRender() const noexcept
+    {
+        return impl->orderRender;
+    }
+
+    std::map<std::string, DYNAMIC_VAR *> & DEVICE::getDynamicVars() noexcept
+    {
+        return impl->lsDynamicVarGlobal;
+    }
+
+    const std::map<std::string, DYNAMIC_VAR *> & DEVICE::getDynamicVars() const noexcept
+    {
+        return impl->lsDynamicVarGlobal;
+    }
+
+    void DEVICE::setBackBufferSize(const float width, const float height) noexcept
+    {
+        impl->backBufferWidth = width;
+        impl->backBufferHeight = height;
+    }
+
+    void DEVICE::setBackBufferWidth(const float width) noexcept
+    {
+        impl->backBufferWidth = width;
+    }
+
+    void DEVICE::setBackBufferHeight(const float height) noexcept
+    {
+        impl->backBufferHeight = height;
     }
 
     float DEVICE::getBackBufferWidth() const noexcept
     {
-        return backBufferWidth;
+        return impl->backBufferWidth;
     }
     
     float DEVICE::getBackBufferHeight() const noexcept
     {
-        return backBufferHeight;
+        return impl->backBufferHeight;
     }
     
     float DEVICE::getScaleBackBufferWidth() const noexcept
     {
-        return static_cast<float>(backBufferWidth / this->camera.scale2d.x);
+        return static_cast<float>(impl->backBufferWidth / impl->camera.scale2d.x);
     }
     
     float DEVICE::getScaleBackBufferHeight() const noexcept
     {
-        return static_cast<float>(backBufferHeight / this->camera.scale2d.y);
+        return static_cast<float>(impl->backBufferHeight / impl->camera.scale2d.y);
+    }
+
+    uint32_t DEVICE::getTotalObjectsOnFrustum3D() const noexcept
+    {
+        return impl->totalObjectsOnFrustum3D;
+    }
+
+    uint32_t DEVICE::getTotalObjectsOnFrustum2D() const noexcept
+    {
+        return impl->totalObjectsOnFrustum2D;
+    }
+
+    uint32_t DEVICE::getTotalObjectsIsRendering3D() const noexcept
+    {
+        return impl->totalObjectsIsRendering3D;
+    }
+
+    uint32_t DEVICE::getTotalObjectsIsRendering2D() const noexcept
+    {
+        return impl->totalObjectsIsRendering2D;
+    }
+
+    uint32_t DEVICE::getTotalObjects3D() const noexcept
+    {
+        return impl->totalObjects3D;
+    }
+
+    uint32_t DEVICE::getTotalObjects2D() const noexcept
+    {
+        return impl->totalObjects2D;
+    }
+
+    void DEVICE::setVerbose(const bool verbose) noexcept
+    {
+        impl->verbose = verbose;
+    }
+
+    bool DEVICE::isVerbose() const noexcept
+    {
+        return impl->verbose;
+    }
+
+    void DEVICE::setColorClearBackGround(const COLOR &color) noexcept
+    {
+        impl->colorClearBackGround = color;
+    }
+
+    const COLOR & DEVICE::getColorClearBackGround() const noexcept
+    {
+        return impl->colorClearBackGround;
+    }
+
+    void DEVICE::setClearBackGround(const bool clear) noexcept
+    {
+        impl->clearBackGround = clear;
+    }
+
+    bool DEVICE::isClearBackGroundEnabled() const noexcept
+    {
+        return impl->clearBackGround;
+    }
+
+    void DEVICE::setStopScriptOnError(const bool stop) noexcept
+    {
+        impl->stopScriptOnError = stop;
+    }
+
+    bool DEVICE::isStopScriptOnErrorEnabled() const noexcept
+    {
+        return impl->stopScriptOnError;
+    }
+
+    void DEVICE::resetSwapBackBufferStep() noexcept
+    {
+        impl->swapBackBufferStep = 3;
+    }
+
+    void DEVICE::incrementSwapBackBufferStep() noexcept
+    {
+        ++impl->swapBackBufferStep;
+    }
+
+    int DEVICE::getSwapBackBufferStep() const noexcept
+    {
+        return impl->swapBackBufferStep;
+    }
+
+    void DEVICE::setWindowPosition(const int x, const int y) noexcept
+    {
+        impl->windowPositionX = x;
+        impl->windowPositionY = y;
+    }
+
+    void DEVICE::setWindowPositionX(const int x) noexcept
+    {
+        impl->windowPositionX = x;
+    }
+
+    void DEVICE::setWindowPositionY(const int y) noexcept
+    {
+        impl->windowPositionY = y;
+    }
+
+    int DEVICE::getWindowPositionX() const noexcept
+    {
+        return impl->windowPositionX;
+    }
+
+    int DEVICE::getWindowPositionY() const noexcept
+    {
+        return impl->windowPositionY;
     }
     
     void DEVICE::scaleToScreen(const float widthScreen, const float heightScreen,
@@ -107,56 +450,57 @@ namespace mbm
     {
         if (widthScreen != 0.0f && heightScreen != 0.0f)
         {
-            const float percx = this->backBufferWidth / widthScreen;
-            const float percy = this->backBufferHeight / heightScreen;
+            const float percx = impl->backBufferWidth / widthScreen;
+            const float percy = impl->backBufferHeight / heightScreen;
             if (percx != 0.0f && percy != 0.0f)
             {
-                this->camera.expectedScreen.x = widthScreen;
-                this->camera.expectedScreen.y = heightScreen;
+                CAMERA &camera = impl->camera;
+                camera.expectedScreen.x = widthScreen;
+                camera.expectedScreen.y = heightScreen;
                 if (stretch)
                 {
                     if (strcmp(stretch, "x") == 0)
                     {
-                        this->camera.scale2d.x = percx;
-                        this->camera.scale2d.y = percx;
-                        strncpy(this->camera.stretch, "x",sizeof(this->camera.stretch)-1);
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percx;
+                        strncpy(camera.stretch, "x",sizeof(camera.stretch)-1);
                     }
                     else if (strcmp(stretch, "y") == 0)
                     {
-                        this->camera.scale2d.x = percy;
-                        this->camera.scale2d.y = percy;
-                        strncpy(this->camera.stretch, "y",sizeof(this->camera.stretch)-1);
+                        camera.scale2d.x = percy;
+                        camera.scale2d.y = percy;
+                        strncpy(camera.stretch, "y",sizeof(camera.stretch)-1);
                     }
                     else if (strcmp(stretch, "xy") == 0)
                     {
-                        this->camera.scale2d.x = percx;
-                        this->camera.scale2d.y = percy;
-                        strncpy(this->camera.stretch, "xy",sizeof(this->camera.stretch));
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percy;
+                        strncpy(camera.stretch, "xy",sizeof(camera.stretch));
                     }
                     else if (percx < percy)
                     {
-                        this->camera.scale2d.x = percx;
-                        this->camera.scale2d.y = percx;
-                        strncpy(this->camera.stretch, "x",sizeof(this->camera.stretch)-1);
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percx;
+                        strncpy(camera.stretch, "x",sizeof(camera.stretch)-1);
                     }
                     else
                     {
-                        this->camera.scale2d.x = percy;
-                        this->camera.scale2d.y = percy;
-                        strncpy(this->camera.stretch, "y",sizeof(this->camera.stretch)-1);
+                        camera.scale2d.x = percy;
+                        camera.scale2d.y = percy;
+                        strncpy(camera.stretch, "y",sizeof(camera.stretch)-1);
                     }
                 }
                 else if (percx < percy)
                 {
-                    this->camera.scale2d.x = percx;
-                    this->camera.scale2d.y = percx;
-                    strncpy(this->camera.stretch, "x",sizeof(this->camera.stretch)-1);
+                    camera.scale2d.x = percx;
+                    camera.scale2d.y = percx;
+                    strncpy(camera.stretch, "x",sizeof(camera.stretch)-1);
                 }
                 else
                 {
-                    this->camera.scale2d.x = percy;
-                    this->camera.scale2d.y = percy;
-                    strncpy(this->camera.stretch, "y",sizeof(this->camera.stretch)-1);
+                    camera.scale2d.x = percy;
+                    camera.scale2d.y = percy;
+                    strncpy(camera.stretch, "y",sizeof(camera.stretch)-1);
                 }
             }
         }
@@ -164,44 +508,44 @@ namespace mbm
 
     bool DEVICE::isGamePaused() const noexcept
     {
-        return _isGamePaused;
+        return impl->isGamePaused;
     }
 
     bool DEVICE::isPixelPerfectRendering() const noexcept
     {
-        return _pixelPerfectRenderingActive;
+        return impl->pixelPerfectRenderingActive;
     }
     
     void DEVICE::pauseGame()
     {
-        _isGamePaused = true;
+        impl->isGamePaused = true;
         this->pauseTimer();
-        if(this->audioInterface)
-            this->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
+        if(impl->audioInterface)
+            impl->audioInterface->pauseAll(impl->scene ? impl->scene->getIdScene() : 0);
     }
     
     void DEVICE::resumeGame()
     {
-        _isGamePaused = false;
+        impl->isGamePaused = false;
         this->resumeTimer();
-        if (this->audioInterface)
-            this->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);
+        if (impl->audioInterface)
+            impl->audioInterface->resumeAll(impl->scene ? impl->scene->getIdScene() : 0);
     }
     
     void DEVICE::addPhysics(PHYSICS *physics)
     {
         if (physics)
-            lsPhysics.push_back(physics);
+            impl->physics.push_back(physics);
     }
     
     void DEVICE::removePhysics(PHYSICS *physics)
     {
-        for (std::vector<PHYSICS *>::size_type i = 0; i < this->lsPhysics.size(); ++i)
+        for (std::vector<PHYSICS *>::size_type i = 0; i < impl->physics.size(); ++i)
         {
-            PHYSICS *ptrPhysics = this->lsPhysics[i];
+            PHYSICS *ptrPhysics = impl->physics[i];
             if (ptrPhysics == physics)
             {
-                this->lsPhysics.erase(this->lsPhysics.begin() + std::vector<PHYSICS *>::difference_type(i));
+                impl->physics.erase(impl->physics.begin() + std::vector<PHYSICS *>::difference_type(i));
                 break;
             }
         }
@@ -211,25 +555,28 @@ namespace mbm
     {
         if (renderizable != nullptr)
         {
-            if (renderizable->is3D)
+            VEC3 &position = renderizable->getPosition();
+            const bool is2dScreen = renderizable->is2dScreenObject();
+            const TYPE_CLASS typeClass = renderizable->getTypeClass();
+            if (renderizable->is3DObject())
             {
-                if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = this->orderRender.getNextZOrderControl3d();
-                this->lsObjectRender3D.push_back(renderizable);
+                if (position.z == 0.0f)
+                    position.z = impl->orderRender.getNextZOrderControl3d();
+                impl->render3D.push_back(renderizable);
             }
-            else if (renderizable->is2dS)
+            else if (is2dScreen)
             {
-                if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = this->orderRender.getNextZOrderControl2d(
-                        renderizable->is2dS, renderizable->typeClass == TYPE_CLASS_TEXT);
-                this->lsObjectRender2DS.push_back(renderizable);
+                if (position.z == 0.0f)
+                    position.z = impl->orderRender.getNextZOrderControl2d(
+                        is2dScreen, typeClass == TYPE_CLASS_TEXT);
+                impl->render2DS.push_back(renderizable);
             }
             else
             {
-                if (renderizable->position.z == 0.0f)
-                    renderizable->position.z = this->orderRender.getNextZOrderControl2d(
-                        renderizable->is2dS, renderizable->typeClass == TYPE_CLASS_TEXT);
-                this->lsObjectRender2DW.push_back(renderizable);
+                if (position.z == 0.0f)
+                    position.z = impl->orderRender.getNextZOrderControl2d(
+                        is2dScreen, typeClass == TYPE_CLASS_TEXT);
+                impl->render2DW.push_back(renderizable);
             }
         }
 #if defined _DEBUG
@@ -244,7 +591,7 @@ namespace mbm
     {
         if (ObjectRenderTarget != nullptr)
         {
-            lsObjectRenderToTarget.push_back(ObjectRenderTarget);
+            impl->renderTargets.push_back(ObjectRenderTarget);
         }
         else
         {
@@ -254,16 +601,16 @@ namespace mbm
     
     void DEVICE::removeObjectRender2Texture(RENDERIZABLE_TO_TARGET *object)
     {
-        for (std::vector<RENDERIZABLE_TO_TARGET *>::size_type i = 0; i < lsObjectRenderToTarget.size(); ++i)
+        for (std::vector<RENDERIZABLE_TO_TARGET *>::size_type i = 0; i < impl->renderTargets.size(); ++i)
         {
-            RENDERIZABLE_TO_TARGET *ptr = lsObjectRenderToTarget[i];
+            RENDERIZABLE_TO_TARGET *ptr = impl->renderTargets[i];
             if (ptr == object)
             {
-                for (auto ph : this->lsPhysics)
+                for (auto ph : impl->physics)
                 {
                     ph->removeObject(ptr);
                 }
-                lsObjectRenderToTarget.erase(lsObjectRenderToTarget.begin() + std::vector<RENDERIZABLE_TO_TARGET *>::difference_type(i));
+                impl->renderTargets.erase(impl->renderTargets.begin() + std::vector<RENDERIZABLE_TO_TARGET *>::difference_type(i));
                 break;
             }
         }
@@ -271,51 +618,51 @@ namespace mbm
     
     void DEVICE::disableAllButThis(mbm::RENDERIZABLE *draw)
     {
-        for (auto ptr : lsObjectRender3D)
+        for (auto ptr : impl->render3D)
         {
-            ptr->enableRender = false;
+            ptr->setEnableRender(false);
         }
-        for (auto ptr : lsObjectRender2DS)
+        for (auto ptr : impl->render2DS)
         {
-            ptr->enableRender = false;
+            ptr->setEnableRender(false);
         }
-        for (auto ptr : lsObjectRender2DW)
+        for (auto ptr : impl->render2DW)
         {
-            ptr->enableRender = false;
+            ptr->setEnableRender(false);
         }
-        draw->enableRender = true;
+        draw->setEnableRender(true);
     }
     
     void DEVICE::removeObjectByIdSceneScene(const int idScene)
     {
-        for (auto ph : this->lsPhysics)
+        for (auto ph : impl->physics)
         {
             ph->removeObjectByIdSceneScene(idScene);
         }
-        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender3D.size(); ++i)
+        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render3D.size(); ++i)
         {
-            RENDERIZABLE *ptr = lsObjectRender3D[i];
-            if (ptr->idScene == idScene)
+            RENDERIZABLE *ptr = impl->render3D[i];
+            if (ptr->getIdScene() == idScene)
             {
-                lsObjectRender3D.erase(lsObjectRender3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                impl->render3D.erase(impl->render3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                 i--;
             }
         }
-        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender2DW.size(); ++i)
+        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DW.size(); ++i)
         {
-            RENDERIZABLE *ptr = lsObjectRender2DW[i];
-            if (ptr->idScene == idScene)
+            RENDERIZABLE *ptr = impl->render2DW[i];
+            if (ptr->getIdScene() == idScene)
             {
-                lsObjectRender2DW.erase(lsObjectRender2DW.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                impl->render2DW.erase(impl->render2DW.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                 i--;
             }
         }
-        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender2DS.size(); ++i)
+        for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DS.size(); ++i)
         {
-            RENDERIZABLE *ptr = lsObjectRender2DS[i];
-            if (ptr->idScene == idScene)
+            RENDERIZABLE *ptr = impl->render2DS[i];
+            if (ptr->getIdScene() == idScene)
             {
-                lsObjectRender2DS.erase(lsObjectRender2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                impl->render2DS.erase(impl->render2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                 i--;
             }
         }
@@ -323,7 +670,7 @@ namespace mbm
     
     void DEVICE::stopRender2Texture2(RENDERIZABLE *ptr)
     {
-        for (auto r : this->lsObjectRenderToTarget)
+        for (auto r : impl->renderTargets)
         {
             r->removeFromRender2Texture(ptr);
         }
@@ -333,7 +680,7 @@ namespace mbm
     {
         if (object == nullptr)
             return;
-        for (auto ph : this->lsPhysics)
+        for (auto ph : impl->physics)
         {
             ph->removeObject(object);
         }
@@ -341,50 +688,50 @@ namespace mbm
         // to prevent stale (dangling) pointers from remaining in those lists after this object is freed.
         this->stopRender2Texture2(object);
 
-        if (object->is3D)
+        if (object->is3DObject())
         {
-            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender3D.size(); ++i)
+            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render3D.size(); ++i)
             {
-                RENDERIZABLE *ptr = lsObjectRender3D[i];
+                RENDERIZABLE *ptr = impl->render3D[i];
                 if (ptr == object)
                 {
-                    for (auto ph : this->lsPhysics)
+                    for (auto ph : impl->physics)
                     {
                         ph->removeObject(ptr);
                     }
-                    lsObjectRender3D.erase(lsObjectRender3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                    impl->render3D.erase(impl->render3D.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                     return;
                 }
             }
         }
-        else if (object->is2dS == false)
+        else if (object->is2dScreenObject() == false)
         {
-            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender2DW.size(); ++i)
+            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DW.size(); ++i)
             {
-                RENDERIZABLE *ptr = lsObjectRender2DW[i];
+                RENDERIZABLE *ptr = impl->render2DW[i];
                 if (ptr == object)
                 {
-                    for (auto ph : this->lsPhysics)
+                    for (auto ph : impl->physics)
                     {
                         ph->removeObject(ptr);
                     }
-                    lsObjectRender2DW.erase(lsObjectRender2DW.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                    impl->render2DW.erase(impl->render2DW.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                     break;
                 }
             }
         }
         else
         {
-            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender2DS.size(); ++i)
+            for (std::vector<RENDERIZABLE *>::size_type i = 0; i < impl->render2DS.size(); ++i)
             {
-                RENDERIZABLE *ptr = lsObjectRender2DS[i];
+                RENDERIZABLE *ptr = impl->render2DS[i];
                 if (ptr == object)
                 {
-                    for (auto ph : this->lsPhysics)
+                    for (auto ph : impl->physics)
                     {
                         ph->removeObject(ptr);
                     }
-                    lsObjectRender2DS.erase(lsObjectRender2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
+                    impl->render2DS.erase(impl->render2DS.begin() + std::vector<RENDERIZABLE *>::difference_type(i));
                     break;
                 }
             }
@@ -394,8 +741,9 @@ namespace mbm
     bool DEVICE::rayCast(const float sx, const float sy, VEC3 *rayOriginOut, VEC3 *rayDir) const
     {
         // two ways to do it ...
-        const float vx = (sx /  backBufferWidth - 0.5f) * 2.0f / camera.matrixProj._11;
-        const float vy = -(sy / backBufferHeight - 0.5f) * 2.0f / camera.matrixProj._22;
+        const CAMERA &camera = impl->camera;
+        const float vx = (sx /  impl->backBufferWidth - 0.5f) * 2.0f / camera.matrixProj._11;
+        const float vy = -(sy / impl->backBufferHeight - 0.5f) * 2.0f / camera.matrixProj._22;
         const float vz = 1.0f;
         MATRIX      m;
         if (MatrixInverse(&m, nullptr, &camera.matrixView) == nullptr)
@@ -409,8 +757,8 @@ namespace mbm
         rayOriginOut->z = m._43;
         return true;
         /*
-        const float vx =  (sx/backBufferWidth  - 0.5f) * 2.0f; // [0,1024] -> [-1,1]
-        const float vy = -(sy/backBufferHeight - 0.5f) * 2.0f; // [0, 768] -> [-1,1]
+        const float vx =  (sx/impl->backBufferWidth  - 0.5f) * 2.0f; // [0,1024] -> [-1,1]
+        const float vy = -(sy/impl->backBufferHeight - 0.5f) * 2.0f; // [0, 768] -> [-1,1]
         VEC3 origin(vx,vy,0.0f);
         VEC3 Far(vx,vy,1.0f);
         MATRIX inverseviewproj;
@@ -433,8 +781,9 @@ namespace mbm
                                                          const float howFarZFromCamera) const
     {
         VEC3        rayOriginOut, rayDirOut;
-        const float newX = x * this->camera.scaleScreen2d.x;
-        const float newY = y * this->camera.scaleScreen2d.y;
+        const CAMERA &camera = impl->camera;
+        const float newX = x * camera.scaleScreen2d.x;
+        const float newY = y * camera.scaleScreen2d.y;
         if (this->rayCast(newX, newY, &rayOriginOut, &rayDirOut))
         {
             out->x = rayDirOut.x * howFarZFromCamera + rayOriginOut.x;
@@ -448,18 +797,19 @@ namespace mbm
     void DEVICE::transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC2 &out) const noexcept
     {
         //original
-        const VEC2 middle(this->backBufferWidth * 0.5f, this->backBufferHeight * 0.5f);
-        out.x = (x * this->camera.scaleScreen2d.x) - middle.x + this->camera.position2d.x;
-        out.y = -((y * this->camera.scaleScreen2d.y) - middle.y) + this->camera.position2d.y;
-        out.x *= this->__percXcam2dScale;
-        out.y *= this->__percYcam2dScale;
+        const CAMERA &camera = impl->camera;
+        const VEC2 middle(impl->backBufferWidth * 0.5f, impl->backBufferHeight * 0.5f);
+        out.x = (x * camera.scaleScreen2d.x) - middle.x + camera.position2d.x;
+        out.y = -((y * camera.scaleScreen2d.y) - middle.y) + camera.position2d.y;
+        out.x *= impl->percXcam2dScale;
+        out.y *= impl->percYcam2dScale;
 
         // x, y are already in expected screen coordinates (divided by scale2d by caller)
-        //const VEC2 middle(this->camera.expectedScreen.x * 0.5f, this->camera.expectedScreen.y * 0.5f);
-        //out.x = x - middle.x + this->camera.position2d.x;
-        //out.y = -(y - middle.y) + this->camera.position2d.y;
-        //out.x *= this->__percXcam2dScale;
-        //out.y *= this->__percYcam2dScale;
+        //const VEC2 middle(camera.expectedScreen.x * 0.5f, camera.expectedScreen.y * 0.5f);
+        //out.x = x - middle.x + camera.position2d.x;
+        //out.y = -(y - middle.y) + camera.position2d.y;
+        //out.x *= impl->percXcam2dScale;
+        //out.y *= impl->percYcam2dScale;
     }
     
     void DEVICE::transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC3 &out) const noexcept
@@ -473,18 +823,19 @@ namespace mbm
     void DEVICE::transformeWorld2dToScreen2d_scaled(const float x, const float y, VEC2 &out) const noexcept
     {
         //original
-        const VEC2 newIn(x / this->__percXcam2dScale, y / this->__percYcam2dScale);
-        const VEC2 middle(this->backBufferWidth * 0.5f, this->backBufferHeight * 0.5f);
-        out.x = newIn.x + middle.x - this->camera.position2d.x;
-        out.y = this->backBufferHeight - ((newIn.y + middle.y) - this->camera.position2d.y);
-        out.x /= this->camera.scaleScreen2d.x;
-        out.y /= this->camera.scaleScreen2d.y; 
+        const CAMERA &camera = impl->camera;
+        const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
+        const VEC2 middle(impl->backBufferWidth * 0.5f, impl->backBufferHeight * 0.5f);
+        out.x = newIn.x + middle.x - camera.position2d.x;
+        out.y = impl->backBufferHeight - ((newIn.y + middle.y) - camera.position2d.y);
+        out.x /= camera.scaleScreen2d.x;
+        out.y /= camera.scaleScreen2d.y;
 
-        //const VEC2 newIn(x / this->__percXcam2dScale, y / this->__percYcam2dScale);
-        //const VEC2 middle(this->camera.expectedScreen.x * 0.5f, this->camera.expectedScreen.y * 0.5f);
+        //const VEC2 newIn(x / impl->percXcam2dScale, y / impl->percYcam2dScale);
+        //const VEC2 middle(camera.expectedScreen.x * 0.5f, camera.expectedScreen.y * 0.5f);
         //// Output in expected screen coordinates (caller should multiply by scale2d if actual pixels needed)
-        //out.x = newIn.x + middle.x - this->camera.position2d.x;
-        //out.y = this->camera.expectedScreen.y - ((newIn.y + middle.y) - this->camera.position2d.y);
+        //out.x = newIn.x + middle.x - camera.position2d.x;
+        //out.y = camera.expectedScreen.y - ((newIn.y + middle.y) - camera.position2d.y);
     }
     
     bool DEVICE::isPointWorld2dOnScreen2D(const float x, const float y) const noexcept
@@ -493,26 +844,27 @@ namespace mbm
         this->transformeWorld2dToScreen2d_scaled(x, y, onScreen);
         if (onScreen.x < 0)
             return false;
-        else if (onScreen.x > this->backBufferWidth * this->__percXcam2dScale)
+        else if (onScreen.x > impl->backBufferWidth * impl->percXcam2dScale)
             return false;
         else if (onScreen.y < 0)
             return false;
-        else if (onScreen.y > this->backBufferHeight * this->__percYcam2dScale)
+        else if (onScreen.y > impl->backBufferHeight * impl->percYcam2dScale)
             return false;
         return true;
     }
     
     bool DEVICE::isCircleScreen2dOnScreen2D_scaled(const float x, const float y, const float ray) const noexcept
     {
-        const float newX = this->camera.scaleScreen2d.x * x;
-        const float newY = this->camera.scaleScreen2d.y * y;
+        const CAMERA &camera = impl->camera;
+        const float newX = camera.scaleScreen2d.x * x;
+        const float newY = camera.scaleScreen2d.y * y;
         if ((newX + ray) < 0)
             return false;
-        else if ((newX - ray) > this->backBufferWidth)
+        else if ((newX - ray) > impl->backBufferWidth)
             return false;
         else if ((newY + ray) < 0)
             return false;
-        else if ((newY - ray) > this->backBufferHeight)
+        else if ((newY - ray) > impl->backBufferHeight)
             return false;
         return true;
     }
@@ -521,11 +873,11 @@ namespace mbm
     {
         if ((x + ray) < 0)
             return false;
-        else if ((x - ray) > this->backBufferWidth)
+        else if ((x - ray) > impl->backBufferWidth)
             return false;
         else if ((y + ray) < 0)
             return false;
-        else if ((y - ray) > this->backBufferHeight)
+        else if ((y - ray) > impl->backBufferHeight)
             return false;
         return true;
     }
@@ -536,11 +888,11 @@ namespace mbm
         this->transformeWorld2dToScreen2d_scaled(x, y, onScreen);
         if ((onScreen.x + ray) < 0)
             return false;
-        else if ((onScreen.x - ray) > this->backBufferWidth * this->__percXcam2dScale)
+        else if ((onScreen.x - ray) > impl->backBufferWidth * impl->percXcam2dScale)
             return false;
         else if ((onScreen.y + ray) < 0)
             return false;
-        else if ((onScreen.y - ray) > this->backBufferHeight * this->__percYcam2dScale)
+        else if ((onScreen.y - ray) > impl->backBufferHeight * impl->percYcam2dScale)
             return false;
         return true;
     }
@@ -579,11 +931,11 @@ namespace mbm
         const VEC2 onScreen(x, y);
         if (onScreen.x < 0)
             return false;
-        else if (onScreen.x > this->backBufferWidth)
+        else if (onScreen.x > impl->backBufferWidth)
             return false;
         else if (onScreen.y < 0)
             return false;
-        else if (onScreen.y > this->backBufferHeight)
+        else if (onScreen.y > impl->backBufferHeight)
             return false;
         return true;
     }
@@ -695,8 +1047,8 @@ namespace mbm
 
     void DEVICE::getDimFromFrustum(VEC3 *dimNear, VEC3 *dimFar) const noexcept
     {
-        *dimNear = this->dimNearFrustum3d;
-        *dimFar  = this->dimFarFrustum3d;
+        *dimNear = impl->dimNearFrustum3d;
+        *dimFar  = impl->dimFarFrustum3d;
     }
     
     void DEVICE::setBillboard(MATRIX *out, VEC3 *position , VEC3 *scale)
@@ -704,7 +1056,7 @@ namespace mbm
         if (out)
         {
             MATRIX matrixAux;
-            *out = this->camera.matrixBillboard;
+            *out = impl->camera.matrixBillboard;
             if (scale)
             {
                 MatrixScaling(&matrixAux, scale->x, scale->y, scale->z);
@@ -726,39 +1078,39 @@ namespace mbm
     
     void DEVICE::setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface)
     {
-        this->audioInterface = _audioInterface;
+        impl->audioInterface = _audioInterface;
     }
 
     AUDIO_MANAGER_INTERFACE* DEVICE::getAudioManagerInterface() const noexcept
     {
-        return this->audioInterface;
+        return impl->audioInterface;
     }
 
     void * DEVICE::get_lua_state()//if we are using lua we should be able to retrieve the current state
     {
-        if(this->scene)
-            return this->scene->get_lua_state();
+        if(impl->scene)
+            return impl->scene->get_lua_state();
         return nullptr;
     }
 
     DEVICE::~DEVICE()
     {
-        for (const auto & i : this->lsDynamicVarGlobal)
+        for (const auto & i : impl->lsDynamicVarGlobal)
         {
             DYNAMIC_VAR *dVar = i.second;
             delete dVar;
         }
-        this->lsDynamicVarGlobal.clear();
+        impl->lsDynamicVarGlobal.clear();
         this->destroySpecificContext();
     }
 
     void DEVICE::refreshDevice()
     {
         //force refresh window by sending resize event
-        const int newWidth     = static_cast<int>(this->backBufferWidth) ;
-        const int newHeight    = static_cast<int>(this->backBufferHeight);
-        this->backBufferWidth  = static_cast<float>(newWidth + 1);
-        this->ptrManager->onResizeWindow(newWidth, newHeight);
+        const int newWidth     = static_cast<int>(impl->backBufferWidth);
+        const int newHeight    = static_cast<int>(impl->backBufferHeight);
+        impl->backBufferWidth  = static_cast<float>(newWidth + 1);
+        impl->ptrManager->onResizeWindow(newWidth, newHeight);
     }
 }
 

@@ -48,20 +48,20 @@ namespace mbm
     int onDestroyTextureViewLua(lua_State *lua)
     {
         TEXTURE_VIEW *        textureView = getTextureViewFromRawTable(lua, 1, 1);
-        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(textureView->userData);
+        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(textureView->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        textureView->userData = nullptr;
+        textureView->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = textureView->getFileName();
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",textureView->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(textureView);
         delete textureView;
         return 0;
@@ -148,15 +148,16 @@ namespace mbm
 		luaL_getmetatable(lua, "_mbmTextureView");
 		lua_setmetatable(lua, -2);
 		auto ** udata     = static_cast<TEXTURE_VIEW **>(lua_newuserdata(lua, sizeof(TEXTURE_VIEW *)));
-        auto textureView          = new TEXTURE_VIEW(device->scene, is3d, is2ds);
-        textureView->userData     = new USER_DATA_RENDER_LUA();
+        auto textureView          = new TEXTURE_VIEW(device->getScene(), is3d, is2ds);
+        textureView->setUserData(new USER_DATA_RENDER_LUA());
         *udata                    = textureView;
+        VEC3 &texturePosition     = textureView->getPosition();
         if (position.x != 0.0f) //-V550
-            textureView->position.x = position.x;
+            texturePosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            textureView->position.y = position.y;
+            texturePosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            textureView->position.z = position.z;
+            texturePosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_TEXTURE);
@@ -170,20 +171,20 @@ namespace mbm
 	int onDestroyNoGCTextureViewLua(lua_State *lua)
     {
         TEXTURE_VIEW *        textureView = getTextureViewFromRawTable(lua, 1, 1);
-        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(textureView->userData);
+        auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(textureView->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        textureView->userData = nullptr;
+        textureView->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = textureView->getFileName();
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",textureView->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(textureView);
         return 0;
     }
@@ -192,7 +193,7 @@ namespace mbm
 	int onNewTextureViewNoGcLua(lua_State *lua,RENDERIZABLE * renderizable)
 	{
 		lua_settop(lua,0);
-		if(renderizable == nullptr || renderizable->userData != nullptr)
+		if(renderizable == nullptr || renderizable->getUserData() != nullptr)
 			return false;
 		
 		//table
@@ -224,7 +225,7 @@ namespace mbm
 		auto ** udata             = static_cast<TEXTURE_VIEW **>(lua_newuserdata(lua, sizeof(TEXTURE_VIEW *)));
         auto textureView          = static_cast<TEXTURE_VIEW*>(renderizable);
 		auto user_data            = new USER_DATA_RENDER_LUA();
-        renderizable->userData    = user_data;
+        renderizable->setUserData(user_data);
         *udata                    = textureView;
         
 		/* trick to ensure that we will receive the expected metatable type expected metatable type. */

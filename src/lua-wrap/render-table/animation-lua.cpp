@@ -58,8 +58,8 @@ namespace mbm
             anim       = animations->getAnimation();
         if (anim)
         {
-            lua_pushstring(lua, anim->nameAnimation);
-            lua_pushinteger(lua, animations->indexCurrentAnimation + 1);
+            lua_pushstring(lua, anim->getNameAnimation());
+            lua_pushinteger(lua, animations->getIndexAnimation() + 1);
         }
         else
         {
@@ -98,7 +98,7 @@ namespace mbm
         ANIMATION_MANAGER *animations = getAnimationManagerFromRawTable(lua, 1, 1, nullptr);
         ANIMATION *   anim       = animations->getAnimation(); //-V522
         if (anim)
-            lua_pushinteger(lua, anim->indexCurrentFrame + 1);
+            lua_pushinteger(lua, anim->getIndexCurrentFrame() + 1);
         else
             lua_pushinteger(lua, 0);
         return 1;
@@ -116,7 +116,7 @@ namespace mbm
         ANIMATION_MANAGER *animations = getAnimationManagerFromRawTable(lua, 1, 1, nullptr);
         ANIMATION *        anim       = animations->getAnimation(); //-V522
         if (anim)
-            lua_pushboolean(lua, anim->isEndedThisAnimation);
+            lua_pushboolean(lua, anim->isEnded());
         else
             lua_pushboolean(lua, 0);
         return 1;
@@ -126,9 +126,9 @@ namespace mbm
     {
         if (renderer)
         {
-            auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(renderer->userData);
+            auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(renderer->getUserData());
             DEVICE *         device    = DEVICE::getInstance();
-            auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *           lua       = sceneData->lua;
             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_CallBackAnimation);
             if (lua_isfunction(lua, -1))
@@ -149,9 +149,9 @@ namespace mbm
     {
         if (renderizable)
         {
-            auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->userData);
+            auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->getUserData());
             DEVICE *         device = DEVICE::getInstance();
-            auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto * sceneData = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             lua_State *           lua = sceneData->lua;
             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_CallBackEffectShader);
             if (lua_isfunction(lua, -1))
@@ -175,15 +175,15 @@ namespace mbm
         {
             RENDERIZABLE *        renderizable = nullptr;
             ANIMATION_MANAGER *   animations   = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
-            if(renderizable && renderizable->userData)
+            if(renderizable && renderizable->getUserData())
             {
-                auto *userData     = static_cast<USER_DATA_RENDER_LUA *>(renderizable->userData);
+                auto *userData     = static_cast<USER_DATA_RENDER_LUA *>(renderizable->getUserData());
                 userData->refTableLua(lua, 1, &userData->ref_MeAsTable);
                 userData->refFunctionLua(lua, 2, &userData->ref_CallBackAnimation);
                 if(userData->ref_CallBackAnimation == LUA_NOREF)
-                    animations->onEndAnimation = nullptr;
+                    animations->setOnEndAnimation(nullptr);
                 else
-                    animations->onEndAnimation = onEndAnimationCallBackAnimationsLua; //-V522
+                    animations->setOnEndAnimation(onEndAnimationCallBackAnimationsLua); //-V522
             }
         }
         return 0;
@@ -196,15 +196,15 @@ namespace mbm
         {
             RENDERIZABLE *        renderizable = nullptr;
             ANIMATION_MANAGER *   animations = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
-            if(renderizable && renderizable->userData)
+            if(renderizable && renderizable->getUserData())
             {
-                auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->userData);
+                auto *userData = static_cast<USER_DATA_RENDER_LUA *>(renderizable->getUserData());
                 userData->refTableLua(lua, 1, &userData->ref_MeAsTable);
                 userData->refFunctionLua(lua, 2, &userData->ref_CallBackEffectShader);
                 if(userData->ref_CallBackEffectShader == LUA_NOREF)
-                    animations->onEndFx = nullptr;
+                    animations->setOnEndFx(nullptr);
                 else
-                    animations->onEndFx = onEndEffectCallBackAnimationsLua; //-V522
+                    animations->setOnEndFx(onEndEffectCallBackAnimationsLua); //-V522
             }
         }
         return 0;
@@ -220,11 +220,11 @@ namespace mbm
         unsigned int old_type              = mbm::TYPE_ANIMATION_PAUSED;
         if(animation)
         {
-            old_type = animation->type;
+            old_type = animation->getType();
             const unsigned int type = top >= 2 ? luaL_checkinteger(lua, 2) : 0;
             if(type >= mbm::TYPE_ANIMATION_PAUSED && type <= mbm::TYPE_ANIMATION_RECURSIVE_LOOP)
             {
-                animation->type = (mbm::TYPE_ANIMATION)type;
+                animation->setType(static_cast<mbm::TYPE_ANIMATION>(type));
             }
             else
             {
@@ -307,19 +307,19 @@ namespace mbm
         if (anim)
         {
             if (name)
-                strncpy(anim->nameAnimation, name, sizeof(anim->nameAnimation)-1);
+                anim->setNameAnimation(name);
             if (type <= 6)
-                anim->type = (TYPE_ANIMATION)type;
+                anim->setType(static_cast<TYPE_ANIMATION>(type));
             //------------------------------------------------------------------------------------------------------------
             const MESH_MBM *   mesh        = renderizable->getMesh();
             const unsigned int tTotalFrame = mesh ? mesh->getTotalFrame() : 0;
             if (startFrame < tTotalFrame)
-                anim->indexInitialFrame = startFrame;
+                anim->setIndexInitialFrame(startFrame);
             if (finalFrame < tTotalFrame)
-                anim->indexFinalFrame = finalFrame;
+                anim->setIndexFinalFrame(finalFrame);
             if (interval > 0.0f)
-                anim->intervalChangeFrame = interval;
-            lua_pushstring(lua, anim->nameAnimation);
+                anim->setIntervalChangeFrame(interval);
+            lua_pushstring(lua, anim->getNameAnimation());
             lua_pushinteger(lua, index+1);
         }
         else
@@ -340,8 +340,10 @@ namespace mbm
             for (unsigned int i = 0; i < s; ++i)
             {
                 ANIMATION* anim = animations->getAnimation(i);
-                total = total > anim->indexFinalFrame ? total : anim->indexFinalFrame;
-                total = total > anim->indexInitialFrame ? total : anim->indexInitialFrame;
+                const int finalFrame = anim->getIndexFinalFrame();
+                const int initialFrame = anim->getIndexInitialFrame();
+                total = total > finalFrame ? total : finalFrame;
+                total = total > initialFrame ? total : initialFrame;
             }
             lua_pushinteger(lua, total+1);
         }
@@ -392,27 +394,27 @@ namespace mbm
             {
                 const char *value = luaL_checkstring(lua, 2);
                 if (strcmp("disable", value) == 0)
-                    anim->blendState = BLEND_DISABLE;
+                    anim->setBlendState(BLEND_DISABLE);
                 else if (strcmp("zero", value) == 0)
-                    anim->blendState = BLEND_ZERO;
+                    anim->setBlendState(BLEND_ZERO);
                 else if (strcmp("one", value) == 0)
-                    anim->blendState = BLEND_ONE;
+                    anim->setBlendState(BLEND_ONE);
                 else if (strcmp("src_color", value) == 0)
-                    anim->blendState = BLEND_SRCCOLOR;
+                    anim->setBlendState(BLEND_SRCCOLOR);
                 else if (strcmp("inv_src_color", value) == 0)
-                    anim->blendState = BLEND_INVSRCCOLOR;
+                    anim->setBlendState(BLEND_INVSRCCOLOR);
                 else if (strcmp("src_alpha", value) == 0)
-                    anim->blendState = BLEND_SRCALPHA;
+                    anim->setBlendState(BLEND_SRCALPHA);
                 else if (strcmp("inv_src_alpha", value) == 0)
-                    anim->blendState = BLEND_INVSRCALPHA;
+                    anim->setBlendState(BLEND_INVSRCALPHA);
                 else if (strcmp("dest_alpha", value) == 0)
-                    anim->blendState = BLEND_DESTALPHA;
+                    anim->setBlendState(BLEND_DESTALPHA);
                 else if (strcmp("inv_dest_alpha", value) == 0)
-                    anim->blendState = BLEND_INVDESTALPHA;
+                    anim->setBlendState(BLEND_INVDESTALPHA);
                 else if (strcmp("dest_color", value) == 0)
-                    anim->blendState = BLEND_DESTCOLOR;
+                    anim->setBlendState(BLEND_DESTCOLOR);
                 else if (strcmp("inv_dest_color", value) == 0)
-                    anim->blendState = BLEND_INVDESTCOLOR;
+                    anim->setBlendState(BLEND_INVDESTCOLOR);
                 else
                 {
                     return lua_error_debug(lua, errLog);
@@ -427,7 +429,7 @@ namespace mbm
                 }
                 else
                 {
-                    anim->blendState = (BLEND_STATE)value;
+                    anim->setBlendState(static_cast<BLEND_STATE>(value));
                 }
             }
         }
@@ -443,9 +445,10 @@ namespace mbm
         RENDERIZABLE *          renderizable= nullptr;
         ANIMATION_MANAGER *animManager = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
         ANIMATION* anim                = animManager->getAnimation(); //-V522
-        const char *       descr       = renderizable->blend.getDesc(anim->blendState);
+        const BLEND_STATE blendState   = anim->getBlendState();
+        const char *       descr       = renderizable->getBlend().getDesc(blendState);
         lua_pushstring(lua, descr);
-        lua_pushnumber(lua, static_cast<lua_Number>(anim->blendState));
+        lua_pushnumber(lua, static_cast<lua_Number>(blendState));
         return 2;
     }
 
@@ -459,13 +462,14 @@ namespace mbm
             bool bForce_endFx = lua_toboolean(lua, 3);
             if(bForce_endAnim)
             {
-                anim->isEndedThisAnimation = true;
+                anim->setEnded(true);
             }
             if(bForce_endFx)
             {
-                anim->fx.fxPS->forceEndFx();
-                anim->fx.fxVS->forceEndFx();
-                anim->fx.shader.update();
+                FX &fx = anim->getFx();
+                fx.fxPS->forceEndFx();
+                fx.fxVS->forceEndFx();
+                fx.shader.update();
             }
         }
         return 0;

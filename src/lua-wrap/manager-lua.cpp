@@ -82,7 +82,7 @@ namespace mbm
             this->textureRestore        = nullptr;
             this->loadSceneOnFirstLoop   = false;
             this->__onErrorStop__       = false;
-            this->userData              = &this->dataScene;
+            this->setUserData(&this->dataScene);
             //this->time_resize_window    = 0.0f;
             this->splashRenderizable  = mbm::clone(this,previousSplash);
         }
@@ -126,10 +126,11 @@ namespace mbm
             auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
             if (luaManager)
             {
-                auto *curScene = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+                DEVICE *device = luaManager->getDevice();
+                auto *curScene = static_cast<SCENE_SCRIPT*>(device->getScene());
                 if(curScene && curScene->splashRenderizable)
                 {
-                    auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(curScene->splashRenderizable->userData);
+                    auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(curScene->splashRenderizable->getUserData());
                     if(userData == nullptr)
                     {
                         return newNoGCFromRenderizable(lua,curScene->splashRenderizable);
@@ -162,7 +163,7 @@ namespace mbm
             {
                 if (this->createSceneLua() == false)
                 {
-                    device->run = false;
+                    device->setRun(false);
                     return;
                 }
             }
@@ -173,20 +174,20 @@ namespace mbm
                 auto expectedWidth  = static_cast<int>(device->getBackBufferWidth());
                 auto expectedHeight = static_cast<int>(device->getBackBufferHeight());
 
-                DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
+                DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
                 if(D_expectedW && D_expectedW->type == DYNAMIC_INT)
                     expectedWidth = static_cast<unsigned int>(D_expectedW->getInt());
                 else if(D_expectedW && D_expectedW->type == DYNAMIC_FLOAT)
                     expectedWidth = static_cast<unsigned int>(D_expectedW->getFloat());
 
-                DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+                DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
                 if(D_expectedH->type == DYNAMIC_INT)
                     expectedHeight = static_cast<unsigned int>(D_expectedH->getInt());
                 else if(D_expectedH->type == DYNAMIC_FLOAT)
                     expectedHeight = static_cast<unsigned int>(D_expectedH->getFloat());
                 
                 char stretch[3] = "y";
-                DYNAMIC_VAR * D_scaleTo = device->lsDynamicVarGlobal["stretch"];
+                DYNAMIC_VAR * D_scaleTo = device->getDynamicVars()["stretch"];
                 if(D_scaleTo && D_scaleTo->type == DYNAMIC_CSTRING)
                 {
                     const char * pScale = D_scaleTo->getString();
@@ -196,9 +197,10 @@ namespace mbm
             }
             if (SCENE_SCRIPT::logo_was_init == false && this->noSplash == false)
             {
-                device->colorClearBackGround = COLOR(1.0f,1.0f,1.0f,1.0f);
-                device->camera.position2d.x  = 0;
-                device->camera.position2d.y  = 0;
+                device->setColorClearBackGround(COLOR(1.0f,1.0f,1.0f,1.0f));
+                CAMERA &camera = device->getCamera();
+                camera.position2d.x  = 0;
+                camera.position2d.y  = 0;
                 bool        exitsFile              = false;
                 this->textureLogo = new TEXTURE_VIEW(this, true, true);
                 if (this->textureLogo && this->textureLogo->load(&resource_mini_mbm_logo))
@@ -222,9 +224,10 @@ namespace mbm
                         this->scriptLua = "main.lua";
                     log_util::replaceString(this->scriptLua, "\\", "\\\\");
                     log_util::replaceString(restoreLua, "\\", "\\\\");
-                    this->textureLogo->position.x = device->getScaleBackBufferWidth() / 2.0f;
-                    this->textureLogo->position.y = device->getScaleBackBufferHeight() / 2.0f;
-                    this->textureLogo->position.z = -110.0f;
+                    VEC3 &logoPosition = this->textureLogo->getPosition();
+                    logoPosition.x = device->getScaleBackBufferWidth() / 2.0f;
+                    logoPosition.y = device->getScaleBackBufferHeight() / 2.0f;
+                    logoPosition.z = -110.0f;
                     std::string luaFile           = "function onTimeOutChangeScene(ti) ";
                     luaFile += " mbm.loadScene(\"";
                     luaFile += exitsFile ? restoreLua : this->scriptLua;
@@ -252,24 +255,24 @@ namespace mbm
                     luaFile += touchKeyExit;
                     luaFile += tmpEndSceneScript;
                     device->disableAllButThis(this->textureLogo);
-                    device->__swapBackBufferStep = 3;
+                    device->resetSwapBackBufferStep();
                     
                     if (luaL_dostring(this->lua, luaFile.c_str()))
                     {
                         lua_print_line(lua,TYPE_LOG_ERROR,"\n%s", luaL_checkstring(lua, -1));
-                        loadMainScene(device->ptrManager,
+                        loadMainScene(device->getCoreManager(),
                                       this->scriptLua.size() > 0 ? this->scriptLua.c_str() : "main.lua");
                     }
                     
                 }
                 else
                 {
-                    loadMainScene(device->ptrManager,
+                    loadMainScene(device->getCoreManager(),
                                   this->scriptLua.size() > 0 ? this->scriptLua.c_str() : "main.lua");
                 }
                 SCENE_SCRIPT::logo_was_init = true;
             }
-            else if(static_cast<LUA_MANAGER *>(device->ptrManager)->execute_string(this->lua))
+            else if(static_cast<LUA_MANAGER *>(device->getCoreManager())->execute_string(this->lua))
             {
                 SCENE_SCRIPT::logo_was_init = true;
             }
@@ -484,7 +487,7 @@ namespace mbm
             while (this->dataScene.lsLuaCallBackOnTouchSynchronous.size())
             {
                 auto *dataRenderer =
-                    static_cast<USER_DATA_RENDER_LUA *>(this->dataScene.lsLuaCallBackOnTouchSynchronous[0]->userData);
+                    static_cast<USER_DATA_RENDER_LUA *>(this->dataScene.lsLuaCallBackOnTouchSynchronous[0]->getUserData());
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, dataRenderer->ref_CallBackTouchDown);
                 if (lua_isfunction(this->lua, -1))
                 {
@@ -517,11 +520,11 @@ namespace mbm
                 if(this->time_resize_window <= 0.0f)
                 {
                     auto newScene     = new SCENE_SCRIPT(this->getSceneName(), true, this->splashRenderizable);
-                    auto *luaManager  = static_cast<LUA_MANAGER *>(device->ptrManager);
+                    auto *luaManager  = static_cast<LUA_MANAGER *>(device->getCoreManager());
                     luaManager->lsScene.push_back(newScene);
-                    device->scene->nextScene     = newScene;
-                    device->scene->goToNextScene = true;
-                    device->scene->endScene      = true;
+                    device->getScene()->setNextScene(newScene);
+                    device->getScene()->setGoToNextScene(true);
+                    device->getScene()->setEndScene(true);
                     this->time_resize_window           = 0.0f;
                 }
             }*/
@@ -610,10 +613,12 @@ namespace mbm
                     this->textureRestore = new TEXTURE_VIEW(false,true);
                     if (this->textureRestore && this->textureRestore->load(& resource_loading))
                     {
-                        this->textureRestore->position.x = device->getScaleBackBufferWidth() / 2.0f;
-                        this->textureRestore->position.y = device->getScaleBackBufferHeight() / 2.0f;
-                        this->textureRestore->scale.x    = 0.5f;
-                        this->textureRestore->scale.y    = 0.5f;
+                        VEC3 &restorePosition = this->textureRestore->getPosition();
+                        VEC3 &restoreScale = this->textureRestore->getScale();
+                        restorePosition.x = device->getScaleBackBufferWidth() / 2.0f;
+                        restorePosition.y = device->getScaleBackBufferHeight() / 2.0f;
+                        restoreScale.x    = 0.5f;
+                        restoreScale.y    = 0.5f;
                         device->renderToRestore(this->textureRestore);
                     }
                 }
@@ -623,7 +628,7 @@ namespace mbm
                 if (this->textureRestore)
                 {
                     device->clearDepthColored();
-                    this->textureRestore->angle.z = util::degreeToRadian((180.0f / 100.0f) * percent);
+                    this->textureRestore->getAngle().z = util::degreeToRadian((180.0f / 100.0f) * percent);
                     device->renderToRestore(this->textureRestore);
                 }
                 if(percent == 100)
@@ -653,7 +658,7 @@ namespace mbm
                     }
                     if (this->textureRestore)
                     {
-                        this->textureRestore->enableRender = false;
+                        this->textureRestore->setEnableRender(false);
                         delete this->textureRestore;
                         this->textureRestore = nullptr;
                     }
@@ -683,10 +688,10 @@ namespace mbm
             }
             for (auto obj : this->dataScene.lsLuaCallBackOnTouchAsynchronous)
             {
-                if (!obj->enableRender)
+                if (!obj->isRenderEnabled())
                     continue;
-                auto *dataRenderer = static_cast<USER_DATA_RENDER_LUA *>(obj->userData);
-                if (obj->is3D)
+                auto *dataRenderer = static_cast<USER_DATA_RENDER_LUA *>(obj->getUserData());
+                if (obj->is3DObject())
                 {
                     if (obj->isOver3d(device, x, y))
                     {
@@ -696,7 +701,7 @@ namespace mbm
                         this->dataScene.lsLuaCallBackOnTouchSynchronous.push_back(obj);
                     }
                 }
-                else if (obj->is2dS)
+                else if (obj->is2dScreenObject())
                 {
                     if (obj->isOver2ds(device, x, y))
                     {
@@ -968,7 +973,7 @@ namespace mbm
                 if(this->textureLogo)
                     delete this->textureLogo;
                 this->textureLogo = nullptr;
-                this->splashRenderizable->enableRender = true;
+                this->splashRenderizable->setEnableRender(true);
                 RENDERIZABLE* oldRenderizable = this->splashRenderizable;
                 this->splashRenderizable = mbm::clone(this,oldRenderizable);//the new 
                 delete oldRenderizable;
@@ -977,14 +982,16 @@ namespace mbm
             else if (this->textureLogo == nullptr)
             {
                 this->textureLogo                  = new TEXTURE_VIEW(this, true, true);
-                device->colorClearBackGround = COLOR(1.0f,1.0f,1.0f,1.0f);
+                device->setColorClearBackGround(COLOR(1.0f,1.0f,1.0f,1.0f));
                 if (this->textureLogo && this->textureLogo->load(& resource_loading))
                 {
-                    this->textureLogo->position.x = device->getScaleBackBufferWidth() / 2.0f;
-                    this->textureLogo->position.y = device->getScaleBackBufferHeight() / 2.0f;
-                    this->textureLogo->position.z = -1000;
-                    this->textureLogo->scale.x    = 0.5f;
-                    this->textureLogo->scale.y    = 0.5f;
+                    VEC3 &logoPosition = this->textureLogo->getPosition();
+                    VEC3 &logoScale = this->textureLogo->getScale();
+                    logoPosition.x = device->getScaleBackBufferWidth() / 2.0f;
+                    logoPosition.y = device->getScaleBackBufferHeight() / 2.0f;
+                    logoPosition.z = -1000;
+                    logoScale.x    = 0.5f;
+                    logoScale.y    = 0.5f;
                     device->disableAllButThis(this->textureLogo);
                 }
             }
@@ -1007,7 +1014,7 @@ namespace mbm
                 lua_getglobal(lua,"cCoroutineLoadScene");
                 const int type  = lua_type(lua,-1);
                 if (type != LUA_TTHREAD)
-                    this->splashRenderizable->enableRender = false;
+                    this->splashRenderizable->setEnableRender(false);
                 
                 lua_settop(lua,0);
             }
@@ -1121,17 +1128,17 @@ namespace mbm
         bool SCENE_SCRIPT::doLauncher(const std::string& fileNameScene)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            mbm::DYNAMIC_VAR* var = device->lsDynamicVarGlobal["fileNameScene"];
+            mbm::DYNAMIC_VAR* var = device->getDynamicVars()["fileNameScene"];
             if (var == nullptr)
             {
                 var = new DYNAMIC_VAR(DYNAMIC_CSTRING, fileNameScene.c_str());
-                device->lsDynamicVarGlobal["fileNameScene"] = var;
+                device->getDynamicVars()["fileNameScene"] = var;
             }
             else if (var->type != DYNAMIC_CSTRING)
             {
                 delete var;
                 var = new DYNAMIC_VAR(DYNAMIC_CSTRING, fileNameScene.c_str());
-                device->lsDynamicVarGlobal["fileNameScene"] = var;
+                device->getDynamicVars()["fileNameScene"] = var;
             }
             else
             {
@@ -1151,11 +1158,11 @@ namespace mbm
         {
             LUA_MANAGER::pLuaManager = this;
             onDoNativeCommand = nullptr;
-            pLuaManager->device = mbm::DEVICE::getInstance();
+            DEVICE *device = this->getDevice();
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
             this->nameApplication = "Mini-mbm " MBM_VERSION " ";
-            this->nameApplication += pLuaManager->device->getBackendEngineName();
+            this->nameApplication += device->getBackendEngineName();
             this->nameApplication += " Compiled: " __DATE__;
     #if defined _WIN32
             int _w = 0;
@@ -1174,7 +1181,8 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->windowBorder   = true;
+            this->windowBorder       = true;
+            this->enableResizeWindow = false;
             this->hasValueTextureLogo = false;
             #if defined _DEBUG || defined DEBUG
             INFO_LOG("%s", this->nameApplication.c_str());
@@ -1184,7 +1192,7 @@ namespace mbm
         LUA_MANAGER::LUA_MANAGER(const std::vector<std::string> & args)
         {
             LUA_MANAGER::pLuaManager = this;
-            pLuaManager->device = mbm::DEVICE::getInstance();
+            DEVICE *device = this->getDevice();
             onDoNativeCommand = nullptr;
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
@@ -1207,16 +1215,17 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->windowBorder = true;
+            this->windowBorder       = true;
+            this->enableResizeWindow = false;
             if(args.size() > 0)
             {
                 auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,args[0].c_str());
-                pLuaManager->device->lsDynamicVarGlobal["_executable_name_"] = dExeName;
+                device->getDynamicVars()["_executable_name_"] = dExeName;
             }
             
             this->hasValueTextureLogo = false;
             this->parserArgs(args);
-            if(pLuaManager->device->verbose)
+            if(device->isVerbose())
                 INFO_LOG("%s", this->nameApplication.c_str());
         }
 
@@ -1224,7 +1233,7 @@ namespace mbm
         {
             LUA_MANAGER::pLuaManager = this;
             onDoNativeCommand = nullptr;
-            pLuaManager->device = mbm::DEVICE::getInstance();
+            DEVICE *device = this->getDevice();
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
             this->nameApplication = "Mini-mbm " MBM_VERSION;
@@ -1246,11 +1255,12 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->windowBorder = true;
+            this->windowBorder       = true;
+            this->enableResizeWindow = false;
             std::vector<std::string> lsArg;
             
             auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,argv[0]);
-            pLuaManager->device->lsDynamicVarGlobal["_executable_name_"] = dExeName;
+            device->getDynamicVars()["_executable_name_"] = dExeName;
             
             this->hasValueTextureLogo = false;
             lsArg.reserve(argc);
@@ -1259,7 +1269,7 @@ namespace mbm
                 lsArg.emplace_back(argv[i]);
             }
             this->parserArgs(lsArg);
-            if(device->verbose)
+            if(device->isVerbose())
                 INFO_LOG("%s", this->nameApplication.c_str());
         }
     #endif // !ANDROID
@@ -1286,26 +1296,26 @@ namespace mbm
         void LUA_MANAGER::setExpectedSizeOfWindow(int expectedWidth,int expectedHeight,const char * stretch)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
-            DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+            DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
+            DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
             if(D_expectedW == nullptr)
-                device->lsDynamicVarGlobal["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&expectedWidth);
+                device->getDynamicVars()["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&expectedWidth);
             else if(D_expectedW->type == DYNAMIC_INT)
                 D_expectedW->setInt(expectedWidth);
             else if(D_expectedW->type == DYNAMIC_FLOAT)
                 D_expectedW->setFloat(static_cast<float>(expectedWidth));
 
             if(D_expectedH == nullptr)
-                device->lsDynamicVarGlobal["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&expectedHeight);
+                device->getDynamicVars()["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&expectedHeight);
             else if(D_expectedH->type == DYNAMIC_INT)
                 D_expectedH->setInt(expectedHeight);
             else if(D_expectedH->type == DYNAMIC_FLOAT)
                 D_expectedH->setFloat(static_cast<float>(expectedHeight));
             if(stretch)
             {
-                DYNAMIC_VAR * D_scaleTo = device->lsDynamicVarGlobal["stretch"];
+                DYNAMIC_VAR * D_scaleTo = device->getDynamicVars()["stretch"];
                 if(D_scaleTo == nullptr)
-                    device->lsDynamicVarGlobal["stretch"] = new DYNAMIC_VAR(DYNAMIC_CSTRING,stretch);
+                    device->getDynamicVars()["stretch"] = new DYNAMIC_VAR(DYNAMIC_CSTRING,stretch);
                 else if(D_scaleTo->type == DYNAMIC_CSTRING)
                     D_scaleTo->setString(stretch);
             }
@@ -1314,8 +1324,8 @@ namespace mbm
         void LUA_MANAGER::getExpectedSizeOfWindow(int & expectedWidth,int & expectedHeight, std::string & stretch)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
-            DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+            DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
+            DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
             if(D_expectedW)
             {
                 if(D_expectedW->type == DYNAMIC_INT)
@@ -1331,7 +1341,7 @@ namespace mbm
                 else if(D_expectedH->type == DYNAMIC_FLOAT)
                     expectedHeight = static_cast<int>(D_expectedH->getFloat());
             }
-            DYNAMIC_VAR * D_scaleTo = device->lsDynamicVarGlobal["stretch"];
+            DYNAMIC_VAR * D_scaleTo = device->getDynamicVars()["stretch"];
             if(D_scaleTo && D_scaleTo->type == DYNAMIC_CSTRING)
                 stretch = D_scaleTo->getString();
         }
@@ -1339,12 +1349,12 @@ namespace mbm
         bool LUA_MANAGER::initializeSceneLua(int w, int h,int _expectedWidth,int _expectedHeight, const bool border)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            device->ptrManager = this;
+            device->setCoreManager(this);
             std::string s_stretch("y");
             getExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch);
             setExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch.c_str());
 
-            if (this->initGraphics(this->nameApplication.c_str(), this->widthWindow, this->heightWindow, device->windowPositionX, device->windowPositionY, border,this->enableResizeWindow))
+            if (this->initGraphics(this->nameApplication.c_str(), this->widthWindow, this->heightWindow, device->getWindowPositionX(), device->getWindowPositionY(), border,this->enableResizeWindow))
             {
                 if (this->fileNameInitialLua.size())
                 {
@@ -1369,7 +1379,7 @@ namespace mbm
         int LUA_MANAGER::run()
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            if (device->scene && this->lsScene.size()) // is there an initial scene?
+            if (device->getScene() && this->lsScene.size()) // is there an initial scene?
             {
                 SCENE_SCRIPT *newScene = this->lsScene[0];
                 this->setScene(newScene);
@@ -1430,12 +1440,12 @@ namespace mbm
                     nextArg = ENABLE_RESIZE_WINDOW;
                 else if (strcasecmp(arg, "-notverbose") == 0 || strcasecmp(arg, "--notverbose") == 0)
                 {
-                    device->verbose = false;
+                    device->setVerbose(false);
                     nextArg = NONE;
                 }
                 else if (strcasecmp(arg, "-verbose") == 0 || strcasecmp(arg, "--verbose") == 0)
                 {
-                    device->verbose = true;
+                    device->setVerbose(true);
                     nextArg = NONE;
                 }
                 else if (strcasecmp(arg, "--noborder") == 0 || strcasecmp(arg, "-noborder") == 0)
@@ -1466,17 +1476,17 @@ namespace mbm
                             {
                                 const char *      name  = result[0].c_str();
                                 const char *      value = result[1].c_str();
-                                DYNAMIC_VAR *var   = device->lsDynamicVarGlobal[name];
+                                DYNAMIC_VAR *var   = device->getDynamicVars()[name];
                                 if (var)
                                     delete var;
                                 auto vFloat    = static_cast<float>(std::atof(value));
                                 int vInt        = std::atoi(value);
                                 if(vFloat != 0.0f) //-V550
-                                    device->lsDynamicVarGlobal[name] = new DYNAMIC_VAR(DYNAMIC_FLOAT,&vFloat);
+                                    device->getDynamicVars()[name] = new DYNAMIC_VAR(DYNAMIC_FLOAT,&vFloat);
                                 else if(vInt != 0)
-                                    device->lsDynamicVarGlobal[name] = new DYNAMIC_VAR(DYNAMIC_INT,&vInt);
+                                    device->getDynamicVars()[name] = new DYNAMIC_VAR(DYNAMIC_INT,&vInt);
                                 else
-                                    device->lsDynamicVarGlobal[name] = new DYNAMIC_VAR(DYNAMIC_CSTRING,value);
+                                    device->getDynamicVars()[name] = new DYNAMIC_VAR(DYNAMIC_CSTRING,value);
                             }
                             else
                             {
@@ -1501,7 +1511,7 @@ namespace mbm
                                             {
                                                 const char *      name  = result[0].c_str();
                                                 const char *      value = result[1].c_str();
-                                                DYNAMIC_VAR *var   = device->lsDynamicVarGlobal[name];
+                                                DYNAMIC_VAR *var   = device->getDynamicVars()[name];
                                                 if (var)
                                                     delete var;
                                                 auto vFloat    = static_cast<float>(std::atof(value));
@@ -1512,7 +1522,7 @@ namespace mbm
                                                     var = new DYNAMIC_VAR(DYNAMIC_INT,&vInt);
                                                 else
                                                     var = new DYNAMIC_VAR(DYNAMIC_CSTRING,value);
-                                                device->lsDynamicVarGlobal[name] = var;
+                                                device->getDynamicVars()[name] = var;
                                             }
                                         }
 
@@ -1563,9 +1573,9 @@ namespace mbm
                                         int newW = std::atoi(arg);
                                         if (newW > 0)
                                         {
-                                            DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
+                                            DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
                                             if(D_expectedW == nullptr)
-                                                device->lsDynamicVarGlobal["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
+                                                device->getDynamicVars()["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
                                             else if(D_expectedW->type == DYNAMIC_INT)
                                                 D_expectedW->setInt(newW);
                                             else if(D_expectedW->type == DYNAMIC_FLOAT)
@@ -1579,9 +1589,9 @@ namespace mbm
                                         int newH = std::atoi(arg);
                                         if (newH > 0)
                                         {
-                                            DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+                                            DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
                                             if(D_expectedH == nullptr)
-                                                device->lsDynamicVarGlobal["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
+                                                device->getDynamicVars()["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
                                             else if(D_expectedH->type == DYNAMIC_INT)
                                                 D_expectedH->setInt(newH);
                                             else if(D_expectedH->type == DYNAMIC_FLOAT)
@@ -1592,13 +1602,13 @@ namespace mbm
                                     break;
                                     case POSITION_X_SCREEN:
                                     {
-                                        this->device->windowPositionX = std::atoi(arg);
+                                        device->setWindowPositionX(std::atoi(arg));
                                         nextArg               = POSITION_X_SCREEN;
                                     }
                                     break;
                                     case POSITION_Y_SCREEN:
                                     {
-                                        this->device->windowPositionY = std::atoi(arg);
+                                        device->setWindowPositionY(std::atoi(arg));
                                         nextArg               = POSITION_Y_SCREEN;
                                     }
                                     break;
@@ -1666,9 +1676,9 @@ namespace mbm
                             auto newW = (unsigned int)std::atoi(arg);
                             if (newW > 0)
                             {
-                                DYNAMIC_VAR * D_expectedW = device->lsDynamicVarGlobal["expectedwidth"];
+                                DYNAMIC_VAR * D_expectedW = device->getDynamicVars()["expectedwidth"];
                                 if(D_expectedW == nullptr)
-                                    device->lsDynamicVarGlobal["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
+                                    device->getDynamicVars()["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
                                 else if(D_expectedW->type == DYNAMIC_INT)
                                     D_expectedW->setInt(newW);
                                 else if(D_expectedW->type == DYNAMIC_FLOAT)
@@ -1676,7 +1686,7 @@ namespace mbm
                                 else
                                 {
                                     delete D_expectedW;
-                                    device->lsDynamicVarGlobal["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
+                                    device->getDynamicVars()["expectedwidth"] = new DYNAMIC_VAR(DYNAMIC_INT,&newW);
                                 }
                             }
                         }
@@ -1686,9 +1696,9 @@ namespace mbm
                             auto newH = (unsigned int)std::atoi(arg);
                             if (newH > 0)
                             {
-                                DYNAMIC_VAR * D_expectedH = device->lsDynamicVarGlobal["expectedheight"];
+                                DYNAMIC_VAR * D_expectedH = device->getDynamicVars()["expectedheight"];
                                 if(D_expectedH == nullptr)
-                                    device->lsDynamicVarGlobal["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
+                                    device->getDynamicVars()["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
                                 else if(D_expectedH->type == DYNAMIC_INT)
                                     D_expectedH->setInt(newH);
                                 else if(D_expectedH->type == DYNAMIC_FLOAT)
@@ -1696,14 +1706,14 @@ namespace mbm
                                 else
                                 {
                                     delete D_expectedH;
-                                    device->lsDynamicVarGlobal["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
+                                    device->getDynamicVars()["expectedheight"] = new DYNAMIC_VAR(DYNAMIC_INT,&newH);
                                 }
                             }
                         }
                         break;
-                        case POSITION_X_SCREEN: { this->device->windowPositionX = std::atoi(arg);}
+                        case POSITION_X_SCREEN: { device->setWindowPositionX(std::atoi(arg));}
                         break;
-                        case POSITION_Y_SCREEN: { this->device->windowPositionY = std::atoi(arg);}
+                        case POSITION_Y_SCREEN: { device->setWindowPositionY(std::atoi(arg));}
                         break;
                         case MAXIMIZED_WINDOW: { this->maximizedWindow = std::atoi(arg) ? true : false;}
                         break;
@@ -1741,7 +1751,7 @@ namespace mbm
             }
             if(this->fileNameInitialLua.size() == 0)
             {
-                if(device->verbose)
+                if(device->isVerbose())
                     WARN_LOG("\nScene not set... setting it to main.lua");
                 this->fileNameInitialLua = "main.lua";
             }
@@ -1751,20 +1761,21 @@ namespace mbm
     {
         const int    top        = lua_gettop(lua);
         DEVICE *device			= DEVICE::getInstance();
-        auto *luaManager = static_cast<LUA_MANAGER *>(device->ptrManager);
+        auto *luaManager = static_cast<LUA_MANAGER *>(device->getCoreManager());
         if (luaManager && device)
         {
             const char *  nameScene = luaL_checkstring(lua, 1);
             const int tSplash       = top > 1 ? lua_type(lua,2) : LUA_TNONE;
             nameScene               = util::getFullPath(nameScene,nullptr);
-            if (luaManager->__sceneWasInit == false)
+            SCENE *scene = device->getScene();
+            if (luaManager->isSceneInitialized() == false)
             {
-                if(luaManager->device->verbose)
-                lua_print_line(lua,TYPE_LOG_WARN,"The scene [%s] will be load in the main loop!", nameScene);
+                if(device->isVerbose())
+                    lua_print_line(lua,TYPE_LOG_WARN,"The scene [%s] will be load in the main loop!", nameScene);
                 std::string nameSceneTmp(nameScene);
                 log_util::replaceString(nameSceneTmp,"\\\\","/");
                 log_util::replaceString(nameSceneTmp,"\\","/");
-                auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+                auto *curScene = static_cast<SCENE_SCRIPT*>(scene);
                 curScene->loadSceneOnFirstLoop        = true;
                 curScene->strNameSceneLoadOnFirtLoop = std::move(nameSceneTmp);
                 lua_pushboolean(lua, 1);
@@ -1772,14 +1783,14 @@ namespace mbm
             }
             
             const std::string newSceneName(nameScene ? nameScene : "");
-            if (device->scene && access_file(newSceneName.c_str(), 0) == 0)
+            if (scene && access_file(newSceneName.c_str(), 0) == 0)
             {
-                auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+                auto *curScene = static_cast<SCENE_SCRIPT*>(scene);
                 auto newScene = new SCENE_SCRIPT(newSceneName.c_str(), false, curScene->splashRenderizable);
                 luaManager->lsScene.push_back(newScene);
-                device->scene->nextScene     = newScene;
-                device->scene->goToNextScene = true;
-                device->scene->endScene      = true;
+                scene->setNextScene(newScene);
+                scene->setGoToNextScene(true);
+                scene->setEndScene(true);
 
                 if (tSplash == LUA_TTABLE)//add or replace renderizable
                 {
@@ -1845,9 +1856,9 @@ namespace mbm
             {
                 if (luaManager->lsScene.size())
                 {
-                    if (luaManager->__sceneWasInit == false)
+                    if (luaManager->isSceneInitialized() == false)
                     {
-                        if(device->verbose)
+                        if(device->isVerbose())
                             WARN_LOG("Scene [%s] cannot be loaded in the function", nameMainScene);
                     }
                     else
@@ -1855,17 +1866,19 @@ namespace mbm
                         const char *  nameScene = util::getFullPath(nameMainScene,nullptr);
                         if (access_file(nameScene, 0) == 0)
                         {
-                            auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+                            SCENE *scene = device->getScene();
+                            auto *curScene = static_cast<SCENE_SCRIPT*>(scene);
                             auto newScene = new SCENE_SCRIPT(nameScene, luaManager->noSplash,curScene->splashRenderizable);
                             luaManager->lsScene.push_back(newScene);
-                            luaManager->device->scene->nextScene     = newScene;
-                            luaManager->device->scene->goToNextScene = true;
-                            luaManager->device->scene->endScene      = true;
+                            scene->setNextScene(newScene);
+                            scene->setGoToNextScene(true);
+                            scene->setEndScene(true);
                         }
                         else
                         {
                             ERROR_LOG("Scene not found:[%s]", nameScene);
-                            luaManager->device->scene->endScene = true;
+                            SCENE *scene = device->getScene();
+                            scene->setEndScene(true);
                         }
                     }
                 }
@@ -1877,7 +1890,7 @@ namespace mbm
     void SCENE_SCRIPT::removePreviousSceneOnUnload()
     {
         DEVICE *device     = DEVICE::getInstance();
-        auto *luaManager = static_cast<LUA_MANAGER *>(device->ptrManager);
+        auto *luaManager = static_cast<LUA_MANAGER *>(device->getCoreManager());
         if (luaManager)
         {
             for (unsigned int i = 0; i < luaManager->lsScene.size(); ++i)
@@ -1912,7 +1925,8 @@ namespace mbm
         auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
         if(luaManager)
         {
-            auto *curScene   = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+            DEVICE *device = luaManager->getDevice();
+            auto *curScene = static_cast<SCENE_SCRIPT*>(device->getScene());
             if(curScene)
             {
                 lua_print_line(curScene->getLuaState() ,TYPE_LOG_ERROR,"Attempt to get root cause...");
@@ -1925,7 +1939,8 @@ namespace mbm
         auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
         if(luaManager)
         {
-            auto *curScene   = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
+            DEVICE *device = luaManager->getDevice();
+            auto *curScene = static_cast<SCENE_SCRIPT*>(device->getScene());
             if(curScene)
             {
                 lua_State* lua = curScene->getLuaState();

@@ -27,6 +27,9 @@
 #include "frustum.h"
 #include "camera.h"
 #include "time-control.h"
+#include <map>
+#include <memory>
+#include <string>
 
 namespace mbm
 {
@@ -48,41 +51,56 @@ namespace mbm
         friend class RENDERIZABLE;
         friend class CORE_MANAGER;
       public:
-        bool   verbose;
-        bool   run;
-        bool   bOnErrorStopScript;
-        float  backBufferWidth;
-        float  backBufferHeight;
-        //Using GL_SRC_ALPHA / GL_ONE_MINUS_SRC_ALPHA (or GL_SRC_ALPHA, GL_ONE for additive) makes particle visibility depend on the particle alpha value, not on whatever was previously written into the destination alpha.
-        COLOR  colorClearBackGround; //	Clear the back buffer alpha to 1.0 , this make the ALPHA operation work
-        CAMERA camera;
-    
-        uint32_t      totalObjectsOnFrustum3D;
-        uint32_t      totalObjectsOnFrustum2D;
-        uint32_t      totalObjectsIsRendering3D;
-        uint32_t      totalObjectsIsRendering2D;
-        uint32_t      totalObjects3D;
-        uint32_t      totalObjects2D;
-        SHADER_CFG_LOADER cfg;                       // CFG files
-        std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
-        VEC3                dimFarFrustum3d, dimNearFrustum3d;
-        CORE_MANAGER *      ptrManager;
-        SPECIFIC_AUX_CONTEXT_DEVICE* specificContextDevice = nullptr;
-        SCENE *             scene;
-        bool                clearBackGround;
-        
-        mbm::ORDER_RENDER   orderRender;
-        int                 __swapBackBufferStep;
         API_IMPL static DEVICE *     getInstance();
         API_IMPL void initializeSpecificContext();
         API_IMPL void destroySpecificContext();
+        API_IMPL SPECIFIC_AUX_CONTEXT_DEVICE * getSpecificContextDevice() const noexcept;
+        API_IMPL CAMERA & getCamera() noexcept;
+        API_IMPL const CAMERA & getCamera() const noexcept;
+        API_IMPL void setScene(SCENE *scene) noexcept;
+        API_IMPL SCENE * getScene() const noexcept;
         API_IMPL void setAppReturnCode(const int returnCode) noexcept;
         API_IMPL int getAppReturnCode() const noexcept;
         API_IMPL static void quit();
+        API_IMPL void setRun(bool run) noexcept;
+        API_IMPL bool isRunning() const noexcept;
+        API_IMPL void setCoreManager(CORE_MANAGER *manager) noexcept;
+        API_IMPL CORE_MANAGER * getCoreManager() const noexcept;
+        API_IMPL SHADER_CFG_LOADER & getShaderConfig() noexcept;
+        API_IMPL const SHADER_CFG_LOADER & getShaderConfig() const noexcept;
+        API_IMPL mbm::ORDER_RENDER & getOrderRender() noexcept;
+        API_IMPL const mbm::ORDER_RENDER & getOrderRender() const noexcept;
+        API_IMPL std::map<std::string, DYNAMIC_VAR *> & getDynamicVars() noexcept;
+        API_IMPL const std::map<std::string, DYNAMIC_VAR *> & getDynamicVars() const noexcept;
+        API_IMPL void setBackBufferSize(float width, float height) noexcept;
+        API_IMPL void setBackBufferWidth(float width) noexcept;
+        API_IMPL void setBackBufferHeight(float height) noexcept;
         API_IMPL float getBackBufferWidth() const noexcept;
         API_IMPL float getBackBufferHeight() const noexcept;
         API_IMPL float getScaleBackBufferWidth() const noexcept;
         API_IMPL float getScaleBackBufferHeight() const noexcept;
+        API_IMPL uint32_t getTotalObjectsOnFrustum3D() const noexcept;
+        API_IMPL uint32_t getTotalObjectsOnFrustum2D() const noexcept;
+        API_IMPL uint32_t getTotalObjectsIsRendering3D() const noexcept;
+        API_IMPL uint32_t getTotalObjectsIsRendering2D() const noexcept;
+        API_IMPL uint32_t getTotalObjects3D() const noexcept;
+        API_IMPL uint32_t getTotalObjects2D() const noexcept;
+        API_IMPL void setVerbose(bool verbose) noexcept;
+        API_IMPL bool isVerbose() const noexcept;
+        API_IMPL void setColorClearBackGround(const COLOR &color) noexcept;
+        API_IMPL const COLOR & getColorClearBackGround() const noexcept;
+        API_IMPL void setClearBackGround(bool clear) noexcept;
+        API_IMPL bool isClearBackGroundEnabled() const noexcept;
+        API_IMPL void setStopScriptOnError(bool stop) noexcept;
+        API_IMPL bool isStopScriptOnErrorEnabled() const noexcept;
+        API_IMPL void resetSwapBackBufferStep() noexcept;
+        API_IMPL void incrementSwapBackBufferStep() noexcept;
+        API_IMPL int getSwapBackBufferStep() const noexcept;
+        API_IMPL void setWindowPosition(const int x, const int y) noexcept;
+        API_IMPL void setWindowPositionX(const int x) noexcept;
+        API_IMPL void setWindowPositionY(const int y) noexcept;
+        API_IMPL int getWindowPositionX() const noexcept;
+        API_IMPL int getWindowPositionY() const noexcept;
         API_IMPL void scaleToScreen(const float widthScreen, const float heightScreen,const char *stretch) noexcept; // stretch: x, y xy nullptr
         API_IMPL void pauseGame();
         API_IMPL void resumeGame();
@@ -131,25 +149,41 @@ namespace mbm
         API_IMPL bool isPixelPerfectRendering() const noexcept;// true while tile (etc.) is drawing; used to skip UV inset on D3D9
         API_IMPL bool isGamePaused() const noexcept;
 
-        int                                   windowPositionX;
-        int                                   windowPositionY;
-
     private:
-        int	                                  returnCodeApp;
         static DEVICE *                       instanceDevice;
-        std::vector<RENDERIZABLE *>           lsObjectRender3D;
-        std::vector<RENDERIZABLE *>           lsObjectRender2DW;
-        std::vector<RENDERIZABLE *>           lsObjectRender2DS;
-        std::vector<PHYSICS *>                lsPhysics;
-        AUDIO_MANAGER_INTERFACE*			  audioInterface;
-        std::vector<RENDERIZABLE_TO_TARGET *> lsObjectRenderToTarget;
-        float                                 __percXcam2dScale;
-        float                                 __percYcam2dScale;
-        bool                                 _pixelPerfectRenderingActive = false;
-        bool                                 _isGamePaused;
+        struct Impl;
+        struct ImplDeleter
+        {
+            void operator()(Impl *ptr) const;
+        };
+        std::unique_ptr<Impl, ImplDeleter> impl;
         DEVICE();
         virtual ~DEVICE();
         void setProjectionMode(const bool is3D, const float width, const float height);
+        void setCamera2dScaleCache(const float percX, const float percY) noexcept;
+        void setPixelPerfectRenderingActive(const bool active) noexcept;
+        void setSpecificContextDevice(SPECIFIC_AUX_CONTEXT_DEVICE *context) noexcept;
+        void setTotalObjectsOnFrustum3D(uint32_t total) noexcept;
+        void setTotalObjectsOnFrustum2D(uint32_t total) noexcept;
+        void setTotalObjectsIsRendering3D(uint32_t total) noexcept;
+        void setTotalObjectsIsRendering2D(uint32_t total) noexcept;
+        void incrementTotalObjectsIsRendering3D() noexcept;
+        void incrementTotalObjectsIsRendering2D() noexcept;
+        void setTotalObjects3D(uint32_t total) noexcept;
+        void setTotalObjects2D(uint32_t total) noexcept;
+        void setNearFrustumDimension(const VEC3 &dimension) noexcept;
+        void setFarFrustumDimension(const VEC3 &dimension) noexcept;
+        void setNearFrustumDimensionX(float value) noexcept;
+        void setNearFrustumDimensionY(float value) noexcept;
+        void setFarFrustumDimensionX(float value) noexcept;
+        void setFarFrustumDimensionY(float value) noexcept;
+        uint32_t getTotalPhysics() const noexcept;
+        PHYSICS * getPhysics(const uint32_t index) const noexcept;
+        uint32_t getTotalRenderTargets() const noexcept;
+        RENDERIZABLE_TO_TARGET * getRenderTarget(const uint32_t index) const noexcept;
+        std::vector<RENDERIZABLE *> & getRender3DList() noexcept;
+        std::vector<RENDERIZABLE *> & getRender2DWList() noexcept;
+        std::vector<RENDERIZABLE *> & getRender2DSList() noexcept;
     };
 }
 #endif

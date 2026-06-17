@@ -11,7 +11,7 @@
 
 #if defined(USE_METAL)
 
-#include <specific-metal.h>
+#include "specific-metal-render-target.h"
 #include <scene.h>
 #include <render-2-texture.h>
 #include <texture-manager.h>
@@ -28,16 +28,16 @@ namespace mbm
                                                    const bool _is2ds) noexcept :
         RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
     {
-        this->specificConfig = new RENDER2TARGET_METAL();
-        this->colorClearBackGround = COLOR(255, 255, 255);
-        this->colorClearBackGround.a = 1.0f;
-        this->widthTexture  = 0;
-        this->heightTexture = 0;
+        setRenderTargetSpecificConfig(new RENDER2TARGET_METAL());
+        this->setRenderTargetClearColor(COLOR(255, 255, 255));
+        this->setRenderTargetSize(0, 0);
     }
 
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
-        delete static_cast<RENDER2TARGET_METAL*>(this->specificConfig);
+        void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
+        delete static_cast<RENDER2TARGET_METAL*>(renderTargetSpecificConfig);
+        setRenderTargetSpecificConfig(nullptr);
     }
 
     FVF_PROVIDE_BY_ENGINE RENDERIZABLE_TO_TARGET::getFvfFromBuffer() const noexcept
@@ -51,32 +51,37 @@ namespace mbm
     {
         if (newFileOutNamePNG == nullptr)
             return log_util::fail(__LINE__, __FILE__, "file name to save png is null");
-        if (this->texture == nullptr)
+        const TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if (renderTargetTexture == nullptr)
             return log_util::fail(__LINE__, __FILE__, "render-to-texture: texture is not created!");
 
+        void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
         const RENDER2TARGET_METAL* rf =
-            static_cast<const RENDER2TARGET_METAL*>(this->specificConfig);
+            static_cast<const RENDER2TARGET_METAL*>(renderTargetSpecificConfig);
         if (!rf || !rf->renderTexture)
             return log_util::fail(__LINE__, __FILE__, "Metal render texture is not created!");
 
-        if (strcasecmp(newFileOutNamePNG, this->fileName.c_str()) == 0)
+        if (strcasecmp(newFileOutNamePNG, this->getInternalFileName()) == 0)
             return log_util::fail(__LINE__, __FILE__,
                                   "file name texture in is the same as render2texture [%s]!",
-                                  fileName.c_str());
-        if (x < 0 || _width <= 0 || (_width + x) > static_cast<int>(this->widthTexture))
+                                  this->getInternalFileName());
+        const uint32_t renderTargetWidth = this->getRenderTargetWidth();
+        const uint32_t renderTargetHeight = this->getRenderTargetHeight();
+        if (x < 0 || _width <= 0 || (_width + x) > static_cast<int>(renderTargetWidth))
             return log_util::fail(__LINE__, __FILE__,
                                   "size expected [0-0 %dx%d] got [%d-%d %dx%d]",
-                                  widthTexture, heightTexture, x, y, _width, _height);
-        if (y < 0 || _height <= 0 || (_height + y) > static_cast<int>(this->heightTexture))
+                                  renderTargetWidth, renderTargetHeight, x, y, _width, _height);
+        if (y < 0 || _height <= 0 || (_height + y) > static_cast<int>(renderTargetHeight))
             return log_util::fail(__LINE__, __FILE__,
                                   "size expected [0-0 %dx%d] got [%d-%d %dx%d]",
-                                  widthTexture, heightTexture, x, y, _width, _height);
+                                  renderTargetWidth, renderTargetHeight, x, y, _width, _height);
 
         mbm::DEVICE* dev = mbm::DEVICE::getInstance();
-        if (!dev || !dev->specificContextDevice)
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = dev ? dev->getSpecificContextDevice() : nullptr;
+        if (!ctx)
             return log_util::fail(__LINE__, __FILE__, "Metal device not available");
-        id<MTLDevice>       mtlDevice = dev->specificContextDevice->mtlDevice;
-        id<MTLCommandQueue> cmdQueue  = dev->specificContextDevice->commandQueue;
+        id<MTLDevice>       mtlDevice = ctx->mtlDevice;
+        id<MTLCommandQueue> cmdQueue  = ctx->commandQueue;
         if (!mtlDevice || !cmdQueue)
             return log_util::fail(__LINE__, __FILE__, "Metal device/queue not ready");
 
@@ -114,7 +119,7 @@ namespace mbm
         }
 
         // --- Convert BGRA → RGBA (or BGR → RGB) and feed to lodepng -------------
-        const int channel     = this->texture->useAlphaChannel ? 4 : 3;
+        const int channel     = renderTargetTexture->useAlphaChannel ? 4 : 3;
         const int sizeImage   = _width * _height * channel;
         auto* image           = new unsigned char[sizeImage];
         const auto* src       = static_cast<const uint8_t*>([stagingBuf contents]);

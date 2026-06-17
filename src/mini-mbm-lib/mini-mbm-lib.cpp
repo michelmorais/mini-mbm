@@ -260,7 +260,8 @@ namespace mbm
             mbm::setTheme(22, true);
         #endif
         mbm::LUA_MANAGER luaCore(args);
-        if(luaCore.device && luaCore.device->verbose)
+        DEVICE *device = luaCore.getDevice();
+        if(device && device->isVerbose())
             log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
     
         luaCore.onDoNativeCommand = externalDoNativeCommand;
@@ -275,8 +276,8 @@ namespace mbm
         if (luaCore.initializeSceneLua(luaCore.widthWindow, luaCore.heightWindow, expectedWidth, expectedHeight,luaCore.windowBorder))
         {
             // TODO: review if these options are still necessary
-            //luaCore.device->specificContextDevice->window.askOnExit = false;
-            //luaCore.device->window.exitOnEsc = false;
+            //device->getSpecificContextDevice()->window.askOnExit = false;
+            //device->window.exitOnEsc = false;
     
     #if !defined(_DEBUG) && (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
             bool hideConsole = true;
@@ -290,14 +291,14 @@ namespace mbm
             }
             if(hideConsole)
                 mbm::hideConsoleWindow();
-    #endif
+#endif
             const int ret = luaCore.run();
-            const int code_quit = luaCore.device->getAppReturnCode();
+            const int code_quit = device->getAppReturnCode();
             return code_quit ? code_quit : ret;
         }
         else
         {
-            ERROR_LOG("Failed to load Mini Mbm %s engine backend [%s]", MBM_VERSION, luaCore.device->getBackendEngineName());
+            ERROR_LOG("Failed to load Mini Mbm %s engine backend [%s]", MBM_VERSION, device ? device->getBackendEngineName() : "unknown");
             //fprintf(stderr, "\nMini-Mbm-OpenGLES is necessary to have the following DLLs:");
             //fprintf(stderr, "\nlibEGL.dll, libGLESv2.dll and d3dcompiler_47.dll");
             //fprintf(stderr, "\nfound in mini-mbm/third-party/gles/bin");
@@ -315,11 +316,19 @@ namespace mbm
         if(GetModuleFileNameA(HMod, myExe, sizeof(myExe)))
         {
             my_args.insert(my_args.begin(),myExe);
+			auto p = std::string(myExe).find_last_of("\\/");
+			if (p != std::string::npos)
+			{
+				std::string path = std::string(myExe).substr(0, p);
+				my_args.push_back("--addPath");
+                my_args.push_back(path);
+			}
         }
         else
         {
             my_args.insert(my_args.begin(),"mini_mbm.exe");
         }
+        
 #if _DEBUG
         my_args.push_back("--addPath");
         my_args.push_back("C:\\Users\\miche\\Documents\\mini-mbm\\editor");

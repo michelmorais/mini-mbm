@@ -25,8 +25,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <map>
-#include <unordered_map>
 
 #include <stb/stb-interface.h>
 
@@ -50,14 +48,18 @@ namespace mbm
 		API_IMPL bool loadSolidColor(const char* colorAsString, const bool hasColorAlpha);
         API_IMPL uint32_t getWidth()const noexcept;
         API_IMPL uint32_t getHeight()const noexcept;
+        API_IMPL uint32_t getBackendTextureId() const noexcept;
+        API_IMPL void setBackendTextureId(uint32_t textureId) noexcept;
+        API_IMPL uint32_t * getBackendTextureIdAddress() noexcept;
+        API_IMPL void * getBackendTexturePointer() const noexcept;
+        API_IMPL void setBackendTexturePointer(void *texturePointer) noexcept;
+        API_IMPL void ** getBackendTexturePointerAddress() noexcept;
         API_IMPL static void EnablePixelPerfectTexture(bool value) noexcept;
-        
-        union {
-            uint32_t idTexture; // DO NOT use in 64-bit. Use ptrTexture instead.
-			void*    ptrTexture;
-        };
+
         bool     useAlphaChannel;
       private:
+        struct BackendData;
+        std::unique_ptr<BackendData> backend;
         static bool isPixelPerfectTextureEnabled;
         std::string  fileName;
         uint32_t width;
@@ -128,15 +130,15 @@ namespace mbm
         API_IMPL TEXTURE* loadNativeEngine(const char* fileName, const bool forceAlpha); // load native engine (e.g.: Directx LoadTextureFromFile, Metal). Implemented specific
       private:
         static TEXTURE_MANAGER *instanceTextureManager;
-        std::unordered_map<std::string,TEXTURE *> lsTextures;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
         TEXTURE_MANAGER();
         virtual ~TEXTURE_MANAGER();
         const char *getFilePathTexture(const char *fileName,const char* fullFileName);
         const char *findInAllPaths(const char *fileNameTexture);
-        char                     pathSource[255];
-        uint32_t                 maxTextureSize;
-        uint32_t                 maxTextureHeight;
-        uint32_t                 maxTextureWidth;
+        TEXTURE *getCachedTexture(const std::string &fileName) const;
+        void cacheTexture(const std::string &fileName, TEXTURE *texture);
+        uint32_t getMaxTextureSize() const noexcept;
     };
 }
 

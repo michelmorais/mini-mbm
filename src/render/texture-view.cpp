@@ -35,7 +35,7 @@ namespace mbm
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_TEXTURE, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->texture      = nullptr;
-        this->enableRender = true;
+        this->setEnableRender(true);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
@@ -44,13 +44,13 @@ namespace mbm
         : RENDERIZABLE(0, TYPE_CLASS_TEXTURE, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->texture      = nullptr;
-        this->enableRender = true;
+        this->setEnableRender(true);
         //no scene - just restore texture
     }
     
     TEXTURE_VIEW::~TEXTURE_VIEW()
     {
-        this->enableRender = false;
+        this->setEnableRender(false);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeRenderizable(this);
         this->release();
@@ -66,8 +66,9 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
-        this->lsAnimation.push_back(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+        this->appendAnimation(anim);
+        FX &fx = anim->getFx();
+        if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         return true;
     }
@@ -90,7 +91,7 @@ namespace mbm
         this->bufferGL.setTextureByStage(this->texture, 0, 0);
         char strTemp[255];
         snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->texture->useAlphaChannel ? 1 : 0);
-        this->fileName = strTemp;
+        this->setInternalFileName(strTemp);
         this->updateAABB();
         return true;
     }
@@ -114,7 +115,7 @@ namespace mbm
         char strTemp[255];
         const std::string baseFileName = util::getBaseName(fileNameTexture);
         snprintf(strTemp, sizeof(strTemp), "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, useAlpha);
-        this->fileName = strTemp;
+        this->setInternalFileName(strTemp);
         this->updateAABB();
         return true;
     }
@@ -235,12 +236,12 @@ namespace mbm
         if (this->bufferGL.isLoadedBuffer())
         {
             IS_ON_FRUSTUM verify(this);
-            bool ret = verify.isOnFrustum(this->is3D, this->is2dS);
+            bool ret = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }
@@ -252,32 +253,37 @@ namespace mbm
         if (this->bufferGL.isLoadedBuffer())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            const CAMERA &camera = device->getCamera();
             ANIMATION *anim = this->getAnimation();
-            if (this->is3D)
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x, this->position.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                VEC3 positionScreen(position.x, position.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                const VEC3 positionWorld(this->position.x, this->position.y, this->position.z);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                const VEC3 positionWorld(position.x, position.y, position.z);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
-            this->blend.set(anim->blendState);
-            anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
-            anim->fx.setBlendOp();
-            anim->fx.shader.update();
-            if (anim->fx.textureOverrideStage2)
-                this->bufferGL.setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
-            if (!anim->fx.shader.render(&this->bufferGL))
+            FX &fx = anim->getFx();
+            this->setBlendState(anim->getBlendState());
+            anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
+            fx.setBlendOp();
+            fx.shader.update();
+            if (fx.textureOverrideStage2)
+                this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
+            if (!fx.shader.render(&this->bufferGL))
                 return false;
             return true;
         }
@@ -288,7 +294,7 @@ namespace mbm
     {
         this->texture = nullptr; // we can not release texture after device lost
         std::vector<std::string> result;
-        util::split(result, this->fileName.c_str(), '|');
+        util::split(result, this->getInternalFileName(), '|');
         if (result.size() <= 1)
         {
             this->bufferGL.release();
@@ -313,13 +319,13 @@ namespace mbm
             }
             else
             {
-                PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename( this->fileName.c_str()));
+                PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename(this->getInternalFileName()));
             }
 #endif
             return ret;
         }
         #if defined DEBUG
-        PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename(this->fileName.c_str()));
+        PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename(this->getInternalFileName()));
         #endif
         return false;
     }
@@ -331,15 +337,16 @@ namespace mbm
 
     void TEXTURE_VIEW::updateRestoreTexture(const float w, const float h)
     {
-        if (this->fileName.size())
+        const std::string currentFileName = this->getInternalFileNameString();
+        if (currentFileName.size())
         {
             char                     strTemp[255] = "";
             std::vector<std::string> result;
-            util::split(result, this->fileName.c_str(), '|');
+            util::split(result, currentFileName.c_str(), '|');
             if (result.size() <= 1 || result[0].compare("texture") != 0)
                 return;
             snprintf(strTemp, sizeof(strTemp), "texture|%s|%f|%f|%s", result[1].c_str(), w, h, result[4].c_str());
-            this->fileName = strTemp;
+            this->setInternalFileName(strTemp);
         }
     }
     
@@ -357,7 +364,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -368,8 +375,6 @@ namespace mbm
     
     bool TEXTURE_VIEW::isLoaded() const
     {
-        return this->bufferGL.isLoadedBuffer() && this->texture && this->lsAnimation.size() > 0;
+        return this->bufferGL.isLoadedBuffer() && this->texture && this->getTotalAnimation() > 0;
     }
 }
-
-

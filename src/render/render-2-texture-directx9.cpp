@@ -20,7 +20,8 @@
 
 #if defined (USE_DIRECTX9)
 
-#include <specific-directx9.h>
+#include "specific-directx9-context.h"
+#include "specific-directx9-render-target.h"
 #include <scene.h>
 #include <render-2-texture.h>
 #include <lodepng/lodepng.h>
@@ -33,17 +34,17 @@ namespace mbm
     RENDERIZABLE_TO_TARGET::RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
         RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
     {
-        this->specificConfig = new RENDER2TARGET_DIRECTX9();
-        this->colorClearBackGround = COLOR(255, 255, 255); // alpha em 0 significa transparente
-        this->colorClearBackGround.a = 1.0f;
-        this->widthTexture = 0;
-        this->heightTexture = 0;
+        setRenderTargetSpecificConfig(new RENDER2TARGET_DIRECTX9());
+        this->setRenderTargetClearColor(COLOR(255, 255, 255)); // alpha em 0 significa transparente
+        this->setRenderTargetSize(0, 0);
     }
 
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
+        void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        delete static_cast<RENDER2TARGET_DIRECTX9*>(this->specificConfig);
+        delete static_cast<RENDER2TARGET_DIRECTX9*>(renderTargetSpecificConfig);
+        setRenderTargetSpecificConfig(nullptr);
     }
 
     FVF_PROVIDE_BY_ENGINE RENDERIZABLE_TO_TARGET::getFvfFromBuffer() const noexcept
@@ -72,26 +73,30 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"file name to save png is null");
         if(!this->isLoaded())
             return log_util::fail(__LINE__,__FILE__,"render to texture is not loaded!");
-        const RENDER2TARGET_DIRECTX9* sf = static_cast<const RENDER2TARGET_DIRECTX9*>(this->specificConfig);
+        void *renderTargetSpecificConfig = getRenderTargetSpecificConfig();
+        const RENDER2TARGET_DIRECTX9* sf = static_cast<const RENDER2TARGET_DIRECTX9*>(renderTargetSpecificConfig);
         if(sf->pRenderSurface == nullptr)
             return log_util::fail(__LINE__,__FILE__,"Surface is null, texture is not created!");
-        if(this->texture == nullptr)
+        const TEXTURE *renderTargetTexture = this->getRenderTargetTexture();
+        if(renderTargetTexture == nullptr)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
-        if(strcasecmp(newFileOutNamePNG,this->fileName.c_str()) == 0)
-            return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",fileName.c_str());
-        if(x < 0 || _width <= 0 || (_width + x) > static_cast<int>(this->widthTexture))
-            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
-        if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(this->heightTexture))
-            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
+        if(strcasecmp(newFileOutNamePNG,this->getInternalFileName()) == 0)
+            return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",this->getInternalFileName());
+        const uint32_t renderTargetWidth = this->getRenderTargetWidth();
+        const uint32_t renderTargetHeight = this->getRenderTargetHeight();
+        if(x < 0 || _width <= 0 || (_width + x) > static_cast<int>(renderTargetWidth))
+            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
+        if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(renderTargetHeight))
+            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
 
         //the render target surface (sf->pRenderSurface) is created with:
         //Pool : D3DPOOL_DEFAULT(GPU memory only)
         //Usage : D3DUSAGE_RENDERTARGET(used as render target)
         //DirectX9 rule : Surfaces in D3DPOOL_DEFAULT with D3DUSAGE_RENDERTARGET cannot be locked -
         // they are GPU - exclusive.You need to use GetRenderTargetData() to copy from GPU to system memory first.
-        const int channel = this->texture->useAlphaChannel ? 4 : 3;
+        const int channel = renderTargetTexture->useAlphaChannel ? 4 : 3;
         const int sizeImage = _width * _height * channel;
-        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         D3DSURFACE_DESC	descSurfaceDest;
         std::vector<uint8_t> imageData(sizeImage);
 
@@ -108,9 +113,9 @@ namespace mbm
 
         // Create a staging surface in SYSTEMMEM to copy the render target to
         IDirect3DSurface9* stagingSurface = nullptr;
-        D3DFORMAT requested_format = this->texture->useAlphaChannel ? D3DFMT_A8R8G8B8 : D3DFMT_R8G8B8;
+        D3DFORMAT requested_format = renderTargetTexture->useAlphaChannel ? D3DFMT_A8R8G8B8 : D3DFMT_R8G8B8;
         HRESULT hrCreateStaging = pd3dDevice->CreateOffscreenPlainSurface(
-            this->widthTexture, this->heightTexture,
+            renderTargetWidth, renderTargetHeight,
             requested_format,
             D3DPOOL_SYSTEMMEM,
             &stagingSurface,

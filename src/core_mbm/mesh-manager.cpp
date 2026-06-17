@@ -34,6 +34,7 @@
 #include <cfloat>
 #include <string>
 #include <algorithm> // std::sort
+#include <unordered_map>
 #include <unordered_set>
 
 
@@ -978,6 +979,12 @@ namespace
 
 namespace mbm
 {
+    struct MESH_MANAGER::Impl
+    {
+        std::unordered_map<std::string, MESH_MBM *> lsMeshes;
+        std::vector<MESH_MBM *> lsFakeRelease;
+    };
+
     constexpr BUFFER_MESH::BUFFER_MESH() noexcept : pBufferGL(nullptr), subset(nullptr), totalSubset(0)
     {
     }
@@ -4421,8 +4428,8 @@ namespace mbm
 
         if (renderizable)
         {
-            renderizable->position += this->positionOffset;
-            renderizable->angle     = this->angleDefault;
+            renderizable->getPosition() += this->positionOffset;
+            renderizable->setAngle(this->angleDefault);
         }
         return true;
     }
@@ -4517,6 +4524,11 @@ namespace mbm
             return nullptr;
         }
 
+    MESH_MANAGER::MESH_MANAGER()
+        : impl(std::make_unique<Impl>())
+    {
+    }
+
     MESH_MANAGER * MESH_MANAGER::getInstance()
     {
         if (instanceMeshManager == nullptr)
@@ -4536,18 +4548,18 @@ namespace mbm
     void MESH_MANAGER::fakeRelease(const char* fileName)
     {
         const std::string fileNameBase = util::getBaseName(fileName);
-        MESH_MBM* ptr = this->lsMeshes[fileNameBase];
-        if(ptr)
+        MESH_MBM *ptr = this->impl->lsMeshes[fileNameBase];
+        if (ptr)
         {
-            this->lsFakeRelease.push_back(ptr);
-            this->lsMeshes[fileNameBase] = nullptr;
+            this->impl->lsFakeRelease.push_back(ptr);
+            this->impl->lsMeshes[fileNameBase] = nullptr;
         }
     }
 
     MESH_MBM * MESH_MANAGER::getIfExists(const char* fileName)
     {
         std::string fileNameBase = util::getBaseName(fileName);
-        auto mesh = lsMeshes[fileNameBase];
+        auto mesh = this->impl->lsMeshes[fileNameBase];
         return mesh;
     }
     
@@ -4559,20 +4571,20 @@ namespace mbm
     MESH_MBM * MESH_MANAGER::load(const char *fileName, RENDERIZABLE *renderizable)
     {
         std::string fileNameBase = util::getBaseName(fileName);
-        auto mesh = this->lsMeshes[fileNameBase];
+        auto mesh = this->impl->lsMeshes[fileNameBase];
         if(mesh)
         {
             if (renderizable)
             {
-                renderizable->position += mesh->positionOffset;
-                renderizable->angle     = mesh->angleDefault;
+                renderizable->getPosition() += mesh->positionOffset;
+                renderizable->setAngle(mesh->angleDefault);
             }
             return mesh;
         }
         mesh = new MESH_MBM();
         if (mesh->load(fileName, renderizable))
         {
-            lsMeshes[fileNameBase] = mesh;
+            this->impl->lsMeshes[fileNameBase] = mesh;
             return mesh;
         }
         else
@@ -4622,7 +4634,7 @@ namespace mbm
         snprintf(measure,sizeof(measure),"%0.2f|%d|%d#",heightLetter,spaceWidth,spaceHeight);
         std::string fileNameBaseSuppose(measure);
         fileNameBaseSuppose += fileNameBase;
-        auto mesh = lsMeshes[fileNameBaseSuppose];
+        auto mesh = this->impl->lsMeshes[fileNameBaseSuppose];
         if(mesh)
             return mesh;
         mesh = new MESH_MBM();
@@ -4793,7 +4805,7 @@ namespace mbm
             mesh->infoAnimation.lsHeaderAnim.push_back(header);
             header->headerAnim             = new util::HEADER_ANIMATION();
             header->headerAnim->hasShaderEffect = 1; // always will be 1
-            lsMeshes[fileNameBaseSuppose] = mesh;
+            this->impl->lsMeshes[fileNameBaseSuppose] = mesh;
             const char *fontps                 = "font.ps";
             header->headerAnim->typeAnimation  = 1;
             mesh->hasNormTex[0] = HAS_NOR_IN_FILE;//has normal
@@ -4820,7 +4832,7 @@ namespace mbm
                           const uint32_t sizeVertexBuffer,const util::INFO_DRAW_MODE * info_mode)
     {
         const std::string fileNameBase = util::getBaseName(nickName);
-        auto mesh = this->lsMeshes[fileNameBase];
+        auto mesh = this->impl->lsMeshes[fileNameBase];
         if(mesh)
             return mesh;
         constexpr bool isDynamic              = false;
@@ -4860,7 +4872,7 @@ namespace mbm
             mesh->info_mode.mode_cull_face = info_mode->mode_cull_face;
             mesh->info_mode.mode_front_face_direction = info_mode->mode_front_face_direction;
         }
-        lsMeshes[fileNameBase] = mesh;
+        this->impl->lsMeshes[fileNameBase] = mesh;
         return mesh;
     }
     
@@ -4869,7 +4881,7 @@ namespace mbm
                                const uint32_t sizeIndex,const util::INFO_DRAW_MODE * info_draw_mode)
     {
         const std::string fileNameBase = util::getBaseName(nickName);
-        auto mesh = this->lsMeshes[fileNameBase];
+        auto mesh = this->impl->lsMeshes[fileNameBase];
         if(mesh)
             return mesh;
         mesh                                  = new MESH_MBM();
@@ -4908,14 +4920,14 @@ namespace mbm
             mesh->info_mode.mode_cull_face = info_draw_mode->mode_cull_face;
             mesh->info_mode.mode_front_face_direction = info_draw_mode->mode_front_face_direction;
         }
-        lsMeshes[fileNameBase] = mesh;
+        this->impl->lsMeshes[fileNameBase] = mesh;
         return mesh;
     }
     
     MESH_MBM * MESH_MANAGER::loadDynamicIndex(const char *nickName, const uint32_t sizeVertexBuffer,uint16_t *index, const uint32_t sizeIndex,const util::INFO_DRAW_MODE * info_draw_mode,const util::DYNAMIC_SHAPE & dynamic_shape_info)
     {
         const std::string fileNameBase = util::getBaseName(nickName);
-        auto mesh = this->lsMeshes[fileNameBase];
+        auto mesh = this->impl->lsMeshes[fileNameBase];
         if (mesh == nullptr)
             mesh = new MESH_MBM();
         else
@@ -4959,16 +4971,15 @@ namespace mbm
             mesh->info_mode.mode_cull_face = info_draw_mode->mode_cull_face;
             mesh->info_mode.mode_front_face_direction = info_draw_mode->mode_front_face_direction;
         }
-        lsMeshes[fileNameBase] = mesh;
+        this->impl->lsMeshes[fileNameBase] = mesh;
         return mesh;
     }
 
     MESH_MANAGER::~MESH_MANAGER()
     {
-        std::unordered_map<std::string,MESH_MBM *>::const_iterator it;
-        for(it = lsMeshes.cbegin(); it != lsMeshes.cend(); ++it)
+        for (const auto & i : this->impl->lsMeshes)
         {
-            MESH_MBM *ptr = it->second;
+            MESH_MBM *ptr = i.second;
             if (ptr)
             {
                 ptr->release();
@@ -4976,14 +4987,14 @@ namespace mbm
                 ptr = nullptr;
             }
         }
-        for(auto ptr : this->lsFakeRelease)
+        for (auto ptr : this->impl->lsFakeRelease)
         {
             if (ptr)
             {
                 delete ptr;
             }
         }
-        this->lsFakeRelease.clear();
+        this->impl->lsFakeRelease.clear();
     }
 
     const char * MESH_MANAGER::typeClassName(const util::TYPE_MESH type) noexcept

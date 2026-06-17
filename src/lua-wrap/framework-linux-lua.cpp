@@ -27,20 +27,10 @@
 #include <core_mbm/device.h>
 #include <lua-wrap/manager-lua.h>
 #include <core_mbm/util-interface.h>
-
-#if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
-#elif defined USE_DUMMY_BACK_END_ENGINE
-    #include <core_mbm/specific-dummy.h> // replace with your specific backend engine header
-    #if defined __linux__  || defined(__APPLE__)
-        #include <X11/Xlib.h>
-        #include <X11/Xutil.h>
-        #include <X11/XKBlib.h>
-    #endif
-#else
-    #error "This file is only for OpenGL ES"
-#endif
-
+#include <strings.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/XKBlib.h>
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
 
@@ -90,7 +80,7 @@ namespace mbm
         int width  = 0;
         int height = 0;
         DEVICE *device = DEVICE::getInstance();
-        device->ptrManager->getScreenSize(&width,&height);
+        device->getCoreManager()->getScreenSize(&width,&height);
         if(width > 0 && height > 0)
         {
             lua_pushnumber(lua, width);
@@ -106,9 +96,9 @@ namespace mbm
     {
         DEVICE *device		= DEVICE::getInstance();
 		const int   top		= lua_gettop(lua);
-        device->run         = false;
+        device->setRun(false);
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
-        device->scene->onFinalizeScene();
+        device->getScene()->onFinalizeScene();
         return 0;
     }
 
@@ -644,7 +634,7 @@ namespace mbm
     int onPanic(lua_State *lua)
     {
         DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         const char *    error     = lua_tostring(lua, -1);
         std::string               strErr(error ? error : "undefined");
         ERROR_LOG("%s",strErr.c_str());

@@ -105,6 +105,8 @@ namespace mbm
         uint32_t                    heightWindow;
         bool                        maximizedWindow;
         bool                        noSplash;
+        bool                        windowBorder;
+        bool                        enableResizeWindow;
 
         bool existScene(const int idScene)override;
         LUA_MANAGER();

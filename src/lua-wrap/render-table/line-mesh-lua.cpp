@@ -50,20 +50,20 @@ namespace mbm
     int onDestroyLineMeshLua(lua_State *lua)
     {
         LINE_MESH *           lineMesh = getLineMeshFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(lineMesh->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(lineMesh->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        lineMesh->userData = nullptr;
+        lineMesh->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = lineMesh->getFileName();
         PRINT_IF_DEBUG( "free lineMesh [%s] [%d]\n", fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(lineMesh);
         delete lineMesh;
         return 0;
@@ -76,22 +76,23 @@ namespace mbm
         const int          hasTableXYZ = top > 1 ? lua_type(lua, 2) : LUA_TNIL;
         const unsigned int sTableXYZ   = (hasTableXYZ == LUA_TTABLE) ? lua_rawlen(lua, 2) : 0;
         unsigned int       ret         = 0xffffffff;
+        const bool         is3DObject  = lineMesh->is3DObject();
         if (sTableXYZ == 0)
         {
-            if (lineMesh->is3D)
+            if (is3DObject)
                 return lua_error_debug(lua, "[table XYZ] empty!");
             else
                 return lua_error_debug(lua, "[table XY] empty!");
         }
-        if (lineMesh->is3D && sTableXYZ % 3)
+        if (is3DObject && sTableXYZ % 3)
         {
             return lua_error_debug(lua, "[table XYZ] must contain coordinates x,y and z (divisible by 3)! size[%d]", sTableXYZ);
         }
-        if (!lineMesh->is3D && sTableXYZ % 2)
+        if (!is3DObject && sTableXYZ % 2)
         {
             return lua_error_debug(lua, "[table XY] must contain coordinates x and y (pair)! size [%d]", sTableXYZ);
         }
-        if (lineMesh->is3D)
+        if (is3DObject)
         {
             std::vector<VEC3> xyz;
             getArrayXYZ_FromTable(lua,2,xyz);
@@ -119,29 +120,30 @@ namespace mbm
         const unsigned int indexLine   = top > 2 ? (luaL_checkinteger(lua, 3) - 1) : 0xffffffff;
 
         unsigned int ret = 0xffffffff;
+        const bool   is3DObject = lineMesh->is3DObject();
         if (sTableXYZ == 0)
         {
-            if (lineMesh->is3D)
+            if (is3DObject)
                 return lua_error_debug(lua, "[table XYZ] empty!");
             else
                 return lua_error_debug(lua, "[table XY] empty!");
         }
-        if (lineMesh->is3D && sTableXYZ % 3)
+        if (is3DObject && sTableXYZ % 3)
         {
             return lua_error_debug(lua, "[table XYZ] must contain coordinates x,y e z (divisible by 3)! size [%d]", sTableXYZ);
         }
-        if (!lineMesh->is3D && sTableXYZ % 2)
+        if (!is3DObject && sTableXYZ % 2)
         {
             return lua_error_debug(lua, "[table XY] must contain coordinates x e y (divisible by 2)! size [%d]", sTableXYZ);
         }
         if (indexLine == 0xffffffff)
         {
-            if(lineMesh->is3D)
+            if(is3DObject)
                 return lua_error_debug(lua, "Args: [table XYZ] [index]. Index must be >0 <= size of lines!");
             else
                 return lua_error_debug(lua, "Args: [table XY] [index]. Index must be >0 <= size of lines!");
         }
-        if (lineMesh->is3D)
+        if (is3DObject)
         {
             std::vector<VEC3> xyz;
             getArrayXYZ_FromTable(lua,2, xyz);
@@ -177,9 +179,10 @@ namespace mbm
 		auto * anim = lineMesh->getAnimation();
         if(anim)
         {
-            anim->fx.setVarPShader("color", d);
-            anim->fx.setMaxVarPShader("color", d);
-            anim->fx.setMinVarPShader("color", d);
+            FX &fx = anim->getFx();
+            fx.setVarPShader("color", d);
+            fx.setMaxVarPShader("color", d);
+            fx.setMinVarPShader("color", d);
         }
         return 0;
     }
@@ -284,15 +287,16 @@ namespace mbm
 
         auto **      udata    = static_cast<void **>(lua_newuserdata(lua, sizeof(void *)));
         DEVICE *device   = DEVICE::getInstance();
-        auto   lineMesh = new LINE_MESH(device->scene, is3d, is2ds);
-        lineMesh->userData    = new USER_DATA_RENDER_LUA();
+        auto   lineMesh = new LINE_MESH(device->getScene(), is3d, is2ds);
+        lineMesh->setUserData(new USER_DATA_RENDER_LUA());
         *udata                = lineMesh;
+        VEC3 &lineMeshPosition = lineMesh->getPosition();
         if (position.x != 0.0f) //-V550
-            lineMesh->position.x = position.x;
+            lineMeshPosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            lineMesh->position.y = position.y;
+            lineMeshPosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            lineMesh->position.z = position.z;
+            lineMeshPosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_LINE);

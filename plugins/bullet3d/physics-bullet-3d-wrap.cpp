@@ -247,7 +247,8 @@ namespace mbm
         if(infoBullet && infoBullet->body)
         {
             const btVector3 f(x,y,z);
-            const btVector3 p(infoBullet->ptr->position.x, infoBullet->ptr->position.y, infoBullet->ptr->position.z);
+            const VEC3 &renderPosition = infoBullet->ptr->getPosition();
+            const btVector3 p(renderPosition.x, renderPosition.y, renderPosition.z);
             infoBullet->body->applyForce(f,p);
         }
     }
@@ -291,7 +292,8 @@ namespace mbm
         if(infoBullet && infoBullet->body)
         {
             const btVector3 i(x * this->scale ,y * this->scale,z * this->scale);
-            const btVector3 p(infoBullet->ptr->position.x, infoBullet->ptr->position.y, infoBullet->ptr->position.z);
+            const VEC3 &renderPosition = infoBullet->ptr->getPosition();
+            const btVector3 p(renderPosition.x, renderPosition.y, renderPosition.z);
             infoBullet->body->applyImpulse(i,p); 
         }
     }
@@ -369,15 +371,17 @@ namespace mbm
             {
                 //const float scalePerc = 1.0f / this->scale;
                 btTransform transform;
-                const btVector3 position(   infoBullet->ptr->position.x,
-                                            infoBullet->ptr->position.y,
-                                            infoBullet->ptr->position.z);
+                const VEC3 &renderPosition = infoBullet->ptr->getPosition();
+                const VEC3 &renderAngle = infoBullet->ptr->getAngle();
+                const btVector3 position(   renderPosition.x,
+                                            renderPosition.y,
+                                            renderPosition.z);
                 transform.setIdentity();
                 transform.setOrigin(position);
 
-                const btQuaternion QuatAroundX = btQuaternion( btVector3(1.0,0.0,0.0), infoBullet->ptr->angle.x );
-                const btQuaternion QuatAroundY = btQuaternion( btVector3(0.0,1.0,0.0), infoBullet->ptr->angle.y );
-                const btQuaternion QuatAroundZ = btQuaternion( btVector3(0.0,0.0,1.0), infoBullet->ptr->angle.z );
+                const btQuaternion QuatAroundX = btQuaternion( btVector3(1.0,0.0,0.0), renderAngle.x );
+                const btQuaternion QuatAroundY = btQuaternion( btVector3(0.0,1.0,0.0), renderAngle.y );
+                const btQuaternion QuatAroundZ = btQuaternion( btVector3(0.0,0.0,1.0), renderAngle.z );
                 const btQuaternion rotation    = QuatAroundX * QuatAroundY * QuatAroundZ;
 
                 transform.setRotation(rotation);
@@ -519,6 +523,7 @@ namespace mbm
         SHAPE_INFO_3D* infoBullet = nullptr;
         if(infoPhysics)
         {
+            const VEC3 &controllerScale = controller->getScale();
             infoBullet = new SHAPE_INFO_3D(controller,isStaticBody,&this->scale);
             if(infoPhysics->lsCube.size())
             {
@@ -530,9 +535,9 @@ namespace mbm
                     {
                         btCollisionShape* groundShape = nullptr;
                         CUBE* cube =  infoPhysics->lsCube[i];
-                        const VEC3 halfSizeCube(    cube->halfDim.x * controller->scale.x * this->scale * reduceX,
-                                                    cube->halfDim.y * controller->scale.y * this->scale * reduceY,
-                                                    cube->halfDim.z * controller->scale.z * this->scale * reduceZ);
+                        const VEC3 halfSizeCube(    cube->halfDim.x * controllerScale.x * this->scale * reduceX,
+                                                    cube->halfDim.y * controllerScale.y * this->scale * reduceY,
+                                                    cube->halfDim.z * controllerScale.z * this->scale * reduceZ);
                         if(cube->absCenter.x != 0.0f || cube->absCenter.y != 0.0f || cube->absCenter.z != 0.0f) //-V550
                         {
                             const VEC3 pa(      (cube->absCenter.x * this->scale)  - halfSizeCube.x,
@@ -589,9 +594,9 @@ namespace mbm
                     CUBE* cube =  infoPhysics->lsCube[0];
                     btCollisionShape* groundShape = nullptr;
                     btVector3 localInertia(0,0,0);
-                    const VEC3 halfSizeCube(    cube->halfDim.x * controller->scale.x * this->scale * reduceX,
-                                                cube->halfDim.y * controller->scale.y * this->scale * reduceY,
-                                                cube->halfDim.z * controller->scale.z * this->scale * reduceZ);
+                    const VEC3 halfSizeCube(    cube->halfDim.x * controllerScale.x * this->scale * reduceX,
+                                                cube->halfDim.y * controllerScale.y * this->scale * reduceY,
+                                                cube->halfDim.z * controllerScale.z * this->scale * reduceZ);
                     if(cube->absCenter.x != 0.0f || cube->absCenter.y != 0.0f || cube->absCenter.z != 0.0f) //-V550
                     {
 /* 
@@ -776,7 +781,6 @@ namespace mbm
         }
         this->lsShape.push_back(infoBullet);
         infoBullet->body->setUserPointer(infoBullet);
-        //controller->userData->infoBullet = infoBullet;
         return infoBullet->body;
     }
     
@@ -811,5 +815,3 @@ namespace mbm
         }
     }
 };
-
-

@@ -31,7 +31,7 @@ namespace mbm
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_SHAPE_MESH, _is3d && _is2dScreen == false, _is2dScreen)
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->onRenderDynamicBuffer = nullptr;
         device->addRenderizable(this);
@@ -47,7 +47,7 @@ namespace mbm
     void SHAPE_MESH::release()
     {
         this->releaseAnimation();
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         // Dynamic meshes store CPU-side vertex data in this instance's dynamicVertex.
         // The MESH_MANAGER cache entry (vboIndexSubsetIB only, no static vboVertNorTexIB)
         // cannot be reused by a new SHAPE_MESH instance — evict it so the next load
@@ -70,7 +70,7 @@ namespace mbm
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         unsigned int  sizeVertexBuffer = 0;
-        if (this->is3D)
+        if (this->is3DObject())
             sizeVertexBuffer = _sizeVertexArray;
         else
             sizeVertexBuffer = (_sizeVertexArray / 2) * 3;
@@ -106,7 +106,7 @@ namespace mbm
             this->dynamicUV.resize(sizeUv);
         }
 
-        if (this->is3D)
+        if (this->is3DObject())
         {
             auto vertex = dynamicVertex.data();
             for (unsigned int p = 0; p < sizeVertexBuffer; p += 3)
@@ -226,15 +226,16 @@ namespace mbm
                 const float diff = zAbs2 - zAbs1;
                 cube->halfDim.z += diff * 0.5f;
             }
-            if (this->lsAnimation.size() == 0)
+            if (this->getTotalAnimation() == 0)
             {
                 auto anim = new ANIMATION();
-                this->lsAnimation.push_back(anim);
-                strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
-                if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+                this->appendAnimation(anim);
+                anim->setNameAnimation("unic-anim");
+                FX &fx = anim->getFx();
+                if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                     return false;
             }
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             return true;
         }
@@ -334,11 +335,12 @@ namespace mbm
             sphere->ray = width > height ? width * 0.5f : height * 0.5f;
             mesh->infoPhysics.lsSphere.push_back(sphere);
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
-            strncpy(anim->nameAnimation, "circle",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            this->appendAnimation(anim);
+            anim->setNameAnimation("circle");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
@@ -496,11 +498,12 @@ namespace mbm
             mbm::CUBE* cube = new mbm::CUBE(width,height,0.0f);
             mesh->infoPhysics.lsCube.push_back(cube);
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
-            strncpy(anim->nameAnimation, "rectangle",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            this->appendAnimation(anim);
+            anim->setNameAnimation("rectangle");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
@@ -587,11 +590,12 @@ namespace mbm
             
             mesh->infoPhysics.lsTriangle.push_back(triangle);
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
-            strncpy(anim->nameAnimation, "triangle",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            this->appendAnimation(anim);
+            anim->setNameAnimation("triangle");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
@@ -746,11 +750,12 @@ namespace mbm
             
             mesh->infoPhysics.lsTriangle.push_back(triangle);
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
-            strncpy(anim->nameAnimation, "triangle",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            this->appendAnimation(anim);
+            anim->setNameAnimation("triangle");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
@@ -765,14 +770,14 @@ namespace mbm
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         unsigned int  sizeVertexBuffer = 0;
-        if (this->is3D)
+        if (this->is3DObject())
             sizeVertexBuffer = autoVertex->sizeArray;
         else
             sizeVertexBuffer = (autoVertex->sizeArray / 2) * 3;
         VEC3        vMin(FLT_MAX, FLT_MAX, FLT_MAX);
         VEC3        vMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
         AUTO_VERTEX vertex;
-        if (this->is3D)
+        if (this->is3DObject())
         {
             const unsigned sizeUv = (sizeVertexBuffer / 3) * 2;
             vertex.ls_xyz         = new float[sizeVertexBuffer];
@@ -843,8 +848,8 @@ namespace mbm
         mesh = mehManager->load(nickName, vertex.ls_xyz, nullptr, vertex.ls_uv, sizeVertexBuffer,info_draw_mode);
         if (mesh)
         {
-            this->position += mesh->positionOffset;
-            this->angle = mesh->angleDefault;
+            this->getPosition() += mesh->positionOffset;
+            this->setAngle(mesh->angleDefault);
             this->mesh->infoPhysics.release();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
@@ -888,12 +893,13 @@ namespace mbm
             }
 
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
+            this->appendAnimation(anim);
             this->mesh->infoPhysics.lsCube.push_back(cube);
-            strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            anim->setNameAnimation("unic-anim");
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             return true;
         }
@@ -909,7 +915,7 @@ namespace mbm
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         unsigned int  sizeVertexBuffer = 0;
-        if (this->is3D)
+        if (this->is3DObject())
             sizeVertexBuffer = autoVertex->sizeArray;
         else
             sizeVertexBuffer = (autoVertex->sizeArray / 2) * 3;
@@ -917,7 +923,7 @@ namespace mbm
         VEC3                vMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
         AUTO_VERTEX         vertex;
         unsigned short int *index = autoVertex->ls_index;
-        if (this->is3D)
+        if (this->is3DObject())
         {
             const unsigned sizeUv = (sizeVertexBuffer / 3) * 2;
             vertex.ls_xyz         = new float[sizeVertexBuffer];
@@ -988,8 +994,8 @@ namespace mbm
         mesh = mehManager->loadIndex(nickName, vertex.ls_xyz, nullptr, vertex.ls_uv, sizeVertexBuffer, index,autoVertex->sizeIndex,info_draw_mode);
         if (mesh)
         {
-            this->position += mesh->positionOffset;
-            this->angle = mesh->angleDefault;
+            this->getPosition() += mesh->positionOffset;
+            this->setAngle(mesh->angleDefault);
             this->mesh->infoPhysics.release();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
@@ -1032,12 +1038,13 @@ namespace mbm
                 cube->halfDim.z += diff * 0.5f;
             }
             auto anim = new ANIMATION();
-            this->lsAnimation.push_back(anim);
-            strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
+            this->appendAnimation(anim);
+            anim->setNameAnimation("unic-anim");
             this->mesh->infoPhysics.lsCube.push_back(cube);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            FX &fx = anim->getFx();
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
-            this->fileName = nickName;
+            this->setInternalFileName(nickName);
             this->updateAABB();
             return true;
         }
@@ -1064,7 +1071,7 @@ namespace mbm
         if (this->mesh && this->mesh->isLoaded())
         {
             IS_ON_FRUSTUM verify(this);
-            const bool is_on_frustum = verify.isOnFrustum(this->is3D, this->is2dS);
+            const bool is_on_frustum = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
             if(is_on_frustum)
             {
                 if (this->dynamicVertex.size() > 0)
@@ -1098,9 +1105,11 @@ namespace mbm
     
     bool SHAPE_MESH::render()
     {
-        if (this->mesh && this->indexCurrentAnimation < this->lsAnimation.size())
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        ANIMATION *animation = this->getAnimation(indexAnimation);
+        if (this->mesh && animation)
         {
-            if(this->alwaysRenderize && this->dynamicVertex.size() > 0 && onRenderDynamicBuffer)
+            if(this->isAlwaysRenderizeEnabled() && this->dynamicVertex.size() > 0 && onRenderDynamicBuffer)
             {
                 const auto last_size_vertex = dynamicVertex.size();
                 const auto last_size_uv     = dynamicUV.size();
@@ -1121,43 +1130,47 @@ namespace mbm
                 }
             }
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            ANIMATION *animation = this->lsAnimation[this->indexCurrentAnimation];
-            animation->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
-            if (this->is3D)
+            const CAMERA &camera = device->getCamera();
+            animation->updateAnimation(device->delta, this, this->getOnEndAnimation(),this->getOnEndFx());
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
-                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
-            this->blend.set(animation->blendState);
+            FX &fx = animation->getFx();
+            this->setBlendState(animation->getBlendState());
             if (this->dynamicVertex.size() > 0)
             {
-                animation->fx.shader.update();
-                animation->fx.setBlendOp();
-                if (animation->fx.textureOverrideStage2)
+                fx.shader.update();
+                fx.setBlendOp();
+                if (fx.textureOverrideStage2)
                 {
-                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,
+                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 nullptr,
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),
-                                                animation->fx.textureOverrideStage2))
+                                                fx.textureOverrideStage2))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,
+                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 nullptr,
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),0))
@@ -1166,16 +1179,16 @@ namespace mbm
             }
             else
             {
-                animation->fx.shader.update();
-                animation->fx.setBlendOp();
-                if (animation->fx.textureOverrideStage2)
+                fx.shader.update();
+                fx.setBlendOp();
+                if (fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,fx.textureOverrideStage2))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,0))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0))
                         return false;
                 }
             }
@@ -1211,7 +1224,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 

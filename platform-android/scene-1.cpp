@@ -21,7 +21,7 @@
 
 #include "scene-1.h"
 #include <util-interface.h>
-#include <core_mbm/specific-opengl_es.h>
+#include <core_mbm/android-bridge.h>
 
 MY_SCENE::MY_SCENE()
 {
@@ -34,8 +34,9 @@ MY_SCENE::~MY_SCENE()
 void MY_SCENE::init() 
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    device->camera.position = mbm::VEC3(0, 280, -900);
-    device->camera.focus    = mbm::VEC3(0, 280, 0);
+    mbm::CAMERA &camera = device->getCamera();
+    camera.position = mbm::VEC3(0, 280, -900);
+    camera.focus    = mbm::VEC3(0, 280, 0);
     this->texBox                  = new mbm::TEXTURE_VIEW(this, false, true);
 	util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     this->texBox->load("../src/test-lib/wooden-box.jpg",200,200);
@@ -57,8 +58,9 @@ void MY_SCENE::onTouchMove(int, float x, float y)
 {
 	if(this->texBox)
 	{
-    	this->texBox->position.x = x;
-    	this->texBox->position.y = y;
+        mbm::VEC3 &position = this->texBox->getPosition();
+        position.x = x;
+        position.y = y;
 	}
 }
 
@@ -101,8 +103,7 @@ void MY_SCENE::onResizeWindow()
 
 MY_GAME::MY_GAME(JNIEnv *env, jobject obj)
 {
-	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = this->device->specificContextDevice;
-	cJni->jenv = env;
+	mbm::androidSetJNIEnv(env);
     this->setScene(&myScene);
 }
 MY_GAME::~MY_GAME()

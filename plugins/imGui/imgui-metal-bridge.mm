@@ -6,12 +6,11 @@
 // declared in imgui_metal_bridge.h.
 
 #import "imgui.h"
+#import <Metal/Metal.h>
 #import "backends/imgui_impl_metal.h"
 #import "imgui_metal_bridge.h"
 
-// Access SPECIFIC_AUX_CONTEXT_DEVICE via the engine device singleton.
-// The header must be imported AFTER imgui.h to satisfy the Metal framework order.
-#import <core_mbm/device.h>
+// Access Metal frame objects through narrow engine bridge functions.
 #import <core_mbm/specific-metal.h>
 
 void ImGui_Metal_Init(void* mtlDevice)
@@ -22,17 +21,18 @@ void ImGui_Metal_Init(void* mtlDevice)
 
 void ImGui_Metal_NewFrame()
 {
-    mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx =
-        mbm::DEVICE::getInstance()->specificContextDevice;
+    MTLRenderPassDescriptor* passDescriptor =
+        (__bridge MTLRenderPassDescriptor*)mbm_metal_get_current_pass_descriptor();
+    if (!passDescriptor)
+        return;
 
-    // currentPassDescriptor is valid between CORE_MANAGER::beginRender and swapBuffers.
-    ImGui_ImplMetal_NewFrame(ctx->currentPassDescriptor);
+    ImGui_ImplMetal_NewFrame(passDescriptor);
 
     // On Retina/HiDPI displays the Metal drawable is larger than the logical window size.
     // Tell ImGui about the pixel-to-point ratio so it renders at the correct physical scale.
     // DisplaySize is kept in logical points (what mouse / touch coordinates use).
     // DisplayFramebufferScale is the multiplier from points → physical pixels.
-    id<MTLTexture> colorTex = ctx->currentPassDescriptor.colorAttachments[0].texture;
+    id<MTLTexture> colorTex = passDescriptor.colorAttachments[0].texture;
     if (colorTex)
     {
         ImGuiIO& io = ImGui::GetIO();
@@ -47,12 +47,16 @@ void ImGui_Metal_NewFrame()
 
 void ImGui_Metal_RenderDrawData(ImDrawData* drawData)
 {
-    mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx =
-        mbm::DEVICE::getInstance()->specificContextDevice;
+    id<MTLCommandBuffer> commandBuffer =
+        (__bridge id<MTLCommandBuffer>)mbm_metal_get_current_command_buffer();
+    id<MTLRenderCommandEncoder> encoder =
+        (__bridge id<MTLRenderCommandEncoder>)mbm_metal_get_current_encoder();
+    if (!commandBuffer || !encoder)
+        return;
 
     ImGui_ImplMetal_RenderDrawData(drawData,
-                                   ctx->currentCommandBuffer,
-                                   ctx->currentEncoder);
+                                   commandBuffer,
+                                   encoder);
 }
 
 void ImGui_Metal_Shutdown()

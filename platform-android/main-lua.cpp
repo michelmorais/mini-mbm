@@ -25,8 +25,8 @@
 #include <stdlib.h>
 
 #include <lua-wrap/manager-lua.h>
+#include <core_mbm/android-bridge.h>
 #include <core_mbm/device.h>
-#include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
 
 
@@ -105,11 +105,9 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     if (game != nullptr)
     {
         INFO_LOG("lib mini-mbm resized\n width: %d height: %d", width, height);
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
-        cJni->jenv            = env;
-        cJni->absPath         = _absPath ? _absPath : "";
-        cJni->apkPath         = _apkPath ? _apkPath : "";
-        cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+        mbm::androidSetJNIEnv(env);
+        mbm::androidSetRuntimePaths(_absPath, _apkPath);
+        mbm::androidCacheJavaClasses(PACKAGE_NAME_CLASS);
         const char* nameApplication = _apkPath ? _apkPath : "mini-mbm Android application";
         constexpr int px = 0;
         constexpr int py = 0;
@@ -138,16 +136,14 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
 
             #if defined MBM_ENABLE_MESH_LEGACY_V7
 			INFO_LOG("legacy mesh and deprecated features enabled MBM_ENABLE_MESH_LEGACY_V7");
-			#endif
+            #endif
 
-            game->device->ptrManager       = game;
-            game->device->backBufferWidth  = static_cast<float>(width);
-            game->device->backBufferHeight = static_cast<float>(height);
-            mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
-            cJni->jenv        = env;
-            cJni->absPath     = _absPath ? _absPath : "";
-            cJni->apkPath     = _apkPath ? _apkPath : "";
-            cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+            mbm::DEVICE *device = game->getDevice();
+            device->setCoreManager(game);
+            device->setBackBufferSize(static_cast<float>(width), static_cast<float>(height));
+            mbm::androidSetJNIEnv(env);
+            mbm::androidSetRuntimePaths(_absPath, _apkPath);
+            mbm::androidCacheJavaClasses(PACKAGE_NAME_CLASS);
 
             constexpr bool border = false;
             game->initializeSceneLua(width, height,static_cast<int>(expectedWidth),static_cast<int>(expectedHeight), border);
@@ -162,7 +158,8 @@ void MiniMbmEngine_onLoop(JNIEnv *env, jobject obj)
 {
     if (game)
     {
-        game->device->ptrManager = game;
+        mbm::DEVICE *device = game->getDevice();
+        device->setCoreManager(game);
         game->onLoop(env, obj);
     }
 }
@@ -246,8 +243,13 @@ void MiniMbmEngine_onInfoDeviceJoystick(JNIEnv *env, jobject obj, int player, in
 
 /*void MiniMbmEngine_onEndSceneByQuiting(JNIEnv *env, jobject obj)
 {
-    if (game && game->device->scene && game->__sceneWasInit && game->device->scene->wasUnloadedScene == false)
-        game->device->scene->onFinalizeScene();
+    if (game)
+    {
+        mbm::DEVICE *device = game->getDevice();
+        auto *scene = device->getScene();
+        if (scene && game->isSceneInitialized() && scene->wasSceneUnloaded() == false)
+            scene->onFinalizeScene();
+    }
 }*/
 
 bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint height)
@@ -258,9 +260,8 @@ bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint he
     if (game)
     {
         //maybe need this in future
-        //mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
-        //cJni->jenv            = env;
-        //cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+        //mbm::androidSetJNIEnv(env);
+        //mbm::androidCacheJavaClasses(PACKAGE_NAME_CLASS);
         return game->onLostDevice(doSwapBuffers, static_cast<int>(width), static_cast<int>(height), px, py);
     }
     return true;
@@ -269,67 +270,45 @@ bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint he
 void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
 {
     INFO_LOG("OnStop Called.");
-	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
-    JavaVM *         jvm        = nullptr;
-    JNIEnv *         oldJenv    = cJni->jenv;
-    int              getEnvStat = JNI_OK;
-    int              status     = env->GetJavaVM(&jvm);
-    if (status != 0)
-    {
-        ERROR_LOG( "Failed to GetJavaVM");
-        return;
-    }
-    if (env != cJni->jenv)
-    {
-        getEnvStat = JNI_EDETACHED;
-        if (jvm->AttachCurrentThread(&env, nullptr) != 0)
-        {
-            ERROR_LOG( "Failed to attach");
-            return;
-        }
-        cJni->jenv = env;
-    }
+    void *oldJenv = mbm::androidGetJNIEnv();
+    if (env != oldJenv)
+        mbm::androidSetJNIEnv(env);
     if (game)
         game->onStopCoreManager();
-    if (getEnvStat == JNI_EDETACHED)
-    {
-        /*
-        Não posso dar DetachCurrentThread pois no lollipop causa:
-        "attempting to detach while still running code"
-        jvm->DetachCurrentThread();
-        */
-        cJni->jenv = oldJenv;
-    }
+    if (env != oldJenv)
+        mbm::androidSetJNIEnv(oldJenv);
 }
 
 void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, jstring param2)
 {
-    if (env && game && game->device && game->device->scene && game->device->scene->userData)
+    mbm::DEVICE *device = game ? game->getDevice() : nullptr;
+    auto *scene = device ? device->getScene() : nullptr;
+    if (env && game && device && scene && scene->getUserData())
     {
         if (param1 && param2)
         {
             const char *p1 = env->GetStringUTFChars(param1, nullptr);
             const char *p2 = env->GetStringUTFChars(param2, nullptr);
-            game->device->scene->onCallBackCommands(p1, p2);
+            scene->onCallBackCommands(p1, p2);
             env->ReleaseStringUTFChars(param1, p1);
             env->ReleaseStringUTFChars(param2, p2);
         }
         else if (param1)
         {
             const char *p1 = env->GetStringUTFChars(param1, nullptr);
-            game->device->scene->onCallBackCommands(p1, "NULL");
+            scene->onCallBackCommands(p1, "NULL");
             env->ReleaseStringUTFChars(param1, p1);
         }
         else if (param2)
         {
             const char *p2 = env->GetStringUTFChars(param2, nullptr);
-            game->device->scene->onCallBackCommands("NULL", p2);
+            scene->onCallBackCommands("NULL", p2);
             env->ReleaseStringUTFChars(param2, p2);
         }
         else
         {
             ERROR_AT(__LINE__,__FILE__,"Call back expected command [%d] [%s] [%s]",__LINE__,"NULL","NULL");
-            game->device->scene->onCallBackCommands("NULL", "NULL");
+            scene->onCallBackCommands("NULL", "NULL");
         }
     }
     else 
@@ -338,17 +317,17 @@ void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, 
         {
             ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game is null!");
         }
-        else if(game->device == nullptr)
+        else if(device == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n game->getDevice() is null!");
         }
-        else if(game->device->scene == nullptr)
+        else if(scene == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device->scene is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->getDevice()->getScene() is null!");
         }
-        else if(game->device->scene->userData == nullptr)
+        else if(scene->getUserData() == nullptr)
         {
-            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->device->scene->userData is null!");
+            ERROR_AT(__LINE__,__FILE__,"%s","Engine is not ready yet!\n class game->getDevice()->getScene()->getUserData() is null!");
         }
         else if(env == nullptr)
         {

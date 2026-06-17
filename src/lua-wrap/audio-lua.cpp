@@ -250,7 +250,7 @@ namespace mbm
         if (fileNameStream)
         {
             DEVICE *        device        = DEVICE::getInstance();
-            auto *userDataScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto *userDataScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             userDataScene->lsLuaCallBackStream.push_back(userData);
             userData->fileNameStream = fileNameStream;
         }

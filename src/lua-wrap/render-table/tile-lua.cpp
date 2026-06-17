@@ -138,20 +138,20 @@ namespace mbm
     int onDestroyTileLua(lua_State *lua)
     {
         TILE *              tile = getTileFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(tile->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(tile->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        tile->userData = nullptr;
+        tile->setUserData(nullptr);
 #if DEBUG_FREE_LUA
         static int  num = 1;
         const char *fileName = tile->getFileName();
         PRINT_IF_DEBUG( "free tile [%s] [%d]\n", fileName ? fileName : "NULL", num++);
 #endif
         DEVICE *             device = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(tile);
         delete tile;
         return 0;
@@ -295,6 +295,8 @@ namespace mbm
     int push_object(lua_State *lua,TILE * tile,const mbm::TILE_FILTER & filter)
     {
         const util::BTILE_INFO * bTileInfo = tile->getTileInfo();
+        const VEC3 &             tilePosition = tile->getPosition();
+        const VEC3 &             tileScale = tile->getScale();
         lua_newtable(lua);
         if(bTileInfo)
         {
@@ -312,10 +314,10 @@ namespace mbm
                     case util::BTILE_OBJ_TYPE_RECT:
                     {
                         const unsigned int s = static_cast<unsigned int>(obj->lsPoints.size());
-                        const float px       = (s > 0 ? obj->lsPoints[0]->x * tile->scale.x: 0.0f) + tile->position.x;
-                        const float py       = (s > 0 ? obj->lsPoints[0]->y * tile->scale.y: 0.0f) + tile->position.y;
-                        const float width    =  s > 1 ? obj->lsPoints[1]->x * tile->scale.x: 0.0f;
-                        const float height   =  s > 1 ? obj->lsPoints[1]->y * tile->scale.y: 0.0f;
+                        const float px       = (s > 0 ? obj->lsPoints[0]->x * tileScale.x: 0.0f) + tilePosition.x;
+                        const float py       = (s > 0 ? obj->lsPoints[0]->y * tileScale.y: 0.0f) + tilePosition.y;
+                        const float width    =  s > 1 ? obj->lsPoints[1]->x * tileScale.x: 0.0f;
+                        const float height   =  s > 1 ? obj->lsPoints[1]->y * tileScale.y: 0.0f;
                         lua_pushstring(lua,"rectangle");
                         lua_setfield(lua, -2, "type");
                         lua_pushnumber(lua,width);
@@ -333,13 +335,13 @@ namespace mbm
                         const unsigned int s = static_cast<unsigned int>(obj->lsPoints.size());
                         lua_pushstring(lua,"circle");
                         lua_setfield(lua, -2, "type");
-                        const float px       = (s > 0 ? obj->lsPoints[0]->x * tile->scale.x: 0.0f)  + tile->position.x;
-                        const float py       = (s > 0 ? obj->lsPoints[0]->y * tile->scale.y: 0.0f)  + tile->position.y;
+                        const float px       = (s > 0 ? obj->lsPoints[0]->x * tileScale.x: 0.0f)  + tilePosition.x;
+                        const float py       = (s > 0 ? obj->lsPoints[0]->y * tileScale.y: 0.0f)  + tilePosition.y;
                         lua_pushnumber(lua,px);
                         lua_setfield(lua, -2, "x");
                         lua_pushnumber(lua,py);
                         lua_setfield(lua, -2, "y");
-                        const float width    = s > 1 ? obj->lsPoints[1]->x * tile->scale.x: 0.0f;
+                        const float width    = s > 1 ? obj->lsPoints[1]->x * tileScale.x: 0.0f;
                         lua_pushnumber(lua,width);
                         lua_setfield(lua, -2, "ray");
                     }
@@ -354,9 +356,9 @@ namespace mbm
                         {
                             const VEC2* point = obj->lsPoints[j];
                             lua_newtable(lua);
-                            lua_pushnumber(lua,point->x * tile->scale.x);
+                            lua_pushnumber(lua,point->x * tileScale.x);
                             lua_setfield(lua, -2, "x");
-                            lua_pushnumber(lua,point->y * tile->scale.y);
+                            lua_pushnumber(lua,point->y * tileScale.y);
                             lua_setfield(lua, -2, "y");
                             lua_rawseti(lua, -2, j+1);
                         }
@@ -366,8 +368,8 @@ namespace mbm
                     case util::BTILE_OBJ_TYPE_POINT:
                     {
                         const unsigned int s = static_cast<unsigned int>(obj->lsPoints.size());
-                        const float px       = (s > 0 ? obj->lsPoints[0]->x * tile->scale.x: 0.0f) + tile->position.x;
-                        const float py       = (s > 0 ? obj->lsPoints[0]->y * tile->scale.y: 0.0f) + tile->position.y;
+                        const float px       = (s > 0 ? obj->lsPoints[0]->x * tileScale.x: 0.0f) + tilePosition.x;
+                        const float py       = (s > 0 ? obj->lsPoints[0]->y * tileScale.y: 0.0f) + tilePosition.y;
                         lua_pushstring(lua,"point");
                         lua_setfield(lua, -2, "type");
                         lua_pushnumber(lua,px);
@@ -383,8 +385,8 @@ namespace mbm
                         lua_setfield(lua, -2, "type");
                         for (int j = 0; j < 3; j++)
                         {
-                            const float px       = (s > 0 ? obj->lsPoints[j]->x * tile->scale.x: 0.0f) + tile->position.x;
-                            const float py       = (s > 0 ? obj->lsPoints[j]->y * tile->scale.y: 0.0f) + tile->position.y;
+                            const float px       = (s > 0 ? obj->lsPoints[j]->x * tileScale.x: 0.0f) + tilePosition.x;
+                            const float py       = (s > 0 ? obj->lsPoints[j]->y * tileScale.y: 0.0f) + tilePosition.y;
                             lua_newtable(lua);
                             lua_pushnumber(lua,px);
                             lua_setfield(lua, -2, "x");
@@ -442,10 +444,10 @@ namespace mbm
             lua_setmetatable(lua, -2);
             
             auto **      udata = static_cast<TILE_OBJ **>(lua_newuserdata(lua, sizeof(TILE_OBJ *)));
-            if(tile_obj->userData == nullptr)
+            if(tile_obj->getUserData() == nullptr)
             {
                 auto tableLuaMbm = new USER_DATA_RENDER_LUA();
-                tile_obj->userData = tableLuaMbm;
+                tile_obj->setUserData(tableLuaMbm);
             }
             *udata = tile_obj;
 
@@ -727,20 +729,20 @@ namespace mbm
     int onDestroyObjTileLua(lua_State *lua)
     {
         TILE_OBJ *              tileObj = getObjTileFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(tileObj->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(tileObj->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        tileObj->userData = nullptr;
+        tileObj->setUserData(nullptr);
 #if DEBUG_FREE_LUA
         static int  num = 1;
         const char *fileName = tileObj->getFileName();
         PRINT_IF_DEBUG( "free tile_obj [%s] [%d]\n", fileName ? fileName : "NULL", num++);
 #endif
         DEVICE * device = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(tileObj);
         return 0;
     }
@@ -813,16 +815,17 @@ namespace mbm
         lua_setmetatable(lua, -2);
         DEVICE *         device = DEVICE::getInstance();
         auto **           udata = static_cast<TILE **>(lua_newuserdata(lua, sizeof(TILE *)));
-        auto               tile = new TILE(device->scene, is3d, is2ds);
+        auto               tile = new TILE(device->getScene(), is3d, is2ds);
         auto tableLuaMbm        = new USER_DATA_RENDER_LUA();
-        tile->userData          = tableLuaMbm;
+        tile->setUserData(tableLuaMbm);
         *udata = tile;
+        VEC3 &tilePosition = tile->getPosition();
         if (position.x != 0.0f) //-V550
-            tile->position.x = position.x;
+            tilePosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            tile->position.y = position.y;
+            tilePosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            tile->position.z = position.z;
+            tilePosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_TILE);

@@ -26,6 +26,20 @@
 
 namespace mbm
 {
+    struct BUFFER_GL::BackendData
+    {
+        BUFFER_SPECIFIC *buffer;
+
+        BackendData() noexcept :
+            buffer(nullptr)
+        {
+        }
+    };
+
+    void BUFFER_GL::BackendDataDeleter::operator()(BackendData *data) const noexcept
+    {
+        delete data;
+    }
 
     bool BUFFER_GL::isLoadedBuffer() const
     {
@@ -153,6 +167,35 @@ namespace mbm
         }
     }
 
+    BUFFER_SPECIFIC * BUFFER_GL::getBackendBuffer() const noexcept
+    {
+        return backendData ? backendData->buffer : nullptr;
+    }
+
+    void BUFFER_GL::setBackendBuffer(BUFFER_SPECIFIC *backendBuffer) noexcept
+    {
+        if (!backendData)
+        {
+            backendData.reset(new BackendData());
+        }
+        backendData->buffer = backendBuffer;
+    }
+
+    struct SHADER::BackendData
+    {
+        void *shaderSpecific;
+
+        BackendData() noexcept :
+            shaderSpecific(nullptr)
+        {
+        }
+    };
+
+    void SHADER::BackendDataDeleter::operator()(BackendData *data) const noexcept
+    {
+        delete data;
+    }
+
     BASE_SHADER::BASE_SHADER() noexcept {}
 
     BASE_SHADER::~BASE_SHADER()
@@ -241,10 +284,25 @@ namespace mbm
 
     void SHADER::update()
     {
+        void *backendShaderSpecific = this->getBackendShaderSpecific();
         if (this->pShader)
-            this->pShader->update(this->ptrShaderSpecific);
+            this->pShader->update(backendShaderSpecific);
         if (this->vShader)
-            this->vShader->update(this->ptrShaderSpecific);
+            this->vShader->update(backendShaderSpecific);
+    }
+
+    void * SHADER::getBackendShaderSpecific() const noexcept
+    {
+        return backendData ? backendData->shaderSpecific : nullptr;
+    }
+
+    void SHADER::setBackendShaderSpecific(void *backendShaderSpecific) noexcept
+    {
+        if (!backendData)
+        {
+            backendData.reset(new BackendData());
+        }
+        backendData->shaderSpecific = backendShaderSpecific;
     }
 
     mbm::MATRIX mbm::SHADER::modelView; // Matrix do modelo (ModelView)

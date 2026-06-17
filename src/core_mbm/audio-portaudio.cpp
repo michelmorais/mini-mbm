@@ -265,8 +265,7 @@ namespace mbm
 
     void AUDIO_MANAGER::updateBackend()
     {
-        for (AUDIO* my_audio : this->audios)
-            my_audio->updateBackend();
+        updateManagedAudiosBackend();
     }
 
     const char* AUDIO_ENGINE_version()

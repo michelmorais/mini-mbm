@@ -22,7 +22,7 @@
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
-#include <specific-dummy.h> // replace with your specific backend engine header
+#include "specific-dummy-context.h" // replace with your specific backend engine header
 
 #include <device.h>
 #include <texture-manager.h>
@@ -36,14 +36,15 @@ namespace mbm
     void DEVICE::initializeSpecificContext()
     {
         this->destroySpecificContext();
-        this->specificContextDevice = new SPECIFIC_AUX_CONTEXT_DEVICE();
+        setSpecificContextDevice(new SPECIFIC_AUX_CONTEXT_DEVICE());
     }
     void DEVICE::destroySpecificContext()
     {
-        if(this->specificContextDevice)
+        auto *context = getSpecificContextDevice();
+        if(context)
         {
-            delete this->specificContextDevice;
-            this->specificContextDevice = nullptr;
+            delete context;
+            setSpecificContextDevice(nullptr);
         }
     }
 
@@ -92,11 +93,11 @@ namespace mbm
             REMINDER_TODO
         }
         if (width > 0)
-            backBufferWidth = width;
+            setBackBufferWidth(width);
         if (height > 0)
-            backBufferHeight = height;
+            setBackBufferHeight(height);
         if (width > 0 && height > 0)
-            this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+            this->getCamera().updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
         if (is3D)
         {
             
@@ -116,7 +117,7 @@ namespace mbm
 
     void DEVICE::disableFilteringForPixelPerfect() noexcept//backend specific way to disable texture filtering for pixel perfect rendering
     {
-        _pixelPerfectRenderingActive = true;
+        setPixelPerfectRenderingActive(true);
         for (int i = 0; i < 2; ++i)
         {
             REMINDER_TODO
@@ -125,7 +126,7 @@ namespace mbm
 
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept
     {
-        _pixelPerfectRenderingActive = false;
+        setPixelPerfectRenderingActive(false);
         for (int i = 0; i < 2; ++i)
         {
             REMINDER_TODO

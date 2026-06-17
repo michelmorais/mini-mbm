@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-extern "C" 
+extern "C"
 {
     #include <lua.h>
     #include <lauxlib.h>
@@ -56,7 +56,7 @@ extern "C"
 namespace mbm
 {
 	class LINE_MESH;
-    
+
     class MESH_DEBUG_LUA
     {
       public:
@@ -84,7 +84,7 @@ namespace mbm
         }
     };
 
-    
+
     MESH_DEBUG_LUA *getMeshDebugFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<MESH_DEBUG_LUA **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_MESH_DEBUG));
@@ -190,9 +190,9 @@ namespace mbm
             case util::TYPE_MESH_SHAPE:     { lua_pushstring(lua, "shape");     }break;
             case util::TYPE_MESH_PARTICLE:  { lua_pushstring(lua, "particle");  }break;
 			case util::TYPE_MESH_TILE_MAP:  { lua_pushstring(lua, "tile");      }break;
-            default:                        { 
-                                                lua_pushstring(lua, "unknown"); 
-                                                unknown = true; 
+            default:                        {
+                                                lua_pushstring(lua, "unknown");
+                                                unknown = true;
                                             }
                                             break;
         }
@@ -328,8 +328,8 @@ namespace mbm
         const unsigned int sTria = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsTriangle.size());
         const unsigned int sSphe = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsSphere.size());
         const unsigned int sComp = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsCubeComplex.size());
-        int index_array = 1; 
-        
+        int index_array = 1;
+
         if (sCube)
         {
             for (unsigned int i = 0; i < sCube; ++i)
@@ -378,7 +378,7 @@ namespace mbm
                     char c[2] = "a";
                     c[0] += (char)(j);
                     c[1] = 0;
-                    lua_newtable(lua); 
+                    lua_newtable(lua);
                     lua_pushnumber(lua, triangle->point[j].x);
                     lua_setfield(lua, -2, "x");
 
@@ -536,7 +536,7 @@ namespace mbm
                         WARN_LOG("Letter [%c] already set\n",detailFont->letter);
                         delete detailFont;
                     }
-                    
+
                 }
                 lua_pop(lua, 1);
             }
@@ -548,7 +548,7 @@ namespace mbm
         }
         return nullptr;
     }
-    
+
     int onSetDetailLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug     = getMeshDebugFromRawTable(lua, 1, 1);
@@ -574,7 +574,7 @@ namespace mbm
                     default : return "UNKNOWN";
                 }
             };
-            return lua_error_debug(lua,"Not implemented setDetail for [%s]", getTypeAsString(meshDebug->mesh.typeMe));   
+            return lua_error_debug(lua,"Not implemented setDetail for [%s]", getTypeAsString(meshDebug->mesh.typeMe));
         }
         return 0;
     }
@@ -637,7 +637,7 @@ namespace mbm
         lua_pushstring(lua,mode_draw);
         return 1;
     }
-	
+
 	int onGetMode_CullFaceMeshDebugLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1320,11 +1320,11 @@ namespace mbm
         const float     timeBetweenFrame = luaL_checknumber(lua, 5);
         const int       typeAnimation    = luaL_checkinteger(lua, 6);
         char            errorOut[255]    = "";
-        const int       ret              = meshDebug->mesh.addAnimation(nameAnimation, 
-                                                                        initialFrame, 
-                                                                        finalFrame, 
-                                                                        timeBetweenFrame, 
-                                                                        typeAnimation, 
+        const int       ret              = meshDebug->mesh.addAnimation(nameAnimation,
+                                                                        initialFrame,
+                                                                        finalFrame,
+                                                                        timeBetweenFrame,
+                                                                        typeAnimation,
                                                                         errorOut,
                                                                         (int)sizeof(errorOut));
         if (ret == 0)
@@ -1519,26 +1519,26 @@ namespace mbm
 
     void fillEffect(const EFFECT_SHADER* fx,const char* textureStage2,util::INFO_SHADER_DATA** dataInfoShader)
     {
-        if(fx->ptrCurrentShader)
+        if(fx->getCurrentShader())
         {
             const unsigned int sTexStage2    = textureStage2 ? static_cast<unsigned int>(strlen(textureStage2)): 0;
-            const unsigned int sizeFileName  = static_cast<unsigned int>(fx->ptrCurrentShader->fileName.size());
-            const unsigned int totalVar      = fx->ptrCurrentShader->getTotalVar();
+            const unsigned int sizeFileName  = static_cast<unsigned int>(fx->getCurrentShader()->fileName.size());
+            const unsigned int totalVar      = fx->getCurrentShader()->getTotalVar();
             const unsigned int sizeArrayVarInBytes = totalVar * 4;
-            auto dataInfo = new util::INFO_SHADER_DATA(sizeArrayVarInBytes, 
+            auto dataInfo = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,
                 (short)(sizeFileName ? sizeFileName + 1 : 0),
                 (short)(sTexStage2   ? sTexStage2   + 1 : 0));
             *dataInfoShader     = (dataInfo);
-            dataInfo->typeAnimation    = fx->typeAnim;
-            dataInfo->timeAnimation    = fx->timeAnimation;
+            dataInfo->typeAnimation    = fx->getTypeAnim();
+            dataInfo->timeAnimation    = fx->getTimeAnimation();
             if(sizeFileName)
-                strncpy(dataInfo->fileNameShader,fx->ptrCurrentShader->fileName.c_str(),sizeFileName + 1);
+                strncpy(dataInfo->fileNameShader,fx->getCurrentShader()->fileName.c_str(),sizeFileName + 1);
             if(sTexStage2)
                 strncpy(dataInfo->fileNameTextureStage2,textureStage2,sTexStage2 + 1);
             for(unsigned int k=0; k < totalVar; ++k)
             {
                 const int index       = k * 4;
-                VAR_SHADER* var       = fx->ptrCurrentShader->getVar(k);
+                VAR_SHADER* var       = fx->getCurrentShader()->getVar(k);
                 memcpy(&dataInfo->min[index],var->min,sizeof(var->min));
                 memcpy(&dataInfo->max[index],var->max,sizeof(var->max));
                 dataInfo->typeVars[k] = var->typeVar;
@@ -1565,7 +1565,7 @@ namespace mbm
             {
                 PRINT_IF_DEBUG("there is no animation in the mesh!");
             }
-            if (renderizable->typeClass == TYPE_CLASS_PARTICLE)
+            if (renderizable->getTypeClass() == TYPE_CLASS_PARTICLE)
             {
                 auto* particle = static_cast<PARTICLE*>(renderizable);
                 if (particle)
@@ -1587,8 +1587,9 @@ namespace mbm
             for (unsigned int i=0; i < animations->getTotalAnimation(); ++i)
             {
                 ANIMATION* anim             = animations->getAnimation(i);
-                const char* textureStage2   = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->getFileNameTexture() : nullptr;
-                
+                FX &fx                      = anim->getFx();
+                const char* textureStage2   = fx.textureOverrideStage2 ? fx.textureOverrideStage2->getFileNameTexture() : nullptr;
+
                 util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = nullptr;
                 if(i < meshDebug->mesh.infoAnimation.lsHeaderAnim.size())
                 {
@@ -1600,9 +1601,9 @@ namespace mbm
                     auto headerAnim = new util::HEADER_ANIMATION();
                     meshDebug->mesh.infoAnimation.lsHeaderAnim.push_back(infoHead);
                     infoHead->headerAnim = headerAnim;
-                    strncpy(headerAnim->nameAnimation,anim->nameAnimation,sizeof(headerAnim->nameAnimation));
-                    headerAnim->typeAnimation = anim->type;
-                    headerAnim->timeBetweenFrame = anim->intervalChangeFrame;
+                    strncpy(headerAnim->nameAnimation,anim->getNameAnimation(),sizeof(headerAnim->nameAnimation));
+                    headerAnim->typeAnimation = anim->getType();
+                    headerAnim->timeBetweenFrame = anim->getIntervalChangeFrame();
                 }
                 if(infoHead)
                 {
@@ -1611,23 +1612,23 @@ namespace mbm
                     infoHead->effectShader = nullptr;
                     util::HEADER_ANIMATION *headerAnim  = infoHead->headerAnim;
 					headerAnim->hasShaderEffect = 1;
-                    headerAnim->blendState        = static_cast<unsigned short int>(anim->blendState);
-                    meshDebug->mesh.lsBlendOperation[i] = anim->fx.blendOperation;
+                    headerAnim->blendState        = static_cast<unsigned short int>(anim->getBlendState());
+                    meshDebug->mesh.lsBlendOperation[i] = fx.blendOperation;
 
-                    if(anim->fx.fxPS->ptrCurrentShader)
+                    if(fx.fxPS->getCurrentShader())
                     {
                         infoHead->effectShader = new util::INFO_FX();
-                        infoHead->effectShader->blendOperation = anim->fx.blendOperation;
-                        fillEffect(anim->fx.fxPS,textureStage2,&infoHead->effectShader->dataPS);
+                        infoHead->effectShader->blendOperation = fx.blendOperation;
+                        fillEffect(fx.fxPS,textureStage2,&infoHead->effectShader->dataPS);
                     }
-                    if(anim->fx.fxVS->ptrCurrentShader)
+                    if(fx.fxVS->getCurrentShader())
                     {
                         if(infoHead->effectShader == nullptr)
                         {
                             infoHead->effectShader = new util::INFO_FX();
-                            infoHead->effectShader->blendOperation = anim->fx.blendOperation;
+                            infoHead->effectShader->blendOperation = fx.blendOperation;
                         }
-                        fillEffect(anim->fx.fxVS,textureStage2,&infoHead->effectShader->dataVS);
+                        fillEffect(fx.fxVS,textureStage2,&infoHead->effectShader->dataVS);
                     }
                 }
             }
@@ -1648,11 +1649,11 @@ namespace mbm
         const int       typeAnimation    = luaL_checkinteger(lua, 7);
         char            errorOut[255]    = "";
 
-        const bool       ret              = meshDebug->mesh.updateAnimation(index,nameAnimation, 
-                                                                        initialFrame, 
-                                                                        finalFrame, 
-                                                                        timeBetweenFrame, 
-                                                                        typeAnimation, 
+        const bool       ret              = meshDebug->mesh.updateAnimation(index,nameAnimation,
+                                                                        initialFrame,
+                                                                        finalFrame,
+                                                                        timeBetweenFrame,
+                                                                        typeAnimation,
                                                                         errorOut,
                                                                         sizeof(errorOut)-1);
         if (ret == false)
@@ -1661,7 +1662,7 @@ namespace mbm
         return 1;
     }
 
-    
+
     int onGetDetailAnimationDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug        = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1834,25 +1835,25 @@ namespace mbm
         const char* fileName            = luaL_checkstring(lua,2);//auto sFileName (2ds|2dw|3d) x,y,z
         const util::TYPE_MESH   typeOut = meshTmp.getType(fileName);
         lua_remove(lua,1);//auto sFileName (2ds|2dw|3d) x,y,z ----> sFileName (2ds|2dw|3d) x,y,z
-        
+
         switch (typeOut)
         {
-            case util::TYPE_MESH_3D:        
-            { 
+            case util::TYPE_MESH_3D:
+            {
                 onNewMeshLua(lua);
                 lua_pushstring(lua,"mesh");
                 return 2;
             }
-            case util::TYPE_MESH_SPRITE:    
-            { 
+            case util::TYPE_MESH_SPRITE:
+            {
                 onNewSpriteLua(lua);
                 lua_pushstring(lua,"sprite");
                 return 2;
             }
-            case util::TYPE_MESH_FONT:      
-            { 
-                if(lua_gettop(lua) > 1)//sFileName (2ds|2dw|3d) x,y,z 
-                    lua_remove(lua,2);//remove (2ds|2dw|3d) --->sFileName x,y,z 
+            case util::TYPE_MESH_FONT:
+            {
+                if(lua_gettop(lua) > 1)//sFileName (2ds|2dw|3d) x,y,z
+                    lua_remove(lua,2);//remove (2ds|2dw|3d) --->sFileName x,y,z
                 lua_pushstring(lua,fileName);//sFileName sFileName (no matter the first one)
                 if(lua_gettop(lua) > 2)//sFileName
                     lua_insert(lua,2);
@@ -1860,15 +1861,15 @@ namespace mbm
                 lua_pushstring(lua,"font");
                 return 2;
             }
-            case util::TYPE_MESH_TEXTURE: 
-            { 
+            case util::TYPE_MESH_TEXTURE:
+            {
                 bool bIsImage,bIsMesh,bIsUnknown = false;
                 const char* ext = meshTmp.getValidExtension(fileName,bIsImage,bIsMesh,bIsUnknown);
                 if(ext && strcmp(ext,"GIF") == 0 )
                 {
                     onNewGifViewLua(lua);
                     lua_pushstring(lua,"gif");
-                    
+
                 }
                 else
                 {
@@ -1877,9 +1878,9 @@ namespace mbm
                 }
                 return 2;
             }
-            case util::TYPE_MESH_PARTICLE: 
-            { 
-                onNewParticleLua(lua); 
+            case util::TYPE_MESH_PARTICLE:
+            {
+                onNewParticleLua(lua);
                 lua_pushstring(lua,"particle");
                 return 2;
             }

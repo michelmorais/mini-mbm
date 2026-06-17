@@ -24,6 +24,12 @@
 #include <device.h>
 #include <renderizable.h>
 #include <specific-opengl_es.h>
+#if defined(_WIN32)
+    #include "specific-opengl_es-windows-context.h"
+#elif !defined(ANDROID) && (defined(__linux__) || defined(__APPLE__))
+    #include "specific-opengl_es-x11-context.h"
+#endif
+#include "specific-opengl_es-render-target.h"
 #include <util-interface.h>
 #include <cr-static-local.h>
 #include <plugin-callback.h>
@@ -72,39 +78,35 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
 
     CORE_MANAGER::CORE_MANAGER()
     {
-        this->device           = DEVICE::getInstance();
-        this->indexOnRestore   = 0;
-        this->totalForByLoop   = 0;
-        this->percentRestoreInfo = 0.0f;
-        this->stepRestoreInfo  = 0.1f;
-        this->stepRestore      = STEP_RES_INIT_GL;
-        this->which_for        = WFOR_INITIAL;
-        this->changeScene               = true;
-        this->__sceneWasInit            = false;
-        this->loopVariablesInitialized  = false;
-        this->keyCapsLockState          = false;
-        this->wasGamePausedBeforeOnStop  = false;
+        this->initializeImpl();
+        this->setDevice(DEVICE::getInstance());
+        this->setChangeScene(true);
+        this->setSceneInitialized(false);
+        this->setKeyCapsLockState(false);
     #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-        this->device->specificContextDevice->initializeWi32Callbacks(this);
+        DEVICE *device = this->getDevice();
+        device->getSpecificContextDevice()->initializeWi32Callbacks(this);
     #endif
     }
     
-    CORE_MANAGER::~CORE_MANAGER()
-    {
-        DEVICE::quit();
-    }
-
     void CORE_MANAGER::swapBuffers()
     {
-        eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
+        #if defined(ANDROID)
+        androidSwapBuffers();
+        #else
+        DEVICE *device = this->getDevice();
+        eglSwapBuffers(device->getSpecificContextDevice()->eglDisplay, device->getSpecificContextDevice()->eglSurface);
+        #endif
     }
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
     {
         #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+        DEVICE *device = this->getDevice();
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = device->getSpecificContextDevice();
         // On X11/EGL, the EGL surface doesn't automatically resize with the window
         // We need to recreate the surface to match the new window dimensions
-        if (!this->device->specificContextDevice->recreateEGLSurface())
+        if (!context->recreateEGLSurface())
         {
             return false;  // Trigger full restore if surface recreation fails
         }
@@ -112,11 +114,11 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         // Query the actual EGL surface dimensions after recreation
         EGLint surfaceWidth = 0;
         EGLint surfaceHeight = 0;
-        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
-                        this->device->specificContextDevice->eglSurface, 
+        eglQuerySurface(context->eglDisplay,
+                        context->eglSurface,
                         EGL_WIDTH, &surfaceWidth);
-        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
-                        this->device->specificContextDevice->eglSurface, 
+        eglQuerySurface(context->eglDisplay,
+                        context->eglSurface,
                         EGL_HEIGHT, &surfaceHeight);
         
         // Use actual surface dimensions
@@ -124,8 +126,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         {
             newWidth = surfaceWidth;
             newHeight = surfaceHeight;
-            this->device->backBufferWidth = static_cast<float>(newWidth);
-            this->device->backBufferHeight = static_cast<float>(newHeight);
+            device->setBackBufferSize(static_cast<float>(newWidth), static_cast<float>(newHeight));
         }
         #endif
         
@@ -147,33 +148,42 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     
     bool CORE_MANAGER::renderToTargets()
     {
+        DEVICE *device = this->getDevice();
+        CAMERA &camera = device->getCamera();
         bool oneRender = false;
-        for (auto renderTarget : this->device->lsObjectRenderToTarget)
+        const uint32_t totalRenderTargets = device->getTotalRenderTargets();
+        for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
-            if (!renderTarget->isObjectOnFrustum)
+            auto renderTarget = device->getRenderTarget(i);
+            if (!renderTarget)
                 continue;
-            const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTarget->specificConfig);
-            GLViewport(0, 0, static_cast<GLsizei>(renderTarget->widthTexture), static_cast<GLsizei>(renderTarget->heightTexture));
+            if (!renderTarget->getIsObjectOnFrustum())
+                continue;
+            void *renderTargetSpecificConfig = renderTarget->getRenderTargetSpecificConfig();
+            const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTargetSpecificConfig);
+            const uint32_t renderTargetWidth = renderTarget->getRenderTargetWidth();
+            const uint32_t renderTargetHeight = renderTarget->getRenderTargetHeight();
+            GLViewport(0, 0, static_cast<GLsizei>(renderTargetWidth), static_cast<GLsizei>(renderTargetHeight));
             GLBindFramebuffer(GL_FRAMEBUFFER, sf->idFrameBuffer);
             GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sf->idTextureDynamic,0);
             GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, sf->idDepthRenderbuffer);
-            GLClearColor(renderTarget->colorClearBackGround.r, renderTarget->colorClearBackGround.g,
-                         renderTarget->colorClearBackGround.b, renderTarget->colorClearBackGround.a);
+            const COLOR &clearColor = renderTarget->getRenderTargetClearColor();
+            GLClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
             GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             GLClearDepthf(1.0f);
             const GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
             if (status != GL_FRAMEBUFFER_COMPLETE)
             {
                 GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-                GLViewport(0, 0, static_cast<GLsizei>(device->backBufferWidth), static_cast<GLsizei>(device->backBufferHeight));
-                this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+                GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
+                camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             if (!renderTarget->render2Texture())
             {
                 GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-                GLViewport(0, 0, static_cast<GLsizei>(device->backBufferWidth), static_cast<GLsizei>(device->backBufferHeight));
-                this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+                GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
+                camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             GLBindTexture(GL_TEXTURE_2D, 0);
@@ -183,17 +193,18 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         }
         if (oneRender)
         {
-            GLViewport(0, 0, static_cast<GLsizei>(device->backBufferWidth), static_cast<GLsizei>(device->backBufferHeight));
-            this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+            GLViewport(0, 0, static_cast<GLsizei>(device->getBackBufferWidth()), static_cast<GLsizei>(device->getBackBufferHeight()));
+            camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
     
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
-        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
+        DEVICE *device = this->getDevice();
+        for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
         {
-            const PLUGIN * thatPlugin = this->lsPlugins[i];
+            const PLUGIN * thatPlugin = this->getPlugin(i);
             if(plugin == thatPlugin)
             {
                 return i;
@@ -201,21 +212,19 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         }
         if(plugin != nullptr)
         {
-            this->lsPlugins.push_back(plugin);
+            const unsigned int indexPlugin = this->appendPlugin(plugin);
             void * handle = nullptr;
             #if defined _WIN32
-                handle = device->specificContextDevice->window.getHwnd();
+                handle = device->getSpecificContextDevice()->window.getHwnd();
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-                handle = this->device->specificContextDevice->display_x11;
+                handle = device->getSpecificContextDevice()->display_x11;
             #elif defined(ANDROID)
-                SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
-                JNIEnv *     jenv                 = cJni->jenv;
-                handle                            = jenv;
+                handle = androidGetPluginSubscribeHandle();
             #else
                 #error "Platform not supported"
             #endif
-            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle, nullptr);
-            return this->lsPlugins.size() - 1;
+            plugin->onSubscribe(static_cast<int>(device->getBackBufferWidth()),static_cast<int>(device->getBackBufferHeight()),handle, nullptr);
+            return indexPlugin;
         }
         return 0xffffffff;
     }
@@ -223,12 +232,14 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
     #if defined _WIN32
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
-        device->specificContextDevice->window.setMinSizeAllowed(min_x,min_y);
-        device->specificContextDevice->window.setMaxSizeAllowed(max_x,max_y);
+        DEVICE *device = this->getDevice();
+        device->getSpecificContextDevice()->window.setMinSizeAllowed(min_x,min_y);
+        device->getSpecificContextDevice()->window.setMaxSizeAllowed(max_x,max_y);
     }
     #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
+        DEVICE *device = this->getDevice();
         XSizeHints xsize;
         long min_flag = PMinSize;
         long max_flag = PMaxSize;
@@ -242,10 +253,12 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         xsize.max_height    = static_cast<int>(max_y);
         xsize.min_width     = static_cast<int>(min_x);
         xsize.min_height    = static_cast<int>(min_y);
-        if(static_cast<int32_t>(this->device->backBufferWidth) <= max_x && static_cast<int32_t>(this->device->backBufferWidth) >= min_x)
+        const float backBufferWidth = device->getBackBufferWidth();
+        const float backBufferHeight = device->getBackBufferHeight();
+        if(static_cast<int32_t>(backBufferWidth) <= max_x && static_cast<int32_t>(backBufferWidth) >= min_x)
         {
-            xsize.base_width    = static_cast<int>(this->device->backBufferWidth);
-            xsize.width         = static_cast<int>(this->device->backBufferWidth);
+            xsize.base_width    = static_cast<int>(backBufferWidth);
+            xsize.width         = static_cast<int>(backBufferWidth);
         }
         else
         {
@@ -253,10 +266,10 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             xsize.width         = static_cast<int>(min_x);
         }
 
-        if(static_cast<int32_t>(this->device->backBufferHeight) <= max_y && static_cast<int32_t>(this->device->backBufferHeight) >= min_y)
+        if(static_cast<int32_t>(backBufferHeight) <= max_y && static_cast<int32_t>(backBufferHeight) >= min_y)
         {
-            xsize.base_height   = static_cast<int>(this->device->backBufferHeight);
-            xsize.height        = static_cast<int>(this->device->backBufferHeight);
+            xsize.base_height   = static_cast<int>(backBufferHeight);
+            xsize.height        = static_cast<int>(backBufferHeight);
         }
         else
         {
@@ -267,7 +280,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         xsize.height_inc    = 0;
         xsize.x             = 0;
         xsize.y             = 0;
-        XSetWMNormalHints(this->device->specificContextDevice->display_x11,this->device->specificContextDevice->window_x11,&xsize);
+        XSetWMNormalHints(device->getSpecificContextDevice()->display_x11,device->getSpecificContextDevice()->window_x11,&xsize);
     }
     #elif defined(ANDROID)
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)

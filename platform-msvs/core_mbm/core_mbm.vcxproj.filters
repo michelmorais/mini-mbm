@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
@@ -13,7 +13,7 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-        <Filter Include="Header Files\core_mbm">
+    <Filter Include="Header Files\core_mbm">
       <UniqueIdentifier>{f1e764bd-13c7-4a78-b123-aa6e08211b1f}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\joystick-win32">
@@ -87,6 +87,9 @@
     </Filter>
     <Filter Include="Source Files\audio\port-audio">
       <UniqueIdentifier>{e7aabc39-01ad-459b-85e4-3038b8f8e7f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core_mbm\private">
+      <UniqueIdentifier>{ecbe8702-fc60-44ec-96b5-c068c77dd41f}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -303,7 +306,7 @@
     <ClInclude Include="..\..\include\core_mbm\specific-directx9.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h">
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\particle-control.h">
@@ -335,6 +338,75 @@
     </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\mesh-v8-io.h">
       <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\d3dx9-mingw.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\dialog-util.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\platform-win32.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\specific-metal.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-buffer.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-context.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-d3dx.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-hresult.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-render-target.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-shader.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-directx9-vertex.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-buffer.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-context.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-dummy-render-target.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-metal-buffer.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-metal-context.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-metal-render-target.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-android-context.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-buffer.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-render-target.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-shader.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-windows-context.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\specific-opengl_es-x11-context.h">
+      <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

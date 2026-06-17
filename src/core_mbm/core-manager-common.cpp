@@ -37,6 +37,10 @@
 #include <dynamic-var.h>
 #include <shader-resource.h>
 #include <util-interface.h>
+#include <list>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <thread>
 #if (defined(__linux__) || (defined(__APPLE__) && !defined(USE_METAL))) && !defined(ANDROID)
 #  include <spawn.h>
@@ -50,6 +54,138 @@
 
 namespace mbm
 {
+    struct CORE_MANAGER::Impl
+    {
+        std::map<int, bool>                  keyPressed;
+        std::list<EVENT_KEY>                 events;
+        std::list<INFO_JOYSTICK_INIT_PLAYER> joystickInfoEvents;
+        std::mutex                           mutexEvents;
+        EVENT_KEY                            lastEvent;
+        std::vector<PLUGIN*>                 plugins;
+        bool                                 wasGamePausedBeforeOnStop = false;
+        bool                                 loopVariablesInitialized  = false;
+        WHICH_FOR                            whichFor                  = WFOR_INITIAL;
+        STEP_RETORE                          stepRestore               = STEP_RES_INIT_GL;
+        uint32_t                             indexOnRestore            = 0;
+        uint32_t                             totalForByLoop            = 0;
+        float                                stepRestoreInfo           = 0.1f;
+        float                                percentRestoreInfo        = 0.0f;
+        std::string                          nameApplication           = "Mini-mbm";
+        bool                                 windowBorder              = true;
+        bool                                 enableResizeWindow        = true;
+        bool                                 changeScene               = true;
+        bool                                 keyCapsLockState          = false;
+        bool                                 sceneWasInitialized       = false;
+        DEVICE                              *device                    = nullptr;
+    };
+
+    void CORE_MANAGER::ImplDeleter::operator()(Impl *ptr) const
+    {
+        delete ptr;
+    }
+
+    void CORE_MANAGER::initializeImpl()
+    {
+        impl.reset(new Impl());
+    }
+
+    CORE_MANAGER::~CORE_MANAGER()
+    {
+        DEVICE::quit();
+    }
+
+    uint32_t CORE_MANAGER::getTotalPlugins() const noexcept
+    {
+        return static_cast<uint32_t>(impl->plugins.size());
+    }
+
+    PLUGIN *CORE_MANAGER::getPlugin(const uint32_t index) const noexcept
+    {
+        return index < impl->plugins.size() ? impl->plugins[index] : nullptr;
+    }
+
+    unsigned int CORE_MANAGER::appendPlugin(PLUGIN *plugin)
+    {
+        impl->plugins.push_back(plugin);
+        return static_cast<unsigned int>(impl->plugins.size() - 1);
+    }
+
+    void CORE_MANAGER::clearPlugins()
+    {
+        impl->plugins.clear();
+    }
+
+    void CORE_MANAGER::setNameApplication(const char *nameApplication)
+    {
+        impl->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
+    }
+
+    const char *CORE_MANAGER::getNameApplication() const noexcept
+    {
+        return impl->nameApplication.c_str();
+    }
+
+    void CORE_MANAGER::setWindowOptions(const bool border, const bool enableResize) noexcept
+    {
+        impl->windowBorder = border;
+        impl->enableResizeWindow = enableResize;
+    }
+
+    bool CORE_MANAGER::getWindowBorder() const noexcept
+    {
+        return impl->windowBorder;
+    }
+
+    bool CORE_MANAGER::getEnableResizeWindow() const noexcept
+    {
+        return impl->enableResizeWindow;
+    }
+
+    void CORE_MANAGER::setChangeScene(const bool change) noexcept
+    {
+        impl->changeScene = change;
+    }
+
+    bool CORE_MANAGER::isChangeScene() const noexcept
+    {
+        return impl->changeScene;
+    }
+
+    void CORE_MANAGER::setKeyCapsLockState(const bool enabled) noexcept
+    {
+        impl->keyCapsLockState = enabled;
+    }
+
+    bool CORE_MANAGER::isKeyCapsLockOn() const noexcept
+    {
+        return impl->keyCapsLockState;
+    }
+
+    DEVICE *CORE_MANAGER::getDevice() const noexcept
+    {
+        return impl->device;
+    }
+
+    void CORE_MANAGER::setDevice(DEVICE *device) noexcept
+    {
+        impl->device = device;
+    }
+
+    void CORE_MANAGER::setSceneInitialized(const bool initialized) noexcept
+    {
+        impl->sceneWasInitialized = initialized;
+    }
+
+    bool CORE_MANAGER::isSceneInitialized() const noexcept
+    {
+        return impl->sceneWasInitialized;
+    }
+
+    STEP_RETORE CORE_MANAGER::getStepRestore() const noexcept
+    {
+        return impl->stepRestore;
+    }
+
     void CORE_MANAGER::setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept
     {
         _setUsageOfDefaultPS_VS_WhenNoShader(_useDeafultPSwhenNoPsShader, _useDeafultVSwhenNoVSShader);
@@ -57,54 +193,62 @@ namespace mbm
 
     void CORE_MANAGER::setScene(SCENE *currentScene)
     {
-        this->device->scene = currentScene;
+        DEVICE *device = this->getDevice();
+        device->setScene(currentScene);
     }
 
     int CORE_MANAGER::onLoop(const bool singleLoop, const bool doSwapBuffers)
     {
+        DEVICE *device = this->getDevice();
         //static int loopCallCount = 0;
         //loopCallCount++;
         //if (loopCallCount <= 3)
         //    INFO_LOG("CORE_MANAGER::onLoop() call #%d singleLoop=%d doSwap=%d device=%p scene=%p",
         //             loopCallCount, (int)singleLoop, (int)doSwapBuffers, (void*)device,
-        //             device ? (void*)device->scene : nullptr);
+        //             device ? (void*)device->getScene() : nullptr);
         if (!device)
             return -1;
-        if (!this->loopVariablesInitialized)
+        if (!impl->loopVariablesInitialized)
         {
             #if defined _DEBUG || defined DEBUG
-            INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->backBufferWidth, device->backBufferHeight);
+            INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->getBackBufferWidth(), device->getBackBufferHeight());
             #endif
             // Cfg shader from resource----
-            if (!this->device->cfg.parserCFGFromResource())
+            if (!device->getShaderConfig().parserCFGFromResource())
             {
                 ERROR_LOG("CORE_MANAGER::onLoop() parserCFGFromResource FAILED");
                 return -1;
             }
-            this->device->cfg.sortShader();
-            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-            this->device->updateFps();
+            device->getShaderConfig().sortShader();
+            device->setProjectionMode(true, device->getBackBufferWidth(), device->getBackBufferHeight());
+            device->updateFps();
             initEnableRenders();
             this->_updateDimFrustum();
-            this->loopVariablesInitialized = true;
-            this->device->camera.expectedScreen.x = this->device->backBufferWidth;
-            this->device->camera.expectedScreen.y = this->device->backBufferHeight;
+            impl->loopVariablesInitialized = true;
+            CAMERA &camera = device->getCamera();
+            camera.expectedScreen.x = device->getBackBufferWidth();
+            camera.expectedScreen.y = device->getBackBufferHeight();
         }
-        while (device->run)
+        auto getInitializedScene = [this, device]() -> SCENE *
+        {
+            SCENE *scene = device->getScene();
+            return scene && this->isSceneInitialized() ? scene : nullptr;
+        };
+        while (device->isRunning())
         {
             handleEventFromWindow();
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
             {
-                PLUGIN* plugin = this->lsPlugins[i];
+                PLUGIN* plugin = this->getPlugin(i);
                 plugin->onPrepare();
             }
 
             INFO_JOYSTICK_INIT_PLAYER info;
             while (this->popEvent(&info))
             {
-                if (this->device->scene && this->__sceneWasInit)
-                    this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
-                        info.extraInfo.c_str());
+                if (SCENE *scene = getInitializedScene())
+                    scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
+                                                info.extraInfo.c_str());
             }
             
             EVENT_KEY event;
@@ -124,8 +268,8 @@ namespace mbm
                     break;
                     case ONRESIZEWINDOW:
                     {
-                        if( static_cast<int>(event.x) == static_cast<int>(this->device->backBufferWidth) &&
-                            static_cast<int>(event.y) == static_cast<int>(this->device->backBufferHeight))
+                        if( static_cast<int>(event.x) == static_cast<int>(device->getBackBufferWidth()) &&
+                            static_cast<int>(event.y) == static_cast<int>(device->getBackBufferHeight()))
                         {
                             #if defined _DEBUG || defined DEBUG
                             WARN_LOG("CORE_MANAGER::onLoop() - ONRESIZEWINDOW event with same dimensions %dx%d, ignoring.", static_cast<int>(event.x), static_cast<int>(event.y));
@@ -135,8 +279,7 @@ namespace mbm
                         #if defined _DEBUG || defined DEBUG
                         WARN_LOG("CORE_MANAGER::onLoop() - ONRESIZEWINDOW event with dimensions %dx%d.", static_cast<int>(event.x), static_cast<int>(event.y));
                         #endif
-                        this->device->backBufferWidth  = event.x;
-                        this->device->backBufferHeight = event.y;
+                        device->setBackBufferSize(event.x, event.y);
                         if (resetDeviceWithNewDimensions(static_cast<int>(event.x), static_cast<int>(event.y)) == false)
                         {
                             // trigger full restore
@@ -145,103 +288,103 @@ namespace mbm
                         // Update viewport
                         // Update projection and camera
                         device->setProjectionMode(true, event.x, event.y);
-                        this->device->camera.updateCam(true, event.x, event.y);
+                        device->getCamera().updateCam(true, event.x, event.y);
                         this->_updateDimFrustum();
 
                         // Notify scene and plugins
-                        if (this->device->scene)
-                            this->device->scene->onResizeWindow();
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = device->getScene())
+                            scene->onResizeWindow();
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onResizeWindow(static_cast<int>(event.x), static_cast<int>(event.y));
                         }
                     }
                     break;
                     case ONTOUCHDOWN:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchDown(event.key, event.x, event.y);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onTouchDown(event.key, event.x, event.y);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onTouchDown(event.key, event.x, event.y);
                         }
                     }
                     break;
                     case ONTOUCHUP:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchUp(event.key, event.x, event.y);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onTouchUp(event.key, event.x, event.y);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onTouchUp(event.key, event.x, event.y);
                         }
                     }
                     break;
                     case ONTOUCHMOVE:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchMove(event.key, event.x, event.y);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onTouchMove(event.key, event.x, event.y);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onTouchMove(event.key, event.x, event.y);
                         }
                     }
                     break;
                     case ONTOUCHZOOM:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchZoom((float)event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onTouchZoom((float)event.key);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onTouchZoom((float)event.key);
                         }
                     }
                     break;
                     case ONKEYDOWN:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDown(event.key);
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onKeyDown(event.key);
                         #if defined(_WIN32) || defined(__MINGW32__)
                         if (event.key == VK_CAPITAL)
                         {
                             if ((GetKeyState(VK_CAPITAL) & 0x0001) != 0)
-                                this->keyCapsLockState = true;
+                                this->setKeyCapsLockState(true);
                             else
-                                this->keyCapsLockState = false;
+                                this->setKeyCapsLockState(false);
                         }
                         #elif defined(__linux__) || defined(__APPLE__)
                         //TODO: implement CapsLock state detection for linux and macOS
                         #endif
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onKeyDown(event.key);
                         }
                     }
                     break;
                     case ONKEYUP:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUp(event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onKeyUp(event.key);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onKeyUp(event.key);
                         }
                     }
                     break;
                     case ONDOUBLECLICK:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onDoubleClick(event.x, event.y, event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onDoubleClick(event.x, event.y, event.key);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onDoubleClick(event.x, event.y, event.key);
                         }
                     }
@@ -251,49 +394,49 @@ namespace mbm
                                        break;
                     case ONCALLBACKCOMMANDS: {
                     }
-                                           break;
+                    break;
                     case ONKEYDOWNJOYSTICK:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDownJoystick(event.player, event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onKeyDownJoystick(event.player, event.key);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onKeyDownJoystick(event.player, event.key);
                         }
                     }
                     break;
                     case ONKEYUPJOYSTICK:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUpJoystick(event.player, event.key);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onKeyUpJoystick(event.player, event.key);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onKeyUpJoystick(event.player, event.key);
                         }
                     }
                     break;
                     case ONMOVEJOYSTICK:
                     {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        if (SCENE *scene = getInitializedScene())
+                            scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
+                        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
                         {
-                            PLUGIN* plugin = this->lsPlugins[i];
+                            PLUGIN* plugin = this->getPlugin(i);
                             plugin->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
                         }
                     }
                     break;
                 }
-                if (!this->device->run)
+                if (!device->isRunning())
                 {
                     break;
                 }
             }
             //if (loopCallCount <= 3)
             //    INFO_LOG("CORE_MANAGER::onLoop() about to update/render (frame %d) changeScene=%d swapStep=%d",
-            //             loopCallCount, (int)this->changeScene, this->device->__swapBackBufferStep);
+            //             loopCallCount, (int)this->isChangeScene(), this->device->getSwapBackBufferStep());
             this->update();
             this->render();
             if(doSwapBuffers)// some backend engines need to control when swap buffers is done
@@ -309,32 +452,33 @@ namespace mbm
         if(singleLoop == false)
         {
             // Cleanup plugins on exit only if not single loop
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
             {
-                PLUGIN* plugin = this->lsPlugins[i];
+                PLUGIN* plugin = this->getPlugin(i);
                 plugin->onDestroy();
             }
 
-            if (this->device->audioInterface)
-                this->device->audioInterface->stopAll();
+            if (device->getAudioManagerInterface())
+                device->getAudioManagerInterface()->stopAll();
         }
         return 0;
     }
     
     void CORE_MANAGER::onStopCoreManager()
     {
+        DEVICE *device = this->getDevice();
         // Stop the game and all resources, this is called when the device is lost, so we need to release all resources and stop the game, but we do not release the graphics device, so we can restore it later
-        wasGamePausedBeforeOnStop = this->device->isGamePaused();
-        this->device->pauseGame();
-        for (auto ptr : this->device->lsObjectRender2DS)
+        impl->wasGamePausedBeforeOnStop = device->isGamePaused();
+        device->pauseGame();
+        for (auto ptr : device->getRender2DSList())
         {
             ptr->onStop();
         }
-        for (auto ptr : this->device->lsObjectRender2DW)
+        for (auto ptr : device->getRender2DWList())
         {
             ptr->onStop();
         }
-        for (auto ptr : this->device->lsObjectRender3D)
+        for (auto ptr : device->getRender3DList())
         {
             ptr->onStop();
         }
@@ -345,19 +489,21 @@ namespace mbm
 
     void CORE_MANAGER::update()
     {
-        if (!device->run)
+        DEVICE *device = this->getDevice();
+        if (!device->isRunning())
             return;
-        this->device->updateFps();
-        this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
-        this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
+        device->updateFps();
+        const CAMERA &camera = device->getCamera();
+        device->setCamera2dScaleCache(1.0f / camera.scale2d.x,
+                                      1.0f / camera.scale2d.y);
         this->adjustScaleScreen2d();
         this->logic();
         this->updatePhysis();
         this->updateAudio();
-        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+        for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
         {
-            PLUGIN* plugin = this->lsPlugins[i];
-            plugin->onLoop(this->device->delta);
+            PLUGIN* plugin = this->getPlugin(i);
+            plugin->onLoop(device->delta);
         }
     }
     
@@ -371,41 +517,41 @@ namespace mbm
             if (ptr)
             {
                 ptr->updateAABB();
-                if (ptr->isRender2Texture)
+                if (ptr->isRender2TextureEnabled())
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                else if (!ptr->enableRender)
+                else if (!ptr->isRenderEnabled())
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                else if (ptr->alwaysRenderize)
+                else if (ptr->isAlwaysRenderizeEnabled())
                 {
-                    ptr->isObjectOnFrustum = true;
+                    ptr->setIsObjectOnFrustum(true);
                 }
                 else if (ptr->isOnFrustum())
                 {
-                    ptr->isObjectOnFrustum = true;
+                    ptr->setIsObjectOnFrustum(true);
                 }
                 else
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                if (ptr->isObjectOnFrustum)
+                if (ptr->getIsObjectOnFrustum())
                 {
                     lsRenderOnFrustum2d.push_back(ptr);
-                    ptr->__distFromView = ptr->position.z;
+                    ptr->setDistanceFromView(ptr->getPosition().z);
                 }
             }
         }
         std::sort(lsRenderOnFrustum2d.begin(), lsRenderOnFrustum2d.end(),
-                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
+                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
     }
     
     void CORE_MANAGER::prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,
-                                std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d)
+                                std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d,
+                                const VEC3 &cameraPosition)
     {
-        mbm::DEVICE *      device  = mbm::DEVICE::getInstance();
         const std::vector<RENDERIZABLE*>::size_type total3d = lsAllObjects3d.size();
         for (std::vector<RENDERIZABLE*>::size_type i = 0; i < total3d; ++i)
         {
@@ -413,64 +559,69 @@ namespace mbm
             if (ptr)
             {
                 ptr->updateAABB();
-                if (ptr->isRender2Texture)
+                if (ptr->isRender2TextureEnabled())
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                else if (!ptr->enableRender)
+                else if (!ptr->isRenderEnabled())
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                else if (ptr->alwaysRenderize)
+                else if (ptr->isAlwaysRenderizeEnabled())
                 {
-                    ptr->isObjectOnFrustum = true;
+                    ptr->setIsObjectOnFrustum(true);
                 }
                 else if (ptr->isOnFrustum())
                 {
-                    ptr->isObjectOnFrustum = true;
+                    ptr->setIsObjectOnFrustum(true);
                 }
                 else
                 {
-                    ptr->isObjectOnFrustum = false;
+                    ptr->setIsObjectOnFrustum(false);
                 }
-                if (ptr->isObjectOnFrustum)
+                if (ptr->getIsObjectOnFrustum())
                 {
                     lsRenderOnFrustum3d.push_back(ptr);
-                    const VEC3 distFromCam(ptr->position - device->camera.position);
-                    ptr->__distFromView = distFromCam.length();
+                    const VEC3 distFromCam(ptr->getPosition() - cameraPosition);
+                    ptr->setDistanceFromView(distFromCam.length());
                 }
             }
         }
         std::sort(lsRenderOnFrustum3d.begin(), lsRenderOnFrustum3d.end(),
-                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
+                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
     }
 
     void CORE_MANAGER::render()
     {
+        DEVICE *device = this->getDevice();
         if (!device)
             return;
-        if (!device->run)
+        if (!device->isRunning())
             return;
         std::vector<RENDERIZABLE *> lsRender2ds;
         std::vector<RENDERIZABLE *> lsRender2dw;
         std::vector<RENDERIZABLE *> lsRender3d;
         // Atualiza a camera de acordo com a
         // projeção----
-        device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
+        device->setProjectionMode(true, device->getBackBufferWidth(), device->getBackBufferHeight());
         // prepara para renderizar os objeto --
-        device->totalObjectsIsRendering3D = 0;
-        device->totalObjectsOnFrustum3D   = 0;
-        device->totalObjects3D            = static_cast<uint32_t>(this->device->lsObjectRender3D.size());
-        device->totalObjectsIsRendering2D = 0;
-        device->totalObjectsOnFrustum2D   = 0;
-        const auto total2ds       = static_cast<uint32_t>(this->device->lsObjectRender2DS.size());
-        const auto total2dw       = static_cast<uint32_t>(this->device->lsObjectRender2DW.size());
-        device->totalObjects2D            = total2ds + total2dw;
+        device->setTotalObjectsIsRendering3D(0);
+        device->setTotalObjectsOnFrustum3D(0);
+        auto &render3DList                = device->getRender3DList();
+        device->setTotalObjects3D(static_cast<uint32_t>(render3DList.size()));
+        device->setTotalObjectsIsRendering2D(0);
+        device->setTotalObjectsOnFrustum2D(0);
+        auto &render2DSList               = device->getRender2DSList();
+        const auto total2ds       = static_cast<uint32_t>(render2DSList.size());
+        auto &render2DWList               = device->getRender2DWList();
+        const auto total2dw       = static_cast<uint32_t>(render2DWList.size());
+        device->setTotalObjects2D(total2ds + total2dw);
+        const VEC3 cameraPosition = device->getCamera().position;
 
 #if defined USE_THREAD
-        std::thread thread2ds(prepareRender2d, std::ref(this->device->lsObjectRender2DS), std::ref(lsRender2ds));
-        std::thread thread2dw(prepareRender2d, std::ref(this->device->lsObjectRender2DW), std::ref(lsRender2dw));
-        std::thread thread3d(prepareRender3d, std::ref(this->device->lsObjectRender3D), std::ref(lsRender3d));
+        std::thread thread2ds(prepareRender2d, std::ref(render2DSList), std::ref(lsRender2ds));
+        std::thread thread2dw(prepareRender2d, std::ref(render2DWList), std::ref(lsRender2dw));
+        std::thread thread3d(prepareRender3d, std::ref(render3DList), std::ref(lsRender3d), std::cref(cameraPosition));
         if (thread2ds.joinable())
             thread2ds.join();
         if (thread2dw.joinable())
@@ -478,37 +629,38 @@ namespace mbm
         if (thread3d.joinable())
             thread3d.join();
 #else
-        prepareRender2d(std::ref(this->device->lsObjectRender2DS), std::ref(lsRender2ds)); //-V525
-        prepareRender2d(std::ref(this->device->lsObjectRender2DW), std::ref(lsRender2dw));
-        prepareRender3d(std::ref(this->device->lsObjectRender3D), std::ref(lsRender3d));
+        prepareRender2d(std::ref(render2DSList), std::ref(lsRender2ds)); //-V525
+        prepareRender2d(std::ref(render2DWList), std::ref(lsRender2dw));
+        prepareRender3d(std::ref(render3DList), std::ref(lsRender3d), cameraPosition);
 #endif
 
-        device->totalObjectsOnFrustum2D = static_cast<uint32_t>(lsRender2ds.size() + lsRender2dw.size());
-        device->totalObjectsOnFrustum3D = static_cast<uint32_t>(lsRender3d.size());
+        device->setTotalObjectsOnFrustum2D(static_cast<uint32_t>(lsRender2ds.size() + lsRender2dw.size()));
+        device->setTotalObjectsOnFrustum3D(static_cast<uint32_t>(lsRender3d.size()));
         
         if (!this->renderToTargets())
             return;
         
-        if (device->clearBackGround)
+        if (device->isClearBackGroundEnabled())
         {
             device->clearDepthColored();
         }
-        device->updateFrustum(&this->device->camera.matrixView, &this->device->camera.matrixProj);
-        device->camera.updateNormalsRelativeCam();
-        device->camera.calculateAzimuthFromCamera();
-        this->device->camera.matrixBillboard = this->device->camera.matrixView; // Obtemos a Matrix De Vista Do Vista 3D
-        MatrixInverse(&this->device->camera.matrixBillboard, nullptr, &this->device->camera.matrixBillboard);
-        device->totalObjectsIsRendering3D = 0;
+        CAMERA &camera = device->getCamera();
+        device->updateFrustum(&camera.matrixView, &camera.matrixProj);
+        camera.updateNormalsRelativeCam();
+        camera.calculateAzimuthFromCamera();
+        camera.matrixBillboard = camera.matrixView; // Obtemos a Matrix De Vista Do Vista 3D
+        MatrixInverse(&camera.matrixBillboard, nullptr, &camera.matrixBillboard);
+        device->setTotalObjectsIsRendering3D(0);
         if (this->beginRender())
         {
             for (auto ptrRender : lsRender3d)
             {
                 if (ptrRender->render())
-                    ++device->totalObjectsIsRendering3D;
+                    device->incrementTotalObjectsIsRendering3D();
             }
 
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-            device->totalObjectsIsRendering2D = 0;
+            device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
+            device->setTotalObjectsIsRendering2D(0);
             // Clear the depth buffer so 3D perspective depth values do not occlude 2dw
             // objects whose depth comes from the orthographic projection. On Metal this
             // ends the current command encoder and starts a new one that preserves the
@@ -518,19 +670,19 @@ namespace mbm
             for (auto ptrRender : lsRender2dw)
             {
                 if (ptrRender->render())
-                    device->totalObjectsIsRendering2D++;
+                    device->incrementTotalObjectsIsRendering2D();
             }
             device->setDepthTest(false);
             for (auto ptrRender : lsRender2ds)
             {
                 if (ptrRender->render())
-                    ++device->totalObjectsIsRendering2D;
+                    device->incrementTotalObjectsIsRendering2D();
             }
             device->setDepthTest(true);
 
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
             {
-                PLUGIN* plugin = this->lsPlugins[i];
+                PLUGIN* plugin = this->getPlugin(i);
                 plugin->onRender();
             }
             this->endRender();
@@ -539,98 +691,102 @@ namespace mbm
 
     void CORE_MANAGER::_updateDimFrustum()
     {
+        DEVICE *device = this->getDevice();
         VEC3 point(0, 0, 50);
-        this->device->dimNearFrustum3d = VEC3(0, 0, 20);
-        this->device->dimFarFrustum3d  = VEC3(0, 0, 980);
-        this->device->camera.updateCam(true, this->device->backBufferWidth, this->device->backBufferHeight);
-        this->device->updateFrustum(&this->device->camera.matrixView, &this->device->camera.matrixProj);
-        while (this->device->isPointAtTheFrustum(point))
+        CAMERA &camera = device->getCamera();
+        device->setNearFrustumDimension(VEC3(0, 0, 20));
+        device->setFarFrustumDimension(VEC3(0, 0, 980));
+        camera.updateCam(true, device->getBackBufferWidth(), device->getBackBufferHeight());
+        device->updateFrustum(&camera.matrixView, &camera.matrixProj);
+        while (device->isPointAtTheFrustum(point))
         {
             point.x += 0.5f;
         }
-        this->device->dimNearFrustum3d.x = point.x * 2.0f;
+        device->setNearFrustumDimensionX(point.x * 2.0f);
 
         point = VEC3(0, 0, 50);
-        while (this->device->isPointAtTheFrustum(point))
+        while (device->isPointAtTheFrustum(point))
         {
             point.y += 0.5f;
         }
-        this->device->dimNearFrustum3d.y = point.y * 2.0f;
+        device->setNearFrustumDimensionY(point.y * 2.0f);
 
         point = VEC3(0, 0, 980);
-        while (this->device->isPointAtTheFrustum(point))
+        while (device->isPointAtTheFrustum(point))
         {
             point.x += 0.5f;
         }
-        this->device->dimFarFrustum3d.x = point.x * 2.0f;
+        device->setFarFrustumDimensionX(point.x * 2.0f);
 
         point = VEC3(0, 0, 980);
-        while (this->device->isPointAtTheFrustum(point))
+        while (device->isPointAtTheFrustum(point))
         {
             point.y += 0.5f;
         }
-        this->device->dimFarFrustum3d.y = point.y * 2.0f;
+        device->setFarFrustumDimensionY(point.y * 2.0f);
     }
     
     void CORE_MANAGER::adjustScaleScreen2d()
     {
-        if (this->device->camera.expectedScreen.x != 0.0f && this->device->camera.expectedScreen.y != 0.0f) //-V550
+        DEVICE *device = this->getDevice();
+        CAMERA &camera = device->getCamera();
+        if (camera.expectedScreen.x != 0.0f && camera.expectedScreen.y != 0.0f) //-V550
         {
-            const float percx = this->device->backBufferWidth / this->device->camera.expectedScreen.x;
-            const float percy = this->device->backBufferHeight / this->device->camera.expectedScreen.y;
+            const float percx = device->getBackBufferWidth() / camera.expectedScreen.x;
+            const float percy = device->getBackBufferHeight() / camera.expectedScreen.y;
             if (percx != 0.0f && percy != 0.0f) //-V550
             {
-                if (this->device->camera.stretch[0])
+                if (camera.stretch[0])
                 {
-                    if (strcmp(this->device->camera.stretch, "x") == 0)
+                    if (strcmp(camera.stretch, "x") == 0)
                     {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percx;
-                        this->device->camera.scale2d.x = percx;
-                        this->device->camera.scale2d.y = percx;
+                        camera.scaleScreen2d.x = percx;
+                        camera.scaleScreen2d.y = percx;
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percx;
                     }
-                    else if (strcmp(this->device->camera.stretch, "y") == 0)
+                    else if (strcmp(camera.stretch, "y") == 0)
                     {
-                        this->device->camera.scaleScreen2d.x = percy;
-                        this->device->camera.scaleScreen2d.y = percy;
-                        this->device->camera.scale2d.x = percy;
-                        this->device->camera.scale2d.y = percy;
+                        camera.scaleScreen2d.x = percy;
+                        camera.scaleScreen2d.y = percy;
+                        camera.scale2d.x = percy;
+                        camera.scale2d.y = percy;
                     }
-                    else if (strcmp(this->device->camera.stretch, "xy") == 0)
+                    else if (strcmp(camera.stretch, "xy") == 0)
                     {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percy;
-                        this->device->camera.scale2d.x = percx;
-                        this->device->camera.scale2d.y = percy;
+                        camera.scaleScreen2d.x = percx;
+                        camera.scaleScreen2d.y = percy;
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percy;
                     }
                     else if (percx < percy)
                     {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percx;
-                        this->device->camera.scale2d.x = percx;
-                        this->device->camera.scale2d.y = percx;
+                        camera.scaleScreen2d.x = percx;
+                        camera.scaleScreen2d.y = percx;
+                        camera.scale2d.x = percx;
+                        camera.scale2d.y = percx;
                     }
                     else
                     {
-                        this->device->camera.scaleScreen2d.x = percy;
-                        this->device->camera.scaleScreen2d.y = percy;
-                        this->device->camera.scale2d.x = percy;
-                        this->device->camera.scale2d.y = percy;
+                        camera.scaleScreen2d.x = percy;
+                        camera.scaleScreen2d.y = percy;
+                        camera.scale2d.x = percy;
+                        camera.scale2d.y = percy;
                     }
                 }
                 else if (percx < percy)
                 {
-                    this->device->camera.scaleScreen2d.x = percx;
-                    this->device->camera.scaleScreen2d.y = percx;
-                    this->device->camera.scale2d.x = percx;
-                    this->device->camera.scale2d.y = percx;
+                    camera.scaleScreen2d.x = percx;
+                    camera.scaleScreen2d.y = percx;
+                    camera.scale2d.x = percx;
+                    camera.scale2d.y = percx;
                 }
                 else
                 {
-                    this->device->camera.scaleScreen2d.x = percy;
-                    this->device->camera.scaleScreen2d.y = percy;
-                    this->device->camera.scale2d.x = percy;
-                    this->device->camera.scale2d.y = percy;
+                    camera.scaleScreen2d.x = percy;
+                    camera.scaleScreen2d.y = percy;
+                    camera.scale2d.x = percy;
+                    camera.scale2d.y = percy;
                 }
             }
         }
@@ -638,179 +794,191 @@ namespace mbm
     
     void CORE_MANAGER::updateAudio()
     {
-        if(this->device->audioInterface)
-            this->device->audioInterface->update(this,this->device->scene->getIdScene());
+        DEVICE *device = this->getDevice();
+        if(device->getAudioManagerInterface())
+            device->getAudioManagerInterface()->update(this, device->getScene()->getIdScene());
     }
     
     void CORE_MANAGER::updatePhysis()
     {
-        if (!this->device->scene)
+        DEVICE *device = this->getDevice();
+        SCENE *scene = device->getScene();
+        if (!scene)
             return;
-        const float        fps            = this->device->delta == 0.0f ? 0.0f : this->device->fps; //-V550
-        const int          idCurrentScene = this->device->scene->getIdScene();
-        const std::vector<PHYSICS*>::size_type s = this->device->lsPhysics.size();
-        for (std::vector<PHYSICS*>::size_type i = 0; i < s; ++i)
+        const float        fps            = device->delta == 0.0f ? 0.0f : device->fps; //-V550
+        const int          idCurrentScene = scene->getIdScene();
+        const uint32_t     s              = device->getTotalPhysics();
+        for (uint32_t i = 0; i < s; ++i)
         {
-            PHYSICS *ptr = this->device->lsPhysics[i];
+            PHYSICS *ptr = device->getPhysics(i);
             if (ptr && ptr->enablePhysics && ptr->idScene == idCurrentScene)
             {
-                ptr->update(fps,this->device->delta);
+                ptr->update(fps, device->delta);
             }
         }
     }
     
     void CORE_MANAGER::initEnableRenders()
     {
-        for (auto ptr : this->device->lsObjectRender3D)
+        DEVICE *device = this->getDevice();
+        for (auto ptr : device->getRender3DList())
         {
             if (ptr != nullptr)
             {
-                ptr->enableRender = false;
+                ptr->setEnableRender(false);
             }
         }
-        for (auto ptr : this->device->lsObjectRender2DS)
+        for (auto ptr : device->getRender2DSList())
         {
             if (ptr != nullptr)
             {
-                ptr->enableRender = false;
+                ptr->setEnableRender(false);
             }
         }
-        for (auto ptr : this->device->lsObjectRender2DW)
+        for (auto ptr : device->getRender2DWList())
         {
             if (ptr != nullptr)
             {
-                ptr->enableRender = false;
+                ptr->setEnableRender(false);
             }
         }
     }
     
     void CORE_MANAGER::logic()
     {
-        if (this->device->scene != nullptr)
+        DEVICE *device = this->getDevice();
+        SCENE *scene = device->getScene();
+        if (scene != nullptr)
         {
-            if (this->device->scene->endScene)
+            if (scene->isEndScene())
             {
-                this->device->scene->onFinalizeScene();
-                this->device->scene->wasUnloadedScene = true;
-                disableRender(this->device->scene->getIdScene());
-                for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
+                scene->onFinalizeScene();
+                scene->setWasUnloadedScene(true);
+                disableRender(scene->getIdScene());
+                for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
                 {
-                    PLUGIN * plugin = this->lsPlugins[i];
+                    PLUGIN * plugin = this->getPlugin(i);
                     plugin->onDestroy();
                 }
-                this->lsPlugins.clear();
-                if (this->device->scene->goToNextScene && this->device->scene->nextScene == nullptr)
+                this->clearPlugins();
+                if (scene->shouldGoToNextScene() && scene->getNextScene() == nullptr)
                 {
-                    this->device->run             = false;
-                    this->device->clearBackGround = false;
+                    device->setRun(false);
+                    device->setClearBackGround(false);
                 }
                 else
                 {
-                    if (this->device->scene->goToNextScene)
-                        this->device->scene       = this->device->scene->nextScene;
-                    if(this->device->scene)
-                        this->device->scene->endScene = false;
-                    changeScene                   = true;
-                    this->device->clearBackGround = true;
-                    if(this->device->scene)
-                        this->device->scene->startLoading();
+                    if (scene->shouldGoToNextScene())
+                    {
+                        device->setScene(scene->getNextScene());
+                        scene = device->getScene();
+                    }
+                    if(scene)
+                        scene->setEndScene(false);
+                    this->setChangeScene(true);
+                    device->setClearBackGround(true);
+                    if(scene)
+                        scene->startLoading();
                 }
-                this->__sceneWasInit = false;
+                this->setSceneInitialized(false);
             }
-            else if (changeScene)
+            else if (this->isChangeScene())
             {
                 #if defined _DEBUG || defined DEBUG
-                INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", this->device->__swapBackBufferStep);
+                INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", device->getSwapBackBufferStep());
                 #endif
-                if (this->device->__swapBackBufferStep == 3)
+                if (device->getSwapBackBufferStep() == 3)
                 {
                     #if defined _DEBUG || defined DEBUG
                     INFO_LOG("CORE_MANAGER::logic() calling scene->init()");
                     #endif
                     this->reinitTimers();
-                    enableRender(this->device->scene->getIdScene());
-                    this->device->scene->wasUnloadedScene = false;
-                    this->device->orderRender.reInit();
-                    this->device->scene->onInitScene();
-                    this->device->setFakeFps(120,60);
-                    this->device->resumeTimer();
-                    this->__sceneWasInit          = true;
-                    changeScene                   = false;
-                    this->device->clearBackGround = true;
-                    if(this->device->scene)
-                        this->device->scene->endLoading();
+                    enableRender(scene->getIdScene());
+                    scene->setWasUnloadedScene(false);
+                    device->getOrderRender().reInit();
+                    scene->onInitScene();
+                    device->setFakeFps(120,60);
+                    device->resumeTimer();
+                    this->setSceneInitialized(true);
+                    this->setChangeScene(false);
+                    device->setClearBackGround(true);
+                    if(scene)
+                        scene->endLoading();
                 }
                 else
                 {
-                    this->device->clearBackGround = false;
-                    this->device->__swapBackBufferStep++;
+                    device->setClearBackGround(false);
+                    device->incrementSwapBackBufferStep();
                 }
             }
             else
             {
-                this->device->scene->onLoop();
+                scene->onLoop();
             }
         }
     }
     
     void CORE_MANAGER::reinitTimers()
     {
-        this->device->clearAdditionalTimers();
-        this->device->resumeTimer();
+        DEVICE *device = this->getDevice();
+        device->clearAdditionalTimers();
+        device->resumeTimer();
     }
 
     void CORE_MANAGER::enableRender(const int idScene)
     {
-        for (auto ptr : this->device->lsObjectRender3D)
+        DEVICE *device = this->getDevice();
+        for (auto ptr : device->getRender3DList())
         {
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
+                    ptr->setEnableRender(true);
             }
         }
-        for (auto ptr : this->device->lsObjectRender2DS)
+        for (auto ptr : device->getRender2DSList())
         {
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
+                    ptr->setEnableRender(true);
             }
         }
-        for (auto ptr : this->device->lsObjectRender2DW)
+        for (auto ptr : device->getRender2DWList())
         {
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
+                    ptr->setEnableRender(true);
             }
         }
     }
     
     void CORE_MANAGER::disableRender(const int idScene)
     {
-        for (auto ptr : this->device->lsObjectRender3D)
+        DEVICE *device = this->getDevice();
+        for (auto ptr : device->getRender3DList())
         {
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
+                    ptr->setEnableRender(false);
             }
         }
-        for (auto ptr : this->device->lsObjectRender2DS)
+        for (auto ptr : device->getRender2DSList())
         {
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
+                    ptr->setEnableRender(false);
             }
         }
-        for (auto ptr : this->device->lsObjectRender2DW)
+        for (auto ptr : device->getRender2DWList())
         {
             if (ptr != nullptr)
             {
                 if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
+                    ptr->setEnableRender(false);
             }
         }
     }
@@ -851,7 +1019,7 @@ namespace mbm
             posix_spawnattr_destroy(&attr);
             // Do NOT waitpid — the shell command uses & to detach the game process
         };
-        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
+        DEVICE *device                   = this->getDevice();
         std::string  name                = fNextThreadName();
         // Copy command into the thread by value to avoid race with the next call
         std::thread* exec_thread         = new std::thread(fExecute, std::string(command), x11_fd);
@@ -878,7 +1046,7 @@ namespace mbm
                 ERROR_LOG("CreateProcessA failed (error %lu) for: %s", GetLastError(), cmd.c_str());
             }
         };
-        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
+        DEVICE *device                   = this->getDevice();
         std::string  name                = fNextThreadName();
         std::thread* exec_thread         = new std::thread(fExecute, std::string(command));
 #else
@@ -886,73 +1054,75 @@ namespace mbm
         {
             system(cmd.c_str());
         };
-        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
+        DEVICE *device                   = this->getDevice();
         std::string  name                = fNextThreadName();
         std::thread* exec_thread         = new std::thread(fExecute, std::string(command));
 #endif
         DYNAMIC_VAR* dyVar               = new DYNAMIC_VAR(DYNAMIC_REF,static_cast<const void*>(exec_thread));
-        device->lsDynamicVarGlobal[name] = dyVar;
+        device->getDynamicVars()[name] = dyVar;
     }
     #endif
 
     bool CORE_MANAGER::onLostDevice(const bool doSwapBuffers, int width, int height, const int px, const int py)
     {
-        if (stepRestore == STEP_RES_INIT_GL)
+        DEVICE *device = this->getDevice();
+        if (impl->stepRestore == STEP_RES_INIT_GL)
         {
 #if defined _DEBUG
-            WARN_LOG("onLostDevice step %d", stepRestore);
+            WARN_LOG("onLostDevice step %d", impl->stepRestore);
 #endif
             // Save 2D scaling state
-            const VEC2 expectedScreenBefore = this->device->camera.expectedScreen;
-            char stretchBefore[sizeof(this->device->camera.stretch)] = {};
-            strncpy(stretchBefore, this->device->camera.stretch, sizeof(stretchBefore) - 1);
+            CAMERA &camera = device->getCamera();
+            const VEC2 expectedScreenBefore = camera.expectedScreen;
+            char stretchBefore[sizeof(camera.stretch)] = {};
+            strncpy(stretchBefore, camera.stretch, sizeof(stretchBefore) - 1);
 
             constexpr bool wasLostDevice = true;
             this->ReleaseGraphics(wasLostDevice);
 
-            if (initGraphics(this->nameApplication.c_str(), width, height, px, py, this->windowBorder, this->enableResizeWindow))
+            if (initGraphics(this->getNameApplication(), width, height, px, py, this->getWindowBorder(), this->getEnableResizeWindow()))
             {
                 // Reapply previous 2D scaling
-                this->device->camera.expectedScreen = expectedScreenBefore;
-                this->device->scaleToScreen(expectedScreenBefore.x, expectedScreenBefore.y, stretchBefore);
+                camera.expectedScreen = expectedScreenBefore;
+                device->scaleToScreen(expectedScreenBefore.x, expectedScreenBefore.y, stretchBefore);
 
 #if defined _DEBUG
                 WARN_LOG("After restore - scale2d.x: %f, scale2d.y: %f, expectedScreen.x: %f, expectedScreen.y: %f",
-                    this->device->camera.scale2d.x,
-                    this->device->camera.scale2d.y,
-                    this->device->camera.expectedScreen.x,
-                    this->device->camera.expectedScreen.y);
+                    camera.scale2d.x,
+                    camera.scale2d.y,
+                    camera.expectedScreen.x,
+                    camera.expectedScreen.y);
 #endif
 
-                this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
-                this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
+                device->setCamera2dScaleCache(1.0f / camera.scale2d.x,
+                                              1.0f / camera.scale2d.y);
                 this->adjustScaleScreen2d();
 
-                stepRestore = STEP_RES_DRAW_HOURGLASS;
+                impl->stepRestore = STEP_RES_DRAW_HOURGLASS;
                 return false;
             }
             else
             {
 #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d function initGraphics failed!", stepRestore);
+                WARN_LOG("onLostDevice step %d function initGraphics failed!", impl->stepRestore);
 #endif
                 return false;
             }
         }
-        else if (stepRestore == STEP_RES_DRAW_HOURGLASS)
+        else if (impl->stepRestore == STEP_RES_DRAW_HOURGLASS)
         {
 #if defined _DEBUG
-            WARN_LOG("onLostDevice step %d draw Hourglass.", stepRestore);
+            WARN_LOG("onLostDevice step %d draw Hourglass.", impl->stepRestore);
 #endif
             if (this->beginRender())
             {
-                device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+                device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
                 device->setDepthTest(false);
                 device->clearDepthColored();
-                if (device->scene)
-                    device->scene->onRestore(0); //true means: no call restore,  just to prepare the screen.
-                stepRestore = STEP_RES_OBJ;
-                this->which_for = WFOR_INITIAL;
+                if (device->getScene())
+                    device->getScene()->onRestore(0); //true means: no call restore,  just to prepare the screen.
+                impl->stepRestore = STEP_RES_OBJ;
+                impl->whichFor = WFOR_INITIAL;
                 this->endRender();
                 if(doSwapBuffers)
                 {
@@ -961,32 +1131,32 @@ namespace mbm
             }
             return false;
         }
-        else if (stepRestore == STEP_RES_OBJ)
+        else if (impl->stepRestore == STEP_RES_OBJ)
         {
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+            device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
             device->setDepthTest(false);
             device->clearDepthColored();
-            switch (this->which_for)
+            switch (impl->whichFor)
             {
             case WFOR_INITIAL:
             {
 #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d restoring objs.", stepRestore);
+                WARN_LOG("onLostDevice step %d restoring objs.", impl->stepRestore);
 #endif
-                const auto t = static_cast<float>(this->device->lsObjectRender2DW.size() + this->device->lsObjectRender2DS.size() + this->device->lsObjectRender3D.size());
+                const auto t = static_cast<float>(device->getRender2DWList().size() + device->getRender2DSList().size() + device->getRender3DList().size());
                 if (t > 0.0f)
                 {
-                    this->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
-                    this->stepRestoreInfo = 98.0f / t * static_cast<float>(this->totalForByLoop);
+                    impl->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
+                    impl->stepRestoreInfo = 98.0f / t * static_cast<float>(impl->totalForByLoop);
                 }
                 else
                 {
-                    this->stepRestoreInfo = 0.001f;
-                    this->totalForByLoop = 1;
+                    impl->stepRestoreInfo = 0.001f;
+                    impl->totalForByLoop = 1;
                 }
-                this->percentRestoreInfo = 0.0f;
-                this->which_for = WFOR_2DW;
-                this->indexOnRestore = 0;
+                impl->percentRestoreInfo = 0.0f;
+                impl->whichFor = WFOR_2DW;
+                impl->indexOnRestore = 0;
                 return false;
             }
             break;
@@ -994,30 +1164,31 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender2DW.size(); ++i)
+                    auto &render2DWList = device->getRender2DWList();
+                    for (uint32_t i = impl->indexOnRestore, j = 0; i < render2DWList.size(); ++i)
                     {
-                        RENDERIZABLE* ptr = this->device->lsObjectRender2DW[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender = ptr->enableRender;
-                        ptr->alwaysRenderize = false;
-                        ptr->enableRender = false;
+                        RENDERIZABLE* ptr = render2DWList[i];
+                        const bool    alwaysRenderize = ptr->isAlwaysRenderizeEnabled();
+                        const bool    enableRender = ptr->isRenderEnabled();
+                        ptr->setAlwaysRenderize(false);
+                        ptr->setEnableRender(false);
                         //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
-                        const VEC3 positionBefore = ptr->position;
-                        const VEC3 angleBefore = ptr->angle;
+                        const VEC3 positionBefore = ptr->getPosition();
+                        const VEC3 angleBefore = ptr->getAngle();
                         if (ptr->onRestoreDevice())
                         {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender = enableRender;
+                            ptr->setAlwaysRenderize(alwaysRenderize);
+                            ptr->setEnableRender(enableRender);
                             ptr->onRestoreAnimationsState();
                         }
-                        ptr->position = positionBefore;
-                        ptr->angle = angleBefore;
-                        this->indexOnRestore = (i + 1);
-                        if (++j >= this->totalForByLoop)
+                        ptr->setPosition(positionBefore);
+                        ptr->setAngle(angleBefore);
+                        impl->indexOnRestore = (i + 1);
+                        if (++j >= impl->totalForByLoop)
                         {
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                            impl->percentRestoreInfo += impl->stepRestoreInfo;
+                            if (device->getScene())
+                                device->getScene()->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1026,10 +1197,10 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (this->indexOnRestore >= this->device->lsObjectRender2DW.size())
+                    if (impl->indexOnRestore >= device->getRender2DWList().size())
                     {
-                        this->indexOnRestore = 0;
-                        this->which_for = WFOR_2DS;
+                        impl->indexOnRestore = 0;
+                        impl->whichFor = WFOR_2DS;
                     }
                 }
                 return false;
@@ -1039,30 +1210,31 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender2DS.size(); ++i)
+                    auto &render2DSList = device->getRender2DSList();
+                    for (uint32_t i = impl->indexOnRestore, j = 0; i < render2DSList.size(); ++i)
                     {
-                        RENDERIZABLE* ptr = this->device->lsObjectRender2DS[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender = ptr->enableRender;
-                        ptr->alwaysRenderize = false;
-                        ptr->enableRender = false;
+                        RENDERIZABLE* ptr = render2DSList[i];
+                        const bool    alwaysRenderize = ptr->isAlwaysRenderizeEnabled();
+                        const bool    enableRender = ptr->isRenderEnabled();
+                        ptr->setAlwaysRenderize(false);
+                        ptr->setEnableRender(false);
                         //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
-                        const VEC3 positionBefore = ptr->position;
-                        const VEC3 angleBefore = ptr->angle;
+                        const VEC3 positionBefore = ptr->getPosition();
+                        const VEC3 angleBefore = ptr->getAngle();
                         if (ptr->onRestoreDevice())
                         {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender = enableRender;
+                            ptr->setAlwaysRenderize(alwaysRenderize);
+                            ptr->setEnableRender(enableRender);
                             ptr->onRestoreAnimationsState();
                         }
-                        ptr->position = positionBefore;
-                        ptr->angle = angleBefore;
-                        this->indexOnRestore = (i + 1);
-                        if (++j >= this->totalForByLoop)
+                        ptr->setPosition(positionBefore);
+                        ptr->setAngle(angleBefore);
+                        impl->indexOnRestore = (i + 1);
+                        if (++j >= impl->totalForByLoop)
                         {
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                            impl->percentRestoreInfo += impl->stepRestoreInfo;
+                            if (device->getScene())
+                                device->getScene()->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1071,10 +1243,10 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (this->indexOnRestore >= this->device->lsObjectRender2DS.size())
+                    if (impl->indexOnRestore >= device->getRender2DSList().size())
                     {
-                        this->indexOnRestore = 0;
-                        this->which_for = WFOR_3D;
+                        impl->indexOnRestore = 0;
+                        impl->whichFor = WFOR_3D;
                     }
                 }
                 return false;
@@ -1084,30 +1256,31 @@ namespace mbm
             {
                 if (this->beginRender())
                 {
-                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender3D.size(); ++i)
+                    auto &render3DList = device->getRender3DList();
+                    for (uint32_t i = impl->indexOnRestore, j = 0; i < render3DList.size(); ++i)
                     {
-                        RENDERIZABLE* ptr = this->device->lsObjectRender3D[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender = ptr->enableRender;
-                        ptr->alwaysRenderize = false;
-                        ptr->enableRender = false;
+                        RENDERIZABLE* ptr = render3DList[i];
+                        const bool    alwaysRenderize = ptr->isAlwaysRenderizeEnabled();
+                        const bool    enableRender = ptr->isRenderEnabled();
+                        ptr->setAlwaysRenderize(false);
+                        ptr->setEnableRender(false);
                         //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
-                        const VEC3 positionBefore = ptr->position;
-                        const VEC3 angleBefore = ptr->angle;
+                        const VEC3 positionBefore = ptr->getPosition();
+                        const VEC3 angleBefore = ptr->getAngle();
                         if (ptr->onRestoreDevice())
                         {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender = enableRender;
+                            ptr->setAlwaysRenderize(alwaysRenderize);
+                            ptr->setEnableRender(enableRender);
                             ptr->onRestoreAnimationsState();
                         }
-                        ptr->position = positionBefore;
-                        ptr->angle = angleBefore;
-                        this->indexOnRestore = (i + 1);
-                        if (++j >= this->totalForByLoop)
+                        ptr->setPosition(positionBefore);
+                        ptr->setAngle(angleBefore);
+                        impl->indexOnRestore = (i + 1);
+                        if (++j >= impl->totalForByLoop)
                         {
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                            impl->percentRestoreInfo += impl->stepRestoreInfo;
+                            if (device->getScene())
+                                device->getScene()->onRestore(static_cast<int>(std::ceil(impl->percentRestoreInfo > 98.9f ? 98.9f : impl->percentRestoreInfo)));
                             break;
                         }
                     }
@@ -1116,10 +1289,10 @@ namespace mbm
                     {
                         this->swapBuffers();
                     }
-                    if (this->indexOnRestore >= this->device->lsObjectRender3D.size())
+                    if (impl->indexOnRestore >= device->getRender3DList().size())
                     {
-                        this->indexOnRestore = 0;
-                        this->which_for = WFOR_DONE;
+                        impl->indexOnRestore = 0;
+                        impl->whichFor = WFOR_DONE;
                     }
                     return false;
                 }
@@ -1127,20 +1300,20 @@ namespace mbm
             break;
             default: {};
             }
-            stepRestore = STEP_RES_END;
+            impl->stepRestore = STEP_RES_END;
             return false;
         }
-        else if (stepRestore == STEP_RES_END)
+        else if (impl->stepRestore == STEP_RES_END)
         {
 #if defined _DEBUG
-            WARN_LOG("onLostDevice step %d resumeGame", stepRestore);
+            WARN_LOG("onLostDevice step %d resumeGame", impl->stepRestore);
 #endif
-            stepRestore = STEP_RES_INIT_GL;
-            device->clearBackGround = true;
-            if(wasGamePausedBeforeOnStop == false)
-                this->device->resumeGame();
-            if (device->scene)
-                device->scene->onRestore(100);
+            impl->stepRestore = STEP_RES_INIT_GL;
+            device->setClearBackGround(true);
+            if(impl->wasGamePausedBeforeOnStop == false)
+                device->resumeGame();
+            if (device->getScene())
+                device->getScene()->onRestore(100);
             return true;
         }
         return false;
@@ -1149,34 +1322,41 @@ namespace mbm
      void CORE_MANAGER::forceRestore(const bool doSwapBuffers)
     {
         // Call onStop and forceRestore to ensure all resources are reloaded
+        DEVICE *device = this->getDevice();
         this->onStopCoreManager();
         while (!this->onLostDevice(doSwapBuffers, 
-            static_cast<int>(this->device->backBufferWidth),
-            static_cast<int>(this->device->backBufferHeight),
-            this->device->windowPositionX, 
-            this->device->windowPositionY));
+            static_cast<int>(device->getBackBufferWidth()),
+            static_cast<int>(device->getBackBufferHeight()),
+            device->getWindowPositionX(),
+            device->getWindowPositionY()));
     }
 
      void CORE_MANAGER::onTouchDown(int key, float x, float y)
      {
-         x /= this->device->camera.scale2d.x;
-         y /= this->device->camera.scale2d.y;
+         DEVICE *device = this->getDevice();
+         const CAMERA &camera = device->getCamera();
+         x /= camera.scale2d.x;
+         y /= camera.scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHDOWN);
          this->pushEvent(&ev);
      }
 
      void CORE_MANAGER::onTouchUp(int key, float x, float y)
      {
-         x /= this->device->camera.scale2d.x;
-         y /= this->device->camera.scale2d.y;
+         DEVICE *device = this->getDevice();
+         const CAMERA &camera = device->getCamera();
+         x /= camera.scale2d.x;
+         y /= camera.scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHUP);
          this->pushEvent(&ev);
      }
 
      void CORE_MANAGER::onTouchMove(int key, float x, float y)
      {
-         x /= this->device->camera.scale2d.x;
-         y /= this->device->camera.scale2d.y;
+         DEVICE *device = this->getDevice();
+         const CAMERA &camera = device->getCamera();
+         x /= camera.scale2d.x;
+         y /= camera.scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHMOVE);
          this->pushEvent(&ev);
      }
@@ -1202,8 +1382,10 @@ namespace mbm
 
      void CORE_MANAGER::onDoubleClick(float x, float y, int key)
      {
-         x /= this->device->camera.scale2d.x;
-         y /= this->device->camera.scale2d.y;
+         DEVICE *device = this->getDevice();
+         const CAMERA &camera = device->getCamera();
+         x /= camera.scale2d.x;
+         y /= camera.scale2d.y;
          EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONDOUBLECLICK);
          this->pushEvent(&ev);
      }
@@ -1252,51 +1434,52 @@ namespace mbm
      
      void CORE_MANAGER::pushEvent(EVENT_KEY* event)
      {
-         if (event && this->device->scene && this->__sceneWasInit)
+         DEVICE *device = this->getDevice();
+         if (event && device->getScene() && this->isSceneInitialized())
          {
-             mutexEvents.lock();
-             if (event->eventType == this->lastEvent.eventType)
+             impl->mutexEvents.lock();
+             if (event->eventType == impl->lastEvent.eventType)
              {
                  switch (event->eventType)
                  {
                     case UNKNOWN: 
                     {
-                        mutexEvents.unlock();
+                        impl->mutexEvents.unlock();
                         return;
                     }
                     break;
                     case ONRESIZEWINDOW:
                     {
-                        EVENT_KEY* event_onresize = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                        EVENT_KEY* event_onresize = impl->events.size() > 0 ? &impl->events.back() : nullptr;
                         if (event_onresize)
                         {
                             //update resize event only
                             *event_onresize = *event;
                         }
-                        mutexEvents.unlock();
+                        impl->mutexEvents.unlock();
                         return;
                     }
                     break;
                     case ONMOVEWINDOW:
                     {
-                        EVENT_KEY* event_onmove = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                        EVENT_KEY* event_onmove = impl->events.size() > 0 ? &impl->events.back() : nullptr;
                         if (event_onmove)
                         {
                             //update move event only
                             *event_onmove = *event;
                         }
-                        mutexEvents.unlock();
+                        impl->mutexEvents.unlock();
                         return;
                     }
                     break;
                     case ONTOUCHMOVE:
                     {
-                        if (event->key == this->lastEvent.key &&
-                            (static_cast<int>(event->x) == static_cast<int>(this->lastEvent.x) &&
-                            static_cast<int>(event->y) == static_cast<int>(this->lastEvent.y)))
+                        if (event->key == impl->lastEvent.key &&
+                            (static_cast<int>(event->x) == static_cast<int>(impl->lastEvent.x) &&
+                            static_cast<int>(event->y) == static_cast<int>(impl->lastEvent.y)))
                         {
                             //ignore move event with same position only
-                            mutexEvents.unlock();
+                            impl->mutexEvents.unlock();
                             return;
                         }
                     }
@@ -1305,14 +1488,14 @@ namespace mbm
                     case ONTOUCHUP:
                     case ONDOUBLECLICK:
                     {
-                        if (event->key == this->lastEvent.key)
+                        if (event->key == impl->lastEvent.key)
                         {
-                            EVENT_KEY* event_touch = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                            EVENT_KEY* event_touch = impl->events.size() > 0 ? &impl->events.back() : nullptr;
                             if (event_touch)
                             {
                                 *event_touch = *event;
                             }
-                            mutexEvents.unlock();
+                            impl->mutexEvents.unlock();
                             return;
                         }
                     }
@@ -1320,18 +1503,18 @@ namespace mbm
                     case ONKEYDOWN:
                     case ONKEYUP:
                     {
-                        if (event->key == this->lastEvent.key)
+                        if (event->key == impl->lastEvent.key)
                         {
-                            mutexEvents.unlock();
+                            impl->mutexEvents.unlock();
                             return;
                         }
                     }
                     break;
                     case ONTOUCHZOOM: 
                     {
-                        if (event->key == this->lastEvent.key)
+                        if (event->key == impl->lastEvent.key)
                         {
-                            EVENT_KEY* event_zoom = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                            EVENT_KEY* event_zoom = impl->events.size() > 0 ? &impl->events.back() : nullptr;
                             if (event_zoom)
                             {
                                 *event_zoom = *event;
@@ -1339,10 +1522,10 @@ namespace mbm
                             else
                             {
                                 // Queue empty: coalescing would drop the event. Add it instead.
-                                this->lastEvent = *event;
-                                this->lsEvents.push_back(*event);
+                                impl->lastEvent = *event;
+                                impl->events.push_back(*event);
                             }
-                            mutexEvents.unlock();
+                            impl->mutexEvents.unlock();
                             return;
                         }
                     }
@@ -1351,82 +1534,83 @@ namespace mbm
                     {
                     }
                     break;
-                 }
+                  }
              }
-             this->lastEvent = *event;
+             impl->lastEvent = *event;
 
              switch (event->eventType)
              {
                 case ONKEYDOWN:
                 {
-                    if (this->__keyPressed[event->key] == false)
-                        this->lsEvents.push_back(*event);
-                    this->__keyPressed[event->key] = true;
+                    if (impl->keyPressed[event->key] == false)
+                        impl->events.push_back(*event);
+                    impl->keyPressed[event->key] = true;
                 }
                 break;
                 case ONKEYUP:
                 {
-                    if (this->__keyPressed[event->key])
-                        this->lsEvents.push_back(*event);
-                    this->__keyPressed[event->key] = false;
+                    if (impl->keyPressed[event->key])
+                        impl->events.push_back(*event);
+                    impl->keyPressed[event->key] = false;
                 }
                 break;
                 case ONRESIZEWINDOW:
                 {
-                    this->lsEvents.push_back(*event);
+                    impl->events.push_back(*event);
                 }
                 break;
                 default: 
                 {
-                    this->lsEvents.push_back(*event);
+                    impl->events.push_back(*event);
                 }
                 break;
              }
-             mutexEvents.unlock();
+             impl->mutexEvents.unlock();
          }
      }
 
      bool CORE_MANAGER::popEvent(EVENT_KEY* event)
      {
-         mutexEvents.lock();
-         if (this->lsEvents.size() > 0 && event)
+         impl->mutexEvents.lock();
+         if (impl->events.size() > 0 && event)
          {
-             *event = this->lsEvents.front();
-             this->lsEvents.pop_front();
-             mutexEvents.unlock();
+             *event = impl->events.front();
+             impl->events.pop_front();
+             impl->mutexEvents.unlock();
              return true;
          }
          else
          {
-             mutexEvents.unlock();
+             impl->mutexEvents.unlock();
              return false;
          }
      }
 
      void CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER* info)
      {
-         mutexEvents.lock();
-         if (this->device->scene && this->__sceneWasInit)
+         impl->mutexEvents.lock();
+         DEVICE *device = this->getDevice();
+         if (device->getScene() && this->isSceneInitialized())
          {
-             this->lsInfoJoystick.push_back(*info);
+             impl->joystickInfoEvents.push_back(*info);
          }
-         mutexEvents.unlock();
+         impl->mutexEvents.unlock();
      }
 
      bool CORE_MANAGER::popEvent(INFO_JOYSTICK_INIT_PLAYER* info)
      {
-         mutexEvents.lock();
-         if (this->lsInfoJoystick.size() > 0 && info)
+         impl->mutexEvents.lock();
+         if (impl->joystickInfoEvents.size() > 0 && info)
          {
 
-             *info = this->lsInfoJoystick.front();
-             this->lsInfoJoystick.pop_front();
-             mutexEvents.unlock();
+             *info = impl->joystickInfoEvents.front();
+             impl->joystickInfoEvents.pop_front();
+             impl->mutexEvents.unlock();
              return true;
          }
          else
          {
-             mutexEvents.unlock();
+             impl->mutexEvents.unlock();
              return false;
          }
      }

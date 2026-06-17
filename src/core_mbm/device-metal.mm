@@ -23,7 +23,7 @@
 #include <audio-interface.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
-#include <specific-metal.h>
+#include "specific-metal-context.h"
 #include <dynamic-var.h>
 
 namespace mbm
@@ -31,15 +31,16 @@ namespace mbm
     void DEVICE::initializeSpecificContext()
     {
         this->destroySpecificContext();
-        this->specificContextDevice = new SPECIFIC_AUX_CONTEXT_DEVICE();
+        setSpecificContextDevice(new SPECIFIC_AUX_CONTEXT_DEVICE());
     }
 
     void DEVICE::destroySpecificContext()
     {
-        if (this->specificContextDevice)
+        auto *context = getSpecificContextDevice();
+        if (context)
         {
-            delete this->specificContextDevice;
-            this->specificContextDevice = nullptr;
+            delete context;
+            setSpecificContextDevice(nullptr);
         }
     }
 
@@ -51,7 +52,7 @@ namespace mbm
         if (instanceDevice)
         {
             constexpr bool wasDeviceLost = false;
-            instanceDevice->specificContextDevice->release(wasDeviceLost);
+            instanceDevice->getSpecificContextDevice()->release(wasDeviceLost);
             delete instanceDevice;
         }
         instanceDevice = nullptr;
@@ -61,8 +62,8 @@ namespace mbm
     {
         // Toggle the flag read by SHADER::render() / renderDynamic() to choose between
         // the depth-enabled (less + write) and depth-disabled (always + no-write) states.
-        if (specificContextDevice)
-            specificContextDevice->depthTestEnabled = enable;
+        if (auto *context = getSpecificContextDevice())
+            context->depthTestEnabled = enable;
     }
 
     void DEVICE::clearDepth()
@@ -72,8 +73,8 @@ namespace mbm
         // colour attachment (preserving the 3D scene) but clears the depth attachment.
         // This is called between the 3D pass and the 2dw pass so that 3D perspective
         // depth values do not contaminate the 2dw orthographic depth comparisons.
-        if (!specificContextDevice) return;
-        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = specificContextDevice;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = getSpecificContextDevice();
+        if (!ctx) return;
         if (ctx->currentEncoder && ctx->currentCommandBuffer && ctx->currentPassDescriptor)
         {
             [ctx->currentEncoder endEncoding];
@@ -105,10 +106,10 @@ namespace mbm
 
     void DEVICE::clearDepthColored()
     {
-        // colorClearBackGround is already updated by the caller before invoking this.
-        // beginRender() reads it when building the MTLRenderPassDescriptor.
-        if (this->specificContextDevice)
-            this->specificContextDevice->pendingClearDepth = true;
+        // The clear background color is already updated by the caller before invoking this.
+        // beginRender() reads it through DEVICE accessors when building the MTLRenderPassDescriptor.
+        if (auto *context = getSpecificContextDevice())
+            context->pendingClearDepth = true;
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
@@ -118,11 +119,12 @@ namespace mbm
 
     const char* DEVICE::getBackendEngineVersion() const noexcept
     {
-        if (this->specificContextDevice && this->specificContextDevice->mtlDevice)
+        auto *context = getSpecificContextDevice();
+        if (context && context->mtlDevice)
         {
             static std::string ver;
             ver = "\nMetal device: ";
-            ver += [this->specificContextDevice->mtlDevice.name UTF8String];
+            ver += [context->mtlDevice.name UTF8String];
             return ver.c_str();
         }
         return "\nMetal (device not initialised)";
@@ -130,11 +132,11 @@ namespace mbm
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)
     {
-        // In the Metal backend, backBufferWidth/Height and drawableSize are managed
+        // In the Metal backend, backbuffer size and drawableSize are managed
         // by initGraphics() and resetDeviceWithNewDimensions() only.
         // Here we just rebuild the camera matrices for the given dimensions.
         if (width > 0 && height > 0)
-            this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+            this->getCamera().updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
     }
 
     const char* DEVICE::copyFileFromAsset(const char* assetName, const char* /*mode*/)
@@ -145,16 +147,16 @@ namespace mbm
 
     void DEVICE::disableFilteringForPixelPerfect() noexcept
     {
-        _pixelPerfectRenderingActive = true;
-        if (specificContextDevice)
-            specificContextDevice->useNearestSampler = true;
+        setPixelPerfectRenderingActive(true);
+        if (auto *context = getSpecificContextDevice())
+            context->useNearestSampler = true;
     }
 
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept
     {
-        _pixelPerfectRenderingActive = false;
-        if (specificContextDevice)
-            specificContextDevice->useNearestSampler = false;
+        setPixelPerfectRenderingActive(false);
+        if (auto *context = getSpecificContextDevice())
+            context->useNearestSampler = false;
     }
 
 } // namespace mbm

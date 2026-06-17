@@ -65,7 +65,7 @@ namespace mbm
 			FX * fx                                   = getSafeFxFromRenderizable(lua, renderizable);
             if (pixelShaderFileName)
             {
-                pShaderCfg = device->cfg.getShader(pixelShaderFileName);
+                pShaderCfg = device->getShaderConfig().getShader(pixelShaderFileName);
                 if (pShaderCfg == nullptr)
                 {
                     return lua_error_debug(lua, "pixel shader not found: %s", pixelShaderFileName);
@@ -73,7 +73,7 @@ namespace mbm
             }
             if (vertexShaderFileName)
             {
-                vShaderCfg = device->cfg.getShader(vertexShaderFileName);
+                vShaderCfg = device->getShaderConfig().getShader(vertexShaderFileName);
                 if (vShaderCfg == nullptr)
                 {
                     return lua_error_debug(lua, "vertex shader not found: %s", vertexShaderFileName);
@@ -111,7 +111,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxPS->ptrCurrentShader ? fx->fxPS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxPS->getCurrentShader() ? fx->fxPS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -139,7 +139,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxPS->ptrCurrentShader ? fx->fxPS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxPS->getCurrentShader() ? fx->fxPS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -165,7 +165,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxPS->ptrCurrentShader ? fx->fxPS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxPS->getCurrentShader() ? fx->fxPS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -191,7 +191,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxPS->ptrCurrentShader ? fx->fxPS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxPS->getCurrentShader() ? fx->fxPS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -207,7 +207,7 @@ namespace mbm
         const int t = fx->getMinVarPShader(varName,data);
         if(t == 0)
         {
-			const char * shaderName = fx->fxPS->ptrCurrentShader ? fx->fxPS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+			const char * shaderName = fx->fxPS->getCurrentShader() ? fx->fxPS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
             return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
         }
         for (int i = 0; i < 4 && i < t; ++i)
@@ -225,7 +225,7 @@ namespace mbm
         const int t = fx->getMinVarVShader(varName,data);
         if(t == 0)
         {
-			const char * shaderName = fx->fxVS->ptrCurrentShader ? fx->fxVS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+			const char * shaderName = fx->fxVS->getCurrentShader() ? fx->fxVS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
             return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
         }
         for (int i = 0; i < 4 && i < t; ++i)
@@ -243,7 +243,7 @@ namespace mbm
         const int t = fx->getMaxVarPShader(varName,data);
         if(t == 0)
         {
-			const char * shaderName = fx->fxPS->ptrCurrentShader ? fx->fxPS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+			const char * shaderName = fx->fxPS->getCurrentShader() ? fx->fxPS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
             return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
         }
         for (int i = 0; i < 4 && i < t; ++i)
@@ -261,7 +261,7 @@ namespace mbm
         const int t = fx->getMaxVarVShader(varName,data);
         if(t == 0)
         {
-			const char * shaderName = fx->fxVS->ptrCurrentShader ? fx->fxVS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+			const char * shaderName = fx->fxVS->getCurrentShader() ? fx->fxVS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
             return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
         }
         for (int i = 0; i < 4 && i < t; ++i)
@@ -290,7 +290,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxVS->ptrCurrentShader ? fx->fxVS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxVS->getCurrentShader() ? fx->fxVS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -318,7 +318,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxVS->ptrCurrentShader ? fx->fxVS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxVS->getCurrentShader() ? fx->fxVS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -344,7 +344,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxVS->ptrCurrentShader ? fx->fxVS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxVS->getCurrentShader() ? fx->fxVS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -370,7 +370,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxVS->ptrCurrentShader ? fx->fxVS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxVS->getCurrentShader() ? fx->fxVS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -396,7 +396,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxPS->ptrCurrentShader ? fx->fxPS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxPS->getCurrentShader() ? fx->fxPS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -422,7 +422,7 @@ namespace mbm
             }
             else
             {
-				const char * shaderName = fx->fxVS->ptrCurrentShader ? fx->fxVS->ptrCurrentShader->fileName.c_str() : "NULL"; //-V522
+				const char * shaderName = fx->fxVS->getCurrentShader() ? fx->fxVS->getCurrentShader()->fileName.c_str() : "NULL"; //-V522
                 return lua_error_debug(lua, "variable [%s] not found for current shader [%s]", varName,shaderName);
             }
         }
@@ -595,8 +595,8 @@ namespace mbm
     int onGetNamesShaderLua(lua_State *lua)
     {
         FX* fx =  getFxFromRawTable(lua,1,1);
-        const char *       namePS   = fx->fxPS->ptrCurrentShader ? fx->fxPS->ptrCurrentShader->fileName.c_str() : nullptr;
-        const char *       nameVS   = fx->fxVS->ptrCurrentShader ? fx->fxVS->ptrCurrentShader->fileName.c_str() : nullptr;
+        const char *       namePS   = fx->fxPS->getCurrentShader() ? fx->fxPS->getCurrentShader()->fileName.c_str() : nullptr;
+        const char *       nameVS   = fx->fxVS->getCurrentShader() ? fx->fxVS->getCurrentShader()->fileName.c_str() : nullptr;
         if(namePS)
             lua_pushstring(lua, namePS);
         else

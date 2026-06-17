@@ -23,6 +23,8 @@
 #include <shader.h>
 #include <texture-manager.h>
 #include <specific-opengl_es.h>
+#include "specific-opengl_es-buffer.h"
+#include "specific-opengl_es-shader.h"
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <draw-compatibility.h>
@@ -112,17 +114,18 @@ namespace mbm
         initializedIndexBuffer(false),
         texture1(nullptr)
     {
-        bs = new BUFFER_SPECIFIC();
+        setBackendBuffer(new BUFFER_SPECIFIC());
     }
 
     BUFFER_GL::~BUFFER_GL()
     {
-        if(bs)
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if(backendBuffer)
         {
             // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-            delete static_cast<BUFFER_SPECIFIC*>(bs);
+            delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
-        bs = nullptr;
+        setBackendBuffer(nullptr);
         texture1 = nullptr;
         texture0.clear();
     }
@@ -168,7 +171,8 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
-        bs->release();
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->release();
         totalSubset   = 0;
     }
 
@@ -181,16 +185,17 @@ namespace mbm
             return false;
         const GLenum usage           = isDynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW;
         this->totalSubset            = totalSubsets;
-        this->bs->vboVertexSubsetVB  = new uint32_t[totalSubset];
-        this->bs->vboNormalSubsetVB  = new uint32_t[totalSubset];
-        this->bs->vboTextureSubsetVB = new uint32_t[totalSubset];
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->vboVertexSubsetVB  = new uint32_t[totalSubset];
+        backendBuffer->vboNormalSubsetVB  = new uint32_t[totalSubset];
+        backendBuffer->vboTextureSubsetVB = new uint32_t[totalSubset];
         this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
         this->fvf = (normal && uv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV : (normal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR : (uv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
-        memset(this->bs->vboVertexSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
-        memset(this->bs->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
-        memset(this->bs->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
-        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboVertexSubsetVB);
-        if (!this->bs->vboVertexSubsetVB[0])
+        memset(backendBuffer->vboVertexSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
+        memset(backendBuffer->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
+        memset(backendBuffer->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
+        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), backendBuffer->vboVertexSubsetVB);
+        if (!backendBuffer->vboVertexSubsetVB[0])
         {
             this->release();
             return false;
@@ -198,25 +203,25 @@ namespace mbm
 
         if (normal)
         {
-            GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboNormalSubsetVB);
+            GLGenBuffers(static_cast<GLsizei>(this->totalSubset), backendBuffer->vboNormalSubsetVB);
         }
 
         if (uv)
         {
-            GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboTextureSubsetVB);
+            GLGenBuffers(static_cast<GLsizei>(this->totalSubset), backendBuffer->vboTextureSubsetVB);
         }
         for (uint32_t i = 0; i < totalSubset; ++i)
         {
-            GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboVertexSubsetVB[i]);
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
             GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(mbm::VEC3) *  static_cast<size_t>(this->vertexCountVB[i])), &vertex[this->vertexStartVB[i]], usage);
             if (normal)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboNormalSubsetVB[i]);
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboNormalSubsetVB[i]);
                 GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(mbm::VEC3) * static_cast<size_t>(this->vertexCountVB[i])), &normal[this->vertexStartVB[i]],usage);
             }
             if (uv)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboTextureSubsetVB[i]);
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboTextureSubsetVB[i]);
                 GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(mbm::VEC2) * static_cast<size_t>(this->vertexCountVB[i])), &uv[this->vertexStartVB[i]],usage);
             }
         }
@@ -233,39 +238,40 @@ namespace mbm
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        GLGenBuffers(3, this->bs->vboVertNorTexIB);
-        if (this->bs->vboVertNorTexIB[0] == 0)
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        GLGenBuffers(3, backendBuffer->vboVertNorTexIB);
+        if (backendBuffer->vboVertNorTexIB[0] == 0)
             return false;
         this->totalSubset      = totalSubsets;
-        this->bs->vboIndexSubsetIB = new uint32_t[totalSubset];
+        backendBuffer->vboIndexSubsetIB = new uint32_t[totalSubset];
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         this->fvf = (normal && uv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV : (normal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR : (uv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
-        memset(this->bs->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
-        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboIndexSubsetIB);
-        if (!this->bs->vboIndexSubsetIB[0])
+        memset(backendBuffer->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
+        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), backendBuffer->vboIndexSubsetIB);
+        if (!backendBuffer->vboIndexSubsetIB[0])
         {
             this->release();
             return false;
         }
 
-        GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboVertNorTexIB[0]);
+        GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
         GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeOfArrayVertex * sizeof(mbm::VEC3)), vertex, GL_STATIC_DRAW);
 
         if (normal)
         {
-            GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboVertNorTexIB[1]);
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[1]);
             GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeOfArrayVertex * sizeof(mbm::VEC3)), normal, GL_STATIC_DRAW);
         }
 
         if (uv)
         {
-            GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboVertNorTexIB[2]);
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[2]);
             GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeOfArrayVertex * sizeof(mbm::VEC2)), uv, GL_STATIC_DRAW);
         }
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
-            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->bs->vboIndexSubsetIB[i]);
+            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
             GLBufferData(GL_ELEMENT_ARRAY_BUFFER,static_cast<GLsizeiptr>(sizeof(unsigned short) * static_cast<size_t>(this->indexCountIB[i])),&arrayIndices[this->indexStartIB[i]], GL_STATIC_DRAW);
         }
 
@@ -285,13 +291,14 @@ namespace mbm
         release();
         if (!arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         this->totalSubset      = totalSubsets;
-        this->bs->vboIndexSubsetIB = new uint32_t[totalSubset];
-        memset(this->bs->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
+        backendBuffer->vboIndexSubsetIB = new uint32_t[totalSubset];
+        memset(backendBuffer->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         this->fvf = (hasNormal && hasUv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV : (hasNormal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR : (hasUv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
-        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboIndexSubsetIB);
-        if (!this->bs->vboIndexSubsetIB[0])
+        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), backendBuffer->vboIndexSubsetIB);
+        if (!backendBuffer->vboIndexSubsetIB[0])
         {
             this->release();
             return false;
@@ -299,7 +306,7 @@ namespace mbm
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
-            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->bs->vboIndexSubsetIB[i]);
+            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
             GLBufferData(GL_ELEMENT_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(uint16_t) * static_cast<size_t>(this->indexCountIB[i])),&arrayIndices[this->indexStartIB[i]], GL_STATIC_DRAW);
         }
 
@@ -315,6 +322,7 @@ namespace mbm
     {
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
+            BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
             const uint32_t vertexStart = vertexStartSubset[i];
             const uint32_t vertexCount = vertexCountSubset[i];
             if (vertexCount > this->sizeOfArrayVertex)
@@ -336,16 +344,16 @@ namespace mbm
             }
             else
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboVertexSubsetVB[i]);
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
                 GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pVertexStart, GL_DYNAMIC_DRAW);
-                if (pNormalStart && this->bs->vboNormalSubsetVB[i] != 0)
+                if (pNormalStart && backendBuffer->vboNormalSubsetVB[i] != 0)
                 {
-                    GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboNormalSubsetVB[i]);
+                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboNormalSubsetVB[i]);
                     GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pNormalStart, GL_DYNAMIC_DRAW);
                 }
-                if (pUvStart && this->bs->vboTextureSubsetVB[i] != 0)
+                if (pUvStart && backendBuffer->vboTextureSubsetVB[i] != 0)
                 {
-                    GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboTextureSubsetVB[i]);
+                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboTextureSubsetVB[i]);
                     GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC2) * vertexCount, pUvStart, GL_DYNAMIC_DRAW);
                 }
             }
@@ -364,12 +372,13 @@ namespace mbm
         constexpr uint32_t sizeOfArrayVertex = 0;
 
         this->totalSubset = 1;
-        this->bs->vboIndexSubsetIB = new uint32_t[this->totalSubset];
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->vboIndexSubsetIB = new uint32_t[this->totalSubset];
 
         this->initializeIndexBufferControl(this->totalSubset, sizeOfArrayVertex, &indexStartSubset, &indexCountSubset, nullptr);
-        memset(this->bs->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
-        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboIndexSubsetIB);
-        if (!this->bs->vboIndexSubsetIB[0])
+        memset(backendBuffer->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
+        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), backendBuffer->vboIndexSubsetIB);
+        if (!backendBuffer->vboIndexSubsetIB[0])
         {
             this->release();
             return false;
@@ -377,7 +386,7 @@ namespace mbm
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
-            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->bs->vboIndexSubsetIB[i]);
+            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
             GLBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeIndexBuffer, arrayIndices, GL_STATIC_DRAW);
         }
 
@@ -531,35 +540,41 @@ namespace mbm
         programObject  = 0;
     }
 
-    SHADER::SHADER() : ptrShaderSpecific(new GLES_PS_VS()),
+    SHADER::SHADER() :
         pShader(nullptr),
         vShader(nullptr)
     {
+        setBackendShaderSpecific(new GLES_PS_VS());
     }
 
     SHADER::~SHADER()
     {
+        void *backendShaderSpecific = getBackendShaderSpecific();
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        delete static_cast<GLES_PS_VS*>(ptrShaderSpecific);
+        delete static_cast<GLES_PS_VS*>(backendShaderSpecific);
+        setBackendShaderSpecific(nullptr);
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
     {
-        static_cast<GLES_PS_VS*>(ptrShaderSpecific)->release();//TODO: check this: maybe only attribute 0 is enough
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        static_cast<GLES_PS_VS*>(backendShaderSpecific)->release();//TODO: check this: maybe only attribute 0 is enough
         this->pShader            = nullptr;
         this->vShader            = nullptr;
     }
 
     void SHADER::releaseShader()
     {
-        static_cast<GLES_PS_VS*>(ptrShaderSpecific)->release();
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        static_cast<GLES_PS_VS*>(backendShaderSpecific)->release();
         this->pShader            = nullptr;
         this->vShader            = nullptr;
     }
 
     bool SHADER::isLoad() const noexcept
     {
-        return static_cast<const GLES_PS_VS*>(ptrShaderSpecific)->programObject != 0;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        return static_cast<const GLES_PS_VS*>(backendShaderSpecific)->programObject != 0;
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
@@ -593,7 +608,8 @@ namespace mbm
         defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
-        GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(backendShaderSpecific);
         if (gles_shaderSpecific->programObject)
         {
             PRINT_IF_DEBUG("programObject already has a value [%d]", gles_shaderSpecific->programObject);
@@ -601,22 +617,22 @@ namespace mbm
         }
         if (this->pShader == nullptr && this->vShader == nullptr)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs.c_str(), defaultCodePs.c_str()))
+            if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, defaultCodeVs.c_str(), defaultCodePs.c_str()))
                 return false;
         }
         else if (this->pShader == nullptr && this->vShader)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, this->vShader->getCode(), defaultCodePs.c_str()))
+            if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, this->vShader->getCode(), defaultCodePs.c_str()))
                 return false;
         }
         else if (this->pShader && this->vShader == nullptr)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs.c_str(), this->pShader->getCode()))
+            if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, defaultCodeVs.c_str(), this->pShader->getCode()))
                 return false;
         }
         else if (this->pShader && this->vShader)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, this->vShader->getCode(), this->pShader->getCode()))
+            if (!loadShaderProgram(this->pShader, this->vShader, backendShaderSpecific, this->vShader->getCode(), this->pShader->getCode()))
                 return false;
         }
 
@@ -670,31 +686,35 @@ namespace mbm
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer)
+            return false;
         
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
-            if (!pBufferId->bs->vboVertNorTexIB[0])
+            if (!backendBuffer->vboVertNorTexIB[0])
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
-            GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[0]);
+            GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
             GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
             GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
             //-----------------------------------------------------------------------------------------------------------
             if (gles_shaderSpecific->normalHandle != -1) // Normal (nem sempre temos normal nos shaders)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[1]);
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[1]);
                 GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
             }
             //-----------------------------------------------------------------------------------------------------------
             if (gles_shaderSpecific->texCoordHandle != -1)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[2]);
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[2]);
                 GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             }
@@ -708,15 +728,15 @@ namespace mbm
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
+                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
@@ -729,25 +749,25 @@ namespace mbm
         }
         else // Vertex buffer
         {
-            if (!pBufferId->bs->vboVertexSubsetVB)
+            if (!backendBuffer->vboVertexSubsetVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertexSubsetVB[i]);
+                GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
                 GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 //-----------------------------------------------------------------------------------------------------------
-                if (gles_shaderSpecific->normalHandle != -1 && pBufferId->bs->vboNormalSubsetVB && pBufferId->bs->vboNormalSubsetVB[i] != 0)
+                if (gles_shaderSpecific->normalHandle != -1 && backendBuffer->vboNormalSubsetVB && backendBuffer->vboNormalSubsetVB[i] != 0)
                 {
-                    GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboNormalSubsetVB[i]);
+                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboNormalSubsetVB[i]);
                     GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
                     GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                if (gles_shaderSpecific->texCoordHandle != -1 && pBufferId->bs->vboTextureSubsetVB && pBufferId->bs->vboTextureSubsetVB[i] != 0)
+                if (gles_shaderSpecific->texCoordHandle != -1 && backendBuffer->vboTextureSubsetVB && backendBuffer->vboTextureSubsetVB[i] != 0)
                 {
-                    GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboTextureSubsetVB[i]);
+                    GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboTextureSubsetVB[i]);
                     GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
                     GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
                 }
@@ -759,14 +779,14 @@ namespace mbm
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE* texture1 = pBufferId->getTextureByStage(0, i);
                 if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
@@ -775,9 +795,9 @@ namespace mbm
                 }
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1)
-                    && pBufferId->bs->vboNormalSubsetVB && pBufferId->bs->vboNormalSubsetVB[i] != 0;
+                    && backendBuffer->vboNormalSubsetVB && backendBuffer->vboNormalSubsetVB[i] != 0;
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1)
-                    && pBufferId->bs->vboTextureSubsetVB && pBufferId->bs->vboTextureSubsetVB[i] != 0;
+                    && backendBuffer->vboTextureSubsetVB && backendBuffer->vboTextureSubsetVB[i] != 0;
                 disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
                 GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
@@ -790,14 +810,18 @@ namespace mbm
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer)
+            return false;
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
-            if (!pBufferId->bs->vboIndexSubsetIB)
+            if (!backendBuffer->vboIndexSubsetIB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
@@ -820,15 +844,15 @@ namespace mbm
             {
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
+                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
 
                 const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
                 GLActiveTexture(GL_TEXTURE1);
                 if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
@@ -866,14 +890,14 @@ namespace mbm
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
@@ -894,11 +918,15 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const
     {
-        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         constexpr uint32_t index_subset = 0;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer)
+            return false;
         const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
         GLActiveTexture(GL_TEXTURE0);
-        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
         const GLenum modeDrawGl      = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
@@ -912,7 +940,7 @@ namespace mbm
         const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
         if (texture1)
         {
-            GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+            GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
             GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
         }
         else
@@ -938,7 +966,7 @@ namespace mbm
         // to avoid GL_INVALID_OPERATION on strict GLES drivers (ANGLE, Mesa).
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
         disableUnusedVertexAttribs(gles_shaderSpecific, false, gles_shaderSpecific->texCoordHandle >= 0);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
             ? this->pShader->getVarByName("color")
             : nullptr;
@@ -992,11 +1020,15 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
-        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         constexpr uint32_t index_subset = 0;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer)
+            return false;
         const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
         GLActiveTexture(GL_TEXTURE0);
-        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
         const GLenum modeDrawGl = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
@@ -1010,7 +1042,7 @@ namespace mbm
         const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
         if (texture1)
         {
-            GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+            GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
             GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
         }
         else
@@ -1037,7 +1069,7 @@ namespace mbm
         // to avoid GL_INVALID_OPERATION on strict GLES drivers (ANGLE, Mesa).
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
         disableUnusedVertexAttribs(gles_shaderSpecific, false, gles_shaderSpecific->texCoordHandle >= 0);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
             ? this->pShader->getVarByName("color")
             : nullptr;

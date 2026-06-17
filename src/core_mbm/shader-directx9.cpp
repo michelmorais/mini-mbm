@@ -24,7 +24,10 @@
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
-#include <specific-directx9.h>
+#include "specific-directx9-context.h"
+#include "specific-directx9-buffer.h"
+#include "specific-directx9-shader.h"
+#include "specific-directx9-vertex.h"
 #include <header-mesh.h>
 #include <draw-compatibility.h>
 #include <texture-manager.h>
@@ -75,17 +78,18 @@ namespace mbm
         texture1(nullptr)
     {
         //we initialize this at the moment (just once)
-        bs = new BUFFER_SPECIFIC();
+        setBackendBuffer(new BUFFER_SPECIFIC());
     }
 
     BUFFER_GL::~BUFFER_GL()
     {
-        if(bs)
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if(backendBuffer)
         {
             // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-            delete static_cast<BUFFER_SPECIFIC*>(bs);
+            delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
-        bs = nullptr;
+        setBackendBuffer(nullptr);
         texture1 = nullptr;
         texture0.clear();
     }
@@ -108,7 +112,8 @@ namespace mbm
         this->sizeOfArrayVertex = 0;
         this->initializedIndexBuffer = false;
         //we do not delete bs
-        bs->release();
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->release();
         totalSubset   = 0;
     }
 
@@ -275,34 +280,35 @@ namespace mbm
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
-        this->fvf = this->bs->FVF = d3d_converter.getFVF();
+        this->fvf = backendBuffer->FVF = d3d_converter.getFVF();
         const DWORD DFVF = d3d_converter.get3d3FVF();
-        this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
+        backendBuffer->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
         
         const DWORD bufferUsage = isDynamic ? (D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY) : D3DUSAGE_WRITEONLY;
         const D3DPOOL d3dPoll = isDynamic ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED;
         if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
-            this->bs->sizeStructVertexInBytes  * sizeOfArrayVertex,
+            backendBuffer->sizeStructVertexInBytes  * sizeOfArrayVertex,
             bufferUsage, //Usage
             DFVF,//FVF
             d3dPoll,//memory
-            &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
+            &backendBuffer->pVertexBuffer,//IDirect3DVertexBuffer9
             nullptr)))				//Always null
         {
             ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
             return false;
         }
         void* pvertex = nullptr;
-        if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+        if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
             return false;
         }
         d3d_converter.copyTod3dVertexBuffer(pvertex);
-        this->bs->pVertexBuffer->Unlock();
+        backendBuffer->pVertexBuffer->Unlock();
         this->totalSubset = totalSubsets;
         return true;
     }
@@ -316,32 +322,33 @@ namespace mbm
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
-        this->fvf = this->bs->FVF = d3d_converter.getFVF();
+        this->fvf = backendBuffer->FVF = d3d_converter.getFVF();
         const DWORD DFVF = d3d_converter.get3d3FVF();
-        this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
+        backendBuffer->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
 
         if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
-            this->bs->sizeStructVertexInBytes * sizeOfArrayVertex,
+            backendBuffer->sizeStructVertexInBytes * sizeOfArrayVertex,
             D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
             DFVF,//FVF
             D3DPOOL_MANAGED,//local memory
-            &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
+            &backendBuffer->pVertexBuffer,//IDirect3DVertexBuffer9
             nullptr)))				//Always null
         {
             ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
             return false;
         }
         void* pvertex = nullptr;
-        if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+        if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
             return false;
         }
         d3d_converter.copyTod3dVertexBuffer(pvertex);
-        this->bs->pVertexBuffer->Unlock();
+        backendBuffer->pVertexBuffer->Unlock();
 
         // index vertex
         UINT sizeIndexBuffer = 0;
@@ -355,7 +362,7 @@ namespace mbm
             D3DUSAGE_WRITEONLY,
             D3DFMT_INDEX16,
             D3DPOOL_MANAGED,
-            &this->bs->pIndexBuffer, nullptr)))
+            &backendBuffer->pIndexBuffer, nullptr)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to create INDEX BUFFER");
             return false;
@@ -363,13 +370,13 @@ namespace mbm
 
         int16_t* pIndex = nullptr;
         void** ppIndex = reinterpret_cast<void**>(&pIndex);
-        if (FAILED(this->bs->pIndexBuffer->Lock(0, 0, ppIndex, 0)))
+        if (FAILED(backendBuffer->pIndexBuffer->Lock(0, 0, ppIndex, 0)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to lock INDEX BUFFER");
             return false;
         }
         memcpy(pIndex, arrayIndices, sizeIndexBufferInBytes);
-        this->bs->pIndexBuffer->Unlock();
+        backendBuffer->pIndexBuffer->Unlock();
 
         return true;
     }
@@ -386,7 +393,8 @@ namespace mbm
         if ( !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
         // Find the max vertex count
         // and max size of index buffer
         UINT sizeIndexBuffer = 0;
@@ -406,19 +414,19 @@ namespace mbm
         const std::vector<VEC2> uv(hasUv ? sizeOfArrayVertex : 0);
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex.data(), hasNormal ? normal.data() : nullptr, hasUv ? uv.data() : nullptr, sizeOfArrayVertex);
-        this->fvf = this->bs->FVF = d3d_converter.getFVF();
+        this->fvf = backendBuffer->FVF = d3d_converter.getFVF();
         const DWORD DFVF = d3d_converter.get3d3FVF();
-        this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
+        backendBuffer->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
 
         // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
         //•	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
         const DWORD vbUsage = D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY;
         if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
-            this->bs->sizeStructVertexInBytes * sizeOfArrayVertex,
+            backendBuffer->sizeStructVertexInBytes * sizeOfArrayVertex,
             vbUsage,
             DFVF,//FVF
             D3DPOOL_DEFAULT,//local memory
-            &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
+            &backendBuffer->pVertexBuffer,//IDirect3DVertexBuffer9
             nullptr)))				//Always null
         {
             ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
@@ -431,7 +439,7 @@ namespace mbm
             D3DUSAGE_WRITEONLY,
             D3DFMT_INDEX16,
             D3DPOOL_MANAGED,
-            &this->bs->pIndexBuffer, nullptr)))
+            &backendBuffer->pIndexBuffer, nullptr)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to create INDEX BUFFER");
             return false;
@@ -439,13 +447,13 @@ namespace mbm
 
         int16_t* pIndex = nullptr;
         void** ppIndex = reinterpret_cast<void**>(&pIndex);
-        if (FAILED(this->bs->pIndexBuffer->Lock(0, 0, ppIndex, 0)))
+        if (FAILED(backendBuffer->pIndexBuffer->Lock(0, 0, ppIndex, 0)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to lock INDEX BUFFER");
             return false;
         }
         memcpy(pIndex, arrayIndices, sizeIndexBufferInBytes);
-        this->bs->pIndexBuffer->Unlock();
+        backendBuffer->pIndexBuffer->Unlock();
 
         return true;
     }
@@ -492,16 +500,17 @@ namespace mbm
             else
             {
                 const D3D_VERTEX_CONVERTER d3d_converter(pVertexStart, normal, uv, vertexCount);
+                BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
                 void* pvertex = nullptr;
                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                 // If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                 {
                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                     return false;
                 }
                 d3d_converter.copyTod3dVertexBuffer(pvertex);
-                this->bs->pVertexBuffer->Unlock();
+                backendBuffer->pVertexBuffer->Unlock();
             }
         }
         return true;
@@ -598,7 +607,7 @@ namespace mbm
         if (d3dPsVs->pd3dPixelShader == nullptr && d3dPsVs->pd3dVertexShader == nullptr) // simple check
             return;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
@@ -673,28 +682,32 @@ namespace mbm
     }
 
     SHADER::SHADER() : 
-        ptrShaderSpecific(new D3D_PS_VS()),
         pShader(nullptr),
         vShader(nullptr)
     {
+        setBackendShaderSpecific(new D3D_PS_VS());
     }
 
     SHADER::~SHADER()
     {
+        void *backendShaderSpecific = getBackendShaderSpecific();
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        delete static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        delete static_cast<D3D_PS_VS*>(backendShaderSpecific);
+        setBackendShaderSpecific(nullptr);
     }
 
     void SHADER::onRestore()
     {
-        static_cast<D3D_PS_VS*>(ptrShaderSpecific)->release();
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        static_cast<D3D_PS_VS*>(backendShaderSpecific)->release();
         this->pShader = nullptr;
         this->vShader = nullptr;
     }
 
     void SHADER::releaseShader()
     {
-        static_cast<D3D_PS_VS*>(ptrShaderSpecific)->release();
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        static_cast<D3D_PS_VS*>(backendShaderSpecific)->release();
         this->pShader         = nullptr;
         this->vShader         = nullptr;
     }
@@ -741,7 +754,8 @@ namespace mbm
         ID3DXBuffer* bufferVS       = nullptr;
         ID3DXBuffer* errorBuffer    = nullptr;
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
 
         const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs.c_str();
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs.c_str();
@@ -779,7 +793,7 @@ namespace mbm
             }
         }
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -846,14 +860,15 @@ namespace mbm
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-        if (pBufferId->bs == nullptr || pBufferId->bs->pVertexBuffer == nullptr)
+        BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
+        if (backendBuffer == nullptr || backendBuffer->pVertexBuffer == nullptr)
         {
             ERROR_AT(__LINE__, __FILE__, "IDirect3DVertexBuffer9 is null, you must load the object first");
             return false;
         };
 
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
 
         const D3DMATRIX* modelView = reinterpret_cast<const D3DMATRIX*>(&SHADER::modelView);
         if (FAILED(pd3dDevice->SetTransform(D3DTS_WORLD, modelView)))
@@ -862,7 +877,8 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -906,9 +922,9 @@ namespace mbm
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
-            this->pShader->update(this->ptrShaderSpecific);
+            this->pShader->update(backendShaderSpecific);
         if (this->vShader)
-            this->vShader->update(this->ptrShaderSpecific);
+            this->vShader->update(backendShaderSpecific);
         #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
@@ -945,22 +961,22 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
             };
 
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
-                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                backendBuffer->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
                 0,		//Position in bytes of start stream
-                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+                backendBuffer->sizeStructVertexInBytes)))//Size of structure vertex
             {
                 ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
                 return false;
             };
 
-            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            if (FAILED(pd3dDevice->SetIndices(backendBuffer->pIndexBuffer)))
             {
                 ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
                 return false;
@@ -970,7 +986,7 @@ namespace mbm
             TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
             if (texture1)
             {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
                 pd3dDevice->SetTexture(1, pp3DTexture9);
             }
             else
@@ -982,7 +998,7 @@ namespace mbm
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 if (texture0)
                 {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
@@ -1064,18 +1080,18 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF));
+            pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF));
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
-                pBufferId->bs->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
+                backendBuffer->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
                 0,		//Posicao Em Bytes Do inicio  Do Stream Atual
-                pBufferId->bs->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
+                backendBuffer->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
                 return false;
 
             // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
             TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
             if (texture1)
             {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
                 pd3dDevice->SetTexture(1, pp3DTexture9);
             }
             else
@@ -1088,7 +1104,7 @@ namespace mbm
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 if (texture0)
                 {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
@@ -1152,19 +1168,20 @@ namespace mbm
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-        if (pBufferId && vertex && pBufferId->bs && pBufferId->bs->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
+        BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
+        if (pBufferId && vertex && backendBuffer && backendBuffer->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
         {
             const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, pBufferId->sizeOfArrayVertex);
             void* pvertex = nullptr;
             // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
             // If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-            if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+            if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                 return false;
             }
             d3d_converter.copyTod3dVertexBuffer(pvertex);
-            pBufferId->bs->pVertexBuffer->Unlock();
+            backendBuffer->pVertexBuffer->Unlock();
 
             return render(pBufferId);
         }
@@ -1173,8 +1190,11 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const
     {
+        BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
+        if (!backendBuffer)
+            return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         DWORD depthTestEnabled = FALSE;
 
         pd3dDevice->GetRenderState(D3DRS_ZENABLE, &depthTestEnabled);
@@ -1187,7 +1207,8 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -1231,9 +1252,9 @@ namespace mbm
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
-            this->pShader->update(this->ptrShaderSpecific);
+            this->pShader->update(backendShaderSpecific);
         if (this->vShader)
-            this->vShader->update(this->ptrShaderSpecific);
+            this->vShader->update(backendShaderSpecific);
         #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
@@ -1269,22 +1290,22 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
             };
 
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
-                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                backendBuffer->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
                 0,		//Position in bytes of start stream
-                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+                backendBuffer->sizeStructVertexInBytes)))//Size of structure vertex
             {
                 ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
                 return false;
             };
 
-            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            if (FAILED(pd3dDevice->SetIndices(backendBuffer->pIndexBuffer)))
             {
                 ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
                 return false;
@@ -1301,7 +1322,7 @@ namespace mbm
             TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
             if (texture1)
             {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
                 pd3dDevice->SetTexture(1, pp3DTexture9);
             }
             else
@@ -1314,7 +1335,7 @@ namespace mbm
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 if (texture0)
                 {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
@@ -1370,13 +1391,13 @@ namespace mbm
                                 void* pvertex = nullptr;
                                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                                 //•	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                                 {
                                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                                     return false;
                                 }
                                 memcpy(pvertex, vertex, sizeof(VERTEX_UV) * 4);
-                                pBufferId->bs->pVertexBuffer->Unlock();
+                                backendBuffer->pVertexBuffer->Unlock();
 
                                 d3dPsVs->constantTablePS->SetFloatArray(pd3dDevice, handleVarColor, particle->color, 4);
 
@@ -1401,13 +1422,13 @@ namespace mbm
                                 void* pvertex = nullptr;
                                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                                 //•	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                                 {
                                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                                     return false;
                                 }
                                 memcpy(pvertex, vertex, sizeof(VERTEX_UV) * 4);
-                                pBufferId->bs->pVertexBuffer->Unlock();
+                                backendBuffer->pVertexBuffer->Unlock();
 
                                 if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
                                     vertexStartVB,
@@ -1458,8 +1479,11 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
+        BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
+        if (!backendBuffer)
+            return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         DWORD depthTestEnabled = FALSE;
 
         pd3dDevice->GetRenderState(D3DRS_ZENABLE, &depthTestEnabled);
@@ -1472,7 +1496,8 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -1516,9 +1541,9 @@ namespace mbm
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
-            this->pShader->update(this->ptrShaderSpecific);
+            this->pShader->update(backendShaderSpecific);
         if (this->vShader)
-            this->vShader->update(this->ptrShaderSpecific);
+            this->vShader->update(backendShaderSpecific);
         #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
@@ -1554,22 +1579,22 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->getSpecificContextDevice()->getFVF(backendBuffer->FVF))))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
             };
 
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
-                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                backendBuffer->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
                 0,		//Position in bytes of start stream
-                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+                backendBuffer->sizeStructVertexInBytes)))//Size of structure vertex
             {
                 ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
                 return false;
             };
 
-            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            if (FAILED(pd3dDevice->SetIndices(backendBuffer->pIndexBuffer)))
             {
                 ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
                 return false;
@@ -1583,7 +1608,7 @@ namespace mbm
             TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
             if (texture1)
             {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
                 pd3dDevice->SetTexture(1, pp3DTexture9);
             }
             else
@@ -1596,7 +1621,7 @@ namespace mbm
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 if (texture0)
                 {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
@@ -1678,13 +1703,13 @@ namespace mbm
                                 void* pvertex = nullptr;
                                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                                 //	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                                 {
                                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                                     return false;
                                 }
                                 memcpy(pvertex, vertex, sizeof(vertex));
-                                pBufferId->bs->pVertexBuffer->Unlock();
+                                backendBuffer->pVertexBuffer->Unlock();
 
 
                                 if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
@@ -1733,13 +1758,13 @@ namespace mbm
                                 void* pvertex = nullptr;
                                 // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
                                 //	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
-                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                if (FAILED(backendBuffer->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                                 {
                                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                                     return false;
                                 }
                                 memcpy(pvertex, vertex, sizeof(vertex));
-                                pBufferId->bs->pVertexBuffer->Unlock();
+                                backendBuffer->pVertexBuffer->Unlock();
 
 
                                 if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,

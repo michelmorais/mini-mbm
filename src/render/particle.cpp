@@ -108,10 +108,11 @@ namespace mbm
             const util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->infoAnimation.lsHeaderAnim[0];
             if (anim && mesh->infoAnimation.lsHeaderAnim.size() && infoHead->headerAnim)
             {
-                anim->blendState = static_cast<BLEND_STATE>(infoHead->headerAnim->blendState);
+                anim->setBlendState(static_cast<BLEND_STATE>(infoHead->headerAnim->blendState));
                 if (infoHead->effectShader)
                 {
-                    anim->fx.blendOperation = infoHead->effectShader->blendOperation;
+                    FX &fx = anim->getFx();
+                    fx.blendOperation = infoHead->effectShader->blendOperation;
                 }
             }
         }
@@ -157,9 +158,9 @@ namespace mbm
             }
             char strTemp[255];
             snprintf(strTemp, sizeof(strTemp), "%s@%u@%s@%s", fileNameTextureOrMesh, effectiveTotal, operatorShader, newCodeLine ? newCodeLine : "");
-            this->fileName = strTemp;
-            this->enableRender = true;
-            this->alwaysRenderize = true;
+            this->setInternalFileName(strTemp);
+            this->setEnableRender(true);
+            this->setAlwaysRenderize(true);
             // Only start with 0 alive when loading texture (not .ptl) without particle count - particles arise over time
             const bool isPtlFile = (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0);
             if (sizeOfParticle == 0 && !isPtlFile)
@@ -208,23 +209,25 @@ namespace mbm
         const char* fileNameVs = "__particle.vs";
 
         ANIMATION* anim = this->getAnimation();
+        FX &fx = anim->getFx();
 
-        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_PAUSED);
-        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
-        anim->fx.shader.releaseShader();
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+        fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_PAUSED));
+        fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
+        fx.shader.releaseShader();
+        if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         float defaultVar[4] = { 1, 1, 1, 1 };
-        if (anim->fx.fxPS->ptrCurrentShader == nullptr ||
-            anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,
-                anim->fx.shader.ptrShaderSpecific, true) == false)
+        void *backendShaderSpecific = fx.shader.getBackendShaderSpecific();
+        if (fx.fxPS->getCurrentShader() == nullptr ||
+            fx.fxPS->getCurrentShader()->addVar("color", VAR_COLOR_RGBA, defaultVar,
+                backendShaderSpecific, true) == false)
         {
 #if defined _DEBUG
             PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
 #endif
         }
-        if (anim->fx.fxPS->ptrCurrentShader == nullptr || anim->fx.fxPS->ptrCurrentShader->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
-            anim->fx.shader.ptrShaderSpecific, true) == false)
+        if (fx.fxPS->getCurrentShader() == nullptr || fx.fxPS->getCurrentShader()->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
+            backendShaderSpecific, true) == false)
         {
 #if defined _DEBUG
             PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "enableAlphaFromColor", fileNamePs);
@@ -294,9 +297,9 @@ namespace mbm
             ANIMATION* anim = this->getAnimation();
             if (anim)
             {
-                anim->isEndedThisAnimation = false;
-                anim->currentWayGrowingOfAnimation = false;
-                snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "stage:%d", 1);
+                anim->setEnded(false);
+                anim->setCurrentWayGrowing(false);
+                anim->setNameAnimation("stage:1");
             }
             this->control.restartAnimationParticle();
         }
@@ -310,7 +313,7 @@ namespace mbm
     
     bool PARTICLE::isOnFrustum()
     {
-        if (this->isRender2Texture)
+        if (this->isRender2TextureEnabled())
             return false;
         if (this->control.getTotalParticle() >0  && this->control.getTotalParticleAlive() > 0)
         {
@@ -318,83 +321,86 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const float w5 = device->getScaleBackBufferWidth() * 0.5f;
             const float h5 = device->getScaleBackBufferHeight() * 0.5f;
-            if ((dim.x * this->scale.x) > (w5))
-                this->alwaysRenderize = true;
-            else if ((dim.y * this->scale.y) > (h5))
-                this->alwaysRenderize = true;
-            if (this->is3D)
+            const VEC3 &position = this->getPosition();
+            const VEC3 &scale = this->getScale();
+            const VEC3 &angle = this->getAngle();
+            if ((dim.x * scale.x) > (w5))
+                this->setAlwaysRenderize(true);
+            else if ((dim.y * scale.y) > (h5))
+                this->setAlwaysRenderize(true);
+            if (this->is3DObject())
             {
-                if (this->angle.z != 0.0f || this->angle.y != 0.0f || this->angle.x != 0.0f)
+                if (angle.z != 0.0f || angle.y != 0.0f || angle.x != 0.0f)
                 {
-                    const float sw = this->control.getWTexture() * this->scale.x * 0.5f;
-                    const float sh = this->control.getHTexture() * this->scale.y * 0.5f;
-                    if (device->isSphereAtFrustum(this->position, sw > sh ? sw : sh))
+                    const float sw = this->control.getWTexture() * scale.x * 0.5f;
+                    const float sh = this->control.getHTexture() * scale.y * 0.5f;
+                    if (device->isSphereAtFrustum(position, sw > sh ? sw : sh))
                         return true;
-                    if (device->isSphereAtFrustum(this->position, dim.x > dim.y ? dim.x : dim.y))
+                    if (device->isSphereAtFrustum(position, dim.x > dim.y ? dim.x : dim.y))
                         return true;
                 }
                 else
                 {
                     CUBE   base;
-                    const float sw = this->control.getWTexture() * this->scale.x * 0.5f;
-                    const float sh = this->control.getHTexture() * this->scale.y * 0.5f;
+                    const float sw = this->control.getWTexture() * scale.x * 0.5f;
+                    const float sh = this->control.getHTexture() * scale.y * 0.5f;
                     base.halfDim.x = sw;
                     base.halfDim.y = sh;
                     base.halfDim.z = sw > sh ? sw : sh;
-                    if (device->isCubeAtFrustum(this->position, this->scale, base))
+                    if (device->isCubeAtFrustum(position, scale, base))
                         return true;
                     base.halfDim.x = dim.x;
                     base.halfDim.y = dim.y;
                     base.halfDim.z = dim.x > dim.y ? dim.x : dim.y;
-                    if (device->isCubeAtFrustum(this->position, this->scale, base))
+                    if (device->isCubeAtFrustum(position, scale, base))
                         return true;
                 }
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                if (this->angle.z != 0.0f) // check as circle
+                if (angle.z != 0.0f) // check as circle
                 {
-                    const float sw = this->control.getWTexture() * this->scale.x * 0.5f;
-                    const float sh = this->control.getHTexture() * this->scale.y * 0.5f;
-                    if (device->isCircleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    const float sw = this->control.getWTexture() * scale.x * 0.5f;
+                    const float sh = this->control.getHTexture() * scale.y * 0.5f;
+                    if (device->isCircleScreen2dOnScreen2D_scaled(position.x, position.y,
                                                                         sw > sh ? sw : sh))
                         return true;
-                    if (device->isCircleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isCircleScreen2dOnScreen2D_scaled(position.x, position.y,
                                                                         dim.x > dim.y ? dim.x : dim.y))
                         return true;
                 }
                 else
                 {
-                    if (device->isRectangleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
-                                                                           this->control.getWTexture() * this->scale.x,
-                                                                           this->control.getHTexture() * this->scale.y))
+                    if (device->isRectangleScreen2dOnScreen2D_scaled(position.x, position.y,
+                                                                           this->control.getWTexture() * scale.x,
+                                                                           this->control.getHTexture() * scale.y))
                         return true;
-                    if (device->isRectangleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
-                                                                           dim.x * this->scale.x, dim.y * this->scale.y))
+                    if (device->isRectangleScreen2dOnScreen2D_scaled(position.x, position.y,
+                                                                           dim.x * scale.x, dim.y * scale.y))
                         return true;
                 }
             }
             else
             {
-                if (this->angle.z != 0.0f) // check as circle
+                if (angle.z != 0.0f) // check as circle
                 {
-                    const float sw = this->control.getWTexture() * this->scale.x * 0.5f;
-                    const float sh = this->control.getHTexture() * this->scale.y * 0.5f;
-                    if (device->isCircleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    const float sw = this->control.getWTexture() * scale.x * 0.5f;
+                    const float sh = this->control.getHTexture() * scale.y * 0.5f;
+                    if (device->isCircleWorld2dOnScreen2D_scaled(position.x, position.y,
                                                                        sw > sh ? sw : sh))
                         return true;
-                    if (device->isCircleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isCircleWorld2dOnScreen2D_scaled(position.x, position.y,
                                                                        dim.x > dim.y ? dim.x : dim.y))
                         return true;
                 }
                 else
                 {
-                    if (device->isRectangleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
-                                                                          this->control.getWTexture() * this->scale.x,
-                                                                          this->control.getHTexture() * this->scale.y))
+                    if (device->isRectangleWorld2dOnScreen2D_scaled(position.x, position.y,
+                                                                          this->control.getWTexture() * scale.x,
+                                                                          this->control.getHTexture() * scale.y))
                         return true;
-                    if (device->isRectangleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
-                                                                          dim.x * this->scale.x, dim.y * this->scale.y))
+                    if (device->isRectangleWorld2dOnScreen2D_scaled(position.x, position.y,
+                                                                          dim.x * scale.x, dim.y * scale.y))
                         return true;
                 }
             }
@@ -407,23 +413,27 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if (this->control.getTotalAlive())
         {
-            if (this->is3D)
+            const CAMERA &camera = device->getCamera();
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
-                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                VEC3 positionScreen(position.x * camera.scaleScreen2d.x,
+                    position.y * camera.scaleScreen2d.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             
             const util::STAGE_PARTICLE* sPart = control.getStageParticle();
@@ -445,9 +455,10 @@ namespace mbm
     {
         PARTICLE* theParticle = static_cast<PARTICLE*>(that);
         RENDERIZABLE* renderizable = reinterpret_cast<RENDERIZABLE*>(theParticle);
-        if (theParticle->onEndAnimation)
+        const OnEndAnimation onEndAnimation = theParticle->getOnEndAnimation();
+        if (onEndAnimation)
         {
-            theParticle->onEndAnimation(nameAnimation, renderizable);
+            onEndAnimation(nameAnimation, renderizable);
         }
     }
 
@@ -466,7 +477,7 @@ namespace mbm
     {
         std::vector<std::string> result;
         this->texture = nullptr;
-        util::split(result, this->fileName.c_str(), '@');
+        util::split(result, this->getInternalFileName(), '@');
         if (result.size() < 3)
             return this->releaseOnFail();
 
@@ -513,7 +524,8 @@ namespace mbm
                 mbm::ANIMATION *anim = this->getAnimation();
                 if(anim)
                 {
-                    anim->fx.textureOverrideStage2 = newTex;
+                    FX &fx = anim->getFx();
+                    fx.textureOverrideStage2 = newTex;
                     bufferGl.setTextureByStage(newTex, stage, 0);
                     return true;
                 }
@@ -526,12 +538,12 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new ANIMATION();
-        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "stage:%d", 1);
-        anim->isEndedThisAnimation = false;
-        anim->currentWayGrowingOfAnimation = false;
-        anim->type = TYPE_ANIMATION_PAUSED;
-        anim->blendState = (BLEND_ONE);
-        this->lsAnimation.push_back(anim);
+        anim->setNameAnimation("stage:1");
+        anim->setEnded(false);
+        anim->setCurrentWayGrowing(false);
+        anim->setType(TYPE_ANIMATION_PAUSED);
+        anim->setBlendState(BLEND_ONE);
+        this->appendAnimation(anim);
         if (!this->loadParticleShader(operatorShader, newCodeLine))
             return false;
         return true;
@@ -541,13 +553,14 @@ namespace mbm
     {
         ANIMATION* anim = this->getAnimation();
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        anim->fx.shader.update();
-        anim->fx.setBlendOp();
-        this->blend.set(anim->blendState);
-        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
+        FX &fx = anim->getFx();
+        fx.shader.update();
+        fx.setBlendOp();
+        this->setBlendState(anim->getBlendState());
+        anim->updateAnimation(device->delta, this, nullptr, this->getOnEndFx());
         this->control.updateParticleStage(sPart, device->delta);
 
-        return anim->fx.shader.renderParticle(&this->bufferGl, &this->control);
+        return fx.shader.renderParticle(&this->bufferGl, &this->control);
     }
     
     const INFO_PHYSICS * PARTICLE::getInfoPhysics() const
@@ -564,7 +577,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 

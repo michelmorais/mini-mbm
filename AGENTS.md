@@ -157,8 +157,9 @@ int main() {
 ### Accessing the device / camera
 ```cpp
 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-device->camera.position = mbm::VEC3(0, 280, -900);
-device->camera.focus    = mbm::VEC3(0, 280, 0);
+mbm::CAMERA &camera = device->getCamera();
+camera.position = mbm::VEC3(0, 280, -900);
+camera.focus    = mbm::VEC3(0, 280, 0);
 ```
 
 ### Debug path helper
@@ -294,6 +295,7 @@ All plugins link against `plugin-helper`. It provides:
 - **Include guards** `#ifndef SOMETHING_H` / `#define SOMETHING_H` — not `#pragma once`
 - **Indentation**: 4 spaces (no tabs)
 - **Pointer style**: `TYPE *varName` (space before `*`, not after)
+- **Accessor reuse**: if a function uses the same getter/setter-backed object more than once, store it in a local variable or reference for that function scope (e.g., `CAMERA &camera = device->getCamera();`). Do not cache accessor-returned engine state as persistent object/member state unless ownership/lifetime is explicitly designed for it.
 - **Lua C functions**: always `extern "C"` with export macro; return `int`, take `lua_State *lua`
 - **License block**: MIT license in box-drawing-character frame at top of every file
 

@@ -50,20 +50,20 @@ namespace mbm
     int onDestroyVR(lua_State *lua)
     {
         HMD *                 vr       = getVRFromRawTable(lua, 1, 1);
-        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(vr->userData);
+        auto *userData = static_cast<USER_DATA_RENDER_LUA *>(vr->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        vr->userData = nullptr;
+        vr->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = vr->getFileName();
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",vr->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(vr);
         delete vr;
         return 0;
@@ -93,7 +93,7 @@ namespace mbm
         lua_setmetatable(lua, -2);
         DEVICE *device = DEVICE::getInstance();
         auto **       udata  = static_cast<HMD **>(lua_newuserdata(lua, sizeof(HMD *)));
-        auto         vr     = new HMD(device->scene);
+        auto         vr     = new HMD(device->getScene());
         
         *udata = vr;
         vr->load();

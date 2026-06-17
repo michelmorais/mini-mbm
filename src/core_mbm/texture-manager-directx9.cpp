@@ -20,7 +20,9 @@
 
 #if defined (USE_DIRECTX9)
 
-#include <specific-directx9.h>
+#include "specific-directx9-context.h"
+#include "specific-directx9-d3dx.h"
+#include "specific-directx9-render-target.h"
 #include <texture-manager.h>
 #include <renderizable.h>
 #include <uber-image.h>
@@ -32,12 +34,12 @@ namespace mbm
 {
     void TEXTURE::release()
     {
-        IDirect3DTexture9* p3DTexture9 = static_cast<IDirect3DTexture9*>(ptrTexture);
+        IDirect3DTexture9* p3DTexture9 = static_cast<IDirect3DTexture9*>(getBackendTexturePointer());
         if (p3DTexture9)
         {
             p3DTexture9->Release();
         }
-        ptrTexture      = nullptr;
+        setBackendTexturePointer(nullptr);
         width           = 0;
         height          = 0;
         useAlphaChannel = false;
@@ -81,10 +83,10 @@ namespace mbm
 
     
 
-    void copy_pixels_per_row_Pitch( D3DSURFACE_DESC	&descSurfaceDest, 
-                                        const uint32_t width, 
-                                        const uint32_t height, 
-                                        D3DLOCKED_RECT & lockDestRect, 
+    static void copy_pixels_per_row_Pitch( D3DSURFACE_DESC	&descSurfaceDest,
+                                        const uint32_t width,
+                                        const uint32_t height,
+                                        D3DLOCKED_RECT & lockDestRect,
                                         const uint8_t* dataImage) noexcept
     {   // compute bytes per pixel in source and destination
         const bool destIsA8R8G8B8 = (descSurfaceDest.Format == D3DFMT_A8R8G8B8);
@@ -143,7 +145,7 @@ namespace mbm
                                 const uint32_t width, const uint32_t height,
                                 const uint16_t channel, const bool hasAlpha)
     {
-        auto pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        auto pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         D3DFORMAT requested_format = D3DFMT_A8R8G8B8;
         PIXELS_FROM_3_DEPTH_TO_4 pixels_from_3_depth_to_4;
         IDirect3DSurface9* surfaceDest = nullptr;
@@ -325,7 +327,7 @@ namespace mbm
             PRINT_IF_DEBUG("failed to get texture from DATA");
             return false;
         }
-        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(getBackendTexturePointerAddress());
         this->width  = w;
         this->height = h;
         this->useAlphaChannel = hasAlpha ? true : false;
@@ -346,7 +348,7 @@ namespace mbm
         const int  channel    = 4;
         const bool alpha      = true;
 
-        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(getBackendTexturePointerAddress());
         return created3dTexture(pp3DTexture9,
             TEXTURE::isPixelPerfectTextureEnabled,
             reinterpret_cast<const uint8_t*>(image->data),
@@ -359,7 +361,7 @@ namespace mbm
         if (fileName == nullptr)
             return nullptr;
         std::string fileNameBase = util::getBaseName(fileName);
-        TEXTURE* tex = lsTextures[fileNameBase];
+        TEXTURE* tex = getCachedTexture(fileNameBase);
         if (tex)
             return tex;
         fileName = getFilePathTexture(fileName, nullptr);
@@ -369,14 +371,14 @@ namespace mbm
         D3DXIMAGE_INFO infoTexture;
         infoTexture.Width = 0;
         infoTexture.Height = 0;
-        auto pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        auto pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         if (SUCCEEDED(D3DXGetImageInfoFromFileA(fileName, &infoTexture)))
         {
             tex->width = infoTexture.Width;
             tex->height = infoTexture.Height;
             UINT MipLevels = 1U; // Match OpenGL ES: no mip chain for 2D textures (avoids edge bleeding)
             D3DFORMAT tFormat = forceAlpha ? D3DFMT_A8R8G8B8 : D3DFMT_UNKNOWN;
-            IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&tex->ptrTexture);
+            IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(tex->getBackendTexturePointerAddress());
             
             constexpr DWORD Usage = 0; //D3DUSAGE_RENDERTARGET D3DUSAGE_DYNAMIC 
             DWORD Filter = D3DX_FILTER_BOX;
@@ -412,7 +414,7 @@ namespace mbm
             }
             tex->useAlphaChannel = forceAlpha;
             tex->fileName = fileName;
-            lsTextures[fileNameBase] = (tex);
+            cacheTexture(fileNameBase, tex);
             return tex;
         }
         else
@@ -427,23 +429,24 @@ namespace mbm
                                                         const bool enableAlpha)
     {
         std::string fileNameBase    = util::getBaseName(nickName);
-        const auto width            = static_cast<int>(renderToTarget->widthTexture);
-        const auto height           = static_cast<int>(renderToTarget->heightTexture);
-        auto pd3dDevice             = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        const auto width            = static_cast<int>(renderToTarget->getRenderTargetWidth());
+        const auto height           = static_cast<int>(renderToTarget->getRenderTargetHeight());
+        auto pd3dDevice             = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
 
         if (fileNameBase.size() == 0)
             return nullptr;
-        if (static_cast<uint32_t>(width) > this->maxTextureSize || static_cast<uint32_t>(height) > this->maxTextureSize)
+        const uint32_t maxTextureSize = getMaxTextureSize();
+        if (static_cast<uint32_t>(width) > maxTextureSize || static_cast<uint32_t>(height) > maxTextureSize)
         {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
+            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height, maxTextureSize);
             return nullptr;
         }
-        TEXTURE *texture = lsTextures[fileNameBase];
+        TEXTURE *texture = getCachedTexture(fileNameBase);
         if (texture)
             return texture;
         texture = new TEXTURE();
 
-        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&texture->ptrTexture);
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(texture->getBackendTexturePointerAddress());
         const D3DFORMAT Format = enableAlpha ? D3DFMT_A8R8G8B8 : D3DFMT_X8R8G8B8;
         if (FAILED(pd3dDevice->CreateTexture(width, height, 1,
             D3DUSAGE_RENDERTARGET,
@@ -457,7 +460,8 @@ namespace mbm
         }
         IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
 
-        RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderToTarget->specificConfig);
+        void *renderTargetSpecificConfig = renderToTarget->getRenderTargetSpecificConfig();
+        RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderTargetSpecificConfig);
 
         if (FAILED(p3DTexture9->GetSurfaceLevel(0, &sf->pRenderSurface)))
         {
@@ -491,7 +495,7 @@ namespace mbm
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;
         texture->fileName                   = std::move(fileNameBase);
-        lsTextures[texture->fileName]       = texture;
+        cacheTexture(texture->fileName, texture);
         return texture;
     }
 }

@@ -35,14 +35,14 @@ namespace mbm
     GIF_VIEW::GIF_VIEW(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_GIF, _is3d && _is2dScreen == false, _is2dScreen)
     {
-        this->enableRender = true;
+        this->setEnableRender(true);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
     
     GIF_VIEW::~GIF_VIEW()
     {
-        this->enableRender = false;
+        this->setEnableRender(false);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeRenderizable(this);
         this->release();
@@ -59,7 +59,7 @@ namespace mbm
     {
         auto * anim = getAnimation();
         if (anim)
-            return &anim->fx;
+            return &anim->getFx();
         return nullptr;
     }
 
@@ -72,8 +72,9 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
-        this->lsAnimation.push_back(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
+        this->appendAnimation(anim);
+        FX &fx = anim->getFx();
+        if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         return true;
     }
@@ -115,19 +116,20 @@ namespace mbm
         ANIMATION* anim             = this->getAnimation();
         if(anim)
         {
-            anim->indexCurrentFrame     = 0;
-            anim->indexInitialFrame     = 0;
-            anim->indexFinalFrame       = infoGif.totalFrames -1;
-            anim->type                  = TYPE_ANIMATION_GROWING_LOOP;
-            anim->intervalChangeFrame   = infoGif.interval[0];
+            anim->setIndexCurrentFrame(0);
+            anim->setIndexInitialFrame(0);
+            anim->setIndexFinalFrame(infoGif.totalFrames -1);
+            anim->setType(TYPE_ANIMATION_GROWING_LOOP);
+            anim->setIntervalChangeFrame(infoGif.interval[0]);
         }
         this->bufferGL.setTextureByStage(this->textures[0], 0, 0);
         
-        this->fileName = fileNameTexture;
-        this->fileName += '|';
-        this->fileName += std::to_string(w <= 0.0f ? infoGif.widthTexture : w);
-        this->fileName += '|';
-        this->fileName += std::to_string(h <= 0.0f ? infoGif.heightTexture : h);
+        std::string restoreFileName = fileNameTexture;
+        restoreFileName += '|';
+        restoreFileName += std::to_string(w <= 0.0f ? infoGif.widthTexture : w);
+        restoreFileName += '|';
+        restoreFileName += std::to_string(h <= 0.0f ? infoGif.heightTexture : h);
+        this->setInternalFileName(restoreFileName);
 
         this->updateAABB();
         return true;
@@ -209,11 +211,13 @@ namespace mbm
     
     TEXTURE * GIF_VIEW::getTexture() const
     {
-        if(this->indexCurrentAnimation < this->lsAnimation.size() )
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        ANIMATION* anim = this->getAnimation(indexAnimation);
+        if(anim)
         {
-            ANIMATION* anim = this->lsAnimation[this->indexCurrentAnimation];
-            if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
-                return this->textures[anim->indexCurrentFrame];
+            const int currentFrame = anim->getIndexCurrentFrame();
+            if(currentFrame < static_cast<int>(this->textures.size()))
+                return this->textures[currentFrame];
         }
         return nullptr;
     }
@@ -227,11 +231,13 @@ namespace mbm
             mbm::TEXTURE *newTex = mbm::TEXTURE_MANAGER::getInstance()->load(fileNametexture, hasAlpha);
             if (newTex)
             {
-                if(this->indexCurrentAnimation < this->lsAnimation.size() )
+                const uint32_t indexAnimation = this->getIndexAnimation();
+                ANIMATION* anim = this->getAnimation(indexAnimation);
+                if(anim)
                 {
-                    ANIMATION* anim = this->lsAnimation[this->indexCurrentAnimation];
-                    if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
-                        this->textures[anim->indexCurrentFrame] = newTex;
+                    const int currentFrame = anim->getIndexCurrentFrame();
+                    if(currentFrame < static_cast<int>(this->textures.size()))
+                        this->textures[currentFrame] = newTex;
                 }
                 this->bufferGL.setTextureByStage(newTex, 0, 0);
                 return true;
@@ -246,11 +252,13 @@ namespace mbm
     
     void GIF_VIEW::setTextureToNull()
     {
-        if(this->indexCurrentAnimation < this->lsAnimation.size() )
+        const uint32_t indexAnimation = this->getIndexAnimation();
+        ANIMATION* anim = this->getAnimation(indexAnimation);
+        if(anim)
         {
-            ANIMATION* anim = this->lsAnimation[this->indexCurrentAnimation];
-            if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
-                this->textures[anim->indexCurrentFrame] = nullptr;
+            const int currentFrame = anim->getIndexCurrentFrame();
+            if(currentFrame < static_cast<int>(this->textures.size()))
+                this->textures[currentFrame] = nullptr;
         }
     }
     
@@ -259,12 +267,12 @@ namespace mbm
         if (this->bufferGL.isLoadedBuffer())
         {
             IS_ON_FRUSTUM verify(this);
-            bool ret = verify.isOnFrustum(this->is3D, this->is2dS);
+            bool ret = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             }
             return ret;
         }
@@ -276,43 +284,49 @@ namespace mbm
         if (this->bufferGL.isLoadedBuffer())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            const CAMERA &camera = device->getCamera();
             ANIMATION *animation = this->getAnimation();
-            if (this->is3D)
+            const VEC3 &position = this->getPosition();
+            const VEC3 &angle = this->getAngle();
+            const VEC3 &scale = this->getScale();
+            if (this->is3DObject())
             {
-                MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
+                MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
             }
-            else if (this->is2dS)
+            else if (this->is2dScreenObject())
             {
-                VEC3 positionScreen(this->position.x, this->position.y, this->position.z);
-                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                VEC3 positionScreen(position.x, position.y, position.z);
+                device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
             else
             {
-                const VEC3 positionWorld(this->position.x, this->position.y, this->position.z);
-                MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                const VEC3 positionWorld(position.x, position.y, position.z);
+                MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &angle, &scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
-            this->blend.set(animation->blendState);
-            animation->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
-            if(animation->indexCurrentFrame < static_cast<int>(this->textures.size()))
+            FX &fx = animation->getFx();
+            this->setBlendState(animation->getBlendState());
+            animation->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
+            const int currentFrame = animation->getIndexCurrentFrame();
+            if(currentFrame < static_cast<int>(this->textures.size()))
             {
-                if(animation->indexCurrentFrame < static_cast<int>(interval.size()))
-                    animation->intervalChangeFrame  = interval[animation->indexCurrentFrame];
+                if(currentFrame < static_cast<int>(interval.size()))
+                    animation->setIntervalChangeFrame(interval[currentFrame]);
                 else
-                    animation->intervalChangeFrame  = interval[0];
+                    animation->setIntervalChangeFrame(interval[0]);
 
-                TEXTURE* curTex = this->textures[animation->indexCurrentFrame];
+                TEXTURE* curTex = this->textures[currentFrame];
                 this->bufferGL.setTextureByStage(curTex, 0, 0);
             }
-            animation->fx.setBlendOp();
-            animation->fx.shader.update();
-            if (animation->fx.textureOverrideStage2)
-                this->bufferGL.setTextureByStage(animation->fx.textureOverrideStage2, 1, 0);
+            fx.setBlendOp();
+            fx.shader.update();
+            if (fx.textureOverrideStage2)
+                this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
                 
-            if (!animation->fx.shader.render(&this->bufferGL))
+            if (!fx.shader.render(&this->bufferGL))
                 return false;
             return true;
         }
@@ -322,7 +336,7 @@ namespace mbm
     bool GIF_VIEW::onRestoreDevice()
     {
         std::vector<std::string> result;
-        util::split(result, this->fileName.c_str(), '|');
+        util::split(result, this->getInternalFileName(), '|');
         if (result.size() != 3)
         {
 #if defined DEBUG
@@ -357,17 +371,19 @@ namespace mbm
 
     void GIF_VIEW::updateRestoreTexture(const float w, const float h)
     {
-        if (this->fileName.size())
+        const std::string currentFileName = this->getInternalFileNameString();
+        if (currentFileName.size())
         {
             std::vector<std::string> result;
-            util::split(result, this->fileName.c_str(), '|');
+            util::split(result, currentFileName.c_str(), '|');
             if (result.size() != 3)
                 return;
-            this->fileName = result[0];
-            this->fileName += '|';
-            this->fileName += std::to_string(w);
-            this->fileName += '|';
-            this->fileName += std::to_string(h);
+            std::string restoreFileName = result[0];
+            restoreFileName += '|';
+            restoreFileName += std::to_string(w);
+            restoreFileName += '|';
+            restoreFileName += std::to_string(h);
+            this->setInternalFileName(restoreFileName);
         }
     }
     
@@ -383,9 +399,7 @@ namespace mbm
     
     bool GIF_VIEW::isLoaded() const
     {
-        return this->bufferGL.isLoadedBuffer() && this->textures.size() && this->lsAnimation.size() > 0;
+        return this->bufferGL.isLoadedBuffer() && this->textures.size() && this->getTotalAnimation() > 0;
     }
     
 }
-
-

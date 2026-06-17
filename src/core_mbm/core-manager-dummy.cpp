@@ -31,7 +31,7 @@
 #include <audio-interface.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <plugin-callback.h>
-#include <specific-dummy.h> // for specific context of dummy engine
+#include "specific-dummy-context.h" // for specific context of dummy engine
 
 
 namespace mbm
@@ -43,32 +43,20 @@ namespace mbm
 
     CORE_MANAGER::CORE_MANAGER()
     {
-        this->device           = DEVICE::getInstance();
-        this->indexOnRestore   = 0;
-        this->totalForByLoop   = 0;
-        this->percentRestoreInfo = 0.0f;
-        this->stepRestoreInfo  = 0.1f;
-        this->stepRestore      = STEP_RES_INIT_GL;
-        this->which_for        = WFOR_INITIAL;
-        this->changeScene               = true;
-        this->__sceneWasInit            = false;
-        this->loopVariablesInitialized  = false;
-        this->keyCapsLockState          = false;
-        this->wasGamePausedBeforeOnStop  = false;
+        this->initializeImpl();
+        this->setDevice(DEVICE::getInstance());
+        this->setChangeScene(true);
+        this->setSceneInitialized(false);
+        this->setKeyCapsLockState(false);
         REMINDER_TODO
-    }
-    
-    CORE_MANAGER::~CORE_MANAGER()
-    {
-        REMINDER_TODO
-        DEVICE::quit();
     }
     
     void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->release(wasDeviceLost);
+        DEVICE *device = this->getDevice();
+        device->getSpecificContextDevice()->release(wasDeviceLost);
         REMINDER_TODO
     }
     
@@ -76,13 +64,13 @@ namespace mbm
     {
         int x = width;
         int y = height;
-        DEVICE* device = DEVICE::getInstance();
-        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
+        DEVICE *device = this->getDevice();
+        this->setNameApplication(nameApplication);
         REMINDER_TODO
         
         //TODO: set version from your backend engine
         INFO_LOG("\nDUMMY Version: %s\n", "1");
-        if (device->verbose)
+        if (device->isVerbose())
         {
             MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
@@ -94,9 +82,9 @@ namespace mbm
 
         // device->setProjectionMode set viewport and other initial states for ANY
         if (x > 0)
-            device->backBufferWidth = static_cast<float>(x);
+            device->setBackBufferWidth(static_cast<float>(x));
         if (y > 0)
-            device->backBufferHeight = static_cast<float>(y);
+            device->setBackBufferHeight(static_cast<float>(y));
         return true;
     }
 
@@ -125,34 +113,41 @@ namespace mbm
 
     bool CORE_MANAGER::renderToTargets()
     {
+        DEVICE *device = this->getDevice();
+        CAMERA &camera = device->getCamera();
         bool oneRender                 = false;
         REMINDER_TODO
-        for (auto renderTarget : this->device->lsObjectRenderToTarget)
+        const uint32_t totalRenderTargets = device->getTotalRenderTargets();
+        for (uint32_t i = 0; i < totalRenderTargets; ++i)
         {
-            if (!renderTarget->isObjectOnFrustum)
+            auto renderTarget = device->getRenderTarget(i);
+            if (!renderTarget)
+                continue;
+            if (!renderTarget->getIsObjectOnFrustum())
                 continue;
             
             
             if (!renderTarget->render2Texture())
             {
                 ERROR_AT(__LINE__, __FILE__, "Error render2Texture!");
-                this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+                camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
                 return false;
             }
             oneRender = true;
         }
         if (oneRender)
         {
-            this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+            camera.updateCam(true, static_cast<float>(device->getBackBufferWidth()), static_cast<float>(device->getBackBufferHeight()));
         }
         return true;
     }
     
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
-        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
+        DEVICE *device = this->getDevice();
+        for(unsigned int i=0; i < this->getTotalPlugins(); ++i)
         {
-            const PLUGIN * thatPlugin = this->lsPlugins[i];
+            const PLUGIN * thatPlugin = this->getPlugin(i);
             if(plugin == thatPlugin)
             {
                 return i;
@@ -160,11 +155,11 @@ namespace mbm
         }
         if(plugin != nullptr)
         {
-            this->lsPlugins.push_back(plugin);
+            const unsigned int indexPlugin = this->appendPlugin(plugin);
             REMINDER_TODO
             void * handle = nullptr;
-            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight), handle, nullptr);
-            return this->lsPlugins.size() - 1;
+            plugin->onSubscribe(static_cast<int>(device->getBackBufferWidth()),static_cast<int>(device->getBackBufferHeight()), handle, nullptr);
+            return indexPlugin;
         }
         return 0xffffffff;
     }

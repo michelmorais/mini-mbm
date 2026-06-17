@@ -321,7 +321,7 @@ namespace mbm
         if(index < tileMap.layers.size())
         {
             auto & layer = tileMap.layers[index];
-            layer->fx.fxPS->ptrCurrentShader = nullptr;
+            layer->fx.fxPS->setCurrentShader(nullptr);
         }
     }
 
@@ -330,8 +330,8 @@ namespace mbm
         if(index < tileMap.layers.size())
         {
             const auto & layer = tileMap.layers[index];
-            if(layer->fx.fxPS->ptrCurrentShader)
-                return layer->fx.fxPS->ptrCurrentShader->fileName.c_str();
+            if(layer->fx.fxPS->getCurrentShader())
+                return layer->fx.fxPS->getCurrentShader()->fileName.c_str();
         }
         return "null";
     }
@@ -770,7 +770,7 @@ namespace mbm
                 if (line_tileSetPreview == nullptr)
                 {
                     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                    line_tileSetPreview = new mbm::LINE_MESH(device->scene, false, false);
+                    line_tileSetPreview = new mbm::LINE_MESH(device->getScene(), false, false);
                 }
 
                 line_tileSetPreview->release();
@@ -792,9 +792,10 @@ namespace mbm
                 auto * anim = line_tileSetPreview->getAnimation(0);
                 if(anim)
                 {
-                    anim->fx.setVarPShader("color", d);
-                    anim->fx.setMaxVarPShader("color", d);
-                    anim->fx.setMinVarPShader("color", d);
+                    FX &fx = anim->getFx();
+                    fx.setVarPShader("color", d);
+                    fx.setMaxVarPShader("color", d);
+                    fx.setMinVarPShader("color", d);
                 }
                 tileSetPreview.setTextureByStage(textureTileSetPreview, 0, 0);
                 tileSetPreview.setTextureByStage(nullptr, 1, 0);
@@ -830,10 +831,34 @@ namespace mbm
             iLastIndexBrickOver        = std::numeric_limits<uint16_t>::max()-1;
         switch (render_what)
         {
-            case mbm::RENDER_MAP:      scale.x = scale_map.x;   scale.y = scale_map.y;   break;
-            case mbm::RENDER_TILE_SET: scale.x = scale_tile.x;  scale.y = scale_tile.y;  break;
-            case mbm::RENDER_LAYER:    scale.x = scale_layer.x; scale.y = scale_layer.y; break;
-            case mbm::RENDER_BRICK:    scale.x = scale_brick.x; scale.y = scale_brick.y; break;
+            case mbm::RENDER_MAP:
+            {
+                VEC3 &renderScale = this->getScale();
+                renderScale.x = scale_map.x;
+                renderScale.y = scale_map.y;
+            }
+            break;
+            case mbm::RENDER_TILE_SET:
+            {
+                VEC3 &renderScale = this->getScale();
+                renderScale.x = scale_tile.x;
+                renderScale.y = scale_tile.y;
+            }
+            break;
+            case mbm::RENDER_LAYER:
+            {
+                VEC3 &renderScale = this->getScale();
+                renderScale.x = scale_layer.x;
+                renderScale.y = scale_layer.y;
+            }
+            break;
+            case mbm::RENDER_BRICK:
+            {
+                VEC3 &renderScale = this->getScale();
+                renderScale.x = scale_brick.x;
+                renderScale.y = scale_brick.y;
+            }
+            break;
         }
         return true;
     }
@@ -853,7 +878,7 @@ namespace mbm
             }
             anim = this->getAnimation();
         }
-        if (this->alwaysRenderize)
+        if (this->isAlwaysRenderizeEnabled())
         {
             if (this->isOnFrustum() == false)
             {
@@ -862,21 +887,26 @@ namespace mbm
             }
         }
 
-        this->blend.set(anim->blendState);
-        anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
-        anim->fx.setBlendOp();
-        anim->fx.shader.update();
+        FX &fx = anim->getFx();
+        RENDER_STATE &renderBlend = this->getBlend();
+        VEC3 &renderPosition = this->getPosition();
+        VEC3 &renderScale = this->getScale();
+        VEC3 &renderAngle = this->getAngle();
+        renderBlend.set(anim->getBlendState());
+        anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
+        fx.setBlendOp();
+        fx.shader.update();
         //only 2dw
-        MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+        MatrixTranslationRotationScale(&SHADER::modelView, &renderPosition, &renderAngle, &renderScale);
+        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
         bool result = false;
         switch (render_what)
         {
             case RENDER_MAP:
             {
                 if(line_tileSetPreview)
-                    line_tileSetPreview->enableRender = false;
-                result = renderMap(&anim->fx.shader);
+                    line_tileSetPreview->setEnableRender(false);
+                result = renderMap(&fx.shader);
             }
             break;
             case RENDER_TILE_SET:
@@ -888,8 +918,8 @@ namespace mbm
             {
                 positionSelectedBrick.clear();
                 if(line_tileSetPreview)
-                    line_tileSetPreview->enableRender = false;
-                const VEC2 scale_offset(scale.x,scale.y);
+                    line_tileSetPreview->setEnableRender(false);
+                const VEC2 scale_offset(renderScale.x,renderScale.y);
 
                 result = true;
                 for (uint32_t i = 0; i < tileMap.layers.size(); i++)
@@ -907,7 +937,7 @@ namespace mbm
             case RENDER_BRICK:
             {
                 if(line_tileSetPreview)
-                    line_tileSetPreview->enableRender = false;
+                    line_tileSetPreview->setEnableRender(false);
                 result = renderBrick();
             }
             break;
@@ -923,6 +953,9 @@ namespace mbm
 
     bool TILE_EDITOR::renderMap(SHADER *shader)
     {
+        VEC3 &renderPosition = this->getPosition();
+        const VEC3 &renderScale = this->getScale();
+        const VEC3 &renderAngle = this->getAngle();
         if(tileMap.background.a > 0 || tileMap.background_texture)
         {
             if(backGroundMap.isLoadedBuffer() == false)
@@ -951,8 +984,8 @@ namespace mbm
                 multiply = 0.5f;
             }
 
-            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * scale.x);
-            const float height_tile   = static_cast<float>(tileMap.size_height_tile * scale.y) * multiply;
+            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+            const float height_tile   = static_cast<float>(tileMap.size_height_tile * renderScale.y) * multiply;
             const float width_map     = static_cast<float>(width_tile  * tileMap.count_width_tile);
             const float height_map    = static_cast<float>(height_tile * tileMap.count_height_tile);
 
@@ -967,8 +1000,8 @@ namespace mbm
             }
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
 
-            MatrixTranslationRotationScale(&SHADER::modelView, &backGroundPosition, &this->angle, &backGround_scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+            MatrixTranslationRotationScale(&SHADER::modelView, &backGroundPosition, &renderAngle, &backGround_scale);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             if(shader->render(&this->backGroundMap) == false)
                 return false;
         }
@@ -986,31 +1019,37 @@ namespace mbm
             }
             tileMap.layers[i]->visible = oldStateVisible;
         }
-        position.z = 0;
+        renderPosition.z = 0;
         
         return true;
     }
     bool TILE_EDITOR::renderTileSet()
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        VEC3 &renderPosition = this->getPosition();
+        const VEC3 &renderScale = this->getScale();
+        const VEC3 &renderAngle = this->getAngle();
         if(textureTileSetPreview)
         {
             if(line_tileSetPreview)
-                line_tileSetPreview->enableRender = true;
-            position.x = 0;
-            position.y = 0;
+                line_tileSetPreview->setEnableRender(true);
+            renderPosition.x = 0;
+            renderPosition.y = 0;
             ANIMATION *anim = this->getAnimation(0);
             if(anim == nullptr)
                 return false;
-            auto shader = &anim->fx.shader;
+            FX &fx = anim->getFx();
+            auto shader = &fx.shader;
             const float width  = static_cast<float>(textureTileSetPreview->getWidth());
             const float height = static_cast<float>(textureTileSetPreview->getHeight());
             const VEC3 tex_scale(width * this->scale_tile.x,height * this->scale_tile.y,1);
-            line_tileSetPreview->position.z = position.z - 2;
-            line_tileSetPreview->scale.x = this->scale_tile.x;
-            line_tileSetPreview->scale.y = this->scale_tile.y;
-            MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &tex_scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+            VEC3 &linePosition = line_tileSetPreview->getPosition();
+            VEC3 &lineScale = line_tileSetPreview->getScale();
+            linePosition.z = renderPosition.z - 2;
+            lineScale.x = this->scale_tile.x;
+            lineScale.y = this->scale_tile.y;
+            MatrixTranslationRotationScale(&SHADER::modelView, &renderPosition, &renderAngle, &tex_scale);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             if(shader->render(&this->tileSetPreview) == false)
                 return false;
             return true;
@@ -1018,13 +1057,14 @@ namespace mbm
         else if(index_render_what < tileMap.tile_sets.size())
         {
             if(line_tileSetPreview)
-                line_tileSetPreview->enableRender = false;
+                line_tileSetPreview->setEnableRender(false);
             auto & tileSet = tileMap.tile_sets[index_render_what];
             const size_t m_max = static_cast<size_t>(std::ceil(std::sqrt(tileSet->bricks.size()))) + 1;
-            position.x = position_aux_tileset.x;
-            position.y = position_aux_tileset.y;
+            renderPosition.x = position_aux_tileset.x;
+            renderPosition.y = position_aux_tileset.y;
             
             ANIMATION *anim = this->getAnimation(0);
+            FX &fx = anim->getFx();
             VEC2 m_pmax(std::numeric_limits<float>::min() ,std::numeric_limits<float>::min());
             VEC2 m_pmin(std::numeric_limits<float>::max() ,std::numeric_limits<float>::max());
             size_t index = 0;
@@ -1038,11 +1078,11 @@ namespace mbm
                     if(index < tileSet->bricks.size())
                     {
                         const auto & brick = tileSet->bricks[index];
-                        m_pmax.x = std::max(position.x,m_pmax.x);
-                        m_pmax.y = std::max(position.y,m_pmax.y);
-                        m_pmin.x = std::min(position.x,m_pmin.x);
-                        m_pmin.y = std::min(position.y,m_pmin.y);
-                        position.x += (brick->width * this->scale.x) + space_between;
+                        m_pmax.x = std::max(renderPosition.x,m_pmax.x);
+                        m_pmax.y = std::max(renderPosition.y,m_pmax.y);
+                        m_pmin.x = std::min(renderPosition.x,m_pmin.x);
+                        m_pmin.y = std::min(renderPosition.y,m_pmin.y);
+                        renderPosition.x += (brick->width * renderScale.x) + space_between;
                     }
                     else
                     {
@@ -1050,11 +1090,11 @@ namespace mbm
                     }
                     index++;
                 }
-                position.x = position_aux_tileset.x;
+                renderPosition.x = position_aux_tileset.x;
                 if(index < tileSet->bricks.size())
                 {
                     auto & brick = tileSet->bricks[index];
-                    position.y += (brick->height * this->scale.y) + space_between;
+                    renderPosition.y += (brick->height * renderScale.y) + space_between;
                 }
             }
 
@@ -1062,8 +1102,8 @@ namespace mbm
             index = 0;
             position_aux_tileset.x = (std::abs(m_pmax.x) + std::abs(m_pmin.x)) * -0.5f;
             position_aux_tileset.y = (std::abs(m_pmax.y) + std::abs(m_pmin.y)) * -0.5f;
-            position.x             = position_aux_tileset.x;
-            position.y             = position_aux_tileset.y;
+            renderPosition.x       = position_aux_tileset.x;
+            renderPosition.y       = position_aux_tileset.y;
             for (size_t i = 0; i < m_max; i++)
             {
                 for (size_t j = 0; j < m_max; j++)
@@ -1072,12 +1112,12 @@ namespace mbm
                     {
                         auto & brick = tileSet->bricks[index];
 
-                        SHADER::modelView._41 = position.x;
-                        SHADER::modelView._42 = position.y;
-                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->camera.matrixPerspective2d);
+                        SHADER::modelView._41 = renderPosition.x;
+                        SHADER::modelView._42 = renderPosition.y;
+                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->getCamera().matrixPerspective2d);
 
-                        brick->render(&anim->fx.shader,0);
-                        position.x += (brick->width * this->scale.x) + 5;
+                        brick->render(&fx.shader,0);
+                        renderPosition.x += (brick->width * renderScale.x) + 5;
                     }
                     else
                     {
@@ -1085,15 +1125,15 @@ namespace mbm
                     }
                     index++;
                 }
-                position.x = position_aux_tileset.x;
+                renderPosition.x = position_aux_tileset.x;
                 if(index < tileSet->bricks.size())
                 {
                     auto & brick = tileSet->bricks[index];
-                    position.y += (brick->height * this->scale.y) + 5;
+                    renderPosition.y += (brick->height * renderScale.y) + 5;
                 }
             }
-            position.x = 0;
-            position.y = 0;
+            renderPosition.x = 0;
+            renderPosition.y = 0;
             return true;
         }
         return false;
@@ -1104,40 +1144,46 @@ namespace mbm
         if(index_layer < tileMap.layers.size())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            VEC3 &renderPosition      = this->getPosition();
+            const VEC3 &renderScale   = this->getScale();
+            RENDER_STATE &renderBlend = this->getBlend();
             auto & layer              = tileMap.layers[index_layer];
             if(layer->visible == false)
                 return true;
-            ANIMATION *anim_normal    = lsAnimation[0];
-            ANIMATION *transparent    = lsAnimation[3];
+            ANIMATION *anim_normal    = this->getAnimation(0);
+            ANIMATION *transparent    = this->getAnimation(3);
+            if (anim_normal == nullptr || transparent == nullptr)
+                return false;
             const uint32_t total      = tileMap.count_width_tile * tileMap.count_height_tile;
-            position.x                = layer->offset.x * scale_offset.x;
-            position.y                = layer->offset.y * scale_offset.y;
-            position.z                = layer->offset.z;
+            renderPosition.x          = layer->offset.x * scale_offset.x;
+            renderPosition.y          = layer->offset.y * scale_offset.y;
+            renderPosition.z          = layer->offset.z;
             float  multiply           = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
                 multiply              = 0.5f;
-            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * scale.x);
-            const float height_tile   = static_cast<float>(tileMap.size_height_tile * scale.y) * multiply;
+            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+            const float height_tile   = static_cast<float>(tileMap.size_height_tile * renderScale.y) * multiply;
             const float width_map     = static_cast<float>(width_tile  * tileMap.count_width_tile);
             const float height_map    = static_cast<float>(height_tile * tileMap.count_height_tile);
-            const float initial_x     = width_map  * -0.5f + (width_tile  * 0.5f) + position.x;
-            const float initial_y     = height_map * -0.5f + (height_tile * 0.5f) + position.y;
+            const float initial_x     = width_map  * -0.5f + (width_tile  * 0.5f) + renderPosition.x;
+            const float initial_y     = height_map * -0.5f + (height_tile * 0.5f) + renderPosition.y;
             if(layer->bricks.size() !=  total)
             {
                 layer->bricks.resize(total);
             }
             if(transparency > 0.0f)
             {
-                this->indexCurrentAnimation = 3;
-                this->blend.set(transparent->blendState);
+                FX &transparentFx = transparent->getFx();
+                this->setIndexAnimation(3);
+                renderBlend.set(transparent->getBlendState());
                 layer->fx.setBlendOp();
-                transparent->fx.fxPS->updateEffect(device->delta);
-                transparent->fx.shader.update();
+                transparentFx.fxPS->updateEffect(device->delta);
+                transparentFx.shader.update();
             }
             else
             {
-                this->indexCurrentAnimation = 1;
-                this->blend.set(anim_normal->blendState);
+                this->setIndexAnimation(1);
+                renderBlend.set(anim_normal->getBlendState());
                 layer->fx.setBlendOp();
                 layer->fx.fxPS->updateEffect(device->delta);
                 layer->fx.shader.update();
@@ -1277,9 +1323,9 @@ namespace mbm
                     }
                 }
             }
-            position.x  = 0;
-            position.y  = 0;
-            this->indexCurrentAnimation = 0;
+            renderPosition.x  = 0;
+            renderPosition.y  = 0;
+            this->setIndexAnimation(0);
             return true;
         }
         return false;
@@ -1297,19 +1343,31 @@ namespace mbm
                                      const bool transparency)
     {
         mbm::DEVICE* device       = mbm::DEVICE::getInstance();
-        ANIMATION *anim_normal    = lsAnimation[0];
-        ANIMATION *anim_selected  = lsAnimation[1];
-        ANIMATION *anim_over      = lsAnimation[2];
-        ANIMATION *transparent    = lsAnimation[3];
+        ANIMATION *anim_normal    = this->getAnimation(0);
+        ANIMATION *anim_selected  = this->getAnimation(1);
+        ANIMATION *anim_over      = this->getAnimation(2);
+        ANIMATION *transparent    = this->getAnimation(3);
+        if (anim_normal == nullptr || anim_selected == nullptr || anim_over == nullptr || transparent == nullptr)
+            return false;
+        const OnEndAnimation onEndAnimation = this->getOnEndAnimation();
+        const OnEndEffect onEndFx = this->getOnEndFx();
         if(transparency)
         {
             anim_normal = transparent;
-            this->indexCurrentAnimation = 3;
+            this->setIndexAnimation(3);
         }
         else
         {
-            this->indexCurrentAnimation = 1;
+            this->setIndexAnimation(1);
         }
+        FX &normalFx      = anim_normal->getFx();
+        FX &selectedFx    = anim_selected->getFx();
+        FX &overFx        = anim_over->getFx();
+        FX &transparentFx = transparent->getFx();
+        const VEC3 &renderPosition = this->getPosition();
+        const VEC3 &renderAngle = this->getAngle();
+        const VEC3 &renderScale = this->getScale();
+        RENDER_STATE &renderBlend = this->getBlend();
         float displacement = 0.0f;
         if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
         {
@@ -1318,7 +1376,7 @@ namespace mbm
         }
         const float x        = (i * width_tile  ) + initial_x + displacement;
         const float y        = (j * height_tile ) + initial_y;
-        const VEC3 brick_position(x,y,position.z);
+        const VEC3 brick_position(x,y,renderPosition.z);
         const uint32_t index = j + (i  * tileMap.count_height_tile);
         auto & brick         = layer->bricks[index];
 
@@ -1327,43 +1385,43 @@ namespace mbm
             if(enable_highlights)
             {
                 const VEC3 empty_scale(width_tile,height_tile,1.0f);
-                MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &empty_scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
-                if(renderEmptyBrick(&anim_normal->fx.shader,iLastIndexBrickOver == index,selectedBrick[index]) == false)
+                MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &renderAngle, &empty_scale);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                if(renderEmptyBrick(&normalFx.shader,iLastIndexBrickOver == index,selectedBrick[index]) == false)
                     return false;
             }
         }
         else
         {
-            MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+            MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &renderAngle, &renderScale);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
             const bool bSelected  = enable_highlights && selectedBrick[index];
             const bool bOverBrick = enable_highlights && iLastIndexBrickOver == index;
             if(bOverBrick)//only one
             {
-                this->blend.set(anim_over->blendState);
-                anim_over->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
-                anim_over->fx.setBlendOp();
-                anim_over->fx.shader.update();
-                if(brick->render(&anim_over->fx.shader,layer->fx.textureOverrideStage2) == false)
+                renderBlend.set(anim_over->getBlendState());
+                anim_over->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
+                overFx.setBlendOp();
+                overFx.shader.update();
+                if(brick->render(&overFx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else if(bSelected)
             {
-                this->blend.set(anim_selected->blendState);
+                renderBlend.set(anim_selected->getBlendState());
                 if(updatedSelected == false)
                 {
                     updatedSelected = true;
-                    anim_selected->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
-                    anim_selected->fx.setBlendOp();
-                    anim_selected->fx.shader.update();
+                    anim_selected->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
+                    selectedFx.setBlendOp();
+                    selectedFx.shader.update();
                 }
-                if(brick->render(&anim_selected->fx.shader,layer->fx.textureOverrideStage2) == false)
+                if(brick->render(&selectedFx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else if(transparency == true)
             {
-                if(brick->render(&transparent->fx.shader,layer->fx.textureOverrideStage2) == false)
+                if(brick->render(&transparentFx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else
@@ -1410,15 +1468,16 @@ namespace mbm
         if((render_what == RENDER_LAYER || render_what == RENDER_MAP) && index_render_what < tileMap.layers.size())
         {
             mbm::DEVICE* device     = mbm::DEVICE::getInstance();
+            const VEC3 &renderScale = this->getScale();
             const int total         = tileMap.count_width_tile * tileMap.count_height_tile;
             const auto & layer      = tileMap.layers[index_render_what];
             VEC2 pos;
-            device->transformeScreen2dToWorld2d_scaled(x - (layer->offset.x * scale.x),y + (layer->offset.y * scale.y),pos);
+            device->transformeScreen2dToWorld2d_scaled(x - (layer->offset.x * renderScale.x),y + (layer->offset.y * renderScale.y),pos);
             float multiply          = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
                 multiply            = 0.5f;
-            const float width_tile  = static_cast<float>(tileMap.size_width_tile  * scale.x);
-            const float height_tile = static_cast<float>(tileMap.size_height_tile * scale.y) * multiply;
+            const float width_tile  = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+            const float height_tile = static_cast<float>(tileMap.size_height_tile * renderScale.y) * multiply;
             const float width_map   = static_cast<float>(width_tile  * tileMap.count_width_tile);
             const float height_map  = static_cast<float>(height_tile * tileMap.count_height_tile);
             const float initial_x   = width_map  * -0.5f + (width_tile  );
@@ -1864,7 +1923,8 @@ namespace mbm
         if(it != tileMap.bricks.end())
         {
             ANIMATION *anim = this->getAnimation(0);
-            return it->second->render(&anim->fx.shader,0);
+            FX &fx = anim->getFx();
+            return it->second->render(&fx.shader,0);
         }
         return false;
     }
@@ -1876,50 +1936,51 @@ namespace mbm
         for (int i=0; i < 3; ++i)
         {
             auto anim = new mbm::ANIMATION();
-            this->lsAnimation.push_back(anim);
-            auto pShaderCfg = device->cfg.getShader("color it.ps");
-            if(anim->fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
+            this->appendAnimation(anim);
+            FX &fx = anim->getFx();
+            auto pShaderCfg = device->getShaderConfig().getShader("color it.ps");
+            if(fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
             {
                 if(i == 0) // normal
                 {
                     constexpr float enable[4] = {0,0,0,0};
-                    anim->fx.setVarPShader("enable",    enable);
-                    anim->fx.setMaxVarPShader("enable", enable);
-                    anim->fx.setMinVarPShader("enable", enable);
+                    fx.setVarPShader("enable",    enable);
+                    fx.setMaxVarPShader("enable", enable);
+                    fx.setMinVarPShader("enable", enable);
 
                     const float * color_back     = enable;
                     constexpr float color_red[4] = {0,0,0,0};
-                    anim->fx.setVarPShader("color",    color_back);
-                    anim->fx.setMaxVarPShader("color", color_red);
-                    anim->fx.setMinVarPShader("color", color_back);
+                    fx.setVarPShader("color",    color_back);
+                    fx.setMaxVarPShader("color", color_red);
+                    fx.setMinVarPShader("color", color_back);
                 }
                 else if(i == 1) // selected
                 {
                     constexpr float enable[4] = {1,0,0,0};
-                    anim->fx.setTypePS(TYPE_ANIMATION_RECURSIVE_LOOP);
-                    anim->fx.setVarPShader("enable",    enable);
-                    anim->fx.setMaxVarPShader("enable", enable);
-                    anim->fx.setMinVarPShader("enable", enable);
+                    fx.setTypePS(TYPE_ANIMATION_RECURSIVE_LOOP);
+                    fx.setVarPShader("enable",    enable);
+                    fx.setMaxVarPShader("enable", enable);
+                    fx.setMinVarPShader("enable", enable);
 
                     constexpr float color_from[4] = {1,1,1,0};
                     constexpr float color_to[4]  = {0,1,0,0};
-                    anim->fx.setVarPShader("color",    color_from);
-                    anim->fx.setMinVarPShader("color", color_from);
-                    anim->fx.setMaxVarPShader("color", color_to);
+                    fx.setVarPShader("color",    color_from);
+                    fx.setMinVarPShader("color", color_from);
+                    fx.setMaxVarPShader("color", color_to);
 
                 }
                 else // over
                 {
                     constexpr float enable[4] = {1,0,0,0};
-                    anim->fx.setVarPShader("enable",    enable);
-                    anim->fx.setMaxVarPShader("enable", enable);
-                    anim->fx.setMinVarPShader("enable", enable);
+                    fx.setVarPShader("enable",    enable);
+                    fx.setMaxVarPShader("enable", enable);
+                    fx.setMinVarPShader("enable", enable);
 
                     constexpr float color_back[4] = {0,0,0,0};
                     constexpr float color_green[4]  = {0,1,0,0};
-                    anim->fx.setVarPShader("color",    color_green);
-                    anim->fx.setMaxVarPShader("color", color_green);
-                    anim->fx.setMinVarPShader("color", color_back);
+                    fx.setVarPShader("color",    color_green);
+                    fx.setMaxVarPShader("color", color_green);
+                    fx.setMinVarPShader("color", color_back);
                 }
             }
             else
@@ -1929,16 +1990,17 @@ namespace mbm
             }
         }
         auto anim = new mbm::ANIMATION();
-        this->lsAnimation.push_back(anim);
-        auto pShaderCfg = device->cfg.getShader("transparent.ps");
-        if(anim->fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
+        this->appendAnimation(anim);
+        FX &fx = anim->getFx();
+        auto pShaderCfg = device->getShaderConfig().getShader("transparent.ps");
+        if(fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
         {
             constexpr float alpha[4] = {0.7f,0,0,0};
-            anim->fx.setVarPShader("alpha",    alpha);
-            anim->fx.setMaxVarPShader("alpha", alpha);
-            anim->fx.setMinVarPShader("alpha", alpha);
+            fx.setVarPShader("alpha",    alpha);
+            fx.setMaxVarPShader("alpha", alpha);
+            fx.setMinVarPShader("alpha", alpha);
         }
-        this->indexCurrentAnimation = 0;
+        this->setIndexAnimation(0);
         return true;
     }
 
@@ -2141,7 +2203,7 @@ namespace mbm
                         if(anim->effectShader->dataPS && anim->effectShader->dataPS->fileNameShader)
                         {
                             sPsShaderName = anim->effectShader->dataPS->fileNameShader;
-                            psShaderCfg   = mbm::DEVICE::getInstance()->cfg.getShader(anim->effectShader->dataPS->fileNameShader);
+                            psShaderCfg   = mbm::DEVICE::getInstance()->getShaderConfig().getShader(anim->effectShader->dataPS->fileNameShader);
                             psTypeAnim    = (TYPE_ANIMATION)anim->effectShader->dataPS->typeAnimation;
                             fTimePs       = anim->effectShader->dataPS->timeAnimation;
                             if(anim->effectShader->dataPS->fileNameTextureStage2)
@@ -2152,7 +2214,7 @@ namespace mbm
                         if(anim->effectShader->dataVS && anim->effectShader->dataVS->fileNameShader)
                         {
                             sVsShaderName = anim->effectShader->dataVS->fileNameShader;
-                            vsShaderCfg   = mbm::DEVICE::getInstance()->cfg.getShader(anim->effectShader->dataVS->fileNameShader);
+                            vsShaderCfg   = mbm::DEVICE::getInstance()->getShaderConfig().getShader(anim->effectShader->dataVS->fileNameShader);
                             vsTypeAnim    = (TYPE_ANIMATION)anim->effectShader->dataVS->typeAnimation;
                             fTimeVs       = anim->effectShader->dataVS->timeAnimation;
                             if(anim->effectShader->dataVS->fileNameTextureStage2)
@@ -2532,18 +2594,20 @@ namespace mbm
 
             const uint32_t tileCount         =   tileInfo->map.count_width_tile * tileInfo->map.count_height_tile;
 
-            scale.x = 1;
-            scale.y = 1;
+            VEC3 &renderScale = this->getScale();
+            const VEC3 &renderPosition = this->getPosition();
+            renderScale.x = 1;
+            renderScale.y = 1;
             float multiply = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
                 multiply = 0.5f;
 
-            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * scale.x);
-            const float height_tile   = static_cast<float>(tileMap.size_height_tile * scale.y) * multiply;
+            const float width_tile    = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+            const float height_tile   = static_cast<float>(tileMap.size_height_tile * renderScale.y) * multiply;
             const float width_map     = static_cast<float>(width_tile  * tileMap.count_width_tile);
             const float height_map    = static_cast<float>(height_tile * tileMap.count_height_tile);
-            const float initial_x     = width_map  * -0.5f + (width_tile  * 0.5f) + position.x;
-            const float initial_y     = height_map * -0.5f + (height_tile * 0.5f) + position.y;
+            const float initial_x     = width_map  * -0.5f + (width_tile  * 0.5f) + renderPosition.x;
+            const float initial_y     = height_map * -0.5f + (height_tile * 0.5f) + renderPosition.y;
 
             tileInfo->layers				= new util::BTILE_LAYER[tileInfo->map.layerCount];
             for(size_t k=0; k < tileMap.layers.size(); k++)
@@ -2599,14 +2663,14 @@ namespace mbm
                 meshDebug.infoAnimation.lsHeaderAnim.push_back(infoAnim);
 
                 snprintf(infoAnim->headerAnim->nameAnimation,sizeof(infoAnim->headerAnim->nameAnimation), "layer-%zu",k+1);
-                if(layer->fx.fxPS->ptrCurrentShader != nullptr)
+                if(layer->fx.fxPS->getCurrentShader() != nullptr)
                 {
-                    const unsigned int totalVar            = layer->fx.fxPS->ptrCurrentShader->getTotalVar();
+                    const unsigned int totalVar            = layer->fx.fxPS->getCurrentShader()->getTotalVar();
                     const unsigned int sizeArrayVarInBytes = totalVar * 4;
-                    const unsigned int sizeFileName        = layer->fx.fxPS->ptrCurrentShader->fileName.size();
+                    const unsigned int sizeFileName        = layer->fx.fxPS->getCurrentShader()->fileName.size();
                     infoAnim->effectShader->dataPS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
                     if(sizeFileName)
-                        strcpy(infoAnim->effectShader->dataPS->fileNameShader,layer->fx.fxPS->ptrCurrentShader->fileName.c_str());
+                        strcpy(infoAnim->effectShader->dataPS->fileNameShader,layer->fx.fxPS->getCurrentShader()->fileName.c_str());
 
                     if(layer->fx.textureOverrideStage2)
                     {
@@ -2616,34 +2680,34 @@ namespace mbm
                         strncpy(infoAnim->effectShader->dataPS->fileNameTextureStage2,textureOverrideStage2,len+1);
                         infoAnim->effectShader->dataPS->fileNameTextureStage2[len] = 0;
                     }
-                    infoAnim->effectShader->dataPS->typeAnimation = layer->fx.fxPS->typeAnim;
-                    infoAnim->effectShader->dataPS->timeAnimation = layer->fx.fxPS->timeAnimation;
+                    infoAnim->effectShader->dataPS->typeAnimation = layer->fx.fxPS->getTypeAnim();
+                    infoAnim->effectShader->dataPS->timeAnimation = layer->fx.fxPS->getTimeAnimation();
 
                     for(unsigned int j=0; j < totalVar; ++j)
                     {
                         const int index       = j * 4;
-                        VAR_SHADER* var       = layer->fx.fxPS->ptrCurrentShader->getVar(j);
+                        VAR_SHADER* var       = layer->fx.fxPS->getCurrentShader()->getVar(j);
                         memcpy(&infoAnim->effectShader->dataPS->min[index],var->min,sizeof(var->min));
                         memcpy(&infoAnim->effectShader->dataPS->max[index],var->max,sizeof(var->max));
                         infoAnim->effectShader->dataPS->typeVars[j]      = var->typeVar;
                     }
                 }
 
-                if(layer->fx.fxVS->ptrCurrentShader != nullptr)
+                if(layer->fx.fxVS->getCurrentShader() != nullptr)
                 {
-                    const unsigned int totalVar            = layer->fx.fxVS->ptrCurrentShader->getTotalVar();
+                    const unsigned int totalVar            = layer->fx.fxVS->getCurrentShader()->getTotalVar();
                     const unsigned int sizeArrayVarInBytes = totalVar * 4;
-                    const unsigned int sizeFileName        = layer->fx.fxVS->ptrCurrentShader->fileName.size();
+                    const unsigned int sizeFileName        = layer->fx.fxVS->getCurrentShader()->fileName.size();
                     infoAnim->effectShader->dataVS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
                     if(sizeFileName)
-                        strcpy(infoAnim->effectShader->dataVS->fileNameShader,layer->fx.fxVS->ptrCurrentShader->fileName.c_str());
-                    infoAnim->effectShader->dataVS->typeAnimation = layer->fx.fxVS->typeAnim;
-                    infoAnim->effectShader->dataVS->timeAnimation = layer->fx.fxVS->timeAnimation;
+                        strcpy(infoAnim->effectShader->dataVS->fileNameShader,layer->fx.fxVS->getCurrentShader()->fileName.c_str());
+                    infoAnim->effectShader->dataVS->typeAnimation = layer->fx.fxVS->getTypeAnim();
+                    infoAnim->effectShader->dataVS->timeAnimation = layer->fx.fxVS->getTimeAnimation();
 
                     for(unsigned int j=0; j < totalVar; ++j)
                     {
                         const int index       = j * 4;
-                        VAR_SHADER* var       = layer->fx.fxVS->ptrCurrentShader->getVar(j);
+                        VAR_SHADER* var       = layer->fx.fxVS->getCurrentShader()->getVar(j);
                         memcpy(&infoAnim->effectShader->dataVS->min[index],var->min,sizeof(var->min));
                         memcpy(&infoAnim->effectShader->dataVS->max[index],var->max,sizeof(var->max));
                         infoAnim->effectShader->dataVS->typeVars[j]    = var->typeVar;
@@ -2811,8 +2875,9 @@ namespace mbm
             if(index_render_what < tileMap.layers.size())
             {
                 const auto & layer          = tileMap.layers[index_render_what];
-                const float width_tile      = static_cast<float>(tileMap.size_width_tile  * scale.x);
-                const float height_tile     = static_cast<float>(tileMap.size_height_tile * scale.y);
+                const VEC3 &renderScale     = this->getScale();
+                const float width_tile      = static_cast<float>(tileMap.size_width_tile  * renderScale.x);
+                const float height_tile     = static_cast<float>(tileMap.size_height_tile * renderScale.y);
                 
                 for(float x = start.x; x <= end.x; x += width_tile)
                 {

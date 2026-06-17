@@ -21,7 +21,8 @@
 #if defined (USE_DIRECTX9)
 #include <shader-var-cfg.h>
 #include <cstring>
-#include <specific-directx9.h>
+#include "specific-directx9-context.h"
+#include "specific-directx9-d3dx.h"
 
 namespace mbm
 {

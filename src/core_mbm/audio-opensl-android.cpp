@@ -22,10 +22,9 @@
 #if defined(USE_OPENGL_ES)
 
 #include <audio.h>
-#include <device.h>
+#include <android-bridge.h>
 #include <core-manager.h>
 #include <util-interface.h>
-#include <specific-opengl_es.h>
 
 #include <android/asset_manager.h>
 #include <android/log.h>
@@ -171,8 +170,7 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
 
     if (!opensl_init_engine()) return false;
 
-    mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    AAssetManager* mgr  = device->specificContextDevice->assetManager;
+    AAssetManager* mgr  = static_cast<AAssetManager*>(mbm::androidGetAssetManager());
     if (!mgr) { OPENSL_ERR("AAssetManager is null"); return false; }
 
     // Strip leading slashes if present; AAssetManager_open expects a relative path.

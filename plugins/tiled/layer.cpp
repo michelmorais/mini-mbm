@@ -26,7 +26,7 @@ namespace mbm
 {
     bool  LAYER::createFx()
     {
-        auto pShaderCfg = mbm::DEVICE::getInstance()->cfg.getShader("tint.ps");
+        auto pShaderCfg = mbm::DEVICE::getInstance()->getShaderConfig().getShader("tint.ps");
         if(fx.loadNewShader(pShaderCfg, nullptr, TYPE_ANIMATION_GROWING, 0.1f, TYPE_ANIMATION_GROWING, 0) == true)
         {
             constexpr float color_back[4] = {0,0,0,0};

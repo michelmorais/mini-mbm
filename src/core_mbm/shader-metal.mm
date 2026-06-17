@@ -16,7 +16,8 @@
 #include <shader.h>
 #include <shader-var-cfg.h>
 #include <texture-manager.h>
-#include <specific-metal.h>
+#include "specific-metal-context.h"
+#include "specific-metal-buffer.h"
 #include <device.h>
 #include <util-interface.h>
 #include <particle-control.h>
@@ -27,7 +28,7 @@
 static mbm::SPECIFIC_AUX_CONTEXT_DEVICE* getMetalCtx()
 {
     mbm::DEVICE* dev = mbm::DEVICE::getInstance();
-    return dev ? dev->specificContextDevice : nullptr;
+    return dev ? dev->getSpecificContextDevice() : nullptr;
 }
 
 static NSUInteger strideForFVF(mbm::FVF_PROVIDE_BY_ENGINE fvf)
@@ -373,16 +374,17 @@ namespace mbm
         initializedIndexBuffer(false),
         texture1(nullptr)
     {
-        bs = new BUFFER_SPECIFIC();
+        setBackendBuffer(new BUFFER_SPECIFIC());
     }
 
     BUFFER_GL::~BUFFER_GL()
     {
-        if (bs)
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (backendBuffer)
         {
-            delete static_cast<BUFFER_SPECIFIC*>(bs);
+            delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
-        bs       = nullptr;
+        setBackendBuffer(nullptr);
         texture1 = nullptr;
         texture0.clear();
     }
@@ -391,7 +393,8 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
-        if (bs) bs->release();
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (backendBuffer) backendBuffer->release();
         totalSubset = 0;
     }
 
@@ -425,8 +428,9 @@ namespace mbm
         id<MTLBuffer> vbuf = [ctx->mtlDevice newBufferWithBytes:data length:bufSize options:opts];
         delete[] data;
         if (!vbuf) return false;
-        bs->vertexBuffer = vbuf;
-        bs->vertexCount  = sizeOfArrayVertex;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->vertexBuffer = vbuf;
+        backendBuffer->vertexCount  = sizeOfArrayVertex;
         return true;
     }
 
@@ -471,10 +475,11 @@ namespace mbm
                                                          length:maxEnd * sizeof(uint16_t)
                                                         options:MTLResourceStorageModeShared];
         if (!ibuf) return false;
-        bs->vertexBuffer = vbuf;
-        bs->indexBuffer  = ibuf;
-        bs->vertexCount  = sizeOfArrayVertex;
-        bs->indexCount   = maxEnd;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->vertexBuffer = vbuf;
+        backendBuffer->indexBuffer  = ibuf;
+        backendBuffer->vertexCount  = sizeOfArrayVertex;
+        backendBuffer->indexCount   = maxEnd;
         return true;
     }
 
@@ -534,10 +539,11 @@ namespace mbm
                                                          options:MTLResourceStorageModeShared];
         if (!vbuf) return false;
 
-        bs->vertexBuffer = vbuf;
-        bs->indexBuffer  = ibuf;
-        bs->indexCount   = maxEnd;
-        bs->vertexCount  = this->sizeOfArrayVertex;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->vertexBuffer = vbuf;
+        backendBuffer->indexBuffer  = ibuf;
+        backendBuffer->indexCount   = maxEnd;
+        backendBuffer->vertexCount  = this->sizeOfArrayVertex;
         return true;
     }
 
@@ -545,10 +551,11 @@ namespace mbm
                                   const int* vertexStartSubset, const int* vertexCountSubset)
     {
         if (!vertex || !vertexStartSubset || !vertexCountSubset) return false;
-        if (!bs || !bs->vertexBuffer) return false;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        if (!backendBuffer || !backendBuffer->vertexBuffer) return false;
 
         const NSUInteger stride = strideForFVF(this->fvf);
-        uint8_t* dst = reinterpret_cast<uint8_t*>(bs->vertexBuffer.contents);
+        uint8_t* dst = reinterpret_cast<uint8_t*>(backendBuffer->vertexBuffer.contents);
         if (!dst) return false; // buffer not CPU-accessible
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
@@ -584,8 +591,9 @@ namespace mbm
                                                          length:sizeof(indices)
                                                         options:MTLResourceStorageModeShared];
         if (!ibuf) return false;
-        bs->indexBuffer = ibuf;
-        bs->indexCount  = 6;
+        BUFFER_SPECIFIC *backendBuffer = getBackendBuffer();
+        backendBuffer->indexBuffer = ibuf;
+        backendBuffer->indexCount  = 6;
         return true;
     }
 
@@ -619,12 +627,12 @@ namespace mbm
     }
 
     // ---- GLES_PS_VS — not used for Metal ----
-    // (GLES_PS_VS is declared in specific-opengl_es.h and only needed by
-    //  the OpenGL backend.  Metal does not include that header.)
+    // (GLES_PS_VS is private to the OpenGL ES backend. Metal keeps its own
+    // Obj-C pipeline holder in MetalShaderObjects.)
 
     // ---- SHADER ----
 
-    SHADER::SHADER() : ptrShaderSpecific(nullptr),
+    SHADER::SHADER() :
         pShader(nullptr),
         vShader(nullptr)
     {
@@ -632,11 +640,12 @@ namespace mbm
 
     SHADER::~SHADER()
     {
-        if (ptrShaderSpecific)
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (backendShaderSpecific)
         {
             // Release the retained MTLRenderPipelineState CFBridging object.
-            CFRelease(ptrShaderSpecific);
-            ptrShaderSpecific = nullptr;
+            CFRelease(backendShaderSpecific);
+            setBackendShaderSpecific(nullptr);
         }
     }
 
@@ -647,10 +656,11 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
-        if (ptrShaderSpecific)
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (backendShaderSpecific)
         {
-            CFRelease(ptrShaderSpecific);
-            ptrShaderSpecific = nullptr;
+            CFRelease(backendShaderSpecific);
+            setBackendShaderSpecific(nullptr);
         }
         pShader = nullptr;
         vShader = nullptr;
@@ -658,14 +668,16 @@ namespace mbm
 
     bool SHADER::isLoad() const noexcept
     {
-        return ptrShaderSpecific != nullptr;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        return backendShaderSpecific != nullptr;
     }
 
     bool SHADER::compileShader(BASE_SHADER* ptrPshader, BASE_SHADER* ptrVshader,
                                FVF_PROVIDE_BY_ENGINE fvf)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE) return false;
-        if (ptrShaderSpecific) return true;  // already compiled
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (backendShaderSpecific) return true;  // already compiled
 
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->mtlDevice || !ctx->metalLayer) return false;
@@ -740,14 +752,17 @@ namespace mbm
                                                 vtxDesc, colorFmt, /*additive=*/true);
             if (!pair.standardPSO || !pair.additivePSO)
                 return false;
-            ptrShaderSpecific = (__bridge_retained void*)pair;
+            setBackendShaderSpecific((__bridge_retained void*)pair);
         }
         return true;
     }
 
     bool SHADER::render(const BUFFER_GL* pBufferId) const
     {
-        if (!ptrShaderSpecific || !pBufferId || !pBufferId->bs) return false;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (!backendShaderSpecific || !pBufferId) return false;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer) return false;
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->currentEncoder) return false;
 
@@ -765,7 +780,7 @@ namespace mbm
             }
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            MBMPSOPair* pair = (__bridge MBMPSOPair*)ptrShaderSpecific;
+            MBMPSOPair* pair = (__bridge MBMPSOPair*)backendShaderSpecific;
 
             // Select PSO based on blend state set by RENDER_STATE::set().
             // BLEND_ONE (2) = additive (src_alpha*src + 1*dst); all others = standard alpha.
@@ -783,8 +798,9 @@ namespace mbm
             // Bind stage-1 texture (constant across all subsets).
             {
                 const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
-                [enc setFragmentTexture:(t1 && t1->ptrTexture
-                    ? (__bridge id<MTLTexture>)t1->ptrTexture : nil) atIndex:1];
+                void *texturePointer = t1 ? t1->getBackendTexturePointer() : nullptr;
+                [enc setFragmentTexture:(texturePointer
+                    ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:1];
             }
 
             // Upload custom fragment uniforms to [[buffer(2)]].
@@ -826,33 +842,35 @@ namespace mbm
 
             if (pBufferId->isIndexBuffer())
             {
-                if (!pBufferId->bs->vertexBuffer || !pBufferId->bs->indexBuffer) return false;
-                [enc setVertexBuffer:pBufferId->bs->vertexBuffer offset:0 atIndex:0];
+                if (!backendBuffer->vertexBuffer || !backendBuffer->indexBuffer) return false;
+                [enc setVertexBuffer:backendBuffer->vertexBuffer offset:0 atIndex:0];
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    [enc setFragmentTexture:(t && t->ptrTexture
-                        ? (__bridge id<MTLTexture>)t->ptrTexture : nil) atIndex:0];
+                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer
+                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
                                     indexCount:(NSUInteger)pBufferId->indexCountIB[i]
                                      indexType:MTLIndexTypeUInt16
-                                   indexBuffer:pBufferId->bs->indexBuffer
+                                   indexBuffer:backendBuffer->indexBuffer
                              indexBufferOffset:off];
                 }
             }
             else
             {
-                if (!pBufferId->bs->vertexBuffer) return false;
+                if (!backendBuffer->vertexBuffer) return false;
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    [enc setFragmentTexture:(t && t->ptrTexture
-                        ? (__bridge id<MTLTexture>)t->ptrTexture : nil) atIndex:0];
+                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer
+                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
-                    [enc setVertexBuffer:pBufferId->bs->vertexBuffer offset:off atIndex:0];
+                    [enc setVertexBuffer:backendBuffer->vertexBuffer offset:off atIndex:0];
                     [enc drawPrimitives:prim
                             vertexStart:0
                             vertexCount:(NSUInteger)pBufferId->vertexCountVB[i]];
@@ -865,7 +883,10 @@ namespace mbm
     bool SHADER::renderDynamic(const BUFFER_GL* pBufferId, const VEC3* vertex,
                                const VEC3* normal, const VEC2* uv) const
     {
-        if (!ptrShaderSpecific || !pBufferId || !vertex) return false;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (!backendShaderSpecific || !pBufferId || !vertex) return false;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer) return false;
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->currentEncoder) return false;
 
@@ -892,7 +913,7 @@ namespace mbm
             uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            MBMPSOPair* pairD = (__bridge MBMPSOPair*)ptrShaderSpecific;
+            MBMPSOPair* pairD = (__bridge MBMPSOPair*)backendShaderSpecific;
 
             // Select PSO based on blend state set by RENDER_STATE::set().
             // BLEND_ONE (2) = additive (src_alpha*src + 1*dst); all others = standard alpha.
@@ -910,8 +931,9 @@ namespace mbm
             // Bind stage-1 texture (constant across all subsets).
             {
                 const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
-                [enc setFragmentTexture:(t1 && t1->ptrTexture
-                    ? (__bridge id<MTLTexture>)t1->ptrTexture : nil) atIndex:1];
+                void *texturePointer = t1 ? t1->getBackendTexturePointer() : nullptr;
+                [enc setFragmentTexture:(texturePointer
+                    ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:1];
             }
 
             // Upload custom fragment uniforms to [[buffer(2)]].
@@ -954,18 +976,19 @@ namespace mbm
 
             if (pBufferId->isIndexBuffer())
             {
-                if (!pBufferId->bs || !pBufferId->bs->indexBuffer) return false;
+                if (!backendBuffer->indexBuffer) return false;
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    [enc setFragmentTexture:(t && t->ptrTexture
-                        ? (__bridge id<MTLTexture>)t->ptrTexture : nil) atIndex:0];
+                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer
+                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
                                     indexCount:(NSUInteger)pBufferId->indexCountIB[i]
                                      indexType:MTLIndexTypeUInt16
-                                   indexBuffer:pBufferId->bs->indexBuffer
+                                   indexBuffer:backendBuffer->indexBuffer
                              indexBufferOffset:off];
                 }
             }
@@ -974,8 +997,9 @@ namespace mbm
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
                     const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    [enc setFragmentTexture:(t && t->ptrTexture
-                        ? (__bridge id<MTLTexture>)t->ptrTexture : nil) atIndex:0];
+                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer
+                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:vbuf offset:off atIndex:0];
@@ -991,8 +1015,10 @@ namespace mbm
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId,
                                 const PARTICLE_CONTROL* particleControl) const
     {
-        if (!ptrShaderSpecific || !pBufferId || !particleControl) return false;
-        if (!pBufferId->bs || !pBufferId->bs->indexBuffer) return false;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (!backendShaderSpecific || !pBufferId || !particleControl) return false;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer || !backendBuffer->indexBuffer) return false;
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->currentEncoder) return false;
 
@@ -1002,7 +1028,7 @@ namespace mbm
         @autoreleasepool
         {
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            MBMPSOPair* pairP = (__bridge MBMPSOPair*)ptrShaderSpecific;
+            MBMPSOPair* pairP = (__bridge MBMPSOPair*)backendShaderSpecific;
 
             // Match OpenGL: renderParticle() does not force additive blend — respect the
             // blend state last set by RENDER_STATE::set() so that particles such as the
@@ -1016,8 +1042,9 @@ namespace mbm
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
 
             const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
-            [enc setFragmentTexture:(tex0 && tex0->ptrTexture
-                ? (__bridge id<MTLTexture>)tex0->ptrTexture : nil) atIndex:0];
+            void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
+            [enc setFragmentTexture:(texturePointer
+                ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
 
             const VERTEX_UV*    vbuf      = particleControl->getVertexBuffer();
             const ATT_PARTICLE* particles = particleControl->getAttParticle();
@@ -1069,7 +1096,7 @@ namespace mbm
                 [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:6
                                  indexType:MTLIndexTypeUInt16
-                               indexBuffer:pBufferId->bs->indexBuffer
+                               indexBuffer:backendBuffer->indexBuffer
                          indexBufferOffset:0];
             }
         }
@@ -1079,8 +1106,10 @@ namespace mbm
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId,
                                 const FLUID_GROUP* pGroup) const
     {
-        if (!ptrShaderSpecific || !pBufferId || !pGroup) return false;
-        if (!pBufferId->bs || !pBufferId->bs->indexBuffer) return false;
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        if (!backendShaderSpecific || !pBufferId || !pGroup) return false;
+        BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
+        if (!backendBuffer || !backendBuffer->indexBuffer) return false;
         auto* ctx = getMetalCtx();
         if (!ctx || !ctx->currentEncoder) return false;
 
@@ -1090,7 +1119,7 @@ namespace mbm
         @autoreleasepool
         {
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            MBMPSOPair* pairF = (__bridge MBMPSOPair*)ptrShaderSpecific;
+            MBMPSOPair* pairF = (__bridge MBMPSOPair*)backendShaderSpecific;
 
             [enc setRenderPipelineState:pairF.additivePSO];  // BLEND_ONE: src*alpha + dst*1
             [enc setFrontFacingWinding:MTLWindingCounterClockwise];
@@ -1099,8 +1128,9 @@ namespace mbm
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
 
             const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
-            [enc setFragmentTexture:(tex0 && tex0->ptrTexture
-                ? (__bridge id<MTLTexture>)tex0->ptrTexture : nil) atIndex:0];
+            void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
+            [enc setFragmentTexture:(texturePointer
+                ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
 
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;
@@ -1163,7 +1193,7 @@ namespace mbm
                 [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:6
                                  indexType:MTLIndexTypeUInt16
-                               indexBuffer:pBufferId->bs->indexBuffer
+                               indexBuffer:backendBuffer->indexBuffer
                          indexBufferOffset:0];
             }
         }

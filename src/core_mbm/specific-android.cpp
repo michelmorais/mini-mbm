@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <cstring>
+#include <android/configuration.h>
 #include <android/asset_manager.h>
 #include <stb_image.h>
 #include <platform/mismatch-platform.h>
@@ -33,6 +34,7 @@
 #elif defined          ANDROID
     #include <specific-opengl_es.h>
 #endif
+#include "specific-opengl_es-android-context.h"
 #include <device.h>
 #include <audio-interface.h>
 
@@ -45,6 +47,547 @@ namespace mbm
 #else
 namespace mbm
 {
+    static SPECIFIC_AUX_CONTEXT_DEVICE *getAndroidContext() noexcept
+    {
+        mbm::DEVICE *device = mbm::DEVICE::getInstance();
+        return device ? device->getSpecificContextDevice() : nullptr;
+    }
+
+    const char *androidGetAbsPath() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->absPath.c_str() : "";
+    }
+
+    bool androidAbsPathEndsWithSlash() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context && context->absPath.size() > 0 && context->absPath[context->absPath.size() - 1] == '/';
+    }
+
+    void androidAddPath(const char *path)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->addPathDroid(path);
+    }
+
+    const char *androidCopyFileFromAsset(const char *fileName, const char *mode)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->copyFileFromAsset(fileName, mode) : fileName;
+    }
+
+    void *androidGetAssetManager() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->assetManager : nullptr;
+    }
+
+    void androidRequestQuit()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->callQuit();
+    }
+
+    int androidGetKeyCode(const char *key)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassKeyCodeJniEngine)
+            return 0;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassKeyCodeJniEngine, "getKeyCode",
+                                                "(Ljava/lang/String;)I");
+        if (mid == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "%s", "method getKeyCode not found");
+            return 0;
+        }
+        jstring jstr = jenv->NewStringUTF(context->get_safe_string_utf(key));
+        if (jstr == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "%s", "error on call NewStringUTF!");
+            return 0;
+        }
+        jint ret = jenv->CallStaticIntMethod(context->jclassKeyCodeJniEngine, mid, jstr);
+        jenv->DeleteLocalRef(jstr);
+        return static_cast<int>(ret);
+    }
+
+    const char *androidGetKeyName(int key)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassKeyCodeJniEngine)
+            return nullptr;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassKeyCodeJniEngine, "getKeyName",
+                                                "(I)Ljava/lang/String;");
+        if (mid == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "%s", "method getKeyName not found");
+            return nullptr;
+        }
+        jstring ret = static_cast<jstring>(jenv->CallStaticObjectMethod(context->jclassKeyCodeJniEngine, mid, key));
+        if (ret)
+        {
+            const char *newRet = jenv->GetStringUTFChars(ret, nullptr);
+            const char *result = context->getStrToDelete(newRet);
+            jenv->ReleaseStringUTFChars(ret, newRet);
+            jenv->DeleteLocalRef(ret);
+            return result;
+        }
+        return nullptr;
+    }
+
+    const char *androidGetIdiom()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context && context->assetManager)
+        {
+            AConfiguration *config = AConfiguration_new();
+            AConfiguration_fromAssetManager(config, context->assetManager);
+            char lang[3] = {};
+            AConfiguration_getLanguage(config, lang);
+            AConfiguration_delete(config);
+            if (lang[0] != 0)
+            {
+                static std::string language;
+                language = lang;
+                return language.c_str();
+            }
+        }
+        return "en";
+    }
+
+    const char *androidGetUserName()
+    {
+        const char *methodName = "getUserName";
+        const char *signature = "()Ljava/lang/String;";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassDoCommandsJniEngine)
+            return nullptr;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassDoCommandsJniEngine, methodName, signature);
+        if (mid == nullptr)
+            return nullptr;
+        jstring ret = static_cast<jstring>(jenv->CallStaticObjectMethod(context->jclassDoCommandsJniEngine, mid));
+        if (ret)
+        {
+            const char *newRet = jenv->GetStringUTFChars(ret, nullptr);
+            const char *result = context->getStrToDelete(newRet);
+            jenv->ReleaseStringUTFChars(ret, newRet);
+            jenv->DeleteLocalRef(ret);
+            return result;
+        }
+        ERROR_LOG("To get username from Android you need to add the following permission on XML manifest:\n%s",
+                  "<uses-permission android:name=\"android.permission.GET_ACCOUNTS\" />");
+        return nullptr;
+    }
+
+    const char *androidSaveFile(const char *defaultName)
+    {
+        const char *methodName = "saveFile";
+        const char *signature = "(Ljava/lang/String;)Ljava/lang/String;";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassDoCommandsJniEngine)
+            return nullptr;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassDoCommandsJniEngine, methodName, signature);
+        if (mid == nullptr)
+        {
+            ERROR_LOG("method not found: %s", methodName);
+            return nullptr;
+        }
+        jstring jstr = jenv->NewStringUTF(context->get_safe_string_utf(defaultName));
+        if (jstr == nullptr)
+        {
+            ERROR_LOG("%s", "error on call NewStringUTF");
+            return nullptr;
+        }
+        jstring ret = static_cast<jstring>(jenv->CallStaticObjectMethod(context->jclassDoCommandsJniEngine, mid, jstr));
+        jenv->DeleteLocalRef(jstr);
+        if (ret == nullptr)
+            return nullptr;
+        const char *newRet = jenv->GetStringUTFChars(ret, nullptr);
+        const char *fileName = context->getStrToDelete(newRet);
+        jenv->ReleaseStringUTFChars(ret, newRet);
+        jenv->DeleteLocalRef(ret);
+        return fileName;
+    }
+
+    bool androidRequestOpenFile(const char *callback, bool allowMultipleSelects)
+    {
+        const char *methodName = allowMultipleSelects ? "openMultFile" : "getImage";
+        const char *signature = "(Ljava/lang/String;)V";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassDoCommandsJniEngine)
+            return false;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassDoCommandsJniEngine, methodName, signature);
+        if (mid == nullptr)
+        {
+            ERROR_LOG("method not found: %s", methodName);
+            return false;
+        }
+        jstring jstr = jenv->NewStringUTF(context->get_safe_string_utf(callback));
+        if (jstr == nullptr)
+        {
+            ERROR_LOG("%s", "error on call NewStringUTF");
+            return false;
+        }
+        jenv->CallStaticVoidMethod(context->jclassDoCommandsJniEngine, mid, jstr);
+        jenv->DeleteLocalRef(jstr);
+        return true;
+    }
+
+    bool androidShowMessageBox(const char *title, const char *message, const char *dialogType)
+    {
+        const char *methodName = "messageBox";
+        const char *signature = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassFileJniEngine)
+            return false;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassFileJniEngine, methodName, signature);
+        if (mid == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "method not found: %s", methodName);
+            return false;
+        }
+        jstring jstrTitle = jenv->NewStringUTF(context->get_safe_string_utf(title));
+        if (jstrTitle == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "%s", "error on call NewStringUTF");
+            return false;
+        }
+        jstring jstrMessage = jenv->NewStringUTF(context->get_safe_string_utf(message));
+        if (jstrMessage == nullptr)
+        {
+            jenv->DeleteLocalRef(jstrTitle);
+            ERROR_AT(__LINE__, __FILE__, "%s", "error on call NewStringUTF");
+            return false;
+        }
+        jstring jstrDialogType = jenv->NewStringUTF(context->get_safe_string_utf(dialogType));
+        if (jstrDialogType == nullptr)
+        {
+            jenv->DeleteLocalRef(jstrTitle);
+            jenv->DeleteLocalRef(jstrMessage);
+            ERROR_AT(__LINE__, __FILE__, "%s", "error on call NewStringUTF");
+            return false;
+        }
+        jboolean ret = jenv->CallStaticBooleanMethod(context->jclassFileJniEngine, mid, jstrTitle, jstrMessage,
+                                                     jstrDialogType);
+        jenv->DeleteLocalRef(jstrTitle);
+        jenv->DeleteLocalRef(jstrMessage);
+        jenv->DeleteLocalRef(jstrDialogType);
+        return ret;
+    }
+
+    const char *androidOpenFolder(const char *title, const char *defaultPath)
+    {
+        const char *methodName = "openFolder";
+        const char *signature = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context || !context->jclassFileJniEngine)
+            return nullptr;
+        JNIEnv *jenv = context->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(context->jclassFileJniEngine, methodName, signature);
+        if (mid == nullptr)
+        {
+            ERROR_LOG("method not found: %s", methodName);
+            return nullptr;
+        }
+        jstring jstrTitle = jenv->NewStringUTF(context->get_safe_string_utf(title));
+        if (jstrTitle == nullptr)
+        {
+            ERROR_LOG("%s", "error on call NewStringUTF");
+            return nullptr;
+        }
+        jstring jstrDefaultPath = jenv->NewStringUTF(context->get_safe_string_utf(defaultPath));
+        if (jstrDefaultPath == nullptr)
+        {
+            jenv->DeleteLocalRef(jstrTitle);
+            ERROR_LOG("%s", "error on call NewStringUTF");
+            return nullptr;
+        }
+        jstring ret = static_cast<jstring>(jenv->CallStaticObjectMethod(context->jclassFileJniEngine, mid, jstrTitle,
+                                                                        jstrDefaultPath));
+        jenv->DeleteLocalRef(jstrTitle);
+        jenv->DeleteLocalRef(jstrDefaultPath);
+        if (ret)
+        {
+            const char *newRet = jenv->GetStringUTFChars(ret, nullptr);
+            const char *path = context->getStrToDelete(newRet);
+            jenv->ReleaseStringUTFChars(ret, newRet);
+            jenv->DeleteLocalRef(ret);
+            return path;
+        }
+        return nullptr;
+    }
+
+    void androidReleaseGraphicsContext(bool wasDeviceLost)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->release(wasDeviceLost);
+    }
+
+    bool androidEnsureEGLSurface(int *width, int *height)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context)
+            return false;
+        if (!context->nativeWindow)
+        {
+            ERROR_LOG("EGL: nativeWindow is null, cannot create EGL surface");
+            return false;
+        }
+
+        if (context->eglDisplay == EGL_NO_DISPLAY)
+        {
+            context->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+            if (context->eglDisplay == EGL_NO_DISPLAY)
+            {
+                ERROR_LOG("EGL: eglGetDisplay failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            if (!eglInitialize(context->eglDisplay, nullptr, nullptr))
+            {
+                ERROR_LOG("EGL: eglInitialize failed (error 0x%x)", eglGetError());
+                return false;
+            }
+
+            const EGLint configAttribs[] = {
+                EGL_RED_SIZE, 8,
+                EGL_GREEN_SIZE, 8,
+                EGL_BLUE_SIZE, 8,
+                EGL_DEPTH_SIZE, 24,
+                EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+                EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                EGL_NONE
+            };
+            EGLint numConfigs = 0;
+            eglChooseConfig(context->eglDisplay, configAttribs, &context->eglConfig, 1, &numConfigs);
+            if (numConfigs == 0)
+            {
+                INFO_LOG("EGL: depth-24 config not available, trying depth-16");
+                const EGLint fallbackAttribs[] = {
+                    EGL_RED_SIZE, 8,
+                    EGL_GREEN_SIZE, 8,
+                    EGL_BLUE_SIZE, 8,
+                    EGL_DEPTH_SIZE, 16,
+                    EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+                    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                    EGL_NONE
+                };
+                eglChooseConfig(context->eglDisplay, fallbackAttribs, &context->eglConfig, 1, &numConfigs);
+            }
+            if (numConfigs == 0)
+            {
+                ERROR_LOG("EGL: eglChooseConfig found no matching config (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: config chosen, numConfigs=%d", numConfigs);
+
+            EGLint format = 0;
+            eglGetConfigAttrib(context->eglDisplay, context->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
+            ANativeWindow_setBuffersGeometry(context->nativeWindow, 0, 0, format);
+
+            context->eglSurface = eglCreateWindowSurface(context->eglDisplay, context->eglConfig,
+                                                         context->nativeWindow, nullptr);
+            if (context->eglSurface == EGL_NO_SURFACE)
+            {
+                ERROR_LOG("EGL: eglCreateWindowSurface failed (error 0x%x)", eglGetError());
+                return false;
+            }
+
+            const EGLint ctxAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+            context->eglContext = eglCreateContext(context->eglDisplay, context->eglConfig, EGL_NO_CONTEXT,
+                                                   ctxAttribs);
+            if (context->eglContext == EGL_NO_CONTEXT)
+            {
+                ERROR_LOG("EGL: eglCreateContext failed (error 0x%x)", eglGetError());
+                return false;
+            }
+
+            if (!eglMakeCurrent(context->eglDisplay, context->eglSurface, context->eglSurface, context->eglContext))
+            {
+                ERROR_LOG("EGL: eglMakeCurrent failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: context created and made current");
+        }
+        else if (context->eglSurface == EGL_NO_SURFACE)
+        {
+            EGLint format = 0;
+            eglGetConfigAttrib(context->eglDisplay, context->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
+            ANativeWindow_setBuffersGeometry(context->nativeWindow, 0, 0, format);
+            context->eglSurface = eglCreateWindowSurface(context->eglDisplay, context->eglConfig,
+                                                         context->nativeWindow, nullptr);
+            if (context->eglSurface == EGL_NO_SURFACE)
+            {
+                ERROR_LOG("EGL: resume eglCreateWindowSurface failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            if (!eglMakeCurrent(context->eglDisplay, context->eglSurface, context->eglSurface, context->eglContext))
+            {
+                ERROR_LOG("EGL: resume eglMakeCurrent failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: surface recreated for resume");
+        }
+
+        EGLint surfaceWidth = 0;
+        EGLint surfaceHeight = 0;
+        eglQuerySurface(context->eglDisplay, context->eglSurface, EGL_WIDTH, &surfaceWidth);
+        eglQuerySurface(context->eglDisplay, context->eglSurface, EGL_HEIGHT, &surfaceHeight);
+        INFO_LOG("EGL: surface dimensions %d x %d", surfaceWidth, surfaceHeight);
+        if (width && surfaceWidth > 0)
+            *width = surfaceWidth;
+        if (height && surfaceHeight > 0)
+            *height = surfaceHeight;
+        return true;
+    }
+
+    void androidSwapBuffers()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            eglSwapBuffers(context->eglDisplay, context->eglSurface);
+    }
+
+    void androidStoreTextureFilters()
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context)
+            return;
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &context->filter_GL_TEXTURE_WRAP_S);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &context->filter_GL_TEXTURE_WRAP_T);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &context->filter_GL_TEXTURE_MIN_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &context->filter_GL_TEXTURE_MAG_FILTER);
+    }
+
+    void *androidGetPluginSubscribeHandle() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->jenv : nullptr;
+    }
+
+    void androidSetRuntimePaths(const char *absPath, const char *apkPath)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (!context)
+            return;
+        context->absPath = absPath ? absPath : "";
+        context->apkPath = apkPath ? apkPath : "";
+    }
+
+    void androidSetAssetManager(void *assetManager)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->assetManager = static_cast<AAssetManager *>(assetManager);
+    }
+
+    void androidSetNativeWindow(void *nativeWindow)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->nativeWindow = static_cast<ANativeWindow *>(nativeWindow);
+    }
+
+    bool androidAttachNativeActivityThread(void *javaVm, void *activityObj, const char *packageNameClasses)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        JavaVM *vm = static_cast<JavaVM *>(javaVm);
+        jobject activity = static_cast<jobject>(activityObj);
+        if (!context || !vm || !activity)
+            return false;
+        JNIEnv *jenv = nullptr;
+        vm->AttachCurrentThread(&jenv, nullptr);
+        if (!jenv)
+            return false;
+        context->jenv = jenv;
+        context->initClassLoader(activity);
+        context->cacheJavaClasses(packageNameClasses);
+        return true;
+    }
+
+    void *androidCreateActivityGlobalRef(void *activityObj)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        jobject activity = static_cast<jobject>(activityObj);
+        if (!context || !context->jenv || !activity)
+            return nullptr;
+        return context->jenv->NewGlobalRef(activity);
+    }
+
+    void androidDeleteGlobalRef(void *globalRef)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context && context->jenv && globalRef)
+            context->jenv->DeleteGlobalRef(static_cast<jobject>(globalRef));
+    }
+
+    bool androidCallActivityDoCommands(void *activityObj, const char *cmd, const char *param, char *result,
+                                       int maxSize)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        jobject activity = static_cast<jobject>(activityObj);
+        if (!context || !context->jenv || !activity || !result || maxSize <= 0)
+            return false;
+        JNIEnv *jenv = context->jenv;
+        jclass cls = jenv->GetObjectClass(activity);
+        jmethodID mid = jenv->GetMethodID(cls, "OnDoCommands",
+                                          "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+        jenv->DeleteLocalRef(cls);
+        if (!mid)
+            return false;
+        jstring jcmd = jenv->NewStringUTF(cmd ? cmd : "");
+        jstring jparam = jenv->NewStringUTF(param ? param : "");
+        jstring jret = static_cast<jstring>(jenv->CallObjectMethod(activity, mid, jcmd, jparam));
+        jenv->DeleteLocalRef(jcmd);
+        jenv->DeleteLocalRef(jparam);
+        if (jret)
+        {
+            const char *chars = jenv->GetStringUTFChars(jret, nullptr);
+            if (chars)
+            {
+                strncpy(result, chars, static_cast<size_t>(maxSize) - 1);
+                result[maxSize - 1] = '\0';
+                jenv->ReleaseStringUTFChars(jret, chars);
+            }
+            jenv->DeleteLocalRef(jret);
+        }
+        return true;
+    }
+
+    void *androidGetJNIEnv() noexcept
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->jenv : nullptr;
+    }
+
+    void androidSetJNIEnv(void *jniEnv)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->jenv = static_cast<JNIEnv *>(jniEnv);
+    }
+
+    void androidCacheJavaClasses(const char *packageNameClasses)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        if (context)
+            context->cacheJavaClasses(packageNameClasses);
+    }
+
+    uint8_t *androidGetImageDataFromDroid(const char *fileName, int *width, int *height)
+    {
+        SPECIFIC_AUX_CONTEXT_DEVICE *context = getAndroidContext();
+        return context ? context->getImageDataFromDroid(fileName, width, height) : nullptr;
+    }
     
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():
     jenv(nullptr),
@@ -268,7 +811,7 @@ namespace mbm
         if (strcmp(fileName, util::getDecompressModelFileName()) == 0)
             return 0;
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if (!cJni->assetManager)
             return this->onFailExistFile(__LINE__, __FILE__, "assetManager is null!");
         AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_STREAMING);
@@ -281,7 +824,7 @@ namespace mbm
     const char * SPECIFIC_AUX_CONTEXT_DEVICE::copyFileFromAsset(const char *fileName, const char * /*mode*/)
     {
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if (!cJni->assetManager || cJni->absPath.empty())
             return fileName;
         AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_BUFFER);
@@ -329,7 +872,7 @@ namespace mbm
             return nullptr;
         }
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if (!cJni->assetManager)
         {
             ERROR_LOG("assetManager is null in getImageDataFromDroid!");
@@ -372,7 +915,7 @@ namespace mbm
     FILE * SPECIFIC_AUX_CONTEXT_DEVICE::fopenAsset(const char *fileName, const char * /*mode*/)
     {
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
         if (!cJni->assetManager)
             return onFailOpenFile(__LINE__, __FILE__, "assetManager is null!");
         AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_STREAMING);
@@ -436,7 +979,7 @@ namespace mbm
         // Signal the android_main loop to stop via the engine's run flag.
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if (device)
-            device->run = false;
+            device->setRun(false);
     }
 
     
@@ -452,7 +995,7 @@ int access_file(const char *fileName, int)
         return 0;
     // Fall back to AAssetManager for files still inside the APK.
     mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-    mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->getSpecificContextDevice();
     return cJni->existFileOnAssets(fileName);
 }
 

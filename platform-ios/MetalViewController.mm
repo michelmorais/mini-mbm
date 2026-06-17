@@ -66,8 +66,10 @@ static MbmCommandBridge* s_commandBridge = nil;
 extern "C" void mbm_ios_onCallBackCommands(const char * _Nonnull cmdName,
                                            const char * _Nonnull result)
 {
-    if (s_game && s_game->device && s_game->device->scene)
-        s_game->device->scene->onCallBackCommands(cmdName, result);
+    mbm::DEVICE *device = s_game ? s_game->getDevice() : nullptr;
+    auto *scene = device ? device->getScene() : nullptr;
+    if (scene)
+        scene->onCallBackCommands(cmdName, result);
 }
 
 /// Registered as LUA_MANAGER::onDoNativeCommand.
@@ -161,8 +163,8 @@ static void ios_command_handler(const char *cmd, const char *param,
 
     // 6. Create the engine manager.
     s_game = new mbm::LUA_MANAGER(args);
-    s_game->device->backBufferWidth  = static_cast<float>(w);
-    s_game->device->backBufferHeight = static_cast<float>(h);
+    mbm::DEVICE *device = s_game->getDevice();
+    device->setBackBufferSize(static_cast<float>(w), static_cast<float>(h));
     // print the resolution to the console for debugging (Lua's print goes to Xcode's console).
     NSLog(@"[mini-mbm] view size: %d x %d scale %f ", w, h, scale);
 
@@ -201,8 +203,8 @@ static void ios_command_handler(const char *cmd, const char *param,
 
     // 6. Create the engine manager (setScene is called in GAME constructor).
     s_game = new GAME();
-    s_game->device->backBufferWidth  = static_cast<float>(w);
-    s_game->device->backBufferHeight = static_cast<float>(h);
+    mbm::DEVICE *device = s_game->getDevice();
+    device->setBackBufferSize(static_cast<float>(w), static_cast<float>(h));
 
     // 7. Initialise graphics + scene.
     constexpr bool border = false;
@@ -234,7 +236,8 @@ static void ios_command_handler(const char *cmd, const char *param,
     (void)link;
     if (!s_game) return;
 
-    if (!s_game->device->run)
+    mbm::DEVICE *device = s_game->getDevice();
+    if (!device->isRunning())
     {
         [_displayLink invalidate];
         _displayLink = nil;
@@ -258,10 +261,11 @@ static void ios_command_handler(const char *cmd, const char *param,
     const float scale = UIScreen.mainScreen.scale;
     const int newW = static_cast<int>(_metalView.bounds.size.width  * scale);
     const int newH = static_cast<int>(_metalView.bounds.size.height * scale);
+    mbm::DEVICE *device = s_game->getDevice();
 
     if (newW > 0 && newH > 0 &&
-        (newW != static_cast<int>(s_game->device->backBufferWidth) ||
-         newH != static_cast<int>(s_game->device->backBufferHeight)))
+        (newW != static_cast<int>(device->getBackBufferWidth()) ||
+         newH != static_cast<int>(device->getBackBufferHeight())))
     {
         s_game->onResizeWindow(newW, newH);
     }
@@ -351,7 +355,8 @@ static void ios_command_handler(const char *cmd, const char *param,
 
 - (void)resumeRendering
 {
-    if (s_game && s_game->device->run)
+    mbm::DEVICE *device = s_game ? s_game->getDevice() : nullptr;
+    if (device && device->isRunning())
         _displayLink.paused = NO;
 }
 

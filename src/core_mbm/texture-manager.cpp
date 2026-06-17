@@ -28,13 +28,12 @@
 #include <static-resource/resource-particle.h>
 
 #if defined ANDROID
-    #include <device.h>
     #if defined     USE_OPENGL_ES
         #if defined (USE_DUMMY_BACK_END_ENGINE)
             // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
             #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
         #else
-            #include <core_mbm/specific-opengl_es.h>
+            #include <core_mbm/android-bridge.h>
         #endif
     #endif
 #endif
@@ -42,6 +41,7 @@
 #include <platform/mismatch-platform.h>
 #include <cstring>
 #include <cstdio>
+#include <unordered_map>
 
 #if (defined __linux__ || defined(__APPLE__) || defined _WIN32) && !defined ANDROID
     #include <core_mbm/dialog-util.h>
@@ -51,10 +51,40 @@ namespace mbm
 {
     bool TEXTURE::isPixelPerfectTextureEnabled = false;
 
-    TEXTURE::TEXTURE() noexcept
+    struct TEXTURE_MANAGER::Impl
     {
-        ptrTexture      = nullptr;
-        idTexture       = 0;
+        std::unordered_map<std::string, TEXTURE *> lsTextures;
+        char pathSource[255];
+        uint32_t maxTextureSize;
+        uint32_t maxTextureHeight;
+        uint32_t maxTextureWidth;
+
+        Impl() noexcept
+            : pathSource{}
+            , maxTextureSize(0)
+            , maxTextureHeight(0)
+            , maxTextureWidth(0)
+        {
+        }
+    };
+
+    struct TEXTURE::BackendData
+    {
+        union
+        {
+            uint32_t idTexture; // DO NOT use in 64-bit. Use ptrTexture instead.
+            void *ptrTexture;
+        };
+
+        BackendData() noexcept
+            : ptrTexture(nullptr)
+        {
+        }
+    };
+
+    TEXTURE::TEXTURE() noexcept
+        : backend(std::make_unique<BackendData>())
+    {
         fileName[0]     = 0;
         width           = 0;
         height          = 0;
@@ -339,7 +369,7 @@ namespace mbm
             TEXTURE* resouce = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
             if (resouce)
             {
-                this->ptrTexture = resouce->ptrTexture;
+                this->setBackendTexturePointer(resouce->getBackendTexturePointer());
                 this->width = resouce->width;
                 this->height = resouce->height;
                 this->fileName = fileNameTexture;
@@ -400,6 +430,36 @@ namespace mbm
     {
         return this->height;
     }
+
+    uint32_t TEXTURE::getBackendTextureId() const noexcept
+    {
+        return this->backend->idTexture;
+    }
+
+    void TEXTURE::setBackendTextureId(uint32_t textureId) noexcept
+    {
+        this->backend->idTexture = textureId;
+    }
+
+    uint32_t * TEXTURE::getBackendTextureIdAddress() noexcept
+    {
+        return &this->backend->idTexture;
+    }
+
+    void * TEXTURE::getBackendTexturePointer() const noexcept
+    {
+        return this->backend->ptrTexture;
+    }
+
+    void TEXTURE::setBackendTexturePointer(void *texturePointer) noexcept
+    {
+        this->backend->ptrTexture = texturePointer;
+    }
+
+    void ** TEXTURE::getBackendTexturePointerAddress() noexcept
+    {
+        return &this->backend->ptrTexture;
+    }
     
 #if defined ANDROID
     bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha) // Android 24/32 bits true color
@@ -409,23 +469,22 @@ namespace mbm
         (void)_fileName; (void)hasAlpha;
         return false;
 #else
-        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         int              wint   = 0;
         int              hint   = 0;
-        uint8_t *  pixels = cJni->getImageDataFromDroid(_fileName, &wint, &hint);
+        uint8_t *  pixels = androidGetImageDataFromDroid(_fileName, &wint, &hint);
         if (pixels)
         {
             if (wint < 0 && hint < 0)
             {
                 this->width  = static_cast<uint32_t>(-wint);
                 this->height = static_cast<uint32_t>(-hint);
-                idTexture = ((static_cast<int>(pixels[0]) << 24) | 
-                             (static_cast<int>(pixels[1]) << 16) | 
-                             (static_cast<int>(pixels[2]) << 8 ) | 
-                             (static_cast<int>(pixels[3])));
+                const uint32_t textureId = ((static_cast<int>(pixels[0]) << 24) |
+                                            (static_cast<int>(pixels[1]) << 16) |
+                                            (static_cast<int>(pixels[2]) << 8 ) |
+                                            (static_cast<int>(pixels[3])));
+                setBackendTextureId(textureId);
                 this->useAlphaChannel = (pixels[4] ? true : false) || hasAlpha;
-                PRINT_IF_DEBUG("texture generated externally!\n width:%u height:%u id:%d", this->width, this->height, idTexture);
+                PRINT_IF_DEBUG("texture generated externally!\n width:%u height:%u id:%d", this->width, this->height, getBackendTextureId());
                 delete[] pixels;
                 return true;
             }
@@ -465,22 +524,23 @@ namespace mbm
     {
         if (!imageResource)
             return nullptr;
-        if (static_cast<uint32_t>(imageResource->width) > this->maxTextureSize || static_cast<uint32_t>(imageResource->height) > this->maxTextureSize)
+        const uint32_t maxTextureSize = getMaxTextureSize();
+        if (static_cast<uint32_t>(imageResource->width) > maxTextureSize || static_cast<uint32_t>(imageResource->height) > maxTextureSize)
         {
             PRINT_IF_DEBUG("max size to generate texture is  %d/%d.",
                          imageResource->width > imageResource->height ? imageResource->width : imageResource->height,
-                         this->maxTextureSize);
+                         maxTextureSize);
             return nullptr;
         }
         std::string fileNameBase = util::getBaseName(imageResource->nickName);
-        TEXTURE *texture = lsTextures[fileNameBase];
+        TEXTURE *texture = getCachedTexture(fileNameBase);
         if (texture)
             return texture;
         texture = new TEXTURE();
         if (texture->loadFromResourceData(imageResource))
         {
             texture->fileName = std::move(fileNameBase);
-            lsTextures[texture->fileName] = texture;
+            cacheTexture(texture->fileName, texture);
             texture->useAlphaChannel = true;
         }
         else
@@ -498,21 +558,22 @@ namespace mbm
         const char *fileName = nickName;
         if (!fileName)
             return nullptr;
-        if (static_cast<uint32_t>(width) > this->maxTextureSize || static_cast<uint32_t>(height) > this->maxTextureSize)
+        const uint32_t maxTextureSize = getMaxTextureSize();
+        if (static_cast<uint32_t>(width) > maxTextureSize || static_cast<uint32_t>(height) > maxTextureSize)
         {
             PRINT_IF_DEBUG("max size to generate texture is  %u/%u.", width > height ? width : height,
-                         this->maxTextureSize);
+                         maxTextureSize);
             return nullptr;
         }
         std::string fileNameBase = util::getBaseName(fileName);
-        auto texture = lsTextures[fileNameBase];
+        auto texture = getCachedTexture(fileNameBase);
         if (texture)
             return texture;
         texture  = new TEXTURE();
         if (texture->loadFromData(data, width, height, depth, channel, channel == 4))
         {
             texture->fileName = std::move(fileNameBase);
-            lsTextures[texture->fileName] = texture;
+            cacheTexture(texture->fileName, texture);
         }
         else
         {
@@ -531,14 +592,15 @@ namespace mbm
     {
         if (nickName == nullptr)
             return nullptr;
-        if (static_cast<uint32_t>(width) > this->maxTextureSize || static_cast<uint32_t>(height) > this->maxTextureSize)
+        const uint32_t maxTextureSize = getMaxTextureSize();
+        if (static_cast<uint32_t>(width) > maxTextureSize || static_cast<uint32_t>(height) > maxTextureSize)
         {
             PRINT_IF_DEBUG("max size to generate texture is  %u/%u.", width > height ? width : height,
-                         this->maxTextureSize);
+                         maxTextureSize);
             return nullptr;
         }
         std::string fileNameBase = util::getBaseName(nickName);
-        auto texture = lsTextures[fileNameBase];
+        auto texture = getCachedTexture(fileNameBase);
         if (texture)
             return texture;
         texture  = new TEXTURE();
@@ -546,7 +608,7 @@ namespace mbm
         {
             texture->fileName = std::move(fileNameBase);
             texture->useAlphaChannel = hasAlpha;
-            lsTextures[texture->fileName] = texture;
+            cacheTexture(texture->fileName, texture);
         }
         else
         {
@@ -562,7 +624,7 @@ namespace mbm
         if (fileName == nullptr)
             return nullptr;
         std::string fileNameBase = util::getBaseName(fileName);
-        auto texture = lsTextures[fileNameBase];
+        auto texture = getCachedTexture(fileNameBase);
         if (texture)
             return texture;
         texture  = new TEXTURE();
@@ -570,7 +632,7 @@ namespace mbm
         {
             texture->fileName = std::move(fileNameBase);
             texture->useAlphaChannel = hasAlpha ? true : false;
-            lsTextures[texture->fileName] = texture;
+            cacheTexture(texture->fileName, texture);
         }
         else
         {
@@ -581,7 +643,7 @@ namespace mbm
             {
                 texture->fileName = std::move(fileNameBase);
                 texture->useAlphaChannel = hasAlpha ? true : false;
-                lsTextures[texture->fileName] = texture;
+                cacheTexture(texture->fileName, texture);
             }
             else
             {
@@ -609,7 +671,7 @@ namespace mbm
         std::string firstNameGif(num);
         firstNameGif += "-";
         firstNameGif += fileNameBase;
-        TEXTURE * texture = lsTextures[firstNameGif];
+        TEXTURE * texture = getCachedTexture(firstNameGif);
         if (texture)
         {
             infoGif.widthTexture = texture->width;
@@ -627,7 +689,7 @@ namespace mbm
                 nextNameGif = num;
                 nextNameGif += "-";
                 nextNameGif += fileNameBase;
-                texture = lsTextures[nextNameGif];
+                texture = getCachedTexture(nextNameGif);
                 ++i;
             }while(texture);
             
@@ -668,7 +730,7 @@ namespace mbm
                     texture->fileName[len+2] = img[start+size+1];
                     texture->fileName[len]   = 0;
                     texture->useAlphaChannel = true;
-                    lsTextures[newNameGif]     = (texture);
+                    cacheTexture(newNameGif, texture);
                     infoGif.fileNames.emplace_back(newNameGif);
                 }
                 else
@@ -702,7 +764,7 @@ namespace mbm
             fileNameBaseSuppose.resize(len_);
             fileNameBaseSuppose += ext;
         }
-        auto texture = lsTextures[fileNameBaseSuppose];
+        auto texture = getCachedTexture(fileNameBaseSuppose);
         if(texture)
             return texture;
         const char *fileNameFullPath = getFilePathTexture(fileNameTTF,nullptr);
@@ -713,7 +775,7 @@ namespace mbm
         {
             texture->fileName = std::move(fileNameBaseSuppose);
             texture->useAlphaChannel = true;
-            lsTextures[texture->fileName]  = texture;
+            cacheTexture(texture->fileName, texture);
         }
         else
         {
@@ -728,11 +790,11 @@ namespace mbm
     {
         if (fileNametexture == nullptr)
             return false;
-        TEXTURE *tex = lsTextures[fileNametexture];
+        TEXTURE *tex = getCachedTexture(fileNametexture);
         if (tex)
             return true;
         fileNametexture = util::getFullPath(fileNametexture,nullptr);
-        tex             = lsTextures[fileNametexture];
+        tex             = getCachedTexture(fileNametexture);
         if (tex)
             return true;
         return false;
@@ -740,7 +802,8 @@ namespace mbm
     
     void TEXTURE_MANAGER::setPath(const char *PathSource)
     {
-        strncpy(pathSource, PathSource,sizeof(pathSource)-1);
+        if (PathSource)
+            strncpy(impl->pathSource, PathSource, sizeof(impl->pathSource) - 1);
     }
     
     bool TEXTURE_MANAGER::saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
@@ -883,23 +946,23 @@ namespace mbm
         if (!nickName)
             return;
         const std::string key = util::getBaseName(nickName);
-        auto it = lsTextures.find(key);
-        if (it != lsTextures.end())
+        auto it = impl->lsTextures.find(key);
+        if (it != impl->lsTextures.end())
         {
             delete it->second;
-            lsTextures.erase(it);
+            impl->lsTextures.erase(it);
         }
     }
 
     TEXTURE_MANAGER::~TEXTURE_MANAGER()
     {
         std::unordered_map<std::string, TEXTURE *>::const_iterator it;
-        for (it = lsTextures.cbegin(); it != lsTextures.cend(); ++it)
+        for (it = impl->lsTextures.cbegin(); it != impl->lsTextures.cend(); ++it)
         {
             TEXTURE *ptr = it->second;
             delete ptr;
         }
-        lsTextures.clear();
+        impl->lsTextures.clear();
     }
     
     const char * TEXTURE_MANAGER::getFilePathTexture(const char *fileName,const char* fullFileName)
@@ -970,7 +1033,7 @@ namespace mbm
         {
             const char *nameTexture = result[result.size() - 1].c_str();
             std::unordered_map<std::string, TEXTURE *>::const_iterator it;
-            for (it = lsTextures.cbegin(); it != lsTextures.cend(); ++it)
+            for (it = impl->lsTextures.cbegin(); it != impl->lsTextures.cend(); ++it)
             {
                 mbm::TEXTURE *texture = it->second;
                 if (texture)
@@ -1074,7 +1137,7 @@ namespace mbm
 
     void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
     {
-        for (auto& texture : lsTextures)
+        for (auto& texture : impl->lsTextures)
         {
             bool existTexture = false;
             std::string fullPathTexture = util::getFullPath(texture.first.c_str(), &existTexture);
@@ -1086,26 +1149,39 @@ namespace mbm
     }
 
     TEXTURE_MANAGER::TEXTURE_MANAGER()
+        : impl(std::make_unique<Impl>())
     {
-        memset(pathSource, 0, sizeof(pathSource));
-        this->maxTextureSize = 0;
-        this->maxTextureWidth = 0;
-        this->maxTextureHeight = 0;
         //Remember to implement setTextureCapabilities by engine backend
     }
 
     void TEXTURE_MANAGER::setTextureCapabilities(const uint32_t maxTextureSizeFound, const uint32_t maxTextureWidthFound, const uint32_t maxTextureHeightFound)
     {
-        this->maxTextureSize = maxTextureSizeFound;
-        this->maxTextureWidth = maxTextureWidthFound;
-        this->maxTextureHeight = maxTextureHeightFound;
+        impl->maxTextureSize = maxTextureSizeFound;
+        impl->maxTextureWidth = maxTextureWidthFound;
+        impl->maxTextureHeight = maxTextureHeightFound;
     }
 
     void TEXTURE_MANAGER::getTextureCapabilities(uint32_t &maxTextureSizeFound, uint32_t &maxTextureWidthFound, uint32_t &maxTextureHeightFound)
     {
-        maxTextureSizeFound = this->maxTextureSize;
-        maxTextureWidthFound = this->maxTextureWidth;
-        maxTextureHeightFound = this->maxTextureHeight;
+        maxTextureSizeFound = impl->maxTextureSize;
+        maxTextureWidthFound = impl->maxTextureWidth;
+        maxTextureHeightFound = impl->maxTextureHeight;
+    }
+
+    TEXTURE * TEXTURE_MANAGER::getCachedTexture(const std::string &fileName) const
+    {
+        const auto it = impl->lsTextures.find(fileName);
+        return it != impl->lsTextures.end() ? it->second : nullptr;
+    }
+
+    void TEXTURE_MANAGER::cacheTexture(const std::string &fileName, TEXTURE *texture)
+    {
+        impl->lsTextures[fileName] = texture;
+    }
+
+    uint32_t TEXTURE_MANAGER::getMaxTextureSize() const noexcept
+    {
+        return impl->maxTextureSize;
     }
 
     mbm::TEXTURE_MANAGER *mbm::TEXTURE_MANAGER::instanceTextureManager = nullptr;    
@@ -1115,4 +1191,3 @@ const char* getLodePNGVersion()
 {
     return LODEPNG_VERSION_STRING;
 }
-

@@ -42,7 +42,6 @@
         return t.tv_sec * 1000LL + t.tv_usec / 1000;
     }
 #else // Windows and MinGW
-    #include <windows.h>
     #include <sys/timeb.h>
 
     typedef _timeb sys_time_t;

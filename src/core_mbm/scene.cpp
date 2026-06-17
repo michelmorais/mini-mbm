@@ -23,6 +23,19 @@
 
 namespace mbm
 {
+    struct SCENE::Impl
+    {
+        bool endScene = false;
+        bool wasUnloadedScene = false;
+        SCENE *nextScene = nullptr;
+        bool goToNextScene = true;
+        void *userData = nullptr;
+    };
+
+    void SCENE::ImplDeleter::operator()(Impl *ptr) const
+    {
+        delete ptr;
+    }
     
     CONTROL_SCENE::CONTROL_SCENE() noexcept
     {
@@ -40,13 +53,11 @@ namespace mbm
     }
    
     SCENE::SCENE() noexcept
+        : impl(new Impl())
     {
-        this->nextScene        = nullptr;
-        this->goToNextScene    = true;
-        this->endScene         = false;
-        this->wasUnloadedScene = false;
-        this->userData         = nullptr;
     }
+
+    SCENE::~SCENE() = default;
     
     void * SCENE::get_lua_state()//if we are using lua we should be able to retrieve the current state
     {
@@ -117,10 +128,55 @@ namespace mbm
         const char *) // parameter: int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo
     {
     }
+
+    bool SCENE::isEndScene() const noexcept
+    {
+        return this->impl->endScene;
+    }
+
+    void SCENE::setEndScene(bool value) noexcept
+    {
+        this->impl->endScene = value;
+    }
+
+    bool SCENE::wasSceneUnloaded() const noexcept
+    {
+        return this->impl->wasUnloadedScene;
+    }
+
+    void SCENE::setWasUnloadedScene(bool value) noexcept
+    {
+        this->impl->wasUnloadedScene = value;
+    }
+
+    SCENE *SCENE::getNextScene() const noexcept
+    {
+        return this->impl->nextScene;
+    }
     
     void SCENE::setNextScene(SCENE *_nextScene)
     {
-        this->nextScene = _nextScene;
+        this->impl->nextScene = _nextScene;
+    }
+
+    bool SCENE::shouldGoToNextScene() const noexcept
+    {
+        return this->impl->goToNextScene;
+    }
+
+    void SCENE::setGoToNextScene(bool value) noexcept
+    {
+        this->impl->goToNextScene = value;
+    }
+
+    void *SCENE::getUserData() const noexcept
+    {
+        return this->impl->userData;
+    }
+
+    void SCENE::setUserData(void *_userData) noexcept
+    {
+        this->impl->userData = _userData;
     }
     
     void SCENE::onDoubleClick(float, float, int) // Double click do mouse. key ==0 botão esquerdo; key == 1 botão

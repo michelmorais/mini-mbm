@@ -205,7 +205,7 @@ namespace mbm
                 auto **ud = static_cast<mbm::RENDERIZABLE **>(user_type);
                 auto *ptr = static_cast<mbm::RENDERIZABLE *>(*ud); //-V522
                 static mbm::VEC3 * p;
-                p = &(ptr->position);
+                p = &(ptr->getPosition());
                 return &p;
             }
             else 
@@ -329,7 +329,7 @@ namespace mbm
                 auto **ud = static_cast<mbm::RENDERIZABLE **>(user_type);
                 auto *ptr = static_cast<mbm::RENDERIZABLE *>(*ud); //-V522
                 static mbm::VEC3 * p;
-                p = &(ptr->position);
+                p = &(ptr->getPosition());
                 return &p;
             }
             else 
@@ -367,7 +367,7 @@ namespace mbm
         RENDERIZABLE* renderizable = *ud;
         ANIMATION_MANAGER * animManager = renderizable->getAnimationManager();
         if (animManager == nullptr)
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for animation_manager!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for animation_manager!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         return animManager;
     }
 
@@ -375,7 +375,7 @@ namespace mbm
     {
         ANIMATION_MANAGER * animManager = renderizable->getAnimationManager();
         if (animManager == nullptr)
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for animation_manager!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for animation_manager!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         return animManager;
     }
 
@@ -385,7 +385,7 @@ namespace mbm
         RENDERIZABLE* renderizable = *ud;
         FX * fx = renderizable->getFx();
         if (fx == nullptr)
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for FX!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for FX!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         return fx;
     }
 
@@ -393,7 +393,7 @@ namespace mbm
     {
         FX * fx = renderizable->getFx();
         if (fx == nullptr)
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for FX!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for FX!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         return fx;
     }
 
@@ -403,13 +403,13 @@ namespace mbm
         ANIMATION_MANAGER * animManager = renderizable->getAnimationManager();
         if (animManager == nullptr)
         {
-            lua_error_debug(lua, "type of class [%d][%s] not implemented for ANIMATION_MANAGER!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+            lua_error_debug(lua, "type of class [%d][%s] not implemented for ANIMATION_MANAGER!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         }
         else
         {
             anim = animManager->getAnimation();
             if (anim == nullptr)
-                lua_error_debug(lua, "type of class [%d][%s] not implemented for ANIMATION_MANAGER!!!", (int)renderizable->typeClass,renderizable->getTypeClassName());
+                lua_error_debug(lua, "type of class [%d][%s] not implemented for ANIMATION_MANAGER!!!", static_cast<int>(renderizable->getTypeClass()),renderizable->getTypeClassName());
         }
         return anim;
     }
@@ -540,10 +540,9 @@ namespace mbm
         }
     }
 
-    int getDynamicVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what)
+    static int getDynamicVariableFromPtr(lua_State *lua, DYNAMIC_VAR *dyVar, const char *what)
     {
         const char *      strinChar = nullptr;
-        DYNAMIC_VAR *dyVar     = lsDynamicVar[what];
         if (dyVar == nullptr)
         {
             lua_pushnil(lua);
@@ -610,9 +609,14 @@ namespace mbm
         return 1;
     }
 
+    int getDynamicVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what)
+    {
+        return getDynamicVariableFromPtr(lua, lsDynamicVar[what], what);
+    }
+
     int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what)
     {
-        return getDynamicVariable(lua, ptr->lsDynamicVar, what);
+        return getDynamicVariableFromPtr(lua, ptr->getDynamicVar(what), what);
     }
 
     void getFieldUnsignedFromTable(lua_State *lua, const int indexTable, const char *fieldName,uint32_t *ptrRet)
@@ -828,9 +832,118 @@ namespace mbm
         return 0;
     }
 
+    static int setDynamicVariableOnRenderizable(lua_State *lua, RENDERIZABLE *ptr, const char *what)
+    {
+        const int         top   = lua_gettop(lua);
+        const int         type  = lua_type(lua, top);
+        DYNAMIC_VAR *dyVar = ptr->getDynamicVar(what);
+        switch (type)
+        {
+            case LUA_TNIL:
+            {
+                unrefTableByIdTableRef(dyVar, lua);
+                ptr->setDynamicVar(what, nullptr);
+            }
+            break;
+            case LUA_TNUMBER:
+            {
+                float var = lua_tonumber(lua, top);
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_FLOAT)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_FLOAT, &var));
+                }
+                else
+                {
+                    switch(dyVar->type)
+                    {
+                        case DYNAMIC_FLOAT:
+                        {
+                            dyVar->setFloat(var);
+                        }
+                        break;
+                        case DYNAMIC_INT:
+                        {
+                            dyVar->setInt(static_cast<int>(var));
+                        }
+                        break;
+                        case DYNAMIC_SHORT:
+                        {
+                            dyVar->setShort(static_cast<short int>(var));
+                        }
+                        break;
+                        default:{}
+                    }
+                }
+            }
+            break;
+            case LUA_TBOOLEAN:
+            {
+                bool var = lua_toboolean(lua, top) ? true : false;
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_BOOL)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_BOOL, &var));
+                }
+                else if (dyVar->type == DYNAMIC_BOOL)
+                {
+                    dyVar->setBool(var);
+                }
+            }
+            break;
+            case LUA_TSTRING:
+            {
+                const char *var = lua_tostring(lua, top);
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_CSTRING)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_CSTRING,var));
+                }
+                else if (dyVar->type == DYNAMIC_CSTRING)
+                {
+                    dyVar->setString(var);
+                }
+            }
+            break;
+            case LUA_TTABLE:
+            {
+                const int tref = luaL_ref(lua, LUA_REGISTRYINDEX);
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_TABLE)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_TABLE,&tref));
+                }
+                else if (dyVar->type == DYNAMIC_TABLE)
+                {
+                    dyVar->setVoid(static_cast<const void*>(&tref));
+                }
+            }
+            break;
+            case LUA_TFUNCTION:
+            {
+                const int tref = luaL_ref(lua, LUA_REGISTRYINDEX);
+                unrefTableByIdTableRef(dyVar, lua);
+                if (dyVar == nullptr || dyVar->type != DYNAMIC_FUNCTION)
+                {
+                    ptr->setDynamicVar(what, new DYNAMIC_VAR(DYNAMIC_FUNCTION,&tref));
+                }
+                else if (dyVar->type == DYNAMIC_FUNCTION)
+                {
+                    dyVar->setVoid(static_cast<const void*>(&tref));
+                }
+            }
+            break;
+            case LUA_TUSERDATA: { return lua_error_debug(lua, "variable [%s] userdata not allowed!", what);}
+            case LUA_TTHREAD: { return lua_error_debug(lua, "variable [%s] thread not allowed!", what);}
+            case LUA_TLIGHTUSERDATA: { return lua_error_debug(lua, "variable [%s] light userdata not allowed!", what);}
+            default: { return lua_error_debug(lua, "variable [%s] unknown!", what);}
+        }
+        return 0;
+    }
+
     int setVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what)
     {
-        return setDynamicVariable(lua, ptr->lsDynamicVar, what);
+        return setDynamicVariableOnRenderizable(lua, ptr, what);
     }
 
     const char *getRandomNameTexture()
@@ -922,7 +1035,7 @@ namespace mbm
                 }
                 if (lineMesh)
                 {
-                    lineMesh->position = ptr->position;
+                    lineMesh->setPosition(ptr->getPosition());
 
                     for (auto cube : pInfoPhysics->lsCube)
                     {
@@ -1099,8 +1212,9 @@ namespace mbm
 
                                 if (moveIfNotSingle(vertex,singleObj) == true)
                                 {
-                                    lineMesh->position.x = pos.x;
-                                    lineMesh->position.y = pos.y;
+                                    VEC3 &position = lineMesh->getPosition();
+                                    position.x = pos.x;
+                                    position.y = pos.y;
                                 }
                                 
                                 lineMesh->add(std::move(vertex));
@@ -1143,8 +1257,9 @@ namespace mbm
                             
                             if (singleObj)
                             {
-                                lineMesh->position.x = pos.x;
-                                lineMesh->position.y = pos.y;
+                                VEC3 &position = lineMesh->getPosition();
+                                position.x = pos.x;
+                                position.y = pos.y;
                             }
                             else
                             {
@@ -1223,8 +1338,9 @@ namespace mbm
                             vertex[3].y = -cube->halfDim.y;
                             vertex[4].x = -cube->halfDim.x;
                             vertex[4].y = -cube->halfDim.y;
-                            lineMesh->position.x = cube->absCenter.x;
-                            lineMesh->position.y = cube->absCenter.y;
+                            VEC3 &position = lineMesh->getPosition();
+                            position.x = cube->absCenter.x;
+                            position.y = cube->absCenter.y;
                         }
                         else
                         {
@@ -1420,8 +1536,9 @@ namespace mbm
                                 circleLine[i].x = sinf(util::degreeToRadian(static_cast<float>(i))) * halfDim.x ;
                                 circleLine[i].y = cosf(util::degreeToRadian(static_cast<float>(i))) * halfDim.y ;
                             }
-                            lineMesh->position.x = pos.x;
-                            lineMesh->position.y = pos.y;
+                            VEC3 &position = lineMesh->getPosition();
+                            position.x = pos.x;
+                            position.y = pos.y;
                         }
                         else
                         {
@@ -1468,9 +1585,10 @@ namespace mbm
                                 circleLine[i].x = sinf(util::degreeToRadian(static_cast<float>(i))) * sphere->ray ;
                                 circleLine[i].y = cosf(util::degreeToRadian(static_cast<float>(i))) * sphere->ray ;
                             }
-                            lineMesh->position.x = sphere->absCenter[0];
-                            lineMesh->position.y = sphere->absCenter[1];
-                            lineMesh->position.z = sphere->absCenter[2];
+                            VEC3 &position = lineMesh->getPosition();
+                            position.x = sphere->absCenter[0];
+                            position.y = sphere->absCenter[1];
+                            position.z = sphere->absCenter[2];
                         }
                         else
                         {
@@ -1558,8 +1676,9 @@ namespace mbm
                                     vertex[2].y = triangle->point[2].y;
                                     vertex[3].x = triangle->point[0].x;
                                     vertex[3].y = triangle->point[0].y;
-                                    lineMesh->position.x = pos.x;
-                                    lineMesh->position.y = pos.y;
+                                    VEC3 &position = lineMesh->getPosition();
+                                    position.x = pos.x;
+                                    position.y = pos.y;
                                 }
                                 else
                                 {

@@ -195,21 +195,24 @@ FRUSTUM::FRUSTUM() noexcept
             this->renderizable->getAABB(&w, &h, &d);
             const mbm::CUBE cube(w, h, d);
             const VEC3 scale(1,1,1);
-            if (device->isCubeAtFrustum(renderizable->position, scale, cube))
+            const VEC3 &position = renderizable->getPosition();
+            if (device->isCubeAtFrustum(position, scale, cube))
                 return true;
             return false;
         }
         else if (is2ds)
         {
             this->renderizable->getAABB(&w, &h);
-            if (device->isRectangleScreen2dOnScreen2D_scaled(renderizable->position.x, renderizable->position.y, w, h))
+            const VEC3 &position = renderizable->getPosition();
+            if (device->isRectangleScreen2dOnScreen2D_scaled(position.x, position.y, w, h))
                 return true;
             return false;
         }
         else
         {
             this->renderizable->getAABB(&w, &h);
-            if (device->isRectangleWorld2dOnScreen2D_scaled(renderizable->position.x, renderizable->position.y, w, h))
+            const VEC3 &position = renderizable->getPosition();
+            if (device->isRectangleWorld2dOnScreen2D_scaled(position.x, position.y, w, h))
                 return true;
             return false;
         }

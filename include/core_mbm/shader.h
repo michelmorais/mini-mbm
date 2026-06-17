@@ -23,6 +23,7 @@
 #include "core-exports.h"
 #include "primitives.h"
 #include "particle-control.h"
+#include <memory>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -116,6 +117,8 @@ namespace mbm
 
         API_IMPL TEXTURE* getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const;// common implemenmtation
         API_IMPL void setTextureByStage(TEXTURE* texture,const uint32_t index_stage,const uint32_t index_subset);// common implemenmtation
+        API_IMPL BUFFER_SPECIFIC * getBackendBuffer() const noexcept;
+        API_IMPL void setBackendBuffer(BUFFER_SPECIFIC *backendBuffer) noexcept;
 
         int32_t* indexStartIB;      // index start subset IB
         int32_t* indexCountIB;      // index count subset IB
@@ -132,8 +135,14 @@ namespace mbm
         inline bool isIndexBuffer() const noexcept { return initializedIndexBuffer; }
         uint32_t totalSubset;   // Total of subset of this buffer
 
-        BUFFER_SPECIFIC* bs; //Array of structure specific to be implemented by specific backend engine (needed by backend)
       private:
+        struct BackendData;
+        struct BackendDataDeleter
+        {
+            void operator()(BackendData *data) const noexcept;
+        };
+
+        std::unique_ptr<BackendData, BackendDataDeleter> backendData;
         bool     initializedIndexBuffer;
         
         void initializeVertexBufferControl(const uint32_t totalSubsets,
@@ -176,24 +185,32 @@ namespace mbm
         std::string        stringCodeShader;
     };
 
-    class API_IMPL SHADER
+    class SHADER
     {
       public:
-        static MATRIX modelView;
-        static MATRIX mvpMatrix; // ModelView x projection
-        void* ptrShaderSpecific;  // Our shader specific by the backend engine
-        SHADER();
-        virtual ~SHADER();
-        void releaseShader();
-        void onRestore();
-        bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
-        bool isLoad() const noexcept;
-        bool render(const BUFFER_GL *pBufferId) const;
-        bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
-        bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
-        bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
-        void update();
+        API_IMPL static MATRIX modelView;
+        API_IMPL static MATRIX mvpMatrix; // ModelView x projection
+        API_IMPL SHADER();
+        API_IMPL virtual ~SHADER();
+        API_IMPL void * getBackendShaderSpecific() const noexcept;
+        API_IMPL void setBackendShaderSpecific(void *backendShaderSpecific) noexcept;
+        API_IMPL void releaseShader();
+        API_IMPL void onRestore();
+        API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
+        API_IMPL bool isLoad() const noexcept;
+        API_IMPL bool render(const BUFFER_GL *pBufferId) const;
+        API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
+        API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
+        API_IMPL bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
+        API_IMPL void update();
       private:
+        struct BackendData;
+        struct BackendDataDeleter
+        {
+            void operator()(BackendData *data) const noexcept;
+        };
+
+        std::unique_ptr<BackendData, BackendDataDeleter> backendData;
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
     };

@@ -55,20 +55,20 @@ namespace mbm
     int onDestroyRender2Texture(lua_State *lua)
     {
         RENDER_2_TEXTURE *    render2texture = getRender2TextureTargetFromRawTable(lua, 1, 1);
-        auto *userData       = static_cast<USER_DATA_RENDER_LUA *>(render2texture->userData);
+        auto *userData       = static_cast<USER_DATA_RENDER_LUA *>(render2texture->getUserData());
         if (userData)
         {
             userData->unrefAllTableLua(lua);
             delete userData;
         }
-        render2texture->userData = nullptr;
+        render2texture->setUserData(nullptr);
     #if DEBUG_FREE_LUA
         static int  num      = 1;
         const char *fileName = render2texture->getFileName();
         PRINT_IF_DEBUG("free [%s] [%s] [%d]\n",render2texture->getTypeClassName(), fileName ? fileName : "NULL", num++);
     #endif
         DEVICE *             device    = DEVICE::getInstance();
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->remove(render2texture);
         delete render2texture;
         return 0;
@@ -368,8 +368,8 @@ namespace mbm
         const float       b              = luaL_checknumber(lua, 4);
         const float       a              = top > 4 ? luaL_checknumber(lua, 5) : 1.0f;
 
-        COLOR color(r, g, b, a);
-        render2texture->colorClearBackGround = (unsigned int)color;
+        const COLOR color(r, g, b, a);
+        render2texture->setRenderTargetClearColor(color);
         return 0;
     }
 
@@ -377,7 +377,7 @@ namespace mbm
     {
         RENDER_2_TEXTURE *render2texture = getRender2TextureTargetFromRawTable(lua, 1, 1);
         const bool        mode           = lua_toboolean(lua, 2) == 0;
-        render2texture->modeTextureOnly  = mode;
+        render2texture->setTextureOnlyMode(mode);
         return 0;
     }
 
@@ -402,8 +402,8 @@ namespace mbm
         const char*        fileName         = luaL_checkstring(lua, 2);
         const int x                         = top > 2 ? luaL_checkinteger(lua,3) : 0;
         const int y                         = top > 3 ? luaL_checkinteger(lua,4) : 0;
-        const int w                         = top > 4 ? luaL_checkinteger(lua,5) : render2texture->widthTexture;
-        const int h                         = top > 5 ? luaL_checkinteger(lua,6) : render2texture->heightTexture;
+        const int w                         = top > 4 ? luaL_checkinteger(lua,5) : render2texture->getRenderTargetWidth();
+        const int h                         = top > 5 ? luaL_checkinteger(lua,6) : render2texture->getRenderTargetHeight();
         if(render2texture->saveAsPNG(fileName,x,y,w,h))
             lua_pushboolean(lua,1);
         else
@@ -427,9 +427,9 @@ namespace mbm
         luaL_newlib(lua, regCamera3dMethods);
         auto **udata = static_cast<CAMERA_TARGET **>(lua_newuserdata(lua, sizeof(CAMERA_TARGET *)));
         if (is3d)
-            *udata = &render2texture->camera3d;
+            *udata = &render2texture->getCamera3d();
         else
-            *udata = &render2texture->camera2d;
+            *udata = &render2texture->getCamera2d();
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_CAMERA_TARGET);
@@ -499,15 +499,16 @@ namespace mbm
         lua_setmetatable(lua, -2);
         DEVICE *      device              = DEVICE::getInstance();
         auto **udata                      = static_cast<RENDER_2_TEXTURE **>(lua_newuserdata(lua, sizeof(RENDER_2_TEXTURE *)));
-        auto  render2texture              = new RENDER_2_TEXTURE(device->scene, is3d, is2ds);
-        render2texture->userData          = new USER_DATA_RENDER_LUA();
+        auto  render2texture              = new RENDER_2_TEXTURE(device->getScene(), is3d, is2ds);
+        render2texture->setUserData(new USER_DATA_RENDER_LUA());
         *udata                            = render2texture;
+        VEC3 &renderPosition              = render2texture->getPosition();
         if (position.x != 0.0f) //-V550
-            render2texture->position.x = position.x;
+            renderPosition.x = position.x;
         if (position.y != 0.0f) //-V550
-            render2texture->position.y = position.y;
+            renderPosition.y = position.y;
         if (position.z != 0.0f) //-V550
-            render2texture->position.z = position.z;
+            renderPosition.z = position.z;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_RENDER_2_TEXTURE);

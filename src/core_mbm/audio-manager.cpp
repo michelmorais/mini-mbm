@@ -23,9 +23,17 @@
 #include <core-manager.h>
 #include <util-interface.h>
 #include <algorithm>
+#include <memory>
+#include <vector>
 
 namespace mbm
 {
+    struct AUDIO_MANAGER::Impl
+    {
+        std::vector<AUDIO*> audios;
+        std::vector<AUDIO*> audiosToDelete;
+    };
+
     AUDIO_MANAGER* AUDIO_MANAGER::getInstance()
     {
         if(AUDIO_MANAGER::instance == nullptr)
@@ -33,7 +41,8 @@ namespace mbm
         return AUDIO_MANAGER::instance;
     }
 
-    AUDIO_MANAGER::AUDIO_MANAGER():pauseAudioOnPauseGame(true)
+    AUDIO_MANAGER::AUDIO_MANAGER():pauseAudioOnPauseGame(true),
+        impl(std::make_unique<Impl>())
     {
         mbm::DEVICE *device = mbm::DEVICE::getInstance();
         initializeBackend();
@@ -42,14 +51,14 @@ namespace mbm
 
     AUDIO_MANAGER::~AUDIO_MANAGER()
     {
-        const size_t s = audios.size();
+        const size_t s = impl->audios.size();
         for (size_t i = 0; i < s; ++i)
         {
-            AUDIO* my_audio = audios[i];
+            AUDIO* my_audio = impl->audios[i];
             my_audio->stop();
             delete my_audio;
         }
-        audios.clear();
+        impl->audios.clear();
         finalizeBackend();
     }
 
@@ -71,14 +80,14 @@ namespace mbm
         #endif
         
         mbm::DEVICE *device = mbm::DEVICE::getInstance();
-        const int idScene = device->scene ? device->scene->getIdScene() : -1;
-        const size_t s1 = audios.size();
+        const int idScene = device->getScene() ? device->getScene()->getIdScene() : -1;
+        const size_t s1 = impl->audios.size();
         // Only reuse an existing instance if it is NOT currently playing.
         // Reusing a playing instance would interrupt it — causing the "muted"
         // effect when many enemies trigger the same sound simultaneously.
         for (size_t i = 0; i < s1; ++i)
         {
-            AUDIO* my_audio = audios[i];
+            AUDIO* my_audio = impl->audios[i];
             if (my_audio->idScene != idScene && 
                 my_audio->fileName.compare(fileName) == 0 &&
                 !my_audio->isPlaying())
@@ -88,25 +97,25 @@ namespace mbm
             }
         }
 
-        const size_t s2 = audiosToDelete.size();
+        const size_t s2 = impl->audiosToDelete.size();
         for (size_t i = 0; i < s2; ++i)
         {
-            AUDIO* my_audio = audiosToDelete[i];
+            AUDIO* my_audio = impl->audiosToDelete[i];
             if (my_audio->idScene != idScene &&
                 my_audio->fileName.compare(fileName) == 0 &&
                 !my_audio->isPlaying())
             {
                 my_audio->idScene = idScene;//make this sound belongs to this scene
                 PRINT_INFO_IF_DEBUG("Resuscitated audio: %s [%p]\n", my_audio->fileName.c_str(), my_audio);
-                audiosToDelete.erase(audiosToDelete.begin() + std::vector<AUDIO*>::difference_type(i));
-                audios.push_back(my_audio);
+                impl->audiosToDelete.erase(impl->audiosToDelete.begin() + std::vector<AUDIO*>::difference_type(i));
+                impl->audios.push_back(my_audio);
                 return my_audio;
             }
         }
         auto* my_audio = new AUDIO(idScene);
         if (my_audio->load(fileNameSound, loop, inMemory))
         {
-            audios.push_back(my_audio);
+            impl->audios.push_back(my_audio);
             my_audio->fileName = fileName;
             return my_audio;
         }
@@ -122,10 +131,10 @@ namespace mbm
     {
         if(pauseAudioOnPauseGame == true)
         {
-            const size_t s = audios.size();
+            const size_t s = impl->audios.size();
             for (size_t i = 0; i < s; ++i)
             {
-                AUDIO* my_audio = audios[i];
+                AUDIO* my_audio = impl->audios[i];
                 my_audio->pause();
             }
         }
@@ -134,10 +143,10 @@ namespace mbm
     {
         if(pauseAudioOnPauseGame == true)
         {
-            const size_t s = audios.size();
+            const size_t s = impl->audios.size();
             for (size_t i = 0; i < s; ++i)
             {
-                AUDIO* my_audio = audios[i];
+                AUDIO* my_audio = impl->audios[i];
                 if(my_audio->idScene == idScene)
                     my_audio->resume();
             }
@@ -150,15 +159,15 @@ namespace mbm
         // With PortAudio's shared-slot mixer, leaving many finished-scene audios
         // in audiosToDelete keeps their mixer slots occupied, which can exhaust
         // the pool (MIXER_MAX_SOURCES) when a new scene loads many sounds.
-        for (int i = static_cast<int>(audiosToDelete.size()) - 1; i >= 0; --i)
+        for (int i = static_cast<int>(impl->audiosToDelete.size()) - 1; i >= 0; --i)
         {
-            AUDIO* my_audio = audiosToDelete[i];
+            AUDIO* my_audio = impl->audiosToDelete[i];
             if(my_audio->idScene != idScene && coreManager->existScene(my_audio->idScene) == false )//destroy only if scene do not exist anymore
             {
                 if(my_audio->bPersistent)
                 {
-                    audiosToDelete.erase(audiosToDelete.begin() + i);
-                    audios.push_back(my_audio);
+                    impl->audiosToDelete.erase(impl->audiosToDelete.begin() + i);
+                    impl->audios.push_back(my_audio);
                 }
                 else
                 {
@@ -171,7 +180,7 @@ namespace mbm
                     }
                     else
                     {
-                        audiosToDelete.erase(audiosToDelete.begin() + i);
+                        impl->audiosToDelete.erase(impl->audiosToDelete.begin() + i);
                         delete my_audio;
                     }
                 }
@@ -186,24 +195,24 @@ namespace mbm
             audio->bPersistent = bValue;
         if(bValue)
         {
-            const size_t s2 = audiosToDelete.size();
+            const size_t s2 = impl->audiosToDelete.size();
             for (size_t i = 0; i < s2; ++i)
             {
-                AUDIO* my_audio = audiosToDelete[i];
+                AUDIO* my_audio = impl->audiosToDelete[i];
                 if (my_audio == audio)
                 {
 #if defined DEBUG_AUDIO
                     PRINT_INFO_IF_DEBUG("setPersist, Resuscitated audio: %s [%p]\n", my_audio->fileName.c_str(), my_audio);
 #endif
-                    audiosToDelete.erase(audiosToDelete.begin() + std::vector<AUDIO*>::difference_type(i));
-                    audios.push_back(my_audio);
+                    impl->audiosToDelete.erase(impl->audiosToDelete.begin() + std::vector<AUDIO*>::difference_type(i));
+                    impl->audios.push_back(my_audio);
                     break;
                 }
             }
         }
         else if(audio)
         {
-            auto scene = mbm::DEVICE::getInstance()->scene;
+            auto scene = mbm::DEVICE::getInstance()->getScene();
             if(audio->idScene != scene->getIdScene())
                 this->destroy(audio);
         }
@@ -219,14 +228,14 @@ namespace mbm
             }
             else
             {
-                const size_t s = AUDIO_MANAGER::instance->audios.size();
+                const size_t s = AUDIO_MANAGER::instance->impl->audios.size();
                 for (size_t i = 0; i < s; ++i)
                 {
-                    AUDIO* my_audio = AUDIO_MANAGER::instance->audios[i];
+                    AUDIO* my_audio = AUDIO_MANAGER::instance->impl->audios[i];
                     if (my_audio == that)
                     {
-                        AUDIO_MANAGER::instance->audios.erase(AUDIO_MANAGER::instance->audios.begin() + std::vector<AUDIO *>::difference_type(i));
-                        AUDIO_MANAGER::instance->audiosToDelete.push_back(that);
+                        AUDIO_MANAGER::instance->impl->audios.erase(AUDIO_MANAGER::instance->impl->audios.begin() + std::vector<AUDIO *>::difference_type(i));
+                        AUDIO_MANAGER::instance->impl->audiosToDelete.push_back(that);
                         that->stop();
                         break;
                     }
@@ -243,10 +252,10 @@ namespace mbm
     {
         if (!AUDIO_MANAGER::instance || !that) return;
         that->stop();
-        auto& a = AUDIO_MANAGER::instance->audios;
+        auto& a = AUDIO_MANAGER::instance->impl->audios;
         auto it = std::find(a.begin(), a.end(), that);
         if (it != a.end()) a.erase(it);
-        auto& d = AUDIO_MANAGER::instance->audiosToDelete;
+        auto& d = AUDIO_MANAGER::instance->impl->audiosToDelete;
         auto it2 = std::find(d.begin(), d.end(), that);
         if (it2 != d.end()) d.erase(it2);
         delete that; // ~AUDIO() frees the OpenSL player slot immediately
@@ -254,14 +263,14 @@ namespace mbm
     
     void AUDIO_MANAGER::release()
     {
-        for (auto my_audio : audios)
+        for (auto my_audio : impl->audios)
         {
             my_audio->stop();
             delete my_audio;
         }
-        audios.clear();
+        impl->audios.clear();
         
-        for (auto my_audio : audiosToDelete)
+        for (auto my_audio : impl->audiosToDelete)
         {
             my_audio->stop();
             if(my_audio->userData)
@@ -274,20 +283,26 @@ namespace mbm
                 delete my_audio;
             }
         }
-        audiosToDelete.clear();
+        impl->audiosToDelete.clear();
     }
 
     void AUDIO_MANAGER::stopAll()
     {
-        for (auto my_audio : audios)
+        for (auto my_audio : impl->audios)
         {
             my_audio->stop();
         }
         
-        for (auto my_audio : audiosToDelete)
+        for (auto my_audio : impl->audiosToDelete)
         {
             my_audio->stop();
         }
+    }
+
+    void AUDIO_MANAGER::updateManagedAudiosBackend()
+    {
+        for (AUDIO* my_audio : impl->audios)
+            my_audio->updateBackend();
     }
 
     void AUDIO_MANAGER::releaseStaticInstance()

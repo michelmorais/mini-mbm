@@ -37,7 +37,6 @@
 #include <core_mbm/log-util.h>
 #include <core_mbm/device.h>
 #include <core_mbm/platform-win32.h>
-#include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/dynamic-var.h>
@@ -48,6 +47,7 @@
 #include <core_mbm/vigenere.h>
 #include <core_mbm/plugin-callback.h>
 #include <core_mbm/audio.h>
+#include <platform/mismatch-platform.h>
 #if defined _WIN32
     #include <dirent-1-13/dirent.h>
     #define __separator_dir '\\'
@@ -138,9 +138,9 @@ namespace mbm
     {
         DEVICE *device		= DEVICE::getInstance();
 		const int   top		= lua_gettop(lua);
-        device->run         = false;
+        device->setRun(false);
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
-        device->scene->onFinalizeScene();
+        device->getScene()->onFinalizeScene();
         return 0;
     }
 
@@ -722,7 +722,7 @@ namespace mbm
     int onPanic(lua_State *lua)
     {
         DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         const char *    error     = lua_tostring(lua, -1);
         std::string               strErr(error ? error : "undefined");
         ERROR_LOG("%s",strErr.c_str());

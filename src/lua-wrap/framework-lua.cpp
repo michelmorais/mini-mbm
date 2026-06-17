@@ -120,7 +120,7 @@ namespace mbm
     {
         std::string command              = luaL_checkstring(lua,1);
         mbm::DEVICE* device              = mbm::DEVICE::getInstance();
-        device->ptrManager->execute_system_cmd_thread(command.c_str());
+        device->getCoreManager()->execute_system_cmd_thread(command.c_str());
         return 0;
     }
 
@@ -223,7 +223,7 @@ namespace mbm
         const int  max_x  = top >= 3 ? luaL_checkinteger(lua, 3) : 0;
         const int  max_y  = top >= 4 ? luaL_checkinteger(lua, 4) : 0;
         DEVICE *device = DEVICE::getInstance();
-        device->ptrManager->setMinMaxSizeWindow(min_x,min_y,max_x,max_y);
+        device->getCoreManager()->setMinMaxSizeWindow(min_x,min_y,max_x,max_y);
         return 0;
     }
     
@@ -276,7 +276,7 @@ namespace mbm
         const float  b      = luaL_checknumber(lua, 3);
         DEVICE *device		= DEVICE::getInstance();
         COLOR color(r, g, b, 1.0f);
-        device->colorClearBackGround = (unsigned int)color;
+        device->setColorClearBackGround(static_cast<unsigned int>(color));
         return 0;
     }
 
@@ -382,15 +382,16 @@ namespace mbm
         const char * type_obj = top >= 1 ? luaL_checkstring(lua,1) : "all";
         if (type_obj == nullptr || strcasecmp(type_obj,"all") == 0 )
         {
-            lua_pushnumber(lua,static_cast<lua_Number>( device->totalObjectsIsRendering3D + device->totalObjectsIsRendering2D));
+            lua_pushnumber(lua,static_cast<lua_Number>(
+                device->getTotalObjectsIsRendering3D() + device->getTotalObjectsIsRendering2D()));
         }
         else if (strcasecmp(type_obj,"2d") == 0)
         {
-            lua_pushnumber(lua,static_cast<lua_Number>( device->totalObjectsIsRendering2D));
+            lua_pushnumber(lua,static_cast<lua_Number>(device->getTotalObjectsIsRendering2D()));
         }
         else if (strcasecmp(type_obj,"3d") == 0)
         {
-            lua_pushnumber(lua,static_cast<lua_Number>( device->totalObjectsIsRendering3D));
+            lua_pushnumber(lua,static_cast<lua_Number>(device->getTotalObjectsIsRendering3D()));
         }
         else
         {
@@ -405,9 +406,9 @@ namespace mbm
         if (top == 2)
         {
             RENDERIZABLE * ptr  = getRenderizableFromRawTable(lua, 1, 1);
-            auto *    userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+            auto *    userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
             DEVICE *  device    = DEVICE::getInstance();
-            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+            auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
             bool inTheList = false;
             for (auto ptr2 : userScene->lsLuaCallBackOnTouchAsynchronous)
             {
@@ -433,12 +434,12 @@ namespace mbm
             const char *      what   = luaL_checkstring(lua, 1);
             const int         type   = lua_type(lua, 2);
             DEVICE *     device = DEVICE::getInstance();
-            DYNAMIC_VAR *dyVar  = device->lsDynamicVarGlobal[what];
+            DYNAMIC_VAR *dyVar  = device->getDynamicVars()[what];
             switch (type)
             {
                 case LUA_TNIL:
                 {
-                    device->lsDynamicVarGlobal[what] = nullptr;
+                    device->getDynamicVars()[what] = nullptr;
                     if (dyVar)
                         delete dyVar;
                 }
@@ -449,7 +450,7 @@ namespace mbm
                     if (dyVar == nullptr)
                     {
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_FLOAT, &var);
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                     else
                     {
@@ -474,7 +475,7 @@ namespace mbm
                             {
                                 delete dyVar;
                                 dyVar                            = new DYNAMIC_VAR(DYNAMIC_FLOAT, &var);
-                                device->lsDynamicVarGlobal[what] = dyVar;
+                                device->getDynamicVars()[what] = dyVar;
                             }
                         }
                     }
@@ -486,7 +487,7 @@ namespace mbm
                     if (dyVar == nullptr)
                     {
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_BOOL, &var);
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                     else if (dyVar->type == DYNAMIC_BOOL)
                     {
@@ -496,7 +497,7 @@ namespace mbm
                     {
                         delete dyVar;
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_BOOL, &var);
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                 }
                 break;
@@ -506,7 +507,7 @@ namespace mbm
                     if (dyVar == nullptr)
                     {
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_CSTRING, static_cast<const void*>(var));
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                     else if (dyVar->type == DYNAMIC_CSTRING)
                     {
@@ -516,7 +517,7 @@ namespace mbm
                     {
                         delete dyVar;
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_CSTRING, static_cast<const void*>(var));
-                        device->lsDynamicVarGlobal[what] = dyVar;
+                        device->getDynamicVars()[what] = dyVar;
                     }
                 }
                 break;
@@ -540,7 +541,7 @@ namespace mbm
         const char *      what      = luaL_checkstring(lua, 1);
         const char *      strinChar = nullptr;
         DEVICE *     device    = DEVICE::getInstance();
-        DYNAMIC_VAR *dyVar     = device->lsDynamicVarGlobal[what];
+        DYNAMIC_VAR *dyVar     = device->getDynamicVars()[what];
         if (dyVar == nullptr)
         {
             lua_pushnil(lua);
@@ -608,7 +609,7 @@ namespace mbm
     int onGetAzimute(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        lua_pushnumber(lua, ((float)((const float)(device->camera.azimuthFromCamera))));
+        lua_pushnumber(lua, ((float)((const float)(device->getCamera().azimuthFromCamera))));
         return 1;
     }
 
@@ -766,7 +767,7 @@ namespace mbm
             }
             else if (strcasecmp(what, "exe") == 0 || strcasecmp(what, "exe name") == 0 || strcasecmp(what, "exename") == 0)
             {
-                DYNAMIC_VAR* dExeName = device->lsDynamicVarGlobal["_executable_name_"];
+                DYNAMIC_VAR* dExeName = device->getDynamicVars()["_executable_name_"];
                 if(dExeName)
                     lua_pushstring(lua, dExeName->getString());
                 else
@@ -859,7 +860,7 @@ namespace mbm
     {
         const bool   clear      = lua_toboolean(lua, 1) ? true : false;
         DEVICE *device          = DEVICE::getInstance();
-        device->clearBackGround = clear;
+        device->setClearBackGround(clear);
         return 0;
     }
 
@@ -1236,7 +1237,7 @@ namespace mbm
     int onStopFlag(lua_State *lua)
     {
         DEVICE *        device      = DEVICE::getInstance();
-        device->bOnErrorStopScript  = lua_toboolean(lua, 1) ? true : false;
+        device->setStopScriptOnError(lua_toboolean(lua, 1) ? true : false);
         return 0;
     }
 
@@ -1261,7 +1262,7 @@ namespace mbm
     int onIsCapitalKeyOn(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        lua_pushboolean(lua, device->ptrManager->keyCapsLockState);
+        lua_pushboolean(lua, device->getCoreManager()->isKeyCapsLockOn());
         return 1;
     }
 
@@ -1272,26 +1273,26 @@ namespace mbm
         const auto & globals_lua = get_globals_lua();
         for(const auto & global_name :  globals_lua)
         {
-            DYNAMIC_VAR* dynamic_var = device->lsDynamicVarGlobal[global_name];
+            DYNAMIC_VAR* dynamic_var = device->getDynamicVars()[global_name];
             if(dynamic_var)
             {
-                device->lsDynamicVarGlobal[global_name] = nullptr;
+                device->getDynamicVars()[global_name] = nullptr;
                 map_globals[global_name] = dynamic_var;
             }
         }
-        for (const auto & dynamic_var : device->lsDynamicVarGlobal)
+        for (const auto & dynamic_var : device->getDynamicVars())
         {
             DYNAMIC_VAR *dVar = dynamic_var.second;
             if(dVar)
                 delete dVar;
         }
-        device->lsDynamicVarGlobal.clear();
+        device->getDynamicVars().clear();
         for(const auto & global_name :  globals_lua)
         {
             DYNAMIC_VAR* dynamic_var = map_globals[global_name];
             if(dynamic_var)
             {
-                device->lsDynamicVarGlobal[global_name] = dynamic_var;
+                device->getDynamicVars()[global_name] = dynamic_var;
             }
         }
         return 0;
@@ -1711,7 +1712,7 @@ namespace mbm
     int onGetSceneName(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
-        lua_pushstring(lua, device->scene->getSceneName());
+        lua_pushstring(lua, device->getScene()->getSceneName());
         return 1;
     }
    
@@ -1849,18 +1850,18 @@ namespace mbm
             bool isVs = false;
             if (strFilter == nullptr || strcasecmp(strFilter, "ps") == 0 || strcasecmp(strFilter, "fs") == 0)
             {
-                fillTableShaderList(lua, device->cfg.lsPs, bMin, bMax,bCode);
+                fillTableShaderList(lua, device->getShaderConfig().lsPs, bMin, bMax,bCode);
                 isPs = true;
             }
             if (strFilter == nullptr || strcasecmp(strFilter, "vs") == 0)
             {
-                fillTableShaderList(lua, device->cfg.lsVs, bMin, bMax,bCode);
+                fillTableShaderList(lua, device->getShaderConfig().lsVs, bMin, bMax,bCode);
                 isVs = true;
             }
             if (isPs == false && isVs == false && strFilter)
             {
                 std::vector<SHADER_CFG *> lsShader;
-                for (auto shader : device->cfg.lsPs)
+                for (auto shader : device->getShaderConfig().lsPs)
                 {
                     if (shader->fileName.compare(strFilter) == 0)
                     {
@@ -1870,7 +1871,7 @@ namespace mbm
                 }
                 if (lsShader.size() == 0)
                 {
-                    for (auto shader : device->cfg.lsVs)
+                    for (auto shader : device->getShaderConfig().lsVs)
                     {
                         if (shader->fileName.compare(strFilter) == 0)
                         {
@@ -1891,9 +1892,9 @@ namespace mbm
         {
             if (strFilter == nullptr || strcasecmp(strFilter, "ps") == 0)
             {
-                for (unsigned int i = 0, j = 1; i < device->cfg.lsPs.size(); ++i, ++j)
+                for (unsigned int i = 0, j = 1; i < device->getShaderConfig().lsPs.size(); ++i, ++j)
                 {
-                    SHADER_CFG *shader     = device->cfg.lsPs[i];
+                    SHADER_CFG *shader     = device->getShaderConfig().lsPs[i];
                     const char *     shaderName = shader->fileName.c_str();
                     lua_pushstring(lua, shaderName);
                     lua_rawseti(lua, -2, j);
@@ -1901,9 +1902,9 @@ namespace mbm
             }
             if (strFilter == nullptr || strcasecmp(strFilter, "vs") == 0)
             {
-                for (unsigned int i = 0, j = 1; i < device->cfg.lsVs.size(); ++i, ++j)
+                for (unsigned int i = 0, j = 1; i < device->getShaderConfig().lsVs.size(); ++i, ++j)
                 {
-                    SHADER_CFG *shader     = device->cfg.lsVs[i];
+                    SHADER_CFG *shader     = device->getShaderConfig().lsVs[i];
                     const char *     shaderName = shader->fileName.c_str();
                     lua_pushstring(lua, shaderName);
                     lua_rawseti(lua, -2, j);
@@ -1917,7 +1918,7 @@ namespace mbm
     {
         DEVICE *     device     = DEVICE::getInstance();
         const char *const shaderName = luaL_checkstring(lua, 1);
-        for (auto shader : device->cfg.lsPs)
+        for (auto shader : device->getShaderConfig().lsPs)
         {
             if (shader->fileName.compare(shaderName) == 0)
             {
@@ -1925,7 +1926,7 @@ namespace mbm
                 return 1;
             }
         }
-        for (auto shader : device->cfg.lsVs)
+        for (auto shader : device->getShaderConfig().lsVs)
         {
             if (shader->fileName.compare(shaderName) == 0)
             {
@@ -1977,7 +1978,7 @@ namespace mbm
     int onSortShader(lua_State *)
     {
         DEVICE *    device = DEVICE::getInstance();
-        device->cfg.sortShader();
+        device->getShaderConfig().sortShader();
         return 0;
     }
 
@@ -2009,7 +2010,7 @@ namespace mbm
                     if (validName)
                     {
                         DEVICE *    device = DEVICE::getInstance();
-                        SHADER_CFG *shader = device->cfg.getShader(pName);
+                        SHADER_CFG *shader = device->getShaderConfig().getShader(pName);
                         if (shader)
                         {
                             lua_print_line(lua,TYPE_LOG_ERROR,"shader [%s] already exist!", pName);
@@ -2155,9 +2156,9 @@ namespace mbm
                                 return lua_error_debug(lua, "error adding 'var' from table shader [%s]", pName);
                             }
                             if (isPS)
-                                device->cfg.lsPs.push_back(shader);
+                                device->getShaderConfig().lsPs.push_back(shader);
                             else
-                                device->cfg.lsVs.push_back(shader);
+                                device->getShaderConfig().lsVs.push_back(shader);
 
                             lua_pushboolean(lua, 1);
                             return 1;
@@ -2294,7 +2295,7 @@ namespace mbm
         PLUGIN **ud              = static_cast<PLUGIN **>(lua_check_userType(lua,1,1,L_USER_TYPE_PLUGIN));
         PLUGIN * pPlugin         = *ud;
         DEVICE *device           = DEVICE::getInstance();
-        const unsigned int index = device->ptrManager->addPlugin(pPlugin);
+        const unsigned int index = device->getCoreManager()->addPlugin(pPlugin);
         if (index == 0xffffffff)
         {
             ERROR_LOG("Could not register plugin...");
@@ -2551,7 +2552,7 @@ namespace mbm
             {"lua_gc", onLuaGC},
             {nullptr, nullptr}};
         DEVICE *device = DEVICE::getInstance();
-        device->scene       = scene;
+        device->setScene(scene);
 
         lua_newtable(lua);
         luaL_setfuncs(lua, regMbmFrameworkMethods, 0);
@@ -2643,7 +2644,7 @@ namespace mbm
         const int len_searchers = luaL_len(lua,-1);
         lua_pushcfunction(lua, __luaB_searchLuaModule);
         lua_rawseti(lua, -2,len_searchers + 1);
-        auto *userScene  = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        auto *userScene  = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
         userScene->oldPanicFunction     = lua_atpanic(lua, onPanic);
         lua_settop(lua,0);
     }

@@ -24,8 +24,8 @@
 #include "primitives.h"
 #include "header-mesh.h"
 #include "physics.h"
-#include <unordered_map>
 #include <map>
+#include <memory>
 
 namespace util 
 {
@@ -236,9 +236,9 @@ namespace mbm
         API_IMPL MESH_MBM *getIfExists(const char* fileName);
         API_IMPL static const char * typeClassName(const util::TYPE_MESH type) noexcept;
       private:
-        std::unordered_map<std::string,MESH_MBM *> lsMeshes;
-        std::vector<MESH_MBM *> lsFakeRelease;
-        MESH_MANAGER() = default;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
+        MESH_MANAGER();
         virtual ~MESH_MANAGER();
     };
 }

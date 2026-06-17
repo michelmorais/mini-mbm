@@ -31,11 +31,11 @@
 
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
     #if defined (USE_OPENGL_ES)
-        #include <specific-opengl_es.h>
+        #include "specific-opengl_es-windows-context.h"
     #elif defined (USE_DIRECTX9)
-        #include <specific-directx9.h>
+        #include "specific-directx9-context.h"
     #elif defined (USE_DUMMY_BACK_END_ENGINE)
-        #include <specific-dummy.h>
+        #include "specific-dummy-context.h"
     #endif
 #endif
 
@@ -618,7 +618,8 @@ namespace mbm
         }
         else
         {
-            HWND hwnd = mbm::DEVICE::getInstance()->specificContextDevice->window.getHwnd();
+            auto *context = mbm::DEVICE::getInstance()->getSpecificContextDevice();
+            HWND hwnd = context->window.getHwnd();
             if (FAILED(g_directSound->SetCooperativeLevel(hwnd, DSSCL_PRIORITY)))
             {
                 ERROR_LOG("Failed calling DirectSound::SetCooperativeLevel");
@@ -638,8 +639,7 @@ namespace mbm
 
     void AUDIO_MANAGER::updateBackend()
     {
-        for (AUDIO* my_audio : this->audios)
-            my_audio->updateBackend();
+        updateManagedAudiosBackend();
     }
 
 	const char* AUDIO_ENGINE_version()

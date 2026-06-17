@@ -19,7 +19,6 @@
 
 #include "my-scene.h"
 #include <core_mbm/util-interface.h>
-#include <core_mbm/specific-opengl_es.h>
 
 MY_SCENE::MY_SCENE()
     : texBox(nullptr)
@@ -34,8 +33,9 @@ MY_SCENE::~MY_SCENE()
 void MY_SCENE::onInitScene()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    device->camera.position = mbm::VEC3(0, 280, -900);
-    device->camera.focus    = mbm::VEC3(0, 280,    0);
+    mbm::CAMERA &camera = device->getCamera();
+    camera.position = mbm::VEC3(0, 280, -900);
+    camera.focus    = mbm::VEC3(0, 280,    0);
     texBox = new mbm::TEXTURE_VIEW(this, false, true);
     texBox->load("wooden-box.jpg", 200, 200);
 }
@@ -56,8 +56,9 @@ void MY_SCENE::onTouchMove(int, float x, float y)
 {
     if (texBox)
     {
-        texBox->position.x = x;
-        texBox->position.y = y;
+        mbm::VEC3 &position = texBox->getPosition();
+        position.x = x;
+        position.y = y;
     }
 }
 

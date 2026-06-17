@@ -115,9 +115,9 @@ namespace mbm
             const float        y     = luaL_checknumber(lua, 3);
             bool               ret   = false;
             DEVICE *      device = DEVICE::getInstance();
-            if (ptr->is3D)
+            if (ptr->is3DObject())
                 ret = ptr->isOver3d(device, x, y);
-            else if (ptr->is2dS)
+            else if (ptr->is2dScreenObject())
                 ret = ptr->isOver2ds(device, x, y);
             else
                 ret = ptr->isOver2dw(device, x, y);
@@ -129,34 +129,38 @@ namespace mbm
 
     void doOffsetIfText(RENDERIZABLE *ptr,const float w,const float h)
     {
-        if(ptr->typeClass == TYPE_CLASS::TYPE_CLASS_TEXT)
+        if(ptr->getTypeClass() == TYPE_CLASS::TYPE_CLASS_TEXT)
         {
-            if(ptr->is2dS)
+            VEC3 &position = ptr->getPosition();
+            const bool is2dScreenObject = ptr->is2dScreenObject();
+            if(is2dScreenObject)
             {
-                ptr->position.x += w * 0.5f;
-                ptr->position.y += h * 0.5f;
+                position.x += w * 0.5f;
+                position.y += h * 0.5f;
             }
             else
             {
-                ptr->position.x += w * 0.5f;
-                ptr->position.y -= h * 0.5f;
+                position.x += w * 0.5f;
+                position.y -= h * 0.5f;
             }
         }
     }
 
     void undoOffsetIfText(RENDERIZABLE *ptr,const float w,const float h)
     {
-        if(ptr->typeClass == TYPE_CLASS::TYPE_CLASS_TEXT)
+        if(ptr->getTypeClass() == TYPE_CLASS::TYPE_CLASS_TEXT)
         {
-            if(ptr->is2dS)
+            VEC3 &position = ptr->getPosition();
+            const bool is2dScreenObject = ptr->is2dScreenObject();
+            if(is2dScreenObject)
             {
-                ptr->position.x -= w * 0.5f;
-                ptr->position.y -= h * 0.5f;
+                position.x -= w * 0.5f;
+                position.y -= h * 0.5f;
             }
             else
             {
-                ptr->position.x -= w * 0.5f;
-                ptr->position.y += h * 0.5f;
+                position.x -= w * 0.5f;
+                position.y += h * 0.5f;
             }
         }
     }
@@ -182,10 +186,12 @@ namespace mbm
 			float h1 = 0.0f;
 			float w2 = 0.0f;
 			float h2 = 0.0f;
+            VEC3 &positionA = ptrA->getPosition();
+            VEC3 &positionB = ptrB->getPosition();
             
-            if(ptrA->is2dS)
+            if(ptrA->is2dScreenObject())
             {
-                if(ptrB->is2dS)//2ds
+                if(ptrB->is2dScreenObject())//2ds
                 {
                     if(useAABB)
                     {
@@ -202,12 +208,12 @@ namespace mbm
                     {
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        collide = device->checkBoundCollision(ptrA->position, w1,h1,ptrB->position,w2,h2);
+                        collide = device->checkBoundCollision(positionA, w1,h1,positionB,w2,h2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
-                else if(ptrB->is3D == false)//2dw
+                else if(ptrB->is3DObject() == false)//2dw
                 {
                     if(useAABB)
                     {
@@ -225,18 +231,18 @@ namespace mbm
                         VEC2 pos;
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        device->transformeWorld2dToScreen2d_scaled(ptrB->position.x,ptrB->position.y,pos);
+                        device->transformeWorld2dToScreen2d_scaled(positionB.x,positionB.y,pos);
                         const VEC3 p2(pos.x,pos.y,0.0f);
-                        collide = device->checkBoundCollision(ptrA->position,w1,h1,p2,w2,h2);
+                        collide = device->checkBoundCollision(positionA,w1,h1,p2,w2,h2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
             
             }
-            else if(ptrA->is3D == false)//2dw
+            else if(ptrA->is3DObject() == false)//2dw
             {
-                if(ptrB->is3D == false && ptrB->is2dS == false) // 2dw
+                if(ptrB->is3DObject() == false && ptrB->is2dScreenObject() == false) // 2dw
                 {
                     if(useAABB)
                     {
@@ -253,12 +259,12 @@ namespace mbm
                     {
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        collide = device->checkBoundCollision(ptrA->position,w1,h1,ptrB->position,w2,h2);
+                        collide = device->checkBoundCollision(positionA,w1,h1,positionB,w2,h2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
-                else if(ptrB->is2dS)
+                else if(ptrB->is2dScreenObject())
                 {
                     if(useAABB)
                     {
@@ -276,8 +282,8 @@ namespace mbm
                         VEC3 pos;
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        device->transformeScreen2dToWorld2d_scaled(ptrB->position.x,ptrB->position.y,pos);
-                        collide = device->checkBoundCollision(ptrA->position,w1,h1,pos,w2,h2);
+                        device->transformeScreen2dToWorld2d_scaled(positionB.x,positionB.y,pos);
+                        collide = device->checkBoundCollision(positionA,w1,h1,pos,w2,h2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
@@ -286,7 +292,7 @@ namespace mbm
             }
             else//3d
             {
-                if(ptrB->is3D)//3d
+                if(ptrB->is3DObject())//3d
                 {
                     float d1 , d2 = 0.0f;
                     if(useAABB)
@@ -304,7 +310,7 @@ namespace mbm
                     {
                         doOffsetIfText(ptrA,w1,h1);
                         doOffsetIfText(ptrB,w2,h2);
-                        collide = device->checkBoundCollision(ptrA->position,w1,h1,d1,ptrB->position,w2,h2,d2);
+                        collide = device->checkBoundCollision(positionA,w1,h1,d1,positionB,w2,h2,d2);
                         undoOffsetIfText(ptrA,w1,h1);
                         undoOffsetIfText(ptrB,w2,h2);
                     }
@@ -329,22 +335,23 @@ namespace mbm
 				ptrA->getAABB(&w,&h,&d);
 			else
 				ptrA->getWidthHeight(&w,&h,&d);
-			if(ptrA->is2dS)
+            VEC3 &positionA = ptrA->getPosition();
+			if(ptrA->is2dScreenObject())
 			{
 				const VEC2 rect(w*0.5f,h*0.5f);
-				collide = device->isPointScreen2DOnRectangleScreen2d(positioScreen,rect,ptrA->position);
+				collide = device->isPointScreen2DOnRectangleScreen2d(positioScreen,rect,positionA);
 			}
-			else if(ptrA->is3D == false) //2dw
+			else if(ptrA->is3DObject() == false) //2dw
 			{
 				const VEC2 rect(w*0.5f,h*0.5f);
-				collide = device->isPointScreen2DOnRectangleWorld2d(positioScreen,rect,ptrA->position);
+				collide = device->isPointScreen2DOnRectangleWorld2d(positioScreen,rect,positionA);
 			}
 			else//3d
 			{
 				VEC3 pOther(x,y,0);
-				device->transformeScreen2dToWorld3d_scaled(x,y,&pOther,std::abs(ptrA->position.z));
+				device->transformeScreen2dToWorld3d_scaled(x,y,&pOther,std::abs(positionA.z));
 				doOffsetIfText(ptrA,w,h);
-				collide = device->checkBoundCollision(ptrA->position,w,h,d,pOther,1,1,1);
+				collide = device->checkBoundCollision(positionA,w,h,d,pOther,1,1,1);
 				undoOffsetIfText(ptrA,w,h);
 			}
 			lua_pushboolean(lua, collide ? 1 : 0);
@@ -363,7 +370,7 @@ namespace mbm
         const bool consider_scale = top > 1 ? lua_toboolean(lua,2) : true;
         float              w   = 0;
         float              h   = 0;
-        if (ptr->is3D)
+        if (ptr->is3DObject())
         {
             float d = 0;
             if (ptr->getWidthHeight(&w, &h, &d, consider_scale))
@@ -404,7 +411,7 @@ namespace mbm
         float              h   = 0;
         if (top > 1 && lua_toboolean(lua, 2))
             ptr->updateAABB();
-        if (ptr->is3D)
+        if (ptr->is3DObject())
         {
             float d = 0;
             ptr->getAABB(&w, &h, &d);
@@ -431,30 +438,33 @@ namespace mbm
             if(top == 2 && lua_type(lua,2) == LUA_TTABLE)
             {
                 RENDERIZABLE *that = getRenderizableFromRawTable(lua, 1, 2);
-                ptr->position.x = that->position.x;
-                ptr->position.y = that->position.y;
-                if(ptr->is3D)
-                    ptr->position.z = that->position.z;
+                VEC3 &position = ptr->getPosition();
+                const VEC3 &thatPosition = that->getPosition();
+                position.x = thatPosition.x;
+                position.y = thatPosition.y;
+                if(ptr->is3DObject())
+                    position.z = thatPosition.z;
             }
             else
             {
+                VEC3 &position = ptr->getPosition();
                 for (int i = 2; i <= top; ++i)
                 {
                     switch (i)
                     {
                         case 2: // x
                         {
-                            ptr->position.x = luaL_checknumber(lua, i);
+                            position.x = luaL_checknumber(lua, i);
                         }
                         break;
                         case 3: // y
                         {
-                            ptr->position.y = luaL_checknumber(lua, i);
+                            position.y = luaL_checknumber(lua, i);
                         }
                         break;
                         case 4: // z
                         {
-                            ptr->position.z = luaL_checknumber(lua, i);
+                            position.z = luaL_checknumber(lua, i);
                         }
                         break;
                         default: {
@@ -470,7 +480,7 @@ namespace mbm
     int onGetPosRenderizableLua(lua_State *lua)
     {
         RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
-        return onNewVec3LuaNoGC(lua, &ptr->position);
+        return onNewVec3LuaNoGC(lua, &ptr->getPosition());
     }
 
     int onSetAngleRenderizableLua(lua_State *lua)
@@ -482,32 +492,35 @@ namespace mbm
             if(top == 2 && lua_type(lua,2) == LUA_TTABLE)
             {
                 RENDERIZABLE *that = getRenderizableFromRawTable(lua, 1, 2);
-                ptr->angle.z = that->angle.z;
-                if(ptr->is3D)
+                VEC3 &angle = ptr->getAngle();
+                const VEC3 &thatAngle = that->getAngle();
+                angle.z = thatAngle.z;
+                if(ptr->is3DObject())
                 {
-                    ptr->angle.x = that->angle.x;
-                    ptr->angle.y = that->angle.y;
+                    angle.x = thatAngle.x;
+                    angle.y = thatAngle.y;
                 }
             }
             else
             {
+                VEC3 &angle = ptr->getAngle();
                 for (int i = 2; i <= top; ++i)
                 {
                     switch (i)
                     {
                         case 2: // x
                         {
-                            ptr->angle.x = luaL_checknumber(lua, i);
+                            angle.x = luaL_checknumber(lua, i);
                         }
                         break;
                         case 3: // y
                         {
-                            ptr->angle.y = luaL_checknumber(lua, i);
+                            angle.y = luaL_checknumber(lua, i);
                         }
                         break;
                         case 4: // z
                         {
-                            ptr->angle.z = luaL_checknumber(lua, i);
+                            angle.z = luaL_checknumber(lua, i);
                         }
                         break;
                         default: {
@@ -523,7 +536,7 @@ namespace mbm
     int onGetAngleRenderizableLua(lua_State *lua)
     {
         RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
-        return onNewVec3LuaNoGC(lua, &ptr->angle);
+        return onNewVec3LuaNoGC(lua, &ptr->getAngle());
     }
 
     int onSetScaleRenderizableLua(lua_State *lua)
@@ -535,30 +548,33 @@ namespace mbm
             if(top == 2 && lua_type(lua,2) == LUA_TTABLE)
             {
                 RENDERIZABLE *that = getRenderizableFromRawTable(lua, 1, 2);
-                ptr->scale.x = that->scale.x;
-                ptr->scale.y = that->scale.y;
-                if(ptr->is3D)
-                    ptr->scale.z = that->scale.z;
+                VEC3 &scale = ptr->getScale();
+                const VEC3 &thatScale = that->getScale();
+                scale.x = thatScale.x;
+                scale.y = thatScale.y;
+                if(ptr->is3DObject())
+                    scale.z = thatScale.z;
             }
             else
             {
+                VEC3 &scale = ptr->getScale();
                 for (int i = 2; i <= top; ++i)
                 {
                     switch (i)
                     {
                         case 2: // x
                         {
-                            ptr->scale.x = luaL_checknumber(lua, i);
+                            scale.x = luaL_checknumber(lua, i);
                         }
                         break;
                         case 3: // y
                         {
-                            ptr->scale.y = luaL_checknumber(lua, i);
+                            scale.y = luaL_checknumber(lua, i);
                         }
                         break;
                         case 4: // z
                         {
-                            ptr->scale.z = luaL_checknumber(lua, i);
+                            scale.z = luaL_checknumber(lua, i);
                         }
                         break;
                         default: {
@@ -574,7 +590,7 @@ namespace mbm
     int isOnFrustumRenderizable(lua_State *lua)
     {
         RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
-        lua_pushboolean(lua, ptr->isObjectOnFrustum);
+        lua_pushboolean(lua, ptr->getIsObjectOnFrustum());
         return 1;
     }
 
@@ -588,7 +604,7 @@ namespace mbm
     int onDestroyRenderizable(lua_State *lua)
     {
         /*
-            Only sets RENDERIZABLE->enableRender = false, and unregisters Lua callbacks. 
+            Only disables RENDERIZABLE rendering through the accessor API and unregisters Lua callbacks.
             No delete, cleanup until LUA garbage collection or the scene change.
             The actual delete only happens when Lua GC eventually runs the __gc metamethod
             potentially many frames later.
@@ -598,8 +614,8 @@ namespace mbm
         */
         RENDERIZABLE *        ptr            = getRenderizableFromRawTable(lua, 1, 1);
         DEVICE *              device         = DEVICE::getInstance();
-        auto * userScene      = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
-        auto *userDataRender = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto * userScene      = static_cast<USER_DATA_SCENE_LUA *>(device->getScene()->getUserData());
+        auto *userDataRender = static_cast<USER_DATA_RENDER_LUA *>(ptr->getUserData());
         if (userDataRender)
             userDataRender->unrefAllTableLua(lua); // destroy all
         userScene->remove(ptr);
@@ -609,7 +625,7 @@ namespace mbm
     int onGetScaleRenderizableLua(lua_State *lua)
     {
         RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
-        return onNewVec3LuaNoGC(lua, &ptr->scale);
+        return onNewVec3LuaNoGC(lua, &ptr->getScale());
     }
 
     int onMoveRenderizableLua(lua_State *lua)
@@ -617,20 +633,21 @@ namespace mbm
         RENDERIZABLE *ptr    = getRenderizableFromRawTable(lua, 1, 1);
         const int          top    = lua_gettop(lua);
         DEVICE *      device = DEVICE::getInstance();
+        VEC3 &position = ptr->getPosition();
         switch (top)
         {
             case 2:
             {
                 const float x = luaL_checknumber(lua, 2);
-                ptr->position.x += (device->delta * x);
+                position.x += (device->delta * x);
             }
             break;
             case 3:
             {
                 const float x = luaL_checknumber(lua, 2);
                 const float y = luaL_checknumber(lua, 3);
-                ptr->position.x += (device->delta * x);
-                ptr->position.y += (device->delta * y);
+                position.x += (device->delta * x);
+                position.y += (device->delta * y);
             }
             break;
             case 4:
@@ -638,9 +655,9 @@ namespace mbm
                 const float x = luaL_checknumber(lua, 2);
                 const float y = luaL_checknumber(lua, 3);
                 const float z = luaL_checknumber(lua, 4);
-                ptr->position.x += (device->delta * x);
-                ptr->position.y += (device->delta * y);
-                ptr->position.z += (device->delta * z);
+                position.x += (device->delta * x);
+                position.y += (device->delta * y);
+                position.z += (device->delta * z);
             }
             break;
             default: {
@@ -659,18 +676,19 @@ namespace mbm
             const char *       angle  = luaL_checkstring(lua, 2);
             const float        radian = luaL_checknumber(lua, 3);
             DEVICE *      device = DEVICE::getInstance();
+            VEC3 &rotation = ptr->getAngle();
             if (angle)
             {
                 switch (angle[0])
                 {
                     case 'x':
-                    case 'X': { ptr->angle.x += (device->delta * radian);}
+                    case 'X': { rotation.x += (device->delta * radian);}
                     break;
                     case 'y':
-                    case 'Y': { ptr->angle.y += (device->delta * radian);}
+                    case 'Y': { rotation.y += (device->delta * radian);}
                     break;
                     case 'z':
-                    case 'Z': { ptr->angle.z += (device->delta * radian);}
+                    case 'Z': { rotation.z += (device->delta * radian);}
                     break;
                     default: { return lua_error_debug(lua, "expected: string angle: x, y or z, number(radian)");}
                 }
@@ -827,11 +845,12 @@ namespace mbm
         {
             case 1:
             {
+                VEC3 &position = ptr->getPosition();
                 switch (what[0])
                 {
-                    case 'x': ptr->position.x = luaL_checknumber(lua, 3); break;
-                    case 'y': ptr->position.y = luaL_checknumber(lua, 3); break;
-                    case 'z': ptr->position.z = luaL_checknumber(lua, 3); break;
+                    case 'x': position.x = luaL_checknumber(lua, 3); break;
+                    case 'y': position.y = luaL_checknumber(lua, 3); break;
+                    case 'z': position.z = luaL_checknumber(lua, 3); break;
                     default: { return setVariable(lua, ptr, what);
                     }
                 }
@@ -843,11 +862,12 @@ namespace mbm
                 {
                     case 's':
                     {
+                        VEC3 &scale = ptr->getScale();
                         switch (what[1])
                         {
-                            case 'x': ptr->scale.x = luaL_checknumber(lua, 3); break;
-                            case 'y': ptr->scale.y = luaL_checknumber(lua, 3); break;
-                            case 'z': ptr->scale.z = luaL_checknumber(lua, 3); break;
+                            case 'x': scale.x = luaL_checknumber(lua, 3); break;
+                            case 'y': scale.y = luaL_checknumber(lua, 3); break;
+                            case 'z': scale.z = luaL_checknumber(lua, 3); break;
                             default: { return setVariable(lua, ptr, what);
                             }
                         }
@@ -855,11 +875,12 @@ namespace mbm
                     break;
                     case 'a':
                     {
+                        VEC3 &angle = ptr->getAngle();
                         switch (what[1])
                         {
-                            case 'x': ptr->angle.x = luaL_checknumber(lua, 3); break;
-                            case 'y': ptr->angle.y = luaL_checknumber(lua, 3); break;
-                            case 'z': ptr->angle.z = luaL_checknumber(lua, 3); break;
+                            case 'x': angle.x = luaL_checknumber(lua, 3); break;
+                            case 'y': angle.y = luaL_checknumber(lua, 3); break;
+                            case 'z': angle.z = luaL_checknumber(lua, 3); break;
                             default: { return setVariable(lua, ptr, what);
                             }
                         }
@@ -874,9 +895,9 @@ namespace mbm
             {
                 if (strcmp("visible", what) == 0)
                 {
-                    ptr->enableRender = lua_toboolean(lua, 3) ? true : false;
-                    if (ptr->enableRender)//force on frustum at least this frame
-                        ptr->isObjectOnFrustum = true;
+                    ptr->setEnableRender(lua_toboolean(lua, 3) ? true : false);
+                    if (ptr->isRenderEnabled())//force on frustum at least this frame
+                        ptr->setIsObjectOnFrustum(true);
                 }
                 else
                     return setVariable(lua, ptr, what);
@@ -886,11 +907,11 @@ namespace mbm
             {
                 if (strcmp("alwaysRender", what) == 0)
                 {
-                    ptr->alwaysRenderize = lua_toboolean(lua, 3) ? true : false;
-                    if (ptr->alwaysRenderize)//force on frustum at least this frame
+                    ptr->setAlwaysRenderize(lua_toboolean(lua, 3) ? true : false);
+                    if (ptr->isAlwaysRenderizeEnabled())//force on frustum at least this frame
                     {
-                        ptr->enableRender = true;
-                        ptr->isObjectOnFrustum = true;
+                        ptr->setEnableRender(true);
+                        ptr->setIsObjectOnFrustum(true);
                     }
                 }
                 else
@@ -919,11 +940,12 @@ namespace mbm
         {
             case 1:
             {
+                const VEC3 &position = ptr->getPosition();
                 switch (what[0])
                 {
-                    case 'x': lua_pushnumber(lua, ptr->position.x); break;
-                    case 'y': lua_pushnumber(lua, ptr->position.y); break;
-                    case 'z': lua_pushnumber(lua, ptr->position.z); break;
+                    case 'x': lua_pushnumber(lua, position.x); break;
+                    case 'y': lua_pushnumber(lua, position.y); break;
+                    case 'z': lua_pushnumber(lua, position.z); break;
                     default: { return getVariable(lua, ptr, what);
                     }
                 }
@@ -935,11 +957,12 @@ namespace mbm
                 {
                     case 's':
                     {
+                        const VEC3 &scale = ptr->getScale();
                         switch (what[1])
                         {
-                            case 'x': lua_pushnumber(lua, ptr->scale.x); break;
-                            case 'y': lua_pushnumber(lua, ptr->scale.y); break;
-                            case 'z': lua_pushnumber(lua, ptr->scale.z); break;
+                            case 'x': lua_pushnumber(lua, scale.x); break;
+                            case 'y': lua_pushnumber(lua, scale.y); break;
+                            case 'z': lua_pushnumber(lua, scale.z); break;
                             default: { return getVariable(lua, ptr, what);
                             }
                         }
@@ -947,11 +970,12 @@ namespace mbm
                     break;
                     case 'a':
                     {
+                        const VEC3 &angle = ptr->getAngle();
                         switch (what[1])
                         {
-                            case 'x': lua_pushnumber(lua, ptr->angle.x); break;
-                            case 'y': lua_pushnumber(lua, ptr->angle.y); break;
-                            case 'z': lua_pushnumber(lua, ptr->angle.z); break;
+                            case 'x': lua_pushnumber(lua, angle.x); break;
+                            case 'y': lua_pushnumber(lua, angle.y); break;
+                            case 'z': lua_pushnumber(lua, angle.z); break;
                             default: { return getVariable(lua, ptr, what);
                             }
                         }
@@ -965,7 +989,7 @@ namespace mbm
             case 7:
             {
                 if (strcmp("visible", what) == 0)
-                    lua_pushboolean(lua, ptr->enableRender);
+                    lua_pushboolean(lua, ptr->isRenderEnabled());
                 else
                     return getVariable(lua, ptr, what);
             }
@@ -973,7 +997,7 @@ namespace mbm
             case 12:
             {
                 if (strcmp("alwaysRender", what) == 0)
-                    lua_pushboolean(lua, ptr->alwaysRenderize);
+                    lua_pushboolean(lua, ptr->isAlwaysRenderizeEnabled());
                 else
                     return getVariable(lua, ptr, what);
             }
