@@ -89,8 +89,9 @@ This validates:
 It avoids mixing the first pass with light lists, attenuation, shadow maps, normal maps, asset-format
 changes, or editor serialization.
 
-The first shader should be Lambert diffuse plus ambient only. Add emissive after the one-light path
-is working, then add specular highlights with `MaterialSpecular` and `MaterialPower`.
+The first shader should be Lambert diffuse plus ambient only, using mesh `MaterialAmbient` and
+`MaterialDiffuse` immediately. Add emissive after the one-light path is working, then add specular
+highlights with `MaterialSpecular` and `MaterialPower`.
 
 The first backend proof can target renderables in `3d` coordinate mode, but the complete lighting
 feature must also cover 2D. Mini MBM has three placement modes: `2ds`, `2dw`, and `3d`. Any
@@ -112,9 +113,9 @@ Current structural constraints:
   `HEADER_INFO_SHADER_STEP::lenTextureStage2`.
 - `BUFFER_GL` currently has per-subset stage 0 and one shared stage 1 pointer; it does not model
   arbitrary material texture slots.
-- A serializable normal-map feature likely needs a new mesh format version after
-  `CURRENT_VERSION_MBM_HEADER`, plus loader/saver/editor support for explicit material texture
-  slots.
+- A serializable material-texture-slot feature likely needs a new mesh format version after
+  `CURRENT_VERSION_MBM_HEADER`, plus loader/saver/editor support for explicit per-frame-subset
+  material texture slots. Normal maps should be the first new slot, not a one-off field.
 
 ### 4. Treat light uniforms as engine-owned, not CFG-owned
 
@@ -127,6 +128,7 @@ compiled shader uses them.
 Reserved names:
 
 - `LightEnabled`
+- `LightCount`
 - `AmbientColor`
 - `LightDirectionView`
 - `LightColor`
@@ -138,6 +140,44 @@ Reserved names:
 
 The engine should fill these automatically through the existing `SHADER::update()` /
 `BASE_SHADER::update()` shader-variable update path when the active shader declares them.
+Reserved names are exact and case-sensitive; do not add aliases.
+In the one-light milestone, `LightEnabled` and `LightCount` are integer reserved uniforms.
+`LightEnabled` uploads `1` when lighting is enabled for the target and `0` when disabled.
+`LightCount` follows the same `1` or `0` value until multi-light expands it.
+Public runtime state/API uses the name `directionalColor` for the directional light color. The
+shader reserved name remains `LightColor` for the one-light shader contract.
+Public runtime state/API uses `directionalDirection` for the directional light direction. Internal
+state may store `directionalDirectionWorld`; the shader reserved uniform remains
+`LightDirectionView` after backend view-space conversion.
+Public `directionalDirection` has the same semantic in world space: it is the direction the light
+travels, not the direction from a surface toward the light.
+`LightDirectionView` means the direction the light travels in view space, not the direction from
+the surface toward the light. Lambert diffuse therefore uses `-LightDirectionView`.
+Keep both names even though they mirror each other in the one-light milestone: `LightEnabled` is
+the explicit compatibility/on-off switch, while `LightCount` is the active-light count for
+multi-light shaders.
+Reserved light/material names are independent and optional. A shader may declare `LightCount`
+without `LightEnabled`, or any other subset of reserved names; the engine uploads only the names
+that are active in the compiled shader.
+Custom shaders may declare reserved material names such as `MaterialSpecular`, `MaterialEmissive`,
+and `MaterialPower` before default shaders consume them. If the compiled shader keeps those
+uniforms/constants active, the engine should look them up and supply their material values.
+CFG variables must not use reserved engine names. If a CFG declares a reserved name such as
+`LightCount` or `MaterialDiffuse`, the loader/editor should reject the shader CFG with a clear
+error; engine state owns those uniforms.
+This applies to the full reserved list immediately, including material names that the first shader
+does not consume yet.
+Enforce this in the low-level shader CFG load/add-variable path so all entry points behave the
+same way.
+Keep the reserved-name list in one shared helper/table such as `isReservedShaderUniformName(name)`;
+CFG parsing, editor/import checks, and backend upload must not duplicate the list.
+Place this helper in shared shader core code, for example `shader-reserved-names.h/.cpp` or the
+existing shader variable CFG module, not in any backend-specific file.
+
+The current CFG shader-variable path is float-oriented. This lighting work should include scalar
+`VAR_INT` support unless implementation proves unexpectedly risky. `VAR_INT` is for custom shader
+variables declared in CFG. Engine-owned counters such as `LightCount` are reserved engine uniforms,
+not CFG variables, but they can reuse the same backend integer upload capability.
 
 Keep existing names unchanged:
 
@@ -158,22 +198,68 @@ is explicit per scene. This avoids unexpectedly darkening old games that have no
 but were authored for unlit rendering.
 
 Initial C++ API shape uses free functions in the `mbm` namespace, not new virtual/state methods on
-`SCENE`. The target should be an explicit lighting target/mode, not a boolean, because the engine
-has `3d`, `2dw`, and `2ds` coordinate modes:
+`SCENE`. The target is an explicit lighting target/mode, not a boolean, because the engine has
+`3d`, `2dw`, and `2ds` coordinate modes:
 
 ```cpp
-mbm::setLightEnabled(true, mbm::LIGHT_TARGET_3D);
-mbm::setAmbientLight(...);
-mbm::setDirectionalLight(...);
+mbm::setLightEnabled(mbm::LIGHT_TARGET_3D, true);
+mbm::setAmbientLight(mbm::LIGHT_TARGET_3D, ...);
+mbm::setDirectionalLightDirection(mbm::LIGHT_TARGET_3D, ...);
+mbm::setDirectionalLightColor(mbm::LIGHT_TARGET_3D, ...);
+mbm::setDirectionalLight(mbm::LIGHT_TARGET_3D, direction, color); // convenience
+mbm::resetLight(mbm::LIGHT_TARGET_3D);
+const mbm::LIGHT_STATE &state = mbm::getLightState(mbm::LIGHT_TARGET_3D);
 ```
+
+C++ should use typed target constants/enums only and target-first argument order. Keep string
+parsing in the Lua binding layer.
 
 Initial Lua API shape mirrors the C++ namespace API and applies to the active script scene:
 
 ```lua
-mbm.setLightEnabled(true, '3d')
-mbm.setAmbientLight(...)
-mbm.setDirectionalLight(...)
+mbm.setLightEnabled('3d', true)
+mbm.setAmbientLight('3d', {r=0.2, g=0.2, b=0.2, a=1.0})
+mbm.setDirectionalLightDirection('3d', {x=0, y=-1, z=-1})
+mbm.setDirectionalLightColor('3d', {r=1, g=1, b=1, a=1})
+mbm.setDirectionalLight('3d', {x=0, y=-1, z=-1}, {r=1, g=1, b=1, a=1}) -- convenience
+mbm.resetLight('3d')
+local light = mbm.getLightState('3d')
 ```
+
+Lua `mbm.getLightState(target)` should return a table copy:
+
+```lua
+{
+    enabled = true,
+    target = '3d',
+    ambientColor = {r = 0.2, g = 0.2, b = 0.2, a = 1.0},
+    directionalColor = {r = 1.0, g = 1.0, b = 1.0, a = 1.0},
+    directionalDirection = {x = 0.0, y = -0.707, z = -0.707},
+}
+```
+
+Do not expose per-field configured flags in Lua unless editor tooling later proves it needs them.
+
+Lua color arguments should accept both named-field tables (`{r=1,g=1,b=1,a=1}`) and array-style
+tables (`{1,1,1,1}`), matching existing binding patterns, then normalize internally to `COLOR`.
+Lua direction arguments should accept both named-field tables (`{x=0,y=-1,z=-1}`) and array-style
+tables (`{0,-1,-1}`), then normalize internally to `VEC3` and apply the zero-length fallback rule.
+Lua light functions should use target-first argument order for consistency and simpler binding
+validation. Lua setters may also accept separate numeric arguments for ergonomics. Use target-first
+numeric forms to avoid ambiguity with optional alpha or future value shapes, such as
+`mbm.setAmbientLight(target, r, g, b, a)` and
+`mbm.setDirectionalLightDirection(target, x, y, z)`. Keep table arguments as the documented primary
+form.
+
+Lua target arguments must be exact strings: `'3d'` or `'2dw'`. Do not provide an implicit default
+target and do not accept aliases. Future `'2ds'` support should be added only when that lighting
+target is explicitly implemented.
+Before dedicated 2D rendering exists, calls for target `'2dw'` should accept and store state, but
+log a clear "`2dw` lighting rendering not implemented yet" warning/status instead of failing target
+validation or changing setter return values.
+Emit this temporary warning only once per scene/target to avoid noisy per-frame logs.
+Lua light setters should follow existing namespace style: return no value on success and use
+`lua_error_debug` for invalid arguments/targets.
 
 ### 6. Use the existing classic material model first
 
@@ -197,9 +283,10 @@ mesh layout.
 
 ## Proposed Runtime Model
 
-Add a small active-scene light state to `DEVICE::Impl` without changing the `SCENE` public
+Add small active-scene light states to `DEVICE::Impl` without changing the `SCENE` public
 signature. The engine already has one live scene at a time, so `mbm::` C++ functions and Lua
-`mbm.*` wrappers can update that state. Backend upload reads the state through `DEVICE` during
+`mbm.*` wrappers can update the state for a target such as `3d` or `2dw`. Backend upload reads the
+target state through `DEVICE` during
 rendering. Lifetime remains scene-level because `CORE_MANAGER::logic()` resets it during scene
 changes; it is storage in `DEVICE`, not a persistent device-global effect.
 
@@ -209,28 +296,79 @@ First-pass state:
 struct LIGHT_STATE
 {
     bool  enabled;
+    bool  hasAmbientColor;
+    bool  hasDirectionalDirection;
+    bool  hasDirectionalColor;
     COLOR ambientColor;
     VEC3  directionalDirectionWorld;
     COLOR directionalColor;
 };
 ```
 
+Default enabled-light values:
+
+```cpp
+AmbientColor = COLOR(0.2f, 0.2f, 0.2f, 1.0f);
+LightColor   = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+Direction    = normalize(VEC3(0.0f, -1.0f, -1.0f));
+```
+
+The default direction means light traveling downward and forward in world space.
+
 Rules:
 
+- Keep default ambient at `0.2`, not full white, because lighting is opt-in and should make
+  directional shading visible by default.
 - Directional direction is authored in world space.
-- Light colors use normalized floats in the `0.0..1.0` range.
+- `setDirectionalLightDirection` and convenience `setDirectionalLight` normalize direction
+  internally. A zero-length direction should fall back to the default direction.
+- Light colors use normalized floats clamped to the `0.0..1.0` range.
+- `AmbientColor.a` and `LightColor.a` are stored for API/type consistency but ignored by the
+  first-pass lighting shader; lighting uses `.rgb`.
+- `mbm::setLightEnabled(target, true)` initializes the target with the default light values if no
+  light values were configured yet.
+- Any light value setter marks that field as configured. Later `setLightEnabled(target, true)`
+  fills only missing defaults and must not overwrite configured values.
+- `mbm::setLightEnabled(target, false)` only disables the target; it does not erase configured
+  ambient, color, or direction values.
+- `setAmbientLight`, `setDirectionalLightDirection`, `setDirectionalLightColor`, and convenience
+  `setDirectionalLight` only set values; they do not implicitly enable lighting.
+- The combined `setDirectionalLight(target, direction, color)` is a convenience wrapper over the
+  direction and color setters and marks both fields as configured.
+- `mbm::resetLight(target)` clears the target back to disabled/default state and clears all
+  configured flags.
+- `setLightEnabled`, value setters, getters, and reset are target-specific. Changing `3d` does not
+  implicitly affect `2dw` or future `2ds`.
+- `getLightState('2dw')` returns the stored `2dw` state even before dedicated 2D rendering exists.
+- C++ `mbm::getLightState(target)` returns a const reference. Mutation stays behind explicit
+  setters so direction normalization/default initialization invariants remain centralized.
+- Lua `mbm.getLightState(target)` returns a table copy for tools/tests, not a live mutable state
+  reference.
+- Material uniforms are sourced per subset when subset material data exists. If a renderable or
+  subset has no material data, use fallback classic material defaults:
+  `MaterialDiffuse = (1, 1, 1, 1)`, `MaterialAmbient = (1, 1, 1, 1)`,
+  `MaterialSpecular = (0, 0, 0, 1)`, `MaterialEmissive = (0, 0, 0, 1)`,
+  and `MaterialPower = 0`.
 - The first backend proof lights objects in `3d` coordinate mode.
-- 2D lighting is required as a follow-up feature. `2dw` should be the primary 2D lighting target;
-  `2ds` should remain explicitly opt-in because HUD/UI/editor overlays often need predictable
-  unlit rendering.
-- Backend upload converts it to view space using the active view/model-view convention.
+- In `3d`, only normal-capable vertex formats are lit. Objects without vertex normals render unlit
+  exactly as before; do not synthesize runtime normals in the render path.
+- 2D lighting is required as a follow-up feature. `2dw` lighting should be a dedicated point/radius
+  light pipeline with normal maps, not just the 3D directional path applied to flat geometry. `2ds`
+  should remain explicitly opt-in because HUD/UI/editor overlays often need predictable unlit
+  rendering.
+- In `2dw`, dedicated lighting may use a default flat normal `(0, 0, 1)` for objects without a
+  normal map; normal maps upgrade the result with surface detail.
+- 3D and 2D lighting use separate target states so they do not interfere with each other.
+- Backend upload converts `directionalDirectionWorld` to `LightDirectionView` using only the view
+  matrix rotation, ignoring translation, then normalizes the result.
 - If lighting is disabled, shaders render exactly as before.
 - If lighting is enabled but geometry has no normals, shader output should fall back to unlit
   texture/color instead of failing.
 - Material values initially come from the existing material struct, with sensible defaults when
   unavailable.
-- `CORE_MANAGER::logic()` should reset/disable the active light state during scene changes before
-  the new scene reaches `onInitScene()`, so each scene opts into its own lighting.
+- `CORE_MANAGER::logic()` should fully reset the active light state during scene changes before the
+  new scene reaches `onInitScene()`, so each scene opts into its own lighting and does not inherit
+  old configured values.
 
 ## Shader Contract
 
@@ -245,9 +383,16 @@ Default vertex shader with normals should:
 Default pixel shader should:
 
 - sample `sample0` when UV exists
+- multiply sampled RGB by `MaterialDiffuse.rgb`
+- preserve final alpha as sampled alpha multiplied by `MaterialDiffuse.a`
 - compute `diffuse = max(dot(normalView, -LightDirectionView), 0.0)`
-- combine ambient and diffuse
-- preserve alpha from the primary texture or material color
+- compute ambient contribution as `AmbientColor.rgb * MaterialAmbient.rgb`
+- use the first-pass classic Lambert formula:
+  `base = sample0.rgb * MaterialDiffuse.rgb`;
+  `lit = base * (AmbientColor.rgb * MaterialAmbient.rgb + LightColor.rgb * diffuse)`
+- clamp/saturate final RGB to `0.0..1.0`
+- do not apply lighting to alpha
+- for untextured material-only rendering, use `MaterialDiffuse.a` as final alpha
 
 ### DirectX 9
 
@@ -288,7 +433,17 @@ Default MSL generation should:
 - Add active-scene light state in `DEVICE::Impl` with no rendering behavior change when disabled.
 - Add C++ free functions in namespace `mbm`; do not change the `SCENE` class signature.
 - Add Lua `mbm.*` wrappers that call the same active-scene light API.
-- Reset/disable light during `CORE_MANAGER::logic()` scene-change flow before `onInitScene()`.
+- Include `resetLight(target)` for explicit target reset.
+- Include a C++ const reference getter and Lua table-copy getter for tests/tools.
+- Store separate target states for `3d` and `2dw` from the start.
+- Define `LIGHT_TARGET_2DW` in milestone 1 for API stability, but keep `2dw` rendering disabled or
+  explicitly not implemented until the dedicated 2D lighting milestone.
+- Accept and store `2dw` light state before rendering is implemented, while logging a clear
+  "`2dw` lighting rendering not implemented yet" warning/status without changing Lua setter return
+  values.
+- Emit the temporary `2dw` not-implemented warning only once per scene/target.
+- Fully reset light during `CORE_MANAGER::logic()` scene-change flow before `onInitScene()` so new
+  scenes do not inherit old configured light values.
 - Do not add light back to `TYPE_CLASS`; the first implementation treats lights as scene state.
 
 ### Milestone 2: Material naming cleanup
@@ -298,67 +453,122 @@ Default MSL generation should:
 - Update mesh loading/saving, Mesh Debug Lua bindings, editor material UI, and docs.
 - Treat material fields as reserved shader inputs through `MaterialDiffuse`, `MaterialAmbient`,
   `MaterialSpecular`, `MaterialEmissive`, and `MaterialPower`.
+- Upload material uniforms per subset when subset material data exists; use documented fallback
+  classic material defaults otherwise.
 
-### Milestone 3: Backend uniform plumbing
+### Milestone 3: Scalar shader integer variables
+
+- Add scalar `VAR_INT` support to the shader variable type system.
+- Extend CFG parsing using the existing shader-variable key structure:
+  `[<shader-key>][int][<varName>] = min I max I default I`.
+- Add `int` as the canonical type token in `SHADER_CFG::addVar(type, name, values)`. Do not add a
+  new `name:type` or assignment-style syntax.
+- Preserve every existing float, vector, and color variable behavior.
+- Reject CFG variables whose name collides with a reserved engine light/material uniform in the
+  low-level shader CFG load/add-variable path.
+- Update `VAR_CFG` / `VAR_SHADER` storage or typed access so `VAR_INT` is represented as an
+  integer value, not just a float variable with another enum name.
+- Make `VAR_INT` follow the same min/max/default and animation behavior as existing scalar
+  variables, with integer rounding/clamping defined in one shared helper.
+- When animation produces a fractional intermediate `VAR_INT` value, round to the nearest integer,
+  then clamp to the configured `min..max` range.
+- Add backend upload support for integer uniforms/constants:
+  - OpenGL ES: scalar integer uniform upload.
+  - DirectX 9: scalar integer constant upload or a documented compatible mapping if the active
+    shader profile requires one.
+  - Metal: scalar integer uniform/buffer packing without breaking existing float packing.
+  - Dummy backend: no-op behavior that still validates parsing/state.
+- Update Lua/editor/plugin-helper shader variable paths if they expose or edit CFG variables.
+- Keep this milestone scalar-only; do not add int vectors until a real shader contract needs them.
+
+### Milestone 4: Backend uniform plumbing
 
 - Add backend-specific lookup/upload for reserved light names through the existing
   `SHADER::update()` / `BASE_SHADER::update()` path.
+- Use the same shared reserved-name helper/table for CFG rejection and backend reserved-uniform
+  upload decisions.
 - Upload only uniforms/constants that are active in the compiled shader.
+- Upload `LightEnabled = 1` for enabled targets and `LightEnabled = 0` for disabled targets when a
+  shader declares it. Treat it as an integer uniform, not a shader `bool`.
+- Upload `LightCount = 1` for enabled one-light targets and `LightCount = 0` for disabled targets
+  when a shader declares it.
 - Keep CFG variable upload behavior unchanged.
 - Add debug logging for missing optional light uniforms only when useful; avoid noisy warnings for
   shaders that intentionally do not use lighting.
 
-### Milestone 4: Lit default shaders
+### Milestone 5: Lit default shaders
 
 - Update generated default shaders for normal FVF variants with ambient plus Lambert diffuse first.
+- Use mesh `MaterialAmbient` and `MaterialDiffuse` in the first lit shader path.
 - Preserve old unlit output when lighting is disabled.
 - Keep no-normal FVF variants unlit.
+- Do not synthesize normals for no-normal `3d` renderables at runtime.
 - Ensure `aNormal` is no longer optimized out when lighting is enabled and the default lit shader
   is selected.
 
-### Milestone 5: Built-in lit shader resources
+### Milestone 6: Built-in lit shader resources
 
 - Add explicit built-in lit shader entries for each backend if default-generation is not enough.
 - Keep CFG variable names separate from reserved engine light names.
 - Add examples for textured and untextured lit meshes.
 
-### Milestone 6: One-light platform validation
+### Milestone 7: One-light platform validation
 
 - Validate one-light rendering on Linux/OpenGL ES.
 - Validate one-light rendering on Windows/DirectX 9.
 - Validate one-light rendering on macOS/Metal.
+- Build the validation scene so the default direction `(0, -1, -1)` visibly lights normal-facing
+  geometry.
 - Do not begin multi-light work until the one-light path is verified on all three backend families.
 
-### Milestone 7: 2D lighting and normal-map design
+### Milestone 8: Dedicated 2D lighting and normal-map design
 
-- Design 3D-style lighting for flat 2D geometry.
-- Design dedicated 2D lighting for `2dw`, likely requiring normal maps, light masks, or a light
-  buffer/render-to-texture path.
+- Design dedicated 2D point/radius lighting for `2dw`.
+- Require normal-map support for useful 2D lighting.
+- Plan `2dw` lighting around a light-buffer/render-to-texture path rather than per-object
+  multi-light shader loops.
+- Investigate the exact composition path for combining the light buffer with textured objects and
+  per-subset normal maps.
+- Reuse or extend existing backend render-target mechanics where possible, but keep the 2D light
+  buffer as internal engine render-pipeline state rather than exposing it as a normal
+  `RENDER_2_TEXTURE` renderizable.
 - Keep `2ds` lighting explicitly opt-in only.
-- Decide whether normal maps are per material, per frame subset, or assigned by runtime API.
-- Decide whether the normal-map path requires a new MBM header version after
+- Design generic per-frame-subset material texture slots instead of a one-off normal-map field.
+- Preserve compatibility by treating existing `HEADER_DESC_SUBSET::nameTexture` as the primary /
+  diffuse slot.
+- Store additional material textures as a counted list of typed slots, not as fixed fields.
+- Include enough per-slot length information for loaders to skip unknown optional slot types.
+- Store the counted slot list adjacent to each frame subset descriptor/data rather than in a global
+  table.
+- Match existing primary texture packaging behavior for material texture slots, including
+  path-based vs embedded/compressed image handling after auditing the v8 save/load path.
+- Implement the normal slot first.
+- Reserve future slots such as specular, emissive, and mask without implementing them in the first
+  normal-map pass.
+- Decide whether the material-texture-slot path requires a new MBM header version after
   `CURRENT_VERSION_MBM_HEADER`.
 - Extend `BUFFER_GL` texture storage beyond stage 0 plus shared stage 1 before using normal maps.
 - Do not overload existing stage 1 / `sample1` FX texture with normal maps.
 
-### Milestone 8: Multi-light design
+### Milestone 9: Multi-light design
 
 - Add multi-light support only after one-light validation is complete on OpenGL ES, DirectX 9, and
   Metal.
 - Decide max light count, reserved array names, shader-loop strategy, DirectX 9 constant limits,
   Metal buffer layout, and fallback behavior before implementation.
-- Candidate future names:
-  - `LightCount`
+- `LightCount` is already a reserved engine name. The multi-light milestone expands it beyond the
+  one-light `0` or `1` contract.
+- Candidate future array names:
   - `LightDirectionView[0]`
   - `LightPositionView[0]`
   - `LightColor[0]`
 
-### Milestone 9: Editor exposure
+### Milestone 10: Editor exposure
 
 - Add editor controls after C++ and Lua behavior is validated.
 - Likely first UI targets: Scene Editor and Mesh Debug preview.
 
-### Milestone 10: Expand lighting model
+### Milestone 11: Expand lighting model
 
 Only after the first path, 2D lighting design, and multi-light design are proven:
 
@@ -392,6 +602,10 @@ Ask and resolve these before implementation:
    Resolved: no. One ambient plus one directional light first; multi-light starts after one-light
    validation on OpenGL ES, DirectX 9, and Metal.
 
+5a. Should 2D lighting replace the first 3D one-light milestone?
+   Resolved: no. Keep the first implementation as 3D one-light Lambert lighting, then build 2D
+   lighting on the validated shared infrastructure.
+
 6. Should normal maps use texture stage 1 later?
    Recommended: no. Stage 1 is already occupied by FX. Normal maps need an explicit future texture
    slot/material design.
@@ -405,13 +619,300 @@ Ask and resolve these before implementation:
    Resolved: no. Start with ambient plus Lambert diffuse. Add emissive and then specular after the
    one-light path is validated.
 
+8a. Should the first Lambert pass use mesh material values?
+   Resolved: yes. Use `MaterialAmbient` and `MaterialDiffuse` immediately.
+
+8a.1. Should material uniforms be object-level or per-subset?
+   Resolved: per-subset where subset material data exists. Use fallback classic material defaults
+   when material data is missing: diffuse/ambient white, specular/emissive black, power `0`.
+
+8a.2. How should `MaterialDiffuse` interact with `sample0`?
+   Resolved: multiply sampled RGB by `MaterialDiffuse.rgb`, and compute final alpha as sampled
+   alpha multiplied by `MaterialDiffuse.a`. White diffuse preserves old texture color.
+
+8a.3. Should ambient use scene ambient only or material ambient too?
+   Resolved: use both. Ambient contribution is `AmbientColor.rgb * MaterialAmbient.rgb`.
+
+8a.4. What is the first-pass RGB lighting formula?
+   Resolved: use classic Lambert-style modulation:
+   `base = sample0.rgb * MaterialDiffuse.rgb`;
+   `lit = base * (AmbientColor.rgb * MaterialAmbient.rgb + LightColor.rgb * NdotL)`.
+
+8a.5. Should the first-pass lit RGB be clamped?
+   Resolved: yes. Clamp/saturate final RGB to `0.0..1.0` until HDR/tone mapping is explicitly
+   designed.
+
+8a.6. Should lighting affect alpha?
+   Resolved: no. Lighting affects RGB only. Alpha remains texture/material alpha so transparency
+   behavior stays compatible with existing content.
+
+8a.7. Should `AmbientColor.a` or `LightColor.a` affect the first lighting pass?
+   Resolved: no. Store alpha for API/type consistency, but milestone 1 lighting uses only `.rgb`.
+
+8b. What are the default enabled-light values?
+   Resolved: ambient `(0.2, 0.2, 0.2, 1.0)`, white light `(1.0, 1.0, 1.0, 1.0)`, and normalized
+   direction `(0.0, -1.0, -1.0)`.
+
+8b.0. How should the default direction be interpreted?
+   Resolved: as light traveling downward and forward in world space. Validation scenes should make
+   that direction visibly light normal-facing geometry.
+
+8b.1. Should default ambient be full white for compatibility?
+   Resolved: no. Keep default ambient at `0.2` because lighting is opt-in and directional shading
+   should be visible by default.
+
+8c. Should enabling lighting initialize defaults?
+   Resolved: yes. `setLightEnabled(target, true)` should make lighting visibly usable by applying
+   default values when the target has not been configured yet.
+
+8d. Should disabling lighting erase configured values?
+   Resolved: no. Disabling only sets `enabled=false`; scene transition reset or a future explicit
+   reset API clears target state.
+
+8d.1. Should light value setters implicitly enable lighting?
+   Resolved: no. `setAmbientLight`, `setDirectionalLightDirection`,
+   `setDirectionalLightColor`, and convenience `setDirectionalLight` only configure values. The
+   explicit switch remains `setLightEnabled(target, true)`.
+
+8d.2. Should setters mark a light target as configured before enabling?
+   Resolved: yes, per field. Any light value setter marks that field as configured, so later
+   `setLightEnabled(target, true)` fills only missing defaults and does not overwrite explicit
+   values.
+
+8d.3. Should light configuration use one target-level configured flag or per-field flags?
+   Resolved: per-field flags. If the user sets only ambient before enabling, the engine should keep
+   that ambient and still fill default light color/direction.
+
+8d.4. Should directional light direction and color be set together or separately?
+   Resolved: both forms, with clear primitives. Provide `setDirectionalLightDirection(target, ...)`
+   and `setDirectionalLightColor(target, ...)` as the field-level setters, plus convenience
+   `setDirectionalLight(target, direction, color)` that calls both and marks both fields configured.
+
+8d.5. Should public state/API call the directional light color `directionalColor` or `lightColor`?
+   Resolved: `directionalColor`. Public runtime state/API should describe the light type. The
+   shader reserved uniform remains `LightColor` for the one-light shader contract.
+
+8d.6. Should public state/API call the direction `directionalDirection` or just `direction`?
+   Resolved: `directionalDirection`. The internal state may store `directionalDirectionWorld`, and
+   the shader reserved uniform remains `LightDirectionView` after view-space conversion.
+
+8d.7. How should world-space directional light direction become `LightDirectionView`?
+   Resolved: transform with only the view matrix rotation, ignore translation, then normalize after
+   conversion.
+
+8d.8. What does `LightDirectionView` mean?
+   Resolved: it is the direction the light travels in view space. Shader Lambert diffuse uses
+   `-LightDirectionView` as the direction from the surface toward the light.
+
+8d.9. What does public `directionalDirection` mean?
+   Resolved: same semantic as `LightDirectionView`, but in world space. It is the direction the
+   light travels, not the direction from a surface toward the light.
+
+8e. Should there be an explicit reset API?
+   Resolved: yes. Add `mbm::resetLight(target)` and Lua `mbm.resetLight(target)`.
+
+8e.1. What exactly should `resetLight(target)` clear?
+   Resolved: reset disables lighting, restores default values, and clears all per-field configured
+   flags. Use `setLightEnabled(target, false)` when values should be preserved.
+
+8e.2. Should scene transitions disable lighting or fully reset lighting?
+   Resolved: fully reset. Scene transitions should clear configured values and flags before
+   `onInitScene()` so a new scene never inherits old scene lighting.
+
+8f. Should C++ expose mutable light state?
+   Resolved: no for the first pass. Expose a const reference getter and keep mutation through
+   explicit setters. Lua getter returns a table copy.
+
+8g. Should directional-light setters normalize direction input?
+   Resolved: yes. `setDirectionalLightDirection` and convenience `setDirectionalLight` normalize
+   internally and fall back to the default direction for zero-length input.
+
+8h. Should light colors support values above 1.0?
+   Resolved: no for the first pass. Clamp light color inputs to `0.0..1.0`.
+
+8i. Are reserved shader names case-sensitive?
+   Resolved: yes. Use exact names only; do not add aliases.
+
 9. Should lighting affect `2ds` or `2dw` objects?
    Resolved: yes, but not in the first backend proof. The complete feature must support 2D
    lighting. Prioritize `2dw`; keep `2ds` explicitly opt-in for HUD/UI/editor predictability.
 
+9a. Should `2dw` start with 3D-style directional lighting on flat geometry?
+   Resolved: no. The goal for `2dw` is dedicated point/radius lighting with normal maps.
+
+9b. Should `2dw` lighting use per-object multi-light shader loops?
+   Resolved: no. Plan a light-buffer/render-to-texture path and investigate the best composition
+   model for Mini MBM.
+
+9c. Should the 2D light buffer be a normal `RENDER_2_TEXTURE` object?
+   Resolved: no. Reuse backend render-target mechanics where useful, but keep the light buffer as
+   internal engine render-pipeline state.
+
+9d. What happens when lighting is enabled for objects without normals?
+   Resolved: target-specific behavior. In `3d`, no-normal objects remain unlit and the render path
+   does not synthesize normals. In `2dw`, the dedicated lighting pipeline may use a default flat
+   normal `(0, 0, 1)` when no normal map exists. `2ds` remains explicitly opt-in.
+
 10. Should normal maps use texture stage 1?
    Resolved: no. Stage 1 is already occupied by FX. Normal maps need explicit material texture
    slots and may require a new MBM header version.
+
+11. Should the light API use a boolean `is3d` target?
+   Resolved: no. Use an explicit target/mode such as `LIGHT_TARGET_3D` in C++ and `'3d'` in Lua,
+   leaving room for future `'2dw'` and explicit `'2ds'` support.
+
+12. Should normal maps be a one-off field?
+   Resolved: no. Plan generic per-frame-subset material texture slots. Implement normal maps first,
+   and reserve room for specular, emissive, and mask texture slots later.
+
+13. Should material texture slots be fixed fields?
+   Resolved: no. Store additional material textures as a counted list of typed slots so future slot
+   types can be added without another structural redesign.
+
+14. Should loaders fail on unknown material texture slot types?
+   Resolved: no for well-formed optional slots. Unknown slot types should be skipped when the record
+   includes enough length information. Malformed or truncated slot records should still fail.
+
+15. Where should per-subset material texture slots live in the file?
+   Resolved: adjacent to each frame subset descriptor/data. Do not start with a separate global
+   texture-slot table.
+
+16. Should normal-map slots store filename only?
+   Resolved: no. Material texture slots should match existing primary texture packaging semantics,
+   including path-based or embedded/compressed image handling where the current MBM save/load path
+   supports it.
+
+17. Should 2D and 3D lighting share one light state?
+   Resolved: no. Use separate target states under the same API family, for example `3d` and `2dw`.
+
+17a. Should enabling one target implicitly affect other targets?
+   Resolved: no. Light enable, setters, getters, and reset are target-specific. Enabling `3d` must
+   not implicitly affect `2dw` or future `2ds`.
+
+17b. How should Lua validate the light target argument?
+   Resolved: accept only exact strings `'3d'` and `'2dw'`. Do not use a default target and do not
+   accept aliases. Add `'2ds'` only if that target is explicitly implemented later.
+
+17c. Should C++ APIs parse target strings too?
+   Resolved: no. C++ uses typed target constants/enums only; Lua bindings own string parsing.
+
+17c.1. Should C++ light APIs use target-first argument order?
+   Resolved: yes. Use target-first C++ APIs such as
+   `mbm::setLightEnabled(mbm::LIGHT_TARGET_3D, true)` so C++ and Lua stay aligned.
+
+17d. Should `LIGHT_TARGET_2DW` exist before 2D lighting renders?
+   Resolved: yes. Define the target/state early for API stability, but keep `2dw` rendering
+   disabled or explicitly not implemented until the dedicated 2D lighting milestone.
+
+17e. What happens if code enables `2dw` before 2D lighting rendering is implemented?
+   Resolved: accept and store the target state, but log a clear "`2dw` lighting rendering not
+   implemented yet" warning/status. Do not fail target validation and do not change Lua setter
+   return values for this case.
+
+17f. Should Lua light setters return boolean/status values?
+   Resolved: follow existing namespace style. Lua light setters return no value on success and use
+   `lua_error_debug` for invalid arguments or invalid target strings. Non-fatal states such as
+   accepted-but-not-rendered `2dw` should log clearly rather than changing return shape.
+
+17g. How often should the temporary `2dw` not-implemented warning log?
+   Resolved: only once per scene/target, to avoid noisy logs when scripts update light state every
+   frame.
+
+17h. Should `getLightState('2dw')` work before 2D rendering exists?
+   Resolved: yes. Since `2dw` calls are accepted and stored, getters should return the stored state
+   for tools/tests even before dedicated 2D lighting renders.
+
+17i. What should Lua `getLightState(target)` return?
+   Resolved: a table copy with `enabled`, `target`, `ambientColor`, `directionalColor`, and
+   `directionalDirection`. Keep per-field configured flags internal unless editor tooling later
+   needs them.
+
+17j. Which Lua color table shapes should light setters accept?
+   Resolved: accept both named-field tables such as `{r=1,g=1,b=1,a=1}` and array-style tables such
+   as `{1,1,1,1}`, matching existing Lua binding patterns. Normalize internally to `COLOR`.
+
+17k. Which Lua direction table shapes should light setters accept?
+   Resolved: accept both named-field tables such as `{x=0,y=-1,z=-1}` and array-style tables such
+   as `{0,-1,-1}`. Normalize internally to `VEC3`, then apply zero-length fallback.
+
+17l. Should Lua setters accept separate numeric arguments too?
+   Resolved: yes, for ergonomics. Keep table arguments as the documented primary form, but allow
+   target-first numeric forms such as `mbm.setAmbientLight(target, r, g, b, a)` and
+   `mbm.setDirectionalLightDirection(target, x, y, z)`.
+
+17m. Should the Lua numeric setter target argument be first or last?
+   Resolved: first. Target-first numeric forms are easier to parse and avoid ambiguity with
+   optional alpha or future variable-size value shapes.
+
+17n. Should Lua table-form setters also be target-first?
+   Resolved: yes. Use target-first argument order for all Lua light functions, including
+   `mbm.setLightEnabled(target, enabled)`, `mbm.setAmbientLight(target, value)`,
+   `mbm.setDirectionalLightDirection(target, value)`, `mbm.setDirectionalLightColor(target, value)`,
+   `mbm.setDirectionalLight(target, direction, color)`, `mbm.resetLight(target)`, and
+   `mbm.getLightState(target)`.
+
+18. Should scalar integer shader variables be part of this feature?
+   Resolved: yes, unless implementation proves unexpectedly risky. Add scalar `VAR_INT` support as
+   a lighting milestone for custom shader controls and to prepare backend integer uniform upload.
+   Future engine counters such as `LightCount` are reserved engine uniforms, not CFG variables.
+   Keep the first pass scalar-only; defer int vectors until a shader contract needs them.
+
+18a. What CFG syntax should `VAR_INT` use?
+   Resolved: follow the existing parser structure. Shader variables are currently declared as
+   `[shader][type][name] = min ... max ... default ...`, so scalar integer variables should use
+   `[shader][int][name] = min I max I default I`.
+
+18b. Should `VAR_INT` support the same min/max/default animation behavior as floats?
+   Resolved: yes. Treat it like the existing scalar shader variable flow, but define integer
+   rounding/clamping centrally so all backends, Lua/editor views, and saved animation data agree.
+
+18c. How should animated `VAR_INT` fractional values be converted?
+   Resolved: round to the nearest integer first, then clamp to the configured `min..max` range.
+
+19. Should `LightCount` be reserved now?
+   Resolved: yes. Reserve `LightCount` as an engine-owned shader name now, but define its real
+   runtime behavior in the multi-light milestone. It is not a CFG variable.
+
+19a. What should `LightCount` upload during the one-light milestone?
+   Resolved: upload `1` when lighting is enabled for the target and `0` when lighting is disabled.
+
+19b. Should `LightEnabled` be a float or integer reserved uniform?
+   Resolved: integer. Upload `1` for enabled and `0` for disabled from the beginning. Do not use a
+   shader `bool`; `int` is the clearer cross-backend contract.
+
+19c. Do we need both `LightEnabled` and `LightCount`?
+   Resolved: yes. They mirror each other in the one-light milestone, but they have different
+   meaning. `LightEnabled` is the explicit compatibility/on-off switch; `LightCount` is the active
+   light count for multi-light shaders.
+
+19d. Must custom shaders declare both `LightEnabled` and `LightCount` together?
+   Resolved: no. Reserved light/material names are independent and optional. The engine uploads
+   whichever reserved names are active in the compiled shader.
+
+19e. Can CFG variables use reserved engine names?
+   Resolved: no. Reject those CFG declarations with a clear error; reserved names are engine-owned
+   uniforms.
+
+19f. Where should reserved-name CFG rejection happen?
+   Resolved: in the low-level shader CFG load/add-variable path, not only in editor/import tooling,
+   so all shader entry points follow the same rule.
+
+19g. Should the reserved-name list be duplicated where needed?
+   Resolved: no. Use one shared helper/table for reserved shader uniform names so CFG parsing,
+   editor/import checks, and backend upload cannot drift.
+
+19h. Where should the reserved-name helper live?
+   Resolved: in shared shader core code, such as `shader-reserved-names.h/.cpp` or the existing
+   shader variable CFG module, not in a backend-specific implementation.
+
+19i. Should material reserved names be rejected from CFG before every material field is used?
+   Resolved: yes. The whole reserved list is protected immediately, including material names that
+   later milestones consume.
+
+19j. Can custom shaders declare reserved material uniforms before default shaders use them?
+   Resolved: yes. Reserved names are forbidden in CFG, but allowed as actual shader
+   uniforms/constants. The engine should look up active reserved names in the compiled shader and
+   supply their engine-owned values.
 
 ## Validation Checklist
 
