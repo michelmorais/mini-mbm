@@ -13,8 +13,8 @@ feature set:
 - textured and untextured meshes
 - no new texture-stage dependency
 
-After that is stable, expand to point lights, specular/material controls, normal maps, editor
-support, Lua APIs, and scene serialization.
+After that is stable, expand to 2D lighting, normal maps, point lights, specular/material controls,
+editor support, Lua APIs, and scene serialization.
 
 ## Current State
 
@@ -86,8 +86,16 @@ This validates:
 - platform parity
 - material diffuse/ambient usage
 
-It avoids mixing the first pass with light lists, attenuation, shadow maps, normal maps, or editor
-serialization.
+It avoids mixing the first pass with light lists, attenuation, shadow maps, normal maps, asset-format
+changes, or editor serialization.
+
+The first shader should be Lambert diffuse plus ambient only. Add emissive after the one-light path
+is working, then add specular highlights with `MaterialSpecular` and `MaterialPower`.
+
+The first backend proof can target renderables in `3d` coordinate mode, but the complete lighting
+feature must also cover 2D. Mini MBM has three placement modes: `2ds`, `2dw`, and `3d`. Any
+`RENDERIZABLE` class can be used as `3d`; lighting decisions follow the object's coordinate mode,
+not only its concrete class.
 
 ### 3. Do not use texture stage 1 for lighting
 
@@ -96,6 +104,17 @@ Recommended: yes.
 Stage 1 already means `sample1` for existing shader FX. The lighting contract should use
 engine-owned uniforms. If normal maps are added later, introduce explicit material texture slots
 or a deliberate stage-extension design instead of overloading the existing stage-1 convention.
+
+Current structural constraints:
+
+- MBM v8 stores only one primary texture name per subset in `HEADER_DESC_SUBSET::nameTexture`.
+- Animation shader steps can store one stage-1/`sample1` texture through
+  `HEADER_INFO_SHADER_STEP::lenTextureStage2`.
+- `BUFFER_GL` currently has per-subset stage 0 and one shared stage 1 pointer; it does not model
+  arbitrary material texture slots.
+- A serializable normal-map feature likely needs a new mesh format version after
+  `CURRENT_VERSION_MBM_HEADER`, plus loader/saver/editor support for explicit material texture
+  slots.
 
 ### 4. Treat light uniforms as engine-owned, not CFG-owned
 
@@ -139,10 +158,11 @@ is explicit per scene. This avoids unexpectedly darkening old games that have no
 but were authored for unlit rendering.
 
 Initial C++ API shape uses free functions in the `mbm` namespace, not new virtual/state methods on
-`SCENE`:
+`SCENE`. The target should be an explicit lighting target/mode, not a boolean, because the engine
+has `3d`, `2dw`, and `2ds` coordinate modes:
 
 ```cpp
-mbm::setLightEnabled(true);
+mbm::setLightEnabled(true, mbm::LIGHT_TARGET_3D);
 mbm::setAmbientLight(...);
 mbm::setDirectionalLight(...);
 ```
@@ -150,7 +170,7 @@ mbm::setDirectionalLight(...);
 Initial Lua API shape mirrors the C++ namespace API and applies to the active script scene:
 
 ```lua
-mbm.setLightEnabled(true)
+mbm.setLightEnabled(true, '3d')
 mbm.setAmbientLight(...)
 mbm.setDirectionalLight(...)
 ```
@@ -199,6 +219,10 @@ Rules:
 
 - Directional direction is authored in world space.
 - Light colors use normalized floats in the `0.0..1.0` range.
+- The first backend proof lights objects in `3d` coordinate mode.
+- 2D lighting is required as a follow-up feature. `2dw` should be the primary 2D lighting target;
+  `2ds` should remain explicitly opt-in because HUD/UI/editor overlays often need predictable
+  unlit rendering.
 - Backend upload converts it to view space using the active view/model-view convention.
 - If lighting is disabled, shaders render exactly as before.
 - If lighting is enabled but geometry has no normals, shader output should fall back to unlit
@@ -286,7 +310,7 @@ Default MSL generation should:
 
 ### Milestone 4: Lit default shaders
 
-- Update generated default shaders for normal FVF variants.
+- Update generated default shaders for normal FVF variants with ambient plus Lambert diffuse first.
 - Preserve old unlit output when lighting is disabled.
 - Keep no-normal FVF variants unlit.
 - Ensure `aNormal` is no longer optimized out when lighting is enabled and the default lit shader
@@ -305,7 +329,19 @@ Default MSL generation should:
 - Validate one-light rendering on macOS/Metal.
 - Do not begin multi-light work until the one-light path is verified on all three backend families.
 
-### Milestone 7: Multi-light design
+### Milestone 7: 2D lighting and normal-map design
+
+- Design 3D-style lighting for flat 2D geometry.
+- Design dedicated 2D lighting for `2dw`, likely requiring normal maps, light masks, or a light
+  buffer/render-to-texture path.
+- Keep `2ds` lighting explicitly opt-in only.
+- Decide whether normal maps are per material, per frame subset, or assigned by runtime API.
+- Decide whether the normal-map path requires a new MBM header version after
+  `CURRENT_VERSION_MBM_HEADER`.
+- Extend `BUFFER_GL` texture storage beyond stage 0 plus shared stage 1 before using normal maps.
+- Do not overload existing stage 1 / `sample1` FX texture with normal maps.
+
+### Milestone 8: Multi-light design
 
 - Add multi-light support only after one-light validation is complete on OpenGL ES, DirectX 9, and
   Metal.
@@ -317,19 +353,19 @@ Default MSL generation should:
   - `LightPositionView[0]`
   - `LightColor[0]`
 
-### Milestone 8: Editor exposure
+### Milestone 9: Editor exposure
 
 - Add editor controls after C++ and Lua behavior is validated.
 - Likely first UI targets: Scene Editor and Mesh Debug preview.
 
-### Milestone 9: Expand lighting model
+### Milestone 10: Expand lighting model
 
-Only after the first path and multi-light design are proven:
+Only after the first path, 2D lighting design, and multi-light design are proven:
 
 - point lights
 - attenuation
-- specular highlights using `MaterialSpecular` and `MaterialPower`
 - emissive material
+- specular highlights using `MaterialSpecular` and `MaterialPower`
 - normal maps
 - shadow maps
 
@@ -364,6 +400,18 @@ Ask and resolve these before implementation:
    Resolved: yes. `Diffuse`, `Ambient`, `Specular`, `Emissive`, and `Power` cover a classic
    material model. PBR material fields should be a separate future design, not part of the first
    lighting pass.
+
+8. Should the first shader include specular?
+   Resolved: no. Start with ambient plus Lambert diffuse. Add emissive and then specular after the
+   one-light path is validated.
+
+9. Should lighting affect `2ds` or `2dw` objects?
+   Resolved: yes, but not in the first backend proof. The complete feature must support 2D
+   lighting. Prioritize `2dw`; keep `2ds` explicitly opt-in for HUD/UI/editor predictability.
+
+10. Should normal maps use texture stage 1?
+   Resolved: no. Stage 1 is already occupied by FX. Normal maps need explicit material texture
+   slots and may require a new MBM header version.
 
 ## Validation Checklist
 
