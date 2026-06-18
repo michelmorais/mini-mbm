@@ -27,7 +27,8 @@ support, Lua APIs, and scene serialization.
   asks for it.
 - Mesh v8 already stores normal metadata through `hasNorText[0]`.
 - Mesh headers already include `util::MATERIAL_GLES` with diffuse, ambient, specular, emissive,
-  and power fields.
+  and power fields. The fields are useful for lighting, but the `GLES` suffix is misleading
+  because this is an engine/file-format material, not an OpenGL ES material.
 - Light was intentionally removed from `TYPE_CLASS`; new engine lights are scene state, not
   `RENDERIZABLE` objects.
 - Shader code already uses engine-reserved names such as `aPosition`, `aNormal`, `aTextCoord`,
@@ -104,14 +105,20 @@ CFG variables are user/shader-effect controls. Lighting needs consistent engine 
 default shaders and custom shaders. Reserve a small set of names that the engine uploads when the
 compiled shader uses them.
 
-Proposed names:
+Reserved names:
 
-- `mbmLightEnabled`
-- `mbmAmbientColor`
-- `mbmLightDirectionView`
-- `mbmLightColor`
-- `mbmMaterialDiffuse`
-- `mbmMaterialAmbient`
+- `LightEnabled`
+- `AmbientColor`
+- `LightDirectionView`
+- `LightColor`
+- `MaterialDiffuse`
+- `MaterialAmbient`
+- `MaterialSpecular`
+- `MaterialEmissive`
+- `MaterialPower`
+
+The engine should fill these automatically through the existing `SHADER::update()` /
+`BASE_SHADER::update()` shader-variable update path when the active shader declares them.
 
 Keep existing names unchanged:
 
@@ -123,18 +130,58 @@ Keep existing names unchanged:
 - `sample0`
 - `sample1`
 
-### 5. Keep lighting opt-in at first
+### 5. Keep lighting opt-in
 
 Recommended: yes.
 
 Default behavior should remain visually compatible when no light is enabled. Enabling lighting
-should be explicit from C++ and later Lua/editor APIs. This avoids unexpectedly darkening old games
-that have normals in assets but were authored for unlit rendering.
+is explicit per scene. This avoids unexpectedly darkening old games that have normals in assets
+but were authored for unlit rendering.
+
+Initial C++ API shape uses free functions in the `mbm` namespace, not new virtual/state methods on
+`SCENE`:
+
+```cpp
+mbm::setLightEnabled(true);
+mbm::setAmbientLight(...);
+mbm::setDirectionalLight(...);
+```
+
+Initial Lua API shape mirrors the C++ namespace API and applies to the active script scene:
+
+```lua
+mbm.setLightEnabled(true)
+mbm.setAmbientLight(...)
+mbm.setDirectionalLight(...)
+```
+
+### 6. Use the existing classic material model first
+
+Recommended: yes.
+
+See `docs/light.md` for the material-model explanation and the distinction between classic
+materials and PBR materials.
+
+The existing material fields cover the classic fixed-function/Phong-style material model:
+
+- `Diffuse`
+- `Ambient`
+- `Specular`
+- `Emissive`
+- `Power`
+
+That is enough for the first lighting implementation and for later specular highlights. Do not
+introduce a PBR material model in the first lighting pass. Rename the C++ type from
+`MATERIAL_GLES` to a platform-neutral engine name such as `MATERIAL`, while preserving the on-disk
+mesh layout.
 
 ## Proposed Runtime Model
 
-Add a small light state object in core engine code, initially owned by `DEVICE` or a narrow
-`LIGHT_MANAGER` reachable from `DEVICE`.
+Add a small active-scene light state to `DEVICE::Impl` without changing the `SCENE` public
+signature. The engine already has one live scene at a time, so `mbm::` C++ functions and Lua
+`mbm.*` wrappers can update that state. Backend upload reads the state through `DEVICE` during
+rendering. Lifetime remains scene-level because `CORE_MANAGER::logic()` resets it during scene
+changes; it is storage in `DEVICE`, not a persistent device-global effect.
 
 First-pass state:
 
@@ -151,11 +198,15 @@ struct LIGHT_STATE
 Rules:
 
 - Directional direction is authored in world space.
+- Light colors use normalized floats in the `0.0..1.0` range.
 - Backend upload converts it to view space using the active view/model-view convention.
 - If lighting is disabled, shaders render exactly as before.
 - If lighting is enabled but geometry has no normals, shader output should fall back to unlit
   texture/color instead of failing.
-- Material values initially come from `MATERIAL_GLES`, with sensible defaults when unavailable.
+- Material values initially come from the existing material struct, with sensible defaults when
+  unavailable.
+- `CORE_MANAGER::logic()` should reset/disable the active light state during scene changes before
+  the new scene reaches `onInitScene()`, so each scene opts into its own lighting.
 
 ## Shader Contract
 
@@ -170,7 +221,7 @@ Default vertex shader with normals should:
 Default pixel shader should:
 
 - sample `sample0` when UV exists
-- compute `diffuse = max(dot(normalView, -mbmLightDirectionView), 0.0)`
+- compute `diffuse = max(dot(normalView, -LightDirectionView), 0.0)`
 - combine ambient and diffuse
 - preserve alpha from the primary texture or material color
 
@@ -205,23 +256,35 @@ Default MSL generation should:
 - Add a tiny regression scene or smoke script that uses `sample1` on a vertex-buffer object and
   an index-buffer object.
 - Reconfirm DX9 render-to-texture sampler unbinding remains before `SetRenderTarget()`.
+- Remove the `DEBUG_SHADER_D3D_MINIMIZE_ERROR` guarded update path from DirectX 9 shader rendering
+  as part of making shader constant updates deterministic.
 
-### Milestone 1: Engine light state and API skeleton
+### Milestone 1: Scene light state and API skeleton
 
-- Add core C++ light state with no rendering behavior change when disabled.
-- Add C++ accessors/mutators.
-- Decide exact owner: `DEVICE` direct state vs. `LIGHT_MANAGER`.
+- Add active-scene light state in `DEVICE::Impl` with no rendering behavior change when disabled.
+- Add C++ free functions in namespace `mbm`; do not change the `SCENE` class signature.
+- Add Lua `mbm.*` wrappers that call the same active-scene light API.
+- Reset/disable light during `CORE_MANAGER::logic()` scene-change flow before `onInitScene()`.
 - Do not add light back to `TYPE_CLASS`; the first implementation treats lights as scene state.
 
-### Milestone 2: Backend uniform plumbing
+### Milestone 2: Material naming cleanup
 
-- Add backend-specific lookup/upload for reserved light names.
+- Rename `util::MATERIAL_GLES` to a platform-neutral name such as `util::MATERIAL`.
+- Preserve the existing material fields and on-disk mesh layout.
+- Update mesh loading/saving, Mesh Debug Lua bindings, editor material UI, and docs.
+- Treat material fields as reserved shader inputs through `MaterialDiffuse`, `MaterialAmbient`,
+  `MaterialSpecular`, `MaterialEmissive`, and `MaterialPower`.
+
+### Milestone 3: Backend uniform plumbing
+
+- Add backend-specific lookup/upload for reserved light names through the existing
+  `SHADER::update()` / `BASE_SHADER::update()` path.
 - Upload only uniforms/constants that are active in the compiled shader.
 - Keep CFG variable upload behavior unchanged.
 - Add debug logging for missing optional light uniforms only when useful; avoid noisy warnings for
   shaders that intentionally do not use lighting.
 
-### Milestone 3: Lit default shaders
+### Milestone 4: Lit default shaders
 
 - Update generated default shaders for normal FVF variants.
 - Preserve old unlit output when lighting is disabled.
@@ -229,30 +292,43 @@ Default MSL generation should:
 - Ensure `aNormal` is no longer optimized out when lighting is enabled and the default lit shader
   is selected.
 
-### Milestone 4: Built-in lit shader resources
+### Milestone 5: Built-in lit shader resources
 
 - Add explicit built-in lit shader entries for each backend if default-generation is not enough.
 - Keep CFG variable names separate from reserved engine light names.
 - Add examples for textured and untextured lit meshes.
 
-### Milestone 5: Lua and editor exposure
+### Milestone 6: One-light platform validation
 
-- Add Lua API only after C++ backend behavior is validated.
-- Candidate Lua API:
-  - `mbm.setLightEnabled(bool)`
-  - `mbm.setAmbientLight(r, g, b, a)`
-  - `mbm.setDirectionalLight(dx, dy, dz, r, g, b, a)`
-  - `mbm.getLightState()`
-- Add editor controls later, likely in Scene Editor and Mesh Debug preview.
+- Validate one-light rendering on Linux/OpenGL ES.
+- Validate one-light rendering on Windows/DirectX 9.
+- Validate one-light rendering on macOS/Metal.
+- Do not begin multi-light work until the one-light path is verified on all three backend families.
 
-### Milestone 6: Expand lighting model
+### Milestone 7: Multi-light design
 
-Only after the first path is proven:
+- Add multi-light support only after one-light validation is complete on OpenGL ES, DirectX 9, and
+  Metal.
+- Decide max light count, reserved array names, shader-loop strategy, DirectX 9 constant limits,
+  Metal buffer layout, and fallback behavior before implementation.
+- Candidate future names:
+  - `LightCount`
+  - `LightDirectionView[0]`
+  - `LightPositionView[0]`
+  - `LightColor[0]`
 
-- multiple directional lights
+### Milestone 8: Editor exposure
+
+- Add editor controls after C++ and Lua behavior is validated.
+- Likely first UI targets: Scene Editor and Mesh Debug preview.
+
+### Milestone 9: Expand lighting model
+
+Only after the first path and multi-light design are proven:
+
 - point lights
 - attenuation
-- specular highlights using `MATERIAL_GLES::Specular` and `Power`
+- specular highlights using `MaterialSpecular` and `MaterialPower`
 - emissive material
 - normal maps
 - shadow maps
@@ -262,23 +338,32 @@ Only after the first path is proven:
 Ask and resolve these before implementation:
 
 1. Should light state be global per `DEVICE`, per `SCENE`, or both?
-   Recommended: per `SCENE` API backed by device upload state, so scene transitions can reset
-   lights predictably.
+   Resolved: store active-scene light state in `DEVICE::Impl`, and reset it during
+   `CORE_MANAGER::logic()` scene changes before `onInitScene()`.
 
 2. Should light ever become a real `RENDERIZABLE` object?
-   Recommended: no for the engine light itself. Add separate editor/debug gizmos later if picking
+   Resolved: no for the engine light itself. Add separate editor/debug gizmos later if picking
    or visualization needs them.
 
 3. Should old content with normals become lit automatically?
-   Recommended: no. Lighting should be opt-in to preserve compatibility.
+   Resolved: no. Lighting is opt-in per scene to preserve compatibility.
 
 4. Should custom shaders receive light uniforms automatically?
-   Recommended: yes, but only when they declare the reserved names. Existing custom shaders should
+   Resolved: yes, but only when they declare the reserved names. Existing custom shaders should
    keep working unchanged.
 
-5. Should normal maps use texture stage 1 later?
+5. Should milestone 1 include more than one light?
+   Resolved: no. One ambient plus one directional light first; multi-light starts after one-light
+   validation on OpenGL ES, DirectX 9, and Metal.
+
+6. Should normal maps use texture stage 1 later?
    Recommended: no. Stage 1 is already occupied by FX. Normal maps need an explicit future texture
    slot/material design.
+
+7. Does the existing material model cover milestone 1?
+   Resolved: yes. `Diffuse`, `Ambient`, `Specular`, `Emissive`, and `Power` cover a classic
+   material model. PBR material fields should be a separate future design, not part of the first
+   lighting pass.
 
 ## Validation Checklist
 
