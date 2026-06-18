@@ -568,7 +568,6 @@ namespace mbm
             case TYPE_CLASS_GIF                 : return "gif";
             case TYPE_CLASS_TEXT                : return "font";
             case TYPE_CLASS_PRIMITIVE           : return "primitive";
-            case TYPE_CLASS_LIGHT               : return "light";
             case TYPE_CLASS_TEMP                : return "temp";
             case TYPE_CLASS_SHAPE_MESH          : return "shape-mesh";
             case TYPE_CLASS_LINE_MESH           : return "line-mesh";
