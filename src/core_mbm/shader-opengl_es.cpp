@@ -211,8 +211,7 @@ namespace mbm
         mode_cull_face(GL_BACK),
         mode_front_face_direction(GL_CW),
         totalSubset(0),
-        initializedIndexBuffer(false),
-        texture1(nullptr)
+        initializedIndexBuffer(false)
     {
         setBackendBuffer(new BUFFER_SPECIFIC());
     }
@@ -226,8 +225,7 @@ namespace mbm
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
-        texture1 = nullptr;
-        texture0.clear();
+        texturesByStage.clear();
     }
 
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept : 
@@ -936,7 +934,7 @@ namespace mbm
                 GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
-                const TEXTURE* texture1 = pBufferId->getTextureByStage(0, i);
+                const TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());

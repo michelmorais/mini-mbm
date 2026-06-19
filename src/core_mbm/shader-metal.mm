@@ -511,8 +511,7 @@ namespace mbm
         mode_cull_face(0),
         mode_front_face_direction(0),
         totalSubset(0),
-        initializedIndexBuffer(false),
-        texture1(nullptr)
+        initializedIndexBuffer(false)
     {
         setBackendBuffer(new BUFFER_SPECIFIC());
     }
@@ -525,8 +524,7 @@ namespace mbm
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
-        texture1 = nullptr;
-        texture0.clear();
+        texturesByStage.clear();
     }
 
     // ---- BUFFER_GL backend methods ---- (Must be provided by each backend)

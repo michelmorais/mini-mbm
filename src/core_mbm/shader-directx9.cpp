@@ -151,8 +151,7 @@ namespace mbm
         mode_cull_face(util::CULL_BACK),
         mode_front_face_direction(util::CCW),
         totalSubset(0),
-        initializedIndexBuffer(false),
-        texture1(nullptr)
+        initializedIndexBuffer(false)
     {
         //we initialize this at the moment (just once)
         setBackendBuffer(new BUFFER_SPECIFIC());
@@ -167,8 +166,7 @@ namespace mbm
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
-        texture1 = nullptr;
-        texture0.clear();
+        texturesByStage.clear();
     }
 
     void BUFFER_GL::release()

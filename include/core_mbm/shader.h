@@ -157,9 +157,9 @@ namespace mbm
                                           const int* indexCountSubset,
                                           const util::INFO_DRAW_MODE* info_draw_mode);
 
-
-        std::unordered_map<uint32_t,TEXTURE*> texture0; // Existe 1 textura para cada subset. (stagio 0)
-        TEXTURE* texture1;// id textura stagio 1 passado no momento de renderizar o shader
+        // Stage 0 keeps the historical "one texture per subset" contract.
+        // Additional stages may be shared (subset 0 fallback) or per-subset.
+        std::unordered_map<uint32_t, std::unordered_map<uint32_t, TEXTURE*>> texturesByStage;
     };
 
     class BASE_SHADER

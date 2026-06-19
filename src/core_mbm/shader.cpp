@@ -142,29 +142,27 @@ namespace mbm
 
     TEXTURE* BUFFER_GL::getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const
     {
-        if(index_stage == 0)
+        const auto stageIt = this->texturesByStage.find(index_stage);
+        if(stageIt == this->texturesByStage.end())
+            return nullptr;
+        const auto & subsetTextures = stageIt->second;
+        auto subsetIt = subsetTextures.find(index_subset);
+        if(subsetIt != subsetTextures.end())
+            return subsetIt->second;
+        if(index_stage > 0)
         {
-            auto it = this->texture0.find(index_subset);
-            if(it != this->texture0.end())
-                return it->second;
-        }
-        else
-        {
-            return this->texture1;
+            // Keep legacy behaviour for stage 1 FX textures, which were historically
+            // stored once and reused for every subset.
+            subsetIt = subsetTextures.find(0);
+            if(subsetIt != subsetTextures.end())
+                return subsetIt->second;
         }
         return nullptr;
     }
 
     void BUFFER_GL::setTextureByStage(TEXTURE* texture,const uint32_t index_stage, const uint32_t index_subset)
     {
-        if(index_stage == 0)
-        {
-            texture0[index_subset] = texture;
-        }
-        else
-        {
-            texture1 = texture;
-        }
+        this->texturesByStage[index_stage][index_subset] = texture;
     }
 
     BUFFER_SPECIFIC * BUFFER_GL::getBackendBuffer() const noexcept

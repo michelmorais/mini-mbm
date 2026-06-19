@@ -67,8 +67,7 @@ namespace mbm
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
-        texture1 = nullptr;
-        texture0.clear();
+        texturesByStage.clear();
         REMINDER_TODO
     }
 
