@@ -777,27 +777,89 @@ namespace mbm
         std::string defaultCodePs;
         if (hasUV)
         {
-            defaultCodePs = "sampler2D sample0 : register(s0);"
-                "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
-                "{ return tex2D(sample0, texCoord); }";
+            defaultCodePs = "";
+            if (hasNormal)
+            {
+                defaultCodePs += "int LightEnabled;"
+                    "float4 AmbientColor;"
+                    "float3 LightDirectionView;"
+                    "float4 LightColor;";
+            }
+            defaultCodePs += "sampler2D sample0 : register(s0);"
+                "float4 main(";
+            if (hasNormal)
+            {
+                defaultCodePs += "float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1";
+            }
+            else
+            {
+                defaultCodePs += "float2 texCoord : TEXCOORD0";
+            }
+            defaultCodePs += ") : COLOR"
+                "{ float4 texColor = tex2D(sample0, texCoord);";
+            if (hasNormal)
+            {
+                defaultCodePs += " if (LightEnabled == 0) return texColor;"
+                    " float3 normalView = normalize(normalViewIn);"
+                    " float3 lightTravel = normalize(LightDirectionView);"
+                    " float diffuse = max(dot(normalView, -lightTravel), 0);"
+                    " float3 light = saturate(AmbientColor.rgb + (LightColor.rgb * diffuse));"
+                    " return float4(texColor.rgb * light, texColor.a);";
+            }
+            else
+            {
+                defaultCodePs += " return texColor;";
+            }
+            defaultCodePs += " }";
         }
         else
         {
-            defaultCodePs = "float4 main() : COLOR"
-                "{ return float4(1,1,1,1); }";
+            defaultCodePs = "";
+            if (hasNormal)
+            {
+                defaultCodePs += "int LightEnabled;"
+                    "float4 AmbientColor;"
+                    "float3 LightDirectionView;"
+                    "float4 LightColor;";
+            }
+            defaultCodePs += "float4 main(";
+            if (hasNormal)
+            {
+                defaultCodePs += "float3 normalViewIn : TEXCOORD1";
+            }
+            defaultCodePs += ") : COLOR"
+                "{ float4 baseColor = float4(1,1,1,1);";
+            if (hasNormal)
+            {
+                defaultCodePs += " if (LightEnabled == 0) return baseColor;"
+                    " float3 normalView = normalize(normalViewIn);"
+                    " float3 lightTravel = normalize(LightDirectionView);"
+                    " float diffuse = max(dot(normalView, -lightTravel), 0);"
+                    " float3 light = saturate(AmbientColor.rgb + (LightColor.rgb * diffuse));"
+                    " return float4(baseColor.rgb * light, baseColor.a);";
+            }
+            else
+            {
+                defaultCodePs += " return baseColor;";
+            }
+            defaultCodePs += " }";
         }
 
-        std::string defaultCodeVs = "float4x4 mvpMatrix : register(c0);"
+        std::string defaultCodeVs = "float4x4 mvpMatrix : register(c0);";
+        if (hasNormal) defaultCodeVs += "float4x4 mvMatrix;";
+        defaultCodeVs +=
             "struct VS_INPUT { float4 position : POSITION;";
         if (hasNormal) defaultCodeVs += " float3 normal : NORMAL;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
         defaultCodeVs += " };"
             "struct VS_OUTPUT { float4 position : POSITION;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
+        if (hasNormal) defaultCodeVs += " float3 normalView : TEXCOORD1;";
         defaultCodeVs += " };"
             "VS_OUTPUT main(VS_INPUT input)"
             "{ VS_OUTPUT output; output.position = mul(input.position, mvpMatrix);";
         if (hasUV) defaultCodeVs += " output.texCoord = input.texCoord;";
+        if (hasNormal) defaultCodeVs += " output.normalView = mul(float4(input.normal, 0), mvMatrix).xyz;";
         defaultCodeVs += " return output; }";
 
         constexpr const char* mainFunction = "main";

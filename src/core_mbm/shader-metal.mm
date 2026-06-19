@@ -301,13 +301,16 @@ static NSString* buildVertexHeader(mbm::FVF_PROVIDE_BY_ENGINE fvf)
     if (hasNor && hasUV) [src appendString:@" float2 uv [[attribute(2)]];"];
     else if (hasUV)      [src appendString:@" float2 uv [[attribute(1)]];"];
     [src appendString:@" };\n"];
-    [src appendString:@"struct VOut { float4 pos [[position]]; float2 uv; };\n"];
+    [src appendString:@"struct VOut { float4 pos [[position]]; float2 uv;"];
+    if (hasNor) [src appendString:@" float3 nor;"];
+    [src appendString:@" };\n"];
 
     [src appendString:
         @"vertex VOut vert_main(VIn in [[stage_in]], constant MbmUniforms& u [[buffer(1)]]) {\n"
          "    VOut o;\n"
          "    o.pos = u.mvp * float4(in.pos, 1.0f);\n"];
     [src appendString: hasUV ? @"    o.uv = in.uv;\n" : @"    o.uv = float2(0.0f);\n"];
+    if (hasNor) [src appendString:@"    o.nor = (u.mv * float4(in.nor, 0.0f)).xyz;\n"];
     [src appendString: @"    return o;\n}\n"];
     return src;
 }
@@ -353,15 +356,56 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
             @"fragment float4 frag_main(VOut in [[stage_in]],"
              " texture2d<float> tex [[texture(0)]],"
              " sampler samp [[sampler(0)]],"
-             " constant Uniforms& u [[buffer(1)]]) {\n"
-             "  return tex.sample(samp, in.uv) * u.color;\n}\n"];
+             " constant Uniforms& u [[buffer(1)]]"];
+        if (hasNor)
+        {
+            [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
+                              " constant float4& AmbientColor [[buffer(6)]],"
+                              " constant float3& LightDirectionView [[buffer(7)]],"
+                              " constant float4& LightColor [[buffer(8)]]"];
+        }
+        [src appendString:@") {\n"
+                          "  float4 texColor = tex.sample(samp, in.uv) * u.color;\n"];
+        if (hasNor)
+        {
+            [src appendString:@"  if (LightEnabled == 0) return texColor;\n"
+                              "  float3 normalView = normalize(in.nor);\n"
+                              "  float3 lightTravel = normalize(LightDirectionView);\n"
+                              "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
+                              "  float3 light = clamp(AmbientColor.rgb + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
+                              "  return float4(texColor.rgb * light, texColor.a);\n}\n"];
+        }
+        else
+        {
+            [src appendString:@"  return texColor;\n}\n"];
+        }
     }
     else
     {
         [src appendString:
             @"fragment float4 frag_main(VOut in [[stage_in]],"
-             " constant Uniforms& u [[buffer(1)]]) {\n"
-             "  return u.color;\n}\n"];
+             " constant Uniforms& u [[buffer(1)]]"];
+        if (hasNor)
+        {
+            [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
+                              " constant float4& AmbientColor [[buffer(6)]],"
+                              " constant float3& LightDirectionView [[buffer(7)]],"
+                              " constant float4& LightColor [[buffer(8)]]"];
+        }
+        [src appendString:@") {\n"];
+        if (hasNor)
+        {
+            [src appendString:@"  if (LightEnabled == 0) return u.color;\n"
+                              "  float3 normalView = normalize(in.nor);\n"
+                              "  float3 lightTravel = normalize(LightDirectionView);\n"
+                              "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
+                              "  float3 light = clamp(AmbientColor.rgb + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
+                              "  return float4(u.color.rgb * light, u.color.a);\n}\n"];
+        }
+        else
+        {
+            [src appendString:@"  return u.color;\n}\n"];
+        }
     }
     return src;
 }

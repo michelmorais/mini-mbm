@@ -175,3 +175,10 @@ constant float4 &LightColor        [[buffer(8)]]
 ```
 
 Custom shader CFG variables cannot use these reserved names; they are owned by the engine.
+
+## Default Lit Shader Behavior
+
+Built-in default shaders stay unlit unless the active vertex format provides normals. When normals
+exist and target lighting is enabled, the default shader applies ambient plus directional diffuse
+lighting to RGB and preserves alpha unchanged. Objects without normals keep their previous unlit
+output even when scene lighting is enabled.

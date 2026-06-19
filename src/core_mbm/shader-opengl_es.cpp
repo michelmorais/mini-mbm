@@ -657,21 +657,63 @@ namespace mbm
         {
             defaultCodePs = "precision mediump float;"
                 "varying vec2 vTexCoord;"
-                "uniform sampler2D sample0;"
-                "void main() { gl_FragColor = texture2D(sample0, vTexCoord); }";
+                "uniform sampler2D sample0;";
+            if (hasNormal)
+            {
+                defaultCodePs += "varying vec3 vNormalView;"
+                    "uniform int LightEnabled;"
+                    "uniform vec4 AmbientColor;"
+                    "uniform vec3 LightDirectionView;"
+                    "uniform vec4 LightColor;"
+                    "void main() {"
+                    " vec4 texColor = texture2D(sample0, vTexCoord);"
+                    " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
+                    " vec3 normalView = normalize(vNormalView);"
+                    " vec3 lightTravel = normalize(LightDirectionView);"
+                    " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                    " vec3 light = clamp(AmbientColor.rgb + (LightColor.rgb * diffuse), 0.0, 1.0);"
+                    " gl_FragColor = vec4(texColor.rgb * light, texColor.a);"
+                    "}";
+            }
+            else
+            {
+                defaultCodePs += "void main() { gl_FragColor = texture2D(sample0, vTexCoord); }";
+            }
         }
         else
         {
-            defaultCodePs = "precision mediump float;"
-                "void main() { gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); }";
+            defaultCodePs = "precision mediump float;";
+            if (hasNormal)
+            {
+                defaultCodePs += "varying vec3 vNormalView;"
+                    "uniform int LightEnabled;"
+                    "uniform vec4 AmbientColor;"
+                    "uniform vec3 LightDirectionView;"
+                    "uniform vec4 LightColor;"
+                    "void main() {"
+                    " vec4 baseColor = vec4(1.0, 1.0, 1.0, 1.0);"
+                    " if (LightEnabled == 0) { gl_FragColor = baseColor; return; }"
+                    " vec3 normalView = normalize(vNormalView);"
+                    " vec3 lightTravel = normalize(LightDirectionView);"
+                    " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                    " vec3 light = clamp(AmbientColor.rgb + (LightColor.rgb * diffuse), 0.0, 1.0);"
+                    " gl_FragColor = vec4(baseColor.rgb * light, baseColor.a);"
+                    "}";
+            }
+            else
+            {
+                defaultCodePs += "void main() { gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); }";
+            }
         }
 
         std::string defaultCodeVs = "attribute vec4 aPosition;";
         if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
         defaultCodeVs += " uniform mat4 mvpMatrix;";
+        if (hasNormal) defaultCodeVs += " uniform mat4 mvMatrix; varying vec3 vNormalView;";
         if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
         defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
+        if (hasNormal) defaultCodeVs += " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
         void *backendShaderSpecific = getBackendShaderSpecific();

@@ -509,10 +509,12 @@ Default MSL generation should:
 ### Milestone 5: Lit default shaders
 
 - Update generated default shaders for normal FVF variants with ambient plus Lambert diffuse first.
-- Use mesh `MaterialAmbient` and `MaterialDiffuse` in the first lit shader path.
+- First implementation may use scene ambient/directional color directly until material/subset
+  upload is completed; then fold mesh `MaterialAmbient` and `MaterialDiffuse` into this path.
 - Preserve old unlit output when lighting is disabled.
 - Keep no-normal FVF variants unlit.
 - Do not synthesize normals for no-normal `3d` renderables at runtime.
+- Lighting affects RGB only. Preserve alpha from the texture/object color.
 - Ensure `aNormal` is no longer optimized out when lighting is enabled and the default lit shader
   is selected.
 
