@@ -2365,6 +2365,7 @@ namespace mbm
     "uniform vec4 LightColor;\n"
     "uniform vec4 MaterialDiffuse;\n"
     "uniform vec4 MaterialAmbient;\n"
+    "uniform vec4 MaterialEmissive;\n"
     "varying vec2 vTexCoord;\n"
     "varying vec3 vNormalView;\n"
     "\n"
@@ -2381,7 +2382,8 @@ namespace mbm
     "   float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
     "   vec3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
     "   vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
-    "   gl_FragColor = vec4(base * light, texColor.a * MaterialDiffuse.a);\n"
+    "   vec3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);\n"
+    "   gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);\n"
     "}\n",
 
     "[ps-lit-textured.ps] = lit textured.ps\n",
@@ -2397,6 +2399,7 @@ namespace mbm
     "uniform vec4 LightColor;\n"
     "uniform vec4 MaterialDiffuse;\n"
     "uniform vec4 MaterialAmbient;\n"
+    "uniform vec4 MaterialEmissive;\n"
     "varying vec3 vNormalView;\n"
     "\n"
     "void main()\n"
@@ -2412,7 +2415,8 @@ namespace mbm
     "   float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
     "   vec3 base = MaterialDiffuse.rgb;\n"
     "   vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
-    "   gl_FragColor = vec4(base * light, MaterialDiffuse.a);\n"
+    "   vec3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);\n"
+    "   gl_FragColor = vec4(litColor, MaterialDiffuse.a);\n"
     "}\n",
 
     "[ps-lit-solid.ps] = lit solid.ps\n",

@@ -812,7 +812,8 @@ namespace mbm
                     "float3 LightDirectionView;"
                     "float4 LightColor;"
                     "float4 MaterialDiffuse;"
-                    "float4 MaterialAmbient;";
+                    "float4 MaterialAmbient;"
+                    "float4 MaterialEmissive;";
             }
             defaultCodePs += "sampler2D sample0 : register(s0);"
                 "float4 main(";
@@ -834,7 +835,8 @@ namespace mbm
                     " float diffuse = max(dot(normalView, -lightTravel), 0);"
                     " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
                     " float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));"
-                    " return float4(base * light, texColor.a * MaterialDiffuse.a);";
+                    " float3 litColor = saturate((base * light) + MaterialEmissive.rgb);"
+                    " return float4(litColor, texColor.a * MaterialDiffuse.a);";
             }
             else
             {
@@ -852,7 +854,8 @@ namespace mbm
                     "float3 LightDirectionView;"
                     "float4 LightColor;"
                     "float4 MaterialDiffuse;"
-                    "float4 MaterialAmbient;";
+                    "float4 MaterialAmbient;"
+                    "float4 MaterialEmissive;";
             }
             defaultCodePs += "float4 main(";
             if (hasNormal)
@@ -869,7 +872,8 @@ namespace mbm
                     " float diffuse = max(dot(normalView, -lightTravel), 0);"
                     " float3 base = MaterialDiffuse.rgb;"
                     " float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));"
-                    " return float4(base * light, MaterialDiffuse.a);";
+                    " float3 litColor = saturate((base * light) + MaterialEmissive.rgb);"
+                    " return float4(litColor, MaterialDiffuse.a);";
             }
             else
             {

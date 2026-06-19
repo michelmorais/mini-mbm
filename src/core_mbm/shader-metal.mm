@@ -394,7 +394,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                               " constant float3& LightDirectionView [[buffer(7)]],"
                               " constant float4& LightColor [[buffer(8)]],"
                               " constant float4& MaterialDiffuse [[buffer(9)]],"
-                              " constant float4& MaterialAmbient [[buffer(10)]]"];
+                              " constant float4& MaterialAmbient [[buffer(10)]],"
+                              " constant float4& MaterialEmissive [[buffer(12)]]"];
         }
         [src appendString:@") {\n"
                           "  float4 texColor = tex.sample(samp, in.uv) * u.color;\n"];
@@ -406,7 +407,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                               "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
                               "  float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
                               "  float3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
-                              "  return float4(base * light, texColor.a * MaterialDiffuse.a);\n}\n"];
+                              "  float3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);\n"
+                              "  return float4(litColor, texColor.a * MaterialDiffuse.a);\n}\n"];
         }
         else
         {
@@ -425,7 +427,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                               " constant float3& LightDirectionView [[buffer(7)]],"
                               " constant float4& LightColor [[buffer(8)]],"
                               " constant float4& MaterialDiffuse [[buffer(9)]],"
-                              " constant float4& MaterialAmbient [[buffer(10)]]"];
+                              " constant float4& MaterialAmbient [[buffer(10)]],"
+                              " constant float4& MaterialEmissive [[buffer(12)]]"];
         }
         [src appendString:@") {\n"];
         if (hasNor)
@@ -436,7 +439,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                               "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
                               "  float3 base = MaterialDiffuse.rgb;\n"
                               "  float3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
-                              "  return float4(base * light, MaterialDiffuse.a);\n}\n"];
+                              "  float3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);\n"
+                              "  return float4(litColor, MaterialDiffuse.a);\n}\n"];
         }
         else
         {

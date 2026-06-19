@@ -1599,6 +1599,7 @@ namespace mbm
 "float4 LightColor;\n"
 "float4 MaterialDiffuse;\n"
 "float4 MaterialAmbient;\n"
+"float4 MaterialEmissive;\n"
 "sampler2D sample0 : register(s0);\n"
 "\n"
 "float4 main(float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1) : COLOR\n"
@@ -1611,7 +1612,8 @@ namespace mbm
 "    float diffuse = max(dot(normalView, -lightTravel), 0);\n"
 "    float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
 "    float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));\n"
-"    return float4(base * light, texColor.a * MaterialDiffuse.a);\n"
+"    float3 litColor = saturate((base * light) + MaterialEmissive.rgb);\n"
+"    return float4(litColor, texColor.a * MaterialDiffuse.a);\n"
 "}\n",
 
 "[ps-lit-textured.ps] = lit textured.ps\n",
@@ -1626,6 +1628,7 @@ namespace mbm
 "float4 LightColor;\n"
 "float4 MaterialDiffuse;\n"
 "float4 MaterialAmbient;\n"
+"float4 MaterialEmissive;\n"
 "\n"
 "float4 main(float3 normalViewIn : TEXCOORD1) : COLOR\n"
 "{\n"
@@ -1637,7 +1640,8 @@ namespace mbm
 "    float diffuse = max(dot(normalView, -lightTravel), 0);\n"
 "    float3 base = MaterialDiffuse.rgb;\n"
 "    float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));\n"
-"    return float4(base * light, MaterialDiffuse.a);\n"
+"    float3 litColor = saturate((base * light) + MaterialEmissive.rgb);\n"
+"    return float4(litColor, MaterialDiffuse.a);\n"
 "}\n",
 
 "[ps-lit-solid.ps] = lit solid.ps\n",

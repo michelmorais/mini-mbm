@@ -704,6 +704,7 @@ namespace mbm
                     "uniform vec4 LightColor;"
                     "uniform vec4 MaterialDiffuse;"
                     "uniform vec4 MaterialAmbient;"
+                    "uniform vec4 MaterialEmissive;"
                     "void main() {"
                     " vec4 texColor = texture2D(sample0, vTexCoord);"
                     " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
@@ -712,7 +713,8 @@ namespace mbm
                     " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
                     " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
                     " vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);"
-                    " gl_FragColor = vec4(base * light, texColor.a * MaterialDiffuse.a);"
+                    " vec3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);"
+                    " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
                     "}";
             }
             else
@@ -732,6 +734,7 @@ namespace mbm
                     "uniform vec4 LightColor;"
                     "uniform vec4 MaterialDiffuse;"
                     "uniform vec4 MaterialAmbient;"
+                    "uniform vec4 MaterialEmissive;"
                     "void main() {"
                     " vec4 baseColor = vec4(1.0, 1.0, 1.0, 1.0);"
                     " if (LightEnabled == 0) { gl_FragColor = baseColor; return; }"
@@ -740,7 +743,8 @@ namespace mbm
                     " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
                     " vec3 base = MaterialDiffuse.rgb;"
                     " vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);"
-                    " gl_FragColor = vec4(base * light, MaterialDiffuse.a);"
+                    " vec3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);"
+                    " gl_FragColor = vec4(litColor, MaterialDiffuse.a);"
                     "}";
             }
             else

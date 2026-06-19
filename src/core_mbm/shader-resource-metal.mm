@@ -1396,7 +1396,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant float3 &LightDirectionView [[buffer(7)]],
     constant float4 &LightColor        [[buffer(8)]],
     constant float4 &MaterialDiffuse   [[buffer(9)]],
-    constant float4 &MaterialAmbient   [[buffer(10)]])
+    constant float4 &MaterialAmbient   [[buffer(10)]],
+    constant float4 &MaterialEmissive  [[buffer(12)]])
 {
     float4 texColor = sample0.sample(samp, in.uv);
     if (LightEnabled == 0)
@@ -1406,7 +1407,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
     float3 base        = texColor.rgb * MaterialDiffuse.rgb;
     float3 light       = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0f, 1.0f);
-    return float4(base * light, texColor.a * MaterialDiffuse.a);
+    float3 litColor    = clamp((base * light) + MaterialEmissive.rgb, 0.0f, 1.0f);
+    return float4(litColor, texColor.a * MaterialDiffuse.a);
 }
 )msl",
     "[ps-lit-textured.ps] = lit textured.ps\n",
@@ -1420,7 +1422,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant float3 &LightDirectionView [[buffer(7)]],
     constant float4 &LightColor        [[buffer(8)]],
     constant float4 &MaterialDiffuse   [[buffer(9)]],
-    constant float4 &MaterialAmbient   [[buffer(10)]])
+    constant float4 &MaterialAmbient   [[buffer(10)]],
+    constant float4 &MaterialEmissive  [[buffer(12)]])
 {
     float4 baseColor = float4(1.0f);
     if (LightEnabled == 0)
@@ -1430,7 +1433,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
     float3 base        = MaterialDiffuse.rgb;
     float3 light       = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0f, 1.0f);
-    return float4(base * light, MaterialDiffuse.a);
+    float3 litColor    = clamp((base * light) + MaterialEmissive.rgb, 0.0f, 1.0f);
+    return float4(litColor, MaterialDiffuse.a);
 }
 )msl",
     "[ps-lit-solid.ps] = lit solid.ps\n",
