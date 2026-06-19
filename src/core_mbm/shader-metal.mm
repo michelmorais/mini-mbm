@@ -62,6 +62,19 @@ static mbm::VEC3 getLightDirectionViewMetal(const mbm::LIGHT_STATE &lightState)
     return directionView;
 }
 
+static util::MATERIAL getReservedMaterialForCurrentRenderMetal()
+{
+    util::MATERIAL material;
+    if (mbm::DEVICE::getInstance()->getMaterialForCurrentRender(material))
+        return material;
+    material.Diffuse = mbm::COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+    material.Ambient = mbm::COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+    material.Specular = mbm::COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+    material.Emissive = mbm::COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+    material.Power = 0.0f;
+    return material;
+}
+
 static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc)
 {
     if (!enc)
@@ -89,6 +102,23 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc)
     [enc setFragmentBytes:lightDirectionView length:sizeof(lightDirectionView) atIndex:7];
     [enc setVertexBytes:lightColor length:sizeof(lightColor) atIndex:8];
     [enc setFragmentBytes:lightColor length:sizeof(lightColor) atIndex:8];
+
+    const util::MATERIAL material = getReservedMaterialForCurrentRenderMetal();
+    float materialDiffuse[4] = {material.Diffuse.r, material.Diffuse.g, material.Diffuse.b, material.Diffuse.a};
+    float materialAmbient[4] = {material.Ambient.r, material.Ambient.g, material.Ambient.b, material.Ambient.a};
+    float materialSpecular[4] = {material.Specular.r, material.Specular.g, material.Specular.b, material.Specular.a};
+    float materialEmissive[4] = {material.Emissive.r, material.Emissive.g, material.Emissive.b, material.Emissive.a};
+    float materialPower = material.Power;
+    [enc setVertexBytes:materialDiffuse length:sizeof(materialDiffuse) atIndex:9];
+    [enc setFragmentBytes:materialDiffuse length:sizeof(materialDiffuse) atIndex:9];
+    [enc setVertexBytes:materialAmbient length:sizeof(materialAmbient) atIndex:10];
+    [enc setFragmentBytes:materialAmbient length:sizeof(materialAmbient) atIndex:10];
+    [enc setVertexBytes:materialSpecular length:sizeof(materialSpecular) atIndex:11];
+    [enc setFragmentBytes:materialSpecular length:sizeof(materialSpecular) atIndex:11];
+    [enc setVertexBytes:materialEmissive length:sizeof(materialEmissive) atIndex:12];
+    [enc setFragmentBytes:materialEmissive length:sizeof(materialEmissive) atIndex:12];
+    [enc setVertexBytes:&materialPower length:sizeof(materialPower) atIndex:13];
+    [enc setFragmentBytes:&materialPower length:sizeof(materialPower) atIndex:13];
 }
 
 static NSUInteger strideForFVF(mbm::FVF_PROVIDE_BY_ENGINE fvf)
@@ -362,7 +392,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
             [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
                               " constant float4& AmbientColor [[buffer(6)]],"
                               " constant float3& LightDirectionView [[buffer(7)]],"
-                              " constant float4& LightColor [[buffer(8)]]"];
+                              " constant float4& LightColor [[buffer(8)]],"
+                              " constant float4& MaterialDiffuse [[buffer(9)]],"
+                              " constant float4& MaterialAmbient [[buffer(10)]]"];
         }
         [src appendString:@") {\n"
                           "  float4 texColor = tex.sample(samp, in.uv) * u.color;\n"];
@@ -372,8 +404,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                               "  float3 normalView = normalize(in.nor);\n"
                               "  float3 lightTravel = normalize(LightDirectionView);\n"
                               "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
-                              "  float3 light = clamp(AmbientColor.rgb + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
-                              "  return float4(texColor.rgb * light, texColor.a);\n}\n"];
+                              "  float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
+                              "  float3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
+                              "  return float4(base * light, texColor.a * MaterialDiffuse.a);\n}\n"];
         }
         else
         {
@@ -390,7 +423,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
             [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
                               " constant float4& AmbientColor [[buffer(6)]],"
                               " constant float3& LightDirectionView [[buffer(7)]],"
-                              " constant float4& LightColor [[buffer(8)]]"];
+                              " constant float4& LightColor [[buffer(8)]],"
+                              " constant float4& MaterialDiffuse [[buffer(9)]],"
+                              " constant float4& MaterialAmbient [[buffer(10)]]"];
         }
         [src appendString:@") {\n"];
         if (hasNor)
@@ -399,8 +434,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                               "  float3 normalView = normalize(in.nor);\n"
                               "  float3 lightTravel = normalize(LightDirectionView);\n"
                               "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
-                              "  float3 light = clamp(AmbientColor.rgb + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
-                              "  return float4(u.color.rgb * light, u.color.a);\n}\n"];
+                              "  float3 base = MaterialDiffuse.rgb;\n"
+                              "  float3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
+                              "  return float4(base * light, MaterialDiffuse.a);\n}\n"];
         }
         else
         {

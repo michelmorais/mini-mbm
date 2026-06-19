@@ -170,7 +170,7 @@ namespace
                writeF32LE(fp, in.a);
     }
 
-    inline bool readMaterial(FILE *fp, util::MATERIAL_GLES &out)
+    inline bool readMaterial(FILE *fp, util::MATERIAL &out)
     {
         return readColor(fp, out.Diffuse) &&
                readColor(fp, out.Ambient) &&
@@ -179,7 +179,7 @@ namespace
                readF32LE(fp, out.Power);
     }
 
-    inline bool writeMaterial(FILE *fp, const util::MATERIAL_GLES &in)
+    inline bool writeMaterial(FILE *fp, const util::MATERIAL &in)
     {
         return writeColor(fp, in.Diffuse) &&
                writeColor(fp, in.Ambient) &&

@@ -56,6 +56,19 @@ namespace mbm
         return directionView;
     }
 
+    static util::MATERIAL getReservedMaterialForCurrentRender()
+    {
+        util::MATERIAL material;
+        if (DEVICE::getInstance()->getMaterialForCurrentRender(material))
+            return material;
+        material.Diffuse = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        material.Ambient = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        material.Specular = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        material.Emissive = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        material.Power = 0.0f;
+        return material;
+    }
+
     static void uploadReservedLightUniformsOpenGlEs(const uint32_t programObject)
     {
         if (programObject == 0)
@@ -64,6 +77,7 @@ namespace mbm
         const bool hasRenderLight = DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
         if (hasRenderLight == false)
             lightState = LIGHT_STATE();
+        const util::MATERIAL material = getReservedMaterialForCurrentRender();
         const int enabled = lightState.enabled ? 1 : 0;
         const int lightCount = lightState.enabled ? 1 : 0;
         const VEC3 directionView = getLightDirectionView(lightState);
@@ -94,6 +108,31 @@ namespace mbm
         {
             GLUniform4f(handle, lightState.directionalColor.r, lightState.directionalColor.g,
                         lightState.directionalColor.b, lightState.directionalColor.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialDiffuse");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, material.Diffuse.r, material.Diffuse.g, material.Diffuse.b, material.Diffuse.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialAmbient");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, material.Ambient.r, material.Ambient.g, material.Ambient.b, material.Ambient.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialSpecular");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, material.Specular.r, material.Specular.g, material.Specular.b, material.Specular.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialEmissive");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, material.Emissive.r, material.Emissive.g, material.Emissive.b, material.Emissive.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialPower");
+        if (handle != -1)
+        {
+            GLUniform1f(handle, material.Power);
         }
     }
 
@@ -665,14 +704,17 @@ namespace mbm
                     "uniform vec4 AmbientColor;"
                     "uniform vec3 LightDirectionView;"
                     "uniform vec4 LightColor;"
+                    "uniform vec4 MaterialDiffuse;"
+                    "uniform vec4 MaterialAmbient;"
                     "void main() {"
                     " vec4 texColor = texture2D(sample0, vTexCoord);"
                     " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
                     " vec3 normalView = normalize(vNormalView);"
                     " vec3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                    " vec3 light = clamp(AmbientColor.rgb + (LightColor.rgb * diffuse), 0.0, 1.0);"
-                    " gl_FragColor = vec4(texColor.rgb * light, texColor.a);"
+                    " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
+                    " vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);"
+                    " gl_FragColor = vec4(base * light, texColor.a * MaterialDiffuse.a);"
                     "}";
             }
             else
@@ -690,14 +732,17 @@ namespace mbm
                     "uniform vec4 AmbientColor;"
                     "uniform vec3 LightDirectionView;"
                     "uniform vec4 LightColor;"
+                    "uniform vec4 MaterialDiffuse;"
+                    "uniform vec4 MaterialAmbient;"
                     "void main() {"
                     " vec4 baseColor = vec4(1.0, 1.0, 1.0, 1.0);"
                     " if (LightEnabled == 0) { gl_FragColor = baseColor; return; }"
                     " vec3 normalView = normalize(vNormalView);"
                     " vec3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                    " vec3 light = clamp(AmbientColor.rgb + (LightColor.rgb * diffuse), 0.0, 1.0);"
-                    " gl_FragColor = vec4(baseColor.rgb * light, baseColor.a);"
+                    " vec3 base = MaterialDiffuse.rgb;"
+                    " vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);"
+                    " gl_FragColor = vec4(base * light, MaterialDiffuse.a);"
                     "}";
             }
             else

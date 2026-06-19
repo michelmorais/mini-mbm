@@ -23,6 +23,7 @@
 #include <texture-manager.h>
 #include <renderizable.h>
 #include <shader.h>
+#include <device.h>
 #include <util-interface.h>
 #include <shapes.h>
 #include <deprecated.h>
@@ -1015,7 +1016,7 @@ namespace mbm
         coordTexFrame_0     = nullptr;
         sizeCoordTexFrame_0 = 0;
         typeMe              = util::TYPE_MESH_UNKNOWN;
-        util::MATERIAL_GLES m;
+        util::MATERIAL m;
         this->headerMesh.material      = m;
         this->headerMesh.hasNorText[0] = HAS_NOR_NO;
         this->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
@@ -3526,7 +3527,7 @@ namespace mbm
         memset(static_cast<void*>(&this->headerMesh), 0, sizeof(this->headerMesh));
         zoomEditorSprite.x = 1.0f;
         zoomEditorSprite.y = 1.0f;
-        util::MATERIAL_GLES m;
+        util::MATERIAL m;
         this->headerMesh.material      = m;
         this->headerMesh.hasNorText[0] = HAS_NOR_NO;
         this->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
@@ -3859,8 +3860,12 @@ namespace mbm
     {
         if (indexFrame < totalFramesMesh && buffer)
         {
+            DEVICE *device = DEVICE::getInstance();
+            device->setRenderMaterial(this->material);
             buffer[indexFrame].pBufferGL->setTextureByStage(ptrTexture1, 1, 0);
-            return pShader->render(buffer[indexFrame].pBufferGL);
+            const bool ret = pShader->render(buffer[indexFrame].pBufferGL);
+            device->clearRenderMaterial();
+            return ret;
         }
         return false;
     }
@@ -3870,8 +3875,12 @@ namespace mbm
     {
         if (indexFrame < totalFramesMesh && buffer)
         {
+            DEVICE *device = DEVICE::getInstance();
+            device->setRenderMaterial(this->material);
             buffer[indexFrame].pBufferGL->setTextureByStage(ptrTexture1, 1, 0);
-            return pShader->renderDynamic(buffer[indexFrame].pBufferGL, vertex, normal, uv);
+            const bool ret = pShader->renderDynamic(buffer[indexFrame].pBufferGL, vertex, normal, uv);
+            device->clearRenderMaterial();
+            return ret;
         }
         return false;
     }

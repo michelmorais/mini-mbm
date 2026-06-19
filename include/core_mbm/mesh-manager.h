@@ -157,7 +157,7 @@ namespace mbm
       public:
         VEC3                            positionOffset;
         VEC3                            angleDefault;
-        util::MATERIAL_GLES             material;
+        util::MATERIAL                  material;
         INFO_PHYSICS                    infoPhysics;
         util::INFO_ANIMATION            infoAnimation;
         util::INFO_DRAW_MODE		        info_mode;

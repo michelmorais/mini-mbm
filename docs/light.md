@@ -19,8 +19,9 @@ struct MATERIAL
 ```
 
 Older code may still call this type `MATERIAL_GLES`. That name is misleading because the material
-is not OpenGL ES specific; it is engine/file-format data. The type should be renamed to a
-platform-neutral name while preserving the binary mesh layout.
+is not OpenGL ES specific; it is engine/file-format data. The engine now uses the platform-neutral
+name `MATERIAL` and keeps `MATERIAL_GLES` as a compatibility alias while preserving the binary mesh
+layout.
 
 These fields match the classic fixed-function OpenGL/DirectX and Phong/Blinn-Phong material model:
 
@@ -162,6 +163,11 @@ The engine uploads these reserved light names automatically when the active shad
 - `AmbientColor`: `vec4` / `float4`
 - `LightDirectionView`: `vec3` / `float3`, direction the light travels in view space
 - `LightColor`: `vec4` / `float4`
+- `MaterialDiffuse`: `vec4` / `float4`
+- `MaterialAmbient`: `vec4` / `float4`
+- `MaterialSpecular`: `vec4` / `float4`
+- `MaterialEmissive`: `vec4` / `float4`
+- `MaterialPower`: `float`
 
 OpenGL ES and DirectX 9 look up these names directly as optional uniforms/constants. Metal shaders
 use fixed optional argument buffer slots with the same argument names:
@@ -172,13 +178,21 @@ constant int    &LightCount        [[buffer(5)]]
 constant float4 &AmbientColor      [[buffer(6)]]
 constant float3 &LightDirectionView [[buffer(7)]]
 constant float4 &LightColor        [[buffer(8)]]
+constant float4 &MaterialDiffuse   [[buffer(9)]]
+constant float4 &MaterialAmbient   [[buffer(10)]]
+constant float4 &MaterialSpecular  [[buffer(11)]]
+constant float4 &MaterialEmissive  [[buffer(12)]]
+constant float  &MaterialPower     [[buffer(13)]]
 ```
 
 Custom shader CFG variables cannot use these reserved names; they are owned by the engine.
+Current runtime upload sources material from the active mesh material. Per-subset material upload
+is still a future expansion once that data is threaded through the render path.
 
 ## Default Lit Shader Behavior
 
 Built-in default shaders stay unlit unless the active vertex format provides normals. When normals
 exist and target lighting is enabled, the default shader applies ambient plus directional diffuse
-lighting to RGB and preserves alpha unchanged. Objects without normals keep their previous unlit
-output even when scene lighting is enabled.
+lighting to RGB using `MaterialDiffuse` and `MaterialAmbient`, and preserves alpha as
+texture-alpha times `MaterialDiffuse.a`. Objects without normals keep their previous unlit output
+even when scene lighting is enabled.

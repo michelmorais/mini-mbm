@@ -32,6 +32,11 @@
 #include <memory>
 #include <string>
 
+namespace util
+{
+    struct MATERIAL;
+}
+
 namespace mbm
 {
     class CONTROL_SCENE;
@@ -154,6 +159,9 @@ namespace mbm
         API_IMPL void setLightTargetForRender(const LIGHT_TARGET target) noexcept;
         API_IMPL void disableLightForRender() noexcept;
         API_IMPL bool getLightStateForCurrentRender(LIGHT_STATE &outState) const noexcept;
+        API_IMPL void setRenderMaterial(const util::MATERIAL &material) noexcept;
+        API_IMPL void clearRenderMaterial() noexcept;
+        API_IMPL bool getMaterialForCurrentRender(util::MATERIAL &outMaterial) const noexcept;
 
     private:
         static DEVICE *                       instanceDevice;

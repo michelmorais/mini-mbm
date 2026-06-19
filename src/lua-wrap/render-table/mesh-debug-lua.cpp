@@ -716,7 +716,7 @@ namespace mbm
     int onGetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const util::MATERIAL_GLES &m = meshDebug->mesh.headerMesh.material;
+        const util::MATERIAL &m = meshDebug->mesh.headerMesh.material;
         lua_newtable(lua);
         lua_newtable(lua);
         lua_pushnumber(lua, m.Diffuse.r);
@@ -766,7 +766,7 @@ namespace mbm
     int onSetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        util::MATERIAL_GLES &m = meshDebug->mesh.headerMesh.material;
+        util::MATERIAL &m = meshDebug->mesh.headerMesh.material;
         luaL_checktype(lua, 2, LUA_TTABLE);
         auto getColor = [lua](const char *key, float *r, float *g, float *b, float *a) {
             *r = *g = *b = *a = 1.0f;

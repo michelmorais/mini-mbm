@@ -88,14 +88,14 @@ namespace util
         TYPE_MESH_TILE_MAP,
     };
 
-    struct API_IMPL MATERIAL_GLES
+    struct API_IMPL MATERIAL
     {
         mbm::COLOR Diffuse;
         mbm::COLOR Ambient;
         mbm::COLOR Specular;
         mbm::COLOR Emissive;
         float      Power;
-        constexpr MATERIAL_GLES() noexcept:
+        constexpr MATERIAL() noexcept:
             Diffuse(1.0f,1.0f,1.0f,1.0f) ,
             Ambient(1.0f,1.0f,1.0f,1.0f) ,
             Specular(1.0f,1.0f,1.0f,1.0f) ,
@@ -103,6 +103,8 @@ namespace util
             Power(1.0f)
         {}
     };
+
+    using MATERIAL_GLES = MATERIAL;
 
     #define INITIAL_VERSION_MBM_HEADER     1
     #define SPRITE_INFO_VERSION_MBM_HEADER 2
@@ -162,7 +164,7 @@ namespace util
 
     struct API_IMPL HEADER_MESH_DISK_V8
     {
-        MATERIAL_GLES material;
+        MATERIAL material;
         int32_t totalAnimation;
         int32_t totalFrames;
         int32_t deprecated_typePhysics;
@@ -398,7 +400,7 @@ namespace util
 
     struct API_IMPL HEADER_MESH // Header principal para objetos 3d MBM
     {
-        MATERIAL_GLES material;              // Material aplicado nesta subset
+        MATERIAL material;              // Material aplicado nesta subset
         int32_t      totalAnimation;         // Total animations in mesh
         int32_t      totalFrames;            // Total frames for the file. Each frame is divided into one or more subsets.
         int32_t      deprecated_typePhysics; // not used anymore, 'deprecated' (just keep for compatibility,old typePhysics)

@@ -56,6 +56,19 @@ namespace mbm
         return directionView;
     }
 
+    static util::MATERIAL getReservedMaterialForCurrentRenderD3D()
+    {
+        util::MATERIAL material;
+        if (DEVICE::getInstance()->getMaterialForCurrentRender(material))
+            return material;
+        material.Diffuse = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        material.Ambient = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        material.Specular = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        material.Emissive = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        material.Power = 0.0f;
+        return material;
+    }
+
     static void uploadReservedLightConstantsD3D(IDirect3DDevice9 *pd3dDevice, ID3DXConstantTable *constantTable)
     {
         if (pd3dDevice == nullptr || constantTable == nullptr)
@@ -64,6 +77,7 @@ namespace mbm
         const bool hasRenderLight = DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
         if (hasRenderLight == false)
             lightState = LIGHT_STATE();
+        const util::MATERIAL material = getReservedMaterialForCurrentRenderD3D();
         const int enabled = lightState.enabled ? 1 : 0;
         const int lightCount = lightState.enabled ? 1 : 0;
         const VEC3 directionView = getLightDirectionViewD3D(lightState);
@@ -83,6 +97,21 @@ namespace mbm
         handle = constantTable->GetConstantByName(nullptr, "LightColor");
         if (handle)
             constantTable->SetFloatArray(pd3dDevice, handle, &lightState.directionalColor.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialDiffuse");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &material.Diffuse.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialAmbient");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &material.Ambient.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialSpecular");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &material.Specular.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialEmissive");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &material.Emissive.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialPower");
+        if (handle)
+            constantTable->SetFloat(pd3dDevice, handle, material.Power);
     }
 
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept :
@@ -783,7 +812,9 @@ namespace mbm
                 defaultCodePs += "int LightEnabled;"
                     "float4 AmbientColor;"
                     "float3 LightDirectionView;"
-                    "float4 LightColor;";
+                    "float4 LightColor;"
+                    "float4 MaterialDiffuse;"
+                    "float4 MaterialAmbient;";
             }
             defaultCodePs += "sampler2D sample0 : register(s0);"
                 "float4 main(";
@@ -803,8 +834,9 @@ namespace mbm
                     " float3 normalView = normalize(normalViewIn);"
                     " float3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0);"
-                    " float3 light = saturate(AmbientColor.rgb + (LightColor.rgb * diffuse));"
-                    " return float4(texColor.rgb * light, texColor.a);";
+                    " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
+                    " float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));"
+                    " return float4(base * light, texColor.a * MaterialDiffuse.a);";
             }
             else
             {
@@ -820,7 +852,9 @@ namespace mbm
                 defaultCodePs += "int LightEnabled;"
                     "float4 AmbientColor;"
                     "float3 LightDirectionView;"
-                    "float4 LightColor;";
+                    "float4 LightColor;"
+                    "float4 MaterialDiffuse;"
+                    "float4 MaterialAmbient;";
             }
             defaultCodePs += "float4 main(";
             if (hasNormal)
@@ -835,8 +869,9 @@ namespace mbm
                     " float3 normalView = normalize(normalViewIn);"
                     " float3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0);"
-                    " float3 light = saturate(AmbientColor.rgb + (LightColor.rgb * diffuse));"
-                    " return float4(baseColor.rgb * light, baseColor.a);";
+                    " float3 base = MaterialDiffuse.rgb;"
+                    " float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));"
+                    " return float4(base * light, MaterialDiffuse.a);";
             }
             else
             {

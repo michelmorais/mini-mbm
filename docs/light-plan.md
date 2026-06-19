@@ -449,12 +449,15 @@ Default MSL generation should:
 ### Milestone 2: Material naming cleanup
 
 - Rename `util::MATERIAL_GLES` to a platform-neutral name such as `util::MATERIAL`.
+- Keep `MATERIAL_GLES` as a compatibility alias during the transition so existing code and tools do
+  not break immediately.
 - Preserve the existing material fields and on-disk mesh layout.
 - Update mesh loading/saving, Mesh Debug Lua bindings, editor material UI, and docs.
 - Treat material fields as reserved shader inputs through `MaterialDiffuse`, `MaterialAmbient`,
   `MaterialSpecular`, `MaterialEmissive`, and `MaterialPower`.
-- Upload material uniforms per subset when subset material data exists; use documented fallback
-  classic material defaults otherwise.
+- Current runtime upload may source material from the active mesh material until per-subset material
+  is threaded through the render path; still use the documented fallback classic material defaults
+  when no material data is active.
 
 ### Milestone 3: Scalar shader integer variables
 

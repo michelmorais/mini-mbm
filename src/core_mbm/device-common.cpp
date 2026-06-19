@@ -25,6 +25,7 @@
 #include <util-interface.h>
 #include <dynamic-var.h>
 #include <core-manager.h>
+#include <header-mesh.h>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -72,6 +73,8 @@ namespace mbm
         LIGHT_STATE light2DW;
         LIGHT_TARGET currentRenderLightTarget = LIGHT_TARGET_3D;
         bool currentRenderLightTargetEnabled = false;
+        util::MATERIAL currentRenderMaterial;
+        bool currentRenderMaterialEnabled = false;
         bool clearBackGround = true;
         bool stopScriptOnError = false;
         int swapBackBufferStep = 3;
@@ -166,6 +169,25 @@ namespace mbm
         if (impl->currentRenderLightTargetEnabled == false)
             return false;
         outState = getLightStateInternal(impl->currentRenderLightTarget);
+        return true;
+    }
+
+    void DEVICE::setRenderMaterial(const util::MATERIAL &material) noexcept
+    {
+        impl->currentRenderMaterial = material;
+        impl->currentRenderMaterialEnabled = true;
+    }
+
+    void DEVICE::clearRenderMaterial() noexcept
+    {
+        impl->currentRenderMaterialEnabled = false;
+    }
+
+    bool DEVICE::getMaterialForCurrentRender(util::MATERIAL &outMaterial) const noexcept
+    {
+        if (impl->currentRenderMaterialEnabled == false)
+            return false;
+        outMaterial = impl->currentRenderMaterial;
         return true;
     }
 
