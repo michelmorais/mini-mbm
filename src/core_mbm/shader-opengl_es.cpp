@@ -70,21 +70,31 @@ namespace mbm
 
         GLint handle = GLGetUniformLocation(programObject, "LightEnabled");
         if (handle != -1)
+        {
             GLUniform1i(handle, enabled);
+        }
         handle = GLGetUniformLocation(programObject, "LightCount");
         if (handle != -1)
+        {
             GLUniform1i(handle, lightCount);
+        }
         handle = GLGetUniformLocation(programObject, "AmbientColor");
         if (handle != -1)
+        {
             GLUniform4f(handle, lightState.ambientColor.r, lightState.ambientColor.g,
                         lightState.ambientColor.b, lightState.ambientColor.a);
+        }
         handle = GLGetUniformLocation(programObject, "LightDirectionView");
         if (handle != -1)
+        {
             GLUniform3f(handle, directionView.x, directionView.y, directionView.z);
+        }
         handle = GLGetUniformLocation(programObject, "LightColor");
         if (handle != -1)
+        {
             GLUniform4f(handle, lightState.directionalColor.r, lightState.directionalColor.g,
                         lightState.directionalColor.b, lightState.directionalColor.a);
+        }
     }
 
     static GLenum getOpenGlEsModeDraw(const uint32_t mode_draw)
