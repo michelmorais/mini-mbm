@@ -519,6 +519,9 @@ Default MSL generation should:
 - Validate one-light rendering on macOS/Metal.
 - Build the validation scene so the default direction `(0, -1, -1)` visibly lights normal-facing
   geometry.
+- First validate with a tiny generated/debug mesh with known normals to isolate shader/backend
+  behavior, then validate with an imported `.msh` mesh asset to cover current mesh loading,
+  normals, and material data.
 - Do not begin multi-light work until the one-light path is verified on all three backend families.
 
 ### Milestone 8: Dedicated 2D lighting and normal-map design
@@ -656,6 +659,10 @@ Ask and resolve these before implementation:
 8b.0. How should the default direction be interpreted?
    Resolved: as light traveling downward and forward in world space. Validation scenes should make
    that direction visibly light normal-facing geometry.
+
+8b.0.1. What mesh asset should validation use?
+   Resolved: use a tiny generated/debug mesh first, then validate an imported `.msh` mesh. `.mbm` is
+   deprecated and should not be the primary validation asset extension.
 
 8b.1. Should default ambient be full white for compatibility?
    Resolved: no. Keep default ambient at `0.2` because lighting is opt-in and directional shading

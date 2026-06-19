@@ -507,6 +507,13 @@ namespace mbm
                         s = 1;
                     }
                     break;
+                    case VAR_INT:
+                    {
+                        lua_pushstring(lua, "int");
+                        lua_setfield(lua, -2, "type");
+                        s = 1;
+                    }
+                    break;
                     case VAR_VECTOR:
                     {
                         lua_pushstring(lua, "vec3");
@@ -539,7 +546,10 @@ namespace mbm
                 lua_newtable(lua); // value
                 for (unsigned int j = 0; j < s; ++j)
                 {
-                    lua_pushnumber(lua, localVar->current[j]);
+                    if (localVar->typeVar == VAR_INT)
+                        lua_pushinteger(lua, localVar->getCurrentInt(static_cast<int>(j)));
+                    else
+                        lua_pushnumber(lua, localVar->current[j]);
                     lua_rawseti(lua, -2, j + 1);
                 }
                 lua_setfield(lua, -2, "value");
@@ -547,7 +557,10 @@ namespace mbm
                 lua_newtable(lua); // min
                 for (unsigned int j = 0; j < s; ++j)
                 {
-                    lua_pushnumber(lua, localVar->min[j]);
+                    if (localVar->typeVar == VAR_INT)
+                        lua_pushinteger(lua, roundClampShaderIntValue(localVar->min[j], localVar->min[j], localVar->max[j]));
+                    else
+                        lua_pushnumber(lua, localVar->min[j]);
                     lua_rawseti(lua, -2, j + 1);
                 }
                 lua_setfield(lua, -2, "min");
@@ -555,7 +568,10 @@ namespace mbm
                 lua_newtable(lua); // max
                 for (unsigned int j = 0; j < s; ++j)
                 {
-                    lua_pushnumber(lua, localVar->max[j]);
+                    if (localVar->typeVar == VAR_INT)
+                        lua_pushinteger(lua, roundClampShaderIntValue(localVar->max[j], localVar->min[j], localVar->max[j]));
+                    else
+                        lua_pushnumber(lua, localVar->max[j]);
                     lua_rawseti(lua, -2, j + 1);
                 }
                 lua_setfield(lua, -2, "max");

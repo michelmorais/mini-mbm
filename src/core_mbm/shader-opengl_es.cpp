@@ -428,7 +428,8 @@ namespace mbm
             }
             switch (typeVar)
             {
-                case VAR_FLOAT: { var->current[0] = defaultValue[0];
+                case VAR_FLOAT:
+                case VAR_INT: { var->current[0] = defaultValue[0];
                 }
                 break;
                 case VAR_VECTOR2:
@@ -485,6 +486,9 @@ namespace mbm
                 {
                     // Uniform
                     case VAR_FLOAT: { GLUniform1f(handleVar, var->current[0]);
+                    }
+                    break;
+                    case VAR_INT: { GLUniform1i(handleVar, var->getCurrentInt());
                     }
                     break;
                     case VAR_VECTOR2: { GLUniform2f(handleVar, var->current[0], var->current[1]);

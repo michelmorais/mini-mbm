@@ -561,7 +561,8 @@ namespace mbm
             
             switch (typeVar)
             {
-                case VAR_FLOAT: { var->current[0] = defaultValue[0];
+                case VAR_FLOAT:
+                case VAR_INT: { var->current[0] = defaultValue[0];
                 }
                 break;
                 case VAR_VECTOR2:
@@ -620,6 +621,8 @@ namespace mbm
                 {
                     // Uniform
                     case VAR_FLOAT: { constantTable->SetFloat(pd3dDevice, *pHandleVar, var->current[0]); }
+                    break;
+                    case VAR_INT: { constantTable->SetInt(pd3dDevice, *pHandleVar, var->getCurrentInt()); }
                     break;
                     case VAR_VECTOR2:{ constantTable->SetFloatArray(pd3dDevice, *pHandleVar, var->current, 2); }
                     break;

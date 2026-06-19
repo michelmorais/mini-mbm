@@ -25,6 +25,9 @@
 #include <util-interface.h>
 #include <dynamic-var.h>
 #include <core-manager.h>
+#include <algorithm>
+#include <cmath>
+#include <cstring>
 
 //#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 //    #include <plusWindows/defaultThemePlusWindows.h>
@@ -65,6 +68,8 @@ namespace mbm
         VEC3 dimFarFrustum3d = VEC3(0, 0, 0);
         VEC3 dimNearFrustum3d = VEC3(0, 0, 0);
         COLOR colorClearBackGround = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        LIGHT_STATE light3D;
+        LIGHT_STATE light2DW;
         bool clearBackGround = true;
         bool stopScriptOnError = false;
         int swapBackBufferStep = 3;
@@ -131,6 +136,173 @@ namespace mbm
     SCENE * DEVICE::getScene() const noexcept
     {
         return impl->scene;
+    }
+
+    LIGHT_STATE &DEVICE::getMutableLightState(const LIGHT_TARGET target) noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->light2DW : impl->light3D;
+    }
+
+    const LIGHT_STATE &DEVICE::getLightStateInternal(const LIGHT_TARGET target) const noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->light2DW : impl->light3D;
+    }
+
+    namespace
+    {
+        float clampLightChannel(const float value) noexcept
+        {
+            return std::max(0.0f, std::min(1.0f, value));
+        }
+
+        COLOR clampLightColor(const COLOR &color) noexcept
+        {
+            return COLOR(clampLightChannel(color.r), clampLightChannel(color.g), clampLightChannel(color.b),
+                         clampLightChannel(color.a));
+        }
+
+        VEC3 normalizeLightDirection(const VEC3 &direction) noexcept
+        {
+            const float length = direction.length();
+            if (length <= 0.000001f)
+                return VEC3(0.0f, -0.70710677f, -0.70710677f);
+            return direction / length;
+        }
+
+        LIGHT_STATE makeDefaultLightState() noexcept
+        {
+            return LIGHT_STATE();
+        }
+
+        void warnIf2DWLightRenderingIsPending(const LIGHT_TARGET target, LIGHT_STATE &state) noexcept
+        {
+            if (target == LIGHT_TARGET_2DW && state.enabled && state.renderingWarningEmitted == false)
+            {
+                WARN_LOG("2dw lighting rendering not implemented yet");
+                state.renderingWarningEmitted = true;
+            }
+        }
+    }
+
+    bool isValidLightTarget(const LIGHT_TARGET target) noexcept
+    {
+        return target == LIGHT_TARGET_3D || target == LIGHT_TARGET_2DW;
+    }
+
+    const char *getLightTargetName(const LIGHT_TARGET target) noexcept
+    {
+        switch (target)
+        {
+            case LIGHT_TARGET_3D: return "3d";
+            case LIGHT_TARGET_2DW: return "2dw";
+            default: return "unknown";
+        }
+    }
+
+    bool lightTargetFromString(const char *targetName, LIGHT_TARGET &targetOut) noexcept
+    {
+        if (targetName == nullptr)
+            return false;
+        if (strcmp(targetName, "3d") == 0)
+        {
+            targetOut = LIGHT_TARGET_3D;
+            return true;
+        }
+        if (strcmp(targetName, "2dw") == 0)
+        {
+            targetOut = LIGHT_TARGET_2DW;
+            return true;
+        }
+        return false;
+    }
+
+    bool setLightEnabled(const LIGHT_TARGET target, const bool enabled) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.enabled = enabled;
+        if (enabled == false)
+            return true;
+        warnIf2DWLightRenderingIsPending(target, state);
+        return true;
+    }
+
+    bool setAmbientLight(const LIGHT_TARGET target, const COLOR &ambientColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.ambientColor = clampLightColor(ambientColor);
+        state.ambientConfigured = true;
+        warnIf2DWLightRenderingIsPending(target, state);
+        return true;
+    }
+
+    bool setDirectionalLight(const LIGHT_TARGET target, const VEC3 &directionalDirection,
+                             const COLOR &directionalColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.directionalDirection = normalizeLightDirection(directionalDirection);
+        state.directionalColor = clampLightColor(directionalColor);
+        state.directionalDirectionConfigured = true;
+        state.directionalColorConfigured = true;
+        warnIf2DWLightRenderingIsPending(target, state);
+        return true;
+    }
+
+    bool setDirectionalLightDirection(const LIGHT_TARGET target, const VEC3 &directionalDirection) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.directionalDirection = normalizeLightDirection(directionalDirection);
+        state.directionalDirectionConfigured = true;
+        warnIf2DWLightRenderingIsPending(target, state);
+        return true;
+    }
+
+    bool setDirectionalLightColor(const LIGHT_TARGET target, const COLOR &directionalColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.directionalColor = clampLightColor(directionalColor);
+        state.directionalColorConfigured = true;
+        warnIf2DWLightRenderingIsPending(target, state);
+        return true;
+    }
+
+    bool resetLight(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        const bool renderingWarningEmitted = state.renderingWarningEmitted;
+        state = makeDefaultLightState();
+        state.renderingWarningEmitted = renderingWarningEmitted;
+        return true;
+    }
+
+    void resetAllLights() noexcept
+    {
+        DEVICE::getInstance()->getMutableLightState(LIGHT_TARGET_3D) = makeDefaultLightState();
+        DEVICE::getInstance()->getMutableLightState(LIGHT_TARGET_2DW) = makeDefaultLightState();
+    }
+
+    bool getLightState(const LIGHT_TARGET target, LIGHT_STATE &outState) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        outState = DEVICE::getInstance()->getLightStateInternal(target);
+        return true;
+    }
+
+    const LIGHT_STATE &getLightState(const LIGHT_TARGET target) noexcept
+    {
+        return DEVICE::getInstance()->getLightStateInternal(target);
     }
 
     void DEVICE::setTotalObjectsOnFrustum3D(const uint32_t total) noexcept

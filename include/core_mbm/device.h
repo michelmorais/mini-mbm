@@ -22,6 +22,7 @@
 
 #include "core-exports.h"
 #include "shader-cfg.h"
+#include "light.h"
 #include "order-render.h"
 #include "primitives.h"
 #include "frustum.h"
@@ -148,6 +149,8 @@ namespace mbm
         API_IMPL void enableFilteringAfterPixelPerfect() noexcept;//backend specific way to restore texture filtering
         API_IMPL bool isPixelPerfectRendering() const noexcept;// true while tile (etc.) is drawing; used to skip UV inset on D3D9
         API_IMPL bool isGamePaused() const noexcept;
+        API_IMPL LIGHT_STATE &getMutableLightState(const LIGHT_TARGET target) noexcept;
+        API_IMPL const LIGHT_STATE &getLightStateInternal(const LIGHT_TARGET target) const noexcept;
 
     private:
         static DEVICE *                       instanceDevice;

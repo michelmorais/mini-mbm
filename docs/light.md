@@ -113,3 +113,42 @@ For the first lighting pass:
 PBR should be treated as a separate future rendering/material-system design, not as part of the
 first light feature.
 
+## Runtime Light State
+
+Lighting is opt-in and target-specific. The first API skeleton stores independent state for `3d`
+and `2dw` without changing the `SCENE` class signature.
+
+C++:
+
+```cpp
+mbm::setLightEnabled(mbm::LIGHT_TARGET_3D, true);
+mbm::setAmbientLight(mbm::LIGHT_TARGET_3D, mbm::COLOR(0.2f, 0.2f, 0.2f, 1.0f));
+mbm::setDirectionalLight(mbm::LIGHT_TARGET_3D,
+                         mbm::VEC3(0.0f, -0.707f, -0.707f),
+                         mbm::COLOR(1.0f, 1.0f, 1.0f, 1.0f));
+mbm::resetLight(mbm::LIGHT_TARGET_3D);
+```
+
+Lua:
+
+```lua
+mbm.setLightEnabled('3d', true)
+mbm.setAmbientLight('3d', {r = 0.2, g = 0.2, b = 0.2, a = 1.0})
+mbm.setDirectionalLight('3d',
+    {x = 0.0, y = -0.707, z = -0.707},
+    {r = 1.0, g = 1.0, b = 1.0, a = 1.0})
+local light = mbm.getLightState('3d')
+```
+
+Lua target strings are exact: only `'3d'` and `'2dw'` are accepted for now. The `2dw` state is
+accepted and stored, but dedicated 2D lighting rendering is not implemented yet; enabling `2dw`
+lighting logs that status once per scene. New scene loading resets all light state.
+
+Default values:
+
+- `enabled = false`
+- `ambientColor = (0.2, 0.2, 0.2, 1.0)`
+- `directionalColor = (1.0, 1.0, 1.0, 1.0)`
+- `directionalDirection = normalized (0.0, -0.707, -0.707)`
+
+Color channels are clamped to `0..1`. Directional light directions are normalized by the engine.

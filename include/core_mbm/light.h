@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,51 +17,46 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef SHADERS_VAR_CFG_GLES_H
-#define SHADERS_VAR_CFG_GLES_H
+#ifndef LIGHT_MBM_H
+#define LIGHT_MBM_H
 
-#include <string>
 #include "core-exports.h"
+#include "primitives.h"
 
 namespace mbm
 {
-
-    enum TYPE_VAR_SHADER : char
+    enum LIGHT_TARGET : int
     {
-        VAR_FLOAT      = 1,
-        VAR_VECTOR     = 2,
-        VAR_VECTOR2    = 3,
-        VAR_COLOR_RGB  = 4,
-        VAR_COLOR_RGBA = 5,
-        VAR_INT        = 6
+        LIGHT_TARGET_3D = 0,
+        LIGHT_TARGET_2DW = 1,
     };
 
-    API_IMPL bool isReservedShaderUniformName(const char *name) noexcept;
-    API_IMPL int roundClampShaderIntValue(float value, float minValue, float maxValue) noexcept;
-
-    struct VAR_SHADER
+    struct LIGHT_STATE
     {
-        const std::string     name;
-        const TYPE_VAR_SHADER typeVar;
-        const bool            isPS;
-        void*                 ptrHandleVar;
-        int                   sizeVar;
-        float                 current[4];
-        float                 min[4];
-        float                 max[4];
-        float                 step[4];
-        bool                  control[4];
-        bool                  granThen[4]; // Test <=
-        
-        API_IMPL VAR_SHADER(const std::string Name,const TYPE_VAR_SHADER TypeVar,const bool isPS) noexcept;
-        API_IMPL void set(const float newMin[4], const float newMax[4],const float timeAnim);
-        API_IMPL int getCurrentInt(const int index = 0) const noexcept;
-
-        ~VAR_SHADER();
-        // Prevent copying
-        VAR_SHADER(const VAR_SHADER&) = delete;
-        VAR_SHADER& operator=(const VAR_SHADER&) = delete;
+        bool enabled = false;
+        COLOR ambientColor = COLOR(0.2f, 0.2f, 0.2f, 1.0f);
+        COLOR directionalColor = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        VEC3 directionalDirection = VEC3(0.0f, -0.70710677f, -0.70710677f);
+        bool ambientConfigured = false;
+        bool directionalColorConfigured = false;
+        bool directionalDirectionConfigured = false;
+        bool renderingWarningEmitted = false;
     };
+
+    API_IMPL bool isValidLightTarget(const LIGHT_TARGET target) noexcept;
+    API_IMPL const char *getLightTargetName(const LIGHT_TARGET target) noexcept;
+    API_IMPL bool lightTargetFromString(const char *targetName, LIGHT_TARGET &targetOut) noexcept;
+
+    API_IMPL bool setLightEnabled(const LIGHT_TARGET target, const bool enabled) noexcept;
+    API_IMPL bool setAmbientLight(const LIGHT_TARGET target, const COLOR &ambientColor) noexcept;
+    API_IMPL bool setDirectionalLight(const LIGHT_TARGET target, const VEC3 &directionalDirection,
+                                      const COLOR &directionalColor) noexcept;
+    API_IMPL bool setDirectionalLightDirection(const LIGHT_TARGET target, const VEC3 &directionalDirection) noexcept;
+    API_IMPL bool setDirectionalLightColor(const LIGHT_TARGET target, const COLOR &directionalColor) noexcept;
+    API_IMPL bool resetLight(const LIGHT_TARGET target) noexcept;
+    API_IMPL void resetAllLights() noexcept;
+    API_IMPL bool getLightState(const LIGHT_TARGET target, LIGHT_STATE &outState) noexcept;
+    API_IMPL const LIGHT_STATE &getLightState(const LIGHT_TARGET target) noexcept;
 }
 
 #endif

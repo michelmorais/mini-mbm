@@ -26,6 +26,7 @@
 
 #include <core-manager.h>
 #include <device.h>
+#include <light.h>
 #include <scene.h>
 #include <renderizable.h>
 #include <physics.h>
@@ -877,6 +878,7 @@ namespace mbm
                         scene->setEndScene(false);
                     this->setChangeScene(true);
                     device->setClearBackGround(true);
+                    resetAllLights();
                     if(scene)
                         scene->startLoading();
                 }

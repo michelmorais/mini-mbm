@@ -31,6 +31,18 @@ static mbm::SPECIFIC_AUX_CONTEXT_DEVICE* getMetalCtx()
     return dev ? dev->getSpecificContextDevice() : nullptr;
 }
 
+static void packMetalShaderVar(float *buffer, const mbm::VAR_SHADER *var, const int32_t offset)
+{
+    if (!buffer || !var || offset < 0)
+        return;
+    if (var->typeVar == mbm::VAR_INT)
+    {
+        buffer[offset] = static_cast<float>(var->getCurrentInt());
+        return;
+    }
+    memcpy(buffer + offset, var->current, static_cast<size_t>(var->sizeVar) * sizeof(float));
+}
+
 static NSUInteger strideForFVF(mbm::FVF_PROVIDE_BY_ENGINE fvf)
 {
     using F = mbm::FVF_PROVIDE_BY_ENGINE;
@@ -814,7 +826,7 @@ namespace mbm
                     for (const auto* v : pShader->lsVar)
                     {
                         const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
-                        memcpy(fbuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(fbuf, v, off);
                     }
                     [enc setFragmentBytes:fbuf length:(NSUInteger)totalF * sizeof(float) atIndex:2];
                 }
@@ -831,7 +843,7 @@ namespace mbm
                     for (const auto* v : vShader->lsVar)
                     {
                         const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
-                        memcpy(vbuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(vbuf, v, off);
                     }
                     [enc setVertexBytes:vbuf length:(NSUInteger)totalF * sizeof(float) atIndex:3];
                 }
@@ -947,7 +959,7 @@ namespace mbm
                     for (const auto* v : pShader->lsVar)
                     {
                         const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
-                        memcpy(fbuf2 + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(fbuf2, v, off);
                     }
                     [enc setFragmentBytes:fbuf2 length:(NSUInteger)totalF * sizeof(float) atIndex:2];
                 }
@@ -964,7 +976,7 @@ namespace mbm
                     for (const auto* v : vShader->lsVar)
                     {
                         const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
-                        memcpy(vbuf2 + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(vbuf2, v, off);
                     }
                     [enc setVertexBytes:vbuf2 length:(NSUInteger)totalF * sizeof(float) atIndex:3];
                 }
@@ -1066,7 +1078,7 @@ namespace mbm
                 {
                     const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
                     if (off >= 0 && off + v->sizeVar <= 64)
-                        memcpy(fragBuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(fragBuf, v, off);
                 }
             }
 
@@ -1152,7 +1164,7 @@ namespace mbm
                 {
                     const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
                     if (off >= 0 && off + v->sizeVar <= 64)
-                        memcpy(fragBuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(fragBuf, v, off);
                 }
             }
             if (pGroup->color && colorOff >= 0 && colorOff + 4 <= 64)

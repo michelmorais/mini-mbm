@@ -50,7 +50,7 @@ namespace mbm
         std::vector<VAR_CFG *>  lsVar;
         API_IMPL SHADER_CFG(const char *FileName);
         API_IMPL virtual ~SHADER_CFG();
-        API_IMPL void addVar(const char *type, const char *name, const char *values);
+        API_IMPL bool addVar(const char *type, const char *name, const char *values);
         API_IMPL VAR_CFG *getVarByName(const char *name);
         API_IMPL VAR_CFG *getVarFloat(const uint32_t indexTck);
         API_IMPL VAR_CFG *getVarColor(const uint32_t indexTck);
@@ -99,7 +99,7 @@ namespace mbm
         API_IMPL void consolidatesFileShaderCFG();
         API_IMPL bool readShaderFromFile(const char *fileName, std::string &code);
       private:
-        void addVariablesFromContents();
+        bool addVariablesFromContents();
         void parserShaders();
         char *trimRight(char *stringSource);
         char *trimLeft(char *stringSource);

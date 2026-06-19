@@ -251,6 +251,11 @@ std::string MY_SCENE::getShaderInfoText(const bool isPS, std::vector<mbm::VAR_SH
                 snprintf(text, sizeof(text), "%s[%0.3f]", var->name.c_str(), data[0]);
                 break;
             }
+            case mbm::TYPE_VAR_SHADER::VAR_INT:
+            {
+                snprintf(text, sizeof(text), "%s[%d]", var->name.c_str(), var->getCurrentInt());
+                break;
+            }
             case mbm::TYPE_VAR_SHADER::VAR_VECTOR2:
             {
                 snprintf(text, sizeof(text), "%s[%0.3f,%0.3f]", var->name.c_str(), data[0], data[1]);
