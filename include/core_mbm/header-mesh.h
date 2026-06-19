@@ -554,7 +554,7 @@ namespace util
         MATERIAL_TEXTURE_SLOT_HEADER()noexcept;
     };
 
-    struct MATERIAL_TEXTURE_SLOT_DEBUG
+    struct API_IMPL MATERIAL_TEXTURE_SLOT_DEBUG
     {
         uint16_t    type;
         std::string texture;
