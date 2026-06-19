@@ -2119,6 +2119,7 @@ namespace mbm
         // Create new subset entry
         auto *newSub       = new util::SUBSET_DEBUG();
         newSub->texture    = srcSub->texture;
+        newSub->materialTextureSlots = srcSub->materialTextureSlots;
         newSub->vertexStart = tgtOldV;
         newSub->vertexCount = srcVCount;
         newSub->indexStart  = tgtOldI;

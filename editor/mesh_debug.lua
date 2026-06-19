@@ -4405,9 +4405,10 @@ function showMeshOptions(tEntry, index)
 
     -- ── Texture node ──────────────────────────────────────────────────────────
     if openNode(tEntry, 'texture', tLang.L("texture_node"), 0, 'texture-' .. index) then
-        tEntry.tTexUI = tEntry.tTexUI or { frame=0, subset=0, stage=0, filename='' }
+        tEntry.tTexUI = tEntry.tTexUI or { frame=0, subset=0, stage=0, role='primary', filename='' }
         local tx      = tEntry.tTexUI
         tx.filename   = tx.filename or ''
+        tx.role       = tx.role or 'primary'
 
         local totalFrames  = info.totalFrames or 0
         local totalSubsets = 0
@@ -4437,9 +4438,35 @@ function showMeshOptions(tEntry, index)
         if tx.stage == 1 then
             tImGui.TextWrapped(tLang.L("tex_stage1_note"))
         else
+            local roleOpts = {
+                tLang.L("tex_role_primary"),
+                tLang.L("tex_role_normal"),
+                tLang.L("tex_role_specular"),
+                tLang.L("tex_role_emissive"),
+                tLang.L("tex_role_mask"),
+            }
+            local roleValues = {'primary', 'normal', 'specular', 'emissive', 'mask'}
+            local roleIndex = 1
+            for i = 1, #roleValues do
+                if roleValues[i] == tx.role then
+                    roleIndex = i
+                    break
+                end
+            end
+            tImGui.Text(tLang.L("tex_role_label"))
+            local roleRet, newRoleIndex = tImGui.Combo('##txRole-' .. index, roleIndex, roleOpts, -1)
+            if roleRet and newRoleIndex then
+                tx.role = roleValues[newRoleIndex] or 'primary'
+            end
+
             -- Show current texture when a specific frame+subset is selected
             if tx.frame > 0 and tx.subset > 0 then
-                local okG, curTex = dpCall(function() return meshD:getTexture(tx.frame, tx.subset) end)
+                local okG, curTex
+                if tx.role == 'primary' then
+                    okG, curTex = dpCall(function() return meshD:getTexture(tx.frame, tx.subset) end)
+                else
+                    okG, curTex = dpCall(function() return meshD:getMaterialTexture(tx.frame, tx.subset, tx.role) end)
+                end
                 if okG then
                     tImGui.Text(tLang.L("tex_current_label"))
                     tImGui.SameLine()
@@ -4488,7 +4515,12 @@ function showMeshOptions(tEntry, index)
                         local s1 = tx.subset == 0 and 1 or tx.subset
                         local s2 = tx.subset == 0 and nS2 or tx.subset
                         for s = s1, s2 do
-                            local ok = dpCall(function() meshD:setTexture(f, s, fn) end)
+                            local ok
+                            if tx.role == 'primary' then
+                                ok = dpCall(function() meshD:setTexture(f, s, fn) end)
+                            else
+                                ok = dpCall(function() meshD:setMaterialTexture(f, s, tx.role, fn) end)
+                            end
                             if ok then count = count + 1 end
                         end
                     end
@@ -4513,7 +4545,12 @@ function showMeshOptions(tEntry, index)
                     local s1 = tx.subset == 0 and 1 or tx.subset
                     local s2 = tx.subset == 0 and nS2 or tx.subset
                     for s = s1, s2 do
-                        local ok = dpCall(function() meshD:setTexture(f, s, '') end)
+                        local ok
+                        if tx.role == 'primary' then
+                            ok = dpCall(function() meshD:setTexture(f, s, '') end)
+                        else
+                            ok = dpCall(function() meshD:setMaterialTexture(f, s, tx.role, '') end)
+                        end
                         if ok then count = count + 1 end
                     end
                 end

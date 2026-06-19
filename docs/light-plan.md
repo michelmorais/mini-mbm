@@ -591,6 +591,9 @@ Default MSL generation should:
 
 - Add editor controls after C++ and Lua behavior is validated.
 - Likely first UI targets: Scene Editor and Mesh Debug preview.
+- Mesh Debug should expose per-subset typed material texture slots, starting with the normal-map
+  slot, so `2dw` lighting assets can be authored and smoke-tested before the full `2dw`
+  light-buffer pipeline is finished.
 
 ### Milestone 11: Expand lighting model
 
