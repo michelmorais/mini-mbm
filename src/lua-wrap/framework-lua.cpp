@@ -245,6 +245,14 @@ namespace mbm
         return value;
     }
 
+    static float getOptionalArrayNumber(lua_State *lua, const int index, const int arrayIndex, const float defaultValue)
+    {
+        lua_rawgeti(lua, index, arrayIndex);
+        const float value = lua_isnumber(lua, -1) ? static_cast<float>(lua_tonumber(lua, -1)) : defaultValue;
+        lua_pop(lua, 1);
+        return value;
+    }
+
     static bool getVec3FromLuaValue(lua_State *lua, const int index, VEC3 &out)
     {
         if (lua_type(lua, index) != LUA_TTABLE)
@@ -255,9 +263,12 @@ namespace mbm
             out = **vec3UserData;
             return true;
         }
-        out.x = getOptionalTableNumber(lua, index, "x", 0.0f);
-        out.y = getOptionalTableNumber(lua, index, "y", 0.0f);
-        out.z = getOptionalTableNumber(lua, index, "z", 0.0f);
+        const float defaultX = getOptionalArrayNumber(lua, index, 1, 0.0f);
+        const float defaultY = getOptionalArrayNumber(lua, index, 2, 0.0f);
+        const float defaultZ = getOptionalArrayNumber(lua, index, 3, 0.0f);
+        out.x = getOptionalTableNumber(lua, index, "x", defaultX);
+        out.y = getOptionalTableNumber(lua, index, "y", defaultY);
+        out.z = getOptionalTableNumber(lua, index, "z", defaultZ);
         return true;
     }
 
@@ -265,10 +276,14 @@ namespace mbm
     {
         if (lua_type(lua, index) != LUA_TTABLE)
             return false;
-        out.r = getOptionalTableNumber(lua, index, "r", 0.0f);
-        out.g = getOptionalTableNumber(lua, index, "g", 0.0f);
-        out.b = getOptionalTableNumber(lua, index, "b", 0.0f);
-        out.a = getOptionalTableNumber(lua, index, "a", 1.0f);
+        const float defaultR = getOptionalArrayNumber(lua, index, 1, 0.0f);
+        const float defaultG = getOptionalArrayNumber(lua, index, 2, 0.0f);
+        const float defaultB = getOptionalArrayNumber(lua, index, 3, 0.0f);
+        const float defaultA = getOptionalArrayNumber(lua, index, 4, 1.0f);
+        out.r = getOptionalTableNumber(lua, index, "r", defaultR);
+        out.g = getOptionalTableNumber(lua, index, "g", defaultG);
+        out.b = getOptionalTableNumber(lua, index, "b", defaultB);
+        out.a = getOptionalTableNumber(lua, index, "a", defaultA);
         return true;
     }
 
@@ -398,6 +413,99 @@ namespace mbm
         return 0;
     }
 
+    int onSetPointLightLua(lua_State *lua)
+    {
+        const int top = lua_gettop(lua);
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+
+        VEC3 position;
+        COLOR color;
+        if (top >= 4 && getVec3FromLuaValue(lua, 2, position) && lua_isnumber(lua, 3) && getColorFromLuaValue(lua, 4, color))
+        {
+            const float radius = static_cast<float>(lua_tonumber(lua, 3));
+            if (setPointLight(target, position, radius, color) == false)
+                return lua_error_debug(lua, "failed to set point light");
+            return 0;
+        }
+        if (top >= 8)
+        {
+            position = VEC3(static_cast<float>(luaL_checknumber(lua, 2)), static_cast<float>(luaL_checknumber(lua, 3)),
+                            static_cast<float>(luaL_checknumber(lua, 4)));
+            const float radius = static_cast<float>(luaL_checknumber(lua, 5));
+            color = COLOR(static_cast<float>(luaL_checknumber(lua, 6)), static_cast<float>(luaL_checknumber(lua, 7)),
+                          static_cast<float>(luaL_checknumber(lua, 8)),
+                          top >= 9 ? static_cast<float>(luaL_checknumber(lua, 9)) : 1.0f);
+            if (setPointLight(target, position, radius, color) == false)
+                return lua_error_debug(lua, "failed to set point light");
+            return 0;
+        }
+        return lua_error_debug(lua, "expected: mbm.setPointLight(target, position, radius, color) or mbm.setPointLight(target, x, y, z, radius, r, g, b, *a)");
+    }
+
+    int onSetPointLightPositionLua(lua_State *lua)
+    {
+        const int top = lua_gettop(lua);
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+
+        VEC3 position;
+        if (top >= 2 && getVec3FromLuaValue(lua, 2, position))
+        {
+            if (setPointLightPosition(target, position) == false)
+                return lua_error_debug(lua, "failed to set point light position");
+            return 0;
+        }
+        if (top >= 4)
+        {
+            position = VEC3(static_cast<float>(luaL_checknumber(lua, 2)), static_cast<float>(luaL_checknumber(lua, 3)),
+                            static_cast<float>(luaL_checknumber(lua, 4)));
+            if (setPointLightPosition(target, position) == false)
+                return lua_error_debug(lua, "failed to set point light position");
+            return 0;
+        }
+        return lua_error_debug(lua, "expected: mbm.setPointLightPosition(target, position) or mbm.setPointLightPosition(target, x, y, z)");
+    }
+
+    int onSetPointLightRadiusLua(lua_State *lua)
+    {
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+        const float radius = static_cast<float>(luaL_checknumber(lua, 2));
+        if (setPointLightRadius(target, radius) == false)
+            return lua_error_debug(lua, "failed to set point light radius");
+        return 0;
+    }
+
+    int onSetPointLightColorLua(lua_State *lua)
+    {
+        const int top = lua_gettop(lua);
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+
+        COLOR color;
+        if (top >= 2 && getColorFromLuaValue(lua, 2, color))
+        {
+            if (setPointLightColor(target, color) == false)
+                return lua_error_debug(lua, "failed to set point light color");
+            return 0;
+        }
+        if (top >= 4)
+        {
+            color = COLOR(static_cast<float>(luaL_checknumber(lua, 2)), static_cast<float>(luaL_checknumber(lua, 3)),
+                          static_cast<float>(luaL_checknumber(lua, 4)),
+                          top >= 5 ? static_cast<float>(luaL_checknumber(lua, 5)) : 1.0f);
+            if (setPointLightColor(target, color) == false)
+                return lua_error_debug(lua, "failed to set point light color");
+            return 0;
+        }
+        return lua_error_debug(lua, "expected: mbm.setPointLightColor(target, color) or mbm.setPointLightColor(target, r, g, b, *a)");
+    }
+
     int onGetLightStateLua(lua_State *lua)
     {
         LIGHT_TARGET target = LIGHT_TARGET_3D;
@@ -459,6 +567,39 @@ namespace mbm
         lua_pushstring(lua, "z");
         lua_pushnumber(lua, state.directionalDirection.z);
         lua_settable(lua, -3);
+        lua_settable(lua, -3);
+
+        lua_pushstring(lua, "pointColor");
+        lua_newtable(lua);
+        lua_pushstring(lua, "r");
+        lua_pushnumber(lua, state.pointColor.r);
+        lua_settable(lua, -3);
+        lua_pushstring(lua, "g");
+        lua_pushnumber(lua, state.pointColor.g);
+        lua_settable(lua, -3);
+        lua_pushstring(lua, "b");
+        lua_pushnumber(lua, state.pointColor.b);
+        lua_settable(lua, -3);
+        lua_pushstring(lua, "a");
+        lua_pushnumber(lua, state.pointColor.a);
+        lua_settable(lua, -3);
+        lua_settable(lua, -3);
+
+        lua_pushstring(lua, "pointPosition");
+        lua_newtable(lua);
+        lua_pushstring(lua, "x");
+        lua_pushnumber(lua, state.pointPosition.x);
+        lua_settable(lua, -3);
+        lua_pushstring(lua, "y");
+        lua_pushnumber(lua, state.pointPosition.y);
+        lua_settable(lua, -3);
+        lua_pushstring(lua, "z");
+        lua_pushnumber(lua, state.pointPosition.z);
+        lua_settable(lua, -3);
+        lua_settable(lua, -3);
+
+        lua_pushstring(lua, "pointRadius");
+        lua_pushnumber(lua, state.pointRadius);
         lua_settable(lua, -3);
         return 1;
     }
@@ -2808,8 +2949,12 @@ namespace mbm
             {"setLightEnabled", onSetLightEnabledLua},
             {"setAmbientLight", onSetAmbientLightLua},
             {"setDirectionalLight", onSetDirectionalLightLua},
+            {"setPointLight", onSetPointLightLua},
             {"setDirectionalLightDirection", onSetDirectionalLightDirectionLua},
             {"setDirectionalLightColor", onSetDirectionalLightColorLua},
+            {"setPointLightPosition", onSetPointLightPositionLua},
+            {"setPointLightRadius", onSetPointLightRadiusLua},
+            {"setPointLightColor", onSetPointLightColorLua},
             {"resetLight", onResetLightLua},
             {"getLightState", onGetLightStateLua},
             {"getParticleShaderCode", onGetParticleShaderCode},

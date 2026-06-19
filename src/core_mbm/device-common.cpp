@@ -172,6 +172,14 @@ namespace mbm
         return true;
     }
 
+    bool DEVICE::getLightTargetForCurrentRender(LIGHT_TARGET &outTarget) const noexcept
+    {
+        if (impl->currentRenderLightTargetEnabled == false)
+            return false;
+        outTarget = impl->currentRenderLightTarget;
+        return true;
+    }
+
     void DEVICE::setRenderMaterial(const util::MATERIAL &material) noexcept
     {
         impl->currentRenderMaterial = material;
@@ -212,18 +220,14 @@ namespace mbm
             return direction / length;
         }
 
+        float clampPointRadius(const float value) noexcept
+        {
+            return std::max(0.0f, value);
+        }
+
         LIGHT_STATE makeDefaultLightState() noexcept
         {
             return LIGHT_STATE();
-        }
-
-        void warnIf2DWLightRenderingIsPending(const LIGHT_TARGET target, LIGHT_STATE &state) noexcept
-        {
-            if (target == LIGHT_TARGET_2DW && state.enabled && state.renderingWarningEmitted == false)
-            {
-                WARN_LOG("2dw lighting rendering not implemented yet");
-                state.renderingWarningEmitted = true;
-            }
         }
     }
 
@@ -265,9 +269,6 @@ namespace mbm
             return false;
         LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
         state.enabled = enabled;
-        if (enabled == false)
-            return true;
-        warnIf2DWLightRenderingIsPending(target, state);
         return true;
     }
 
@@ -278,7 +279,6 @@ namespace mbm
         LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
         state.ambientColor = clampLightColor(ambientColor);
         state.ambientConfigured = true;
-        warnIf2DWLightRenderingIsPending(target, state);
         return true;
     }
 
@@ -292,7 +292,6 @@ namespace mbm
         state.directionalColor = clampLightColor(directionalColor);
         state.directionalDirectionConfigured = true;
         state.directionalColorConfigured = true;
-        warnIf2DWLightRenderingIsPending(target, state);
         return true;
     }
 
@@ -303,7 +302,6 @@ namespace mbm
         LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
         state.directionalDirection = normalizeLightDirection(directionalDirection);
         state.directionalDirectionConfigured = true;
-        warnIf2DWLightRenderingIsPending(target, state);
         return true;
     }
 
@@ -314,7 +312,51 @@ namespace mbm
         LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
         state.directionalColor = clampLightColor(directionalColor);
         state.directionalColorConfigured = true;
-        warnIf2DWLightRenderingIsPending(target, state);
+        return true;
+    }
+
+    bool setPointLight(const LIGHT_TARGET target, const VEC3 &pointPosition, const float pointRadius,
+                       const COLOR &pointColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.pointPosition = pointPosition;
+        state.pointRadius = clampPointRadius(pointRadius);
+        state.pointColor = clampLightColor(pointColor);
+        state.pointPositionConfigured = true;
+        state.pointRadiusConfigured = true;
+        state.pointColorConfigured = true;
+        return true;
+    }
+
+    bool setPointLightPosition(const LIGHT_TARGET target, const VEC3 &pointPosition) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.pointPosition = pointPosition;
+        state.pointPositionConfigured = true;
+        return true;
+    }
+
+    bool setPointLightRadius(const LIGHT_TARGET target, const float pointRadius) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.pointRadius = clampPointRadius(pointRadius);
+        state.pointRadiusConfigured = true;
+        return true;
+    }
+
+    bool setPointLightColor(const LIGHT_TARGET target, const COLOR &pointColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.pointColor = clampLightColor(pointColor);
+        state.pointColorConfigured = true;
         return true;
     }
 
@@ -322,10 +364,7 @@ namespace mbm
     {
         if (isValidLightTarget(target) == false)
             return false;
-        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
-        const bool renderingWarningEmitted = state.renderingWarningEmitted;
-        state = makeDefaultLightState();
-        state.renderingWarningEmitted = renderingWarningEmitted;
+        DEVICE::getInstance()->getMutableLightState(target) = makeDefaultLightState();
         return true;
     }
 

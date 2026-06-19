@@ -32,9 +32,13 @@ namespace mbm
         static const char *reservedNames[] = {
             "LightEnabled",
             "LightCount",
+            "LightMode",
             "AmbientColor",
             "LightDirectionView",
+            "LightPositionView",
+            "LightRadius",
             "LightColor",
+            "HasNormalMap",
             "MaterialDiffuse",
             "MaterialAmbient",
             "MaterialSpecular",

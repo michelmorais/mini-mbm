@@ -213,6 +213,13 @@ local function cloneLightState(state)
             y = (state and state.directionalDirection and state.directionalDirection.y) or -0.70710677,
             z = (state and state.directionalDirection and state.directionalDirection.z) or -0.70710677,
         },
+        pointColor = makeColorRGBA(state and state.pointColor, {r = 1, g = 1, b = 1, a = 1}),
+        pointPosition = {
+            x = (state and state.pointPosition and state.pointPosition.x) or 0,
+            y = (state and state.pointPosition and state.pointPosition.y) or 0,
+            z = (state and state.pointPosition and state.pointPosition.z) or 128,
+        },
+        pointRadius = (state and state.pointRadius) or 512,
     }
 end
 
@@ -241,6 +248,9 @@ local function getEditorLightState(target)
         state.ambientColor = makeColorRGBA(state.ambientColor, {r = 0.2, g = 0.2, b = 0.2, a = 1})
         state.directionalColor = makeColorRGBA(state.directionalColor, {r = 1, g = 1, b = 1, a = 1})
         state.directionalDirection = state.directionalDirection or {x = 0, y = -0.70710677, z = -0.70710677}
+        state.pointColor = makeColorRGBA(state.pointColor, {r = 1, g = 1, b = 1, a = 1})
+        state.pointPosition = state.pointPosition or {x = 0, y = 0, z = 128}
+        state.pointRadius = state.pointRadius or 512
         return state
     end
     return {
@@ -248,6 +258,9 @@ local function getEditorLightState(target)
         ambientColor = {r = 0.2, g = 0.2, b = 0.2, a = 1},
         directionalColor = {r = 1, g = 1, b = 1, a = 1},
         directionalDirection = {x = 0, y = -0.70710677, z = -0.70710677},
+        pointColor = {r = 1, g = 1, b = 1, a = 1},
+        pointPosition = {x = 0, y = 0, z = 128},
+        pointRadius = 512,
     }
 end
 
@@ -309,31 +322,69 @@ local function showEditorLightPanel(target, idSuffix)
 
     tImGui.Text(tLang.L('color_label'))
     tImGui.SameLine()
-    local changedDirectionalColor, directionalColor = tImGui.ColorEdit4('##lightDirectionalColor' .. idSuffix, lightState.directionalColor, lightColorFlags)
-    if changedDirectionalColor and directionalColor then
-        lightState.directionalColor = makeColorRGBA(directionalColor, lightState.directionalColor)
-        dpCall(function() mbm.setDirectionalLightColor(target, directionalColor) end)
-    end
+    if target == '2dw' then
+        local changedPointColor, pointColor = tImGui.ColorEdit4('##lightPointColor' .. idSuffix, lightState.pointColor, lightColorFlags)
+        if changedPointColor and pointColor then
+            lightState.pointColor = makeColorRGBA(pointColor, lightState.pointColor)
+            dpCall(function() mbm.setPointLightColor(target, pointColor) end)
+        end
 
-    local dir = lightState.directionalDirection or {x = 0, y = -0.70710677, z = -0.70710677}
-    tImGui.Text(tLang.L('direction_label'))
-    tUtil.pushResponsiveItemWidth(120)
-    local d1, nx = tImGui.SliderFloat('X##lightDirX' .. idSuffix, dir.x or 0, -1.0, 1.0, '%.3f')
-    local d2, ny = tImGui.SliderFloat('Y##lightDirY' .. idSuffix, dir.y or 0, -1.0, 1.0, '%.3f')
-    local d3, nz = tImGui.SliderFloat('Z##lightDirZ' .. idSuffix, dir.z or 0, -1.0, 1.0, '%.3f')
-    tImGui.PopItemWidth()
-    if d1 or d2 or d3 then
-        lightState.directionalDirection = {
-            x = d1 and nx or dir.x or 0,
-            y = d2 and ny or dir.y or 0,
-            z = d3 and nz or dir.z or 0,
-        }
-        dpCall(function()
-            mbm.setDirectionalLightDirection(target,
-                lightState.directionalDirection.x,
-                lightState.directionalDirection.y,
-                lightState.directionalDirection.z)
-        end)
+        local point = lightState.pointPosition or {x = 0, y = 0, z = 128}
+        tImGui.Text(tLang.L('position'))
+        tUtil.pushResponsiveItemWidth(120)
+        local p1, px = tImGui.InputFloat('X##lightPosX' .. idSuffix, point.x or 0, 1, 10, '%.2f', 0)
+        local p2, py = tImGui.InputFloat('Y##lightPosY' .. idSuffix, point.y or 0, 1, 10, '%.2f', 0)
+        local p3, pz = tImGui.InputFloat('Z##lightPosZ' .. idSuffix, point.z or 128, 1, 10, '%.2f', 0)
+        tImGui.PopItemWidth()
+        if p1 or p2 or p3 then
+            lightState.pointPosition = {
+                x = p1 and px or point.x or 0,
+                y = p2 and py or point.y or 0,
+                z = p3 and pz or point.z or 128,
+            }
+            dpCall(function()
+                mbm.setPointLightPosition(target,
+                    lightState.pointPosition.x,
+                    lightState.pointPosition.y,
+                    lightState.pointPosition.z)
+            end)
+        end
+
+        tImGui.Text(tLang.L('radius'))
+        tUtil.pushResponsiveItemWidth(120)
+        local changedRadius, pointRadius = tImGui.InputFloat('##lightRadius' .. idSuffix, lightState.pointRadius or 512, 1, 10, '%.2f', 0)
+        tImGui.PopItemWidth()
+        if changedRadius and pointRadius then
+            lightState.pointRadius = pointRadius
+            dpCall(function() mbm.setPointLightRadius(target, pointRadius) end)
+        end
+    else
+        local changedDirectionalColor, directionalColor = tImGui.ColorEdit4('##lightDirectionalColor' .. idSuffix, lightState.directionalColor, lightColorFlags)
+        if changedDirectionalColor and directionalColor then
+            lightState.directionalColor = makeColorRGBA(directionalColor, lightState.directionalColor)
+            dpCall(function() mbm.setDirectionalLightColor(target, directionalColor) end)
+        end
+
+        local dir = lightState.directionalDirection or {x = 0, y = -0.70710677, z = -0.70710677}
+        tImGui.Text(tLang.L('direction_label'))
+        tUtil.pushResponsiveItemWidth(120)
+        local d1, nx = tImGui.SliderFloat('X##lightDirX' .. idSuffix, dir.x or 0, -1.0, 1.0, '%.3f')
+        local d2, ny = tImGui.SliderFloat('Y##lightDirY' .. idSuffix, dir.y or 0, -1.0, 1.0, '%.3f')
+        local d3, nz = tImGui.SliderFloat('Z##lightDirZ' .. idSuffix, dir.z or 0, -1.0, 1.0, '%.3f')
+        tImGui.PopItemWidth()
+        if d1 or d2 or d3 then
+            lightState.directionalDirection = {
+                x = d1 and nx or dir.x or 0,
+                y = d2 and ny or dir.y or 0,
+                z = d3 and nz or dir.z or 0,
+            }
+            dpCall(function()
+                mbm.setDirectionalLightDirection(target,
+                    lightState.directionalDirection.x,
+                    lightState.directionalDirection.y,
+                    lightState.directionalDirection.z)
+            end)
+        end
     end
 
     if tImGui.Button(tLang.L('reset_light') .. '##lightReset' .. idSuffix) then

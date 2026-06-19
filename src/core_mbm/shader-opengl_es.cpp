@@ -38,10 +38,15 @@ namespace mbm
     static uint32_t loadShaderProgram(BASE_SHADER* pShader, BASE_SHADER* vShader, void* ptrShaderSpecific, const char* vertShaderSrc, const char* fragShaderSrc);
     static uint32_t compileCodeShader(BASE_SHADER* ptrShader, const unsigned int type, const char* shaderSrc);
 
-    static VEC3 getLightDirectionView(const LIGHT_STATE &lightState)
+    static const MATRIX &getViewMatrixForLightTarget(const LIGHT_TARGET target)
     {
         const CAMERA &camera = DEVICE::getInstance()->getCamera();
-        const MATRIX &view = camera.matrixView;
+        return target == LIGHT_TARGET_2DW ? camera.matrixView2d : camera.matrixView;
+    }
+
+    static VEC3 getLightDirectionView(const LIGHT_STATE &lightState, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTarget(target);
         VEC3 directionView(
             (lightState.directionalDirection.x * view._11) +
             (lightState.directionalDirection.y * view._21) +
@@ -54,6 +59,47 @@ namespace mbm
             (lightState.directionalDirection.z * view._33));
         Vec3Normalize(&directionView, &directionView);
         return directionView;
+    }
+
+    static VEC3 getLightPositionView(const LIGHT_STATE &lightState, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTarget(target);
+        return VEC3(
+            (lightState.pointPosition.x * view._11) +
+            (lightState.pointPosition.y * view._21) +
+            (lightState.pointPosition.z * view._31) + view._41,
+            (lightState.pointPosition.x * view._12) +
+            (lightState.pointPosition.y * view._22) +
+            (lightState.pointPosition.z * view._32) + view._42,
+            (lightState.pointPosition.x * view._13) +
+            (lightState.pointPosition.y * view._23) +
+            (lightState.pointPosition.z * view._33) + view._43);
+    }
+
+    static bool bufferHasUv(const BUFFER_GL *pBufferId) noexcept
+    {
+        if (pBufferId == nullptr)
+            return false;
+        return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV ||
+               pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static bool bufferHasNormal(const BUFFER_GL *pBufferId) noexcept
+    {
+        if (pBufferId == nullptr)
+            return false;
+        return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+               pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static int getReservedLightMode(const LIGHT_STATE &lightState, const LIGHT_TARGET target,
+                                    const BUFFER_GL *pBufferId) noexcept
+    {
+        if (lightState.enabled == false)
+            return 0;
+        if (target == LIGHT_TARGET_2DW)
+            return bufferHasUv(pBufferId) ? 2 : 0;
+        return bufferHasNormal(pBufferId) ? 1 : 0;
     }
 
     static util::MATERIAL getReservedMaterialForCurrentRender()
@@ -69,18 +115,25 @@ namespace mbm
         return material;
     }
 
-    static void uploadReservedLightUniformsOpenGlEs(const uint32_t programObject)
+    static void uploadReservedLightUniformsOpenGlEs(const uint32_t programObject, const BUFFER_GL *pBufferId,
+                                                    const uint32_t subsetIndex)
     {
         if (programObject == 0)
             return;
         LIGHT_STATE lightState;
+        LIGHT_TARGET lightTarget = LIGHT_TARGET_3D;
         const bool hasRenderLight = DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
+        DEVICE::getInstance()->getLightTargetForCurrentRender(lightTarget);
         if (hasRenderLight == false)
             lightState = LIGHT_STATE();
         const util::MATERIAL material = getReservedMaterialForCurrentRender();
-        const int enabled = lightState.enabled ? 1 : 0;
+        const int lightMode = getReservedLightMode(lightState, lightTarget, pBufferId);
+        const int enabled = lightMode != 0 ? 1 : 0;
         const int lightCount = lightState.enabled ? 1 : 0;
-        const VEC3 directionView = getLightDirectionView(lightState);
+        const int hasNormalMap = (lightMode == 2 && pBufferId && pBufferId->getTextureByStage(2, subsetIndex)) ? 1 : 0;
+        const VEC3 directionView = getLightDirectionView(lightState, lightTarget);
+        const VEC3 positionView = getLightPositionView(lightState, lightTarget);
+        const COLOR &lightColor = lightTarget == LIGHT_TARGET_2DW ? lightState.pointColor : lightState.directionalColor;
 
         GLint handle = GLGetUniformLocationOptional(programObject, "LightEnabled");
         if (handle != -1)
@@ -91,6 +144,11 @@ namespace mbm
         if (handle != -1)
         {
             GLUniform1i(handle, lightCount);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "LightMode");
+        if (handle != -1)
+        {
+            GLUniform1i(handle, lightMode);
         }
         handle = GLGetUniformLocationOptional(programObject, "AmbientColor");
         if (handle != -1)
@@ -103,11 +161,25 @@ namespace mbm
         {
             GLUniform3f(handle, directionView.x, directionView.y, directionView.z);
         }
+        handle = GLGetUniformLocationOptional(programObject, "LightPositionView");
+        if (handle != -1)
+        {
+            GLUniform3f(handle, positionView.x, positionView.y, positionView.z);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "LightRadius");
+        if (handle != -1)
+        {
+            GLUniform1f(handle, lightState.pointRadius);
+        }
         handle = GLGetUniformLocationOptional(programObject, "LightColor");
         if (handle != -1)
         {
-            GLUniform4f(handle, lightState.directionalColor.r, lightState.directionalColor.g,
-                        lightState.directionalColor.b, lightState.directionalColor.a);
+            GLUniform4f(handle, lightColor.r, lightColor.g, lightColor.b, lightColor.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "HasNormalMap");
+        if (handle != -1)
+        {
+            GLUniform1i(handle, hasNormalMap);
         }
         handle = GLGetUniformLocationOptional(programObject, "MaterialDiffuse");
         if (handle != -1)
@@ -695,33 +767,56 @@ namespace mbm
         {
             defaultCodePs = "precision mediump float;"
                 "varying vec2 vTexCoord;"
-                "uniform sampler2D sample0;";
+                "varying vec3 vPositionView;"
+                "uniform sampler2D sample0;"
+                "uniform sampler2D sample2;"
+                "uniform int LightEnabled;"
+                "uniform int LightMode;"
+                "uniform int HasNormalMap;"
+                "uniform vec4 AmbientColor;"
+                "uniform vec3 LightDirectionView;"
+                "uniform vec3 LightPositionView;"
+                "uniform float LightRadius;"
+                "uniform vec4 LightColor;"
+                "uniform vec4 MaterialDiffuse;"
+                "uniform vec4 MaterialAmbient;"
+                "uniform vec4 MaterialEmissive;";
+            if (hasNormal)
+                defaultCodePs += "varying vec3 vNormalView;";
+            defaultCodePs += "void main() {"
+                " vec4 texColor = texture2D(sample0, vTexCoord);"
+                " if (LightEnabled == 0 || LightMode == 0) { gl_FragColor = texColor; return; }"
+                " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
+                " vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
             if (hasNormal)
             {
-                defaultCodePs += "varying vec3 vNormalView;"
-                    "uniform int LightEnabled;"
-                    "uniform vec4 AmbientColor;"
-                    "uniform vec3 LightDirectionView;"
-                    "uniform vec4 LightColor;"
-                    "uniform vec4 MaterialDiffuse;"
-                    "uniform vec4 MaterialAmbient;"
-                    "uniform vec4 MaterialEmissive;"
-                    "void main() {"
-                    " vec4 texColor = texture2D(sample0, vTexCoord);"
-                    " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
-                    " vec3 normalView = normalize(vNormalView);"
-                    " vec3 lightTravel = normalize(LightDirectionView);"
-                    " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                    " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
-                    " vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);"
-                    " vec3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);"
-                    " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
-                    "}";
+                defaultCodePs += " if (LightMode == 1) {"
+                    "  vec3 normalView = normalize(vNormalView);"
+                    "  vec3 lightTravel = normalize(LightDirectionView);"
+                    "  float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                    "  light += LightColor.rgb * diffuse;"
+                    " } else ";
             }
             else
             {
-                defaultCodePs += "void main() { gl_FragColor = texture2D(sample0, vTexCoord); }";
+                defaultCodePs += " if (LightMode == 2) ";
             }
+            defaultCodePs += "{"
+                "  vec3 normalView = vec3(0.0, 0.0, 1.0);"
+                "  if (HasNormalMap != 0) normalView = normalize((texture2D(sample2, vTexCoord).xyz * 2.0) - 1.0);"
+                "  vec3 toLight = LightPositionView - vPositionView;"
+                "  float dist = length(toLight);"
+                "  if (LightRadius > 0.0001) {"
+                "   vec3 lightDir = toLight / max(dist, 0.0001);"
+                "   float diffuse = max(dot(normalView, lightDir), 0.0);"
+                "   float attenuation = 1.0 - clamp(dist / LightRadius, 0.0, 1.0);"
+                "   attenuation *= attenuation;"
+                "   light += LightColor.rgb * diffuse * attenuation;"
+                "  }"
+                " }"
+                " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
+                " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
+                "}";
         }
         else
         {
@@ -730,6 +825,7 @@ namespace mbm
             {
                 defaultCodePs += "varying vec3 vNormalView;"
                     "uniform int LightEnabled;"
+                    "uniform int LightMode;"
                     "uniform vec4 AmbientColor;"
                     "uniform vec3 LightDirectionView;"
                     "uniform vec4 LightColor;"
@@ -738,7 +834,7 @@ namespace mbm
                     "uniform vec4 MaterialEmissive;"
                     "void main() {"
                     " vec4 baseColor = vec4(1.0, 1.0, 1.0, 1.0);"
-                    " if (LightEnabled == 0) { gl_FragColor = baseColor; return; }"
+                    " if (LightEnabled == 0 || LightMode != 1) { gl_FragColor = baseColor; return; }"
                     " vec3 normalView = normalize(vNormalView);"
                     " vec3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
@@ -758,11 +854,12 @@ namespace mbm
         if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
         defaultCodeVs += " uniform mat4 mvpMatrix;";
-        if (hasNormal) defaultCodeVs += " uniform mat4 mvMatrix; varying vec3 vNormalView;";
-        if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
+        if (hasNormal || hasUV) defaultCodeVs += " uniform mat4 mvMatrix;";
+        if (hasNormal) defaultCodeVs += " varying vec3 vNormalView;";
+        if (hasUV) defaultCodeVs += " varying vec2 vTexCoord; varying vec3 vPositionView;";
         defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
         if (hasNormal) defaultCodeVs += " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
-        if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
+        if (hasUV) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz; vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
         void *backendShaderSpecific = getBackendShaderSpecific();
         GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(backendShaderSpecific);
@@ -860,7 +957,6 @@ namespace mbm
             if (!backendBuffer->vboVertNorTexIB[0])
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
-            uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
             GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
             GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
@@ -911,12 +1007,15 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
                     if (gles_shaderSpecific->samplerHandle2 != -1)
+                    {
                         GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
+                    }
                 }
                 else
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
+                uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
@@ -926,7 +1025,6 @@ namespace mbm
             if (!backendBuffer->vboVertexSubsetVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
-            uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
@@ -975,7 +1073,9 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
                     if (gles_shaderSpecific->samplerHandle2 != -1)
+                    {
                         GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
+                    }
                 }
                 else
                 {
@@ -986,6 +1086,7 @@ namespace mbm
                     && backendBuffer->vboNormalSubsetVB && backendBuffer->vboNormalSubsetVB[i] != 0;
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1)
                     && backendBuffer->vboTextureSubsetVB && backendBuffer->vboTextureSubsetVB[i] != 0;
+                uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
                 GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
@@ -1012,7 +1113,6 @@ namespace mbm
             if (!backendBuffer->vboIndexSubsetIB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
-            uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
             GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
             GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
@@ -1055,12 +1155,15 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
                     if (gles_shaderSpecific->samplerHandle2 != -1)
+                    {
                         GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
+                    }
                 }
                 else
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
+                uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
@@ -1070,7 +1173,6 @@ namespace mbm
             if (!pBufferId->vertexCountVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
-            uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
@@ -1114,7 +1216,9 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
                     if (gles_shaderSpecific->samplerHandle2 != -1)
+                    {
                         GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
+                    }
                 }
                 else
                 {
@@ -1123,6 +1227,7 @@ namespace mbm
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1) && (normal != nullptr);
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1) && (uv != nullptr);
+                uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
                 GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);

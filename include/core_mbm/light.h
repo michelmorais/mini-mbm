@@ -37,10 +37,15 @@ namespace mbm
         COLOR ambientColor = COLOR(0.2f, 0.2f, 0.2f, 1.0f);
         COLOR directionalColor = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
         VEC3 directionalDirection = VEC3(0.0f, -0.70710677f, -0.70710677f);
+        COLOR pointColor = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        VEC3 pointPosition = VEC3(0.0f, 0.0f, 128.0f);
+        float pointRadius = 512.0f;
         bool ambientConfigured = false;
         bool directionalColorConfigured = false;
         bool directionalDirectionConfigured = false;
-        bool renderingWarningEmitted = false;
+        bool pointColorConfigured = false;
+        bool pointPositionConfigured = false;
+        bool pointRadiusConfigured = false;
     };
 
     API_IMPL bool isValidLightTarget(const LIGHT_TARGET target) noexcept;
@@ -53,6 +58,11 @@ namespace mbm
                                       const COLOR &directionalColor) noexcept;
     API_IMPL bool setDirectionalLightDirection(const LIGHT_TARGET target, const VEC3 &directionalDirection) noexcept;
     API_IMPL bool setDirectionalLightColor(const LIGHT_TARGET target, const COLOR &directionalColor) noexcept;
+    API_IMPL bool setPointLight(const LIGHT_TARGET target, const VEC3 &pointPosition, const float pointRadius,
+                                const COLOR &pointColor) noexcept;
+    API_IMPL bool setPointLightPosition(const LIGHT_TARGET target, const VEC3 &pointPosition) noexcept;
+    API_IMPL bool setPointLightRadius(const LIGHT_TARGET target, const float pointRadius) noexcept;
+    API_IMPL bool setPointLightColor(const LIGHT_TARGET target, const COLOR &pointColor) noexcept;
     API_IMPL bool resetLight(const LIGHT_TARGET target) noexcept;
     API_IMPL void resetAllLights() noexcept;
     API_IMPL bool getLightState(const LIGHT_TARGET target, LIGHT_STATE &outState) noexcept;

@@ -575,6 +575,10 @@ Default MSL generation should:
 - Do not overload existing stage 1 / `sample1` FX texture with normal maps.
 - Runtime now binds the first per-subset normal-map slot through stage / sampler `2`
   (`sample2`) so stage `1` / `sample1` remains reserved for the existing FX path.
+- First runtime implementation now ships as one engine-managed `2dw` point/radius light with
+  per-object shading, optional per-subset normal map from `sample2`, and flat-normal fallback
+  `(0, 0, 1)` when no normal map exists. Keep the light-buffer/render-to-texture composition path
+  as the next expansion step when multi-light and broader 2D composition work starts.
 
 ### Milestone 9: Multi-light design
 

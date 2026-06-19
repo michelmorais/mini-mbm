@@ -38,10 +38,15 @@
 
 namespace mbm
 {
-    static VEC3 getLightDirectionViewD3D(const LIGHT_STATE &lightState)
+    static const MATRIX &getViewMatrixForLightTargetD3D(const LIGHT_TARGET target)
     {
         const CAMERA &camera = DEVICE::getInstance()->getCamera();
-        const MATRIX &view = camera.matrixView;
+        return target == LIGHT_TARGET_2DW ? camera.matrixView2d : camera.matrixView;
+    }
+
+    static VEC3 getLightDirectionViewD3D(const LIGHT_STATE &lightState, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTargetD3D(target);
         VEC3 directionView(
             (lightState.directionalDirection.x * view._11) +
             (lightState.directionalDirection.y * view._21) +
@@ -54,6 +59,47 @@ namespace mbm
             (lightState.directionalDirection.z * view._33));
         Vec3Normalize(&directionView, &directionView);
         return directionView;
+    }
+
+    static VEC3 getLightPositionViewD3D(const LIGHT_STATE &lightState, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTargetD3D(target);
+        return VEC3(
+            (lightState.pointPosition.x * view._11) +
+            (lightState.pointPosition.y * view._21) +
+            (lightState.pointPosition.z * view._31) + view._41,
+            (lightState.pointPosition.x * view._12) +
+            (lightState.pointPosition.y * view._22) +
+            (lightState.pointPosition.z * view._32) + view._42,
+            (lightState.pointPosition.x * view._13) +
+            (lightState.pointPosition.y * view._23) +
+            (lightState.pointPosition.z * view._33) + view._43);
+    }
+
+    static bool bufferHasUvD3D(const BUFFER_GL *pBufferId) noexcept
+    {
+        if (pBufferId == nullptr)
+            return false;
+        return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV ||
+               pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static bool bufferHasNormalD3D(const BUFFER_GL *pBufferId) noexcept
+    {
+        if (pBufferId == nullptr)
+            return false;
+        return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+               pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static int getReservedLightModeD3D(const LIGHT_STATE &lightState, const LIGHT_TARGET target,
+                                       const BUFFER_GL *pBufferId) noexcept
+    {
+        if (lightState.enabled == false)
+            return 0;
+        if (target == LIGHT_TARGET_2DW)
+            return bufferHasUvD3D(pBufferId) ? 2 : 0;
+        return bufferHasNormalD3D(pBufferId) ? 1 : 0;
     }
 
     static util::MATERIAL getReservedMaterialForCurrentRenderD3D()
@@ -69,18 +115,25 @@ namespace mbm
         return material;
     }
 
-    static void uploadReservedLightConstantsD3D(IDirect3DDevice9 *pd3dDevice, ID3DXConstantTable *constantTable)
+    static void uploadReservedLightConstantsD3D(IDirect3DDevice9 *pd3dDevice, ID3DXConstantTable *constantTable,
+                                                const BUFFER_GL *pBufferId, const uint32_t subsetIndex)
     {
         if (pd3dDevice == nullptr || constantTable == nullptr)
             return;
         LIGHT_STATE lightState;
+        LIGHT_TARGET lightTarget = LIGHT_TARGET_3D;
         const bool hasRenderLight = DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
+        DEVICE::getInstance()->getLightTargetForCurrentRender(lightTarget);
         if (hasRenderLight == false)
             lightState = LIGHT_STATE();
         const util::MATERIAL material = getReservedMaterialForCurrentRenderD3D();
-        const int enabled = lightState.enabled ? 1 : 0;
+        const int lightMode = getReservedLightModeD3D(lightState, lightTarget, pBufferId);
+        const int enabled = lightMode != 0 ? 1 : 0;
         const int lightCount = lightState.enabled ? 1 : 0;
-        const VEC3 directionView = getLightDirectionViewD3D(lightState);
+        const int hasNormalMap = (lightMode == 2 && pBufferId && pBufferId->getTextureByStage(2, subsetIndex)) ? 1 : 0;
+        const VEC3 directionView = getLightDirectionViewD3D(lightState, lightTarget);
+        const VEC3 positionView = getLightPositionViewD3D(lightState, lightTarget);
+        const COLOR &lightColor = lightTarget == LIGHT_TARGET_2DW ? lightState.pointColor : lightState.directionalColor;
 
         D3DXHANDLE handle = constantTable->GetConstantByName(nullptr, "LightEnabled");
         if (handle)
@@ -88,15 +141,27 @@ namespace mbm
         handle = constantTable->GetConstantByName(nullptr, "LightCount");
         if (handle)
             constantTable->SetInt(pd3dDevice, handle, lightCount);
+        handle = constantTable->GetConstantByName(nullptr, "LightMode");
+        if (handle)
+            constantTable->SetInt(pd3dDevice, handle, lightMode);
         handle = constantTable->GetConstantByName(nullptr, "AmbientColor");
         if (handle)
             constantTable->SetFloatArray(pd3dDevice, handle, &lightState.ambientColor.r, 4);
         handle = constantTable->GetConstantByName(nullptr, "LightDirectionView");
         if (handle)
             constantTable->SetFloatArray(pd3dDevice, handle, &directionView.x, 3);
+        handle = constantTable->GetConstantByName(nullptr, "LightPositionView");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &positionView.x, 3);
+        handle = constantTable->GetConstantByName(nullptr, "LightRadius");
+        if (handle)
+            constantTable->SetFloat(pd3dDevice, handle, lightState.pointRadius);
         handle = constantTable->GetConstantByName(nullptr, "LightColor");
         if (handle)
-            constantTable->SetFloatArray(pd3dDevice, handle, &lightState.directionalColor.r, 4);
+            constantTable->SetFloatArray(pd3dDevice, handle, &lightColor.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "HasNormalMap");
+        if (handle)
+            constantTable->SetInt(pd3dDevice, handle, hasNormalMap);
         handle = constantTable->GetConstantByName(nullptr, "MaterialDiffuse");
         if (handle)
             constantTable->SetFloatArray(pd3dDevice, handle, &material.Diffuse.r, 4);
@@ -805,43 +870,61 @@ namespace mbm
         if (hasUV)
         {
             defaultCodePs = "";
-            if (hasNormal)
-            {
-                defaultCodePs += "int LightEnabled;"
-                    "float4 AmbientColor;"
-                    "float3 LightDirectionView;"
-                    "float4 LightColor;"
-                    "float4 MaterialDiffuse;"
-                    "float4 MaterialAmbient;"
-                    "float4 MaterialEmissive;";
-            }
+            defaultCodePs += "int LightEnabled;"
+                "int LightMode;"
+                "int HasNormalMap;"
+                "float4 AmbientColor;"
+                "float3 LightDirectionView;"
+                "float3 LightPositionView;"
+                "float LightRadius;"
+                "float4 LightColor;"
+                "float4 MaterialDiffuse;"
+                "float4 MaterialAmbient;"
+                "float4 MaterialEmissive;";
             defaultCodePs += "sampler2D sample0 : register(s0);"
+                "sampler2D sample2 : register(s2);"
                 "float4 main(";
             if (hasNormal)
             {
-                defaultCodePs += "float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1";
+                defaultCodePs += "float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2";
             }
             else
             {
-                defaultCodePs += "float2 texCoord : TEXCOORD0";
+                defaultCodePs += "float2 texCoord : TEXCOORD0, float3 positionViewIn : TEXCOORD1";
             }
             defaultCodePs += ") : COLOR"
                 "{ float4 texColor = tex2D(sample0, texCoord);";
+            defaultCodePs += " if (LightEnabled == 0 || LightMode == 0) return texColor;"
+                " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
+                " float3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
             if (hasNormal)
             {
-                defaultCodePs += " if (LightEnabled == 0) return texColor;"
-                    " float3 normalView = normalize(normalViewIn);"
-                    " float3 lightTravel = normalize(LightDirectionView);"
-                    " float diffuse = max(dot(normalView, -lightTravel), 0);"
-                    " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
-                    " float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));"
-                    " float3 litColor = saturate((base * light) + MaterialEmissive.rgb);"
-                    " return float4(litColor, texColor.a * MaterialDiffuse.a);";
+                defaultCodePs += " if (LightMode == 1) {"
+                    "  float3 normalView = normalize(normalViewIn);"
+                    "  float3 lightTravel = normalize(LightDirectionView);"
+                    "  float diffuse = max(dot(normalView, -lightTravel), 0);"
+                    "  light += LightColor.rgb * diffuse;"
+                    " } else ";
             }
             else
             {
-                defaultCodePs += " return texColor;";
+                defaultCodePs += " if (LightMode == 2) ";
             }
+            defaultCodePs += "{"
+                "  float3 normalView = float3(0, 0, 1);"
+                "  if (HasNormalMap != 0) normalView = normalize((tex2D(sample2, texCoord).xyz * 2.0f) - 1.0f);"
+                "  float3 toLight = LightPositionView - positionViewIn;"
+                "  float dist = length(toLight);"
+                "  if (LightRadius > 0.0001f) {"
+                "   float3 lightDir = toLight / max(dist, 0.0001f);"
+                "   float diffuse = max(dot(normalView, lightDir), 0);"
+                "   float attenuation = 1.0f - saturate(dist / LightRadius);"
+                "   attenuation *= attenuation;"
+                "   light += LightColor.rgb * diffuse * attenuation;"
+                "  }"
+                " }"
+                " float3 litColor = saturate((base * saturate(light)) + MaterialEmissive.rgb);"
+                " return float4(litColor, texColor.a * MaterialDiffuse.a);";
             defaultCodePs += " }";
         }
         else
@@ -850,6 +933,7 @@ namespace mbm
             if (hasNormal)
             {
                 defaultCodePs += "int LightEnabled;"
+                    "int LightMode;"
                     "float4 AmbientColor;"
                     "float3 LightDirectionView;"
                     "float4 LightColor;"
@@ -866,7 +950,7 @@ namespace mbm
                 "{ float4 baseColor = float4(1,1,1,1);";
             if (hasNormal)
             {
-                defaultCodePs += " if (LightEnabled == 0) return baseColor;"
+                defaultCodePs += " if (LightEnabled == 0 || LightMode != 1) return baseColor;"
                     " float3 normalView = normalize(normalViewIn);"
                     " float3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0);"
@@ -883,7 +967,7 @@ namespace mbm
         }
 
         std::string defaultCodeVs = "float4x4 mvpMatrix : register(c0);";
-        if (hasNormal) defaultCodeVs += "float4x4 mvMatrix;";
+        if (hasNormal || hasUV) defaultCodeVs += "float4x4 mvMatrix;";
         defaultCodeVs +=
             "struct VS_INPUT { float4 position : POSITION;";
         if (hasNormal) defaultCodeVs += " float3 normal : NORMAL;";
@@ -892,11 +976,14 @@ namespace mbm
             "struct VS_OUTPUT { float4 position : POSITION;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
         if (hasNormal) defaultCodeVs += " float3 normalView : TEXCOORD1;";
+        if (hasUV && hasNormal) defaultCodeVs += " float3 positionView : TEXCOORD2;";
+        else if (hasUV) defaultCodeVs += " float3 positionView : TEXCOORD1;";
         defaultCodeVs += " };"
             "VS_OUTPUT main(VS_INPUT input)"
             "{ VS_OUTPUT output; output.position = mul(input.position, mvpMatrix);";
         if (hasUV) defaultCodeVs += " output.texCoord = input.texCoord;";
         if (hasNormal) defaultCodeVs += " output.normalView = mul(float4(input.normal, 0), mvMatrix).xyz;";
+        if (hasUV) defaultCodeVs += " output.positionView = mul(input.position, mvMatrix).xyz;";
         defaultCodeVs += " return output; }";
 
         constexpr const char* mainFunction = "main";
@@ -1071,8 +1158,8 @@ namespace mbm
                 return false;
             }
         }
-        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS);
-        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, 0);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, 0);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
@@ -1171,6 +1258,8 @@ namespace mbm
                 {
                     pd3dDevice->SetTexture(2, nullptr);
                 }
+                uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
+                uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
@@ -1288,6 +1377,8 @@ namespace mbm
                 {
                     pd3dDevice->SetTexture(2, nullptr);
                 }
+                uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
+                uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
                 switch (pBufferId->mode_draw)
                 {
@@ -1425,8 +1516,8 @@ namespace mbm
                 return false;
             }
         }
-        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS);
-        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, 0);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, 0);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
@@ -1727,8 +1818,8 @@ namespace mbm
                 return false;
             }
         }
-        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS);
-        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, 0);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, 0);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
