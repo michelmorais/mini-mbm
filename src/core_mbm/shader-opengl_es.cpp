@@ -761,36 +761,54 @@ namespace mbm
         this->vShader            = ptrVshader;
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const bool canUsePointLight2D = (this->vShader == nullptr);
 
         std::string defaultCodePs;
         if (hasUV)
         {
             defaultCodePs = "precision mediump float;"
                 "varying vec2 vTexCoord;"
-                "varying vec3 vPositionView;"
                 "uniform sampler2D sample0;"
-                "uniform sampler2D sample2;"
                 "uniform int LightEnabled;"
-                "uniform int LightMode;"
-                "uniform int HasNormalMap;"
                 "uniform vec4 AmbientColor;"
                 "uniform vec3 LightDirectionView;"
-                "uniform vec3 LightPositionView;"
-                "uniform float LightRadius;"
                 "uniform vec4 LightColor;"
                 "uniform vec4 MaterialDiffuse;"
                 "uniform vec4 MaterialAmbient;"
                 "uniform vec4 MaterialEmissive;";
+            if (canUsePointLight2D)
+            {
+                defaultCodePs += "varying vec3 vPositionView;"
+                    "uniform sampler2D sample2;"
+                    "uniform int LightMode;"
+                    "uniform int HasNormalMap;"
+                    "uniform vec3 LightPositionView;"
+                    "uniform float LightRadius;";
+            }
             if (hasNormal)
                 defaultCodePs += "varying vec3 vNormalView;";
             defaultCodePs += "void main() {"
                 " vec4 texColor = texture2D(sample0, vTexCoord);"
-                " if (LightEnabled == 0 || LightMode == 0) { gl_FragColor = texColor; return; }"
+                " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
                 " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
                 " vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
-            if (hasNormal)
+            if (canUsePointLight2D == false)
             {
-                defaultCodePs += " if (LightMode == 1) {"
+                if (hasNormal)
+                {
+                    defaultCodePs += " vec3 normalView = normalize(vNormalView);"
+                        " vec3 lightTravel = normalize(LightDirectionView);"
+                        " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                        " light += LightColor.rgb * diffuse;";
+                }
+                defaultCodePs += " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
+                    " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
+                    "}";
+            }
+            else if (hasNormal)
+            {
+                defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
+                    " if (LightMode == 1) {"
                     "  vec3 normalView = normalize(vNormalView);"
                     "  vec3 lightTravel = normalize(LightDirectionView);"
                     "  float diffuse = max(dot(normalView, -lightTravel), 0.0);"
@@ -799,24 +817,28 @@ namespace mbm
             }
             else
             {
-                defaultCodePs += " if (LightMode == 2) ";
+                defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
+                    " if (LightMode == 2) ";
             }
-            defaultCodePs += "{"
-                "  vec3 normalView = vec3(0.0, 0.0, 1.0);"
-                "  if (HasNormalMap != 0) normalView = normalize((texture2D(sample2, vTexCoord).xyz * 2.0) - 1.0);"
-                "  vec3 toLight = LightPositionView - vPositionView;"
-                "  float dist = length(toLight);"
-                "  if (LightRadius > 0.0001) {"
-                "   vec3 lightDir = toLight / max(dist, 0.0001);"
-                "   float diffuse = max(dot(normalView, lightDir), 0.0);"
-                "   float attenuation = 1.0 - clamp(dist / LightRadius, 0.0, 1.0);"
-                "   attenuation *= attenuation;"
-                "   light += LightColor.rgb * diffuse * attenuation;"
-                "  }"
-                " }"
-                " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
-                " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
-                "}";
+            if (canUsePointLight2D)
+            {
+                defaultCodePs += "{"
+                    "  vec3 normalView = vec3(0.0, 0.0, 1.0);"
+                    "  if (HasNormalMap != 0) normalView = normalize((texture2D(sample2, vTexCoord).xyz * 2.0) - 1.0);"
+                    "  vec3 toLight = LightPositionView - vPositionView;"
+                    "  float dist = length(toLight);"
+                    "  if (LightRadius > 0.0001) {"
+                    "   vec3 lightDir = toLight / max(dist, 0.0001);"
+                    "   float diffuse = max(dot(normalView, lightDir), 0.0);"
+                    "   float attenuation = 1.0 - clamp(dist / LightRadius, 0.0, 1.0);"
+                    "   attenuation *= attenuation;"
+                    "   light += LightColor.rgb * diffuse * attenuation;"
+                    "  }"
+                    " }"
+                    " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
+                    " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
+                    "}";
+            }
         }
         else
         {
@@ -856,10 +878,12 @@ namespace mbm
         defaultCodeVs += " uniform mat4 mvpMatrix;";
         if (hasNormal || hasUV) defaultCodeVs += " uniform mat4 mvMatrix;";
         if (hasNormal) defaultCodeVs += " varying vec3 vNormalView;";
-        if (hasUV) defaultCodeVs += " varying vec2 vTexCoord; varying vec3 vPositionView;";
+        if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
+        if (hasUV && canUsePointLight2D) defaultCodeVs += " varying vec3 vPositionView;";
         defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
         if (hasNormal) defaultCodeVs += " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
-        if (hasUV) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz; vTexCoord = aTextCoord;";
+        if (hasUV && canUsePointLight2D) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz;";
+        if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
         void *backendShaderSpecific = getBackendShaderSpecific();
         GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(backendShaderSpecific);
@@ -902,11 +926,11 @@ namespace mbm
         }
         if (bothShaderCode.find("mvpMatrix") != std::string::npos)
         {
-            gles_shaderSpecific->mvpMatrixHandle = GLGetUniformLocation(gles_shaderSpecific->programObject, "mvpMatrix");
+            gles_shaderSpecific->mvpMatrixHandle = GLGetUniformLocationOptional(gles_shaderSpecific->programObject, "mvpMatrix");
         }
         if (bothShaderCode.find("mvMatrix") != std::string::npos)
         {
-            gles_shaderSpecific->mvMatrixHandle = GLGetUniformLocation(gles_shaderSpecific->programObject, "mvMatrix");
+            gles_shaderSpecific->mvMatrixHandle = GLGetUniformLocationOptional(gles_shaderSpecific->programObject, "mvMatrix");
         }
         if (vertexShaderCode.find("aNormal") != std::string::npos)
         {   // Attributes are vertex-only; use Optional - aNormal can be inactive if linker optimizes out unused varying
@@ -976,8 +1000,14 @@ namespace mbm
                 GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             }
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            if (gles_shaderSpecific->mvpMatrixHandle != -1)
+            {
+                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+            }
+            if (gles_shaderSpecific->mvMatrixHandle != -1)
+            {
+                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            }
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
@@ -1045,8 +1075,14 @@ namespace mbm
                     GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                if (gles_shaderSpecific->mvpMatrixHandle != -1)
+                {
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+                }
+                if (gles_shaderSpecific->mvMatrixHandle != -1)
+                {
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                }
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
@@ -1126,8 +1162,14 @@ namespace mbm
             GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
             GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            if (gles_shaderSpecific->mvpMatrixHandle != -1)
+            {
+                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+            }
+            if (gles_shaderSpecific->mvMatrixHandle != -1)
+            {
+                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            }
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
@@ -1190,8 +1232,14 @@ namespace mbm
                     GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                if (gles_shaderSpecific->mvpMatrixHandle != -1)
+                {
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+                }
+                if (gles_shaderSpecific->mvMatrixHandle != -1)
+                {
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                }
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
@@ -1280,8 +1328,14 @@ namespace mbm
             GLDisable(GL_CULL_FACE);
         }
         
-        GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE,SHADER::modelView.p);
+        if (gles_shaderSpecific->mvpMatrixHandle != -1)
+        {
+            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        }
+        if (gles_shaderSpecific->mvMatrixHandle != -1)
+        {
+            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+        }
         // Unbind VBO so vertex pointers are treated as client-side arrays, and disable
         // stale attrib arrays left by a previous draw (e.g. LINE_MESH position-only shader)
         // to avoid GL_INVALID_OPERATION on strict GLES drivers (ANGLE, Mesa).
@@ -1382,8 +1436,14 @@ namespace mbm
             GLDisable(GL_CULL_FACE);
         }
 
-        GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+        if (gles_shaderSpecific->mvpMatrixHandle != -1)
+        {
+            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        }
+        if (gles_shaderSpecific->mvMatrixHandle != -1)
+        {
+            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+        }
 
         // Unbind VBO so vertex pointers are treated as client-side arrays, and disable
         // stale attrib arrays left by a previous draw (e.g. LINE_MESH position-only shader)
