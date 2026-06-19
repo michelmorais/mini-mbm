@@ -21,6 +21,8 @@
 #if defined (USE_OPENGL_ES)
 
 #include <shader.h>
+#include <device.h>
+#include <light.h>
 #include <texture-manager.h>
 #include <specific-opengl_es.h>
 #include "specific-opengl_es-buffer.h"
@@ -35,6 +37,55 @@ namespace mbm
 {
     static uint32_t loadShaderProgram(BASE_SHADER* pShader, BASE_SHADER* vShader, void* ptrShaderSpecific, const char* vertShaderSrc, const char* fragShaderSrc);
     static uint32_t compileCodeShader(BASE_SHADER* ptrShader, const unsigned int type, const char* shaderSrc);
+
+    static VEC3 getLightDirectionView(const LIGHT_STATE &lightState)
+    {
+        const CAMERA &camera = DEVICE::getInstance()->getCamera();
+        const MATRIX &view = camera.matrixView;
+        VEC3 directionView(
+            (lightState.directionalDirection.x * view._11) +
+            (lightState.directionalDirection.y * view._21) +
+            (lightState.directionalDirection.z * view._31),
+            (lightState.directionalDirection.x * view._12) +
+            (lightState.directionalDirection.y * view._22) +
+            (lightState.directionalDirection.z * view._32),
+            (lightState.directionalDirection.x * view._13) +
+            (lightState.directionalDirection.y * view._23) +
+            (lightState.directionalDirection.z * view._33));
+        Vec3Normalize(&directionView, &directionView);
+        return directionView;
+    }
+
+    static void uploadReservedLightUniformsOpenGlEs(const uint32_t programObject)
+    {
+        if (programObject == 0)
+            return;
+        LIGHT_STATE lightState;
+        const bool hasRenderLight = DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
+        if (hasRenderLight == false)
+            lightState = LIGHT_STATE();
+        const int enabled = lightState.enabled ? 1 : 0;
+        const int lightCount = lightState.enabled ? 1 : 0;
+        const VEC3 directionView = getLightDirectionView(lightState);
+
+        GLint handle = GLGetUniformLocation(programObject, "LightEnabled");
+        if (handle != -1)
+            GLUniform1i(handle, enabled);
+        handle = GLGetUniformLocation(programObject, "LightCount");
+        if (handle != -1)
+            GLUniform1i(handle, lightCount);
+        handle = GLGetUniformLocation(programObject, "AmbientColor");
+        if (handle != -1)
+            GLUniform4f(handle, lightState.ambientColor.r, lightState.ambientColor.g,
+                        lightState.ambientColor.b, lightState.ambientColor.a);
+        handle = GLGetUniformLocation(programObject, "LightDirectionView");
+        if (handle != -1)
+            GLUniform3f(handle, directionView.x, directionView.y, directionView.z);
+        handle = GLGetUniformLocation(programObject, "LightColor");
+        if (handle != -1)
+            GLUniform4f(handle, lightState.directionalColor.r, lightState.directionalColor.g,
+                        lightState.directionalColor.b, lightState.directionalColor.a);
+    }
 
     static GLenum getOpenGlEsModeDraw(const uint32_t mode_draw)
     {
@@ -475,6 +526,7 @@ namespace mbm
         if (gles_shaderSpecific->programObject == 0)
             return;
         GLUseProgram(gles_shaderSpecific->programObject);
+        uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {

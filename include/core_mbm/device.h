@@ -151,6 +151,9 @@ namespace mbm
         API_IMPL bool isGamePaused() const noexcept;
         API_IMPL LIGHT_STATE &getMutableLightState(const LIGHT_TARGET target) noexcept;
         API_IMPL const LIGHT_STATE &getLightStateInternal(const LIGHT_TARGET target) const noexcept;
+        API_IMPL void setLightTargetForRender(const LIGHT_TARGET target) noexcept;
+        API_IMPL void disableLightForRender() noexcept;
+        API_IMPL bool getLightStateForCurrentRender(LIGHT_STATE &outState) const noexcept;
 
     private:
         static DEVICE *                       instanceDevice;

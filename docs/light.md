@@ -152,3 +152,26 @@ Default values:
 - `directionalDirection = normalized (0.0, -0.707, -0.707)`
 
 Color channels are clamped to `0..1`. Directional light directions are normalized by the engine.
+
+## Reserved Shader Inputs
+
+The engine uploads these reserved light names automatically when the active shader declares them:
+
+- `LightEnabled`: integer, `1` when target lighting is enabled, otherwise `0`
+- `LightCount`: integer, `1` for the current one-light implementation when enabled, otherwise `0`
+- `AmbientColor`: `vec4` / `float4`
+- `LightDirectionView`: `vec3` / `float3`, direction the light travels in view space
+- `LightColor`: `vec4` / `float4`
+
+OpenGL ES and DirectX 9 look up these names directly as optional uniforms/constants. Metal shaders
+use fixed optional argument buffer slots with the same argument names:
+
+```metal
+constant int    &LightEnabled      [[buffer(4)]]
+constant int    &LightCount        [[buffer(5)]]
+constant float4 &AmbientColor      [[buffer(6)]]
+constant float3 &LightDirectionView [[buffer(7)]]
+constant float4 &LightColor        [[buffer(8)]]
+```
+
+Custom shader CFG variables cannot use these reserved names; they are owned by the engine.

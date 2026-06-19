@@ -15,6 +15,7 @@
 
 #include <shader.h>
 #include <shader-var-cfg.h>
+#include <light.h>
 #include <texture-manager.h>
 #include "specific-metal-context.h"
 #include "specific-metal-buffer.h"
@@ -41,6 +42,53 @@ static void packMetalShaderVar(float *buffer, const mbm::VAR_SHADER *var, const 
         return;
     }
     memcpy(buffer + offset, var->current, static_cast<size_t>(var->sizeVar) * sizeof(float));
+}
+
+static mbm::VEC3 getLightDirectionViewMetal(const mbm::LIGHT_STATE &lightState)
+{
+    const mbm::CAMERA &camera = mbm::DEVICE::getInstance()->getCamera();
+    const mbm::MATRIX &view = camera.matrixView;
+    mbm::VEC3 directionView(
+        (lightState.directionalDirection.x * view._11) +
+        (lightState.directionalDirection.y * view._21) +
+        (lightState.directionalDirection.z * view._31),
+        (lightState.directionalDirection.x * view._12) +
+        (lightState.directionalDirection.y * view._22) +
+        (lightState.directionalDirection.z * view._32),
+        (lightState.directionalDirection.x * view._13) +
+        (lightState.directionalDirection.y * view._23) +
+        (lightState.directionalDirection.z * view._33));
+    mbm::Vec3Normalize(&directionView, &directionView);
+    return directionView;
+}
+
+static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc)
+{
+    if (!enc)
+        return;
+    mbm::LIGHT_STATE lightState;
+    const bool hasRenderLight = mbm::DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
+    if (hasRenderLight == false)
+        lightState = mbm::LIGHT_STATE();
+    int32_t lightEnabled = lightState.enabled ? 1 : 0;
+    int32_t lightCount = lightState.enabled ? 1 : 0;
+    float ambientColor[4] = {lightState.ambientColor.r, lightState.ambientColor.g,
+                             lightState.ambientColor.b, lightState.ambientColor.a};
+    const mbm::VEC3 directionView = getLightDirectionViewMetal(lightState);
+    float lightDirectionView[4] = {directionView.x, directionView.y, directionView.z, 0.0f};
+    float lightColor[4] = {lightState.directionalColor.r, lightState.directionalColor.g,
+                           lightState.directionalColor.b, lightState.directionalColor.a};
+
+    [enc setVertexBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
+    [enc setFragmentBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
+    [enc setVertexBytes:&lightCount length:sizeof(lightCount) atIndex:5];
+    [enc setFragmentBytes:&lightCount length:sizeof(lightCount) atIndex:5];
+    [enc setVertexBytes:ambientColor length:sizeof(ambientColor) atIndex:6];
+    [enc setFragmentBytes:ambientColor length:sizeof(ambientColor) atIndex:6];
+    [enc setVertexBytes:lightDirectionView length:sizeof(lightDirectionView) atIndex:7];
+    [enc setFragmentBytes:lightDirectionView length:sizeof(lightDirectionView) atIndex:7];
+    [enc setVertexBytes:lightColor length:sizeof(lightColor) atIndex:8];
+    [enc setFragmentBytes:lightColor length:sizeof(lightColor) atIndex:8];
 }
 
 static NSUInteger strideForFVF(mbm::FVF_PROVIDE_BY_ENGINE fvf)
@@ -806,6 +854,7 @@ namespace mbm
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+            uploadReservedLightBuffersMetal(enc);
 
             // Bind stage-1 texture (constant across all subsets).
             {
@@ -939,6 +988,7 @@ namespace mbm
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+            uploadReservedLightBuffersMetal(enc);
 
             // Bind stage-1 texture (constant across all subsets).
             {
@@ -1052,6 +1102,7 @@ namespace mbm
             [enc setCullMode:MTLCullModeNone]; // match OpenGL: disable face culling for particles
             [enc setDepthStencilState:getOrCreateNoDepthState(ctx)]; // match OpenGL: no depth test
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+            uploadReservedLightBuffersMetal(enc);
 
             const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
             void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
@@ -1138,6 +1189,7 @@ namespace mbm
             [enc setCullMode:MTLCullModeNone]; // no culling for particles
             [enc setDepthStencilState:getOrCreateNoDepthState(ctx)]; // no depth test
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+            uploadReservedLightBuffersMetal(enc);
 
             const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
             void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;

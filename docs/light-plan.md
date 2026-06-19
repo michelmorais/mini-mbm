@@ -485,6 +485,9 @@ Default MSL generation should:
 
 - Add backend-specific lookup/upload for reserved light names through the existing
   `SHADER::update()` / `BASE_SHADER::update()` path.
+- Track the current render light target during `CORE_MANAGER::render()`: `3d` objects receive the
+  `3d` light state, `2dw` objects receive the stored `2dw` state, and `2ds` rendering disables
+  light upload until a future explicit `2ds` target exists.
 - Use the same shared reserved-name helper/table for CFG rejection and backend reserved-uniform
   upload decisions.
 - Upload only uniforms/constants that are active in the compiled shader.
@@ -495,6 +498,13 @@ Default MSL generation should:
 - Keep CFG variable upload behavior unchanged.
 - Add debug logging for missing optional light uniforms only when useful; avoid noisy warnings for
   shaders that intentionally do not use lighting.
+- Metal cannot query GLSL/HLSL-style named uniforms at draw time. Use fixed optional Metal argument
+  buffer slots for the reserved names:
+  - `LightEnabled` at `[[buffer(4)]]`
+  - `LightCount` at `[[buffer(5)]]`
+  - `AmbientColor` at `[[buffer(6)]]`
+  - `LightDirectionView` at `[[buffer(7)]]`
+  - `LightColor` at `[[buffer(8)]]`
 
 ### Milestone 5: Lit default shaders
 

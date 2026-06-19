@@ -70,6 +70,8 @@ namespace mbm
         COLOR colorClearBackGround = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
         LIGHT_STATE light3D;
         LIGHT_STATE light2DW;
+        LIGHT_TARGET currentRenderLightTarget = LIGHT_TARGET_3D;
+        bool currentRenderLightTargetEnabled = false;
         bool clearBackGround = true;
         bool stopScriptOnError = false;
         int swapBackBufferStep = 3;
@@ -146,6 +148,25 @@ namespace mbm
     const LIGHT_STATE &DEVICE::getLightStateInternal(const LIGHT_TARGET target) const noexcept
     {
         return target == LIGHT_TARGET_2DW ? impl->light2DW : impl->light3D;
+    }
+
+    void DEVICE::setLightTargetForRender(const LIGHT_TARGET target) noexcept
+    {
+        impl->currentRenderLightTarget = isValidLightTarget(target) ? target : LIGHT_TARGET_3D;
+        impl->currentRenderLightTargetEnabled = isValidLightTarget(target);
+    }
+
+    void DEVICE::disableLightForRender() noexcept
+    {
+        impl->currentRenderLightTargetEnabled = false;
+    }
+
+    bool DEVICE::getLightStateForCurrentRender(LIGHT_STATE &outState) const noexcept
+    {
+        if (impl->currentRenderLightTargetEnabled == false)
+            return false;
+        outState = getLightStateInternal(impl->currentRenderLightTarget);
+        return true;
     }
 
     namespace

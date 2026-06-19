@@ -24,6 +24,7 @@
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
+#include <light.h>
 #include "specific-directx9-context.h"
 #include "specific-directx9-buffer.h"
 #include "specific-directx9-shader.h"
@@ -37,6 +38,53 @@
 
 namespace mbm
 {
+    static VEC3 getLightDirectionViewD3D(const LIGHT_STATE &lightState)
+    {
+        const CAMERA &camera = DEVICE::getInstance()->getCamera();
+        const MATRIX &view = camera.matrixView;
+        VEC3 directionView(
+            (lightState.directionalDirection.x * view._11) +
+            (lightState.directionalDirection.y * view._21) +
+            (lightState.directionalDirection.z * view._31),
+            (lightState.directionalDirection.x * view._12) +
+            (lightState.directionalDirection.y * view._22) +
+            (lightState.directionalDirection.z * view._32),
+            (lightState.directionalDirection.x * view._13) +
+            (lightState.directionalDirection.y * view._23) +
+            (lightState.directionalDirection.z * view._33));
+        Vec3Normalize(&directionView, &directionView);
+        return directionView;
+    }
+
+    static void uploadReservedLightConstantsD3D(IDirect3DDevice9 *pd3dDevice, ID3DXConstantTable *constantTable)
+    {
+        if (pd3dDevice == nullptr || constantTable == nullptr)
+            return;
+        LIGHT_STATE lightState;
+        const bool hasRenderLight = DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
+        if (hasRenderLight == false)
+            lightState = LIGHT_STATE();
+        const int enabled = lightState.enabled ? 1 : 0;
+        const int lightCount = lightState.enabled ? 1 : 0;
+        const VEC3 directionView = getLightDirectionViewD3D(lightState);
+
+        D3DXHANDLE handle = constantTable->GetConstantByName(nullptr, "LightEnabled");
+        if (handle)
+            constantTable->SetInt(pd3dDevice, handle, enabled);
+        handle = constantTable->GetConstantByName(nullptr, "LightCount");
+        if (handle)
+            constantTable->SetInt(pd3dDevice, handle, lightCount);
+        handle = constantTable->GetConstantByName(nullptr, "AmbientColor");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &lightState.ambientColor.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "LightDirectionView");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &directionView.x, 3);
+        handle = constantTable->GetConstantByName(nullptr, "LightColor");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &lightState.directionalColor.r, 4);
+    }
+
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept :
         FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS),
         sizeStructVertexInBytes(0),
@@ -610,6 +658,8 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS);
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
             VAR_SHADER *var = lsVar[i];
