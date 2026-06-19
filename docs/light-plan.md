@@ -573,6 +573,8 @@ Default MSL generation should:
   `CURRENT_VERSION_MBM_HEADER`.
 - Extend `BUFFER_GL` texture storage beyond stage 0 plus shared stage 1 before using normal maps.
 - Do not overload existing stage 1 / `sample1` FX texture with normal maps.
+- Runtime now binds the first per-subset normal-map slot through stage / sampler `2`
+  (`sample2`) so stage `1` / `sample1` remains reserved for the existing FX path.
 
 ### Milestone 9: Multi-light design
 

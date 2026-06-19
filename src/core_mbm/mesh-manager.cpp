@@ -4767,6 +4767,22 @@ namespace mbm
             for (std::vector<int>::size_type i = 0; i < totalIdTexture; ++i)
             {
                 buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[i], 0, static_cast<uint32_t>(i));
+                const util::SUBSET &subsetRuntime = buffer[currentFrame].subset[i];
+                const std::vector<util::MATERIAL_TEXTURE_SLOT_HEADER>::size_type totalMaterialTextures =
+                    subsetRuntime.materialTextureSlotHeaders.size() < subsetRuntime.materialTextures.size()
+                        ? subsetRuntime.materialTextureSlotHeaders.size()
+                        : subsetRuntime.materialTextures.size();
+                for (std::vector<util::MATERIAL_TEXTURE_SLOT_HEADER>::size_type materialIndex = 0;
+                     materialIndex < totalMaterialTextures;
+                     ++materialIndex)
+                {
+                    if (subsetRuntime.materialTextureSlotHeaders[materialIndex].type == util::MATERIAL_TEXTURE_SLOT_NORMAL)
+                    {
+                        buffer[currentFrame].pBufferGL->setTextureByStage(
+                            subsetRuntime.materialTextures[materialIndex], 2, static_cast<uint32_t>(i));
+                        break;
+                    }
+                }
             }
         }
         fclose(fp);

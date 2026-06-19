@@ -721,7 +721,8 @@ namespace mbm
         mvpMatrixHandle(nullptr),
         mvMatrixHandle(nullptr),
         samplerHandle0(nullptr),
-        samplerHandle1(nullptr)
+        samplerHandle1(nullptr),
+        samplerHandle2(nullptr)
     {
     }
 
@@ -757,6 +758,7 @@ namespace mbm
         mvMatrixHandle  = nullptr;
         samplerHandle0  = nullptr;
         samplerHandle1  = nullptr;
+        samplerHandle2  = nullptr;
     }
 
     SHADER::SHADER() : 
@@ -971,6 +973,7 @@ namespace mbm
             d3dPsVs->constantTablePS->SetDefaults(pd3dDevice);
             d3dPsVs->samplerHandle0 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample0");
             d3dPsVs->samplerHandle1 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample1");
+            d3dPsVs->samplerHandle2 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample2");
 
             //D3DXCONSTANT_DESC desc;
             //UINT count = 1;
@@ -1158,6 +1161,17 @@ namespace mbm
                     pd3dDevice->SetTexture(0, nullptr);
                 }
 
+                TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
+                if (texture2)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture2->getBackendTexturePointer());
+                    pd3dDevice->SetTexture(2, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(2, nullptr);
+                }
+
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
                 switch (pBufferId->mode_draw)
@@ -1262,6 +1276,17 @@ namespace mbm
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
+                }
+
+                TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
+                if (texture2)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture2->getBackendTexturePointer());
+                    pd3dDevice->SetTexture(2, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(2, nullptr);
                 }
 
                 switch (pBufferId->mode_draw)
@@ -1495,6 +1520,17 @@ namespace mbm
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
+                }
+
+                TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
+                if (texture2)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture2->getBackendTexturePointer());
+                    pd3dDevice->SetTexture(2, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(2, nullptr);
                 }
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
@@ -1783,6 +1819,17 @@ namespace mbm
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
+                }
+
+                TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
+                if (texture2)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture2->getBackendTexturePointer());
+                    pd3dDevice->SetTexture(2, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(2, nullptr);
                 }
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers

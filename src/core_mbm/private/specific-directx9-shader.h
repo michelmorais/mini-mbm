@@ -36,6 +36,7 @@ namespace mbm
         D3DXHANDLE mvMatrixHandle;
         D3DXHANDLE samplerHandle0;
         D3DXHANDLE samplerHandle1;
+        D3DXHANDLE samplerHandle2;
 
         D3D_PS_VS() noexcept;
         ~D3D_PS_VS();

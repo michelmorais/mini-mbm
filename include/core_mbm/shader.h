@@ -158,7 +158,8 @@ namespace mbm
                                           const util::INFO_DRAW_MODE* info_draw_mode);
 
         // Stage 0 keeps the historical "one texture per subset" contract.
-        // Additional stages may be shared (subset 0 fallback) or per-subset.
+        // Stage 1 keeps the legacy shared FX texture semantics (subset 0 fallback).
+        // Stage 2+ can be used for per-subset material textures such as normal maps.
         std::unordered_map<uint32_t, std::unordered_map<uint32_t, TEXTURE*>> texturesByStage;
     };
 

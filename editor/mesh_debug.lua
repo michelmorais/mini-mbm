@@ -180,7 +180,7 @@ function onInitScene()
         iLargeMeshMode = 1,
         tRunResults = {},
     }
-    tEditorLightUi3d = nil
+    tEditorLightUi = {}
 end
 
 local function makeColorRGBA(color, defaultColor)
@@ -235,8 +235,8 @@ local function isSameMaterial(a, b)
            isSameFloat(a and a.Power, b and b.Power)
 end
 
-local function getEditorLightState3d()
-    local ok, state = dpCall(function() return mbm.getLightState('3d') end)
+local function getEditorLightState(target)
+    local ok, state = dpCall(function() return mbm.getLightState(target) end)
     if ok and type(state) == 'table' then
         state.ambientColor = makeColorRGBA(state.ambientColor, {r = 0.2, g = 0.2, b = 0.2, a = 1})
         state.directionalColor = makeColorRGBA(state.directionalColor, {r = 1, g = 1, b = 1, a = 1})
@@ -251,20 +251,21 @@ local function getEditorLightState3d()
     }
 end
 
-local function getEditorLightUi3d(forceRefresh)
-    if forceRefresh or tEditorLightUi3d == nil then
-        tEditorLightUi3d = cloneLightState(getEditorLightState3d())
+local function getEditorLightUi(target, forceRefresh)
+    tEditorLightUi = tEditorLightUi or {}
+    if forceRefresh or tEditorLightUi[target] == nil then
+        tEditorLightUi[target] = cloneLightState(getEditorLightState(target))
     end
-    return tEditorLightUi3d
+    return tEditorLightUi[target]
 end
 
-local function ensureEditor3dLightingEnabled()
-    local state = getEditorLightState3d()
+local function ensureEditorLightingEnabled(target)
+    local state = getEditorLightState(target)
     if state.enabled then
         return
     end
-    dpCall(function() mbm.setLightEnabled('3d', true) end)
-    local uiState = getEditorLightUi3d(true)
+    dpCall(function() mbm.setLightEnabled(target, true) end)
+    local uiState = getEditorLightUi(target, true)
     uiState.enabled = true
 end
 
@@ -281,7 +282,63 @@ local function setMeshDebugCameraMode3d(enabled)
     originLine3dY.visible = bCameraMode3D and bShowOrigin3d
     originLine3dZ.visible = bCameraMode3D and bShowOrigin3d
     if changed and bCameraMode3D then
-        ensureEditor3dLightingEnabled()
+        ensureEditorLightingEnabled('3d')
+    end
+end
+
+local function showEditorLightPanel(target, idSuffix)
+    local lightState = getEditorLightUi(target)
+    local lightColorFlags = tImGui.Flags('ImGuiColorEditFlags_NoInputs')
+    tImGui.Text(tLang.L('light_panel'))
+    tImGui.SameLine()
+    local enabled = tImGui.Checkbox('##lightEnabled' .. idSuffix, lightState.enabled)
+    if enabled ~= lightState.enabled then
+        dpCall(function() mbm.setLightEnabled(target, enabled) end)
+        lightState.enabled = enabled
+    end
+    tImGui.SameLine()
+    tImGui.TextDisabled(tLang.L('light_enabled'))
+
+    tImGui.Text(tLang.L('ambient'))
+    tImGui.SameLine()
+    local changedAmbient, ambientColor = tImGui.ColorEdit4('##lightAmbient' .. idSuffix, lightState.ambientColor, lightColorFlags)
+    if changedAmbient and ambientColor then
+        lightState.ambientColor = makeColorRGBA(ambientColor, lightState.ambientColor)
+        dpCall(function() mbm.setAmbientLight(target, ambientColor) end)
+    end
+
+    tImGui.Text(tLang.L('color_label'))
+    tImGui.SameLine()
+    local changedDirectionalColor, directionalColor = tImGui.ColorEdit4('##lightDirectionalColor' .. idSuffix, lightState.directionalColor, lightColorFlags)
+    if changedDirectionalColor and directionalColor then
+        lightState.directionalColor = makeColorRGBA(directionalColor, lightState.directionalColor)
+        dpCall(function() mbm.setDirectionalLightColor(target, directionalColor) end)
+    end
+
+    local dir = lightState.directionalDirection or {x = 0, y = -0.70710677, z = -0.70710677}
+    tImGui.Text(tLang.L('direction_label'))
+    tUtil.pushResponsiveItemWidth(120)
+    local d1, nx = tImGui.SliderFloat('X##lightDirX' .. idSuffix, dir.x or 0, -1.0, 1.0, '%.3f')
+    local d2, ny = tImGui.SliderFloat('Y##lightDirY' .. idSuffix, dir.y or 0, -1.0, 1.0, '%.3f')
+    local d3, nz = tImGui.SliderFloat('Z##lightDirZ' .. idSuffix, dir.z or 0, -1.0, 1.0, '%.3f')
+    tImGui.PopItemWidth()
+    if d1 or d2 or d3 then
+        lightState.directionalDirection = {
+            x = d1 and nx or dir.x or 0,
+            y = d2 and ny or dir.y or 0,
+            z = d3 and nz or dir.z or 0,
+        }
+        dpCall(function()
+            mbm.setDirectionalLightDirection(target,
+                lightState.directionalDirection.x,
+                lightState.directionalDirection.y,
+                lightState.directionalDirection.z)
+        end)
+    end
+
+    if tImGui.Button(tLang.L('reset_light') .. '##lightReset' .. idSuffix) then
+        dpCall(function() mbm.resetLight(target) end)
+        getEditorLightUi(target, true)
     end
 end
 
@@ -6061,61 +6118,7 @@ function showCameraWindow()
                 tImGui.TextDisabled(tLang.L('cam_no_mesh'))
             end
             tImGui.Separator()
-            do
-                local lightState = getEditorLightUi3d()
-                local lightColorFlags = tImGui.Flags('ImGuiColorEditFlags_NoInputs')
-                tImGui.Text(tLang.L('light_panel'))
-                tImGui.SameLine()
-                local enabled = tImGui.Checkbox('##lightEnabled3d', lightState.enabled)
-                if enabled ~= lightState.enabled then
-                    dpCall(function() mbm.setLightEnabled('3d', enabled) end)
-                    lightState.enabled = enabled
-                end
-                tImGui.SameLine()
-                tImGui.TextDisabled(tLang.L('light_enabled'))
-
-                tImGui.Text(tLang.L('ambient'))
-                tImGui.SameLine()
-                local changedAmbient, ambientColor = tImGui.ColorEdit4('##lightAmbient3d', lightState.ambientColor, lightColorFlags)
-                if changedAmbient and ambientColor then
-                    lightState.ambientColor = makeColorRGBA(ambientColor, lightState.ambientColor)
-                    dpCall(function() mbm.setAmbientLight('3d', ambientColor) end)
-                end
-
-                tImGui.Text(tLang.L('color_label'))
-                tImGui.SameLine()
-                local changedDirectionalColor, directionalColor = tImGui.ColorEdit4('##lightDirectionalColor3d', lightState.directionalColor, lightColorFlags)
-                if changedDirectionalColor and directionalColor then
-                    lightState.directionalColor = makeColorRGBA(directionalColor, lightState.directionalColor)
-                    dpCall(function() mbm.setDirectionalLightColor('3d', directionalColor) end)
-                end
-
-                local dir = lightState.directionalDirection or {x = 0, y = -0.70710677, z = -0.70710677}
-                tImGui.Text(tLang.L('direction_label'))
-                tUtil.pushResponsiveItemWidth(120)
-                local d1, nx = tImGui.SliderFloat('X##lightDirX3d', dir.x or 0, -1.0, 1.0, '%.3f')
-                local d2, ny = tImGui.SliderFloat('Y##lightDirY3d', dir.y or 0, -1.0, 1.0, '%.3f')
-                local d3, nz = tImGui.SliderFloat('Z##lightDirZ3d', dir.z or 0, -1.0, 1.0, '%.3f')
-                tImGui.PopItemWidth()
-                if d1 or d2 or d3 then
-                    lightState.directionalDirection = {
-                        x = d1 and nx or dir.x or 0,
-                        y = d2 and ny or dir.y or 0,
-                        z = d3 and nz or dir.z or 0,
-                    }
-                    dpCall(function()
-                        mbm.setDirectionalLightDirection('3d',
-                            lightState.directionalDirection.x,
-                            lightState.directionalDirection.y,
-                            lightState.directionalDirection.z)
-                    end)
-                end
-
-                if tImGui.Button(tLang.L('reset_light') .. '##lightReset3d') then
-                    dpCall(function() mbm.resetLight('3d') end)
-                    getEditorLightUi3d(true)
-                end
-            end
+            showEditorLightPanel('3d', '3d')
         else
             tUtil.pushResponsiveItemWidth(72)
             local rx, nx = tImGui.DragFloat('X##c2dx', camera2d.x, 5.0, 0, 0, '%.1f', 0)
@@ -6128,6 +6131,8 @@ function showCameraWindow()
             if tImGui.Button(tLang.L('reset_camera') .. '##cam2dReset') then
                 camera2d:setPos(0, 0)
             end
+            tImGui.Separator()
+            showEditorLightPanel('2dw', '2dw')
             tImGui.TextDisabled(tLang.L('cam_hint_2d'))
         end
     end

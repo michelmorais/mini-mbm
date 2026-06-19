@@ -617,6 +617,7 @@ namespace mbm
           mvMatrixHandle(-1),
           samplerHandle0(-1),
           samplerHandle1(-1),
+          samplerHandle2(-1),
           programObject(0)
     {
 	}
@@ -635,6 +636,7 @@ namespace mbm
         mvMatrixHandle  = -1;
         samplerHandle0  = -1;
         samplerHandle1  = -1;
+        samplerHandle2  = -1;
         if (programObject)
         {
             GLDeleteProgram(programObject);
@@ -833,6 +835,10 @@ namespace mbm
         {
             gles_shaderSpecific->samplerHandle1 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample1");
         }
+        if (bothShaderCode.find("sample2") != std::string::npos)
+        {
+            gles_shaderSpecific->samplerHandle2 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample2");
+        }
         
         return true;
     }
@@ -898,6 +904,19 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
+
+                GLActiveTexture(GL_TEXTURE2);
+                const TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
+                if (texture2)
+                {
+                    GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
+                    if (gles_shaderSpecific->samplerHandle2 != -1)
+                        GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
+                }
+                else
+                {
+                    GLBindTexture(GL_TEXTURE_2D, 0);
+                }
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
@@ -944,6 +963,19 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
+                }
+                else
+                {
+                    GLBindTexture(GL_TEXTURE_2D, 0);
+                }
+
+                GLActiveTexture(GL_TEXTURE2);
+                const TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
+                if (texture2)
+                {
+                    GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
+                    if (gles_shaderSpecific->samplerHandle2 != -1)
+                        GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
                 }
                 else
                 {
@@ -1016,6 +1048,19 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
+
+                GLActiveTexture(GL_TEXTURE2);
+                const TEXTURE * texture2 = pBufferId->getTextureByStage(2, i);
+                if (texture2)
+                {
+                    GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
+                    if (gles_shaderSpecific->samplerHandle2 != -1)
+                        GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
+                }
+                else
+                {
+                    GLBindTexture(GL_TEXTURE_2D, 0);
+                }
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
@@ -1057,6 +1102,19 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
                     GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
+                }
+                else
+                {
+                    GLBindTexture(GL_TEXTURE_2D, 0);
+                }
+
+                GLActiveTexture(GL_TEXTURE2);
+                const TEXTURE * texture2 = pBufferId->getTextureByStage(2, i);
+                if (texture2)
+                {
+                    GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
+                    if (gles_shaderSpecific->samplerHandle2 != -1)
+                        GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
                 }
                 else
                 {

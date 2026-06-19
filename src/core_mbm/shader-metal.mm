@@ -993,6 +993,10 @@ namespace mbm
                     void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
                     [enc setFragmentTexture:(texturePointer
                         ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+                    const TEXTURE* t2 = pBufferId->getTextureByStage(2, i);
+                    void *texturePointer2 = t2 ? t2->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer2
+                        ? (__bridge id<MTLTexture>)texturePointer2 : nil) atIndex:2];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -1011,6 +1015,10 @@ namespace mbm
                     void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
                     [enc setFragmentTexture:(texturePointer
                         ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+                    const TEXTURE* t2 = pBufferId->getTextureByStage(2, i);
+                    void *texturePointer2 = t2 ? t2->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer2
+                        ? (__bridge id<MTLTexture>)texturePointer2 : nil) atIndex:2];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:backendBuffer->vertexBuffer offset:off atIndex:0];
@@ -1127,6 +1135,10 @@ namespace mbm
                     void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
                     [enc setFragmentTexture:(texturePointer
                         ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+                    const TEXTURE* t2 = pBufferId->getTextureByStage(2, i);
+                    void *texturePointer2 = t2 ? t2->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer2
+                        ? (__bridge id<MTLTexture>)texturePointer2 : nil) atIndex:2];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -1144,6 +1156,10 @@ namespace mbm
                     void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
                     [enc setFragmentTexture:(texturePointer
                         ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+                    const TEXTURE* t2 = pBufferId->getTextureByStage(2, i);
+                    void *texturePointer2 = t2 ? t2->getBackendTexturePointer() : nullptr;
+                    [enc setFragmentTexture:(texturePointer2
+                        ? (__bridge id<MTLTexture>)texturePointer2 : nil) atIndex:2];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:vbuf offset:off atIndex:0];
