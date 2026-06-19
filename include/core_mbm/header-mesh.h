@@ -544,14 +544,14 @@ namespace util
         HEADER_DESC_SUBSET()noexcept;
     };
 
-    struct API_IMPL MATERIAL_TEXTURE_SLOT_HEADER
+    struct MATERIAL_TEXTURE_SLOT_HEADER
     {
         uint16_t type;
         uint16_t reserved;
         uint32_t payloadSizeInBytes;
         char nameTexture[64];
 
-        MATERIAL_TEXTURE_SLOT_HEADER()noexcept;
+        API_IMPL MATERIAL_TEXTURE_SLOT_HEADER()noexcept;
     };
 
     struct MATERIAL_TEXTURE_SLOT_DEBUG
@@ -559,7 +559,7 @@ namespace util
         uint16_t    type;
         std::string texture;
 
-        MATERIAL_TEXTURE_SLOT_DEBUG()noexcept;
+        API_IMPL MATERIAL_TEXTURE_SLOT_DEBUG()noexcept;
     };
 
     struct API_IMPL HEADER_IMG
