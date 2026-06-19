@@ -1385,6 +1385,56 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "[ps-texture-map.ps][float][verticalOffset]       = min 0.0         max 1.0                 default 0.0 \n"
     "[ps-texture-map.ps][float][strength]             = min 0.0         max 1.0                 default 0.3 \n",
 
+    // ---- lit textured ------------------------------------------------------
+    "lit textured.ps",
+    R"msl(
+fragment float4 frag_main(VOut in [[stage_in]],
+    texture2d<float> sample0 [[texture(0)]],
+    sampler          samp    [[sampler(0)]],
+    constant int    &LightEnabled      [[buffer(4)]],
+    constant float4 &AmbientColor      [[buffer(6)]],
+    constant float3 &LightDirectionView [[buffer(7)]],
+    constant float4 &LightColor        [[buffer(8)]],
+    constant float4 &MaterialDiffuse   [[buffer(9)]],
+    constant float4 &MaterialAmbient   [[buffer(10)]])
+{
+    float4 texColor = sample0.sample(samp, in.uv);
+    if (LightEnabled == 0)
+        return texColor;
+    float3 normalView  = normalize(in.nor);
+    float3 lightTravel = normalize(LightDirectionView);
+    float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
+    float3 base        = texColor.rgb * MaterialDiffuse.rgb;
+    float3 light       = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0f, 1.0f);
+    return float4(base * light, texColor.a * MaterialDiffuse.a);
+}
+)msl",
+    "[ps-lit-textured.ps] = lit textured.ps\n",
+
+    // ---- lit solid ---------------------------------------------------------
+    "lit solid.ps",
+    R"msl(
+fragment float4 frag_main(VOut in [[stage_in]],
+    constant int    &LightEnabled      [[buffer(4)]],
+    constant float4 &AmbientColor      [[buffer(6)]],
+    constant float3 &LightDirectionView [[buffer(7)]],
+    constant float4 &LightColor        [[buffer(8)]],
+    constant float4 &MaterialDiffuse   [[buffer(9)]],
+    constant float4 &MaterialAmbient   [[buffer(10)]])
+{
+    float4 baseColor = float4(1.0f);
+    if (LightEnabled == 0)
+        return baseColor;
+    float3 normalView  = normalize(in.nor);
+    float3 lightTravel = normalize(LightDirectionView);
+    float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
+    float3 base        = MaterialDiffuse.rgb;
+    float3 light       = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0f, 1.0f);
+    return float4(base * light, MaterialDiffuse.a);
+}
+)msl",
+    "[ps-lit-solid.ps] = lit solid.ps\n",
+
     /* =========================================================
        VERTEX SHADERS  (complete MSL programs: vertex + fragment)
        ========================================================= */

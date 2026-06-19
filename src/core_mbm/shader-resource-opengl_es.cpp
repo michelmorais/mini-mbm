@@ -2354,6 +2354,70 @@ namespace mbm
     "[ps-texture-map.ps][float][strength]             = min 0.0         max 1.0                 default 0.3 \n",
     // Texture Map **********************
 
+    // Lit Textured **********************
+    "lit textured.ps",
+
+    "precision mediump float;\n"
+    "uniform sampler2D sample0;\n"
+    "uniform int LightEnabled;\n"
+    "uniform vec4 AmbientColor;\n"
+    "uniform vec3 LightDirectionView;\n"
+    "uniform vec4 LightColor;\n"
+    "uniform vec4 MaterialDiffuse;\n"
+    "uniform vec4 MaterialAmbient;\n"
+    "varying vec2 vTexCoord;\n"
+    "varying vec3 vNormalView;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "   vec4 texColor = texture2D(sample0, vTexCoord);\n"
+    "   if (LightEnabled == 0)\n"
+    "   {\n"
+    "      gl_FragColor = texColor;\n"
+    "      return;\n"
+    "   }\n"
+    "   vec3 normalView = normalize(vNormalView);\n"
+    "   vec3 lightTravel = normalize(LightDirectionView);\n"
+    "   float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
+    "   vec3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
+    "   vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
+    "   gl_FragColor = vec4(base * light, texColor.a * MaterialDiffuse.a);\n"
+    "}\n",
+
+    "[ps-lit-textured.ps] = lit textured.ps\n",
+    // Lit Textured **********************
+
+    // Lit Solid **********************
+    "lit solid.ps",
+
+    "precision mediump float;\n"
+    "uniform int LightEnabled;\n"
+    "uniform vec4 AmbientColor;\n"
+    "uniform vec3 LightDirectionView;\n"
+    "uniform vec4 LightColor;\n"
+    "uniform vec4 MaterialDiffuse;\n"
+    "uniform vec4 MaterialAmbient;\n"
+    "varying vec3 vNormalView;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "   vec4 baseColor = vec4(1.0, 1.0, 1.0, 1.0);\n"
+    "   if (LightEnabled == 0)\n"
+    "   {\n"
+    "      gl_FragColor = baseColor;\n"
+    "      return;\n"
+    "   }\n"
+    "   vec3 normalView = normalize(vNormalView);\n"
+    "   vec3 lightTravel = normalize(LightDirectionView);\n"
+    "   float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
+    "   vec3 base = MaterialDiffuse.rgb;\n"
+    "   vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
+    "   gl_FragColor = vec4(base * light, MaterialDiffuse.a);\n"
+    "}\n",
+
+    "[ps-lit-solid.ps] = lit solid.ps\n",
+    // Lit Solid **********************
+
     /* VERTEX SHADER
        -----------------------------------------------------------------------------------------------------*/
 

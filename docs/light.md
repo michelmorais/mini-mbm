@@ -196,3 +196,28 @@ exist and target lighting is enabled, the default shader applies ambient plus di
 lighting to RGB using `MaterialDiffuse` and `MaterialAmbient`, and preserves alpha as
 texture-alpha times `MaterialDiffuse.a`. Objects without normals keep their previous unlit output
 even when scene lighting is enabled.
+
+## Built-in Lit Shader Resources
+
+The engine now exposes two explicit built-in lit pixel shaders on every active backend:
+
+- `lit textured.ps`
+- `lit solid.ps`
+
+They use only reserved engine inputs such as `LightEnabled`, `AmbientColor`, `LightDirectionView`,
+`LightColor`, `MaterialDiffuse`, and `MaterialAmbient`. Their CFG entries therefore contain no
+user-editable variables.
+
+Typical usage is to load only the pixel shader and let the engine provide the FVF-matched default
+vertex shader automatically:
+
+```lua
+local fx = myMesh:getShader()
+fx:load("lit textured.ps")
+```
+
+Use `lit textured.ps` for normal-capable geometry that also has UVs and a stage-0 texture. Use
+`lit solid.ps` for normal-capable geometry that should light from material color only.
+
+These built-ins require a vertex format with normals. They are intended for `FVF_POS_NOR_UV` and
+`FVF_POS_NOR` style meshes; objects without normals should keep using the unlit/default path.

@@ -1590,6 +1590,59 @@ namespace mbm
 "[ps-texture-map.ps][float][strength]             = min 0.0         max 10.0                default 1.0 \n",
 //Texture Map **********************
 
+//Lit Textured **********************
+"lit textured.ps",
+
+"int LightEnabled;\n"
+"float4 AmbientColor;\n"
+"float3 LightDirectionView;\n"
+"float4 LightColor;\n"
+"float4 MaterialDiffuse;\n"
+"float4 MaterialAmbient;\n"
+"sampler2D sample0 : register(s0);\n"
+"\n"
+"float4 main(float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1) : COLOR\n"
+"{\n"
+"    float4 texColor = tex2D(sample0, texCoord);\n"
+"    if (LightEnabled == 0)\n"
+"        return texColor;\n"
+"    float3 normalView = normalize(normalViewIn);\n"
+"    float3 lightTravel = normalize(LightDirectionView);\n"
+"    float diffuse = max(dot(normalView, -lightTravel), 0);\n"
+"    float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
+"    float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));\n"
+"    return float4(base * light, texColor.a * MaterialDiffuse.a);\n"
+"}\n",
+
+"[ps-lit-textured.ps] = lit textured.ps\n",
+//Lit Textured **********************
+
+//Lit Solid **********************
+"lit solid.ps",
+
+"int LightEnabled;\n"
+"float4 AmbientColor;\n"
+"float3 LightDirectionView;\n"
+"float4 LightColor;\n"
+"float4 MaterialDiffuse;\n"
+"float4 MaterialAmbient;\n"
+"\n"
+"float4 main(float3 normalViewIn : TEXCOORD1) : COLOR\n"
+"{\n"
+"    float4 baseColor = float4(1,1,1,1);\n"
+"    if (LightEnabled == 0)\n"
+"        return baseColor;\n"
+"    float3 normalView = normalize(normalViewIn);\n"
+"    float3 lightTravel = normalize(LightDirectionView);\n"
+"    float diffuse = max(dot(normalView, -lightTravel), 0);\n"
+"    float3 base = MaterialDiffuse.rgb;\n"
+"    float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));\n"
+"    return float4(base * light, MaterialDiffuse.a);\n"
+"}\n",
+
+"[ps-lit-solid.ps] = lit solid.ps\n",
+//Lit Solid **********************
+
 
 
 

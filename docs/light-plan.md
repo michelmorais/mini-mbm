@@ -524,6 +524,9 @@ Default MSL generation should:
 ### Milestone 6: Built-in lit shader resources
 
 - Add explicit built-in lit shader entries for each backend if default-generation is not enough.
+- Add `lit textured.ps` and `lit solid.ps` as backend-portable built-in shader resources.
+- Prefer pixel-shader-only built-ins for this milestone so the engine can keep using its
+  FVF-matched default/generated vertex shader path automatically.
 - Keep CFG variable names separate from reserved engine light names.
 - Add examples for textured and untextured lit meshes.
 
