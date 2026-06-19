@@ -24,6 +24,11 @@ namespace util
 
     bool readHeaderDescSubsetV8(FILE *fp, util::HEADER_DESC_SUBSET &out);
     bool writeHeaderDescSubsetV8(FILE *fp, const util::HEADER_DESC_SUBSET &in);
+    bool readHeaderDescSubsetV9(FILE *fp, util::HEADER_DESC_SUBSET &out);
+    bool writeHeaderDescSubsetV9(FILE *fp, const util::HEADER_DESC_SUBSET &in);
+
+    bool readMaterialTextureSlotHeaderV9(FILE *fp, util::MATERIAL_TEXTURE_SLOT_HEADER &out);
+    bool writeMaterialTextureSlotHeaderV9(FILE *fp, const util::MATERIAL_TEXTURE_SLOT_HEADER &in);
 
     bool readHeaderImgV8(FILE *fp, util::HEADER_IMG &out);
     bool writeHeaderImgV8(FILE *fp, const util::HEADER_IMG &in);

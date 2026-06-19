@@ -114,8 +114,9 @@ namespace util
     #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
     #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
     #define STRONG_TYPES_VERSION_MBM_HEADER 8     // v8: new baseline for current mesh generation
+    #define MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER 9 // v9: per-subset typed material texture slots
 
-    #define CURRENT_VERSION_MBM_HEADER     STRONG_TYPES_VERSION_MBM_HEADER
+    #define CURRENT_VERSION_MBM_HEADER     MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER
 
     /* hasNorText[0] (normals) */
     #define HAS_NOR_NO           0  /* no normals */
@@ -211,6 +212,34 @@ namespace util
         int32_t indexStart;
         int32_t indexCount;
         uint8_t alphaColor[4];
+    };
+
+    enum MATERIAL_TEXTURE_SLOT_TYPE : uint16_t
+    {
+        MATERIAL_TEXTURE_SLOT_NORMAL   = 1,
+        MATERIAL_TEXTURE_SLOT_SPECULAR = 2,
+        MATERIAL_TEXTURE_SLOT_EMISSIVE = 3,
+        MATERIAL_TEXTURE_SLOT_MASK     = 4,
+    };
+
+    struct API_IMPL HEADER_DESC_SUBSET_DISK_V9
+    {
+        char nameTexture[64];
+        int32_t vertexCount;
+        int32_t vertexStart;
+        int32_t indexStart;
+        int32_t indexCount;
+        uint8_t alphaColor[4];
+        uint16_t materialTextureSlotCount;
+        uint16_t reservedMaterialTextureSlots;
+    };
+
+    struct API_IMPL MATERIAL_TEXTURE_SLOT_HEADER_DISK_V9
+    {
+        uint16_t type;
+        uint16_t reserved;
+        uint32_t payloadSizeInBytes;
+        char nameTexture[64];
     };
 
     struct API_IMPL HEADER_IMG_DISK_V8
@@ -509,8 +538,28 @@ namespace util
                 uint8_t r, g, b;       // Cor  color alpha
             };
         };
+        uint16_t materialTextureSlotCount;
+        uint16_t reservedMaterialTextureSlots;
     
         HEADER_DESC_SUBSET()noexcept;
+    };
+
+    struct API_IMPL MATERIAL_TEXTURE_SLOT_HEADER
+    {
+        uint16_t type;
+        uint16_t reserved;
+        uint32_t payloadSizeInBytes;
+        char nameTexture[64];
+
+        MATERIAL_TEXTURE_SLOT_HEADER()noexcept;
+    };
+
+    struct API_IMPL MATERIAL_TEXTURE_SLOT_DEBUG
+    {
+        uint16_t    type;
+        std::string texture;
+
+        MATERIAL_TEXTURE_SLOT_DEBUG()noexcept;
     };
 
     struct API_IMPL HEADER_IMG
@@ -538,6 +587,7 @@ namespace util
     struct SUBSET_DEBUG
     {
         std::string texture;
+        std::vector<MATERIAL_TEXTURE_SLOT_DEBUG> materialTextureSlots;
         int         vertexStart; 
         int         indexStart;  
         int         vertexCount; 
@@ -562,6 +612,8 @@ namespace util
     struct SUBSET
     {
         mbm::TEXTURE *texture;
+        std::vector<MATERIAL_TEXTURE_SLOT_HEADER> materialTextureSlotHeaders;
+        std::vector<mbm::TEXTURE*>                materialTextures;
         int           vertexStart; // Inicial do vertex
         int           indexStart;  // Index start
         int           vertexCount; // Total de vertex no subset

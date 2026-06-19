@@ -558,6 +558,9 @@ Default MSL generation should:
 - Preserve compatibility by treating existing `HEADER_DESC_SUBSET::nameTexture` as the primary /
   diffuse slot.
 - Store additional material textures as a counted list of typed slots, not as fixed fields.
+- Runtime/file-format groundwork now exists for typed subset material texture slots in mesh version
+  `v9` (`MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER`), with unknown slot types skipped by recorded
+  payload length.
 - Include enough per-slot length information for loaders to skip unknown optional slot types.
 - Store the counted slot list adjacent to each frame subset descriptor/data rather than in a global
   table.

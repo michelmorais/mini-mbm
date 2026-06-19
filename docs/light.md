@@ -221,3 +221,19 @@ Use `lit textured.ps` for normal-capable geometry that also has UVs and a stage-
 
 These built-ins require a vertex format with normals. They are intended for `FVF_POS_NOR_UV` and
 `FVF_POS_NOR` style meshes; objects without normals should keep using the unlit/default path.
+
+## Material Texture Slots
+
+Mesh version `v9` adds typed per-subset material texture slots alongside the existing primary
+diffuse texture reference in `HEADER_DESC_SUBSET::nameTexture`.
+
+Current reserved slot ids are:
+
+- `MATERIAL_TEXTURE_SLOT_NORMAL`
+- `MATERIAL_TEXTURE_SLOT_SPECULAR`
+- `MATERIAL_TEXTURE_SLOT_EMISSIVE`
+- `MATERIAL_TEXTURE_SLOT_MASK`
+
+The slot list is stored adjacent to each subset descriptor. Unknown slot types are skipped by
+recorded payload length so older/newer tools can coexist more safely. The render path groundwork is
+now in place; normal-map consumption is still a follow-up step.

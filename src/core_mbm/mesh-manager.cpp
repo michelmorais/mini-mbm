@@ -126,6 +126,9 @@ namespace
         return true;
     }
 
+    bool readHeaderDescSubsetVersioned(FILE *fp, util::HEADER_DESC_SUBSET &out, const int version);
+    bool writeHeaderDescSubsetVersioned(FILE *fp, const util::HEADER_DESC_SUBSET &in, const int version);
+
     bool read_main_header_and_type(FILE *fp, const char *fileNamePath, util::HEADER &headerOut, util::TYPE_MESH &typeOut)
     {
         if (!util::readHeaderV8(fp, headerOut))
@@ -185,6 +188,7 @@ namespace
     template <typename OnHeaderRead, typename OnSubsetRead>
     bool read_frame_headers_and_subsets(FILE *fp,
                                         const char *fileNamePath,
+                                        const int fileVersion,
                                         util::HEADER_FRAME &headerFrame,
                                         OnHeaderRead onHeaderRead,
                                         OnSubsetRead onSubsetRead)
@@ -197,7 +201,7 @@ namespace
         util::HEADER_DESC_SUBSET headerDescSubset;
         for (int i = 0; i < headerFrame.totalSubset; ++i)
         {
-            if (!util::readHeaderDescSubsetV8(fp, headerDescSubset))
+            if (!readHeaderDescSubsetVersioned(fp, headerDescSubset, fileVersion))
                 return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read header of subset [%s]", fileNamePath);
             if (!onSubsetRead(headerFrame, i, headerDescSubset))
                 return false;
@@ -973,6 +977,344 @@ namespace
                     return log_util::onFailed(fp,__FILE__, __LINE__, "unknown type bounding box [%d] [%s]", detail.type, fileNamePath);
                 }
             }
+        }
+        return true;
+    }
+
+    bool readHeaderDescSubsetVersioned(FILE *fp, util::HEADER_DESC_SUBSET &out, const int version)
+    {
+        if (version >= MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
+            return util::readHeaderDescSubsetV9(fp, out);
+        return util::readHeaderDescSubsetV8(fp, out);
+    }
+
+    bool writeHeaderDescSubsetVersioned(FILE *fp, const util::HEADER_DESC_SUBSET &in, const int version)
+    {
+        if (version >= MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
+            return util::writeHeaderDescSubsetV9(fp, in);
+        return util::writeHeaderDescSubsetV8(fp, in);
+    }
+
+    bool isKnownMaterialTextureSlotType(const uint16_t type) noexcept
+    {
+        switch (type)
+        {
+            case util::MATERIAL_TEXTURE_SLOT_NORMAL:
+            case util::MATERIAL_TEXTURE_SLOT_SPECULAR:
+            case util::MATERIAL_TEXTURE_SLOT_EMISSIVE:
+            case util::MATERIAL_TEXTURE_SLOT_MASK:
+            {
+                return true;
+            }
+            default:
+            {
+                return false;
+            }
+        }
+    }
+
+    bool skipBytes(FILE *fp, const uint32_t totalBytes, const char *fileNamePath, const char *context)
+    {
+        if (totalBytes == 0)
+            return true;
+        if (fseek(fp, static_cast<long>(totalBytes), SEEK_CUR) != 0)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to skip %s [%s]", context, fileNamePath);
+        return true;
+    }
+
+    bool fillTextureReferenceForHeader(FILE *file,
+                                       const std::string &textureReference,
+                                       const util::TYPE_MESH typeMe,
+                                       char outNameTexture[64])
+    {
+        memset(outNameTexture, 0, 64);
+        if (textureReference.empty())
+        {
+            strncpy(outNameTexture, "default", 63);
+            return true;
+        }
+
+        std::vector<std::string> lsRet;
+        util::split(lsRet, textureReference.c_str(), '\\');
+        const std::vector<std::string>::size_type s = lsRet.size();
+        if (s)
+        {
+            const std::string newOne(lsRet[s - 1]);
+            util::split(lsRet, newOne.c_str(), '/');
+            const std::vector<std::string>::size_type s2 = lsRet.size();
+            if (s2)
+                strncpy(outNameTexture, lsRet[s2 - 1].c_str(), 63);
+            else
+                strncpy(outNameTexture, textureReference.c_str(), 63);
+        }
+        else
+        {
+            strncpy(outNameTexture, textureReference.c_str(), 63);
+        }
+
+        if (typeMe == util::TYPE_MESH_FONT)
+        {
+            const std::string fontNameTexture(outNameTexture);
+            if (fontNameTexture.find(".ttf") != std::string::npos)
+                return log_util::onFailed(file, __FILE__, __LINE__,
+                                          "You must to load the font with 'save' flag enabled to save as png otherwise will not work...");
+        }
+
+        bool exists = false;
+        std::string fullPathTexture = util::getFullPath(outNameTexture, &exists);
+        if (exists && fullPathTexture.size() < 64u)
+            strncpy(outNameTexture, fullPathTexture.c_str(), 63);
+        return true;
+    }
+
+    bool readMaterialTextureSlotDebug(FILE *fp,
+                                      const char *fileNamePath,
+                                      const util::MATERIAL_TEXTURE_SLOT_HEADER &slotHeader,
+                                      util::MATERIAL_TEXTURE_SLOT_DEBUG &slotDebug)
+    {
+        slotDebug.type = slotHeader.type;
+        if (slotHeader.payloadSizeInBytes == 0)
+        {
+            slotDebug.texture = slotHeader.nameTexture;
+            return true;
+        }
+
+        char nameTexture[sizeof(slotHeader.nameTexture)];
+        strncpy(nameTexture, slotHeader.nameTexture, sizeof(nameTexture) - 1);
+        nameTexture[sizeof(nameTexture) - 1] = 0;
+        char *pch = strchr(nameTexture, '#');
+        if (!(pch && pch[0] == '#' && pch[1] == 'u'))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "invalid embedded material texture slot payload [%s]", fileNamePath);
+        pch[0] = 0;
+
+        util::HEADER_IMG headerImg;
+        headerImg.lenght = 0;
+        if (!util::readHeaderImgV8(fp, headerImg))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material slot image header [%s]", fileNamePath);
+        if (headerImg.lenght == 0)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "invalid material slot image header [%s]", fileNamePath);
+
+        auto data = new uint8_t[headerImg.lenght];
+        if (!fread(data, static_cast<size_t>(headerImg.lenght), 1, fp))
+        {
+            delete[] data;
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material slot image [%s]", fileNamePath);
+        }
+
+        uint32_t sizeOfImage = 0;
+        if (headerImg.channel != 4 && headerImg.channel != 3 && headerImg.channel != 0)
+        {
+            delete[] data;
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material slot image channel [%s]", fileNamePath);
+        }
+        headerImg.channel = headerImg.channel == 4 ? 4 : 3;
+        switch (headerImg.depth)
+        {
+            case 3:
+            {
+                sizeOfImage = 3 * headerImg.channel * headerImg.width * headerImg.height;
+                while (sizeOfImage % 8)
+                {
+                    sizeOfImage++;
+                }
+                sizeOfImage = sizeOfImage / 8;
+            }
+            break;
+            case 4:
+            {
+                sizeOfImage = 4 * headerImg.channel * headerImg.width * headerImg.height;
+                while (sizeOfImage % 8)
+                {
+                    sizeOfImage++;
+                }
+                sizeOfImage = sizeOfImage / 8;
+            }
+            break;
+            case 8:
+            {
+                sizeOfImage = headerImg.width * headerImg.height * headerImg.channel;
+            }
+            break;
+            default:
+            {
+                delete[] data;
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material slot image [%s]", fileNamePath);
+            }
+        }
+
+        mbm::MINIZ miniz;
+        const bool ok = miniz.decompressStream(data, headerImg.lenght, sizeOfImage);
+        delete[] data;
+        if (!ok)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to uncompress material slot image [%s]", fileNamePath);
+
+        const uint32_t consumedPayload = static_cast<uint32_t>(sizeof(util::HEADER_IMG_DISK_V8)) + headerImg.lenght;
+        if (consumedPayload > slotHeader.payloadSizeInBytes)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "invalid material slot payload size [%s]", fileNamePath);
+        if (!skipBytes(fp, slotHeader.payloadSizeInBytes - consumedPayload, fileNamePath, "material texture slot payload"))
+            return false;
+
+        slotDebug.texture = nameTexture;
+        return true;
+    }
+
+    bool readMaterialTextureSlotRuntime(FILE *fp,
+                                        const char *fileNamePath,
+                                        const util::MATERIAL_TEXTURE_SLOT_HEADER &slotHeader,
+                                        util::MATERIAL_TEXTURE_SLOT_HEADER &slotHeaderOut,
+                                        mbm::TEXTURE *&textureOut)
+    {
+        slotHeaderOut = slotHeader;
+        textureOut = nullptr;
+        mbm::TEXTURE_MANAGER *textureManager = mbm::TEXTURE_MANAGER::getInstance();
+        if (slotHeader.payloadSizeInBytes == 0)
+        {
+            textureOut = textureManager->load(slotHeader.nameTexture, true);
+            return true;
+        }
+
+        char nameTexture[sizeof(slotHeader.nameTexture)];
+        strncpy(nameTexture, slotHeader.nameTexture, sizeof(nameTexture) - 1);
+        nameTexture[sizeof(nameTexture) - 1] = 0;
+        char *pch = strchr(nameTexture, '#');
+        if (!(pch && pch[0] == '#' && pch[1] == 'u'))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "invalid embedded material texture slot payload [%s]", fileNamePath);
+        pch[0] = 0;
+
+        util::HEADER_IMG headerImg;
+        headerImg.lenght = 0;
+        if (!util::readHeaderImgV8(fp, headerImg))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material slot image header [%s]", fileNamePath);
+        if (headerImg.lenght == 0)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "invalid material slot image header [%s]", fileNamePath);
+
+        auto data = new uint8_t[headerImg.lenght];
+        if (!fread(data, static_cast<size_t>(headerImg.lenght), 1, fp))
+        {
+            delete[] data;
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material slot image [%s]", fileNamePath);
+        }
+
+        uint32_t sizeOfImage = 0;
+        if (headerImg.channel != 4 && headerImg.channel != 3 && headerImg.channel != 0)
+        {
+            delete[] data;
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material slot image channel [%s]", fileNamePath);
+        }
+        headerImg.channel = headerImg.channel == 4 ? 4 : 3;
+        switch (headerImg.depth)
+        {
+            case 3:
+            {
+                sizeOfImage = 3 * headerImg.channel * headerImg.width * headerImg.height;
+                while (sizeOfImage % 8)
+                {
+                    sizeOfImage++;
+                }
+                sizeOfImage = sizeOfImage / 8;
+            }
+            break;
+            case 4:
+            {
+                sizeOfImage = 4 * headerImg.channel * headerImg.width * headerImg.height;
+                while (sizeOfImage % 8)
+                {
+                    sizeOfImage++;
+                }
+                sizeOfImage = sizeOfImage / 8;
+            }
+            break;
+            case 8:
+            {
+                sizeOfImage = headerImg.width * headerImg.height * headerImg.channel;
+            }
+            break;
+            default:
+            {
+                delete[] data;
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material slot image [%s]", fileNamePath);
+            }
+        }
+
+        mbm::MINIZ miniz;
+        if (!miniz.decompressStream(data, headerImg.lenght, sizeOfImage))
+        {
+            delete[] data;
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to uncompress material slot image [%s]", fileNamePath);
+        }
+        delete[] data;
+
+        const uint32_t consumedPayload = static_cast<uint32_t>(sizeof(util::HEADER_IMG_DISK_V8)) + headerImg.lenght;
+        if (consumedPayload > slotHeader.payloadSizeInBytes)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "invalid material slot payload size [%s]", fileNamePath);
+        if (!skipBytes(fp, slotHeader.payloadSizeInBytes - consumedPayload, fileNamePath, "material texture slot payload"))
+            return false;
+
+        textureOut = textureManager->load(headerImg.width,
+                                          headerImg.height,
+                                          miniz.getDataStreamOut(),
+                                          nameTexture,
+                                          headerImg.depth,
+                                          headerImg.channel,
+                                          headerImg.hasAlpha ? true : false);
+        strncpy(slotHeaderOut.nameTexture, nameTexture, sizeof(slotHeaderOut.nameTexture) - 1);
+        slotHeaderOut.nameTexture[sizeof(slotHeaderOut.nameTexture) - 1] = 0;
+        slotHeaderOut.payloadSizeInBytes = 0;
+        return true;
+    }
+
+    bool readMaterialTextureSlotsDebug(FILE *fp,
+                                       const char *fileNamePath,
+                                       const int version,
+                                       const uint16_t slotCount,
+                                       util::SUBSET_DEBUG &subsetDebug)
+    {
+        if (version < MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
+            return true;
+        for (uint16_t i = 0; i < slotCount; ++i)
+        {
+            util::MATERIAL_TEXTURE_SLOT_HEADER slotHeader;
+            if (!util::readMaterialTextureSlotHeaderV9(fp, slotHeader))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material texture slot header [%s]", fileNamePath);
+            if (!isKnownMaterialTextureSlotType(slotHeader.type))
+            {
+                if (!skipBytes(fp, slotHeader.payloadSizeInBytes, fileNamePath, "unknown material texture slot payload"))
+                    return false;
+                continue;
+            }
+            util::MATERIAL_TEXTURE_SLOT_DEBUG slotDebug;
+            if (!readMaterialTextureSlotDebug(fp, fileNamePath, slotHeader, slotDebug))
+                return false;
+            subsetDebug.materialTextureSlots.push_back(slotDebug);
+        }
+        return true;
+    }
+
+    bool readMaterialTextureSlotsRuntime(FILE *fp,
+                                         const char *fileNamePath,
+                                         const int version,
+                                         const uint16_t slotCount,
+                                         util::SUBSET &subsetRuntime)
+    {
+        if (version < MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
+            return true;
+        for (uint16_t i = 0; i < slotCount; ++i)
+        {
+            util::MATERIAL_TEXTURE_SLOT_HEADER slotHeader;
+            if (!util::readMaterialTextureSlotHeaderV9(fp, slotHeader))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read material texture slot header [%s]", fileNamePath);
+            if (!isKnownMaterialTextureSlotType(slotHeader.type))
+            {
+                if (!skipBytes(fp, slotHeader.payloadSizeInBytes, fileNamePath, "unknown material texture slot payload"))
+                    return false;
+                continue;
+            }
+            util::MATERIAL_TEXTURE_SLOT_HEADER slotHeaderOut;
+            mbm::TEXTURE *texture = nullptr;
+            if (!readMaterialTextureSlotRuntime(fp, fileNamePath, slotHeader, slotHeaderOut, texture))
+                return false;
+            subsetRuntime.materialTextureSlotHeaders.push_back(slotHeaderOut);
+            subsetRuntime.materialTextures.push_back(texture);
         }
         return true;
     }
@@ -2217,50 +2559,38 @@ namespace mbm
             {
                 util::HEADER_DESC_SUBSET headerDescSubset;
                 util::SUBSET_DEBUG *     pSubset = currentFrameBuffer->subset[static_cast<std::vector<util::SUBSET_DEBUG *>::size_type>(i)];
-                if (pSubset->texture.size())
-                {
-                    std::vector<std::string> lsRet;
-                    util::split(lsRet, pSubset->texture.c_str(), '\\');
-                    const std::vector<std::string>::size_type s = lsRet.size();
-                    if (s)
-                    {
-                        const std::string newOne(lsRet[s - 1]);
-                        util::split(lsRet, newOne.c_str(), '/');
-                        const std::vector<std::string>::size_type s2 = lsRet.size();
-                        if (s2)
-                            strncpy(headerDescSubset.nameTexture, lsRet[s2 - 1].c_str(), lsRet[s2 - 1].size());
-                        else
-                            strncpy(headerDescSubset.nameTexture, pSubset->texture.c_str(),sizeof(headerDescSubset.nameTexture) - 1);
-                    }
-                    else
-                    {
-                        strncpy(headerDescSubset.nameTexture, pSubset->texture.c_str(),sizeof(headerDescSubset.nameTexture) - 1);
-                    }
-                    if (typeMe == util::TYPE_MESH_FONT)
-                    {
-                        const std::string font_name_texture(headerDescSubset.nameTexture);
-                        if(font_name_texture.find(".ttf") != std::string::npos)
-                        {
-                            return log_util::onFailed(file,__FILE__, __LINE__, "You must to load the font with 'save' flag enabled to save as png otherwise will not work...");
-                        }
-                    }
-                }
-                else
-                    strncpy(headerDescSubset.nameTexture, "default",sizeof(headerDescSubset.nameTexture)-1);
-                bool exists = false;
-                std::string full_path_texture = util::getFullPath(headerDescSubset.nameTexture, &exists);
-                if (exists && full_path_texture.size() < sizeof(headerDescSubset.nameTexture))
-                {
-                    strncpy(headerDescSubset.nameTexture, full_path_texture.c_str(), sizeof(headerDescSubset.nameTexture) - 1);
-                }
+                if (!fillTextureReferenceForHeader(file, pSubset->texture, typeMe, headerDescSubset.nameTexture))
+                    return false;
                 headerDescSubset.vertexStart = pSubset->vertexStart;
                 headerDescSubset.indexStart  = pSubset->indexStart;
                 headerDescSubset.vertexCount = pSubset->vertexCount;
                 headerDescSubset.indexCount  = pSubset->indexCount;
                 headerDescSubset.hasAlphaColor  = 1;
+                std::vector<util::MATERIAL_TEXTURE_SLOT_HEADER> materialSlotHeaders;
+                if (this->headerMain.version >= MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
+                {
+                    materialSlotHeaders.reserve(pSubset->materialTextureSlots.size());
+                    for (const auto &slot : pSubset->materialTextureSlots)
+                    {
+                        if (slot.texture.empty())
+                            continue;
+                        util::MATERIAL_TEXTURE_SLOT_HEADER slotHeader;
+                        slotHeader.type = slot.type;
+                        if (!fillTextureReferenceForHeader(file, slot.texture, typeMe, slotHeader.nameTexture))
+                            return false;
+                        materialSlotHeaders.push_back(slotHeader);
+                    }
+                    headerDescSubset.materialTextureSlotCount =
+                        static_cast<uint16_t>(materialSlotHeaders.size());
+                }
 
-                if (!util::writeHeaderDescSubsetV8(file, headerDescSubset))
+                if (!writeHeaderDescSubsetVersioned(file, headerDescSubset, this->headerMain.version))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to add header of subset!");
+                for (const auto &slotHeader : materialSlotHeaders)
+                {
+                    if (!util::writeMaterialTextureSlotHeaderV9(file, slotHeader))
+                        return log_util::onFailed(file, __FILE__, __LINE__, "failed to add material texture slot header!");
+                }
             }
 
             // 6 index buffer se houver -----------------------------------------------------------------------------
@@ -2430,6 +2760,7 @@ namespace mbm
             if (!read_frame_headers_and_subsets(
                     fp,
                     fileNamePath,
+                    headerMain.version,
                     *headerFrame,
                     [](util::HEADER_FRAME &) -> bool
                     {
@@ -2641,6 +2972,12 @@ namespace mbm
                                 }
                             }
                         }
+                        if (!readMaterialTextureSlotsDebug(fp,
+                                                           fileNamePath,
+                                                           headerMain.version,
+                                                           headerDescSubset.materialTextureSlotCount,
+                                                           *pSubset))
+                            return false;
                         return true;
                     }))
                 return false;
@@ -4067,6 +4404,7 @@ namespace mbm
             if (!read_frame_headers_and_subsets(
                     fp,
                     fileNamePath,
+                    headerMain.version,
                     headerFrame,
                     [&](util::HEADER_FRAME &header) -> bool
                     {
@@ -4310,6 +4648,12 @@ namespace mbm
                                 }
                             }
                         }
+                        if (!readMaterialTextureSlotsRuntime(fp,
+                                                             fileNamePath,
+                                                             headerMain.version,
+                                                             headerDescSubset.materialTextureSlotCount,
+                                                             buffer[currentFrame].subset[i]))
+                            return false;
                         return true;
                     }))
                 return false;
