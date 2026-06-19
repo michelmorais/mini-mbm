@@ -180,6 +180,166 @@ function onInitScene()
         iLargeMeshMode = 1,
         tRunResults = {},
     }
+    tEditorLightUi3d = nil
+end
+
+local function makeColorRGBA(color, defaultColor)
+    local base = defaultColor or {r = 1, g = 1, b = 1, a = 1}
+    return {
+        r = (color and color.r) or base.r or 1,
+        g = (color and color.g) or base.g or 1,
+        b = (color and color.b) or base.b or 1,
+        a = (color and color.a) or base.a or 1,
+    }
+end
+
+local function cloneMaterialTable(mat)
+    return {
+        Diffuse = makeColorRGBA(mat and mat.Diffuse, {r = 1, g = 1, b = 1, a = 1}),
+        Ambient = makeColorRGBA(mat and mat.Ambient, {r = 1, g = 1, b = 1, a = 1}),
+        Specular = makeColorRGBA(mat and mat.Specular, {r = 0, g = 0, b = 0, a = 1}),
+        Emissive = makeColorRGBA(mat and mat.Emissive, {r = 0, g = 0, b = 0, a = 1}),
+        Power = (mat and mat.Power) or 0,
+    }
+end
+
+local function cloneLightState(state)
+    return {
+        enabled = state and state.enabled or false,
+        ambientColor = makeColorRGBA(state and state.ambientColor, {r = 0.2, g = 0.2, b = 0.2, a = 1}),
+        directionalColor = makeColorRGBA(state and state.directionalColor, {r = 1, g = 1, b = 1, a = 1}),
+        directionalDirection = {
+            x = (state and state.directionalDirection and state.directionalDirection.x) or 0,
+            y = (state and state.directionalDirection and state.directionalDirection.y) or -0.70710677,
+            z = (state and state.directionalDirection and state.directionalDirection.z) or -0.70710677,
+        },
+    }
+end
+
+local function isSameFloat(a, b)
+    return math.abs((a or 0) - (b or 0)) <= 0.0001
+end
+
+local function isSameColor(a, b)
+    return isSameFloat(a and a.r, b and b.r) and
+           isSameFloat(a and a.g, b and b.g) and
+           isSameFloat(a and a.b, b and b.b) and
+           isSameFloat(a and a.a, b and b.a)
+end
+
+local function isSameMaterial(a, b)
+    return isSameColor(a and a.Diffuse, b and b.Diffuse) and
+           isSameColor(a and a.Ambient, b and b.Ambient) and
+           isSameColor(a and a.Specular, b and b.Specular) and
+           isSameColor(a and a.Emissive, b and b.Emissive) and
+           isSameFloat(a and a.Power, b and b.Power)
+end
+
+local function getEditorLightState3d()
+    local ok, state = dpCall(function() return mbm.getLightState('3d') end)
+    if ok and type(state) == 'table' then
+        state.ambientColor = makeColorRGBA(state.ambientColor, {r = 0.2, g = 0.2, b = 0.2, a = 1})
+        state.directionalColor = makeColorRGBA(state.directionalColor, {r = 1, g = 1, b = 1, a = 1})
+        state.directionalDirection = state.directionalDirection or {x = 0, y = -0.70710677, z = -0.70710677}
+        return state
+    end
+    return {
+        enabled = false,
+        ambientColor = {r = 0.2, g = 0.2, b = 0.2, a = 1},
+        directionalColor = {r = 1, g = 1, b = 1, a = 1},
+        directionalDirection = {x = 0, y = -0.70710677, z = -0.70710677},
+    }
+end
+
+local function getEditorLightUi3d(forceRefresh)
+    if forceRefresh or tEditorLightUi3d == nil then
+        tEditorLightUi3d = cloneLightState(getEditorLightState3d())
+    end
+    return tEditorLightUi3d
+end
+
+local function ensureEditor3dLightingEnabled()
+    local state = getEditorLightState3d()
+    if state.enabled then
+        return
+    end
+    dpCall(function() mbm.setLightEnabled('3d', true) end)
+    local uiState = getEditorLightUi3d(true)
+    uiState.enabled = true
+end
+
+local function setMeshDebugCameraMode3d(enabled)
+    local newMode = enabled and true or false
+    local changed = bCameraMode3D ~= newMode
+    bCameraMode3D = newMode
+    if changed then
+        iLastPreviewedIndex = 0
+    end
+    originLine2dX.visible = (not bCameraMode3D) and bShowOrigin2d
+    originLine2dY.visible = (not bCameraMode3D) and bShowOrigin2d
+    originLine3dX.visible = bCameraMode3D and bShowOrigin3d
+    originLine3dY.visible = bCameraMode3D and bShowOrigin3d
+    originLine3dZ.visible = bCameraMode3D and bShowOrigin3d
+    if changed and bCameraMode3D then
+        ensureEditor3dLightingEnabled()
+    end
+end
+
+local function showMaterialEditor(tEntry, index)
+    local meshD = tEntry.meshDebug
+    local flags = 0
+
+    local function onEdit()
+        tEntry.modified = true
+        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    end
+
+    local ok, mat = dpCall(function() return meshD:getMaterial() end)
+    if not ok then
+        return
+    end
+
+    tEntry.tMaterialUI = tEntry.tMaterialUI or {
+        original = cloneMaterialTable(mat),
+        current = cloneMaterialTable(mat),
+    }
+    local materialUi = tEntry.tMaterialUI
+    if isSameMaterial(materialUi.original, mat) == false and isSameMaterial(materialUi.current, materialUi.original) then
+        materialUi.original = cloneMaterialTable(mat)
+        materialUi.current = cloneMaterialTable(mat)
+    end
+
+    local function editMaterialColor(key, label)
+        local clicked, color = tImGui.ColorEdit4(label .. '##mat-' .. key .. '-' .. index, materialUi.current[key], flags)
+        if clicked and color then
+            materialUi.current[key] = makeColorRGBA(color, materialUi.current[key])
+        end
+    end
+
+    editMaterialColor('Diffuse', tLang.L("diffuse"))
+    editMaterialColor('Ambient', tLang.L("ambient"))
+    editMaterialColor('Specular', tLang.L("specular"))
+    editMaterialColor('Emissive', tLang.L("emissive"))
+
+    local rp, np = tImGui.InputFloat(tLang.L("power") .. '##mat-power-' .. index, materialUi.current.Power, 0.1, 1, '%.2f', flags)
+    if rp then
+        materialUi.current.Power = np
+    end
+
+    if isSameMaterial(materialUi.current, materialUi.original) == false then
+        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
+        tImGui.Text(tLang.L("unsaved_changes"))
+        tImGui.PopStyleColor(1)
+        if tImGui.Button(tLang.L("apply_btn") .. '##mat-apply-' .. index) then
+            local applyMat = cloneMaterialTable(materialUi.current)
+            local okSet = dpCall(function() meshD:setMaterial(applyMat) end)
+            if okSet then
+                onEdit()
+                materialUi.original = cloneMaterialTable(applyMat)
+                materialUi.current = cloneMaterialTable(applyMat)
+            end
+        end
+    end
 end
 
 local function getTempDir()
@@ -2271,12 +2431,7 @@ function onLoadObj()
                         nConverted = nConverted + 1
                         -- Switch to 3D camera for OBJ/mesh viewing
                         if not bCameraMode3D then
-                            bCameraMode3D = true
-                            originLine2dX.visible = false
-                            originLine2dY.visible = false
-                            originLine3dX.visible = bShowOrigin3d
-                            originLine3dY.visible = bShowOrigin3d
-                            originLine3dZ.visible = bShowOrigin3d
+                            setMeshDebugCameraMode3d(true)
                         end
                     end
                 else
@@ -2381,12 +2536,7 @@ function addMeshToTable(fileName)
     })
     -- Auto-switch camera to 3D when a mesh (.msh) file is loaded
     if info.type == 'mesh' and not bCameraMode3D then
-        bCameraMode3D = true
-        originLine2dX.visible = false
-        originLine2dY.visible = false
-        originLine3dX.visible = bShowOrigin3d
-        originLine3dY.visible = bShowOrigin3d
-        originLine3dZ.visible = bShowOrigin3d
+        setMeshDebugCameraMode3d(true)
     end
     return true
 end
@@ -3248,27 +3398,6 @@ function showMeshInfoTable(tEntry, index)
         end
     end
 
-    -- Editable: Material (Diffuse + Power)
-    if tImGui.TreeNodeEx(tLang.L("material"), 0, 'material-' .. index) then
-        local ok, mat = dpCall(function() return meshD:getMaterial() end)
-        if ok and mat and mat.Diffuse then
-            local d = {r=mat.Diffuse.r or 1, g=mat.Diffuse.g or 1, b=mat.Diffuse.b or 1}
-            local clicked, newD = tImGui.ColorEdit3(tLang.L("diffuse") .. '##mat-' .. index, d, flags)
-            if clicked and newD then
-                local newMat = { Diffuse = {r=newD.r,g=newD.g,b=newD.b,a=1}, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = mat.Power or 1 }
-                local okSet = dpCall(function() meshD:setMaterial(newMat) end)
-                if okSet then onEdit() end
-            end
-            local pw = mat.Power or 1
-            local rp, np = tImGui.InputFloat(tLang.L("power") .. '##mat-' .. index, pw, 0.1, 1, '%.2f', flags)
-            if rp then
-                local newMat = { Diffuse = mat.Diffuse, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = np }
-                local okSet = dpCall(function() meshD:setMaterial(newMat) end)
-                if okSet then onEdit() end
-            end
-        end
-        tImGui.TreePop()
-    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -3994,6 +4123,11 @@ function showMeshOptions(tEntry, index)
 
     if openNode(tEntry, 'meshinfo', tLang.L("mesh_info"), 0, 'meshinfo-' .. index) then
         showMeshInfoTable(tEntry, index)
+        tImGui.TreePop()
+    end
+
+    if openNode(tEntry, 'material', tLang.L("material"), 0, 'material-' .. index) then
+        showMaterialEditor(tEntry, index)
         tImGui.TreePop()
     end
 
@@ -5808,27 +5942,17 @@ end
 
 function showCameraWindow()
     local iW = mbm.getSizeScreen()
-    local winW = 240
+    local winW = 300
     tImGui.SetNextWindowPos({x = iW - winW - 5, y = 25}, tImGui.Flags('ImGuiCond_Once'))
     local wFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoCollapse')
     local opened = tImGui.Begin(tLang.L('camera_panel') .. '##camWin', false, wFlags)
     if opened then
         -- Mode toggle: 2D / 3D radio buttons
-        local prev3d = bCameraMode3D
         local camMode = bCameraMode3D and 1 or 0
         camMode = tImGui.RadioButton(tLang.L('camera_2d') .. '##camMode', camMode, 0)
         tImGui.SameLine()
         camMode = tImGui.RadioButton(tLang.L('camera_3d') .. '##camMode', camMode, 1)
-        bCameraMode3D = (camMode == 1)
-        if prev3d ~= bCameraMode3D then
-            iLastPreviewedIndex = 0  -- force preview reload with correct coord type
-            -- Sync origin line visibility to the newly active camera
-            originLine2dX.visible = (not bCameraMode3D) and bShowOrigin2d
-            originLine2dY.visible = (not bCameraMode3D) and bShowOrigin2d
-            originLine3dX.visible = bCameraMode3D and bShowOrigin3d
-            originLine3dY.visible = bCameraMode3D and bShowOrigin3d
-            originLine3dZ.visible = bCameraMode3D and bShowOrigin3d
-        end
+        setMeshDebugCameraMode3d(camMode == 1)
         -- Origin lines checkbox (per-camera)
         local showOrig
         if bCameraMode3D then showOrig = bShowOrigin3d else showOrig = bShowOrigin2d end
@@ -5898,6 +6022,62 @@ function showCameraWindow()
                 tImGui.TextDisabled('Scroll:zoom')
             else
                 tImGui.TextDisabled(tLang.L('cam_no_mesh'))
+            end
+            tImGui.Separator()
+            do
+                local lightState = getEditorLightUi3d()
+                local lightColorFlags = tImGui.Flags('ImGuiColorEditFlags_NoInputs')
+                tImGui.Text(tLang.L('light_panel'))
+                tImGui.SameLine()
+                local enabled = tImGui.Checkbox('##lightEnabled3d', lightState.enabled)
+                if enabled ~= lightState.enabled then
+                    dpCall(function() mbm.setLightEnabled('3d', enabled) end)
+                    lightState.enabled = enabled
+                end
+                tImGui.SameLine()
+                tImGui.TextDisabled(tLang.L('light_enabled'))
+
+                tImGui.Text(tLang.L('ambient'))
+                tImGui.SameLine()
+                local changedAmbient, ambientColor = tImGui.ColorEdit4('##lightAmbient3d', lightState.ambientColor, lightColorFlags)
+                if changedAmbient and ambientColor then
+                    lightState.ambientColor = makeColorRGBA(ambientColor, lightState.ambientColor)
+                    dpCall(function() mbm.setAmbientLight('3d', ambientColor) end)
+                end
+
+                tImGui.Text(tLang.L('color_label'))
+                tImGui.SameLine()
+                local changedDirectionalColor, directionalColor = tImGui.ColorEdit4('##lightDirectionalColor3d', lightState.directionalColor, lightColorFlags)
+                if changedDirectionalColor and directionalColor then
+                    lightState.directionalColor = makeColorRGBA(directionalColor, lightState.directionalColor)
+                    dpCall(function() mbm.setDirectionalLightColor('3d', directionalColor) end)
+                end
+
+                local dir = lightState.directionalDirection or {x = 0, y = -0.70710677, z = -0.70710677}
+                tImGui.Text(tLang.L('direction_label'))
+                tUtil.pushResponsiveItemWidth(120)
+                local d1, nx = tImGui.SliderFloat('X##lightDirX3d', dir.x or 0, -1.0, 1.0, '%.3f')
+                local d2, ny = tImGui.SliderFloat('Y##lightDirY3d', dir.y or 0, -1.0, 1.0, '%.3f')
+                local d3, nz = tImGui.SliderFloat('Z##lightDirZ3d', dir.z or 0, -1.0, 1.0, '%.3f')
+                tImGui.PopItemWidth()
+                if d1 or d2 or d3 then
+                    lightState.directionalDirection = {
+                        x = d1 and nx or dir.x or 0,
+                        y = d2 and ny or dir.y or 0,
+                        z = d3 and nz or dir.z or 0,
+                    }
+                    dpCall(function()
+                        mbm.setDirectionalLightDirection('3d',
+                            lightState.directionalDirection.x,
+                            lightState.directionalDirection.y,
+                            lightState.directionalDirection.z)
+                    end)
+                end
+
+                if tImGui.Button(tLang.L('reset_light') .. '##lightReset3d') then
+                    dpCall(function() mbm.resetLight('3d') end)
+                    getEditorLightUi3d(true)
+                end
             end
         else
             tUtil.pushResponsiveItemWidth(72)
