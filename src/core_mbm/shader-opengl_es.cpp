@@ -68,28 +68,28 @@ namespace mbm
         const int lightCount = lightState.enabled ? 1 : 0;
         const VEC3 directionView = getLightDirectionView(lightState);
 
-        GLint handle = GLGetUniformLocation(programObject, "LightEnabled");
+        GLint handle = GLGetUniformLocationOptional(programObject, "LightEnabled");
         if (handle != -1)
         {
             GLUniform1i(handle, enabled);
         }
-        handle = GLGetUniformLocation(programObject, "LightCount");
+        handle = GLGetUniformLocationOptional(programObject, "LightCount");
         if (handle != -1)
         {
             GLUniform1i(handle, lightCount);
         }
-        handle = GLGetUniformLocation(programObject, "AmbientColor");
+        handle = GLGetUniformLocationOptional(programObject, "AmbientColor");
         if (handle != -1)
         {
             GLUniform4f(handle, lightState.ambientColor.r, lightState.ambientColor.g,
                         lightState.ambientColor.b, lightState.ambientColor.a);
         }
-        handle = GLGetUniformLocation(programObject, "LightDirectionView");
+        handle = GLGetUniformLocationOptional(programObject, "LightDirectionView");
         if (handle != -1)
         {
             GLUniform3f(handle, directionView.x, directionView.y, directionView.z);
         }
-        handle = GLGetUniformLocation(programObject, "LightColor");
+        handle = GLGetUniformLocationOptional(programObject, "LightColor");
         if (handle != -1)
         {
             GLUniform4f(handle, lightState.directionalColor.r, lightState.directionalColor.g,
