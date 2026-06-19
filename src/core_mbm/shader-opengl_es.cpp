@@ -573,7 +573,6 @@ namespace mbm
         if (gles_shaderSpecific->programObject == 0)
             return;
         GLUseProgram(gles_shaderSpecific->programObject);
-        uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
@@ -855,6 +854,7 @@ namespace mbm
             if (!backendBuffer->vboVertNorTexIB[0])
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
+            uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
             GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertNorTexIB[0]);
             GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
@@ -907,6 +907,7 @@ namespace mbm
             if (!backendBuffer->vboVertexSubsetVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
+            uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
@@ -979,6 +980,7 @@ namespace mbm
             if (!backendBuffer->vboIndexSubsetIB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
+            uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
             GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
             GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
@@ -1023,6 +1025,7 @@ namespace mbm
             if (!pBufferId->vertexCountVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
+            uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);

@@ -685,8 +685,6 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DDevice9* pd3dDevice = device->getSpecificContextDevice()->pd3dDevice;
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
-        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS);
-        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS);
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
             VAR_SHADER *var = lsVar[i];
@@ -1070,6 +1068,8 @@ namespace mbm
                 return false;
             }
         }
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
@@ -1400,6 +1400,8 @@ namespace mbm
                 return false;
             }
         }
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
@@ -1689,6 +1691,8 @@ namespace mbm
                 return false;
             }
         }
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
