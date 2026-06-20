@@ -951,6 +951,21 @@ namespace mbm
                 else
                     mslSrc = defaultMSLSource(fvf);
             }
+            const char *mslSourceText = [mslSrc UTF8String];
+            const SHADER_TEXTURE_NAMING textureNaming = detectShaderTextureNamingProfile(mslSourceText);
+            if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+            {
+                ERROR_LOG("Metal shader mixes legacy texture names with semantic texture roles");
+                return false;
+            }
+            if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
+                (shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_SPECULAR, textureNaming) ||
+                 shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_EMISSIVE, textureNaming) ||
+                 shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_MASK, textureNaming)))
+            {
+                ERROR_LOG("Metal shader declares a reserved semantic texture role without runtime binding support");
+                return false;
+            }
             NSError* err = nil;
             id<MTLLibrary> lib = [ctx->mtlDevice newLibraryWithSource:mslSrc options:nil error:&err];
             if (!lib)

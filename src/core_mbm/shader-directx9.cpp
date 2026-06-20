@@ -1000,6 +1000,22 @@ namespace mbm
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs.c_str();
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);
+        const std::string combinedShaderCode = std::string(codePS) + codeVS;
+        const SHADER_TEXTURE_NAMING textureNaming =
+            detectShaderTextureNamingProfile(combinedShaderCode.c_str());
+        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            ERROR_LOG("DirectX9 shader mixes legacy texture names with semantic texture roles");
+            return false;
+        }
+        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
+            (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
+             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
+             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
+        {
+            ERROR_LOG("DirectX9 shader declares a reserved semantic texture role without runtime binding support");
+            return false;
+        }
 #if defined _DEBUG
         constexpr DWORD flag = D3DXSHADER_DEBUG;
 #else
@@ -1058,9 +1074,21 @@ namespace mbm
         if (d3dPsVs->constantTablePS)
         {
             d3dPsVs->constantTablePS->SetDefaults(pd3dDevice);
-            d3dPsVs->samplerHandle0 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample0");
-            d3dPsVs->samplerHandle1 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample1");
-            d3dPsVs->samplerHandle2 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample2");
+            if (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_DIFFUSE, textureNaming))
+            {
+                d3dPsVs->samplerHandle0 = d3dPsVs->constantTablePS->GetConstantByName(
+                    nullptr, getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, textureNaming));
+            }
+            if (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_ANIMATION_EFFECT, textureNaming))
+            {
+                d3dPsVs->samplerHandle1 = d3dPsVs->constantTablePS->GetConstantByName(
+                    nullptr, getTextureRoleShaderName(TEXTURE_ROLE_ANIMATION_EFFECT, textureNaming));
+            }
+            if (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_NORMAL, textureNaming))
+            {
+                d3dPsVs->samplerHandle2 = d3dPsVs->constantTablePS->GetConstantByName(
+                    nullptr, getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, textureNaming));
+            }
 
             //D3DXCONSTANT_DESC desc;
             //UINT count = 1;

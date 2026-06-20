@@ -21,6 +21,7 @@
 #define SHADER_CFG_H
 
 #include "core-exports.h"
+#include "shader.h"
 #include <cstdint>
 #include <vector>
 #include <map>
@@ -48,9 +49,13 @@ namespace mbm
         std::string             fileName;
         std::string             codeShader;
         std::vector<VAR_CFG *>  lsVar;
+        SHADER_TEXTURE_NAMING   textureNamingDeclaration;
+        SHADER_TEXTURE_NAMING   textureNamingProfile;
         API_IMPL SHADER_CFG(const char *FileName);
         API_IMPL virtual ~SHADER_CFG();
         API_IMPL bool addVar(const char *type, const char *name, const char *values);
+        API_IMPL bool setTextureNamingDeclaration(const char *value);
+        API_IMPL bool validateTextureNamingProfile();
         API_IMPL VAR_CFG *getVarByName(const char *name);
         API_IMPL VAR_CFG *getVarFloat(const uint32_t indexTck);
         API_IMPL VAR_CFG *getVarColor(const uint32_t indexTck);
@@ -100,6 +105,7 @@ namespace mbm
         API_IMPL bool readShaderFromFile(const char *fileName, std::string &code);
       private:
         bool addVariablesFromContents();
+        bool validateTextureNamingProfiles();
         void parserShaders();
         char *trimRight(char *stringSource);
         char *trimLeft(char *stringSource);

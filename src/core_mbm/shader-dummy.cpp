@@ -246,6 +246,22 @@ namespace mbm
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs;
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);
+        const std::string combinedShaderCode = std::string(codePS) + codeVS;
+        const SHADER_TEXTURE_NAMING textureNaming =
+            detectShaderTextureNamingProfile(combinedShaderCode.c_str());
+        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            ERROR_LOG("Dummy shader mixes legacy texture names with semantic texture roles");
+            return false;
+        }
+        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
+            (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
+             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
+             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
+        {
+            ERROR_LOG("Dummy shader declares a reserved semantic texture role without runtime binding support");
+            return false;
+        }
         REMINDER_TODO
         return true;
     }

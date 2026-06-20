@@ -24,8 +24,155 @@
 #include <texture-manager.h>
 #include <draw-compatibility.h>
 
+#include <cctype>
+#include <cstring>
+#include <initializer_list>
+
 namespace mbm
 {
+    static bool isShaderIdentifierChar(const char c) noexcept
+    {
+        return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+    }
+
+    static bool containsShaderIdentifier(const char *code, const char *name) noexcept
+    {
+        if (code == nullptr || name == nullptr || name[0] == 0)
+            return false;
+        const std::size_t nameLen = strlen(name);
+        const char *found = strstr(code, name);
+        while (found)
+        {
+            const bool validBefore = found == code || !isShaderIdentifierChar(*(found - 1));
+            const char after = found[nameLen];
+            const bool validAfter = after == 0 || !isShaderIdentifierChar(after);
+            if (validBefore && validAfter)
+                return true;
+            found = strstr(found + nameLen, name);
+        }
+        return false;
+    }
+
+    const char *getTextureRoleShaderName(const TEXTURE_ROLE role, const SHADER_TEXTURE_NAMING naming) noexcept
+    {
+        if (naming == SHADER_TEXTURE_NAMING_LEGACY_SAMPLE)
+        {
+            switch (role)
+            {
+                case TEXTURE_ROLE_DIFFUSE: return "sample0";
+                case TEXTURE_ROLE_ANIMATION_EFFECT: return "sample1";
+                case TEXTURE_ROLE_NORMAL: return "sample2";
+                default: return nullptr;
+            }
+        }
+        if (naming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE)
+        {
+            switch (role)
+            {
+                case TEXTURE_ROLE_DIFFUSE: return "TextureDiffuse";
+                case TEXTURE_ROLE_ANIMATION_EFFECT: return "TextureAnimationEffect";
+                case TEXTURE_ROLE_NORMAL: return "TextureNormal";
+                case TEXTURE_ROLE_SPECULAR: return "TextureSpecular";
+                case TEXTURE_ROLE_EMISSIVE: return "TextureEmissive";
+                case TEXTURE_ROLE_MASK: return "TextureMask";
+            }
+        }
+        return nullptr;
+    }
+
+    int getTextureRoleBackendSlot(const TEXTURE_ROLE role) noexcept
+    {
+        switch (role)
+        {
+            case TEXTURE_ROLE_DIFFUSE: return 0;
+            case TEXTURE_ROLE_ANIMATION_EFFECT: return 1;
+            case TEXTURE_ROLE_NORMAL: return 2;
+            case TEXTURE_ROLE_SPECULAR: return 3;
+            case TEXTURE_ROLE_EMISSIVE: return 4;
+            case TEXTURE_ROLE_MASK: return 5;
+        }
+        return -1;
+    }
+
+    SHADER_TEXTURE_NAMING parseShaderTextureNaming(const char *value) noexcept
+    {
+        if (value == nullptr)
+            return SHADER_TEXTURE_NAMING_NONE;
+        if (strcmp(value, "none") == 0)
+            return SHADER_TEXTURE_NAMING_NONE;
+        if (strcmp(value, "legacy") == 0 || strcmp(value, "sample") == 0)
+            return SHADER_TEXTURE_NAMING_LEGACY_SAMPLE;
+        if (strcmp(value, "semantic") == 0 || strcmp(value, "role") == 0)
+            return SHADER_TEXTURE_NAMING_SEMANTIC_ROLE;
+        return SHADER_TEXTURE_NAMING_MIXED_INVALID;
+    }
+
+    const char *getShaderTextureNamingName(const SHADER_TEXTURE_NAMING naming) noexcept
+    {
+        switch (naming)
+        {
+            case SHADER_TEXTURE_NAMING_NONE: return "none";
+            case SHADER_TEXTURE_NAMING_LEGACY_SAMPLE: return "legacy";
+            case SHADER_TEXTURE_NAMING_SEMANTIC_ROLE: return "semantic";
+            case SHADER_TEXTURE_NAMING_MIXED_INVALID: return "mixed-invalid";
+        }
+        return "mixed-invalid";
+    }
+
+    SHADER_TEXTURE_NAMING detectShaderTextureNamingProfile(const char *shaderCode) noexcept
+    {
+        if (shaderCode == nullptr || shaderCode[0] == 0)
+            return SHADER_TEXTURE_NAMING_NONE;
+
+        bool hasLegacy = false;
+        bool hasSemantic = false;
+
+        for (const TEXTURE_ROLE role : {TEXTURE_ROLE_DIFFUSE, TEXTURE_ROLE_ANIMATION_EFFECT, TEXTURE_ROLE_NORMAL})
+        {
+            const char *legacyName = getTextureRoleShaderName(role, SHADER_TEXTURE_NAMING_LEGACY_SAMPLE);
+            if (containsShaderIdentifier(shaderCode, legacyName))
+                hasLegacy = true;
+        }
+        for (const TEXTURE_ROLE role : {TEXTURE_ROLE_DIFFUSE,
+                                        TEXTURE_ROLE_ANIMATION_EFFECT,
+                                        TEXTURE_ROLE_NORMAL,
+                                        TEXTURE_ROLE_SPECULAR,
+                                        TEXTURE_ROLE_EMISSIVE,
+                                        TEXTURE_ROLE_MASK})
+        {
+            const char *semanticName = getTextureRoleShaderName(role, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+            if (containsShaderIdentifier(shaderCode, semanticName))
+                hasSemantic = true;
+        }
+
+        if (hasLegacy && hasSemantic)
+            return SHADER_TEXTURE_NAMING_MIXED_INVALID;
+        if (hasSemantic)
+            return SHADER_TEXTURE_NAMING_SEMANTIC_ROLE;
+        if (hasLegacy)
+            return SHADER_TEXTURE_NAMING_LEGACY_SAMPLE;
+        return SHADER_TEXTURE_NAMING_NONE;
+    }
+
+    SHADER_TEXTURE_NAMING mergeShaderTextureNamingProfiles(const SHADER_TEXTURE_NAMING a,
+                                                           const SHADER_TEXTURE_NAMING b) noexcept
+    {
+        if (a == SHADER_TEXTURE_NAMING_MIXED_INVALID || b == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+            return SHADER_TEXTURE_NAMING_MIXED_INVALID;
+        if (a == SHADER_TEXTURE_NAMING_NONE)
+            return b;
+        if (b == SHADER_TEXTURE_NAMING_NONE || a == b)
+            return a;
+        return SHADER_TEXTURE_NAMING_MIXED_INVALID;
+    }
+
+    bool shaderCodeDeclaresTextureRole(const char *shaderCode,
+                                       const TEXTURE_ROLE role,
+                                       const SHADER_TEXTURE_NAMING naming) noexcept
+    {
+        return containsShaderIdentifier(shaderCode, getTextureRoleShaderName(role, naming));
+    }
+
     struct BUFFER_GL::BackendData
     {
         BUFFER_SPECIFIC *buffer;
@@ -194,7 +341,10 @@ namespace mbm
         delete data;
     }
 
-    BASE_SHADER::BASE_SHADER() noexcept {}
+    BASE_SHADER::BASE_SHADER() noexcept :
+        textureNamingProfile(SHADER_TEXTURE_NAMING_NONE)
+    {
+    }
 
     BASE_SHADER::~BASE_SHADER()
     {
@@ -252,13 +402,25 @@ namespace mbm
     {
         this->stringCodeShader.clear();
         this->fileName.clear();
+        this->textureNamingProfile = SHADER_TEXTURE_NAMING_NONE;
         if (fileNameShaderVS_PS && code)
         {
             this->fileName         = fileNameShaderVS_PS;
             this->stringCodeShader = code;
+            this->textureNamingProfile = detectShaderTextureNamingProfile(code);
+            if (this->textureNamingProfile == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+            {
+                ERROR_LOG("Shader [%s] mixes legacy texture names with semantic texture roles", fileNameShaderVS_PS);
+                return false;
+            }
             return true;
         }
         return false;
+    }
+
+    SHADER_TEXTURE_NAMING BASE_SHADER::getTextureNamingProfile() const noexcept
+    {
+        return this->textureNamingProfile;
     }
 
     std::vector<VAR_SHADER*> * BASE_SHADER::getVars()

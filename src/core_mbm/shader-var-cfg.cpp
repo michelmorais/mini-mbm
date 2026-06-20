@@ -44,6 +44,12 @@ namespace mbm
             "MaterialSpecular",
             "MaterialEmissive",
             "MaterialPower",
+            "TextureDiffuse",
+            "TextureAnimationEffect",
+            "TextureNormal",
+            "TextureSpecular",
+            "TextureEmissive",
+            "TextureMask",
             nullptr
         };
         for (const char **it = reservedNames; *it; ++it)

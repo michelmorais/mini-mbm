@@ -70,6 +70,35 @@ namespace mbm
         FX_GROWING, FX_DECREASING, FX_END, FX_END_CALLBACK
     };
 
+    enum TEXTURE_ROLE : uint8_t
+    {
+        TEXTURE_ROLE_DIFFUSE = 0,
+        TEXTURE_ROLE_ANIMATION_EFFECT = 1,
+        TEXTURE_ROLE_NORMAL = 2,
+        TEXTURE_ROLE_SPECULAR = 3,
+        TEXTURE_ROLE_EMISSIVE = 4,
+        TEXTURE_ROLE_MASK = 5
+    };
+
+    enum SHADER_TEXTURE_NAMING : uint8_t
+    {
+        SHADER_TEXTURE_NAMING_NONE = 0,
+        SHADER_TEXTURE_NAMING_LEGACY_SAMPLE = 1,
+        SHADER_TEXTURE_NAMING_SEMANTIC_ROLE = 2,
+        SHADER_TEXTURE_NAMING_MIXED_INVALID = 3
+    };
+
+    API_IMPL const char *getTextureRoleShaderName(TEXTURE_ROLE role, SHADER_TEXTURE_NAMING naming) noexcept;
+    API_IMPL int getTextureRoleBackendSlot(TEXTURE_ROLE role) noexcept;
+    API_IMPL SHADER_TEXTURE_NAMING parseShaderTextureNaming(const char *value) noexcept;
+    API_IMPL const char *getShaderTextureNamingName(SHADER_TEXTURE_NAMING naming) noexcept;
+    API_IMPL SHADER_TEXTURE_NAMING detectShaderTextureNamingProfile(const char *shaderCode) noexcept;
+    API_IMPL SHADER_TEXTURE_NAMING mergeShaderTextureNamingProfiles(SHADER_TEXTURE_NAMING a,
+                                                                    SHADER_TEXTURE_NAMING b) noexcept;
+    API_IMPL bool shaderCodeDeclaresTextureRole(const char *shaderCode,
+                                                TEXTURE_ROLE role,
+                                                SHADER_TEXTURE_NAMING naming) noexcept;
+
     
     class BUFFER_GL // Buffer graphic layer (must be implemented by specific backend, e.g.: Opengl_es, Directx, Vulkan)
     {
@@ -177,6 +206,7 @@ namespace mbm
         API_IMPL unsigned int getTotalVar() const noexcept;
         API_IMPL void releaseVars();
         API_IMPL bool loadShader(const char *fileNameShaderVS_PS, const char *code);
+        API_IMPL SHADER_TEXTURE_NAMING getTextureNamingProfile() const noexcept;
         std::vector<VAR_SHADER *> *getVars();
       private:
         bool isThereVarIntoLsVars(const char *nameVar);
@@ -184,6 +214,7 @@ namespace mbm
       protected:
         std::vector<VAR_SHADER *> lsVar;
         std::string        stringCodeShader;
+        SHADER_TEXTURE_NAMING textureNamingProfile;
     };
 
     class SHADER

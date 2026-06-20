@@ -419,7 +419,10 @@ namespace mbm
         }
     }
 
-    SHADER_CFG::SHADER_CFG(const char *FileName):fileName(FileName)
+    SHADER_CFG::SHADER_CFG(const char *FileName):
+        fileName(FileName),
+        textureNamingDeclaration(SHADER_TEXTURE_NAMING_NONE),
+        textureNamingProfile(SHADER_TEXTURE_NAMING_NONE)
     {
     }
 
@@ -499,6 +502,43 @@ namespace mbm
             }
         }
         return false;
+    }
+
+    bool SHADER_CFG::setTextureNamingDeclaration(const char *value)
+    {
+        const SHADER_TEXTURE_NAMING naming = parseShaderTextureNaming(value);
+        if (naming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            PRINT_IF_DEBUG("\n invalid textureNaming [%s] for shader [%s]", value ? value : "",
+                           this->fileName.c_str());
+            return false;
+        }
+        this->textureNamingDeclaration = naming;
+        return true;
+    }
+
+    bool SHADER_CFG::validateTextureNamingProfile()
+    {
+        this->textureNamingProfile = detectShaderTextureNamingProfile(this->codeShader.c_str());
+        if (this->textureNamingProfile == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            ERROR_LOG("Shader [%s] mixes legacy texture names with semantic texture roles",
+                      this->fileName.c_str());
+            return false;
+        }
+        if (this->textureNamingDeclaration != SHADER_TEXTURE_NAMING_NONE &&
+            this->textureNamingProfile != SHADER_TEXTURE_NAMING_NONE &&
+            this->textureNamingDeclaration != this->textureNamingProfile)
+        {
+            ERROR_LOG("Shader [%s] textureNaming CFG declares [%s] but source uses [%s]",
+                      this->fileName.c_str(),
+                      getShaderTextureNamingName(this->textureNamingDeclaration),
+                      getShaderTextureNamingName(this->textureNamingProfile));
+            return false;
+        }
+        if (this->textureNamingProfile == SHADER_TEXTURE_NAMING_NONE)
+            this->textureNamingProfile = this->textureNamingDeclaration;
+        return true;
     }
 
     VAR_CFG * SHADER_CFG::getVarByName(const char *name)
@@ -786,6 +826,11 @@ namespace mbm
             return false;
         }
         this->parserShaders();
+        if (!this->validateTextureNamingProfiles())
+        {
+            this->clearContents();
+            return false;
+        }
         this->clearContents();
         return true;
     }
@@ -866,7 +911,26 @@ namespace mbm
                                 result[i].resize(result[i].size() - 1);
                         }
                     }
-                    if (result.size() == 3)
+                    if (result.size() == 2 && strcmp(result[1].c_str(), "textureNaming") == 0)
+                    {
+                        SHADER_CFG *shaderCfg = this->getShader(result[0].c_str());
+                        if (shaderCfg)
+                        {
+                            const char *values = this->getValue(key, nullptr);
+                            if (values == nullptr || !shaderCfg->setTextureNamingDeclaration(values))
+                            {
+                                PRINT_IF_DEBUG("\n  error adding shader metadata key:'%s'", key);
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            PRINT_IF_DEBUG( "\n shaderCfg '%s' not included in the SHADER_CFG_LOADER",
+                                         result[0].c_str());
+                            return false;
+                        }
+                    }
+                    else if (result.size() == 3)
                     {
                         SHADER_CFG *shaderCfg = this->getShader(result[0].c_str());
                         if (shaderCfg)
@@ -901,6 +965,21 @@ namespace mbm
                     }
                 }
             }
+        }
+        return true;
+    }
+
+    bool SHADER_CFG_LOADER::validateTextureNamingProfiles()
+    {
+        for (auto ps : this->lsPs)
+        {
+            if (ps && !ps->validateTextureNamingProfile())
+                return false;
+        }
+        for (auto vs : this->lsVs)
+        {
+            if (vs && !vs->validateTextureNamingProfile())
+                return false;
         }
         return true;
     }

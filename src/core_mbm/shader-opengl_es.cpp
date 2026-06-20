@@ -919,6 +919,21 @@ namespace mbm
         const std::string vertexShaderCode(this->vShader ? this->vShader->getCode() : defaultCodeVs);
         const std::string pixelShaderCode(this->pShader ? this->pShader->getCode() : defaultCodePs);
         const std::string bothShaderCode(pixelShaderCode + vertexShaderCode);
+        const SHADER_TEXTURE_NAMING textureNaming =
+            detectShaderTextureNamingProfile(bothShaderCode.c_str());
+        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            ERROR_LOG("OpenGL ES shader mixes legacy texture names with semantic texture roles");
+            return false;
+        }
+        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
+            (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
+             shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
+             shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
+        {
+            ERROR_LOG("OpenGL ES shader declares a reserved semantic texture role without runtime binding support");
+            return false;
+        }
 
         if (bothShaderCode.find("aPosition") != std::string::npos)
         {
@@ -948,17 +963,23 @@ namespace mbm
         {
             gles_shaderSpecific->texCoordHandle = -1;
         }
-        if (bothShaderCode.find("sample0") != std::string::npos)
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_DIFFUSE, textureNaming))
         {
-            gles_shaderSpecific->samplerHandle0 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample0");
+            gles_shaderSpecific->samplerHandle0 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, textureNaming));
         }
-        if (bothShaderCode.find("sample1") != std::string::npos)
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_ANIMATION_EFFECT, textureNaming))
         {
-            gles_shaderSpecific->samplerHandle1 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample1");
+            gles_shaderSpecific->samplerHandle1 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_ANIMATION_EFFECT, textureNaming));
         }
-        if (bothShaderCode.find("sample2") != std::string::npos)
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_NORMAL, textureNaming))
         {
-            gles_shaderSpecific->samplerHandle2 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample2");
+            gles_shaderSpecific->samplerHandle2 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, textureNaming));
         }
         
         return true;
