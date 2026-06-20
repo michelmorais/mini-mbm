@@ -32,6 +32,7 @@ namespace mbm
 {
     class RENDERIZABLE_TO_TARGET;
     struct IMAGE_RESOURCE;
+    enum TEXTURE_ROLE : uint8_t;
 
     class TEXTURE
     {
@@ -128,6 +129,7 @@ namespace mbm
         API_IMPL void setTextureCapabilities(const uint32_t maxTextureSizeFound, uint32_t maxTextureWidthFound, uint32_t maxTextureHeightFound);
         API_IMPL void getTextureCapabilities(uint32_t &maxTextureSizeFound, uint32_t &maxTextureWidthFound, uint32_t &maxTextureHeightFound);
         API_IMPL TEXTURE* loadNativeEngine(const char* fileName, const bool forceAlpha); // load native engine (e.g.: Directx LoadTextureFromFile, Metal). Implemented specific
+        API_IMPL TEXTURE *getFallbackTexture(TEXTURE_ROLE role);
       private:
         static TEXTURE_MANAGER *instanceTextureManager;
         struct Impl;

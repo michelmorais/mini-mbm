@@ -183,6 +183,29 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
     [enc setFragmentBytes:&hasNormalMap length:sizeof(hasNormalMap) atIndex:17];
 }
 
+static const mbm::TEXTURE *getBoundTextureForRoleMetal(const mbm::BUFFER_GL *pBufferId,
+                                                       const uint32_t subsetIndex,
+                                                       const mbm::TEXTURE_ROLE role)
+{
+    if (pBufferId == nullptr)
+        return nullptr;
+    const uint32_t stageIndex = static_cast<uint32_t>(mbm::getTextureRoleBackendSlot(role));
+    const uint32_t textureSubset = role == mbm::TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
+    const mbm::TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+    if (texture)
+        return texture;
+    return mbm::TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
+}
+
+static id<MTLTexture> getMetalTextureForRole(const mbm::BUFFER_GL *pBufferId,
+                                             const uint32_t subsetIndex,
+                                             const mbm::TEXTURE_ROLE role)
+{
+    const mbm::TEXTURE *texture = getBoundTextureForRoleMetal(pBufferId, subsetIndex, role);
+    void *texturePointer = texture ? texture->getBackendTexturePointer() : nullptr;
+    return texturePointer ? (__bridge id<MTLTexture>)texturePointer : nil;
+}
+
 static NSUInteger strideForFVF(mbm::FVF_PROVIDE_BY_ENGINE fvf)
 {
     using F = mbm::FVF_PROVIDE_BY_ENGINE;
@@ -1043,12 +1066,8 @@ namespace mbm
             uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
             // Bind stage-1 texture (constant across all subsets).
-            {
-                const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
-                void *texturePointer = t1 ? t1->getBackendTexturePointer() : nullptr;
-                [enc setFragmentTexture:(texturePointer
-                    ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:1];
-            }
+            [enc setFragmentTexture:getMetalTextureForRole(pBufferId, 0, mbm::TEXTURE_ROLE_ANIMATION_EFFECT)
+                            atIndex:1];
 
             // Upload custom fragment uniforms to [[buffer(2)]].
             if (pShader && !pShader->lsVar.empty())
@@ -1093,14 +1112,10 @@ namespace mbm
                 [enc setVertexBuffer:backendBuffer->vertexBuffer offset:0 atIndex:0];
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
-                    const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer
-                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
-                    const TEXTURE* t2 = pBufferId->getTextureByStage(2, i);
-                    void *texturePointer2 = t2 ? t2->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer2
-                        ? (__bridge id<MTLTexture>)texturePointer2 : nil) atIndex:2];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
+                                    atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
+                                    atIndex:2];
                     uploadReservedLightBuffersMetal(enc, pBufferId, i);
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
@@ -1116,14 +1131,10 @@ namespace mbm
                 if (!backendBuffer->vertexBuffer) return false;
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
-                    const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer
-                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
-                    const TEXTURE* t2 = pBufferId->getTextureByStage(2, i);
-                    void *texturePointer2 = t2 ? t2->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer2
-                        ? (__bridge id<MTLTexture>)texturePointer2 : nil) atIndex:2];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
+                                    atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
+                                    atIndex:2];
                     uploadReservedLightBuffersMetal(enc, pBufferId, i);
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
@@ -1187,12 +1198,8 @@ namespace mbm
             uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
             // Bind stage-1 texture (constant across all subsets).
-            {
-                const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
-                void *texturePointer = t1 ? t1->getBackendTexturePointer() : nullptr;
-                [enc setFragmentTexture:(texturePointer
-                    ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:1];
-            }
+            [enc setFragmentTexture:getMetalTextureForRole(pBufferId, 0, mbm::TEXTURE_ROLE_ANIMATION_EFFECT)
+                            atIndex:1];
 
             // Upload custom fragment uniforms to [[buffer(2)]].
             if (pShader && !pShader->lsVar.empty())
@@ -1237,14 +1244,10 @@ namespace mbm
                 if (!backendBuffer->indexBuffer) return false;
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
-                    const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer
-                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
-                    const TEXTURE* t2 = pBufferId->getTextureByStage(2, i);
-                    void *texturePointer2 = t2 ? t2->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer2
-                        ? (__bridge id<MTLTexture>)texturePointer2 : nil) atIndex:2];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
+                                    atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
+                                    atIndex:2];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -1258,14 +1261,10 @@ namespace mbm
             {
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
-                    const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer
-                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
-                    const TEXTURE* t2 = pBufferId->getTextureByStage(2, i);
-                    void *texturePointer2 = t2 ? t2->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer2
-                        ? (__bridge id<MTLTexture>)texturePointer2 : nil) atIndex:2];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
+                                    atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
+                                    atIndex:2];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:vbuf offset:off atIndex:0];
@@ -1308,10 +1307,8 @@ namespace mbm
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
             uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
-            const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
-            void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
-            [enc setFragmentTexture:(texturePointer
-                ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+            [enc setFragmentTexture:getMetalTextureForRole(pBufferId, 0, mbm::TEXTURE_ROLE_DIFFUSE)
+                            atIndex:0];
 
             const VERTEX_UV*    vbuf      = particleControl->getVertexBuffer();
             const ATT_PARTICLE* particles = particleControl->getAttParticle();
@@ -1395,10 +1392,8 @@ namespace mbm
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
             uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
-            const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
-            void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
-            [enc setFragmentTexture:(texturePointer
-                ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+            [enc setFragmentTexture:getMetalTextureForRole(pBufferId, 0, mbm::TEXTURE_ROLE_DIFFUSE)
+                            atIndex:0];
 
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;

@@ -179,6 +179,34 @@ namespace mbm
             constantTable->SetFloat(pd3dDevice, handle, material.Power);
     }
 
+    static TEXTURE *getBoundTextureForRoleD3D(const BUFFER_GL *pBufferId,
+                                              const uint32_t subsetIndex,
+                                              const TEXTURE_ROLE role)
+    {
+        if (pBufferId == nullptr)
+            return nullptr;
+        const uint32_t stageIndex = static_cast<uint32_t>(getTextureRoleBackendSlot(role));
+        const uint32_t textureSubset = role == TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
+        TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+        if (texture)
+            return texture;
+        return TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
+    }
+
+    static void bindTextureRoleD3D(IDirect3DDevice9 *pd3dDevice,
+                                   const BUFFER_GL *pBufferId,
+                                   const uint32_t subsetIndex,
+                                   const TEXTURE_ROLE role)
+    {
+        if (pd3dDevice == nullptr)
+            return;
+        TEXTURE *texture = getBoundTextureForRoleD3D(pBufferId, subsetIndex, role);
+        IDirect3DTexture9 *d3dTexture = texture
+            ? static_cast<IDirect3DTexture9*>(texture->getBackendTexturePointer())
+            : nullptr;
+        pd3dDevice->SetTexture(getTextureRoleBackendSlot(role), d3dTexture);
+    }
+
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept :
         FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS),
         sizeStructVertexInBytes(0),
@@ -1264,40 +1292,12 @@ namespace mbm
                 return false;
             }
 
-            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
-            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-            if (texture1)
-            {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
-                pd3dDevice->SetTexture(1, pp3DTexture9);
-            }
-            else
-            {
-                pd3dDevice->SetTexture(1, nullptr);
-            }
+            // TextureAnimationEffect stays shared across subsets by design.
+            bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                if (texture0)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(0, nullptr);
-                }
-
-                TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
-                if (texture2)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture2->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(2, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(2, nullptr);
-                }
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
@@ -1382,41 +1382,13 @@ namespace mbm
                 backendBuffer->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
                 return false;
 
-            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
-            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-            if (texture1)
-            {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
-                pd3dDevice->SetTexture(1, pp3DTexture9);
-            }
-            else
-            {
-                pd3dDevice->SetTexture(1, nullptr);
-            }
+            // TextureAnimationEffect stays shared across subsets by design.
+            bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
 
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                if (texture0)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(0, nullptr);
-                }
-
-                TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
-                if (texture2)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture2->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(2, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(2, nullptr);
-                }
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
@@ -1628,41 +1600,13 @@ namespace mbm
             const uint32_t totalAlive = particleControl->getTotalAlive();
             const VERTEX_UV* buffer = particleControl->getVertexBuffer();
 
-            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
-            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-            if (texture1)
-            {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
-                pd3dDevice->SetTexture(1, pp3DTexture9);
-            }
-            else
-            {
-                pd3dDevice->SetTexture(1, nullptr);
-            }
+            // TextureAnimationEffect stays shared across subsets by design.
+            bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
 
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                if (texture0)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(0, nullptr);
-                }
-
-                TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
-                if (texture2)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture2->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(2, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(2, nullptr);
-                }
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
@@ -1927,41 +1871,13 @@ namespace mbm
                 ? this->pShader->getVarByName("color")
                 : nullptr;
 
-            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
-            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-            if (texture1)
-            {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
-                pd3dDevice->SetTexture(1, pp3DTexture9);
-            }
-            else
-            {
-                pd3dDevice->SetTexture(1, nullptr);
-            }
+            // TextureAnimationEffect stays shared across subsets by design.
+            bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
 
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                if (texture0)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(0, nullptr);
-                }
-
-                TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
-                if (texture2)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture2->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(2, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(2, nullptr);
-                }
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 

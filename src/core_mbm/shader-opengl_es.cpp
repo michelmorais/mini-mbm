@@ -208,6 +208,35 @@ namespace mbm
         }
     }
 
+    static const TEXTURE *getBoundTextureForRoleOpenGlEs(const BUFFER_GL *pBufferId,
+                                                         const uint32_t subsetIndex,
+                                                         const TEXTURE_ROLE role)
+    {
+        if (pBufferId == nullptr)
+            return nullptr;
+        const uint32_t stageIndex = static_cast<uint32_t>(getTextureRoleBackendSlot(role));
+        const uint32_t textureSubset = role == TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
+        const TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+        if (texture)
+            return texture;
+        return TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
+    }
+
+    static void bindTextureRoleOpenGlEs(const BUFFER_GL *pBufferId,
+                                        const uint32_t subsetIndex,
+                                        const TEXTURE_ROLE role,
+                                        const GLint samplerHandle)
+    {
+        const int backendSlot = getTextureRoleBackendSlot(role);
+        GLActiveTexture(GL_TEXTURE0 + backendSlot);
+        const TEXTURE *texture = getBoundTextureForRoleOpenGlEs(pBufferId, subsetIndex, role);
+        GLBindTexture(GL_TEXTURE_2D, texture ? texture->getBackendTextureId() : 0);
+        if (samplerHandle != -1)
+        {
+            GLUniform1i(samplerHandle, backendSlot);
+        }
+    }
+
     static GLenum getOpenGlEsModeDraw(const uint32_t mode_draw)
     {
         switch (mode_draw)
@@ -1044,40 +1073,13 @@ namespace mbm
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
-                const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
-                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
-
-                GLActiveTexture(GL_TEXTURE1);
-                const TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-                if (texture1)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
-
-                GLActiveTexture(GL_TEXTURE2);
-                const TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
-                if (texture2)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
-                    if (gles_shaderSpecific->samplerHandle2 != -1)
-                    {
-                        GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
-                    }
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
+                bindTextureRoleOpenGlEs(
+                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
@@ -1117,39 +1119,12 @@ namespace mbm
                     GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
-                const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
-                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-
-                GLActiveTexture(GL_TEXTURE1);
-                const TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-                if (texture1)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
-
-                GLActiveTexture(GL_TEXTURE2);
-                const TEXTURE* texture2 = pBufferId->getTextureByStage(2, i);
-                if (texture2)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
-                    if (gles_shaderSpecific->samplerHandle2 != -1)
-                    {
-                        GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
-                    }
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
+                bindTextureRoleOpenGlEs(
+                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1)
                     && backendBuffer->vboNormalSubsetVB && backendBuffer->vboNormalSubsetVB[i] != 0;
@@ -1206,38 +1181,11 @@ namespace mbm
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLActiveTexture(GL_TEXTURE0);
-                const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
-                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
-
-                const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
-                GLActiveTexture(GL_TEXTURE1);
-                if (texture1)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
-
-                GLActiveTexture(GL_TEXTURE2);
-                const TEXTURE * texture2 = pBufferId->getTextureByStage(2, i);
-                if (texture2)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
-                    if (gles_shaderSpecific->samplerHandle2 != -1)
-                    {
-                        GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
-                    }
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
+                bindTextureRoleOpenGlEs(
+                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
@@ -1274,37 +1222,10 @@ namespace mbm
                     GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLActiveTexture(GL_TEXTURE0);
-                const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
-                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-
-                GLActiveTexture(GL_TEXTURE1);
-                const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
-                if (texture1)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
-
-                GLActiveTexture(GL_TEXTURE2);
-                const TEXTURE * texture2 = pBufferId->getTextureByStage(2, i);
-                if (texture2)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture2->getBackendTextureId());
-                    if (gles_shaderSpecific->samplerHandle2 != -1)
-                    {
-                        GLUniform1i(gles_shaderSpecific->samplerHandle2, 2);
-                    }
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
+                bindTextureRoleOpenGlEs(
+                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1) && (normal != nullptr);
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1) && (uv != nullptr);
@@ -1326,29 +1247,15 @@ namespace mbm
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer)
             return false;
-        const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
-        GLActiveTexture(GL_TEXTURE0);
-        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
+        bindTextureRoleOpenGlEs(pBufferId, index_subset, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
         const GLenum modeDrawGl      = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
             ERROR_AT(__LINE__, __FILE__, "Mode draw for OpenGlEs renderParticle not supported!");
             return false;
         }
-        
-        GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-
-        GLActiveTexture(GL_TEXTURE1);
-        const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
-        if (texture1)
-        {
-            GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-            GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-        }
-        else
-        {
-            GLBindTexture(GL_TEXTURE_2D, 0);
-        }
+        bindTextureRoleOpenGlEs(
+            pBufferId, index_subset, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
 
         GLboolean depthTestEnabled = true;
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
@@ -1434,29 +1341,15 @@ namespace mbm
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer)
             return false;
-        const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
-        GLActiveTexture(GL_TEXTURE0);
-        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
+        bindTextureRoleOpenGlEs(pBufferId, index_subset, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
         const GLenum modeDrawGl = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
             ERROR_AT(__LINE__, __FILE__, "Mode draw for OpenGlEs renderParticle not supported!");
             return false;
         }
-
-        GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-
-        GLActiveTexture(GL_TEXTURE1);
-        const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
-        if (texture1)
-        {
-            GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-            GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-        }
-        else
-        {
-            GLBindTexture(GL_TEXTURE_2D, 0);
-        }
+        bindTextureRoleOpenGlEs(
+            pBufferId, index_subset, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
 
         GLboolean depthTestEnabled = true;
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
