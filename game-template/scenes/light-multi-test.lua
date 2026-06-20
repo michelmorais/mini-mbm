@@ -15,9 +15,11 @@ if script_dir then
     mbm.addPath(script_dir)
     mbm.addPath(script_dir .. "/../../src/test-lib")
 end
+local color = {r=37/255,g=37/255,b=37/255}
+mbm.setColor(color.r,color.g,color.b)
 
 local TARGET = "2dw"
-local PREFERRED_SPRITE = "/home/michel/Downloads/enemy-1-normal_map_plus_normals.spt"
+local PREFERRED_SPRITE = "src/test-lib/monster-sprite.spt"
 local FALLBACK_SPRITE = "box.spt"
 local MOVE_SPEED = 220
 local SPRITE_HALF_EXTENTS = {x = 96, y = 96, z = 8}
@@ -171,7 +173,8 @@ function onInitScene()
     KEY_ESCAPE = mbm.getKeyCode("ESC")
     KEY_SPACE = mbm.getKeyCode("SPACE")
 
-    mbm.setColor(18, 18, 24)
+    local color = {r=37/255,g=37/255,b=37/255}
+    mbm.setColor(color.r, color.g, color.b)
     camera2d = mbm.getCamera("2d")
     camera2d:setPos(0, 0)
 
