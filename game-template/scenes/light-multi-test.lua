@@ -21,10 +21,14 @@ local PREFERRED_SPRITE = "/home/michel/Downloads/enemy-1-normal_map_plus_normals
 local FALLBACK_SPRITE = "box.spt"
 local MOVE_SPEED = 220
 local SPRITE_HALF_EXTENTS = {x = 96, y = 96, z = 8}
+local LIGHT_MARKER_RADIUS = 12
+local LIGHT_RING_SEGMENTS = 40
 
 local sprite_test = nil
 local camera2d = nil
 local held_keys = {}
+local light_markers = {}
+local light_rings = {}
 local KEY_LEFT = 0
 local KEY_RIGHT = 0
 local KEY_UP = 0
@@ -40,6 +44,57 @@ local lights = {
     {position = {x = -120, y = -180, z = 180}, radius = 260, color = {r = 0.2, g = 0.5, b = 1.0, a = 1.0}},
     {position = {x = 320, y = -120, z = 180}, radius = 320, color = {r = 1.0, g = 0.9, b = 0.2, a = 1.0}},
 }
+
+local function clamp01(value)
+    if value < 0 then
+        return 0
+    elseif value > 1 then
+        return 1
+    end
+    return value
+end
+
+local function color_to_hex(color, alpha_scale)
+    local scale = alpha_scale or 1.0
+    local a = math.floor(clamp01((color.a or 1.0) * scale) * 255)
+    local r = math.floor(clamp01(color.r or 0.0) * 255)
+    local g = math.floor(clamp01(color.g or 0.0) * 255)
+    local b = math.floor(clamp01(color.b or 0.0) * 255)
+    return string.format("#%02X%02X%02X%02X", a, r, g, b)
+end
+
+local function build_circle_points(radius, segments)
+    local points = {}
+    for i = 0, segments do
+        local angle = (math.pi * 2.0 * i) / segments
+        points[#points + 1] = math.cos(angle) * radius
+        points[#points + 1] = math.sin(angle) * radius
+    end
+    return points
+end
+
+local function create_light_debug_visuals()
+    for i = 1, #lights do
+        local light = lights[i]
+
+        local marker = shape:new(TARGET, light.position.x, light.position.y, -20)
+        marker:create("circle", 1)
+        marker:setScale(LIGHT_MARKER_RADIUS, LIGHT_MARKER_RADIUS, 1)
+        marker:setTexture(color_to_hex(light.color, 1.0))
+        marker.alwaysRender = true
+        light_markers[#light_markers + 1] = marker
+
+        local ring = line:new(TARGET, light.position.x, light.position.y, -21)
+        ring:add(build_circle_points(light.radius, LIGHT_RING_SEGMENTS))
+        ring:setColor(
+            math.floor(clamp01(light.color.r) * 255),
+            math.floor(clamp01(light.color.g) * 255),
+            math.floor(clamp01(light.color.b) * 255),
+            255)
+        ring.alwaysRender = true
+        light_rings[#light_rings + 1] = ring
+    end
+end
 
 local function resolve_sprite_file()
     local exists, full_path = mbm.existFile(PREFERRED_SPRITE)
@@ -77,14 +132,15 @@ local function report_selected_lights(reason)
     local summary = {}
     for i = 1, #selected do
         local entry = selected[i]
+        local color = entry.color or (entry.pointLight and entry.pointLight.color) or {r = 0, g = 0, b = 0}
         summary[#summary + 1] = string.format(
             "#%d src=%d dist=%.2f color=(%.2f,%.2f,%.2f)",
             i,
             entry.sourceIndex,
             entry.distanceToObjectCenter,
-            entry.pointLight.color.r,
-            entry.pointLight.color.g,
-            entry.pointLight.color.b)
+            color.r,
+            color.g,
+            color.b)
     end
     print("info", "white",
           string.format("%s | selected=%d | %s", reason, #selected, table.concat(summary, " | ")))
@@ -120,6 +176,7 @@ function onInitScene()
     camera2d:setPos(0, 0)
 
     configure_lights()
+    create_light_debug_visuals()
 
     local sprite_file, full_path = resolve_sprite_file()
     if not sprite_file then
