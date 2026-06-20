@@ -154,6 +154,34 @@ Default values:
 
 Color channels are clamped to `0..1`. Directional light directions are normalized by the engine.
 
+## Intentional Multi-Light Limitation
+
+The future multi-light path is intentionally designed around a validated maximum light count, not
+an unbounded runtime list.
+
+Reason:
+
+- shader arrays need a fixed upper bound
+- DirectX 9 constant/register limits are real
+- a shared engine contract across OpenGL ES, DirectX 9, and Metal needs a bounded layout
+
+So the engine design should distinguish:
+
+- requested light capacity: what the game asks for
+- validated light capacity: what the active backend/profile can support safely
+- active light count: how many of those validated slots are currently used at runtime
+
+In practice, the multi-light pipeline should:
+
+- accept a developer-requested max light count
+- validate that count against the active backend/profile
+- fail clearly when the request exceeds supported limits
+- compile/use shader variants that match the validated maximum
+- upload `LightCount` as the current active runtime count within that validated capacity
+
+This is an intentional limitation, not a temporary weakness. It keeps the shader contract explicit
+and avoids pretending that every backend can support an arbitrary number of simultaneous lights.
+
 ## Reserved Shader Inputs
 
 The engine uploads these reserved light names automatically when the active shader declares them:
