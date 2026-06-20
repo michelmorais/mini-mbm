@@ -221,8 +221,6 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
         lightColorArray[3] = currentLightColor.a;
     }
     int32_t lightCount = lightMode == 2 ? static_cast<int32_t>(selectedPointLightCount) : (lightEnabled != 0 ? 1 : 0);
-    float lightColor[4] = {currentLightColor.r, currentLightColor.g, currentLightColor.b, currentLightColor.a};
-
     [enc setVertexBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
     [enc setFragmentBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
     [enc setVertexBytes:&lightCount length:sizeof(lightCount) atIndex:5];

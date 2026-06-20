@@ -609,27 +609,42 @@ namespace mbm
         if (selectionMode != LIGHT_SELECTION_PER_OBJECT_NEAREST)
             return 0u;
 
-        const std::vector<LIGHT_POINT> &pointLights = DEVICE::getInstance()->getPointLightsInternal(target);
-        if (pointLights.empty())
-            return 0u;
-
         const float objectRadius = getObjectLightSelectionRadius(objectBoundingAABB);
         std::vector<LIGHT_POINT_SELECTION> candidates;
-        candidates.reserve(pointLights.size());
-
-        for (std::vector<LIGHT_POINT>::size_type i = 0; i < pointLights.size(); ++i)
+        const std::vector<LIGHT_POINT> &pointLights = DEVICE::getInstance()->getPointLightsInternal(target);
+        if (pointLights.empty())
         {
-            const LIGHT_POINT &pointLight = pointLights[i];
-            const float distanceToObjectCenter = (pointLight.position - objectCenter).length();
-            const float reach = pointLight.radius + objectRadius;
-            if (distanceToObjectCenter > reach)
-                continue;
-
+            const LIGHT_STATE &lightState = DEVICE::getInstance()->getLightStateInternal(target);
             LIGHT_POINT_SELECTION selection;
-            selection.pointLight = pointLight;
-            selection.sourceIndex = static_cast<uint32_t>(i);
+            selection.pointLight.position = lightState.pointPosition;
+            selection.pointLight.radius = lightState.pointRadius;
+            selection.pointLight.color = lightState.pointColor;
+            const float distanceToObjectCenter = (selection.pointLight.position - objectCenter).length();
+            const float reach = selection.pointLight.radius + objectRadius;
+            if (distanceToObjectCenter > reach)
+                return 0u;
+            selection.sourceIndex = 0u;
             selection.distanceToObjectCenter = distanceToObjectCenter;
             candidates.push_back(selection);
+        }
+        else
+        {
+            candidates.reserve(pointLights.size());
+
+            for (std::vector<LIGHT_POINT>::size_type i = 0; i < pointLights.size(); ++i)
+            {
+                const LIGHT_POINT &pointLight = pointLights[i];
+                const float distanceToObjectCenter = (pointLight.position - objectCenter).length();
+                const float reach = pointLight.radius + objectRadius;
+                if (distanceToObjectCenter > reach)
+                    continue;
+
+                LIGHT_POINT_SELECTION selection;
+                selection.pointLight = pointLight;
+                selection.sourceIndex = static_cast<uint32_t>(i);
+                selection.distanceToObjectCenter = distanceToObjectCenter;
+                candidates.push_back(selection);
+            }
         }
 
         if (candidates.empty())

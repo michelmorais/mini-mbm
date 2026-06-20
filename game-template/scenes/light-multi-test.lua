@@ -41,6 +41,7 @@ local last_selection_signature = ""
 local last_report_time = 0
 
 local lights = {
+    {position = {x = 0, y = 0, z = 180}, radius = 320, color = {r = 1.0, g = 1.0, b = 1.0, a = 1.0}},
     {position = {x = -260, y = 120, z = 180}, radius = 280, color = {r = 1.0, g = 0.2, b = 0.2, a = 1.0}},
     {position = {x = 240, y = 140, z = 180}, radius = 240, color = {r = 0.2, g = 1.0, b = 0.2, a = 1.0}},
     {position = {x = -120, y = -180, z = 180}, radius = 260, color = {r = 0.2, g = 0.5, b = 1.0, a = 1.0}},
@@ -135,11 +136,15 @@ local function report_selected_lights(reason)
     for i = 1, #selected do
         local entry = selected[i]
         local color = entry.color or (entry.pointLight and entry.pointLight.color) or {r = 0, g = 0, b = 0}
+        local radius = entry.radius or (entry.pointLight and entry.pointLight.radius) or 0
+        local inside_center = entry.distanceToObjectCenter <= radius and "yes" or "no"
         summary[#summary + 1] = string.format(
-            "#%d src=%d dist=%.2f color=(%.2f,%.2f,%.2f)",
+            "#%d src=%d dist=%.2f radius=%.2f inside-center=%s color=(%.2f,%.2f,%.2f)",
             i,
             entry.sourceIndex,
             entry.distanceToObjectCenter,
+            radius,
+            inside_center,
             color.r,
             color.g,
             color.b)
