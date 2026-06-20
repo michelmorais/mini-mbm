@@ -546,13 +546,12 @@ Default MSL generation should:
 
 - Design dedicated 2D point/radius lighting for `2dw`.
 - Require normal-map support for useful 2D lighting.
-- Plan `2dw` lighting around a light-buffer/render-to-texture path rather than per-object
-  multi-light shader loops.
-- Investigate the exact composition path for combining the light buffer with textured objects and
-  per-subset normal maps.
-- Reuse or extend existing backend render-target mechanics where possible, but keep the 2D light
-  buffer as internal engine render-pipeline state rather than exposing it as a normal
-  `RENDER_2_TEXTURE` renderizable.
+- Keep `2dw` multi-light selection per object rather than one global scene-wide first-`N` light
+  list.
+- Use per-object nearest-light selection as the first multi-light strategy:
+  - consider only lights whose radius reaches the object
+  - rank candidates by distance to the object center
+  - keep the nearest validated `N` lights for that object
 - Keep `2ds` lighting explicitly opt-in only.
 - Design generic per-frame-subset material texture slots instead of a one-off normal-map field.
 - Preserve compatibility by treating existing `HEADER_DESC_SUBSET::nameTexture` as the primary /
@@ -577,8 +576,8 @@ Default MSL generation should:
   (`sample2`) so stage `1` / `sample1` remains reserved for the existing FX path.
 - First runtime implementation now ships as one engine-managed `2dw` point/radius light with
   per-object shading, optional per-subset normal map from `sample2`, and flat-normal fallback
-  `(0, 0, 1)` when no normal map exists. Keep the light-buffer/render-to-texture composition path
-  as the next expansion step when multi-light and broader 2D composition work starts.
+  `(0, 0, 1)` when no normal map exists. Expand that path first with validated multi-light
+  selection before considering broader screen-space/light-buffer composition.
 - Current `2dw` shading does not consume stored mesh/vertex normals. It uses the per-subset
   normal-map texture from `sample2` when present; otherwise it falls back to the flat normal
   `(0, 0, 1)`.
@@ -625,10 +624,15 @@ Default MSL generation should:
 
 - Add multi-light support only after one-light validation is complete on OpenGL ES, DirectX 9, and
   Metal.
-- Decide max light count, reserved array names, shader-loop strategy, DirectX 9 constant limits,
-  Metal buffer layout, and fallback behavior before implementation.
+- Decide requested vs validated max light count, reserved array names, per-object light-selection
+  strategy, DirectX 9 constant limits, Metal buffer layout, and fallback behavior before the full
+  implementation.
 - `LightCount` is already a reserved engine name. The multi-light milestone expands it beyond the
   one-light `0` or `1` contract.
+- The first multi-light contract should remain explicit:
+  - developer requests a max light count
+  - engine validates that request against the active backend/profile
+  - each object receives only the nearest validated `N` candidate lights that reach it
 - Candidate future array names:
   - `LightDirectionView[0]`
   - `LightPositionView[0]`
@@ -822,17 +826,22 @@ Ask and resolve these before implementation:
    Resolved: no. The goal for `2dw` is dedicated point/radius lighting with normal maps.
 
 9b. Should `2dw` lighting use per-object multi-light shader loops?
-   Resolved: no. Plan a light-buffer/render-to-texture path and investigate the best composition
-   model for Mini MBM.
+   Resolved: yes. The first multi-light path should keep selection per object rather than use one
+   global scene-wide first-`N` light list.
 
 9c. Should the 2D light buffer be a normal `RENDER_2_TEXTURE` object?
-   Resolved: no. Reuse backend render-target mechanics where useful, but keep the light buffer as
-   internal engine render-pipeline state.
+   Resolved: no for the first multi-light pass. Extend the current per-object shading path first.
+   Revisit broader light-buffer or screen-space composition only after the bounded per-object
+   selection model is proven.
 
 9d. What happens when lighting is enabled for objects without normals?
    Resolved: target-specific behavior. In `3d`, no-normal objects remain unlit and the render path
    does not synthesize normals. In `2dw`, the dedicated lighting pipeline may use a default flat
    normal `(0, 0, 1)` when no normal map exists. `2ds` remains explicitly opt-in.
+
+9e. How should `2dw` choose lights when a scene has more lights than the validated shader cap?
+   Resolved: per object. Consider only lights whose radius reaches the object, sort candidates by
+   distance to the object center, and keep the nearest validated `N`.
 
 10. Should normal maps use texture stage 1?
    Resolved: no. Stage 1 is already occupied by FX. Normal maps need explicit material texture

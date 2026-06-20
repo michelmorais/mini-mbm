@@ -71,6 +71,8 @@ namespace mbm
         COLOR colorClearBackGround = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
         LIGHT_STATE light3D;
         LIGHT_STATE light2DW;
+        LIGHT_MULTI_SETTINGS lightMulti3D;
+        LIGHT_MULTI_SETTINGS lightMulti2DW;
         LIGHT_TARGET currentRenderLightTarget = LIGHT_TARGET_3D;
         bool currentRenderLightTargetEnabled = false;
         util::MATERIAL currentRenderMaterial;
@@ -153,6 +155,16 @@ namespace mbm
         return target == LIGHT_TARGET_2DW ? impl->light2DW : impl->light3D;
     }
 
+    LIGHT_MULTI_SETTINGS &DEVICE::getMutableLightMultiSettings(const LIGHT_TARGET target) noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->lightMulti2DW : impl->lightMulti3D;
+    }
+
+    const LIGHT_MULTI_SETTINGS &DEVICE::getLightMultiSettingsInternal(const LIGHT_TARGET target) const noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->lightMulti2DW : impl->lightMulti3D;
+    }
+
     void DEVICE::setLightTargetForRender(const LIGHT_TARGET target) noexcept
     {
         impl->currentRenderLightTarget = isValidLightTarget(target) ? target : LIGHT_TARGET_3D;
@@ -229,6 +241,16 @@ namespace mbm
         {
             return LIGHT_STATE();
         }
+
+        LIGHT_MULTI_SETTINGS makeDefaultLightMultiSettings() noexcept
+        {
+            return LIGHT_MULTI_SETTINGS();
+        }
+
+        uint32_t clampRequestedMaxLights(const uint32_t requestedMaxLights) noexcept
+        {
+            return std::max<uint32_t>(1u, requestedMaxLights);
+        }
     }
 
     bool isValidLightTarget(const LIGHT_TARGET target) noexcept
@@ -261,6 +283,11 @@ namespace mbm
             return true;
         }
         return false;
+    }
+
+    bool isValidLightSelectionMode(const LIGHT_SELECTION_MODE selectionMode) noexcept
+    {
+        return selectionMode == LIGHT_SELECTION_PER_OBJECT_NEAREST;
     }
 
     bool setLightEnabled(const LIGHT_TARGET target, const bool enabled) noexcept
@@ -360,11 +387,45 @@ namespace mbm
         return true;
     }
 
+    bool setRequestedMaxLights(const LIGHT_TARGET target, const uint32_t requestedMaxLights) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_MULTI_SETTINGS &settings = DEVICE::getInstance()->getMutableLightMultiSettings(target);
+        settings.requestedMaxLights = clampRequestedMaxLights(requestedMaxLights);
+        return true;
+    }
+
+    uint32_t getRequestedMaxLights(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return DEFAULT_REQUESTED_MAX_LIGHTS;
+        return DEVICE::getInstance()->getLightMultiSettingsInternal(target).requestedMaxLights;
+    }
+
+    bool setLightSelectionMode(const LIGHT_TARGET target,
+                               const LIGHT_SELECTION_MODE selectionMode) noexcept
+    {
+        if (isValidLightTarget(target) == false || isValidLightSelectionMode(selectionMode) == false)
+            return false;
+        LIGHT_MULTI_SETTINGS &settings = DEVICE::getInstance()->getMutableLightMultiSettings(target);
+        settings.selectionMode = selectionMode;
+        return true;
+    }
+
+    LIGHT_SELECTION_MODE getLightSelectionMode(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return LIGHT_SELECTION_PER_OBJECT_NEAREST;
+        return DEVICE::getInstance()->getLightMultiSettingsInternal(target).selectionMode;
+    }
+
     bool resetLight(const LIGHT_TARGET target) noexcept
     {
         if (isValidLightTarget(target) == false)
             return false;
         DEVICE::getInstance()->getMutableLightState(target) = makeDefaultLightState();
+        DEVICE::getInstance()->getMutableLightMultiSettings(target) = makeDefaultLightMultiSettings();
         return true;
     }
 
@@ -372,6 +433,8 @@ namespace mbm
     {
         DEVICE::getInstance()->getMutableLightState(LIGHT_TARGET_3D) = makeDefaultLightState();
         DEVICE::getInstance()->getMutableLightState(LIGHT_TARGET_2DW) = makeDefaultLightState();
+        DEVICE::getInstance()->getMutableLightMultiSettings(LIGHT_TARGET_3D) = makeDefaultLightMultiSettings();
+        DEVICE::getInstance()->getMutableLightMultiSettings(LIGHT_TARGET_2DW) = makeDefaultLightMultiSettings();
     }
 
     bool getLightState(const LIGHT_TARGET target, LIGHT_STATE &outState) noexcept
@@ -385,6 +448,19 @@ namespace mbm
     const LIGHT_STATE &getLightState(const LIGHT_TARGET target) noexcept
     {
         return DEVICE::getInstance()->getLightStateInternal(target);
+    }
+
+    bool getLightMultiSettings(const LIGHT_TARGET target, LIGHT_MULTI_SETTINGS &outSettings) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        outSettings = DEVICE::getInstance()->getLightMultiSettingsInternal(target);
+        return true;
+    }
+
+    const LIGHT_MULTI_SETTINGS &getLightMultiSettings(const LIGHT_TARGET target) noexcept
+    {
+        return DEVICE::getInstance()->getLightMultiSettingsInternal(target);
     }
 
     void DEVICE::setTotalObjectsOnFrustum3D(const uint32_t total) noexcept

@@ -182,6 +182,28 @@ In practice, the multi-light pipeline should:
 This is an intentional limitation, not a temporary weakness. It keeps the shader contract explicit
 and avoids pretending that every backend can support an arbitrary number of simultaneous lights.
 
+For `2dw`, the intended selection model is per-object nearest lights, not one global scene-wide
+first-`N` list. That means a scene may contain many visible lights overall while each object still
+shades against only a small validated subset.
+
+Planned first selection rule:
+
+- consider only lights whose radius reaches the object
+- rank candidates by distance to the object center
+- keep the nearest validated `N` lights for that object
+
+This is the expected mechanism behind scenes that appear to have many simultaneous 2D lights. The
+engine does not need to promise that every sprite uses every light; it needs to choose a bounded
+set of relevant lights per object.
+
+Current Milestone 9 groundwork exposes two target-specific configuration values:
+
+- requested max light count
+- light selection mode
+
+They currently store the intended multi-light contract in engine state. Backend validation and
+multi-light shader upload still come in the next implementation slices.
+
 ## Reserved Shader Inputs
 
 The engine uploads these reserved light names automatically when the active shader declares them:

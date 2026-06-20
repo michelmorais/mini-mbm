@@ -25,10 +25,17 @@
 
 namespace mbm
 {
+    static constexpr uint32_t DEFAULT_REQUESTED_MAX_LIGHTS = 4u;
+
     enum LIGHT_TARGET : int
     {
         LIGHT_TARGET_3D = 0,
         LIGHT_TARGET_2DW = 1,
+    };
+
+    enum LIGHT_SELECTION_MODE : int
+    {
+        LIGHT_SELECTION_PER_OBJECT_NEAREST = 0,
     };
 
     struct LIGHT_STATE
@@ -48,9 +55,16 @@ namespace mbm
         bool pointRadiusConfigured = false;
     };
 
+    struct LIGHT_MULTI_SETTINGS
+    {
+        uint32_t requestedMaxLights = DEFAULT_REQUESTED_MAX_LIGHTS;
+        LIGHT_SELECTION_MODE selectionMode = LIGHT_SELECTION_PER_OBJECT_NEAREST;
+    };
+
     API_IMPL bool isValidLightTarget(const LIGHT_TARGET target) noexcept;
     API_IMPL const char *getLightTargetName(const LIGHT_TARGET target) noexcept;
     API_IMPL bool lightTargetFromString(const char *targetName, LIGHT_TARGET &targetOut) noexcept;
+    API_IMPL bool isValidLightSelectionMode(const LIGHT_SELECTION_MODE selectionMode) noexcept;
 
     API_IMPL bool setLightEnabled(const LIGHT_TARGET target, const bool enabled) noexcept;
     API_IMPL bool setAmbientLight(const LIGHT_TARGET target, const COLOR &ambientColor) noexcept;
@@ -63,10 +77,17 @@ namespace mbm
     API_IMPL bool setPointLightPosition(const LIGHT_TARGET target, const VEC3 &pointPosition) noexcept;
     API_IMPL bool setPointLightRadius(const LIGHT_TARGET target, const float pointRadius) noexcept;
     API_IMPL bool setPointLightColor(const LIGHT_TARGET target, const COLOR &pointColor) noexcept;
+    API_IMPL bool setRequestedMaxLights(const LIGHT_TARGET target, const uint32_t requestedMaxLights) noexcept;
+    API_IMPL uint32_t getRequestedMaxLights(const LIGHT_TARGET target) noexcept;
+    API_IMPL bool setLightSelectionMode(const LIGHT_TARGET target,
+                                        const LIGHT_SELECTION_MODE selectionMode) noexcept;
+    API_IMPL LIGHT_SELECTION_MODE getLightSelectionMode(const LIGHT_TARGET target) noexcept;
     API_IMPL bool resetLight(const LIGHT_TARGET target) noexcept;
     API_IMPL void resetAllLights() noexcept;
     API_IMPL bool getLightState(const LIGHT_TARGET target, LIGHT_STATE &outState) noexcept;
     API_IMPL const LIGHT_STATE &getLightState(const LIGHT_TARGET target) noexcept;
+    API_IMPL bool getLightMultiSettings(const LIGHT_TARGET target, LIGHT_MULTI_SETTINGS &outSettings) noexcept;
+    API_IMPL const LIGHT_MULTI_SETTINGS &getLightMultiSettings(const LIGHT_TARGET target) noexcept;
 }
 
 #endif
