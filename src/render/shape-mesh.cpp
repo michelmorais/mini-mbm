@@ -1165,7 +1165,7 @@ namespace mbm
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 nullptr,
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),
-                                                fx.textureOverrideStage2))
+                                                fx.textureOverrideStage2, this))
                         return false;
                 }
                 else
@@ -1173,7 +1173,7 @@ namespace mbm
                     if (!mesh->renderDynamic(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 nullptr,
-                                                reinterpret_cast<VEC2 *>(this->dynamicUV.data()),0))
+                                                reinterpret_cast<VEC2 *>(this->dynamicUV.data()),0, this))
                         return false;
                 }
             }
@@ -1183,12 +1183,13 @@ namespace mbm
                 fx.setBlendOp();
                 if (fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,fx.textureOverrideStage2))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
+                                      fx.textureOverrideStage2, this))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0, this))
                         return false;
                 }
             }

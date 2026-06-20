@@ -82,6 +82,21 @@ static mbm::VEC3 getLightPositionViewMetal(const mbm::LIGHT_STATE &lightState, c
         (lightState.pointPosition.z * view._33) + view._43);
 }
 
+static mbm::VEC3 getPointLightPositionViewMetal(const mbm::VEC3 &pointPosition, const mbm::LIGHT_TARGET target)
+{
+    const mbm::MATRIX &view = getViewMatrixForLightTargetMetal(target);
+    return mbm::VEC3(
+        (pointPosition.x * view._11) +
+        (pointPosition.y * view._21) +
+        (pointPosition.z * view._31) + view._41,
+        (pointPosition.x * view._12) +
+        (pointPosition.y * view._22) +
+        (pointPosition.z * view._32) + view._42,
+        (pointPosition.x * view._13) +
+        (pointPosition.y * view._23) +
+        (pointPosition.z * view._33) + view._43);
+}
+
 static bool bufferHasUvMetal(const mbm::BUFFER_GL *pBufferId) noexcept
 {
     if (pBufferId == nullptr)
@@ -121,6 +136,22 @@ static util::MATERIAL getReservedMaterialForCurrentRenderMetal()
     return material;
 }
 
+struct ScopedRenderizableContextMetal
+{
+    mbm::DEVICE *device;
+
+    ScopedRenderizableContextMetal(const mbm::RENDERIZABLE *renderizableOwner) noexcept
+        : device(mbm::DEVICE::getInstance())
+    {
+        device->setRenderizableForCurrentRender(renderizableOwner);
+    }
+
+    ~ScopedRenderizableContextMetal() noexcept
+    {
+        device->clearRenderizableForCurrentRender();
+    }
+};
+
 static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, const mbm::BUFFER_GL *pBufferId,
                                             const uint32_t subsetIndex)
 {
@@ -134,16 +165,62 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
         lightState = mbm::LIGHT_STATE();
     int32_t lightMode = getReservedLightModeMetal(lightState, lightTarget, pBufferId);
     int32_t lightEnabled = lightMode != 0 ? 1 : 0;
-    int32_t lightCount = lightState.enabled ? 1 : 0;
     int32_t hasNormalMap = (lightMode == 2 && pBufferId && pBufferId->getTextureByStage(2, subsetIndex)) ? 1 : 0;
     float ambientColor[4] = {lightState.ambientColor.r, lightState.ambientColor.g,
                              lightState.ambientColor.b, lightState.ambientColor.a};
     const mbm::VEC3 directionView = getLightDirectionViewMetal(lightState, lightTarget);
-    const mbm::VEC3 positionView = getLightPositionViewMetal(lightState, lightTarget);
+    mbm::VEC3 positionView = getLightPositionViewMetal(lightState, lightTarget);
     float lightDirectionView[4] = {directionView.x, directionView.y, directionView.z, 0.0f};
+    mbm::COLOR currentLightColor = lightTarget == mbm::LIGHT_TARGET_2DW ? lightState.pointColor
+                                                                         : lightState.directionalColor;
+    float lightRadius = lightState.pointRadius;
     float lightPositionView[4] = {positionView.x, positionView.y, positionView.z, 0.0f};
-    const mbm::COLOR &currentLightColor = lightTarget == mbm::LIGHT_TARGET_2DW ? lightState.pointColor
-                                                                                : lightState.directionalColor;
+    float lightPositionViewArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+    float lightRadiusArray[DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
+    float lightColorArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+    uint32_t selectedPointLightCount = 0u;
+    if (lightMode == 2)
+    {
+        mbm::LIGHT_POINT_SELECTION pointLightSelections[DEFAULT_SUPPORTED_MAX_LIGHTS];
+        selectedPointLightCount = mbm::DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
+            pointLightSelections, DEFAULT_SUPPORTED_MAX_LIGHTS);
+        for (uint32_t i = 0; i < selectedPointLightCount; ++i)
+        {
+            const mbm::VEC3 selectedPositionView =
+                getPointLightPositionViewMetal(pointLightSelections[i].pointLight.position, lightTarget);
+            lightPositionViewArray[(i * 4u) + 0u] = selectedPositionView.x;
+            lightPositionViewArray[(i * 4u) + 1u] = selectedPositionView.y;
+            lightPositionViewArray[(i * 4u) + 2u] = selectedPositionView.z;
+            lightRadiusArray[i] = pointLightSelections[i].pointLight.radius;
+            lightColorArray[(i * 4u) + 0u] = pointLightSelections[i].pointLight.color.r;
+            lightColorArray[(i * 4u) + 1u] = pointLightSelections[i].pointLight.color.g;
+            lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
+            lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
+        }
+        if (selectedPointLightCount > 0u)
+        {
+            positionView.x = lightPositionViewArray[0];
+            positionView.y = lightPositionViewArray[1];
+            positionView.z = lightPositionViewArray[2];
+            lightPositionView[0] = positionView.x;
+            lightPositionView[1] = positionView.y;
+            lightPositionView[2] = positionView.z;
+            lightRadius = lightRadiusArray[0];
+            currentLightColor = mbm::COLOR(lightColorArray[0], lightColorArray[1], lightColorArray[2], lightColorArray[3]);
+        }
+    }
+    else
+    {
+        lightPositionViewArray[0] = positionView.x;
+        lightPositionViewArray[1] = positionView.y;
+        lightPositionViewArray[2] = positionView.z;
+        lightRadiusArray[0] = lightRadius;
+        lightColorArray[0] = currentLightColor.r;
+        lightColorArray[1] = currentLightColor.g;
+        lightColorArray[2] = currentLightColor.b;
+        lightColorArray[3] = currentLightColor.a;
+    }
+    int32_t lightCount = lightMode == 2 ? static_cast<int32_t>(selectedPointLightCount) : (lightEnabled != 0 ? 1 : 0);
     float lightColor[4] = {currentLightColor.r, currentLightColor.g, currentLightColor.b, currentLightColor.a};
 
     [enc setVertexBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
@@ -154,8 +231,8 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
     [enc setFragmentBytes:ambientColor length:sizeof(ambientColor) atIndex:6];
     [enc setVertexBytes:lightDirectionView length:sizeof(lightDirectionView) atIndex:7];
     [enc setFragmentBytes:lightDirectionView length:sizeof(lightDirectionView) atIndex:7];
-    [enc setVertexBytes:lightColor length:sizeof(lightColor) atIndex:8];
-    [enc setFragmentBytes:lightColor length:sizeof(lightColor) atIndex:8];
+    [enc setVertexBytes:lightColorArray length:sizeof(lightColorArray) atIndex:8];
+    [enc setFragmentBytes:lightColorArray length:sizeof(lightColorArray) atIndex:8];
 
     const util::MATERIAL material = getReservedMaterialForCurrentRenderMetal();
     float materialDiffuse[4] = {material.Diffuse.r, material.Diffuse.g, material.Diffuse.b, material.Diffuse.a};
@@ -175,10 +252,10 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
     [enc setFragmentBytes:&materialPower length:sizeof(materialPower) atIndex:13];
     [enc setVertexBytes:&lightMode length:sizeof(lightMode) atIndex:14];
     [enc setFragmentBytes:&lightMode length:sizeof(lightMode) atIndex:14];
-    [enc setVertexBytes:lightPositionView length:sizeof(lightPositionView) atIndex:15];
-    [enc setFragmentBytes:lightPositionView length:sizeof(lightPositionView) atIndex:15];
-    [enc setVertexBytes:&lightState.pointRadius length:sizeof(lightState.pointRadius) atIndex:16];
-    [enc setFragmentBytes:&lightState.pointRadius length:sizeof(lightState.pointRadius) atIndex:16];
+    [enc setVertexBytes:lightPositionViewArray length:sizeof(lightPositionViewArray) atIndex:15];
+    [enc setFragmentBytes:lightPositionViewArray length:sizeof(lightPositionViewArray) atIndex:15];
+    [enc setVertexBytes:lightRadiusArray length:sizeof(lightRadiusArray) atIndex:16];
+    [enc setFragmentBytes:lightRadiusArray length:sizeof(lightRadiusArray) atIndex:16];
     [enc setVertexBytes:&hasNormalMap length:sizeof(hasNormalMap) atIndex:17];
     [enc setFragmentBytes:&hasNormalMap length:sizeof(hasNormalMap) atIndex:17];
 }
@@ -484,14 +561,24 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
         [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
                           " constant float4& AmbientColor [[buffer(6)]],"
                           " constant float3& LightDirectionView [[buffer(7)]],"
-                          " constant float4& LightColor [[buffer(8)]],"
                           " constant float4& MaterialDiffuse [[buffer(9)]],"
                           " constant float4& MaterialAmbient [[buffer(10)]],"
                           " constant float4& MaterialEmissive [[buffer(12)]],"
                           " constant int& LightMode [[buffer(14)]],"
-                          " constant float3& LightPositionView [[buffer(15)]],"
-                          " constant float& LightRadius [[buffer(16)]],"
                           " constant int& HasNormalMap [[buffer(17)]]"];
+        if (hasNor)
+        {
+            [src appendString:@", constant float4& LightColor [[buffer(8)]],"
+                              " constant float3& LightPositionView [[buffer(15)]],"
+                              " constant float& LightRadius [[buffer(16)]]"];
+        }
+        else
+        {
+            [src appendString:@", constant float4* LightColor [[buffer(8)]],"
+                              " constant float3* LightPositionView [[buffer(15)]],"
+                              " constant float* LightRadius [[buffer(16)]],"
+                              " constant int& LightCount [[buffer(5)]]"];
+        }
         [src appendFormat:@") {\n  float4 texColor = %s.sample(samp, in.uv) * u.color;\n",
                           textureDiffuseName];
         [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
@@ -512,19 +599,22 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
         }
         [src appendFormat:@"    float3 normalView = float3(0.0, 0.0, 1.0);\n"
                           "    if (HasNormalMap != 0) normalView = normalize((%s.sample(samp, in.uv).xyz * 2.0f) - 1.0f);\n"
-                          "    float3 toLight = LightPositionView - in.positionView;\n"
-                          "    float dist = length(toLight);\n"
-                          "    if (LightRadius > 0.0001f) {\n"
-                          "      float3 lightDir = toLight / max(dist, 0.0001f);\n"
-                          "      float diffuse = max(dot(normalView, lightDir), 0.0f);\n"
-                          "      float attenuation = 1.0f - clamp(dist / LightRadius, 0.0f, 1.0f);\n"
-                          "      attenuation *= attenuation;\n"
-                          "      light += LightColor.rgb * diffuse * attenuation;\n"
+                          "    for (int i = 0; i < %u; ++i) {\n"
+                          "      if (i >= LightCount) break;\n"
+                          "      float3 toLight = LightPositionView[i] - in.positionView;\n"
+                          "      float dist = length(toLight);\n"
+                          "      if (LightRadius[i] > 0.0001f) {\n"
+                          "        float3 lightDir = toLight / max(dist, 0.0001f);\n"
+                          "        float diffuse = max(dot(normalView, lightDir), 0.0f);\n"
+                          "        float attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);\n"
+                          "        attenuation *= attenuation;\n"
+                          "        light += LightColor[i].rgb * diffuse * attenuation;\n"
+                          "      }\n"
                           "    }\n"
                           "  }\n"
                           "  float3 litColor = clamp((base * clamp(light, 0.0f, 1.0f)) + MaterialEmissive.rgb, 0.0f, 1.0f);\n"
                           "  return float4(litColor, texColor.a * MaterialDiffuse.a);\n}\n",
-                          textureNormalName];
+                          textureNormalName, static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
     }
     else
     {
@@ -1026,8 +1116,9 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::render(const BUFFER_GL* pBufferId) const
+    bool SHADER::render(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         if (!backendShaderSpecific || !pBufferId) return false;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
@@ -1149,8 +1240,10 @@ namespace mbm
     }
 
     bool SHADER::renderDynamic(const BUFFER_GL* pBufferId, const VEC3* vertex,
-                               const VEC3* normal, const VEC2* uv) const
+                               const VEC3* normal, const VEC2* uv,
+                               const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         if (!backendShaderSpecific || !pBufferId || !vertex) return false;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();

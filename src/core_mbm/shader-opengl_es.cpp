@@ -76,6 +76,21 @@ namespace mbm
             (lightState.pointPosition.z * view._33) + view._43);
     }
 
+    static VEC3 getPointLightPositionView(const VEC3 &pointPosition, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTarget(target);
+        return VEC3(
+            (pointPosition.x * view._11) +
+            (pointPosition.y * view._21) +
+            (pointPosition.z * view._31) + view._41,
+            (pointPosition.x * view._12) +
+            (pointPosition.y * view._22) +
+            (pointPosition.z * view._32) + view._42,
+            (pointPosition.x * view._13) +
+            (pointPosition.y * view._23) +
+            (pointPosition.z * view._33) + view._43);
+    }
+
     static bool bufferHasUv(const BUFFER_GL *pBufferId) noexcept
     {
         if (pBufferId == nullptr)
@@ -115,6 +130,29 @@ namespace mbm
         return material;
     }
 
+    struct ScopedRenderizableContext
+    {
+        DEVICE *device;
+
+        ScopedRenderizableContext(const RENDERIZABLE *renderizableOwner) noexcept
+            : device(DEVICE::getInstance())
+        {
+            device->setRenderizableForCurrentRender(renderizableOwner);
+        }
+
+        ~ScopedRenderizableContext() noexcept
+        {
+            device->clearRenderizableForCurrentRender();
+        }
+    };
+
+    static GLint getOptionalArrayUniformLocation(const uint32_t programObject, const char *uniformName)
+    {
+        char uniformNameIndex0[128];
+        snprintf(uniformNameIndex0, sizeof(uniformNameIndex0), "%s[0]", uniformName);
+        return GLGetUniformLocationOptional(programObject, uniformNameIndex0);
+    }
+
     static void uploadReservedLightUniformsOpenGlEs(const uint32_t programObject, const BUFFER_GL *pBufferId,
                                                     const uint32_t subsetIndex)
     {
@@ -129,11 +167,54 @@ namespace mbm
         const util::MATERIAL material = getReservedMaterialForCurrentRender();
         const int lightMode = getReservedLightMode(lightState, lightTarget, pBufferId);
         const int enabled = lightMode != 0 ? 1 : 0;
-        const int lightCount = lightState.enabled ? 1 : 0;
         const int hasNormalMap = (lightMode == 2 && pBufferId && pBufferId->getTextureByStage(2, subsetIndex)) ? 1 : 0;
         const VEC3 directionView = getLightDirectionView(lightState, lightTarget);
-        const VEC3 positionView = getLightPositionView(lightState, lightTarget);
-        const COLOR &lightColor = lightTarget == LIGHT_TARGET_2DW ? lightState.pointColor : lightState.directionalColor;
+        VEC3 positionView = getLightPositionView(lightState, lightTarget);
+        COLOR lightColor = lightTarget == LIGHT_TARGET_2DW ? lightState.pointColor : lightState.directionalColor;
+        float lightRadius = lightState.pointRadius;
+        float lightPositionViewArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 3] = {};
+        float lightRadiusArray[DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
+        float lightColorArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+        uint32_t selectedPointLightCount = 0u;
+        if (lightMode == 2)
+        {
+            LIGHT_POINT_SELECTION pointLightSelections[DEFAULT_SUPPORTED_MAX_LIGHTS];
+            selectedPointLightCount = DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
+                pointLightSelections, DEFAULT_SUPPORTED_MAX_LIGHTS);
+            for (uint32_t i = 0; i < selectedPointLightCount; ++i)
+            {
+                const VEC3 selectedPositionView =
+                    getPointLightPositionView(pointLightSelections[i].pointLight.position, lightTarget);
+                lightPositionViewArray[(i * 3u) + 0u] = selectedPositionView.x;
+                lightPositionViewArray[(i * 3u) + 1u] = selectedPositionView.y;
+                lightPositionViewArray[(i * 3u) + 2u] = selectedPositionView.z;
+                lightRadiusArray[i] = pointLightSelections[i].pointLight.radius;
+                lightColorArray[(i * 4u) + 0u] = pointLightSelections[i].pointLight.color.r;
+                lightColorArray[(i * 4u) + 1u] = pointLightSelections[i].pointLight.color.g;
+                lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
+                lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
+            }
+            if (selectedPointLightCount > 0u)
+            {
+                positionView.x = lightPositionViewArray[0];
+                positionView.y = lightPositionViewArray[1];
+                positionView.z = lightPositionViewArray[2];
+                lightRadius = lightRadiusArray[0];
+                lightColor = COLOR(lightColorArray[0], lightColorArray[1], lightColorArray[2], lightColorArray[3]);
+            }
+        }
+        else
+        {
+            lightPositionViewArray[0] = positionView.x;
+            lightPositionViewArray[1] = positionView.y;
+            lightPositionViewArray[2] = positionView.z;
+            lightRadiusArray[0] = lightRadius;
+            lightColorArray[0] = lightColor.r;
+            lightColorArray[1] = lightColor.g;
+            lightColorArray[2] = lightColor.b;
+            lightColorArray[3] = lightColor.a;
+        }
+        const int lightCount = lightMode == 2 ? static_cast<int>(selectedPointLightCount) : (enabled != 0 ? 1 : 0);
 
         GLint handle = GLGetUniformLocationOptional(programObject, "LightEnabled");
         if (handle != -1)
@@ -169,12 +250,27 @@ namespace mbm
         handle = GLGetUniformLocationOptional(programObject, "LightRadius");
         if (handle != -1)
         {
-            GLUniform1f(handle, lightState.pointRadius);
+            GLUniform1f(handle, lightRadius);
         }
         handle = GLGetUniformLocationOptional(programObject, "LightColor");
         if (handle != -1)
         {
             GLUniform4f(handle, lightColor.r, lightColor.g, lightColor.b, lightColor.a);
+        }
+        handle = getOptionalArrayUniformLocation(programObject, "LightPositionView");
+        if (handle != -1)
+        {
+            glUniform3fv(handle, DEFAULT_SUPPORTED_MAX_LIGHTS, lightPositionViewArray);
+        }
+        handle = getOptionalArrayUniformLocation(programObject, "LightRadius");
+        if (handle != -1)
+        {
+            glUniform1fv(handle, DEFAULT_SUPPORTED_MAX_LIGHTS, lightRadiusArray);
+        }
+        handle = getOptionalArrayUniformLocation(programObject, "LightColor");
+        if (handle != -1)
+        {
+            glUniform4fv(handle, DEFAULT_SUPPORTED_MAX_LIGHTS, lightColorArray);
         }
         handle = GLGetUniformLocationOptional(programObject, "HasNormalMap");
         if (handle != -1)
@@ -791,6 +887,7 @@ namespace mbm
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool canUsePointLight2D = (this->vShader == nullptr);
+        const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
         const char *textureDiffuseName =
             getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
         const char *textureNormalName =
@@ -807,10 +904,13 @@ namespace mbm
                 "uniform int LightEnabled;"
                 "uniform vec4 AmbientColor;"
                 "uniform vec3 LightDirectionView;"
-                "uniform vec4 LightColor;"
                 "uniform vec4 MaterialDiffuse;"
                 "uniform vec4 MaterialAmbient;"
                 "uniform vec4 MaterialEmissive;";
+            if (canUsePointLight2D == false)
+            {
+                defaultCodePs += "uniform vec4 LightColor;";
+            }
             if (canUsePointLight2D)
             {
                 defaultCodePs += "varying vec3 vPositionView;"
@@ -819,8 +919,16 @@ namespace mbm
                 defaultCodePs += ";"
                     "uniform int LightMode;"
                     "uniform int HasNormalMap;"
-                    "uniform vec3 LightPositionView;"
-                    "uniform float LightRadius;";
+                    "uniform vec3 LightPositionView[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "uniform float LightRadius[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "uniform vec4 LightColor[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "uniform int LightCount;";
             }
             if (hasNormal)
                 defaultCodePs += "varying vec3 vNormalView;";
@@ -838,7 +946,7 @@ namespace mbm
                     defaultCodePs += " vec3 normalView = normalize(vNormalView);"
                         " vec3 lightTravel = normalize(LightDirectionView);"
                         " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                        " light += LightColor.rgb * diffuse;";
+                        " light += LightColor[0].rgb * diffuse;";
                 }
                 defaultCodePs += " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
                     " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
@@ -851,7 +959,7 @@ namespace mbm
                     "  vec3 normalView = normalize(vNormalView);"
                     "  vec3 lightTravel = normalize(LightDirectionView);"
                     "  float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                    "  light += LightColor.rgb * diffuse;"
+                    "  light += LightColor[0].rgb * diffuse;"
                     " } else ";
             }
             else
@@ -866,14 +974,19 @@ namespace mbm
                     "  if (HasNormalMap != 0) normalView = normalize((texture2D(";
                 defaultCodePs += textureNormalName;
                 defaultCodePs += ", vTexCoord).xyz * 2.0) - 1.0);"
-                    "  vec3 toLight = LightPositionView - vPositionView;"
-                    "  float dist = length(toLight);"
-                    "  if (LightRadius > 0.0001) {"
-                    "   vec3 lightDir = toLight / max(dist, 0.0001);"
-                    "   float diffuse = max(dot(normalView, lightDir), 0.0);"
-                    "   float attenuation = 1.0 - clamp(dist / LightRadius, 0.0, 1.0);"
-                    "   attenuation *= attenuation;"
-                    "   light += LightColor.rgb * diffuse * attenuation;"
+                    "  for (int i = 0; i < ";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "; ++i) {"
+                    "   if (i >= LightCount) break;"
+                    "   vec3 toLight = LightPositionView[i] - vPositionView;"
+                    "   float dist = length(toLight);"
+                    "   if (LightRadius[i] > 0.0001) {"
+                    "    vec3 lightDir = toLight / max(dist, 0.0001);"
+                    "    float diffuse = max(dot(normalView, lightDir), 0.0);"
+                    "    float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);"
+                    "    attenuation *= attenuation;"
+                    "    light += LightColor[i].rgb * diffuse * attenuation;"
+                    "   }"
                     "  }"
                     " }"
                     " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
@@ -1027,8 +1140,9 @@ namespace mbm
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
@@ -1141,8 +1255,10 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
+    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
+                               const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)

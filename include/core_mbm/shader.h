@@ -37,6 +37,7 @@ namespace util
 namespace mbm
 {
     class TEXTURE;
+    class RENDERIZABLE;
     struct VAR_SHADER;
     struct BUFFER_SPECIFIC;
     struct PARTICLE_CONTROL;
@@ -230,10 +231,11 @@ namespace mbm
         API_IMPL void onRestore();
         API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
         API_IMPL bool isLoad() const noexcept;
-        API_IMPL bool render(const BUFFER_GL *pBufferId) const;
+        API_IMPL bool render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner = nullptr) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
-        API_IMPL bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
+        API_IMPL bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
+                                    const RENDERIZABLE *renderizableOwner = nullptr) const;
         API_IMPL void update();
       private:
         struct BackendData;

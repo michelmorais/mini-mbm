@@ -224,10 +224,12 @@ That matches `RENDERIZABLE::getBoundingAABB()`.
 The engine uploads these reserved light names automatically when the active shader declares them:
 
 - `LightEnabled`: integer, `1` when target lighting is enabled, otherwise `0`
-- `LightCount`: integer, `1` for the current one-light implementation when enabled, otherwise `0`
+- `LightCount`: integer active-light count for the current draw within the validated capacity
 - `AmbientColor`: `vec4` / `float4`
 - `LightDirectionView`: `vec3` / `float3`, direction the light travels in view space
-- `LightColor`: `vec4` / `float4`
+- `LightPositionView`: scalar one-light fallback or array base name `LightPositionView[0]`
+- `LightRadius`: scalar one-light fallback or array base name `LightRadius[0]`
+- `LightColor`: scalar one-light fallback or array base name `LightColor[0]`
 - `MaterialDiffuse`: `vec4` / `float4`
 - `MaterialAmbient`: `vec4` / `float4`
 - `MaterialSpecular`: `vec4` / `float4`
@@ -242,12 +244,14 @@ constant int    &LightEnabled      [[buffer(4)]]
 constant int    &LightCount        [[buffer(5)]]
 constant float4 &AmbientColor      [[buffer(6)]]
 constant float3 &LightDirectionView [[buffer(7)]]
-constant float4 &LightColor        [[buffer(8)]]
+constant float4 *LightColor        [[buffer(8)]]
 constant float4 &MaterialDiffuse   [[buffer(9)]]
 constant float4 &MaterialAmbient   [[buffer(10)]]
 constant float4 &MaterialSpecular  [[buffer(11)]]
 constant float4 &MaterialEmissive  [[buffer(12)]]
 constant float  &MaterialPower     [[buffer(13)]]
+constant float3 *LightPositionView [[buffer(15)]]
+constant float  *LightRadius       [[buffer(16)]]
 ```
 
 Custom shader CFG variables cannot use these reserved names; they are owned by the engine.

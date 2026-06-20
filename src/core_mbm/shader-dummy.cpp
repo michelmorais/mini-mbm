@@ -272,13 +272,14 @@ namespace mbm
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
     {
         REMINDER_TODO
         return true;
     }
 
-    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
+    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
+                               const RENDERIZABLE *renderizableOwner) const
     {
         REMINDER_TODO
         return false;

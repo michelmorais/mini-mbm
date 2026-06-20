@@ -20,11 +20,78 @@
 #if defined (USE_OPENGL_ES)
 
 #include <core_mbm/core-exports.h>
+#include <core_mbm/light.h>
 #include <stdio.h>
 #include <string>
 
 namespace mbm
 {
+    static std::string buildLitTexturedPixelShaderOpenGLES()
+    {
+        const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
+        return
+            "precision mediump float;\n"
+            "uniform sampler2D sample0;\n"
+            "uniform sampler2D sample2;\n"
+            "uniform int LightEnabled;\n"
+            "uniform int LightMode;\n"
+            "uniform int HasNormalMap;\n"
+            "uniform vec4 AmbientColor;\n"
+            "uniform vec3 LightDirectionView;\n"
+            "uniform vec3 LightPositionView[" + supportedMaxLights + "];\n"
+            "uniform float LightRadius[" + supportedMaxLights + "];\n"
+            "uniform vec4 LightColor[" + supportedMaxLights + "];\n"
+            "uniform int LightCount;\n"
+            "uniform vec4 MaterialDiffuse;\n"
+            "uniform vec4 MaterialAmbient;\n"
+            "uniform vec4 MaterialEmissive;\n"
+            "varying vec2 vTexCoord;\n"
+            "varying vec3 vNormalView;\n"
+            "varying vec3 vPositionView;\n"
+            "\n"
+            "void main()\n"
+            "{\n"
+            "   vec4 texColor = texture2D(sample0, vTexCoord);\n"
+            "   if (LightEnabled == 0 || LightMode == 0)\n"
+            "   {\n"
+            "      gl_FragColor = texColor;\n"
+            "      return;\n"
+            "   }\n"
+            "   vec3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
+            "   vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
+            "   if (LightMode == 1)\n"
+            "   {\n"
+            "      vec3 normalView = normalize(vNormalView);\n"
+            "      vec3 lightTravel = normalize(LightDirectionView);\n"
+            "      float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
+            "      light += LightColor[0].rgb * diffuse;\n"
+            "   }\n"
+            "   else\n"
+            "   {\n"
+            "      vec3 normalView = vec3(0.0, 0.0, 1.0);\n"
+            "      if (HasNormalMap != 0) normalView = normalize((texture2D(sample2, vTexCoord).xyz * 2.0) - 1.0);\n"
+            "      for (int i = 0; i < " + supportedMaxLights + "; ++i)\n"
+            "      {\n"
+            "         if (i >= LightCount) break;\n"
+            "         vec3 toLight = LightPositionView[i] - vPositionView;\n"
+            "         float dist = length(toLight);\n"
+            "         if (LightRadius[i] > 0.0001)\n"
+            "         {\n"
+            "            vec3 lightDir = toLight / max(dist, 0.0001);\n"
+            "            float diffuse = max(dot(normalView, lightDir), 0.0);\n"
+            "            float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);\n"
+            "            attenuation *= attenuation;\n"
+            "            light += LightColor[i].rgb * diffuse * attenuation;\n"
+            "         }\n"
+            "      }\n"
+            "   }\n"
+            "   light = clamp(light, 0.0, 1.0);\n"
+            "   vec3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);\n"
+            "   gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);\n"
+            "}\n";
+    }
+
+    static const std::string kLitTexturedPixelShaderOpenGLES = buildLitTexturedPixelShaderOpenGLES();
     static const char *resourceShader[] = { // organizado de 3 em 3. sendo: Nome do arquivo, Código shader e configurações CFG.
 
     /* PIXEL SHADER
@@ -2356,61 +2423,7 @@ namespace mbm
 
     // Lit Textured **********************
     "lit textured.ps",
-
-    "precision mediump float;\n"
-    "uniform sampler2D sample0;\n"
-    "uniform sampler2D sample2;\n"
-    "uniform int LightEnabled;\n"
-    "uniform int LightMode;\n"
-    "uniform int HasNormalMap;\n"
-    "uniform vec4 AmbientColor;\n"
-    "uniform vec3 LightDirectionView;\n"
-    "uniform vec3 LightPositionView;\n"
-    "uniform float LightRadius;\n"
-    "uniform vec4 LightColor;\n"
-    "uniform vec4 MaterialDiffuse;\n"
-    "uniform vec4 MaterialAmbient;\n"
-    "uniform vec4 MaterialEmissive;\n"
-    "varying vec2 vTexCoord;\n"
-    "varying vec3 vNormalView;\n"
-    "varying vec3 vPositionView;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "   vec4 texColor = texture2D(sample0, vTexCoord);\n"
-    "   if (LightEnabled == 0 || LightMode == 0)\n"
-    "   {\n"
-    "      gl_FragColor = texColor;\n"
-    "      return;\n"
-    "   }\n"
-    "   vec3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
-    "   vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
-    "   if (LightMode == 1)\n"
-    "   {\n"
-    "      vec3 normalView = normalize(vNormalView);\n"
-    "      vec3 lightTravel = normalize(LightDirectionView);\n"
-    "      float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
-    "      light += LightColor.rgb * diffuse;\n"
-    "   }\n"
-    "   else\n"
-    "   {\n"
-    "      vec3 normalView = vec3(0.0, 0.0, 1.0);\n"
-    "      if (HasNormalMap != 0) normalView = normalize((texture2D(sample2, vTexCoord).xyz * 2.0) - 1.0);\n"
-    "      vec3 toLight = LightPositionView - vPositionView;\n"
-    "      float dist = length(toLight);\n"
-    "      if (LightRadius > 0.0001)\n"
-    "      {\n"
-    "         vec3 lightDir = toLight / max(dist, 0.0001);\n"
-    "         float diffuse = max(dot(normalView, lightDir), 0.0);\n"
-    "         float attenuation = 1.0 - clamp(dist / LightRadius, 0.0, 1.0);\n"
-    "         attenuation *= attenuation;\n"
-    "         light += LightColor.rgb * diffuse * attenuation;\n"
-    "      }\n"
-    "   }\n"
-    "   light = clamp(light, 0.0, 1.0);\n"
-    "   vec3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);\n"
-    "   gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);\n"
-    "}\n",
+    kLitTexturedPixelShaderOpenGLES.c_str(),
 
     "[ps-lit-textured.ps] = lit textured.ps\n",
     // Lit Textured **********************

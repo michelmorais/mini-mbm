@@ -637,9 +637,10 @@ Default MSL generation should:
   query helpers for supported/validated max-light values before the shader-array upload work lands.
 - Add a backend-agnostic selection helper and a Lua debug query before shader upload so the
   per-object nearest-light rule can be validated independently from GPU wiring.
-- Candidate future array names:
-  - `LightDirectionView[0]`
+- First shader-array upload slice should use:
+  - `LightCount`
   - `LightPositionView[0]`
+  - `LightRadius[0]`
   - `LightColor[0]`
 
 ### Milestone 10: Editor exposure

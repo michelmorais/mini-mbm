@@ -164,6 +164,11 @@ namespace mbm
         API_IMPL void disableLightForRender() noexcept;
         API_IMPL bool getLightStateForCurrentRender(LIGHT_STATE &outState) const noexcept;
         API_IMPL bool getLightTargetForCurrentRender(LIGHT_TARGET &outTarget) const noexcept;
+        API_IMPL void setRenderizableForCurrentRender(const RENDERIZABLE *renderizable) noexcept;
+        API_IMPL void clearRenderizableForCurrentRender() noexcept;
+        API_IMPL bool getRenderizableForCurrentRender(const RENDERIZABLE *&outRenderizable) const noexcept;
+        API_IMPL uint32_t getSelectedPointLightsForCurrentRender(LIGHT_POINT_SELECTION *outSelections,
+                                                                 uint32_t maxOutSelections) const noexcept;
         API_IMPL void setRenderMaterial(const util::MATERIAL &material) noexcept;
         API_IMPL void clearRenderMaterial() noexcept;
         API_IMPL bool getMaterialForCurrentRender(util::MATERIAL &outMaterial) const noexcept;

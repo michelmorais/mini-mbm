@@ -171,9 +171,11 @@ namespace mbm
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
         API_IMPL bool isLoaded() const;
-        API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader, TEXTURE* ptrTexture1);
+        API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader, TEXTURE* ptrTexture1,
+                             const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
-                                        VEC2 *uv, TEXTURE* ptrTexture1);
+                                        VEC2 *uv, TEXTURE* ptrTexture1,
+                                        const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL util::TYPE_MESH getTypeMesh() const;
         API_IMPL VEC2 getZoomEditorSprite() const;
         API_IMPL uint32_t getTotalFrame() const;

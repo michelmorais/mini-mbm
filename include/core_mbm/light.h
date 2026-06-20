@@ -27,6 +27,8 @@ namespace mbm
 {
     static constexpr uint32_t DEFAULT_REQUESTED_MAX_LIGHTS = 4u;
     static constexpr uint32_t DEFAULT_SUPPORTED_MAX_LIGHTS = 4u;
+    static_assert(DEFAULT_REQUESTED_MAX_LIGHTS <= DEFAULT_SUPPORTED_MAX_LIGHTS,
+                  "default requested max lights must not exceed supported max lights");
 
     enum LIGHT_TARGET : int
     {

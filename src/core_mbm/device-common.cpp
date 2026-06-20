@@ -77,6 +77,7 @@ namespace mbm
         std::vector<LIGHT_POINT> pointLights2DW;
         LIGHT_TARGET currentRenderLightTarget = LIGHT_TARGET_3D;
         bool currentRenderLightTargetEnabled = false;
+        const RENDERIZABLE *currentRenderizable = nullptr;
         util::MATERIAL currentRenderMaterial;
         bool currentRenderMaterialEnabled = false;
         bool clearBackGround = true;
@@ -204,6 +205,34 @@ namespace mbm
         return true;
     }
 
+    void DEVICE::setRenderizableForCurrentRender(const RENDERIZABLE *renderizable) noexcept
+    {
+        impl->currentRenderizable = renderizable;
+    }
+
+    void DEVICE::clearRenderizableForCurrentRender() noexcept
+    {
+        impl->currentRenderizable = nullptr;
+    }
+
+    bool DEVICE::getRenderizableForCurrentRender(const RENDERIZABLE *&outRenderizable) const noexcept
+    {
+        if (impl->currentRenderizable == nullptr)
+            return false;
+        outRenderizable = impl->currentRenderizable;
+        return true;
+    }
+
+    uint32_t DEVICE::getSelectedPointLightsForCurrentRender(LIGHT_POINT_SELECTION *outSelections,
+                                                            const uint32_t maxOutSelections) const noexcept
+    {
+        if (impl->currentRenderLightTargetEnabled == false || impl->currentRenderizable == nullptr)
+            return 0u;
+        return selectPointLightsForObject(impl->currentRenderLightTarget, impl->currentRenderizable->getPosition(),
+                                          impl->currentRenderizable->getBoundingAABB(), outSelections,
+                                          maxOutSelections);
+    }
+
     void DEVICE::setRenderMaterial(const util::MATERIAL &material) noexcept
     {
         impl->currentRenderMaterial = material;
@@ -281,6 +310,11 @@ namespace mbm
         {
             return objectBoundingAABB.length() * 0.5f;
         }
+
+        uint32_t selectPointLightsForObjectImpl(const LIGHT_TARGET target, const VEC3 &objectCenter,
+                                                const VEC3 &objectBoundingAABB,
+                                                LIGHT_POINT_SELECTION *outSelections,
+                                                const uint32_t maxOutSelections) noexcept;
     }
 
     bool isValidLightTarget(const LIGHT_TARGET target) noexcept
@@ -553,6 +587,17 @@ namespace mbm
                                         LIGHT_POINT_SELECTION *outSelections,
                                         const uint32_t maxOutSelections) noexcept
     {
+        return selectPointLightsForObjectImpl(target, objectCenter, objectBoundingAABB, outSelections,
+                                              maxOutSelections);
+    }
+
+    namespace
+    {
+        uint32_t selectPointLightsForObjectImpl(const LIGHT_TARGET target, const VEC3 &objectCenter,
+                                                const VEC3 &objectBoundingAABB,
+                                                LIGHT_POINT_SELECTION *outSelections,
+                                                const uint32_t maxOutSelections) noexcept
+        {
         if (isValidLightTarget(target) == false || outSelections == nullptr || maxOutSelections == 0u)
             return 0u;
 
@@ -606,6 +651,7 @@ namespace mbm
             outSelections[i] = candidates[i];
         }
         return totalSelectedLights;
+        }
     }
 
     bool resetLight(const LIGHT_TARGET target) noexcept

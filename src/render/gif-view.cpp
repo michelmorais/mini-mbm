@@ -326,7 +326,7 @@ namespace mbm
             if (fx.textureOverrideStage2)
                 this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
                 
-            if (!fx.shader.render(&this->bufferGL))
+            if (!fx.shader.render(&this->bufferGL, this))
                 return false;
             return true;
         }

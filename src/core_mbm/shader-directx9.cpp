@@ -76,6 +76,21 @@ namespace mbm
             (lightState.pointPosition.z * view._33) + view._43);
     }
 
+    static VEC3 getPointLightPositionViewD3D(const VEC3 &pointPosition, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTargetD3D(target);
+        return VEC3(
+            (pointPosition.x * view._11) +
+            (pointPosition.y * view._21) +
+            (pointPosition.z * view._31) + view._41,
+            (pointPosition.x * view._12) +
+            (pointPosition.y * view._22) +
+            (pointPosition.z * view._32) + view._42,
+            (pointPosition.x * view._13) +
+            (pointPosition.y * view._23) +
+            (pointPosition.z * view._33) + view._43);
+    }
+
     static bool bufferHasUvD3D(const BUFFER_GL *pBufferId) noexcept
     {
         if (pBufferId == nullptr)
@@ -115,6 +130,43 @@ namespace mbm
         return material;
     }
 
+    struct ScopedRenderizableContextD3D
+    {
+        DEVICE *device;
+
+        ScopedRenderizableContextD3D(const RENDERIZABLE *renderizableOwner) noexcept
+            : device(DEVICE::getInstance())
+        {
+            device->setRenderizableForCurrentRender(renderizableOwner);
+        }
+
+        ~ScopedRenderizableContextD3D() noexcept
+        {
+            device->clearRenderizableForCurrentRender();
+        }
+    };
+
+    static void setFloatConstantElementsD3D(ID3DXConstantTable *constantTable, IDirect3DDevice9 *pd3dDevice,
+                                            const char *constantName, const float *values,
+                                            const uint32_t floatsPerElement,
+                                            const uint32_t totalElements) noexcept
+    {
+        if (constantTable == nullptr || pd3dDevice == nullptr || constantName == nullptr || values == nullptr ||
+            floatsPerElement == 0u || totalElements == 0u)
+            return;
+        D3DXHANDLE baseHandle = constantTable->GetConstantByName(nullptr, constantName);
+        if (baseHandle == nullptr)
+            return;
+        constantTable->SetFloatArray(pd3dDevice, baseHandle, values, floatsPerElement);
+        for (uint32_t i = 1; i < totalElements; ++i)
+        {
+            D3DXHANDLE elementHandle = constantTable->GetConstantElement(baseHandle, i);
+            if (elementHandle == nullptr)
+                break;
+            constantTable->SetFloatArray(pd3dDevice, elementHandle, values + (i * floatsPerElement), floatsPerElement);
+        }
+    }
+
     static void uploadReservedLightConstantsD3D(IDirect3DDevice9 *pd3dDevice, ID3DXConstantTable *constantTable,
                                                 const BUFFER_GL *pBufferId, const uint32_t subsetIndex)
     {
@@ -129,11 +181,54 @@ namespace mbm
         const util::MATERIAL material = getReservedMaterialForCurrentRenderD3D();
         const int lightMode = getReservedLightModeD3D(lightState, lightTarget, pBufferId);
         const int enabled = lightMode != 0 ? 1 : 0;
-        const int lightCount = lightState.enabled ? 1 : 0;
         const int hasNormalMap = (lightMode == 2 && pBufferId && pBufferId->getTextureByStage(2, subsetIndex)) ? 1 : 0;
         const VEC3 directionView = getLightDirectionViewD3D(lightState, lightTarget);
-        const VEC3 positionView = getLightPositionViewD3D(lightState, lightTarget);
-        const COLOR &lightColor = lightTarget == LIGHT_TARGET_2DW ? lightState.pointColor : lightState.directionalColor;
+        VEC3 positionView = getLightPositionViewD3D(lightState, lightTarget);
+        COLOR lightColor = lightTarget == LIGHT_TARGET_2DW ? lightState.pointColor : lightState.directionalColor;
+        float lightRadius = lightState.pointRadius;
+        float lightPositionViewArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 3] = {};
+        float lightRadiusArray[DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
+        float lightColorArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+        uint32_t selectedPointLightCount = 0u;
+        if (lightMode == 2)
+        {
+            LIGHT_POINT_SELECTION pointLightSelections[DEFAULT_SUPPORTED_MAX_LIGHTS];
+            selectedPointLightCount = DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
+                pointLightSelections, DEFAULT_SUPPORTED_MAX_LIGHTS);
+            for (uint32_t i = 0; i < selectedPointLightCount; ++i)
+            {
+                const VEC3 selectedPositionView =
+                    getPointLightPositionViewD3D(pointLightSelections[i].pointLight.position, lightTarget);
+                lightPositionViewArray[(i * 3u) + 0u] = selectedPositionView.x;
+                lightPositionViewArray[(i * 3u) + 1u] = selectedPositionView.y;
+                lightPositionViewArray[(i * 3u) + 2u] = selectedPositionView.z;
+                lightRadiusArray[i] = pointLightSelections[i].pointLight.radius;
+                lightColorArray[(i * 4u) + 0u] = pointLightSelections[i].pointLight.color.r;
+                lightColorArray[(i * 4u) + 1u] = pointLightSelections[i].pointLight.color.g;
+                lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
+                lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
+            }
+            if (selectedPointLightCount > 0u)
+            {
+                positionView.x = lightPositionViewArray[0];
+                positionView.y = lightPositionViewArray[1];
+                positionView.z = lightPositionViewArray[2];
+                lightRadius = lightRadiusArray[0];
+                lightColor = COLOR(lightColorArray[0], lightColorArray[1], lightColorArray[2], lightColorArray[3]);
+            }
+        }
+        else
+        {
+            lightPositionViewArray[0] = positionView.x;
+            lightPositionViewArray[1] = positionView.y;
+            lightPositionViewArray[2] = positionView.z;
+            lightRadiusArray[0] = lightRadius;
+            lightColorArray[0] = lightColor.r;
+            lightColorArray[1] = lightColor.g;
+            lightColorArray[2] = lightColor.b;
+            lightColorArray[3] = lightColor.a;
+        }
+        const int lightCount = lightMode == 2 ? static_cast<int>(selectedPointLightCount) : (enabled != 0 ? 1 : 0);
 
         D3DXHANDLE handle = constantTable->GetConstantByName(nullptr, "LightEnabled");
         if (handle)
@@ -155,10 +250,16 @@ namespace mbm
             constantTable->SetFloatArray(pd3dDevice, handle, &positionView.x, 3);
         handle = constantTable->GetConstantByName(nullptr, "LightRadius");
         if (handle)
-            constantTable->SetFloat(pd3dDevice, handle, lightState.pointRadius);
+            constantTable->SetFloat(pd3dDevice, handle, lightRadius);
         handle = constantTable->GetConstantByName(nullptr, "LightColor");
         if (handle)
             constantTable->SetFloatArray(pd3dDevice, handle, &lightColor.r, 4);
+        setFloatConstantElementsD3D(constantTable, pd3dDevice, "LightPositionView", lightPositionViewArray, 3u,
+                                    DEFAULT_SUPPORTED_MAX_LIGHTS);
+        setFloatConstantElementsD3D(constantTable, pd3dDevice, "LightRadius", lightRadiusArray, 1u,
+                                    DEFAULT_SUPPORTED_MAX_LIGHTS);
+        setFloatConstantElementsD3D(constantTable, pd3dDevice, "LightColor", lightColorArray, 4u,
+                                    DEFAULT_SUPPORTED_MAX_LIGHTS);
         handle = constantTable->GetConstantByName(nullptr, "HasNormalMap");
         if (handle)
             constantTable->SetInt(pd3dDevice, handle, hasNormalMap);
@@ -899,6 +1000,7 @@ namespace mbm
             getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
 
         std::string defaultCodePs;
+        const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
         if (hasUV)
         {
             defaultCodePs = "";
@@ -906,13 +1008,33 @@ namespace mbm
                 "int LightMode;"
                 "int HasNormalMap;"
                 "float4 AmbientColor;"
-                "float3 LightDirectionView;"
-                "float3 LightPositionView;"
-                "float LightRadius;"
-                "float4 LightColor;"
-                "float4 MaterialDiffuse;"
+                "float3 LightDirectionView;";
+            if (hasNormal)
+                defaultCodePs += "float4 LightColor;";
+            else
+            {
+                defaultCodePs += "float4 LightColor[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];";
+            }
+            defaultCodePs += "float4 MaterialDiffuse;"
                 "float4 MaterialAmbient;"
                 "float4 MaterialEmissive;";
+            if (hasNormal == false)
+            {
+                defaultCodePs += "float3 LightPositionView[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "float LightRadius[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "int LightCount;";
+            }
+            else
+            {
+                defaultCodePs += "float3 LightPositionView;"
+                    "float LightRadius;";
+            }
             defaultCodePs += "sampler2D ";
             defaultCodePs += textureDiffuseName;
             defaultCodePs += " : register(s0);"
@@ -953,14 +1075,19 @@ namespace mbm
                 "  if (HasNormalMap != 0) normalView = normalize((tex2D(";
             defaultCodePs += textureNormalName;
             defaultCodePs += ", texCoord).xyz * 2.0f) - 1.0f);"
-                "  float3 toLight = LightPositionView - positionViewIn;"
-                "  float dist = length(toLight);"
-                "  if (LightRadius > 0.0001f) {"
-                "   float3 lightDir = toLight / max(dist, 0.0001f);"
-                "   float diffuse = max(dot(normalView, lightDir), 0);"
-                "   float attenuation = 1.0f - saturate(dist / LightRadius);"
-                "   attenuation *= attenuation;"
-                "   light += LightColor.rgb * diffuse * attenuation;"
+                "  for (int i = 0; i < ";
+            defaultCodePs += supportedMaxLights;
+            defaultCodePs += "; ++i) {"
+                "   if (i >= LightCount) break;"
+                "   float3 toLight = LightPositionView[i] - positionViewIn;"
+                "   float dist = length(toLight);"
+                "   if (LightRadius[i] > 0.0001f) {"
+                "    float3 lightDir = toLight / max(dist, 0.0001f);"
+                "    float diffuse = max(dot(normalView, lightDir), 0);"
+                "    float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
+                "    attenuation *= attenuation;"
+                "    light += LightColor[i].rgb * diffuse * attenuation;"
+                "   }"
                 "  }"
                 " }"
                 " float3 litColor = saturate((base * saturate(light)) + MaterialEmissive.rgb);"
@@ -1166,8 +1293,9 @@ namespace mbm
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContextD3D scopedRenderizableContext(renderizableOwner);
         BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
         if (backendBuffer == nullptr || backendBuffer->pVertexBuffer == nullptr)
         {
@@ -1446,8 +1574,10 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
+    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
+                               const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContextD3D scopedRenderizableContext(renderizableOwner);
         BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
         if (pBufferId && vertex && backendBuffer && backendBuffer->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
         {
@@ -1463,7 +1593,7 @@ namespace mbm
             d3d_converter.copyTod3dVertexBuffer(pvertex);
             backendBuffer->pVertexBuffer->Unlock();
 
-            return render(pBufferId);
+            return render(pBufferId, renderizableOwner);
         }
         return false;
     }

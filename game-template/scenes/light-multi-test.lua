@@ -1,0 +1,181 @@
+--[[
+--------------------------------------------------------------------------------
+| mini-mbm manual scene: multi-light 2dw validation                            |
+|                                                                              |
+| Preferred asset: enemy-1-normal_map_plus_normals.spt                         |
+| Fallback asset in this repo: src/test-lib/box.spt                            |
+|                                                                              |
+| Run with:                                                                    |
+|   ./mini-mbm game-template/scenes/light-multi-test.lua                       |
+--------------------------------------------------------------------------------
+]]--
+
+local script_dir = ...
+if script_dir then
+    mbm.addPath(script_dir)
+    mbm.addPath(script_dir .. "/../../src/test-lib")
+end
+
+local TARGET = "2dw"
+local PREFERRED_SPRITE = "/home/michel/Downloads/enemy-1-normal_map_plus_normals.spt"
+local FALLBACK_SPRITE = "box.spt"
+local MOVE_SPEED = 220
+local SPRITE_HALF_EXTENTS = {x = 96, y = 96, z = 8}
+
+local sprite_test = nil
+local camera2d = nil
+local held_keys = {}
+local KEY_LEFT = 0
+local KEY_RIGHT = 0
+local KEY_UP = 0
+local KEY_DOWN = 0
+local KEY_ESCAPE = 0
+local KEY_SPACE = 0
+local last_selection_signature = ""
+local last_report_time = 0
+
+local lights = {
+    {position = {x = -260, y = 120, z = 180}, radius = 280, color = {r = 1.0, g = 0.2, b = 0.2, a = 1.0}},
+    {position = {x = 240, y = 140, z = 180}, radius = 240, color = {r = 0.2, g = 1.0, b = 0.2, a = 1.0}},
+    {position = {x = -120, y = -180, z = 180}, radius = 260, color = {r = 0.2, g = 0.5, b = 1.0, a = 1.0}},
+    {position = {x = 320, y = -120, z = 180}, radius = 320, color = {r = 1.0, g = 0.9, b = 0.2, a = 1.0}},
+}
+
+local function resolve_sprite_file()
+    local exists, full_path = mbm.existFile(PREFERRED_SPRITE)
+    if exists then
+        return PREFERRED_SPRITE, full_path
+    end
+    exists, full_path = mbm.existFile(FALLBACK_SPRITE)
+    if exists then
+        return FALLBACK_SPRITE, full_path
+    end
+    return nil, nil
+end
+
+local function get_sprite_center()
+    return {
+        x = sprite_test and sprite_test.x or 0,
+        y = sprite_test and sprite_test.y or 0,
+        z = sprite_test and sprite_test.z or 0,
+    }
+end
+
+local function get_selection_signature(selected)
+    local parts = {}
+    for i = 1, #selected do
+        parts[#parts + 1] = tostring(selected[i].sourceIndex)
+    end
+    return table.concat(parts, ",")
+end
+
+local function report_selected_lights(reason)
+    if not sprite_test then
+        return
+    end
+    local selected = mbm.getSelectedPointLights(TARGET, get_sprite_center(), SPRITE_HALF_EXTENTS)
+    local summary = {}
+    for i = 1, #selected do
+        local entry = selected[i]
+        summary[#summary + 1] = string.format(
+            "#%d src=%d dist=%.2f color=(%.2f,%.2f,%.2f)",
+            i,
+            entry.sourceIndex,
+            entry.distanceToObjectCenter,
+            entry.pointLight.color.r,
+            entry.pointLight.color.g,
+            entry.pointLight.color.b)
+    end
+    print("info", "white",
+          string.format("%s | selected=%d | %s", reason, #selected, table.concat(summary, " | ")))
+    last_selection_signature = get_selection_signature(selected)
+end
+
+local function configure_lights()
+    local supported = mbm.getSupportedMaxLights(TARGET)
+    local requested = math.min(3, supported)
+    mbm.setLightEnabled(TARGET, true)
+    mbm.setAmbientLight(TARGET, {r = 0.08, g = 0.08, b = 0.10, a = 1.0})
+    mbm.setRequestedMaxLights(TARGET, requested)
+    mbm.setLightSelectionMode(TARGET, "per_object_nearest")
+    mbm.clearPointLights(TARGET)
+    for i = 1, #lights do
+        local light = lights[i]
+        mbm.addPointLight(TARGET, light.position, light.radius, light.color)
+    end
+    print("info", "green",
+          string.format("2dw supported=%d requested=%d totalPointLights=%d", supported, requested, #lights))
+end
+
+function onInitScene()
+    KEY_LEFT = mbm.getKeyCode("LEFT")
+    KEY_RIGHT = mbm.getKeyCode("RIGHT")
+    KEY_UP = mbm.getKeyCode("UP")
+    KEY_DOWN = mbm.getKeyCode("DOWN")
+    KEY_ESCAPE = mbm.getKeyCode("ESC")
+    KEY_SPACE = mbm.getKeyCode("SPACE")
+
+    mbm.setColor(18, 18, 24)
+    camera2d = mbm.getCamera("2d")
+    camera2d:setPos(0, 0)
+
+    configure_lights()
+
+    local sprite_file, full_path = resolve_sprite_file()
+    if not sprite_file then
+        error("No sprite available. Expected enemy-1-normal_map_plus_normals.spt or src/test-lib/box.spt")
+    end
+
+    sprite_test = sprite:new(TARGET, 0, 0)
+    if not sprite_test:load(sprite_file) then
+        error("Failed to load sprite: " .. sprite_file)
+    end
+    sprite_test:setScale(2.0, 2.0)
+
+    print("info", "yellow", string.format("Loaded sprite %s (%s)", sprite_file, full_path or "path unresolved"))
+    print("info", "yellow", "Use arrow keys to move the sprite. Press SPACE to dump selected point lights.")
+    report_selected_lights("init")
+end
+
+function onLoop(delta)
+    if not sprite_test then
+        return
+    end
+
+    if held_keys[KEY_LEFT] then sprite_test.x = sprite_test.x - MOVE_SPEED * delta end
+    if held_keys[KEY_RIGHT] then sprite_test.x = sprite_test.x + MOVE_SPEED * delta end
+    if held_keys[KEY_UP] then sprite_test.y = sprite_test.y + MOVE_SPEED * delta end
+    if held_keys[KEY_DOWN] then sprite_test.y = sprite_test.y - MOVE_SPEED * delta end
+
+    last_report_time = last_report_time + delta
+    if last_report_time >= 0.20 then
+        last_report_time = 0
+        local selected = mbm.getSelectedPointLights(TARGET, get_sprite_center(), SPRITE_HALF_EXTENTS)
+        local signature = get_selection_signature(selected)
+        if signature ~= last_selection_signature then
+            report_selected_lights("selection changed")
+        end
+    end
+end
+
+function onKeyDown(key)
+    held_keys[key] = true
+    if key == KEY_ESCAPE then
+        mbm.quit()
+    elseif key == KEY_SPACE then
+        report_selected_lights("manual dump")
+    end
+end
+
+function onKeyUp(key)
+    held_keys[key] = nil
+end
+
+function onTouchDown(key, x, y)
+end
+
+function onTouchUp(key, x, y)
+end
+
+function onTouchMove(key, x, y)
+end
