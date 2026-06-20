@@ -237,6 +237,16 @@ namespace mbm
         return false;
     }
 
+    static bool getLightSelectionModeFromLua(lua_State *lua, const int index,
+                                             LIGHT_SELECTION_MODE &selectionModeOut)
+    {
+        const char *selectionModeName = luaL_checkstring(lua, index);
+        if (lightSelectionModeFromString(selectionModeName, selectionModeOut))
+            return true;
+        lua_error_debug(lua, "invalid light selection mode. Expected exact string 'per_object_nearest'");
+        return false;
+    }
+
     static float getOptionalTableNumber(lua_State *lua, const int index, const char *name, const float defaultValue)
     {
         lua_getfield(lua, index, name);
@@ -506,6 +516,71 @@ namespace mbm
         return lua_error_debug(lua, "expected: mbm.setPointLightColor(target, color) or mbm.setPointLightColor(target, r, g, b, *a)");
     }
 
+    int onSetRequestedMaxLightsLua(lua_State *lua)
+    {
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+        const uint32_t requestedMaxLights = static_cast<uint32_t>(luaL_checkinteger(lua, 2));
+        if (setRequestedMaxLights(target, requestedMaxLights) == false)
+            return lua_error_debug(lua, "failed to set requested max lights");
+        return 0;
+    }
+
+    int onSetLightSelectionModeLua(lua_State *lua)
+    {
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+        LIGHT_SELECTION_MODE selectionMode = LIGHT_SELECTION_PER_OBJECT_NEAREST;
+        if (getLightSelectionModeFromLua(lua, 2, selectionMode) == false)
+            return 0;
+        if (setLightSelectionMode(target, selectionMode) == false)
+            return lua_error_debug(lua, "failed to set light selection mode");
+        return 0;
+    }
+
+    int onAddPointLightLua(lua_State *lua)
+    {
+        const int top = lua_gettop(lua);
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+
+        VEC3 position;
+        COLOR color;
+        if (top >= 4 && getVec3FromLuaValue(lua, 2, position) && lua_isnumber(lua, 3) && getColorFromLuaValue(lua, 4, color))
+        {
+            const float radius = static_cast<float>(lua_tonumber(lua, 3));
+            if (addPointLight(target, position, radius, color) == false)
+                return lua_error_debug(lua, "failed to add point light");
+            return 0;
+        }
+        if (top >= 8)
+        {
+            position = VEC3(static_cast<float>(luaL_checknumber(lua, 2)), static_cast<float>(luaL_checknumber(lua, 3)),
+                            static_cast<float>(luaL_checknumber(lua, 4)));
+            const float radius = static_cast<float>(luaL_checknumber(lua, 5));
+            color = COLOR(static_cast<float>(luaL_checknumber(lua, 6)), static_cast<float>(luaL_checknumber(lua, 7)),
+                          static_cast<float>(luaL_checknumber(lua, 8)),
+                          top >= 9 ? static_cast<float>(luaL_checknumber(lua, 9)) : 1.0f);
+            if (addPointLight(target, position, radius, color) == false)
+                return lua_error_debug(lua, "failed to add point light");
+            return 0;
+        }
+        return lua_error_debug(lua, "expected: mbm.addPointLight(target, position, radius, color) or mbm.addPointLight(target, x, y, z, radius, r, g, b, *a)");
+    }
+
+    int onClearPointLightsLua(lua_State *lua)
+    {
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+        if (clearPointLights(target) == false)
+            return lua_error_debug(lua, "failed to clear point lights");
+        return 0;
+    }
+
     int onGetLightStateLua(lua_State *lua)
     {
         LIGHT_TARGET target = LIGHT_TARGET_3D;
@@ -522,6 +597,12 @@ namespace mbm
         lua_settable(lua, -3);
         lua_pushstring(lua, "target");
         lua_pushstring(lua, getLightTargetName(target));
+        lua_settable(lua, -3);
+        lua_pushstring(lua, "requestedMaxLights");
+        lua_pushinteger(lua, static_cast<lua_Integer>(getRequestedMaxLights(target)));
+        lua_settable(lua, -3);
+        lua_pushstring(lua, "lightSelectionMode");
+        lua_pushstring(lua, getLightSelectionModeName(getLightSelectionMode(target)));
         lua_settable(lua, -3);
 
         lua_pushstring(lua, "ambientColor");
@@ -600,6 +681,53 @@ namespace mbm
 
         lua_pushstring(lua, "pointRadius");
         lua_pushnumber(lua, state.pointRadius);
+        lua_settable(lua, -3);
+
+        lua_pushstring(lua, "pointLights");
+        lua_newtable(lua);
+        const uint32_t totalPointLights = getTotalPointLights(target);
+        for (uint32_t i = 0; i < totalPointLights; ++i)
+        {
+            LIGHT_POINT pointLight;
+            if (getPointLightAt(target, i, pointLight) == false)
+                continue;
+            lua_newtable(lua);
+
+            lua_pushstring(lua, "position");
+            lua_newtable(lua);
+            lua_pushstring(lua, "x");
+            lua_pushnumber(lua, pointLight.position.x);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "y");
+            lua_pushnumber(lua, pointLight.position.y);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "z");
+            lua_pushnumber(lua, pointLight.position.z);
+            lua_settable(lua, -3);
+            lua_settable(lua, -3);
+
+            lua_pushstring(lua, "radius");
+            lua_pushnumber(lua, pointLight.radius);
+            lua_settable(lua, -3);
+
+            lua_pushstring(lua, "color");
+            lua_newtable(lua);
+            lua_pushstring(lua, "r");
+            lua_pushnumber(lua, pointLight.color.r);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "g");
+            lua_pushnumber(lua, pointLight.color.g);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "b");
+            lua_pushnumber(lua, pointLight.color.b);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "a");
+            lua_pushnumber(lua, pointLight.color.a);
+            lua_settable(lua, -3);
+            lua_settable(lua, -3);
+
+            lua_rawseti(lua, -2, static_cast<lua_Integer>(i + 1));
+        }
         lua_settable(lua, -3);
         return 1;
     }
@@ -2950,11 +3078,15 @@ namespace mbm
             {"setAmbientLight", onSetAmbientLightLua},
             {"setDirectionalLight", onSetDirectionalLightLua},
             {"setPointLight", onSetPointLightLua},
+            {"setRequestedMaxLights", onSetRequestedMaxLightsLua},
+            {"setLightSelectionMode", onSetLightSelectionModeLua},
+            {"addPointLight", onAddPointLightLua},
             {"setDirectionalLightDirection", onSetDirectionalLightDirectionLua},
             {"setDirectionalLightColor", onSetDirectionalLightColorLua},
             {"setPointLightPosition", onSetPointLightPositionLua},
             {"setPointLightRadius", onSetPointLightRadiusLua},
             {"setPointLightColor", onSetPointLightColorLua},
+            {"clearPointLights", onClearPointLightsLua},
             {"resetLight", onResetLightLua},
             {"getLightState", onGetLightStateLua},
             {"getParticleShaderCode", onGetParticleShaderCode},

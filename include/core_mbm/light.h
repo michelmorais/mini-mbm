@@ -38,6 +38,13 @@ namespace mbm
         LIGHT_SELECTION_PER_OBJECT_NEAREST = 0,
     };
 
+    struct LIGHT_POINT
+    {
+        COLOR color = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        VEC3 position = VEC3(0.0f, 0.0f, 128.0f);
+        float radius = 512.0f;
+    };
+
     struct LIGHT_STATE
     {
         bool enabled = false;
@@ -65,6 +72,9 @@ namespace mbm
     API_IMPL const char *getLightTargetName(const LIGHT_TARGET target) noexcept;
     API_IMPL bool lightTargetFromString(const char *targetName, LIGHT_TARGET &targetOut) noexcept;
     API_IMPL bool isValidLightSelectionMode(const LIGHT_SELECTION_MODE selectionMode) noexcept;
+    API_IMPL const char *getLightSelectionModeName(const LIGHT_SELECTION_MODE selectionMode) noexcept;
+    API_IMPL bool lightSelectionModeFromString(const char *selectionModeName,
+                                               LIGHT_SELECTION_MODE &selectionModeOut) noexcept;
 
     API_IMPL bool setLightEnabled(const LIGHT_TARGET target, const bool enabled) noexcept;
     API_IMPL bool setAmbientLight(const LIGHT_TARGET target, const COLOR &ambientColor) noexcept;
@@ -82,6 +92,11 @@ namespace mbm
     API_IMPL bool setLightSelectionMode(const LIGHT_TARGET target,
                                         const LIGHT_SELECTION_MODE selectionMode) noexcept;
     API_IMPL LIGHT_SELECTION_MODE getLightSelectionMode(const LIGHT_TARGET target) noexcept;
+    API_IMPL bool addPointLight(const LIGHT_TARGET target, const VEC3 &pointPosition, const float pointRadius,
+                                const COLOR &pointColor) noexcept;
+    API_IMPL bool clearPointLights(const LIGHT_TARGET target) noexcept;
+    API_IMPL uint32_t getTotalPointLights(const LIGHT_TARGET target) noexcept;
+    API_IMPL bool getPointLightAt(const LIGHT_TARGET target, const uint32_t index, LIGHT_POINT &outLight) noexcept;
     API_IMPL bool resetLight(const LIGHT_TARGET target) noexcept;
     API_IMPL void resetAllLights() noexcept;
     API_IMPL bool getLightState(const LIGHT_TARGET target, LIGHT_STATE &outState) noexcept;

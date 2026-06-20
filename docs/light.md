@@ -201,6 +201,8 @@ Current Milestone 9 groundwork exposes two target-specific configuration values:
 - requested max light count
 - light selection mode
 
+It also stores a target-specific point-light list that future multi-light selection will read from.
+
 They currently store the intended multi-light contract in engine state. Backend validation and
 multi-light shader upload still come in the next implementation slices.
 
