@@ -555,6 +555,78 @@ namespace mbm
         return 1;
     }
 
+    int onGetSelectedPointLightsLua(lua_State *lua)
+    {
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+
+        VEC3 objectCenter;
+        VEC3 objectBoundingAABB;
+        if (getVec3FromLuaValue(lua, 2, objectCenter) == false || getVec3FromLuaValue(lua, 3, objectBoundingAABB) == false)
+            return lua_error_debug(lua, "expected: mbm.getSelectedPointLights(target, objectCenter, objectBoundingAABB)");
+
+        const uint32_t supportedMaxLights = getSupportedMaxLights(target);
+        lua_newtable(lua);
+        if (supportedMaxLights == 0u)
+            return 1;
+
+        std::vector<LIGHT_POINT_SELECTION> selections(supportedMaxLights);
+        const uint32_t totalSelectedLights = selectPointLightsForObject(target, objectCenter, objectBoundingAABB,
+                                                                        selections.data(),
+                                                                        static_cast<uint32_t>(selections.size()));
+
+        for (uint32_t i = 0; i < totalSelectedLights; ++i)
+        {
+            const LIGHT_POINT_SELECTION &selection = selections[i];
+            lua_newtable(lua);
+
+            lua_pushstring(lua, "sourceIndex");
+            lua_pushinteger(lua, static_cast<lua_Integer>(selection.sourceIndex + 1u));
+            lua_settable(lua, -3);
+
+            lua_pushstring(lua, "distanceToObjectCenter");
+            lua_pushnumber(lua, selection.distanceToObjectCenter);
+            lua_settable(lua, -3);
+
+            lua_pushstring(lua, "position");
+            lua_newtable(lua);
+            lua_pushstring(lua, "x");
+            lua_pushnumber(lua, selection.pointLight.position.x);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "y");
+            lua_pushnumber(lua, selection.pointLight.position.y);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "z");
+            lua_pushnumber(lua, selection.pointLight.position.z);
+            lua_settable(lua, -3);
+            lua_settable(lua, -3);
+
+            lua_pushstring(lua, "radius");
+            lua_pushnumber(lua, selection.pointLight.radius);
+            lua_settable(lua, -3);
+
+            lua_pushstring(lua, "color");
+            lua_newtable(lua);
+            lua_pushstring(lua, "r");
+            lua_pushnumber(lua, selection.pointLight.color.r);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "g");
+            lua_pushnumber(lua, selection.pointLight.color.g);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "b");
+            lua_pushnumber(lua, selection.pointLight.color.b);
+            lua_settable(lua, -3);
+            lua_pushstring(lua, "a");
+            lua_pushnumber(lua, selection.pointLight.color.a);
+            lua_settable(lua, -3);
+            lua_settable(lua, -3);
+
+            lua_rawseti(lua, -2, static_cast<lua_Integer>(i + 1u));
+        }
+        return 1;
+    }
+
     int onSetLightSelectionModeLua(lua_State *lua)
     {
         LIGHT_TARGET target = LIGHT_TARGET_3D;
@@ -3118,6 +3190,7 @@ namespace mbm
             {"setRequestedMaxLights", onSetRequestedMaxLightsLua},
             {"getSupportedMaxLights", onGetSupportedMaxLightsLua},
             {"getValidatedMaxLights", onGetValidatedMaxLightsLua},
+            {"getSelectedPointLights", onGetSelectedPointLightsLua},
             {"setLightSelectionMode", onSetLightSelectionModeLua},
             {"addPointLight", onAddPointLightLua},
             {"setDirectionalLightDirection", onSetDirectionalLightDirectionLua},

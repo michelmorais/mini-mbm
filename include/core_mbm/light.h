@@ -69,6 +69,13 @@ namespace mbm
         LIGHT_SELECTION_MODE selectionMode = LIGHT_SELECTION_PER_OBJECT_NEAREST;
     };
 
+    struct LIGHT_POINT_SELECTION
+    {
+        LIGHT_POINT pointLight;
+        uint32_t sourceIndex = 0u;
+        float distanceToObjectCenter = 0.0f;
+    };
+
     API_IMPL bool isValidLightTarget(const LIGHT_TARGET target) noexcept;
     API_IMPL const char *getLightTargetName(const LIGHT_TARGET target) noexcept;
     API_IMPL bool lightTargetFromString(const char *targetName, LIGHT_TARGET &targetOut) noexcept;
@@ -102,6 +109,10 @@ namespace mbm
     API_IMPL bool clearPointLights(const LIGHT_TARGET target) noexcept;
     API_IMPL uint32_t getTotalPointLights(const LIGHT_TARGET target) noexcept;
     API_IMPL bool getPointLightAt(const LIGHT_TARGET target, const uint32_t index, LIGHT_POINT &outLight) noexcept;
+    API_IMPL uint32_t selectPointLightsForObject(const LIGHT_TARGET target, const VEC3 &objectCenter,
+                                                 const VEC3 &objectBoundingAABB,
+                                                 LIGHT_POINT_SELECTION *outSelections,
+                                                 const uint32_t maxOutSelections) noexcept;
     API_IMPL bool resetLight(const LIGHT_TARGET target) noexcept;
     API_IMPL void resetAllLights() noexcept;
     API_IMPL bool getLightState(const LIGHT_TARGET target, LIGHT_STATE &outState) noexcept;

@@ -635,6 +635,8 @@ Default MSL generation should:
   - each object receives only the nearest validated `N` candidate lights that reach it
 - The first backend-validation slice should reject unsupported requested caps immediately and expose
   query helpers for supported/validated max-light values before the shader-array upload work lands.
+- Add a backend-agnostic selection helper and a Lua debug query before shader upload so the
+  per-object nearest-light rule can be validated independently from GPU wiring.
 - Candidate future array names:
   - `LightDirectionView[0]`
   - `LightPositionView[0]`

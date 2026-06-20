@@ -276,6 +276,11 @@ namespace mbm
             return DEFAULT_SUPPORTED_MAX_LIGHTS;
 #endif
         }
+
+        float getObjectLightSelectionRadius(const VEC3 &objectBoundingAABB) noexcept
+        {
+            return objectBoundingAABB.length() * 0.5f;
+        }
     }
 
     bool isValidLightTarget(const LIGHT_TARGET target) noexcept
@@ -541,6 +546,66 @@ namespace mbm
             return false;
         outLight = pointLights[index];
         return true;
+    }
+
+    uint32_t selectPointLightsForObject(const LIGHT_TARGET target, const VEC3 &objectCenter,
+                                        const VEC3 &objectBoundingAABB,
+                                        LIGHT_POINT_SELECTION *outSelections,
+                                        const uint32_t maxOutSelections) noexcept
+    {
+        if (isValidLightTarget(target) == false || outSelections == nullptr || maxOutSelections == 0u)
+            return 0u;
+
+        uint32_t validatedMaxLights = 0u;
+        if (getValidatedMaxLights(target, validatedMaxLights) == false || validatedMaxLights == 0u)
+            return 0u;
+
+        const LIGHT_SELECTION_MODE selectionMode = getLightSelectionMode(target);
+        if (selectionMode != LIGHT_SELECTION_PER_OBJECT_NEAREST)
+            return 0u;
+
+        const std::vector<LIGHT_POINT> &pointLights = DEVICE::getInstance()->getPointLightsInternal(target);
+        if (pointLights.empty())
+            return 0u;
+
+        const float objectRadius = getObjectLightSelectionRadius(objectBoundingAABB);
+        std::vector<LIGHT_POINT_SELECTION> candidates;
+        candidates.reserve(pointLights.size());
+
+        for (std::vector<LIGHT_POINT>::size_type i = 0; i < pointLights.size(); ++i)
+        {
+            const LIGHT_POINT &pointLight = pointLights[i];
+            const float distanceToObjectCenter = (pointLight.position - objectCenter).length();
+            const float reach = pointLight.radius + objectRadius;
+            if (distanceToObjectCenter > reach)
+                continue;
+
+            LIGHT_POINT_SELECTION selection;
+            selection.pointLight = pointLight;
+            selection.sourceIndex = static_cast<uint32_t>(i);
+            selection.distanceToObjectCenter = distanceToObjectCenter;
+            candidates.push_back(selection);
+        }
+
+        if (candidates.empty())
+            return 0u;
+
+        std::stable_sort(candidates.begin(), candidates.end(),
+                         [](const LIGHT_POINT_SELECTION &a, const LIGHT_POINT_SELECTION &b) noexcept
+                         {
+                             if (a.distanceToObjectCenter != b.distanceToObjectCenter)
+                                 return a.distanceToObjectCenter < b.distanceToObjectCenter;
+                             return a.sourceIndex < b.sourceIndex;
+                         });
+
+        const uint32_t maxSelectedLights = std::min<uint32_t>(validatedMaxLights, maxOutSelections);
+        const uint32_t totalSelectedLights = std::min<uint32_t>(maxSelectedLights,
+                                                                static_cast<uint32_t>(candidates.size()));
+        for (uint32_t i = 0; i < totalSelectedLights; ++i)
+        {
+            outSelections[i] = candidates[i];
+        }
+        return totalSelectedLights;
     }
 
     bool resetLight(const LIGHT_TARGET target) noexcept

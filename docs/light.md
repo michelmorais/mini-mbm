@@ -209,10 +209,15 @@ The current implementation slice also exposes backend-cap validation:
 - `mbm.getSupportedMaxLights(target)` reports the active backend compiled cap
 - `mbm.getValidatedMaxLights(target)` reports the currently accepted validated cap
 - `mbm.getLightState(target)` now also includes `supportedMaxLights` and `validatedMaxLights`
+- `mbm.getSelectedPointLights(target, objectCenter, objectBoundingAABB)` returns the nearest
+  validated point lights whose radius reaches that object
 
 For the first multi-light implementation, the compiled supported cap is intentionally fixed at `4`
 lights on the active backend. This keeps the next shader-array layout explicit while the real
 multi-light upload path is still being added.
+
+For the Lua selection query, `objectBoundingAABB` is the full object AABB size, not half extents.
+That matches `RENDERIZABLE::getBoundingAABB()`.
 
 ## Reserved Shader Inputs
 
