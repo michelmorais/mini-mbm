@@ -448,12 +448,16 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
     // fragment function
     if (hasUV)
     {
+        const char *textureDiffuseName =
+            mbm::getTextureRoleShaderName(mbm::TEXTURE_ROLE_DIFFUSE, mbm::SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+        const char *textureNormalName =
+            mbm::getTextureRoleShaderName(mbm::TEXTURE_ROLE_NORMAL, mbm::SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
         [src appendString:
             @"fragment float4 frag_main(VOut in [[stage_in]],"
-             " texture2d<float> tex [[texture(0)]],"
-             " texture2d<float> normalTex [[texture(2)]],"
              " sampler samp [[sampler(0)]],"
              " constant Uniforms& u [[buffer(1)]]"];
+        [src appendFormat:@", texture2d<float> %s [[texture(0)]]", textureDiffuseName];
+        [src appendFormat:@", texture2d<float> %s [[texture(2)]]", textureNormalName];
         [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
                           " constant float4& AmbientColor [[buffer(6)]],"
                           " constant float3& LightDirectionView [[buffer(7)]],"
@@ -465,8 +469,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                           " constant float3& LightPositionView [[buffer(15)]],"
                           " constant float& LightRadius [[buffer(16)]],"
                           " constant int& HasNormalMap [[buffer(17)]]"];
-        [src appendString:@") {\n"
-                          "  float4 texColor = tex.sample(samp, in.uv) * u.color;\n"];
+        [src appendFormat:@") {\n  float4 texColor = %s.sample(samp, in.uv) * u.color;\n",
+                          textureDiffuseName];
         [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
                           "  float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
                           "  float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"];
@@ -483,8 +487,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
         {
             [src appendString:@"  if (LightMode == 2) {\n"];
         }
-        [src appendString:@"    float3 normalView = float3(0.0, 0.0, 1.0);\n"
-                          "    if (HasNormalMap != 0) normalView = normalize((normalTex.sample(samp, in.uv).xyz * 2.0f) - 1.0f);\n"
+        [src appendFormat:@"    float3 normalView = float3(0.0, 0.0, 1.0);\n"
+                          "    if (HasNormalMap != 0) normalView = normalize((%s.sample(samp, in.uv).xyz * 2.0f) - 1.0f);\n"
                           "    float3 toLight = LightPositionView - in.positionView;\n"
                           "    float dist = length(toLight);\n"
                           "    if (LightRadius > 0.0001f) {\n"
@@ -496,7 +500,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                           "    }\n"
                           "  }\n"
                           "  float3 litColor = clamp((base * clamp(light, 0.0f, 1.0f)) + MaterialEmissive.rgb, 0.0f, 1.0f);\n"
-                          "  return float4(litColor, texColor.a * MaterialDiffuse.a);\n}\n"];
+                          "  return float4(litColor, texColor.a * MaterialDiffuse.a);\n}\n",
+                          textureNormalName];
     }
     else
     {

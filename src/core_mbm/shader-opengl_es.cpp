@@ -762,13 +762,19 @@ namespace mbm
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool canUsePointLight2D = (this->vShader == nullptr);
+        const char *textureDiffuseName =
+            getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+        const char *textureNormalName =
+            getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
 
         std::string defaultCodePs;
         if (hasUV)
         {
             defaultCodePs = "precision mediump float;"
                 "varying vec2 vTexCoord;"
-                "uniform sampler2D sample0;"
+                "uniform sampler2D ";
+            defaultCodePs += textureDiffuseName;
+            defaultCodePs += ";"
                 "uniform int LightEnabled;"
                 "uniform vec4 AmbientColor;"
                 "uniform vec3 LightDirectionView;"
@@ -779,7 +785,9 @@ namespace mbm
             if (canUsePointLight2D)
             {
                 defaultCodePs += "varying vec3 vPositionView;"
-                    "uniform sampler2D sample2;"
+                    "uniform sampler2D ";
+                defaultCodePs += textureNormalName;
+                defaultCodePs += ";"
                     "uniform int LightMode;"
                     "uniform int HasNormalMap;"
                     "uniform vec3 LightPositionView;"
@@ -788,7 +796,9 @@ namespace mbm
             if (hasNormal)
                 defaultCodePs += "varying vec3 vNormalView;";
             defaultCodePs += "void main() {"
-                " vec4 texColor = texture2D(sample0, vTexCoord);"
+                " vec4 texColor = texture2D(";
+            defaultCodePs += textureDiffuseName;
+            defaultCodePs += ", vTexCoord);"
                 " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
                 " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
                 " vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
@@ -824,7 +834,9 @@ namespace mbm
             {
                 defaultCodePs += "{"
                     "  vec3 normalView = vec3(0.0, 0.0, 1.0);"
-                    "  if (HasNormalMap != 0) normalView = normalize((texture2D(sample2, vTexCoord).xyz * 2.0) - 1.0);"
+                    "  if (HasNormalMap != 0) normalView = normalize((texture2D(";
+                defaultCodePs += textureNormalName;
+                defaultCodePs += ", vTexCoord).xyz * 2.0) - 1.0);"
                     "  vec3 toLight = LightPositionView - vPositionView;"
                     "  float dist = length(toLight);"
                     "  if (LightRadius > 0.0001) {"

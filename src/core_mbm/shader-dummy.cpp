@@ -205,12 +205,17 @@ namespace mbm
             return false;
         this->pShader             = ptrPshader;
         this->vShader             = ptrVshader;
-        constexpr char *defaultCodePs = "sampler2D sample0 : register(s0);"
-                                        ""
-                                        "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
-                                        "{"
-                                        "    return tex2D(sample0, texCoord);"
-                                        "}";
+        const char *textureDiffuseName =
+            getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+        std::string defaultCodePs = "sampler2D ";
+        defaultCodePs += textureDiffuseName;
+        defaultCodePs += " : register(s0);"
+                         "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
+                         "{"
+                         "    return tex2D(";
+        defaultCodePs += textureDiffuseName;
+        defaultCodePs += ", texCoord);"
+                         "}";
 
         constexpr char *defaultCodeVs = "float4x4 mvpMatrix : register(c0);"
                                         ""
@@ -242,7 +247,7 @@ namespace mbm
         const char* versionPS        = getPSVersion();
         const char* versionVS        = getVSVersion();
         
-        const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs;
+        const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs.c_str();
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs;
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);

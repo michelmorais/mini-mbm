@@ -865,6 +865,10 @@ namespace mbm
         this->vShader             = ptrVshader;
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const char *textureDiffuseName =
+            getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+        const char *textureNormalName =
+            getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
 
         std::string defaultCodePs;
         if (hasUV)
@@ -881,8 +885,12 @@ namespace mbm
                 "float4 MaterialDiffuse;"
                 "float4 MaterialAmbient;"
                 "float4 MaterialEmissive;";
-            defaultCodePs += "sampler2D sample0 : register(s0);"
-                "sampler2D sample2 : register(s2);"
+            defaultCodePs += "sampler2D ";
+            defaultCodePs += textureDiffuseName;
+            defaultCodePs += " : register(s0);"
+                "sampler2D ";
+            defaultCodePs += textureNormalName;
+            defaultCodePs += " : register(s2);"
                 "float4 main(";
             if (hasNormal)
             {
@@ -893,7 +901,9 @@ namespace mbm
                 defaultCodePs += "float2 texCoord : TEXCOORD0, float3 positionViewIn : TEXCOORD1";
             }
             defaultCodePs += ") : COLOR"
-                "{ float4 texColor = tex2D(sample0, texCoord);";
+                "{ float4 texColor = tex2D(";
+            defaultCodePs += textureDiffuseName;
+            defaultCodePs += ", texCoord);";
             defaultCodePs += " if (LightEnabled == 0 || LightMode == 0) return texColor;"
                 " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
                 " float3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
@@ -912,7 +922,9 @@ namespace mbm
             }
             defaultCodePs += "{"
                 "  float3 normalView = float3(0, 0, 1);"
-                "  if (HasNormalMap != 0) normalView = normalize((tex2D(sample2, texCoord).xyz * 2.0f) - 1.0f);"
+                "  if (HasNormalMap != 0) normalView = normalize((tex2D(";
+            defaultCodePs += textureNormalName;
+            defaultCodePs += ", texCoord).xyz * 2.0f) - 1.0f);"
                 "  float3 toLight = LightPositionView - positionViewIn;"
                 "  float dist = length(toLight);"
                 "  if (LightRadius > 0.0001f) {"
