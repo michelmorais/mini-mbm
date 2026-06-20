@@ -1008,33 +1008,20 @@ namespace mbm
                 "int LightMode;"
                 "int HasNormalMap;"
                 "float4 AmbientColor;"
-                "float3 LightDirectionView;";
-            if (hasNormal)
-                defaultCodePs += "float4 LightColor;";
-            else
-            {
-                defaultCodePs += "float4 LightColor[";
-                defaultCodePs += supportedMaxLights;
-                defaultCodePs += "];";
-            }
+                "float3 LightDirectionView;"
+                "float4 LightColor[";
+            defaultCodePs += supportedMaxLights;
+            defaultCodePs += "];";
             defaultCodePs += "float4 MaterialDiffuse;"
                 "float4 MaterialAmbient;"
-                "float4 MaterialEmissive;";
-            if (hasNormal == false)
-            {
-                defaultCodePs += "float3 LightPositionView[";
-                defaultCodePs += supportedMaxLights;
-                defaultCodePs += "];"
-                    "float LightRadius[";
-                defaultCodePs += supportedMaxLights;
-                defaultCodePs += "];"
-                    "int LightCount;";
-            }
-            else
-            {
-                defaultCodePs += "float3 LightPositionView;"
-                    "float LightRadius;";
-            }
+                "float4 MaterialEmissive;"
+                "float3 LightPositionView[";
+            defaultCodePs += supportedMaxLights;
+            defaultCodePs += "];"
+                "float LightRadius[";
+            defaultCodePs += supportedMaxLights;
+            defaultCodePs += "];"
+                "int LightCount;";
             defaultCodePs += "sampler2D ";
             defaultCodePs += textureDiffuseName;
             defaultCodePs += " : register(s0);"
@@ -1063,7 +1050,7 @@ namespace mbm
                     "  float3 normalView = normalize(normalViewIn);"
                     "  float3 lightTravel = normalize(LightDirectionView);"
                     "  float diffuse = max(dot(normalView, -lightTravel), 0);"
-                    "  light += LightColor.rgb * diffuse;"
+                    "  light += LightColor[0].rgb * diffuse;"
                     " } else ";
             }
             else

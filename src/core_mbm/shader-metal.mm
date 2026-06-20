@@ -175,15 +175,15 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
                                                                          : lightState.directionalColor;
     float lightRadius = lightState.pointRadius;
     float lightPositionView[4] = {positionView.x, positionView.y, positionView.z, 0.0f};
-    float lightPositionViewArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
-    float lightRadiusArray[DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
-    float lightColorArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+    float lightPositionViewArray[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+    float lightRadiusArray[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
+    float lightColorArray[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
     uint32_t selectedPointLightCount = 0u;
     if (lightMode == 2)
     {
-        mbm::LIGHT_POINT_SELECTION pointLightSelections[DEFAULT_SUPPORTED_MAX_LIGHTS];
+        mbm::LIGHT_POINT_SELECTION pointLightSelections[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS];
         selectedPointLightCount = mbm::DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
-            pointLightSelections, DEFAULT_SUPPORTED_MAX_LIGHTS);
+            pointLightSelections, mbm::DEFAULT_SUPPORTED_MAX_LIGHTS);
         for (uint32_t i = 0; i < selectedPointLightCount; ++i)
         {
             const mbm::VEC3 selectedPositionView =

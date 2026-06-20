@@ -30,6 +30,7 @@
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <audio-interface.h>
+#include <shader-resource.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <plugin-callback.h>
 #include <scene.h>
@@ -37,6 +38,23 @@
 
 namespace mbm
 {
+    static void setShaderVersionsFromCaps(const D3DCAPS9 &cap)
+    {
+        const UINT psMajor = D3DSHADER_VERSION_MAJOR(cap.PixelShaderVersion);
+        const UINT psMinor = D3DSHADER_VERSION_MINOR(cap.PixelShaderVersion);
+        const UINT vsMajor = D3DSHADER_VERSION_MAJOR(cap.VertexShaderVersion);
+        const UINT vsMinor = D3DSHADER_VERSION_MINOR(cap.VertexShaderVersion);
+        char psVersion[16] = "ps_2_0";
+        char vsVersion[16] = "vs_2_0";
+        if (psMajor > 0u)
+            snprintf(psVersion, sizeof(psVersion), "ps_%u_%u", psMajor, psMinor);
+        if (vsMajor > 0u)
+            snprintf(vsVersion, sizeof(vsVersion), "vs_%u_%u", vsMajor, vsMinor);
+        setPSVersion(psVersion);
+        setVSVersion(vsVersion);
+        INFO_LOG("DirectX9 shader profiles selected: PS=%s VS=%s", psVersion, vsVersion);
+    }
+
     void CORE_MANAGER::handleEventFromWindow()
     {
         DEVICE *device = this->getDevice();
@@ -201,6 +219,7 @@ namespace mbm
 
         D3DDEVTYPE _typeDevice = D3DDEVTYPE_HAL;
         context->pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, _typeDevice, &cap);
+        setShaderVersionsFromCaps(cap);
         int Hardware_Software_Vertex_Process = 0;
         const bool forceSoftwareProcess = false;
         if (forceSoftwareProcess)
