@@ -272,6 +272,77 @@ local function getEditorLightUi(target, forceRefresh)
     return tEditorLightUi[target]
 end
 
+local function getPreviewStage2Texture()
+    if not tPreviewMesh then
+        return nil
+    end
+    local okSh, tShader = dpCall(function() return tPreviewMesh:getShader() end)
+    if not okSh or not tShader then
+        return nil
+    end
+    local okTex, tex2 = dpCall(function() return tShader:getTextureStage2() end)
+    if not okTex or type(tex2) ~= 'string' or tex2 == '' then
+        return nil
+    end
+    return tex2
+end
+
+local function getEditorLightDebugInfo(target, lightState)
+    if iSelectedMeshIndex <= 0 or iSelectedMeshIndex > #tLoadedMeshes then
+        return nil
+    end
+    local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+    if not tEntry then
+        return nil
+    end
+    local info = tEntry.info or {}
+    local hasUv = info.hasTexture == true
+    local hasNormals = info.hasNormal == true
+    local texStage2 = getPreviewStage2Texture()
+    local effectiveMode = tLang.L('light_debug_disabled')
+
+    if lightState.enabled then
+        if target == '2dw' then
+            if hasUv == false then
+                effectiveMode = tLang.L('light_debug_off_no_uv')
+            elseif texStage2 then
+                effectiveMode = tLang.L('light_debug_2dw_normal_map')
+            else
+                effectiveMode = tLang.L('light_debug_2dw_flat')
+            end
+        elseif hasNormals then
+            effectiveMode = tLang.L('light_debug_3d_directional')
+        else
+            effectiveMode = tLang.L('light_debug_off_no_normals')
+        end
+    end
+
+    return {
+        assetType = info.type or 'unknown',
+        hasUv = hasUv,
+        hasNormals = hasNormals,
+        texStage2 = texStage2,
+        effectiveMode = effectiveMode,
+    }
+end
+
+local function showEditorLightDebug(target, lightState)
+    local dbg = getEditorLightDebugInfo(target, lightState)
+    tImGui.Separator()
+    tImGui.TextDisabled(tLang.L('light_debug'))
+    if not dbg then
+        tImGui.TextDisabled(tLang.L('light_debug_no_selection'))
+        return
+    end
+    tImGui.TextDisabled(tLang.L('type_label') .. ' ' .. tostring(dbg.assetType))
+    tImGui.TextDisabled(tLang.L('target_label') .. ' ' .. tostring(target))
+    tImGui.TextDisabled((dbg.hasUv and tLang.L('light_debug_has_uv')) or tLang.L('light_debug_no_uv'))
+    tImGui.TextDisabled((dbg.hasNormals and tLang.L('light_debug_has_mesh_normals')) or tLang.L('light_debug_no_mesh_normals'))
+    tImGui.TextDisabled(tLang.L('texture_stage_2') .. ': ' ..
+        (dbg.texStage2 and tUtil.getShortName(dbg.texStage2) or tLang.L('none')))
+    tImGui.TextWrapped(tLang.L('light_debug_effective') .. ' ' .. dbg.effectiveMode)
+end
+
 local function ensureEditorLightingEnabled(target)
     local state = getEditorLightState(target)
     if state.enabled then
@@ -320,9 +391,9 @@ local function showEditorLightPanel(target, idSuffix)
         dpCall(function() mbm.setAmbientLight(target, ambientColor) end)
     end
 
-    tImGui.Text(tLang.L('color_label'))
-    tImGui.SameLine()
     if target == '2dw' then
+        tImGui.Text(tLang.L('light_color'))
+        tImGui.SameLine()
         local changedPointColor, pointColor = tImGui.ColorEdit4('##lightPointColor' .. idSuffix, lightState.pointColor, lightColorFlags)
         if changedPointColor and pointColor then
             lightState.pointColor = makeColorRGBA(pointColor, lightState.pointColor)
@@ -359,6 +430,8 @@ local function showEditorLightPanel(target, idSuffix)
             dpCall(function() mbm.setPointLightRadius(target, pointRadius) end)
         end
     else
+        tImGui.Text(tLang.L('directional_color'))
+        tImGui.SameLine()
         local changedDirectionalColor, directionalColor = tImGui.ColorEdit4('##lightDirectionalColor' .. idSuffix, lightState.directionalColor, lightColorFlags)
         if changedDirectionalColor and directionalColor then
             lightState.directionalColor = makeColorRGBA(directionalColor, lightState.directionalColor)
@@ -391,6 +464,8 @@ local function showEditorLightPanel(target, idSuffix)
         dpCall(function() mbm.resetLight(target) end)
         getEditorLightUi(target, true)
     end
+
+    showEditorLightDebug(target, lightState)
 end
 
 local function showMaterialEditor(tEntry, index)

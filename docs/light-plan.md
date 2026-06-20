@@ -579,6 +579,9 @@ Default MSL generation should:
   per-object shading, optional per-subset normal map from `sample2`, and flat-normal fallback
   `(0, 0, 1)` when no normal map exists. Keep the light-buffer/render-to-texture composition path
   as the next expansion step when multi-light and broader 2D composition work starts.
+- Current `2dw` shading does not consume stored mesh/vertex normals. It uses the per-subset
+  normal-map texture from `sample2` when present; otherwise it falls back to the flat normal
+  `(0, 0, 1)`.
 
 ### Milestone 9: Multi-light design
 
@@ -600,6 +603,9 @@ Default MSL generation should:
 - Mesh Debug should expose per-subset typed material texture slots, starting with the normal-map
   slot, so `2dw` lighting assets can be authored and smoke-tested before the full `2dw`
   light-buffer pipeline is finished.
+- Sprite Maker must preserve typed per-frame/per-subset material texture slots, including the
+  normal-map slot, during load/import/save even before it exposes dedicated authoring UI for those
+  extra textures. Round-trip safety comes before editor polish here.
 
 ### Milestone 11: Expand lighting model
 
