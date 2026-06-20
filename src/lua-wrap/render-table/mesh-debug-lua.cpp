@@ -1585,6 +1585,20 @@ namespace mbm
         return 0;
     }
 
+    int onGetStrideMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       top        = lua_gettop(lua);
+        const int       indexFrame = top > 1 ? luaL_checkinteger(lua, 2) - 1 : 0;
+        if (indexFrame >= 0 && indexFrame < static_cast<int>(meshDebug->mesh.buffer.size()))
+        {
+            util::BUFFER_MESH_DEBUG *bufferCurrent = meshDebug->mesh.buffer[indexFrame];
+            lua_pushinteger(lua, bufferCurrent->headerFrame.stride);
+            return 1;
+        }
+        return lua_error_debug(lua, "Index frame invalid [%d/%d]", top > 1 ? indexFrame + 1 : indexFrame, meshDebug->mesh.buffer.size());
+    }
+
     int onEnableNormalsMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug               = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1926,6 +1940,7 @@ namespace mbm
                                           {"scaleFrame", onScaleFrameDebugLua},
                                           {"translateFrame", onTranslateFrameDebugLua},
                                           {"check", onCheckMeshDebugLua},
+                                          {"getStride", onGetStrideMeshDebugLua},
                                           {"setStride", onSetStrideMeshDebugLua},
                                           {"enableNormal", onEnableNormalsMeshDebugLua},
                                           {"removeNormals", onRemoveNormalsMeshDebugLua},

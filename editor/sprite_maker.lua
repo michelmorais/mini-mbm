@@ -621,10 +621,13 @@ function onSaveEditionSprite(sFileName)
         local tLinesAnimationList = {}
         tUtil.save('tAnimationList',       tAnimationList,         tLinesAnimationList,  onSaveUserData)
 
+        local tLinesSaveBinaryOptions = {}
+        tUtil.save('tSaveBinaryOptions',   tSaveBinaryOptions,     tLinesSaveBinaryOptions, onSaveUserData)
+
         local tLinestPreviewFrameColor = {}
         tUtil.save('tPreviewFrameColor',   tPreviewFrameColor,     tLinestPreviewFrameColor,  onSaveUserData)
         
-        local sUtilEditor = [[
+local sUtilEditor = [[
 -- Generated Using Sprite Maker Version 2.0 + mbm engine
 -- https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker
 
@@ -658,6 +661,11 @@ end
         end
         for i =1, #tLinesAnimationList do
             local sLine = tLinesAnimationList[i]
+            fp:write(sLine .. '\n')
+        end
+
+        for i =1, #tLinesSaveBinaryOptions do
+            local sLine = tLinesSaveBinaryOptions[i]
             fp:write(sLine .. '\n')
         end
 
@@ -5087,12 +5095,19 @@ local function applyBinarySpriteDrawOptions(tMesh, tInfo)
     local modeDraw = (tInfo and tInfo.modeDraw) or tMesh:getModeDraw()
     local modeCullFace = (tInfo and tInfo.modeCullFace) or tMesh:getModeCullFace()
     local modeFrontFace = (tInfo and tInfo.modeFrontFace) or tMesh:getModeFrontFace()
+    local stride = 2
+    if tMesh:getTotalFrame() > 0 then
+        stride = tMesh:getStride(1)
+    end
     tSaveBinaryOptions.indexModeDraw = findOptionIndex(tSaveBinaryOptions.tModeDrawList, modeDraw, tSaveBinaryOptions.indexModeDraw)
     tSaveBinaryOptions.indexCullFace = findOptionIndex(tSaveBinaryOptions.tCullFaceList, modeCullFace, tSaveBinaryOptions.indexCullFace)
     tSaveBinaryOptions.indexFrontFace = findOptionIndex(tSaveBinaryOptions.tFrontFaceList, modeFrontFace, tSaveBinaryOptions.indexFrontFace)
-    if tInfo and tInfo.hasNormal then
+    if stride == 3 then
         tSaveBinaryOptions.stride = 3
         tSaveBinaryOptions.indexStride = 2
+    else
+        tSaveBinaryOptions.stride = 2
+        tSaveBinaryOptions.indexStride = 1
     end
 end
 

@@ -272,7 +272,24 @@ local function getEditorLightUi(target, forceRefresh)
     return tEditorLightUi[target]
 end
 
-local function getPreviewStage2Texture()
+local function getPreviewStage2Texture(tEntry)
+    if tEntry and tEntry.meshDebug then
+        local meshD = tEntry.meshDebug
+        local okF, totalFrames = dpCall(function() return meshD:getTotalFrame() end)
+        if okF and totalFrames then
+            for frame = 1, totalFrames do
+                local okS, totalSubsets = dpCall(function() return meshD:getTotalSubset(frame) end)
+                if okS and totalSubsets then
+                    for subset = 1, totalSubsets do
+                        local okT, tex2 = dpCall(function() return meshD:getMaterialTexture(frame, subset, 'normal') end)
+                        if okT and type(tex2) == 'string' and tex2 ~= '' then
+                            return tex2
+                        end
+                    end
+                end
+            end
+        end
+    end
     if not tPreviewMesh then
         return nil
     end
@@ -298,7 +315,7 @@ local function getEditorLightDebugInfo(target, lightState)
     local info = tEntry.info or {}
     local hasUv = info.hasTexture == true
     local hasNormals = info.hasNormal == true
-    local texStage2 = getPreviewStage2Texture()
+    local texStage2 = getPreviewStage2Texture(tEntry)
     local effectiveMode = tLang.L('light_debug_disabled')
 
     if lightState.enabled then
