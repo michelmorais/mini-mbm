@@ -490,6 +490,7 @@ M.en = {
     light_debug_off_no_normals = "3d lighting inactive for this asset (requires normals)",
     light_debug_2dw_flat = "2dw point light using flat fallback normal (+Z)",
     light_debug_2dw_normal_map = "2dw point light using stage-2 normal map",
+    light_debug_2dw_note = "Current 2dw lighting ignores mesh normals; it uses sample2 normal map when present, otherwise flat (+Z).",
     light_debug_3d_directional = "3d directional light using mesh normals",
     target_label = "Target:",
     directional_direction = "Directional Direction",

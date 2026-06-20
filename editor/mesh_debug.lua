@@ -358,6 +358,9 @@ local function showEditorLightDebug(target, lightState)
     tImGui.TextDisabled(tLang.L('texture_stage_2') .. ': ' ..
         (dbg.texStage2 and tUtil.getShortName(dbg.texStage2) or tLang.L('none')))
     tImGui.TextWrapped(tLang.L('light_debug_effective') .. ' ' .. dbg.effectiveMode)
+    if target == '2dw' then
+        tImGui.TextWrapped(tLang.L('light_debug_2dw_note'))
+    end
 end
 
 local function ensureEditorLightingEnabled(target)

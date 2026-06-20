@@ -582,6 +582,13 @@ Default MSL generation should:
 - Current `2dw` shading does not consume stored mesh/vertex normals. It uses the per-subset
   normal-map texture from `sample2` when present; otherwise it falls back to the flat normal
   `(0, 0, 1)`.
+- Validated `2dw` behavior matrix:
+  - normal map + mesh normals -> use `sample2` normal map
+  - normal map + no mesh normals -> use `sample2` normal map
+  - no normal map + mesh normals -> use flat fallback normal `(0, 0, 1)`
+  - no normal map + no mesh normals -> use flat fallback normal `(0, 0, 1)`
+- Mesh/vertex normals remain useful for `3d` lighting and asset/tooling, but they are currently
+  informational only for the shipped `2dw` lighting path.
 
 ### Milestone 9: Multi-light design
 
