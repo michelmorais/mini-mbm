@@ -26,6 +26,7 @@
 namespace mbm
 {
     static constexpr uint32_t DEFAULT_REQUESTED_MAX_LIGHTS = 4u;
+    static constexpr uint32_t DEFAULT_SUPPORTED_MAX_LIGHTS = 4u;
 
     enum LIGHT_TARGET : int
     {
@@ -89,6 +90,10 @@ namespace mbm
     API_IMPL bool setPointLightColor(const LIGHT_TARGET target, const COLOR &pointColor) noexcept;
     API_IMPL bool setRequestedMaxLights(const LIGHT_TARGET target, const uint32_t requestedMaxLights) noexcept;
     API_IMPL uint32_t getRequestedMaxLights(const LIGHT_TARGET target) noexcept;
+    API_IMPL uint32_t getSupportedMaxLights(const LIGHT_TARGET target) noexcept;
+    API_IMPL bool validateRequestedMaxLights(const LIGHT_TARGET target, const uint32_t requestedMaxLights,
+                                             uint32_t &validatedMaxLightsOut) noexcept;
+    API_IMPL bool getValidatedMaxLights(const LIGHT_TARGET target, uint32_t &validatedMaxLightsOut) noexcept;
     API_IMPL bool setLightSelectionMode(const LIGHT_TARGET target,
                                         const LIGHT_SELECTION_MODE selectionMode) noexcept;
     API_IMPL LIGHT_SELECTION_MODE getLightSelectionMode(const LIGHT_TARGET target) noexcept;

@@ -633,6 +633,8 @@ Default MSL generation should:
   - developer requests a max light count
   - engine validates that request against the active backend/profile
   - each object receives only the nearest validated `N` candidate lights that reach it
+- The first backend-validation slice should reject unsupported requested caps immediately and expose
+  query helpers for supported/validated max-light values before the shader-array upload work lands.
 - Candidate future array names:
   - `LightDirectionView[0]`
   - `LightPositionView[0]`

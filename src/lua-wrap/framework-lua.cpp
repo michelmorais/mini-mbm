@@ -523,8 +523,36 @@ namespace mbm
             return 0;
         const uint32_t requestedMaxLights = static_cast<uint32_t>(luaL_checkinteger(lua, 2));
         if (setRequestedMaxLights(target, requestedMaxLights) == false)
-            return lua_error_debug(lua, "failed to set requested max lights");
+        {
+            char message[256];
+            snprintf(message, sizeof(message),
+                     "requested max lights [%u] exceeds supported max lights [%u] for backend [%s] target [%s]",
+                     requestedMaxLights, getSupportedMaxLights(target), DEVICE::getInstance()->getBackendEngineName(),
+                     getLightTargetName(target));
+            return lua_error_debug(lua, message);
+        }
         return 0;
+    }
+
+    int onGetSupportedMaxLightsLua(lua_State *lua)
+    {
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+        lua_pushinteger(lua, static_cast<lua_Integer>(getSupportedMaxLights(target)));
+        return 1;
+    }
+
+    int onGetValidatedMaxLightsLua(lua_State *lua)
+    {
+        LIGHT_TARGET target = LIGHT_TARGET_3D;
+        if (getLightTargetFromLua(lua, 1, target) == false)
+            return 0;
+        uint32_t validatedMaxLights = 0u;
+        if (getValidatedMaxLights(target, validatedMaxLights) == false)
+            return lua_error_debug(lua, "failed to get validated max lights");
+        lua_pushinteger(lua, static_cast<lua_Integer>(validatedMaxLights));
+        return 1;
     }
 
     int onSetLightSelectionModeLua(lua_State *lua)
@@ -600,6 +628,15 @@ namespace mbm
         lua_settable(lua, -3);
         lua_pushstring(lua, "requestedMaxLights");
         lua_pushinteger(lua, static_cast<lua_Integer>(getRequestedMaxLights(target)));
+        lua_settable(lua, -3);
+        lua_pushstring(lua, "supportedMaxLights");
+        lua_pushinteger(lua, static_cast<lua_Integer>(getSupportedMaxLights(target)));
+        lua_settable(lua, -3);
+        uint32_t validatedMaxLights = 0u;
+        if (getValidatedMaxLights(target, validatedMaxLights) == false)
+            validatedMaxLights = 0u;
+        lua_pushstring(lua, "validatedMaxLights");
+        lua_pushinteger(lua, static_cast<lua_Integer>(validatedMaxLights));
         lua_settable(lua, -3);
         lua_pushstring(lua, "lightSelectionMode");
         lua_pushstring(lua, getLightSelectionModeName(getLightSelectionMode(target)));
@@ -3079,6 +3116,8 @@ namespace mbm
             {"setDirectionalLight", onSetDirectionalLightLua},
             {"setPointLight", onSetPointLightLua},
             {"setRequestedMaxLights", onSetRequestedMaxLightsLua},
+            {"getSupportedMaxLights", onGetSupportedMaxLightsLua},
+            {"getValidatedMaxLights", onGetValidatedMaxLightsLua},
             {"setLightSelectionMode", onSetLightSelectionModeLua},
             {"addPointLight", onAddPointLightLua},
             {"setDirectionalLightDirection", onSetDirectionalLightDirectionLua},

@@ -263,6 +263,19 @@ namespace mbm
         {
             return std::max<uint32_t>(1u, requestedMaxLights);
         }
+
+        uint32_t getSupportedMaxLightsForActiveBackend() noexcept
+        {
+#if defined(USE_DIRECTX9)
+            return DEFAULT_SUPPORTED_MAX_LIGHTS;
+#elif defined(USE_METAL)
+            return DEFAULT_SUPPORTED_MAX_LIGHTS;
+#elif defined(USE_OPENGL_ES)
+            return DEFAULT_SUPPORTED_MAX_LIGHTS;
+#else
+            return DEFAULT_SUPPORTED_MAX_LIGHTS;
+#endif
+        }
     }
 
     bool isValidLightTarget(const LIGHT_TARGET target) noexcept
@@ -425,8 +438,18 @@ namespace mbm
     {
         if (isValidLightTarget(target) == false)
             return false;
+        const uint32_t normalizedRequestedMaxLights = clampRequestedMaxLights(requestedMaxLights);
+        uint32_t validatedMaxLights = 0u;
+        if (validateRequestedMaxLights(target, normalizedRequestedMaxLights, validatedMaxLights) == false)
+        {
+            DEVICE *device = DEVICE::getInstance();
+            ERROR_LOG("Requested max lights [%u] exceeds supported max lights [%u] for backend [%s] target [%s]",
+                      normalizedRequestedMaxLights, getSupportedMaxLights(target), device->getBackendEngineName(),
+                      getLightTargetName(target));
+            return false;
+        }
         LIGHT_MULTI_SETTINGS &settings = DEVICE::getInstance()->getMutableLightMultiSettings(target);
-        settings.requestedMaxLights = clampRequestedMaxLights(requestedMaxLights);
+        settings.requestedMaxLights = validatedMaxLights;
         return true;
     }
 
@@ -435,6 +458,33 @@ namespace mbm
         if (isValidLightTarget(target) == false)
             return DEFAULT_REQUESTED_MAX_LIGHTS;
         return DEVICE::getInstance()->getLightMultiSettingsInternal(target).requestedMaxLights;
+    }
+
+    uint32_t getSupportedMaxLights(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return 0u;
+        return getSupportedMaxLightsForActiveBackend();
+    }
+
+    bool validateRequestedMaxLights(const LIGHT_TARGET target, const uint32_t requestedMaxLights,
+                                    uint32_t &validatedMaxLightsOut) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        const uint32_t normalizedRequestedMaxLights = clampRequestedMaxLights(requestedMaxLights);
+        const uint32_t supportedMaxLights = getSupportedMaxLights(target);
+        if (supportedMaxLights == 0u || normalizedRequestedMaxLights > supportedMaxLights)
+            return false;
+        validatedMaxLightsOut = normalizedRequestedMaxLights;
+        return true;
+    }
+
+    bool getValidatedMaxLights(const LIGHT_TARGET target, uint32_t &validatedMaxLightsOut) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        return validateRequestedMaxLights(target, getRequestedMaxLights(target), validatedMaxLightsOut);
     }
 
     bool setLightSelectionMode(const LIGHT_TARGET target,

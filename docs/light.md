@@ -203,8 +203,16 @@ Current Milestone 9 groundwork exposes two target-specific configuration values:
 
 It also stores a target-specific point-light list that future multi-light selection will read from.
 
-They currently store the intended multi-light contract in engine state. Backend validation and
-multi-light shader upload still come in the next implementation slices.
+The current implementation slice also exposes backend-cap validation:
+
+- `mbm.setRequestedMaxLights(target, n)` now rejects unsupported values immediately
+- `mbm.getSupportedMaxLights(target)` reports the active backend compiled cap
+- `mbm.getValidatedMaxLights(target)` reports the currently accepted validated cap
+- `mbm.getLightState(target)` now also includes `supportedMaxLights` and `validatedMaxLights`
+
+For the first multi-light implementation, the compiled supported cap is intentionally fixed at `4`
+lights on the active backend. This keeps the next shader-array layout explicit while the real
+multi-light upload path is still being added.
 
 ## Reserved Shader Inputs
 
