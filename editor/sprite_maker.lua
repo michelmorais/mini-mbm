@@ -455,6 +455,10 @@ function onSaveUserData(name,value,tOut,saved)
         tUtil.save(vertex,             value.vertex,            tOut, onSaveUserData, saved)
         tUtil.save(index_read_only,    value.index_read_only,   tOut, onSaveUserData, saved)
         tUtil.save(index_buffer_edit,  value.index_buffer_edit, tOut, onSaveUserData, saved)
+        if value.normal then
+            local normal = name .. '.normal'
+            tUtil.save(normal,         value.normal,            tOut, onSaveUserData, saved)
+        end
         
         table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),%s)',name,vertex,index_read_only,uv,'getUniqueNickName()'))
         local s,e                  = name:match('^().*%]%[()')
@@ -487,6 +491,97 @@ function onSaveUserData(name,value,tOut,saved)
         end
     else
         print('warn', 'Userdata not expected',name)
+    end
+end
+
+local tMaterialTextureSlotNames = {'normal', 'specular', 'emissive', 'mask'}
+
+local function cloneMaterialTextureSlots(tSlots)
+    local tOut = {}
+    if type(tSlots) ~= 'table' then
+        return tOut
+    end
+    for k, v in pairs(tSlots) do
+        tOut[k] = v
+    end
+    return tOut
+end
+
+local function getMaterialTextureSlotsFromMesh(tMesh, indexFrame, indexSubset)
+    local tSlots = {}
+    for _, slotName in ipairs(tMaterialTextureSlotNames) do
+        local ok, textureName = pcall(function()
+            return tMesh:getMaterialTexture(indexFrame, indexSubset, slotName)
+        end)
+        if ok and type(textureName) == 'string' and textureName ~= '' then
+            tSlots[slotName] = textureName
+        end
+    end
+    return tSlots
+end
+
+local function applyMaterialTextureSlotsToMesh(tMesh, indexFrame, indexSubset, tSlots)
+    if type(tSlots) ~= 'table' then
+        return true
+    end
+    for _, slotName in ipairs(tMaterialTextureSlotNames) do
+        local textureName = tSlots[slotName]
+        if type(textureName) == 'string' and textureName ~= '' then
+            local ok = tMesh:setMaterialTexture(indexFrame, indexSubset, slotName, textureName)
+            if not ok then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+local function framePartHas3dData(tPart)
+    if not tPart or not tPart.tShape then
+        return false, false
+    end
+    local hasZ = false
+    local hasNormal = false
+    local tVertex = tPart.tShape.vertex or {}
+    for i = 1, #tVertex do
+        if tVertex[i].z and math.abs(tVertex[i].z) > 0.000001 then
+            hasZ = true
+            break
+        end
+    end
+    local tNormal = tPart.tShape.normal or {}
+    for i = 1, #tNormal do
+        local n = tNormal[i]
+        if n and (math.abs(n.x or 0) > 0.000001 or math.abs(n.y or 0) > 0.000001 or math.abs(n.z or 0) > 0.000001) then
+            hasNormal = true
+            break
+        end
+    end
+    return hasZ, hasNormal
+end
+
+local function spriteFrameDataNeedsStride3()
+    local hasAnyZ = false
+    local hasAnyNormal = false
+    for i = 1, #tFrameList do
+        local tFrame = tFrameList[i]
+        local hasZ, hasNormal = framePartHas3dData(tFrame)
+        hasAnyZ = hasAnyZ or hasZ
+        hasAnyNormal = hasAnyNormal or hasNormal
+        for j = 1, #tFrame.tSubsetList do
+            hasZ, hasNormal = framePartHas3dData(tFrame.tSubsetList[j])
+            hasAnyZ = hasAnyZ or hasZ
+            hasAnyNormal = hasAnyNormal or hasNormal
+        end
+    end
+    return hasAnyZ or hasAnyNormal, hasAnyNormal
+end
+
+local function syncSaveBinaryStrideFromCurrentFrames()
+    local needsStride3 = spriteFrameDataNeedsStride3()
+    if needsStride3 then
+        tSaveBinaryOptions.stride = 3
+        tSaveBinaryOptions.indexStride = 2
     end
 end
 
@@ -595,20 +690,24 @@ function onSaveSprite(fileName)
                                     v  = uv[i].v,
                                 }
             if stride == 3 then
-                single_vertex.z = vertex[i].z
+                single_vertex.z = vertex[i].z or 0
+                if type(normal) == 'table' and normal[i] then
+                    single_vertex.nx = normal[i].x or 0
+                    single_vertex.ny = normal[i].y or 0
+                    single_vertex.nz = normal[i].z or 0
+                end
             end
             table.insert(vertex_array,single_vertex)
         end
         return vertex_array
     end
 
-    --meshDebug is used to create dynamically mesh in the engine.
-    --For sprite it has to have at least one frame to be able to generate the sprite
-    -- Force 2D stride so normals are not written to the binary
-    local stride      = 2
+    syncSaveBinaryStrideFromCurrentFrames()
+    local preserveStride3, preserveNormals = spriteFrameDataNeedsStride3()
+    local stride      = (tSaveBinaryOptions.stride == 3 or preserveStride3) and 3 or 2
     local tMesh       = meshDebug:new() --new mesh debug to store the information about our sprite
-    tMesh:enableNormal(false) -- do not store normals in the binary
-    tMesh:setStride(stride)   -- ensure frames use stride 2
+    tMesh:enableNormal(stride == 3 and preserveNormals)
+    tMesh:setStride(stride)
     
     --First we must add the frames
     for i = 1, #tFrameList do
@@ -643,8 +742,9 @@ function onSaveSprite(fileName)
         end
     end
     
-    --Strip any normals that might still be attached
-    tMesh:removeNormals()
+    if not (stride == 3 and preserveNormals) then
+        tMesh:removeNormals()
+    end
 
     --Then we add the index buffer and set the texture
     for indexFrame = 1, #tFrameList do
@@ -659,6 +759,11 @@ function onSaveSprite(fileName)
         --apply the texture to frame
         if not tMesh:setTexture(indexFrame,indexSubset,tTexture.base_file_name) then
             print('error', "Error on set texture!")
+            tUtil.showMessageWarn(tLang.L("error_set_texture"))
+            return false
+        end
+        if not applyMaterialTextureSlotsToMesh(tMesh, indexFrame, indexSubset, tFrame.tMaterialTextureSlots) then
+            print('error', "Error on set material texture slot!", indexFrame, indexSubset)
             tUtil.showMessageWarn(tLang.L("error_set_texture"))
             return false
         end
@@ -677,6 +782,11 @@ function onSaveSprite(fileName)
             --apply the texture to subset
             if not tMesh:setTexture(indexFrame,indexSubset,tTexture.base_file_name) then
                 print('error', "Error on set texture to subset!",i,j)
+                tUtil.showMessageWarn(tLang.L("error_set_texture_subset"))
+                return false
+            end
+            if not applyMaterialTextureSlotsToMesh(tMesh, indexFrame, indexSubset, tSubsetFrame.tMaterialTextureSlots) then
+                print('error', "Error on set material texture slot to subset!", indexFrame, indexSubset)
                 tUtil.showMessageWarn(tLang.L("error_set_texture_subset"))
                 return false
             end
@@ -1034,7 +1144,6 @@ function onRenderShape(self,vertex,uv,index_read_only)
         end
         self.uv_bkp = uv_bkp
     end
-    self.normal = nil  -- SHAPE_MESH no longer provides normals
     self.index_read_only = index_read_only
     if self.index_buffer_edit == nil then
         self.index_buffer_edit = {}
@@ -1128,6 +1237,17 @@ local function copyVertexList(tVertex)
     return tOut
 end
 
+local function copyNormalList(tNormal)
+    local tOut = {}
+    if type(tNormal) == 'table' then
+        for i=1, #tNormal do
+            local n = tNormal[i]
+            tOut[i] = {x = n.x or 0, y = n.y or 0, z = n.z or 0}
+        end
+    end
+    return tOut
+end
+
 local function copyUvList(tUv)
     local tOut = {}
     if type(tUv) == 'table' then
@@ -1158,6 +1278,17 @@ local function rawVertexFromEditor(tVertex)
     return tOut
 end
 
+local function rawNormalFromEditor(tNormal, totalVertex)
+    local tOut = {}
+    for i=1, totalVertex do
+        local n = (type(tNormal) == 'table' and tNormal[i]) or {x = 0, y = 0, z = 0}
+        table.insert(tOut, n.x or 0)
+        table.insert(tOut, n.y or 0)
+        table.insert(tOut, n.z or 0)
+    end
+    return tOut
+end
+
 local function rawUvFromEditor(tUv, totalVertex)
     local tOut = {}
     for i=1, totalVertex do
@@ -1177,7 +1308,7 @@ local function reverseTriangleWinding(tIndex)
     end
 end
 
-local function createShapeFromEditorData(tTexture, tVertex, tUv, tUvBkp, tIndexRender, tIndexEdit, width, height)
+local function createShapeFromEditorData(tTexture, tVertex, tNormal, tUv, tUvBkp, tIndexRender, tIndexEdit, width, height)
     local tShape = shape:new('2dw')
     local nickName = getUniqueNickName()
     local tVertexCopy = copyVertexList(tVertex)
@@ -1197,11 +1328,11 @@ local function createShapeFromEditorData(tTexture, tVertex, tUv, tUvBkp, tIndexR
     tShape:createDynamicIndexed(rawVertexFromEditor(tVertexCopy), tIndexRenderCopy, rawUvFromEditor(tUvCopy, #tVertexCopy), nickName)
     tShape:setTexture(tTexture.file_name)
     tShape.vertex            = tVertexCopy
+    tShape.normal            = copyNormalList(tNormal)
     tShape.uv                = tUvCopy
     tShape.uv_bkp            = tUvBkpCopy
     tShape.index_read_only   = copyNumberList(tIndexRenderCopy)
     tShape.index_buffer_edit = copyNumberList(tIndexEditCopy)
-    tShape.normal            = nil
     tShape.visible           = true
     tShape.bFirstRender      = false
     tShape.bKeepVisibleOnFirstRender = nil
@@ -1216,6 +1347,7 @@ end
 local function rebuildFramePartShape(tPart)
     local tOldShape = tPart.tShape
     local tVertex = copyVertexList(tOldShape.vertex)
+    local tNormal = copyNormalList(tOldShape.normal)
     local tUv = copyUvList(tOldShape.uv)
     local tUvBkp = copyUvList(tOldShape.uv_bkp)
     local tIndexReadOnly = copyNumberList(tOldShape.index_read_only)
@@ -1228,6 +1360,7 @@ local function rebuildFramePartShape(tPart)
     end
     local tShape = createShapeFromEditorData(tPart.tTexture,
                                              tVertex,
+                                             tNormal,
                                              tUv,
                                              tUvBkp,
                                              tIndexReadOnly,
@@ -1248,10 +1381,12 @@ local function cloneFramePart(tPart)
         end
     end
     tClone.tTexture = tPart.tTexture
+    tClone.tMaterialTextureSlots = cloneMaterialTextureSlots(tPart.tMaterialTextureSlots)
     tClone.tPivot = {x = tPart.tPivot.x, y = tPart.tPivot.y}
     tClone.tSubsetList = {}
     tClone.tShape = createShapeFromEditorData(tClone.tTexture,
                                               tShape.vertex,
+                                              tShape.normal,
                                               tShape.uv,
                                               tShape.uv_bkp,
                                               tShape.index_read_only,
@@ -4618,6 +4753,7 @@ function newFrameFromFrameAddOptions(tTexture)
     tFrame.width        = tTexture.width
     tFrame.height       = tTexture.height
     tFrame.tSubsetList  = {}
+    tFrame.tMaterialTextureSlots = {}
     tFrame.tPivot       = {x = 0, y = 0}
     tFrame.tShape       = newShape(tFrame.type,tTexture,tTexture.width,tTexture.height,tFrame.iNumElements)
     return tFrame
@@ -4652,6 +4788,7 @@ function newRectFrameFromFrameAddOptions(tTexture,tMin,tMax)
         end
     end
     tFrame.tSubsetList           = {}
+    tFrame.tMaterialTextureSlots = {}
     tFrame.tPivot                = {x = 0, y = 0}
     tFrame.tShape                = newRectShape(tTexture,tFrame.width,tFrame.height,tFrame.iNumElements,tMin,tMax)
     return tFrame
@@ -4665,6 +4802,7 @@ function newPrimitiveFrameFromFrameAddOptions(tTexture,width,height)
     tFrame.iNumElements                       = tFrameAddOptions.iNumElements
     tFrame.tTexture                           = tTexture
     tFrame.tSubsetList                        = {}
+    tFrame.tMaterialTextureSlots              = {}
     tFrame.tPivot                             = {x = 0, y = 0}
     tFrame.tShape,tFrame.width,tFrame.height  = newPrimitiveShape(tTexture,tVertexEdited,width,height)
     return tFrame
@@ -4723,6 +4861,7 @@ local function newSpriterFramePart(tPart, tTexture, width, height)
         width        = width,
         height       = height,
         tSubsetList  = {},
+        tMaterialTextureSlots = {},
         tPivot       = {x = 0, y = 0},
         bCompositeFrame = true,
         tShape       = newSpriterShape(tPart, tTexture),
@@ -4868,19 +5007,26 @@ local function makeBinarySpriteShape(tMesh, indexFrame, indexSubset, tTexture)
     local tVertexRaw = {}
     local tUvRaw = {}
     local tVertex = {}
+    local tNormal = {}
     local tUv = {}
     local minX, maxX, minY, maxY
+    local hasNormal = false
     for i=1, #tVertexInfo do
         local v = tVertexInfo[i]
         local x = v.x or 0
         local y = v.y or 0
+        local z = v.z or 0
         local u = v.u or 0
         local vv = v.v or 0
         table.insert(tVertexRaw, x)
         table.insert(tVertexRaw, y)
         table.insert(tUvRaw, u)
         table.insert(tUvRaw, vv)
-        table.insert(tVertex, {x = x, y = y})
+        table.insert(tVertex, {x = x, y = y, z = z})
+        tNormal[i] = {x = v.nx or 0, y = v.ny or 0, z = v.nz or 0}
+        if math.abs(tNormal[i].x) > 0.000001 or math.abs(tNormal[i].y) > 0.000001 or math.abs(tNormal[i].z) > 0.000001 then
+            hasNormal = true
+        end
         table.insert(tUv, {u = u, v = vv})
         minX = minX and math.min(minX, x) or x
         maxX = maxX and math.max(maxX, x) or x
@@ -4902,7 +5048,7 @@ local function makeBinarySpriteShape(tMesh, indexFrame, indexSubset, tTexture)
     tShape.uv_bkp            = makeSpriterUvTable(tUvRaw)
     tShape.index_read_only   = copyIndexList(tIndex)
     tShape.index_buffer_edit = copyIndexList(tIndex)
-    tShape.normal            = nil
+    tShape.normal            = hasNormal and tNormal or nil
     tShape.visible           = true
     tShape.bFirstRender      = true
     tShape:onRender(onRenderShape)
@@ -4930,6 +5076,7 @@ local function newBinarySpriteFramePart(tMesh, indexFrame, indexSubset, tTexture
         width        = width,
         height       = height,
         tSubsetList  = {},
+        tMaterialTextureSlots = getMaterialTextureSlotsFromMesh(tMesh, indexFrame, indexSubset),
         tPivot       = {x = 0, y = 0},
         bCompositeFrame = true,
         tShape       = tShape,
@@ -4943,6 +5090,10 @@ local function applyBinarySpriteDrawOptions(tMesh, tInfo)
     tSaveBinaryOptions.indexModeDraw = findOptionIndex(tSaveBinaryOptions.tModeDrawList, modeDraw, tSaveBinaryOptions.indexModeDraw)
     tSaveBinaryOptions.indexCullFace = findOptionIndex(tSaveBinaryOptions.tCullFaceList, modeCullFace, tSaveBinaryOptions.indexCullFace)
     tSaveBinaryOptions.indexFrontFace = findOptionIndex(tSaveBinaryOptions.tFrontFaceList, modeFrontFace, tSaveBinaryOptions.indexFrontFace)
+    if tInfo and tInfo.hasNormal then
+        tSaveBinaryOptions.stride = 3
+        tSaveBinaryOptions.indexStride = 2
+    end
 end
 
 function onImportBinarySprite()
@@ -5027,6 +5178,7 @@ function onImportBinarySprite()
     end
 
     applyBinarySpriteDrawOptions(tMesh, tInfo)
+    syncSaveBinaryStrideFromCurrentFrames()
 
     local totalAnimations = (tInfo and tInfo.animation) or 0
     for i=1, totalAnimations do
@@ -5241,6 +5393,7 @@ function onOpenSprite()
             end
         end
         sLastEditorFileName = file_name
+        syncSaveBinaryStrideFromCurrentFrames()
         bShowAddFrameOnceWhenSelectedTexture = true
         tUtil.showMessage('Sprite Editor Loaded!')
     end
