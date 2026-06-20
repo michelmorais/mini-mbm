@@ -590,6 +590,37 @@ Default MSL generation should:
 - Mesh/vertex normals remain useful for `3d` lighting and asset/tooling, but they are currently
   informational only for the shipped `2dw` lighting path.
 
+### Milestone 8.5: Texture role and shader naming cleanup
+
+- Introduce semantic engine texture roles before multi-light work expands shader/backend binding
+  state.
+- Keep texture ownership separate from backend binding slots:
+  - `TextureDiffuse`: primary per-frame/per-subset texture.
+  - `TextureAnimationEffect`: per-animation shader-effect texture currently stored through the
+    legacy `fileNameTextureStage2` / `textureOverrideStage2` path.
+  - `TextureNormal`: per-frame/per-subset material normal-map texture.
+  - `TextureSpecular`, `TextureEmissive`, and `TextureMask`: known/reserved material texture roles
+    until their runtime binding and shader behavior are implemented.
+- Do not move `TextureAnimationEffect` into material texture slots. It is animation-effect state,
+  not surface material state.
+- Make semantic texture names the default for new engine-generated and built-in shaders.
+- Keep legacy `sample0`, `sample1`, and `sample2` only as a compatibility shader naming profile.
+- Reject shaders that mix legacy texture names and semantic texture role names in the same source.
+- Auto-detect shader texture naming profile from source, with an optional CFG declaration such as
+  `[shader.ps][textureNaming] = semantic|legacy|none` for validation.
+- Treat the optional CFG texture-naming declaration as a validation contract, not as a silent
+  rewrite switch.
+- First implementation keeps physical backend slots unchanged while centralizing the role mapping:
+  - `TextureDiffuse` -> slot/register/index `0`.
+  - `TextureAnimationEffect` -> slot/register/index `1`.
+  - `TextureNormal` -> slot/register/index `2`.
+- Bind role-specific fallback textures for supported missing roles:
+  - missing `TextureDiffuse` -> white texture.
+  - missing `TextureAnimationEffect` -> white texture.
+  - missing `TextureNormal` -> flat normal texture `(0.5, 0.5, 1.0, 1.0)`.
+- Fail clearly if a shader declares reserved-but-not-runtime-complete roles such as
+  `TextureSpecular`, `TextureEmissive`, or `TextureMask` before their binding path exists.
+
 ### Milestone 9: Multi-light design
 
 - Add multi-light support only after one-light validation is complete on OpenGL ES, DirectX 9, and
@@ -806,6 +837,47 @@ Ask and resolve these before implementation:
 10. Should normal maps use texture stage 1?
    Resolved: no. Stage 1 is already occupied by FX. Normal maps need explicit material texture
    slots and may require a new MBM header version.
+
+10a. Should the legacy FX texture become a material texture slot?
+   Resolved: no. The old stage-1/`sample1` texture is per-animation shader-effect state, not
+   per-subset material state. Name the semantic role `TextureAnimationEffect` and keep material
+   slots for surface data such as diffuse, normal, specular, emissive, and mask.
+
+10b. Should new shaders keep public names such as `sample0`, `sample1`, and `sample2`?
+   Resolved: no for new engine-generated and built-in shaders. Use semantic names such as
+   `TextureDiffuse`, `TextureAnimationEffect`, and `TextureNormal`. Keep `sample0`/`sample1`/
+   `sample2` as a legacy compatibility profile for existing custom shaders.
+
+10c. Can a shader mix legacy sample names and semantic texture role names?
+   Resolved: no. Detect mixed naming in the same shader source and fail with a clear error. A shader
+   must use one texture naming profile only.
+
+10d. Should the first role-based implementation change physical backend slots?
+   Resolved: no. Keep the first mapping compatible while centralizing it behind semantic roles:
+   `TextureDiffuse` uses slot `0`, `TextureAnimationEffect` uses slot `1`, and `TextureNormal` uses
+   slot `2`.
+
+10e. Should shader texture naming profile be explicit or auto-detected?
+   Resolved: auto-detect from shader source first. Add an optional CFG declaration such as
+   `[shader.ps][textureNaming] = semantic|legacy|none` as a validation contract. If declaration and
+   source disagree, fail clearly.
+
+10f. Should arbitrary custom semantic texture roles be allowed?
+   Resolved: no. Accept only known engine roles until the engine has ownership, binding, editor, and
+   serialization semantics for additional roles.
+
+10g. Which semantic texture roles are known initially?
+   Resolved: `TextureDiffuse`, `TextureAnimationEffect`, `TextureNormal`, `TextureSpecular`,
+   `TextureEmissive`, and `TextureMask`.
+
+10h. Which semantic texture roles are bindable in the first pass?
+   Resolved: bind `TextureDiffuse`, `TextureAnimationEffect`, and `TextureNormal`. Recognize and
+   reserve `TextureSpecular`, `TextureEmissive`, and `TextureMask`, but fail if a shader declares
+   them before their runtime binding path exists.
+
+10i. What fallback textures should supported semantic roles use?
+   Resolved: missing `TextureDiffuse` and `TextureAnimationEffect` bind a white texture. Missing
+   `TextureNormal` binds a flat normal texture `(0.5, 0.5, 1.0, 1.0)`.
 
 11. Should the light API use a boolean `is3d` target?
    Resolved: no. Use an explicit target/mode such as `LIGHT_TARGET_3D` in C++ and `'3d'` in Lua,
