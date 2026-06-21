@@ -564,19 +564,10 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                           " constant float4& MaterialEmissive [[buffer(12)]],"
                           " constant int& LightMode [[buffer(14)]],"
                           " constant int& HasNormalMap [[buffer(17)]]"];
-        if (hasNor)
-        {
-            [src appendString:@", constant float4& LightColor [[buffer(8)]],"
-                              " constant float3& LightPositionView [[buffer(15)]],"
-                              " constant float& LightRadius [[buffer(16)]]"];
-        }
-        else
-        {
-            [src appendString:@", constant float4* LightColor [[buffer(8)]],"
-                              " constant float3* LightPositionView [[buffer(15)]],"
-                              " constant float* LightRadius [[buffer(16)]],"
-                              " constant int& LightCount [[buffer(5)]]"];
-        }
+        [src appendString:@", constant float4* LightColor [[buffer(8)]],"
+                          " constant float3* LightPositionView [[buffer(15)]],"
+                          " constant float* LightRadius [[buffer(16)]],"
+                          " constant int& LightCount [[buffer(5)]]"];
         [src appendFormat:@") {\n  float4 texColor = %s.sample(samp, in.uv) * u.color;\n",
                           textureDiffuseName];
         [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
@@ -588,7 +579,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                               "    float3 normalView = normalize(in.nor);\n"
                               "    float3 lightTravel = normalize(LightDirectionView);\n"
                               "    float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
-                              "    light += LightColor.rgb * diffuse;\n"
+                              "    light += LightColor[0].rgb * diffuse;\n"
                               "  } else {\n"];
         }
         else
