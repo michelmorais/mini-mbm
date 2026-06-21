@@ -2,7 +2,7 @@
 --------------------------------------------------------------------------------
 | mini-mbm manual scene: multi-light 2dw validation                            |
 |                                                                              |
-| Preferred asset: enemy-1-normal_map_plus_normals.spt                         |
+| Preferred asset: src/test-lib/box.spt                                        |
 | Fallback asset in this repo: src/test-lib/box.spt                            |
 |                                                                              |
 | Run with:                                                                    |
@@ -15,14 +15,14 @@ if script_dir then
     mbm.addPath(script_dir)
     mbm.addPath(script_dir .. "/../../src/test-lib")
 end
+mbm.addPath("/home/michel/mini-mbm/src/test-lib")
 local color = {r=37/255,g=37/255,b=37/255}
 mbm.setColor(color.r,color.g,color.b)
 
 local TARGET = "2dw"
-local PREFERRED_SPRITE = "src/test-lib/monster-sprite.spt"
+local PREFERRED_SPRITE = "box.spt"
 local FALLBACK_SPRITE = "box.spt"
 local MOVE_SPEED = 220
-local SPRITE_HALF_EXTENTS = {x = 96, y = 96, z = 8}
 local LIGHT_MARKER_RADIUS = 12
 local LIGHT_RING_SEGMENTS = 40
 
@@ -40,12 +40,12 @@ local KEY_SPACE = 0
 local last_selection_signature = ""
 local last_report_time = 0
 
+local EQUAL_LIGHT_COLOR = {r = 1.0, g = 1.0, b = 1.0, a = 1.0}
 local lights = {
-    {position = {x = 0, y = 0, z = 180}, radius = 320, color = {r = 1.0, g = 1.0, b = 1.0, a = 1.0}},
-    {position = {x = -260, y = 120, z = 180}, radius = 280, color = {r = 1.0, g = 0.2, b = 0.2, a = 1.0}},
-    {position = {x = 240, y = 140, z = 180}, radius = 240, color = {r = 0.2, g = 1.0, b = 0.2, a = 1.0}},
-    {position = {x = -120, y = -180, z = 180}, radius = 260, color = {r = 0.2, g = 0.5, b = 1.0, a = 1.0}},
-    {position = {x = 320, y = -120, z = 180}, radius = 320, color = {r = 1.0, g = 0.9, b = 0.2, a = 1.0}},
+    {position = {x = -220, y = -220, z = 10}, radius = 360, color = EQUAL_LIGHT_COLOR},
+    {position = {x = 220,  y = -220, z = 10}, radius = 360, color = EQUAL_LIGHT_COLOR},
+    {position = {x = -220, y =  220, z = 10}, radius = 360, color = EQUAL_LIGHT_COLOR},
+    {position = {x = 220,  y =  220, z = 10}, radius = 360, color = EQUAL_LIGHT_COLOR},
 }
 
 local function clamp01(value)
@@ -119,6 +119,27 @@ local function get_sprite_center()
     }
 end
 
+local function get_sprite_half_extents()
+    if not sprite_test or not sprite_test.getSize then
+        return {x = 96, y = 96, z = 8}
+    end
+
+    local width, height, depth = sprite_test:getSize(true)
+    width = tonumber(width) or 0
+    height = tonumber(height) or 0
+    depth = tonumber(depth) or 0
+
+    if width <= 0 and height <= 0 and depth <= 0 then
+        return {x = 96, y = 96, z = 8}
+    end
+
+    return {
+        x = math.max(width * 0.5, 0.0),
+        y = math.max(height * 0.5, 0.0),
+        z = math.max(depth * 0.5, 0.0),
+    }
+end
+
 local function get_selection_signature(selected)
     local parts = {}
     for i = 1, #selected do
@@ -131,20 +152,27 @@ local function report_selected_lights(reason)
     if not sprite_test then
         return
     end
-    local selected = mbm.getSelectedPointLights(TARGET, get_sprite_center(), SPRITE_HALF_EXTENTS)
+    local selected = mbm.getSelectedPointLights(TARGET, get_sprite_center(), get_sprite_half_extents())
     local summary = {}
     for i = 1, #selected do
         local entry = selected[i]
         local color = entry.color or (entry.pointLight and entry.pointLight.color) or {r = 0, g = 0, b = 0}
         local radius = entry.radius or (entry.pointLight and entry.pointLight.radius) or 0
         local inside_center = entry.distanceToObjectCenter <= radius and "yes" or "no"
+        local center_attenuation = 0
+        if radius > 0 then
+            local ratio = math.min(entry.distanceToObjectCenter / radius, 1.0)
+            center_attenuation = (1.0 - ratio)
+            center_attenuation = center_attenuation * center_attenuation
+        end
         summary[#summary + 1] = string.format(
-            "#%d src=%d dist=%.2f radius=%.2f inside-center=%s color=(%.2f,%.2f,%.2f)",
+            "#%d src=%d dist=%.2f radius=%.2f inside-center=%s center-atten=%.3f color=(%.2f,%.2f,%.2f)",
             i,
             entry.sourceIndex,
             entry.distanceToObjectCenter,
             radius,
             inside_center,
+            center_attenuation,
             color.r,
             color.g,
             color.b)
@@ -156,9 +184,9 @@ end
 
 local function configure_lights()
     local supported = mbm.getSupportedMaxLights(TARGET)
-    local requested = math.min(3, supported)
+    local requested = math.min(#lights, supported)
     mbm.setLightEnabled(TARGET, true)
-    mbm.setAmbientLight(TARGET, {r = 0.08, g = 0.08, b = 0.10, a = 1.0})
+    mbm.setAmbientLight(TARGET, {r = 0.10, g = 0.10, b = 0.12, a = 1.0})
     mbm.setRequestedMaxLights(TARGET, requested)
     mbm.setLightSelectionMode(TARGET, "per_object_nearest")
     mbm.clearPointLights(TARGET)
@@ -167,7 +195,7 @@ local function configure_lights()
         mbm.addPointLight(TARGET, light.position, light.radius, light.color)
     end
     print("info", "green",
-          string.format("2dw supported=%d requested=%d totalPointLights=%d", supported, requested, #lights))
+          string.format("2dw supported=%d requested=%d totalPointLights=%d mode=equal-power", supported, requested, #lights))
 end
 
 function onInitScene()
@@ -199,6 +227,7 @@ function onInitScene()
 
     print("info", "yellow", string.format("Loaded sprite %s (%s)", sprite_file, full_path or "path unresolved"))
     print("info", "yellow", "Use arrow keys to move the sprite. Press SPACE to dump selected point lights.")
+    print("info", "yellow", "This scene uses four matched white lights for balance testing.")
     report_selected_lights("init")
 end
 
@@ -215,7 +244,7 @@ function onLoop(delta)
     last_report_time = last_report_time + delta
     if last_report_time >= 0.20 then
         last_report_time = 0
-        local selected = mbm.getSelectedPointLights(TARGET, get_sprite_center(), SPRITE_HALF_EXTENTS)
+        local selected = mbm.getSelectedPointLights(TARGET, get_sprite_center(), get_sprite_half_extents())
         local signature = get_selection_signature(selected)
         if signature ~= last_selection_signature then
             report_selected_lights("selection changed")
