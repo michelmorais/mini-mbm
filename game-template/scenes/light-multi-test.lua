@@ -15,7 +15,12 @@ if script_dir then
     mbm.addPath(script_dir)
     mbm.addPath(script_dir .. "/../../src/test-lib")
 end
-mbm.addPath("/home/michel/mini-mbm/src/test-lib")
+if mbm.is("windows") then
+    mbm.addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib")
+elseif mbm.is("linux") then
+    mbm.addPath("/home/michel/mini-mbm/src/test-lib")
+end
+
 local color = {r=37/255,g=37/255,b=37/255}
 mbm.setColor(color.r,color.g,color.b)
 
