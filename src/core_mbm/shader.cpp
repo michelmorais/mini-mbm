@@ -23,7 +23,6 @@
 #include <header-mesh.h>
 #include <texture-manager.h>
 #include <draw-compatibility.h>
-
 #include <cctype>
 #include <cstring>
 #include <initializer_list>
@@ -329,9 +328,11 @@ namespace mbm
     struct SHADER::BackendData
     {
         void *shaderSpecific;
+        bool useReservedLightDefault;
 
         BackendData() noexcept :
-            shaderSpecific(nullptr)
+            shaderSpecific(nullptr),
+            useReservedLightDefault(false)
         {
         }
     };
@@ -449,6 +450,25 @@ namespace mbm
             this->pShader->update(backendShaderSpecific);
         if (this->vShader)
             this->vShader->update(backendShaderSpecific);
+    }
+
+    bool SHADER::usesPureDefaultShaderPair() const noexcept
+    {
+        return this->pShader == nullptr && this->vShader == nullptr;
+    }
+
+    bool SHADER::shouldCompileReservedLightDefault() const noexcept
+    {
+        return this->usesPureDefaultShaderPair() && backendData && backendData->useReservedLightDefault;
+    }
+
+    void SHADER::setUseReservedLightDefault(const bool enabled) noexcept
+    {
+        if (!backendData)
+        {
+            backendData.reset(new BackendData());
+        }
+        backendData->useReservedLightDefault = enabled;
     }
 
     void * SHADER::getBackendShaderSpecific() const noexcept

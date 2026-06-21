@@ -994,6 +994,7 @@ namespace mbm
         this->vShader             = ptrVshader;
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
         const char *textureDiffuseName =
             getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
         const char *textureNormalName =
@@ -1003,88 +1004,102 @@ namespace mbm
         const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
         if (hasUV)
         {
-            defaultCodePs = "";
-            defaultCodePs += "int LightEnabled;"
-                "int LightMode;"
-                "int HasNormalMap;"
-                "float4 AmbientColor;"
-                "float3 LightDirectionView;"
-                "float4 LightColor[";
-            defaultCodePs += supportedMaxLights;
-            defaultCodePs += "];";
-            defaultCodePs += "float4 MaterialDiffuse;"
-                "float4 MaterialAmbient;"
-                "float4 MaterialEmissive;"
-                "float3 LightPositionView[";
-            defaultCodePs += supportedMaxLights;
-            defaultCodePs += "];"
-                "float LightRadius[";
-            defaultCodePs += supportedMaxLights;
-            defaultCodePs += "];"
-                "int LightCount;";
-            defaultCodePs += "sampler2D ";
+            defaultCodePs = "sampler2D ";
             defaultCodePs += textureDiffuseName;
             defaultCodePs += " : register(s0);"
-                "sampler2D ";
-            defaultCodePs += textureNormalName;
-            defaultCodePs += " : register(s2);"
-                "float4 main(";
-            if (hasNormal)
+                "float4 main(float2 texCoord : TEXCOORD0";
+            if (useReservedLightScaffolding)
             {
-                defaultCodePs += "float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2";
+                defaultCodePs = "";
+                defaultCodePs += "int LightEnabled;"
+                    "int LightMode;"
+                    "int HasNormalMap;"
+                    "float4 AmbientColor;"
+                    "float3 LightDirectionView;"
+                    "float4 LightColor[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];";
+                defaultCodePs += "float4 MaterialDiffuse;"
+                    "float4 MaterialAmbient;"
+                    "float4 MaterialEmissive;"
+                    "float3 LightPositionView[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "float LightRadius[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "int LightCount;";
+                defaultCodePs += "sampler2D ";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += " : register(s0);"
+                    "sampler2D ";
+                defaultCodePs += textureNormalName;
+                defaultCodePs += " : register(s2);"
+                    "float4 main(";
+                if (hasNormal)
+                {
+                    defaultCodePs += "float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2";
+                }
+                else
+                {
+                    defaultCodePs += "float2 texCoord : TEXCOORD0, float3 positionViewIn : TEXCOORD1";
+                }
+                defaultCodePs += ") : COLOR"
+                    "{ float4 texColor = tex2D(";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += ", texCoord);";
+                defaultCodePs += " if (LightEnabled == 0 || LightMode == 0) return texColor;"
+                    " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
+                    " float3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
+                if (hasNormal)
+                {
+                    defaultCodePs += " if (LightMode == 1) {"
+                        "  float3 normalView = normalize(normalViewIn);"
+                        "  float3 lightTravel = normalize(LightDirectionView);"
+                        "  float diffuse = max(dot(normalView, -lightTravel), 0);"
+                        "  light += LightColor[0].rgb * diffuse;"
+                        " } else ";
+                }
+                else
+                {
+                    defaultCodePs += " if (LightMode == 2) ";
+                }
+                defaultCodePs += "{"
+                    "  float3 normalView = float3(0, 0, 1);"
+                    "  if (HasNormalMap != 0) normalView = normalize((tex2D(";
+                defaultCodePs += textureNormalName;
+                defaultCodePs += ", texCoord).xyz * 2.0f) - 1.0f);"
+                    "  for (int i = 0; i < ";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "; ++i) {"
+                    "   if (i >= LightCount) break;"
+                    "   float3 toLight = LightPositionView[i] - positionViewIn;"
+                    "   float dist = length(toLight);"
+                    "   if (LightRadius[i] > 0.0001f) {"
+                    "    float3 lightDir = toLight / max(dist, 0.0001f);"
+                    "    float diffuse = max(dot(normalView, lightDir), 0);"
+                    "    float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
+                    "    attenuation *= attenuation;"
+                    "    light += LightColor[i].rgb * diffuse * attenuation;"
+                    "   }"
+                    "  }"
+                    " }"
+                    " float3 litColor = saturate((base * saturate(light)) + MaterialEmissive.rgb);"
+                    " return float4(litColor, texColor.a * MaterialDiffuse.a);";
+                defaultCodePs += " }";
             }
             else
             {
-                defaultCodePs += "float2 texCoord : TEXCOORD0, float3 positionViewIn : TEXCOORD1";
+                defaultCodePs += ") : COLOR"
+                    "{ return tex2D(";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += ", texCoord); }";
             }
-            defaultCodePs += ") : COLOR"
-                "{ float4 texColor = tex2D(";
-            defaultCodePs += textureDiffuseName;
-            defaultCodePs += ", texCoord);";
-            defaultCodePs += " if (LightEnabled == 0 || LightMode == 0) return texColor;"
-                " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
-                " float3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
-            if (hasNormal)
-            {
-                defaultCodePs += " if (LightMode == 1) {"
-                    "  float3 normalView = normalize(normalViewIn);"
-                    "  float3 lightTravel = normalize(LightDirectionView);"
-                    "  float diffuse = max(dot(normalView, -lightTravel), 0);"
-                    "  light += LightColor[0].rgb * diffuse;"
-                    " } else ";
-            }
-            else
-            {
-                defaultCodePs += " if (LightMode == 2) ";
-            }
-            defaultCodePs += "{"
-                "  float3 normalView = float3(0, 0, 1);"
-                "  if (HasNormalMap != 0) normalView = normalize((tex2D(";
-            defaultCodePs += textureNormalName;
-            defaultCodePs += ", texCoord).xyz * 2.0f) - 1.0f);"
-                "  for (int i = 0; i < ";
-            defaultCodePs += supportedMaxLights;
-            defaultCodePs += "; ++i) {"
-                "   if (i >= LightCount) break;"
-                "   float3 toLight = LightPositionView[i] - positionViewIn;"
-                "   float dist = length(toLight);"
-                "   if (LightRadius[i] > 0.0001f) {"
-                "    float3 lightDir = toLight / max(dist, 0.0001f);"
-                "    float diffuse = max(dot(normalView, lightDir), 0);"
-                "    float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
-                "    attenuation *= attenuation;"
-                "    light += LightColor[i].rgb * diffuse * attenuation;"
-                "   }"
-                "  }"
-                " }"
-                " float3 litColor = saturate((base * saturate(light)) + MaterialEmissive.rgb);"
-                " return float4(litColor, texColor.a * MaterialDiffuse.a);";
-            defaultCodePs += " }";
         }
         else
         {
             defaultCodePs = "";
-            if (hasNormal)
+            if (hasNormal && useReservedLightScaffolding)
             {
                 defaultCodePs += "int LightEnabled;"
                     "int LightMode;"
@@ -1096,13 +1111,13 @@ namespace mbm
                     "float4 MaterialEmissive;";
             }
             defaultCodePs += "float4 main(";
-            if (hasNormal)
+            if (hasNormal && useReservedLightScaffolding)
             {
                 defaultCodePs += "float3 normalViewIn : TEXCOORD1";
             }
             defaultCodePs += ") : COLOR"
                 "{ float4 baseColor = float4(1,1,1,1);";
-            if (hasNormal)
+            if (hasNormal && useReservedLightScaffolding)
             {
                 defaultCodePs += " if (LightEnabled == 0 || LightMode != 1) return baseColor;"
                     " float3 normalView = normalize(normalViewIn);"
@@ -1121,7 +1136,7 @@ namespace mbm
         }
 
         std::string defaultCodeVs = "float4x4 mvpMatrix : register(c0);";
-        if (hasNormal || hasUV) defaultCodeVs += "float4x4 mvMatrix;";
+        if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += "float4x4 mvMatrix;";
         defaultCodeVs +=
             "struct VS_INPUT { float4 position : POSITION;";
         if (hasNormal) defaultCodeVs += " float3 normal : NORMAL;";
@@ -1129,15 +1144,15 @@ namespace mbm
         defaultCodeVs += " };"
             "struct VS_OUTPUT { float4 position : POSITION;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
-        if (hasNormal) defaultCodeVs += " float3 normalView : TEXCOORD1;";
-        if (hasUV && hasNormal) defaultCodeVs += " float3 positionView : TEXCOORD2;";
-        else if (hasUV) defaultCodeVs += " float3 positionView : TEXCOORD1;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 normalView : TEXCOORD1;";
+        if (hasUV && hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD2;";
+        else if (hasUV && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD1;";
         defaultCodeVs += " };"
             "VS_OUTPUT main(VS_INPUT input)"
             "{ VS_OUTPUT output; output.position = mul(input.position, mvpMatrix);";
         if (hasUV) defaultCodeVs += " output.texCoord = input.texCoord;";
-        if (hasNormal) defaultCodeVs += " output.normalView = mul(float4(input.normal, 0), mvMatrix).xyz;";
-        if (hasUV) defaultCodeVs += " output.positionView = mul(input.position, mvMatrix).xyz;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " output.normalView = mul(float4(input.normal, 0), mvMatrix).xyz;";
+        if (hasUV && useReservedLightScaffolding) defaultCodeVs += " output.positionView = mul(input.position, mvMatrix).xyz;";
         defaultCodeVs += " return output; }";
 
         constexpr const char* mainFunction = "main";

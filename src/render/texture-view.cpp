@@ -68,6 +68,8 @@ namespace mbm
         auto anim = new mbm::ANIMATION();
         this->appendAnimation(anim);
         FX &fx = anim->getFx();
+        fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+        fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
         if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         return true;
