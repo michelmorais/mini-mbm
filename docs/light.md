@@ -141,9 +141,8 @@ mbm.setDirectionalLight('3d',
 local light = mbm.getLightState('3d')
 ```
 
-Lua target strings are exact: only `'3d'` and `'2dw'` are accepted for now. The `2dw` state is
-accepted and stored, but dedicated 2D lighting rendering is not implemented yet; enabling `2dw`
-lighting logs that status once per scene. New scene loading resets all light state.
+Lua target strings are exact: only `'3d'` and `'2dw'` are accepted for now. Both targets now have
+engine lighting support. New scene loading resets all light state.
 
 Default values:
 
@@ -219,6 +218,30 @@ multi-light upload path is still being added.
 For the Lua selection query, `objectBoundingAABB` is the full object AABB size, not half extents.
 That matches `RENDERIZABLE::getBoundingAABB()`.
 
+The current nearest-light selection algorithm is:
+
+- derive an approximate object radius from the object AABB
+- scan the target point-light list
+- discard lights whose `light.radius + objectRadius` does not reach the object center
+- sort remaining candidates by distance to the object center
+- keep only the nearest validated `N` lights for that draw
+
+This means performance cost is primarily driven by:
+
+- how many objects are using a light-capable shader
+- how many point lights exist on that target
+- the validated max light count
+
+The engine does not maintain a second explicit list of objects that receive light. The shader path
+defines that:
+
+- unlit default shader objects do not consume selected lights
+- lit default shader objects do
+- custom shaders only receive light if they explicitly implement the reserved light inputs
+
+So the nearest-light selection work matters only for draws that actually use a light-capable shader
+path.
+
 ## Reserved Shader Inputs
 
 The engine uploads these reserved light names automatically when the active shader declares them:
@@ -260,11 +283,37 @@ is still a future expansion once that data is threaded through the render path.
 
 ## Default Lit Shader Behavior
 
-Built-in default shaders stay unlit unless the active vertex format provides normals. When normals
-exist and target lighting is enabled, the default shader applies ambient plus directional diffuse
-lighting to RGB using `MaterialDiffuse` and `MaterialAmbient`, and preserves alpha as
-texture-alpha times `MaterialDiffuse.a`. Objects without normals keep their previous unlit output
-even when scene lighting is enabled.
+For renderizables without a custom shader, the built-in default shader is classified at load/compile
+time, per animation/FX:
+
+- `default-unlit`
+- `default-lit`
+
+Classification rule:
+
+- if target lighting is disabled when that default-shader animation is created, it gets the unlit
+  default shader
+- if target lighting is enabled when that default-shader animation is created, it gets the light-
+  capable default shader
+
+This applies to both `3d` and `2dw`.
+
+Important consequences:
+
+- changing `setLightEnabled(target, ...)` later does not reclassify already-loaded default-shader
+  objects
+- a scene may intentionally contain a mix of lit-default and unlit-default objects
+- runtime light enable/disable still affects the uniforms seen by lit-default shaders, but not
+  which shader class was chosen at load time
+
+Custom shaders stay authoritative:
+
+- the engine does not auto-merge lighting into a custom shader
+- if a developer wants custom shader behavior plus engine lighting, that shader must explicitly
+  provide support for the reserved light inputs
+
+When classified as lit, the default shader uses the reserved material/light values described above.
+When classified as unlit, it keeps the cheaper unlit path even if normals or UVs exist.
 
 ## Built-in Lit Shader Resources
 
