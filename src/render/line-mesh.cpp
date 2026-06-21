@@ -379,6 +379,8 @@ namespace mbm
         fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED));
         if (!fx.fxPS->getCurrentShader() || !fx.fxVS->getCurrentShader())
             return false;
+        fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+        fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
         const bool ret = fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer());
         if (!ret)
         {

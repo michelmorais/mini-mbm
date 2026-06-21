@@ -232,6 +232,8 @@ namespace mbm
                 this->appendAnimation(anim);
                 anim->setNameAnimation("unic-anim");
                 FX &fx = anim->getFx();
+                fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+                fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
                 if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                     return false;
             }
@@ -338,6 +340,8 @@ namespace mbm
             this->appendAnimation(anim);
             anim->setNameAnimation("circle");
             FX &fx = anim->getFx();
+            fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+            fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->setInternalFileName(nickName);
@@ -501,6 +505,8 @@ namespace mbm
             this->appendAnimation(anim);
             anim->setNameAnimation("rectangle");
             FX &fx = anim->getFx();
+            fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+            fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->setInternalFileName(nickName);
@@ -593,6 +599,8 @@ namespace mbm
             this->appendAnimation(anim);
             anim->setNameAnimation("triangle");
             FX &fx = anim->getFx();
+            fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+            fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->setInternalFileName(nickName);
@@ -753,6 +761,8 @@ namespace mbm
             this->appendAnimation(anim);
             anim->setNameAnimation("triangle");
             FX &fx = anim->getFx();
+            fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+            fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->setInternalFileName(nickName);
@@ -897,6 +907,8 @@ namespace mbm
             this->mesh->infoPhysics.lsCube.push_back(cube);
             anim->setNameAnimation("unic-anim");
             FX &fx = anim->getFx();
+            fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+            fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->setInternalFileName(nickName);
@@ -1042,6 +1054,8 @@ namespace mbm
             anim->setNameAnimation("unic-anim");
             this->mesh->infoPhysics.lsCube.push_back(cube);
             FX &fx = anim->getFx();
+            fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+            fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
             if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->setInternalFileName(nickName);

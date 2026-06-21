@@ -886,7 +886,8 @@ namespace mbm
         this->vShader            = ptrVshader;
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
-        const bool canUsePointLight2D = (this->vShader == nullptr);
+        const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
+        const bool canUsePointLight2D = useReservedLightScaffolding && (this->vShader == nullptr);
         const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
         const char *textureDiffuseName =
             getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
@@ -900,104 +901,113 @@ namespace mbm
                 "varying vec2 vTexCoord;"
                 "uniform sampler2D ";
             defaultCodePs += textureDiffuseName;
-            defaultCodePs += ";"
-                "uniform int LightEnabled;"
-                "uniform vec4 AmbientColor;"
-                "uniform vec3 LightDirectionView;"
-                "uniform vec4 MaterialDiffuse;"
-                "uniform vec4 MaterialAmbient;"
-                "uniform vec4 MaterialEmissive;";
-            if (canUsePointLight2D == false)
+            defaultCodePs += ";";
+            if (useReservedLightScaffolding == false)
             {
-                defaultCodePs += "uniform vec4 LightColor;";
-            }
-            if (canUsePointLight2D)
-            {
-                defaultCodePs += "varying vec3 vPositionView;"
-                    "uniform sampler2D ";
-                defaultCodePs += textureNormalName;
-                defaultCodePs += ";"
-                    "uniform int LightMode;"
-                    "uniform int HasNormalMap;"
-                    "uniform vec3 LightPositionView[";
-                defaultCodePs += supportedMaxLights;
-                defaultCodePs += "];"
-                    "uniform float LightRadius[";
-                defaultCodePs += supportedMaxLights;
-                defaultCodePs += "];"
-                    "uniform vec4 LightColor[";
-                defaultCodePs += supportedMaxLights;
-                defaultCodePs += "];"
-                    "uniform int LightCount;";
-            }
-            if (hasNormal)
-                defaultCodePs += "varying vec3 vNormalView;";
-            defaultCodePs += "void main() {"
-                " vec4 texColor = texture2D(";
-            defaultCodePs += textureDiffuseName;
-            defaultCodePs += ", vTexCoord);"
-                " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
-                " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
-                " vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
-            if (canUsePointLight2D == false)
-            {
-                if (hasNormal)
-                {
-                    defaultCodePs += " vec3 normalView = normalize(vNormalView);"
-                        " vec3 lightTravel = normalize(LightDirectionView);"
-                        " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                        " light += LightColor[0].rgb * diffuse;";
-                }
-                defaultCodePs += " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
-                    " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
-                    "}";
-            }
-            else if (hasNormal)
-            {
-                defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
-                    " if (LightMode == 1) {"
-                    "  vec3 normalView = normalize(vNormalView);"
-                    "  vec3 lightTravel = normalize(LightDirectionView);"
-                    "  float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                    "  light += LightColor[0].rgb * diffuse;"
-                    " } else ";
+                defaultCodePs += "void main() { gl_FragColor = texture2D(";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += ", vTexCoord); }";
             }
             else
             {
-                defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
-                    " if (LightMode == 2) ";
-            }
-            if (canUsePointLight2D)
-            {
-                defaultCodePs += "{"
-                    "  vec3 normalView = vec3(0.0, 0.0, 1.0);"
-                    "  if (HasNormalMap != 0) normalView = normalize((texture2D(";
-                defaultCodePs += textureNormalName;
-                defaultCodePs += ", vTexCoord).xyz * 2.0) - 1.0);"
-                    "  for (int i = 0; i < ";
-                defaultCodePs += supportedMaxLights;
-                defaultCodePs += "; ++i) {"
-                    "   if (i >= LightCount) break;"
-                    "   vec3 toLight = LightPositionView[i] - vPositionView;"
-                    "   float dist = length(toLight);"
-                    "   if (LightRadius[i] > 0.0001) {"
-                    "    vec3 lightDir = toLight / max(dist, 0.0001);"
-                    "    float diffuse = max(dot(normalView, lightDir), 0.0);"
-                    "    float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);"
-                    "    attenuation *= attenuation;"
-                    "    light += LightColor[i].rgb * diffuse * attenuation;"
-                    "   }"
-                    "  }"
-                    " }"
-                    " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
-                    " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
-                    "}";
+                defaultCodePs += "uniform int LightEnabled;"
+                    "uniform vec4 AmbientColor;"
+                    "uniform vec3 LightDirectionView;"
+                    "uniform vec4 MaterialDiffuse;"
+                    "uniform vec4 MaterialAmbient;"
+                    "uniform vec4 MaterialEmissive;";
+                if (canUsePointLight2D == false)
+                {
+                    defaultCodePs += "uniform vec4 LightColor;";
+                }
+                if (canUsePointLight2D)
+                {
+                    defaultCodePs += "varying vec3 vPositionView;"
+                        "uniform sampler2D ";
+                    defaultCodePs += textureNormalName;
+                    defaultCodePs += ";"
+                        "uniform int LightMode;"
+                        "uniform int HasNormalMap;"
+                        "uniform vec3 LightPositionView[";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "];"
+                        "uniform float LightRadius[";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "];"
+                        "uniform vec4 LightColor[";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "];"
+                        "uniform int LightCount;";
+                }
+                if (hasNormal)
+                    defaultCodePs += "varying vec3 vNormalView;";
+                defaultCodePs += "void main() {"
+                    " vec4 texColor = texture2D(";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += ", vTexCoord);"
+                    " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
+                    " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
+                    " vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
+                if (canUsePointLight2D == false)
+                {
+                    if (hasNormal)
+                    {
+                        defaultCodePs += " vec3 normalView = normalize(vNormalView);"
+                            " vec3 lightTravel = normalize(LightDirectionView);"
+                            " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                            " light += LightColor[0].rgb * diffuse;";
+                    }
+                    defaultCodePs += " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
+                        " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
+                        "}";
+                }
+                else if (hasNormal)
+                {
+                    defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
+                        " if (LightMode == 1) {"
+                        "  vec3 normalView = normalize(vNormalView);"
+                        "  vec3 lightTravel = normalize(LightDirectionView);"
+                        "  float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                        "  light += LightColor[0].rgb * diffuse;"
+                        " } else ";
+                }
+                else
+                {
+                    defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
+                        " if (LightMode == 2) ";
+                }
+                if (canUsePointLight2D)
+                {
+                    defaultCodePs += "{"
+                        "  vec3 normalView = vec3(0.0, 0.0, 1.0);"
+                        "  if (HasNormalMap != 0) normalView = normalize((texture2D(";
+                    defaultCodePs += textureNormalName;
+                    defaultCodePs += ", vTexCoord).xyz * 2.0) - 1.0);"
+                        "  for (int i = 0; i < ";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "; ++i) {"
+                        "   if (i >= LightCount) break;"
+                        "   vec3 toLight = LightPositionView[i] - vPositionView;"
+                        "   float dist = length(toLight);"
+                        "   if (LightRadius[i] > 0.0001) {"
+                        "    vec3 lightDir = toLight / max(dist, 0.0001);"
+                        "    float diffuse = max(dot(normalView, lightDir), 0.0);"
+                        "    float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);"
+                        "    attenuation *= attenuation;"
+                        "    light += LightColor[i].rgb * diffuse * attenuation;"
+                        "   }"
+                        "  }"
+                        " }"
+                        " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
+                        " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
+                        "}";
+                }
             }
         }
         else
         {
             defaultCodePs = "precision mediump float;";
-            if (hasNormal)
+            if (hasNormal && useReservedLightScaffolding)
             {
                 defaultCodePs += "varying vec3 vNormalView;"
                     "uniform int LightEnabled;"
@@ -1030,12 +1040,12 @@ namespace mbm
         if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
         defaultCodeVs += " uniform mat4 mvpMatrix;";
-        if (hasNormal || hasUV) defaultCodeVs += " uniform mat4 mvMatrix;";
-        if (hasNormal) defaultCodeVs += " varying vec3 vNormalView;";
+        if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += " uniform mat4 mvMatrix;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " varying vec3 vNormalView;";
         if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
         if (hasUV && canUsePointLight2D) defaultCodeVs += " varying vec3 vPositionView;";
         defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
-        if (hasNormal) defaultCodeVs += " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
         if (hasUV && canUsePointLight2D) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";

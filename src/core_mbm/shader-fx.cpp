@@ -22,10 +22,22 @@
 #include <shader-var-cfg.h>
 #include <animation.h>
 #include <util-interface.h>
+#include <light.h>
 
 
 namespace mbm
 {
+    DEFAULT_SHADER_MODE getDefaultShaderModeForRenderizable(const RENDERIZABLE *renderizable) noexcept
+    {
+        if (renderizable == nullptr || renderizable->is2dScreenObject())
+            return DEFAULT_SHADER_MODE_UNLIT;
+
+        const LIGHT_TARGET target = renderizable->is3DObject() ? LIGHT_TARGET_3D : LIGHT_TARGET_2DW;
+        LIGHT_STATE lightState;
+        if (getLightState(target, lightState) && lightState.enabled)
+            return DEFAULT_SHADER_MODE_LIT;
+        return DEFAULT_SHADER_MODE_UNLIT;
+    }
 
     FX::FX() noexcept
     {
@@ -33,6 +45,7 @@ namespace mbm
         fxVS = new EFFECT_SHADER();
         textureOverrideStage2 = nullptr;
         blendOperation = 1;
+        defaultShaderMode = DEFAULT_SHADER_MODE_UNLIT;
     }
     
     FX::~FX()
@@ -64,6 +77,7 @@ namespace mbm
         {
             fxVS->setCurrentShader(nullptr);
         }
+        shader.setUseReservedLightDefault(defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
         const bool ret = shader.compileShader(basePixelShader, baseVertexShader, fvf);
         if (!ret)
             return false;

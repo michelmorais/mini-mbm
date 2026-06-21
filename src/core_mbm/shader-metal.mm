@@ -508,7 +508,7 @@ static NSString* buildVertexHeader(mbm::FVF_PROVIDE_BY_ENGINE fvf)
 }
 
 // Builds the MSL source for the default shader matching the given FVF.
-static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
+static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding)
 {
     using F = mbm::FVF_PROVIDE_BY_ENGINE;
     const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
@@ -528,9 +528,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
 
     // vertex output struct
     [src appendString:@"struct VOut { float4 pos [[position]];"];
-    if (hasNor) [src appendString:@" float3 nor;"];
+    if (hasNor && useReservedLightScaffolding) [src appendString:@" float3 nor;"];
     if (hasUV)  [src appendString:@" float2 uv;"];
-    if (hasUV)  [src appendString:@" float3 positionView;"];
+    if (hasUV && useReservedLightScaffolding) [src appendString:@" float3 positionView;"];
     [src appendString:@" };\n"];
 
     // vertex function
@@ -538,9 +538,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
         @"vertex VOut vert_main(VIn in [[stage_in]], constant Uniforms& u [[buffer(1)]]) {\n"
          "  VOut out;\n"
          "  out.pos = u.mvpMatrix * float4(in.pos, 1.0);\n"];
-    if (hasNor) [src appendString:@"  out.nor = (u.mvMatrix * float4(in.nor, 0.0)).xyz;\n"];
+    if (hasNor && useReservedLightScaffolding) [src appendString:@"  out.nor = (u.mvMatrix * float4(in.nor, 0.0)).xyz;\n"];
     if (hasUV)  [src appendString:@"  out.uv = in.uv;\n"];
-    if (hasUV)  [src appendString:@"  out.positionView = (u.mvMatrix * float4(in.pos, 1.0)).xyz;\n"];
+    if (hasUV && useReservedLightScaffolding) [src appendString:@"  out.positionView = (u.mvMatrix * float4(in.pos, 1.0)).xyz;\n"];
     [src appendString:@"  return out;\n}\n"];
 
     // fragment function
@@ -548,69 +548,76 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
     {
         const char *textureDiffuseName =
             mbm::getTextureRoleShaderName(mbm::TEXTURE_ROLE_DIFFUSE, mbm::SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
-        const char *textureNormalName =
-            mbm::getTextureRoleShaderName(mbm::TEXTURE_ROLE_NORMAL, mbm::SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
         [src appendString:
             @"fragment float4 frag_main(VOut in [[stage_in]],"
              " sampler samp [[sampler(0)]],"
              " constant Uniforms& u [[buffer(1)]]"];
         [src appendFormat:@", texture2d<float> %s [[texture(0)]]", textureDiffuseName];
-        [src appendFormat:@", texture2d<float> %s [[texture(2)]]", textureNormalName];
-        [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
-                          " constant float4& AmbientColor [[buffer(6)]],"
-                          " constant float3& LightDirectionView [[buffer(7)]],"
-                          " constant float4& MaterialDiffuse [[buffer(9)]],"
-                          " constant float4& MaterialAmbient [[buffer(10)]],"
-                          " constant float4& MaterialEmissive [[buffer(12)]],"
-                          " constant int& LightMode [[buffer(14)]],"
-                          " constant int& HasNormalMap [[buffer(17)]]"];
-        [src appendString:@", constant float4* LightColor [[buffer(8)]],"
-                          " constant float3* LightPositionView [[buffer(15)]],"
-                          " constant float* LightRadius [[buffer(16)]],"
-                          " constant int& LightCount [[buffer(5)]]"];
-        [src appendFormat:@") {\n  float4 texColor = %s.sample(samp, in.uv) * u.color;\n",
-                          textureDiffuseName];
-        [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
-                          "  float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
-                          "  float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"];
-        if (hasNor)
+        if (useReservedLightScaffolding == false)
         {
-            [src appendString:@"  if (LightMode == 1) {\n"
-                              "    float3 normalView = normalize(in.nor);\n"
-                              "    float3 lightTravel = normalize(LightDirectionView);\n"
-                              "    float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
-                              "    light += LightColor[0].rgb * diffuse;\n"
-                              "  } else {\n"];
+            [src appendFormat:@") {\n  return %s.sample(samp, in.uv) * u.color;\n}\n", textureDiffuseName];
         }
         else
         {
-            [src appendString:@"  if (LightMode == 2) {\n"];
+            const char *textureNormalName =
+                mbm::getTextureRoleShaderName(mbm::TEXTURE_ROLE_NORMAL, mbm::SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+            [src appendFormat:@", texture2d<float> %s [[texture(2)]]", textureNormalName];
+            [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
+                              " constant float4& AmbientColor [[buffer(6)]],"
+                              " constant float3& LightDirectionView [[buffer(7)]],"
+                              " constant float4& MaterialDiffuse [[buffer(9)]],"
+                              " constant float4& MaterialAmbient [[buffer(10)]],"
+                              " constant float4& MaterialEmissive [[buffer(12)]],"
+                              " constant int& LightMode [[buffer(14)]],"
+                              " constant int& HasNormalMap [[buffer(17)]]"];
+            [src appendString:@", constant float4* LightColor [[buffer(8)]],"
+                              " constant float3* LightPositionView [[buffer(15)]],"
+                              " constant float* LightRadius [[buffer(16)]],"
+                              " constant int& LightCount [[buffer(5)]]"];
+            [src appendFormat:@") {\n  float4 texColor = %s.sample(samp, in.uv) * u.color;\n",
+                              textureDiffuseName];
+            [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
+                              "  float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
+                              "  float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"];
+            if (hasNor)
+            {
+                [src appendString:@"  if (LightMode == 1) {\n"
+                                  "    float3 normalView = normalize(in.nor);\n"
+                                  "    float3 lightTravel = normalize(LightDirectionView);\n"
+                                  "    float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
+                                  "    light += LightColor[0].rgb * diffuse;\n"
+                                  "  } else {\n"];
+            }
+            else
+            {
+                [src appendString:@"  if (LightMode == 2) {\n"];
+            }
+            [src appendFormat:@"    float3 normalView = float3(0.0, 0.0, 1.0);\n"
+                              "    if (HasNormalMap != 0) normalView = normalize((%s.sample(samp, in.uv).xyz * 2.0f) - 1.0f);\n"
+                              "    for (int i = 0; i < %u; ++i) {\n"
+                              "      if (i >= LightCount) break;\n"
+                              "      float3 toLight = LightPositionView[i] - in.positionView;\n"
+                              "      float dist = length(toLight);\n"
+                              "      if (LightRadius[i] > 0.0001f) {\n"
+                              "        float3 lightDir = toLight / max(dist, 0.0001f);\n"
+                              "        float diffuse = max(dot(normalView, lightDir), 0.0f);\n"
+                              "        float attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);\n"
+                              "        attenuation *= attenuation;\n"
+                              "        light += LightColor[i].rgb * diffuse * attenuation;\n"
+                              "      }\n"
+                              "    }\n"
+                              "  }\n"
+                              "  float3 litColor = clamp((base * clamp(light, 0.0f, 1.0f)) + MaterialEmissive.rgb, 0.0f, 1.0f);\n"
+                              "  return float4(litColor, texColor.a * MaterialDiffuse.a);\n}\n",
+                              textureNormalName, static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
         }
-        [src appendFormat:@"    float3 normalView = float3(0.0, 0.0, 1.0);\n"
-                          "    if (HasNormalMap != 0) normalView = normalize((%s.sample(samp, in.uv).xyz * 2.0f) - 1.0f);\n"
-                          "    for (int i = 0; i < %u; ++i) {\n"
-                          "      if (i >= LightCount) break;\n"
-                          "      float3 toLight = LightPositionView[i] - in.positionView;\n"
-                          "      float dist = length(toLight);\n"
-                          "      if (LightRadius[i] > 0.0001f) {\n"
-                          "        float3 lightDir = toLight / max(dist, 0.0001f);\n"
-                          "        float diffuse = max(dot(normalView, lightDir), 0.0f);\n"
-                          "        float attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);\n"
-                          "        attenuation *= attenuation;\n"
-                          "        light += LightColor[i].rgb * diffuse * attenuation;\n"
-                          "      }\n"
-                          "    }\n"
-                          "  }\n"
-                          "  float3 litColor = clamp((base * clamp(light, 0.0f, 1.0f)) + MaterialEmissive.rgb, 0.0f, 1.0f);\n"
-                          "  return float4(litColor, texColor.a * MaterialDiffuse.a);\n}\n",
-                          textureNormalName, static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
     }
     else
     {
         [src appendString:
             @"fragment float4 frag_main(VOut in [[stage_in]],"
              " constant Uniforms& u [[buffer(1)]]"];
-        if (hasNor)
+        if (hasNor && useReservedLightScaffolding)
         {
             [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
                               " constant float4& AmbientColor [[buffer(6)]],"
@@ -622,7 +629,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
                               " constant int& LightMode [[buffer(14)]]"];
         }
         [src appendString:@") {\n"];
-        if (hasNor)
+        if (hasNor && useReservedLightScaffolding)
         {
             [src appendString:@"  if (LightEnabled == 0 || LightMode != 1) return u.color;\n"
                               "  float3 normalView = normalize(in.nor);\n"
@@ -1056,7 +1063,7 @@ namespace mbm
                     mslSrc = [buildVertexHeader(fvf)
                         stringByAppendingString:[NSString stringWithUTF8String:ptrPshader->getCode()]];
                 else
-                    mslSrc = defaultMSLSource(fvf);
+                    mslSrc = defaultMSLSource(fvf, this->shouldCompileReservedLightDefault());
             }
             const char *mslSourceText = [mslSrc UTF8String];
             const SHADER_TEXTURE_NAMING textureNaming = detectShaderTextureNamingProfile(mslSourceText);

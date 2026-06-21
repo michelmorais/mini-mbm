@@ -227,6 +227,7 @@ namespace mbm
         API_IMPL virtual ~SHADER();
         API_IMPL void * getBackendShaderSpecific() const noexcept;
         API_IMPL void setBackendShaderSpecific(void *backendShaderSpecific) noexcept;
+        API_IMPL void setUseReservedLightDefault(bool enabled) noexcept;
         API_IMPL void releaseShader();
         API_IMPL void onRestore();
         API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
@@ -238,6 +239,8 @@ namespace mbm
                                     const RENDERIZABLE *renderizableOwner = nullptr) const;
         API_IMPL void update();
       private:
+        bool usesPureDefaultShaderPair() const noexcept;
+        bool shouldCompileReservedLightDefault() const noexcept;
         struct BackendData;
         struct BackendDataDeleter
         {

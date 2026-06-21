@@ -278,6 +278,8 @@ namespace mbm
             fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING));
             fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING));
             fx.shader.releaseShader();
+            fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+            fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
             if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
                 return false;
 
@@ -310,6 +312,8 @@ namespace mbm
             fx.fxPS->setCurrentShader(fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED));
             fx.fxVS->setCurrentShader(fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED));
             fx.shader.releaseShader();
+            fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+            fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
             if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
                 return false;
         }
