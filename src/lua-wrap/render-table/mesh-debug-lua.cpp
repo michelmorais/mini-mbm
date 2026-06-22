@@ -121,18 +121,6 @@ namespace mbm
             return nullptr;
         }
 
-        const util::MATERIAL_TEXTURE_SLOT_DEBUG *findMaterialTextureSlot(const util::SUBSET_DEBUG *subset,
-                                                                         const uint16_t slotType) noexcept
-        {
-            if (subset == nullptr)
-                return nullptr;
-            for (const auto &slot : subset->materialTextureSlots)
-            {
-                if (slot.type == slotType)
-                    return &slot;
-            }
-            return nullptr;
-        }
     }
 
     class MESH_DEBUG_LUA
@@ -879,7 +867,7 @@ namespace mbm
     int onGetTotalFrameMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.buffer.size()));
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalFrames()));
         return 1;
     }
 
@@ -887,17 +875,17 @@ namespace mbm
     {
         MESH_DEBUG_LUA *   meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
         const auto indexFrame = (unsigned int)luaL_checkinteger(lua, 2) - 1;
-        if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size())
+        const uint32_t totalFrames = meshDebug->mesh.getTotalFrames();
+        if (indexFrame < totalFrames)
         {
-            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
-            lua_pushinteger(lua, static_cast<lua_Integer>(buffer->subset.size()));
+            lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalSubsets(indexFrame)));
             return 1;
         }
         else
         {
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d)\n"
                             "indexFrame %d ",
-                       meshDebug->mesh.buffer.size(), indexFrame + 1);
+                       totalFrames, indexFrame + 1);
         }
     }
 
@@ -906,21 +894,18 @@ namespace mbm
         MESH_DEBUG_LUA *   meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
         const auto indexFrame  = (unsigned int)luaL_checkinteger(lua, 2) - 1;
         const auto indexSubset = (unsigned int)luaL_checkinteger(lua, 3) - 1;
-        if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size() &&
-            indexSubset < (const unsigned int)meshDebug->mesh.buffer[indexFrame]->subset.size())
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
-            util::SUBSET_DEBUG *     subset = buffer->subset[indexSubset];
             lua_pushinteger(lua, subset->vertexCount);
             return 1;
         }
         else
         {
-            const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+            const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -929,28 +914,25 @@ namespace mbm
         MESH_DEBUG_LUA *   meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
         const auto indexFrame  = (unsigned int)luaL_checkinteger(lua, 2) - 1;
         const auto indexSubset = (unsigned int)luaL_checkinteger(lua, 3) - 1;
-        if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size() &&
-            indexSubset < (const unsigned int)meshDebug->mesh.buffer[indexFrame]->subset.size())
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
-            util::SUBSET_DEBUG *     subset = buffer->subset[indexSubset];
             lua_pushinteger(lua, subset->indexCount);
             return 1;
         }
         else
         {
-            const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+            const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
     int onIsIndexBufferMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        if (meshDebug->mesh.buffer.size() && meshDebug->mesh.buffer[0]->indexBuffer)
+        if (meshDebug->mesh.hasIndexBuffer(0))
             lua_pushboolean(lua, 1);
         else
             lua_pushboolean(lua, 0);
@@ -965,14 +947,13 @@ namespace mbm
         const unsigned int indexSubset    = top > 2 ? (unsigned int)luaL_checkinteger(lua, 3) - 1 : 0;
         const unsigned int indexVertex    = top > 3 ? (unsigned int)luaL_checkinteger(lua, 4) - 1 : 0;
         unsigned int       totalVertexRet = top > 4 ? (unsigned int)luaL_checkinteger(lua, 5) : 1;
-        if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size() &&
-            indexSubset < (const unsigned int)meshDebug->mesh.buffer[indexFrame]->subset.size())
+        util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.getFrameBuffer(indexFrame);
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (buffer && subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer    = meshDebug->mesh.buffer[indexFrame];
-            util::SUBSET_DEBUG *     subset    = buffer->subset[indexSubset];
-            auto *                   pPosition = reinterpret_cast<VEC3 *>(buffer->position);
-            auto *                   pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
-            auto *                   pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
+            auto *pPosition = reinterpret_cast<VEC3 *>(buffer->position);
+            auto *pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
+            auto *pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
             if (indexVertex < (unsigned int)subset->vertexCount)
             {
                 if (totalVertexRet > 1)
@@ -1037,11 +1018,10 @@ namespace mbm
         }
         else
         {
-            const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+            const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame, indexSubset);
+                       static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame, indexSubset);
         }
     }
 
@@ -1053,14 +1033,13 @@ namespace mbm
         const unsigned int indexSubset = top > 2 ? (unsigned int)luaL_checkinteger(lua, 3) - 1 : 0;
         const unsigned int indexVertex = top > 3 ? (unsigned int)luaL_checkinteger(lua, 4) - 1 : 0;
         const int          hasTable    = top > 4 ? lua_type(lua, 5) : 0;
-        if (hasTable == LUA_TTABLE && indexFrame < static_cast<const unsigned int>(meshDebug->mesh.buffer.size()) &&
-            indexSubset < static_cast<const unsigned int>(meshDebug->mesh.buffer[indexFrame]->subset.size()))
+        util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.getFrameBuffer(indexFrame);
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (hasTable == LUA_TTABLE && buffer && subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer    = meshDebug->mesh.buffer[indexFrame];
-            util::SUBSET_DEBUG *     subset    = buffer->subset[indexSubset];
-            auto *                   pPosition = reinterpret_cast<VEC3 *>(buffer->position);
-            auto *                   pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
-            auto *                   pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
+            auto *pPosition = reinterpret_cast<VEC3 *>(buffer->position);
+            auto *pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
+            auto *pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
             if (indexVertex < static_cast<unsigned int>(subset->vertexCount))
             {
                 int lenTable = lua_rawlen(lua, 5);
@@ -1116,11 +1095,10 @@ namespace mbm
         }
         else
         {
-            const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+            const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -1131,8 +1109,9 @@ namespace mbm
         const unsigned int indexFrame  = top > 1 ? (unsigned int)luaL_checkinteger(lua, 2) - 1 : 0;
         const unsigned int indexSubset = top > 2 ? (unsigned int)luaL_checkinteger(lua, 3) - 1 : 0;
         const int          type4       = top > 3 ? lua_type(lua, 4) : LUA_TNIL;
-        if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size() &&
-            indexSubset < (const unsigned int)meshDebug->mesh.buffer[indexFrame]->subset.size())
+        util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.getFrameBuffer(indexFrame);
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (buffer && subset)
         {
             if (type4 == LUA_TNIL)
             {
@@ -1155,16 +1134,14 @@ namespace mbm
             }
             else if (type4 == LUA_TTABLE)
             {
-                int                      lenTable = lua_rawlen(lua, 4);
-                util::BUFFER_MESH_DEBUG *buffer   = meshDebug->mesh.buffer[indexFrame];
-                util::SUBSET_DEBUG *     subset   = buffer->subset[indexSubset];
-
+                int lenTable = lua_rawlen(lua, 4);
                 const int vertexCount = subset->vertexCount; // before add vertex
                 if (lenTable <= 0)                           // hasn't array
                 {
                     if (meshDebug->mesh.addVertex(indexFrame, indexSubset, 1))
                     {
-                        buffer = meshDebug->mesh.buffer[indexFrame]; // re-fetch after addVertex (may reallocate)
+                        buffer = meshDebug->mesh.getFrameBuffer(indexFrame); // re-fetch after addVertex (may reallocate)
+                        subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
                         auto *             pPosition  = reinterpret_cast<VEC3 *>(buffer->position);
                         auto *             pNormal    = reinterpret_cast<VEC3 *>(buffer->normal);
                         auto *             pUv        = reinterpret_cast<VEC2 *>(buffer->uv);
@@ -1191,7 +1168,8 @@ namespace mbm
                 }
                 else if (meshDebug->mesh.addVertex(indexFrame, indexSubset, lenTable))
                 {
-                    buffer = meshDebug->mesh.buffer[indexFrame]; // re-fetch after addVertex (may reallocate)
+                    buffer = meshDebug->mesh.getFrameBuffer(indexFrame); // re-fetch after addVertex (may reallocate)
+                    subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
                     auto *pPosition = reinterpret_cast<VEC3 *>(buffer->position);
                     auto *pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
                     auto *pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
@@ -1223,11 +1201,10 @@ namespace mbm
         }
         else
         {
-            const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+            const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame+1, indexSubset+1);
+                       static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame+1, indexSubset+1);
         }
     }
 
@@ -1236,13 +1213,12 @@ namespace mbm
         MESH_DEBUG_LUA *   meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
         const unsigned int indexFrame  = (unsigned int)luaL_checkinteger(lua, 2) - 1;
         const unsigned int indexSubset = (unsigned int)luaL_checkinteger(lua, 3) - 1;
-        if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size() &&
-            indexSubset < (const unsigned int)meshDebug->mesh.buffer[indexFrame]->subset.size())
+        util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.getFrameBuffer(indexFrame);
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (buffer && subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
             if (buffer->indexBuffer)
             {
-                util::SUBSET_DEBUG *subset = buffer->subset[indexSubset];
                 lua_newtable(lua);
                 const unsigned int s = (subset->indexCount + subset->indexStart);
                 for (unsigned int i = subset->indexStart, j = 1; i < s; i++, ++j)
@@ -1261,11 +1237,10 @@ namespace mbm
         }
         else
         {
-            const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+            const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -1310,11 +1285,9 @@ namespace mbm
         MESH_DEBUG_LUA *   meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
         const auto indexFrame  = (unsigned int)luaL_checkinteger(lua, 2) - 1;
         const auto indexSubset = (unsigned int)luaL_checkinteger(lua, 3) - 1;
-        if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size() &&
-            indexSubset < (const unsigned int)meshDebug->mesh.buffer[indexFrame]->subset.size())
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
-            util::SUBSET_DEBUG *     subset = buffer->subset[indexSubset];
             if (subset->texture.size())
                 lua_pushstring(lua, subset->texture.c_str());
             else
@@ -1323,11 +1296,10 @@ namespace mbm
         }
         else
         {
-            const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+            const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame +1, indexSubset +1);
+                       static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame +1, indexSubset +1);
         }
     }
 
@@ -1337,11 +1309,9 @@ namespace mbm
         const auto indexFrame  = (unsigned int)luaL_checkinteger(lua, 2) - 1;
         const auto indexSubset = (unsigned int)luaL_checkinteger(lua, 3) - 1;
         const char *       fileName    = lua_type(lua, 4) == LUA_TSTRING ? luaL_checkstring(lua, 4) : nullptr;
-        if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size() &&
-            indexSubset < (const unsigned int)meshDebug->mesh.buffer[indexFrame]->subset.size())
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
-            util::SUBSET_DEBUG *     subset = buffer->subset[indexSubset];
             if (fileName && strlen(fileName))
             {
                 subset->texture = fileName;
@@ -1356,11 +1326,10 @@ namespace mbm
         }
         else
         {
-            const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+            const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -1372,11 +1341,9 @@ namespace mbm
         uint16_t slotType = 0;
         if (!parseMaterialTextureSlotType(lua, 4, slotType))
             return lua_error_debug(lua, "Expected material texture slot type [normal|specular|emissive|mask]");
-        if (indexFrame < static_cast<unsigned int>(meshDebug->mesh.buffer.size()) &&
-            indexSubset < static_cast<unsigned int>(meshDebug->mesh.buffer[indexFrame]->subset.size()))
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
-            const util::SUBSET_DEBUG *subset = buffer->subset[indexSubset];
             const auto *slot = findMaterialTextureSlot(subset, slotType);
             if (slot && slot->texture.size())
                 lua_pushstring(lua, slot->texture.c_str());
@@ -1384,11 +1351,10 @@ namespace mbm
                 lua_pushnil(lua);
             return 1;
         }
-        const int tSubset =
-            indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+        const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
         return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                         "indexFrame %d indexSubset %d",
-                   static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+                   static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
     }
 
     int onSetMaterialTextureNameMeshDebugLua(lua_State *lua)
@@ -1400,11 +1366,9 @@ namespace mbm
         if (!parseMaterialTextureSlotType(lua, 4, slotType))
             return lua_error_debug(lua, "Expected material texture slot type [normal|specular|emissive|mask]");
         const char *fileName = lua_type(lua, 5) == LUA_TSTRING ? luaL_checkstring(lua, 5) : nullptr;
-        if (indexFrame < static_cast<unsigned int>(meshDebug->mesh.buffer.size()) &&
-            indexSubset < static_cast<unsigned int>(meshDebug->mesh.buffer[indexFrame]->subset.size()))
+        util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
+        if (subset)
         {
-            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
-            util::SUBSET_DEBUG *subset = buffer->subset[indexSubset];
             auto *slot = findMaterialTextureSlot(subset, slotType);
             if (fileName && strlen(fileName))
             {
@@ -1436,11 +1400,10 @@ namespace mbm
             lua_pushboolean(lua, 1);
             return 1;
         }
-        const int tSubset =
-            indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+        const int tSubset = static_cast<int>(meshDebug->mesh.getTotalSubsets(indexFrame));
         return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                         "indexFrame %d indexSubset %d",
-                   static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+                   static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
     }
 
     int onAddFrameDebugLua(lua_State *lua)
@@ -1457,7 +1420,7 @@ namespace mbm
     {
         const int          top       = lua_gettop(lua);
         MESH_DEBUG_LUA *   meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const unsigned int indexFrame = top > 1 ? (unsigned int)luaL_checkinteger(lua, 2) - 1 : static_cast<unsigned int>(meshDebug->mesh.buffer.size()) - 1;
+        const unsigned int indexFrame = top > 1 ? (unsigned int)luaL_checkinteger(lua, 2) - 1 : meshDebug->mesh.getTotalFrames() - 1;
         unsigned int ret = meshDebug->mesh.addSubset(indexFrame);
         lua_pushinteger(lua, ret);
         return 1;
@@ -1559,23 +1522,25 @@ namespace mbm
         MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
         const int       stride     = luaL_checkinteger(lua, 2);
         const int       indexFrame = top > 2 ? luaL_checkinteger(lua, 3) -1 : -1;
+        const int totalFrames      = static_cast<int>(meshDebug->mesh.getTotalFrames());
         if (stride != 2 && stride != 3)
             return lua_error_debug(lua, "Stride must be 3 or 2");
         if (indexFrame < 0)
         {
-            for (auto bufferCurrent : meshDebug->mesh.buffer)
+            for (int i = 0; i < totalFrames; ++i)
             {
+                util::BUFFER_MESH_DEBUG *bufferCurrent = meshDebug->mesh.getFrameBuffer(static_cast<uint32_t>(i));
                 bufferCurrent->headerFrame.stride      = stride;
             }
         }
-        else if (indexFrame < (int)meshDebug->mesh.buffer.size())
+        else if (indexFrame < totalFrames)
         {
-            util::BUFFER_MESH_DEBUG *bufferCurrent = meshDebug->mesh.buffer[indexFrame];
+            util::BUFFER_MESH_DEBUG *bufferCurrent = meshDebug->mesh.getFrameBuffer(static_cast<uint32_t>(indexFrame));
             bufferCurrent->headerFrame.stride      = stride;
         }
         else
         {
-            return lua_error_debug(lua, "Index frame invalid [%d/%d]",top > 2 ? indexFrame + 1 : indexFrame, meshDebug->mesh.buffer.size());
+            return lua_error_debug(lua, "Index frame invalid [%d/%d]",top > 2 ? indexFrame + 1 : indexFrame, totalFrames);
         }
         return 0;
     }
@@ -1585,13 +1550,14 @@ namespace mbm
         MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
         const int       top        = lua_gettop(lua);
         const int       indexFrame = top > 1 ? luaL_checkinteger(lua, 2) - 1 : 0;
-        if (indexFrame >= 0 && indexFrame < static_cast<int>(meshDebug->mesh.buffer.size()))
+        const int totalFrames      = static_cast<int>(meshDebug->mesh.getTotalFrames());
+        if (indexFrame >= 0 && indexFrame < totalFrames)
         {
-            util::BUFFER_MESH_DEBUG *bufferCurrent = meshDebug->mesh.buffer[indexFrame];
+            util::BUFFER_MESH_DEBUG *bufferCurrent = meshDebug->mesh.getFrameBuffer(static_cast<uint32_t>(indexFrame));
             lua_pushinteger(lua, bufferCurrent->headerFrame.stride);
             return 1;
         }
-        return lua_error_debug(lua, "Index frame invalid [%d/%d]", top > 1 ? indexFrame + 1 : indexFrame, meshDebug->mesh.buffer.size());
+        return lua_error_debug(lua, "Index frame invalid [%d/%d]", top > 1 ? indexFrame + 1 : indexFrame, totalFrames);
     }
 
     int onEnableNormalsMeshDebugLua(lua_State *lua)
