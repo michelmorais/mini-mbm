@@ -55,6 +55,10 @@ namespace mbm
         constexpr BUFFER_MESH() noexcept;
         API_IMPL virtual ~BUFFER_MESH();
         API_IMPL void release();
+        API_IMPL BUFFER_GL *getRenderBuffer() const noexcept;
+        API_IMPL bool hasLoadedRenderBuffer() const noexcept;
+        API_IMPL uint32_t getTotalSubsets() const noexcept;
+        API_IMPL util::SUBSET *getSubset(const uint32_t indexSubset) const noexcept;
     };
 
     class MESH_MBM_DEBUG

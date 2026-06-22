@@ -235,7 +235,7 @@ namespace mbm
                 FX &fx = anim->getFx();
                 fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
                 fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-                if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+                if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                     return false;
             }
             this->setInternalFileName(nickName);
@@ -343,7 +343,7 @@ namespace mbm
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -508,7 +508,7 @@ namespace mbm
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -602,7 +602,7 @@ namespace mbm
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -764,7 +764,7 @@ namespace mbm
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -910,7 +910,7 @@ namespace mbm
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -1057,7 +1057,7 @@ namespace mbm
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -1254,8 +1254,8 @@ namespace mbm
         if (mesh)
         {
             BUFFER_MESH* buf = mesh->getBuffer(0);
-            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
-                return buf->pBufferGL->fvf;
+            if (buf && buf->hasLoadedRenderBuffer())
+                return buf->getRenderBuffer()->fvf;
         }
         return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }

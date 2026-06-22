@@ -1349,6 +1349,28 @@ namespace mbm
         totalSubset = 0;
     }
 
+    BUFFER_GL *BUFFER_MESH::getRenderBuffer() const noexcept
+    {
+        return this->pBufferGL;
+    }
+
+    bool BUFFER_MESH::hasLoadedRenderBuffer() const noexcept
+    {
+        return this->pBufferGL && this->pBufferGL->isLoadedBuffer();
+    }
+
+    uint32_t BUFFER_MESH::getTotalSubsets() const noexcept
+    {
+        return this->totalSubset;
+    }
+
+    util::SUBSET *BUFFER_MESH::getSubset(const uint32_t indexSubset) const noexcept
+    {
+        if (this->subset && indexSubset < this->totalSubset)
+            return &this->subset[indexSubset];
+        return nullptr;
+    }
+
 
 
     MESH_MBM_DEBUG::MESH_MBM_DEBUG() noexcept

@@ -1089,7 +1089,10 @@ namespace mbm
         // compile shader in pair
         if (infoHead == nullptr)
             return true;
-        const FVF_PROVIDE_BY_ENGINE fvf = mesh->getBuffer(0)->pBufferGL->fvf;
+        const BUFFER_MESH *buffer = mesh->getBuffer(0);
+        const FVF_PROVIDE_BY_ENGINE fvf = buffer && buffer->getRenderBuffer()
+                                              ? buffer->getRenderBuffer()->fvf
+                                              : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
         RENDERIZABLE *renderizable = dynamic_cast<RENDERIZABLE*>(this);
         fx.defaultShaderMode = getDefaultShaderModeForRenderizable(renderizable);
         fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
@@ -1400,11 +1403,13 @@ namespace mbm
                             mbm::BUFFER_MESH *buff = mesh->getBuffer(static_cast<uint32_t>(i));
                             if (buff)
                             {
-                                for (uint32_t j = 0; j < buff->totalSubset; ++j)
+                                BUFFER_GL *renderBuffer = buff->getRenderBuffer();
+                                const uint32_t totalSubsets = buff->getTotalSubsets();
+                                for (uint32_t j = 0; j < totalSubsets; ++j)
                                 {
-                                    util::SUBSET *subset           = &buff->subset[j];
+                                    util::SUBSET *subset           = buff->getSubset(j);
                                     subset->texture                = newTex;
-                                    buff->pBufferGL->setTextureByStage(newTex, stage, j);
+                                    renderBuffer->setTextureByStage(newTex, stage, j);
                                 }
                             }
                         }

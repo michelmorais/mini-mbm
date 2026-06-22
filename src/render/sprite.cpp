@@ -208,8 +208,8 @@ namespace mbm
         if (mesh)
         {
             BUFFER_MESH* buf = mesh->getBuffer(0);
-            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
-                return buf->pBufferGL->fvf;
+            if (buf && buf->hasLoadedRenderBuffer())
+                return buf->getRenderBuffer()->fvf;
         }
         return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }

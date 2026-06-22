@@ -930,11 +930,13 @@ namespace mbm
                             mbm::BUFFER_MESH *buff = mesh->getBuffer(static_cast<unsigned int>(i));
                             if (buff)
                             {
-                                for (unsigned int j = 0; j < buff->totalSubset; ++j)
+                                BUFFER_GL *renderBuffer = buff->getRenderBuffer();
+                                const uint32_t totalSubsets = buff->getTotalSubsets();
+                                for (uint32_t j = 0; j < totalSubsets; ++j)
                                 {
-                                    util::SUBSET *subset           = &buff->subset[j];
+                                    util::SUBSET *subset           = buff->getSubset(j);
                                     subset->texture                = newTex;
-                                    buff->pBufferGL->setTextureByStage(newTex, 0, j);
+                                    renderBuffer->setTextureByStage(newTex, 0, j);
                                 }
                             }
                         }
@@ -965,8 +967,8 @@ namespace mbm
         if (mesh)
         {
             BUFFER_MESH* buf = mesh->getBuffer(0);
-            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
-                return buf->pBufferGL->fvf;
+            if (buf && buf->hasLoadedRenderBuffer())
+                return buf->getRenderBuffer()->fvf;
         }
         return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }

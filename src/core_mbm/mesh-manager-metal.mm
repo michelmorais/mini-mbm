@@ -43,11 +43,11 @@ namespace mbm
         util::BUFFER_MESH_DEBUG*           pBuffer)
     {
         const BUFFER_MESH* pBufferMesh = meshMemory->getBuffer((uint32_t)currentFrame);
-        if (!pBufferMesh || !pBufferMesh->pBufferGL)
+        if (!pBufferMesh || !pBufferMesh->getRenderBuffer())
             return log_util::onFailed(nullptr, __FILE__, __LINE__,
                 "No buffer for frame %d [%s]", currentFrame, meshMemory->getFilenameMesh());
 
-        const BUFFER_GL*  pGl = pBufferMesh->pBufferGL;
+        const BUFFER_GL*  pGl = pBufferMesh->getRenderBuffer();
         BUFFER_SPECIFIC *backendBuffer = pGl->getBackendBuffer();
         if (!backendBuffer)
             return log_util::onFailed(nullptr, __FILE__, __LINE__,
@@ -80,7 +80,8 @@ namespace mbm
                    (size_t)headerFrame->sizeIndexBuffer * sizeof(uint16_t));
 
             uint16_t accumulated = 0;
-            for (uint32_t i = 0; i < pGl->totalSubset; ++i)
+            const uint32_t totalSubsets = pBufferMesh->getTotalSubsets();
+            for (uint32_t i = 0; i < totalSubsets; ++i)
             {
                 auto* pSubset = new util::SUBSET_DEBUG();
                 pBuffer->subset.push_back(pSubset);
@@ -95,9 +96,10 @@ namespace mbm
                 pSubset->vertexStart = (int)accumulated;
                 accumulated += (uint16_t)pSubset->vertexCount;
 
-                if (pBufferMesh->subset[i].texture)
+                const util::SUBSET *runtimeSubset = pBufferMesh->getSubset(i);
+                if (runtimeSubset && runtimeSubset->texture)
                     pSubset->texture =
-                        pBufferMesh->subset[i].texture->getFileNameTexture();
+                        runtimeSubset->texture->getFileNameTexture();
             }
             headerFrame->sizeVertexBuffer = (int)accumulated;
             pBuffer->position = new float[(size_t)headerFrame->sizeVertexBuffer * 3];

@@ -40,7 +40,7 @@ namespace mbm
         typedef GLboolean (PFNGLUNMAPBUFFEROESPROC_TODO) (GLenum target);
     #endif
 
-        bool MESH_MBM_DEBUG::fillInSubsetDebug(const MESH_MBM* meshMemory, 
+        bool MESH_MBM_DEBUG::fillInSubsetDebug(const MESH_MBM* meshMemory,
                                                const int currentFrame,
                                                const std::map<int, float>& lsLetterChangedValuesByCurFrameX,
                                                const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
@@ -48,7 +48,7 @@ namespace mbm
                                                util::BUFFER_MESH_DEBUG* pBuffer)//need to be implemented by specific backend engine 
         {
             const BUFFER_MESH* pBufferMesh = meshMemory->getBuffer(currentFrame);
-            const BUFFER_GL* pGl           = pBufferMesh->pBufferGL;
+            const BUFFER_GL* pGl           = pBufferMesh ? pBufferMesh->getRenderBuffer() : nullptr;
             BUFFER_SPECIFIC *backendBuffer = pGl ? pGl->getBackendBuffer() : nullptr;
             if (!backendBuffer)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "backend buffer is null");
@@ -74,7 +74,8 @@ namespace mbm
             {
                 pBuffer->indexBuffer = new uint16_t[headerFrame->sizeIndexBuffer];
                 uint16_t acumulated = 0;
-                for (uint32_t i = 0; i < pBufferMesh->pBufferGL->totalSubset; ++i)
+                const uint32_t totalSubsets = pBufferMesh->getTotalSubsets();
+                for (uint32_t i = 0; i < totalSubsets; ++i)
                 {
                     auto pSubset = new util::SUBSET_DEBUG();
                     pBuffer->subset.push_back(pSubset);
@@ -99,9 +100,10 @@ namespace mbm
                     pSubset->vertexStart = acumulated;
                     acumulated += vertexCount;
 
-                    if (pBufferMesh->subset[i].texture)
+                    const util::SUBSET *runtimeSubset = pBufferMesh->getSubset(i);
+                    if (runtimeSubset && runtimeSubset->texture)
                     {
-                        pSubset->texture = pBufferMesh->subset[i].texture->getFileNameTexture();
+                        pSubset->texture = runtimeSubset->texture->getFileNameTexture();
                     }
                 }
                 headerFrame->sizeVertexBuffer = (acumulated);
