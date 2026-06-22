@@ -566,8 +566,94 @@ namespace
         return log_util::onFailed(fp,__FILE__, __LINE__, "stride unknown. must be 2 or 3");
     }
 
+    const char *normalize_texture_animation_effect_path(const char *path) noexcept
+    {
+        return (path && path[0]) ? path : nullptr;
+    }
+
+    bool resolve_texture_animation_effect_for_write(const util::INFO_FX *infoShaderStep,
+                                                    const char *&textureAnimationEffect) noexcept
+    {
+        textureAnimationEffect = nullptr;
+        if (infoShaderStep == nullptr)
+            return true;
+
+        textureAnimationEffect =
+            normalize_texture_animation_effect_path(infoShaderStep->getTextureAnimationEffectFileName());
+        if (textureAnimationEffect)
+            return true;
+
+        const char *psTexture = infoShaderStep->dataPS ?
+            normalize_texture_animation_effect_path(infoShaderStep->dataPS->fileNameTextureStage2) : nullptr;
+        const char *vsTexture = infoShaderStep->dataVS ?
+            normalize_texture_animation_effect_path(infoShaderStep->dataVS->fileNameTextureStage2) : nullptr;
+        if (psTexture && vsTexture && strcmp(psTexture, vsTexture) != 0)
+            return false;
+
+        textureAnimationEffect = psTexture ? psTexture : vsTexture;
+        return true;
+    }
+
+    bool read_texture_animation_effect_header_v10(FILE *fp,
+                                                  const char *fileNamePath,
+                                                  util::INFO_FX *effectShader)
+    {
+        int16_t lenTextureAnimationEffect = 0;
+        if (!util::readHeaderInfoShaderEffectV10(fp, lenTextureAnimationEffect))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read animation FX header [%s]", fileNamePath);
+
+        if (lenTextureAnimationEffect > 0)
+        {
+            std::vector<char> textureAnimationEffect(static_cast<size_t>(lenTextureAnimationEffect), 0);
+            if (!fread(textureAnimationEffect.data(), static_cast<size_t>(lenTextureAnimationEffect), 1, fp))
+                return log_util::onFailed(fp,
+                                          __FILE__,
+                                          __LINE__,
+                                          "failed to read TextureAnimationEffect name [%s]",
+                                          fileNamePath);
+            effectShader->setTextureAnimationEffectFileName(textureAnimationEffect.data());
+        }
+        return true;
+    }
+
+    bool write_texture_animation_effect_header_v10(const char *fileOut,
+                                                   FILE **file,
+                                                   const util::INFO_FX *effectShader)
+    {
+        const char *textureAnimationEffect = nullptr;
+        if (!resolve_texture_animation_effect_for_write(effectShader, textureAnimationEffect))
+        {
+            return log_util::onFailed(*file,
+                                      __FILE__,
+                                      __LINE__,
+                                      "conflicting TextureAnimationEffect paths while saving [%s]",
+                                      fileOut);
+        }
+
+        const int16_t lenTextureAnimationEffect = textureAnimationEffect ?
+            static_cast<int16_t>(strlen(textureAnimationEffect) + 1) : 0;
+        if (!util::writeHeaderInfoShaderEffectV10(*file, lenTextureAnimationEffect))
+            return log_util::onFailed(*file, __FILE__, __LINE__, "failed to add animation FX header to file");
+
+        if (lenTextureAnimationEffect)
+        {
+            if (!util::addToFileBinary(fileOut,
+                                       textureAnimationEffect,
+                                       static_cast<size_t>(lenTextureAnimationEffect),
+                                       file))
+            {
+                return log_util::onFailed(*file,
+                                          __FILE__,
+                                          __LINE__,
+                                          "failed to add TextureAnimationEffect name");
+            }
+        }
+        return true;
+    }
+
     bool fill_animation_headers_common(FILE *fp,
                                        const char *fileNamePath,
+                                       const int version,
                                        const int totalAnimation,
                                        util::INFO_ANIMATION &infoAnimation)
     {
@@ -586,6 +672,11 @@ namespace
             if(headerAnim->hasShaderEffect == 1)
             {
                 infoHead->effectShader = new util::INFO_FX();
+                if (version >= TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER &&
+                    !read_texture_animation_effect_header_v10(fp, fileNamePath, infoHead->effectShader))
+                {
+                    return false;
+                }
                 util::HEADER_INFO_SHADER_STEP headerPS_VS;
                 if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
@@ -657,7 +748,9 @@ namespace
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
                     }
                 }
-                if (infoHead->effectShader && !infoHead->effectShader->normalizeLegacyTextureAnimationEffectPaths())
+                if (version < TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER &&
+                    infoHead->effectShader &&
+                    !infoHead->effectShader->normalizeLegacyTextureAnimationEffectPaths())
                 {
                     return log_util::onFailed(fp,
                                               __FILE__,
@@ -679,9 +772,15 @@ namespace
     {
         util::HEADER_INFO_SHADER_STEP headerPS_VS;
         headerPS_VS.lenNameShader = static_cast<short>(strlen(infoShader->fileNameShader) + 1);
-        const char *textureAnimationEffect = infoShaderStep ? infoShaderStep->getTextureAnimationEffectFileName() : nullptr;
-        if (textureAnimationEffect == nullptr)
-            textureAnimationEffect = infoShader->fileNameTextureStage2;
+        const char *textureAnimationEffect = nullptr;
+        if (!resolve_texture_animation_effect_for_write(infoShaderStep, textureAnimationEffect))
+        {
+            return log_util::onFailed(*file,
+                                      __FILE__,
+                                      __LINE__,
+                                      "conflicting TextureAnimationEffect paths while saving [%s]",
+                                      fileOut);
+        }
         if (writeTextureStage2 && textureAnimationEffect)
             headerPS_VS.lenTextureStage2 = static_cast<short>(strlen(textureAnimationEffect) + 1);
         else
@@ -4144,6 +4243,7 @@ namespace mbm
     {
         return fill_animation_headers_common(fp,
                                              fileNamePath,
+                                             this->headerMain.version,
                                              this->headerMesh.totalAnimation,
                                              this->infoAnimation);
     }
@@ -4169,6 +4269,9 @@ namespace mbm
     
     bool MESH_MBM_DEBUG::saveAnimationHeaders(const char *fileOut, FILE **file)
     {
+        const bool writeAnimationEffectHeader =
+            this->headerMain.version >= TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER;
+
         // 4 header anim -- Todas as animações -----------------------------------------------------------
         for (int i = 0; i < this->headerMesh.totalAnimation; ++i)
         {
@@ -4182,6 +4285,8 @@ namespace mbm
             util::INFO_FX *effectShader = infoHead->effectShader;
             if(effectShader == nullptr)
             {
+                if (writeAnimationEffectHeader && !write_texture_animation_effect_header_v10(fileOut, file, nullptr))
+                    return false;
                 int blendOperation = 0;
                 if(i < static_cast<int>(lsBlendOperation.size()) && lsBlendOperation[i] != 0)
                     blendOperation = lsBlendOperation[i];
@@ -4189,6 +4294,9 @@ namespace mbm
                     return false;
                 continue;
             }
+
+            if (writeAnimationEffectHeader && !write_texture_animation_effect_header_v10(fileOut, file, effectShader))
+                return false;
 
             // Pixel Shader
             util::INFO_SHADER_DATA *pixelShaderData = effectShader->dataPS;
@@ -4198,7 +4306,7 @@ namespace mbm
                                                file,
                                                effectShader,
                                                pixelShaderData,
-                                               true,
+                                               !writeAnimationEffectHeader,
                                                "failed to add name of pixel shader"))
                     return false;
             }
@@ -4216,7 +4324,7 @@ namespace mbm
                                                file,
                                                effectShader,
                                                vertexShaderData,
-                                               true,
+                                               !writeAnimationEffectHeader,
                                                "failed to add name of shader to file"))
                     return false;
             }
@@ -4647,7 +4755,7 @@ namespace mbm
             return log_util::onFailed(fp,__FILE__, __LINE__, "unexpected version [%s] V[%d]", fileNamePath, headerMain.version);
     #endif
         }
-        else if (!this->fillAnimation_2(headerMesh, fileNamePath, fp))
+        else if (!this->fillAnimation_2(headerMesh, headerMain.version, fileNamePath, fp))
         {
             return false;
         }
@@ -5119,10 +5227,14 @@ namespace mbm
                                         this->sizeCoordTexFrame_0);
     }
     
-    bool MESH_MBM::fillAnimation_2(util::HEADER_MESH &headerMesh, const char *fileNamePath, FILE *fp)
+    bool MESH_MBM::fillAnimation_2(util::HEADER_MESH &headerMesh,
+                                   const int version,
+                                   const char *fileNamePath,
+                                   FILE *fp)
     {
         return fill_animation_headers_common(fp,
                                              fileNamePath,
+                                             version,
                                              headerMesh.totalAnimation,
                                              this->infoAnimation);
     }

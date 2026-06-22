@@ -119,8 +119,9 @@ or a deliberate stage-extension design instead of overloading the existing stage
 Current structural constraints:
 
 - MBM v8 stores only one primary texture name per subset in `HEADER_DESC_SUBSET::nameTexture`.
-- Animation shader steps can store one stage-1/`sample1` texture through
-  `HEADER_INFO_SHADER_STEP::lenTextureStage2`.
+- Legacy animation shader steps can store one stage-1/`sample1` texture through
+  `HEADER_INFO_SHADER_STEP::lenTextureStage2`; mesh `v10` stores
+  `TextureAnimationEffect` once at the animation FX level.
 - `BUFFER_GL` currently has per-subset stage 0 and one shared stage 1 pointer; it does not model
   arbitrary material texture slots.
 - A serializable material-texture-slot feature likely needs a new mesh format version after
@@ -605,8 +606,9 @@ Default MSL generation should:
   state.
 - Keep texture ownership separate from backend binding slots:
   - `TextureDiffuse`: primary per-frame/per-subset texture.
-  - `TextureAnimationEffect`: per-animation shader-effect texture currently serialized through the
-    legacy `fileNameTextureStage2` path and stored at runtime as `FX::textureAnimationEffect`.
+  - `TextureAnimationEffect`: per-animation shader-effect texture stored at runtime as
+    `FX::textureAnimationEffect`; legacy files serialize it through `fileNameTextureStage2`,
+    while mesh `v10` stores it once per animation FX block.
   - Legacy files that specify different effect textures for PS and VS should fail clearly during
     load instead of silently picking one.
   - `TextureNormal`: per-frame/per-subset material normal-map texture.

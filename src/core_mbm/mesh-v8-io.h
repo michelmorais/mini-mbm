@@ -18,6 +18,8 @@ namespace util
 
     bool readHeaderInfoShaderStepV8(FILE *fp, util::HEADER_INFO_SHADER_STEP &out);
     bool writeHeaderInfoShaderStepV8(FILE *fp, const util::HEADER_INFO_SHADER_STEP &in);
+    bool readHeaderInfoShaderEffectV10(FILE *fp, int16_t &lenTextureAnimationEffect);
+    bool writeHeaderInfoShaderEffectV10(FILE *fp, int16_t lenTextureAnimationEffect);
 
     bool readHeaderFrameV8(FILE *fp, util::HEADER_FRAME &out);
     bool writeHeaderFrameV8(FILE *fp, const util::HEADER_FRAME &in);

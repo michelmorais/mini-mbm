@@ -68,8 +68,9 @@
     5.3   Modernized Android Project, Added native Activity,removed old Java wrapper for AUDIO jni, added support to generate project on Android Studio using cmake
     6.0   The first Mini MBM lighting implementation using the classic model of Phong.
     6.1   TextureAnimationEffect ownership normalized to animation-level metadata with explicit legacy mismatch validation.
+    6.2   Mesh v10 stores TextureAnimationEffect once per animation FX block instead of duplicating it in PS/VS stage records.
 */
-#define MBM_VERSION "6.1" // MBM_VERSION must be in format X.Y"
+#define MBM_VERSION "6.2" // MBM_VERSION must be in format X.Y"
 #endif
 
 #endif

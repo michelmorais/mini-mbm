@@ -115,8 +115,9 @@ namespace util
     #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
     #define STRONG_TYPES_VERSION_MBM_HEADER 8     // v8: new baseline for current mesh generation
     #define MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER 9 // v9: per-subset typed material texture slots
+    #define TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER 10 // v10: TextureAnimationEffect stored once per animation FX block
 
-    #define CURRENT_VERSION_MBM_HEADER     MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER
+    #define CURRENT_VERSION_MBM_HEADER     TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER
 
     /* hasNorText[0] (normals) */
     #define HAS_NOR_NO           0  /* no normals */
@@ -193,6 +194,13 @@ namespace util
         int16_t typeAnimation;
         int32_t blendOperation;
         float timeAnimation;
+    };
+
+    struct API_IMPL HEADER_INFO_SHADER_EFFECT_DISK_V10
+    {
+        int16_t lenTextureAnimationEffect;
+        int16_t reserved0;
+        int32_t reserved1;
     };
 
     struct API_IMPL HEADER_FRAME_DISK_V8

@@ -434,6 +434,9 @@ These built-ins require a vertex format with normals. They are intended for `FVF
 Mesh version `v9` adds typed per-subset material texture slots alongside the existing primary
 diffuse texture reference in `HEADER_DESC_SUBSET::nameTexture`.
 
+Mesh version `v10` stores `TextureAnimationEffect` once at the animation FX level instead of
+duplicating that path through the legacy PS/VS stage-1 records.
+
 Current reserved slot ids are:
 
 - `MATERIAL_TEXTURE_SLOT_NORMAL`

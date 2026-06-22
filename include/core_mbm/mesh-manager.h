@@ -240,7 +240,7 @@ namespace mbm
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);
         bool readTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
-        bool fillAnimation_2(util::HEADER_MESH &headerMesh, const char *fileNamePath, FILE *fp);
+        bool fillAnimation_2(util::HEADER_MESH &headerMesh, const int version, const char *fileNamePath, FILE *fp);
         bool loadLegacyCompat(const char *fileNamePath, RENDERIZABLE *renderizable);
       #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         bool loadLegacyDetailStep(FILE *fp, const char *fileNamePath, const util::HEADER &headerMain,
