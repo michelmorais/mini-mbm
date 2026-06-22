@@ -991,19 +991,11 @@ namespace mbm
             util::INFO_ANIMATION::INFO_HEADER_ANIM * infoHead = mesh->getAnimationHeader(i);
             if(infoHead->effectShader)
             {
-                util::INFO_SHADER_DATA *infoPS         = infoHead->effectShader->dataPS;
-                ANIMATION *anim                         = this->getAnimation(static_cast<uint32_t>(i));
-                if (infoPS && infoPS->fileNameTextureStage2)
+                ANIMATION *anim = this->getAnimation(static_cast<uint32_t>(i));
+                const char *textureAnimationEffect = infoHead->effectShader->getTextureAnimationEffectFileName();
+                if (textureAnimationEffect)
                 {
-                    TEXTURE *  tex  = texMan->load(infoPS->fileNameTextureStage2, true);
-                    if (anim && tex)
-                        anim->getFx().textureAnimationEffect = tex;
-                }
-
-                util::INFO_SHADER_DATA *infoVS = infoHead->effectShader->dataVS;
-                if (infoVS && infoVS->fileNameTextureStage2)
-                {
-                    TEXTURE *  tex  = texMan->load(infoVS->fileNameTextureStage2, true);
+                    TEXTURE *tex = texMan->load(textureAnimationEffect, true);
                     if (anim && tex)
                         anim->getFx().textureAnimationEffect = tex;
                 }
@@ -1042,13 +1034,17 @@ namespace mbm
         if (infoHead) // animation total
         {
             util::INFO_FX *infoShaderStep = infoHead->effectShader;
+            if (infoShaderStep)
+            {
+                const char *textureAnimationEffect = infoShaderStep->getTextureAnimationEffectFileName();
+                if (textureAnimationEffect)
+                    fx.textureAnimationEffect = texMan->load(textureAnimationEffect, true);
+            }
             if (infoShaderStep && infoShaderStep->dataPS)
             {
                 util::INFO_SHADER_DATA *data   = infoShaderStep->dataPS;
                 fx.fxPS->setTimeAnimation(data->timeAnimation);
                 fx.blendOperation          = infoShaderStep->blendOperation;
-                if (data->fileNameTextureStage2)
-                    fx.textureAnimationEffect = texMan->load(data->fileNameTextureStage2, true);
                 SHADER_CFG *cfgShader              = device->getShaderConfig().getShader(data->fileNameShader);
                 if (cfgShader)
                 {
@@ -1071,8 +1067,6 @@ namespace mbm
                 util::INFO_SHADER_DATA *data   = infoShaderStep->dataVS;
                 fx.fxVS->setTimeAnimation(data->timeAnimation);
                 fx.blendOperation          = infoShaderStep->blendOperation;
-                if (data->fileNameTextureStage2)
-                    fx.textureAnimationEffect = texMan->load(data->fileNameTextureStage2, true);
                 SHADER_CFG *cfgShader              = device->getShaderConfig().getShader(data->fileNameShader);
                 if (cfgShader)
                 {
@@ -1144,11 +1138,6 @@ namespace mbm
                         {
                             ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataPS->lenVars,fx.fxPS->getCurrentShader()->getTotalVar());
                         }
-                        if (data->fileNameTextureStage2)
-                        {
-                            TEXTURE_MANAGER *man = TEXTURE_MANAGER::getInstance();
-                            fx.textureAnimationEffect  = man->load(data->fileNameTextureStage2, true);
-                        }
                     }
                     else
                     {
@@ -1194,11 +1183,6 @@ namespace mbm
                         else
                         {
                             ERROR_LOG( "Unexpected number of variable for shader [%s]!\nDid the shader change???\nTotal vars [%d] expected [%d]", data->fileNameShader,infoShaderStep->dataVS->lenVars,fx.fxVS->getCurrentShader()->getTotalVar());
-                        }
-                        if (data->fileNameTextureStage2)
-                        {
-                            TEXTURE_MANAGER *man = TEXTURE_MANAGER::getInstance();
-                            fx.textureAnimationEffect  = man->load(data->fileNameTextureStage2, true);
                         }
                     }
                     else

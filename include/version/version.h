@@ -66,9 +66,10 @@
     5.1   Updated IM-GUI version to 1.92.6
     5.2   Introduced MacOs support
     5.3   Modernized Android Project, Added native Activity,removed old Java wrapper for AUDIO jni, added support to generate project on Android Studio using cmake
-    6.0   The first Mini MBM lighting implementation using the classic model of Phong. 
+    6.0   The first Mini MBM lighting implementation using the classic model of Phong.
+    6.1   TextureAnimationEffect ownership normalized to animation-level metadata with explicit legacy mismatch validation.
 */
-#define MBM_VERSION "6.0" // MBM_VERSION must be in format X.Y"
+#define MBM_VERSION "6.1" // MBM_VERSION must be in format X.Y"
 #endif
 
 #endif

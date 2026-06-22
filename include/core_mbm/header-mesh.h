@@ -487,9 +487,13 @@ namespace util
     {
         INFO_SHADER_DATA *dataPS;          // Data do pixel Shader
         INFO_SHADER_DATA *dataVS;          // Data do vertex Shader
+        char *             fileNameTextureAnimationEffect; // Canonical animation-level FX texture path
         int                blendOperation;  // Tipo de operacao blend nos steps
         INFO_FX()noexcept;
         ~INFO_FX()noexcept;
+        API_IMPL void setTextureAnimationEffectFileName(const char *fileName) noexcept;
+        API_IMPL const char *getTextureAnimationEffectFileName() const noexcept;
+        API_IMPL bool normalizeLegacyTextureAnimationEffectPaths() noexcept;
     };
 
     struct INFO_ANIMATION

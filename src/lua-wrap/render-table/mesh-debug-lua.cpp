@@ -1747,6 +1747,7 @@ namespace mbm
                     {
                         infoHead->effectShader = new util::INFO_FX();
                         infoHead->effectShader->blendOperation = fx.blendOperation;
+                        infoHead->effectShader->setTextureAnimationEffectFileName(textureAnimationEffect);
                         fillEffect(fx.fxPS,textureAnimationEffect,&infoHead->effectShader->dataPS);
                     }
                     if(fx.fxVS->getCurrentShader())
@@ -1756,6 +1757,7 @@ namespace mbm
                             infoHead->effectShader = new util::INFO_FX();
                             infoHead->effectShader->blendOperation = fx.blendOperation;
                         }
+                        infoHead->effectShader->setTextureAnimationEffectFileName(textureAnimationEffect);
                         fillEffect(fx.fxVS,textureAnimationEffect,&infoHead->effectShader->dataVS);
                     }
                 }

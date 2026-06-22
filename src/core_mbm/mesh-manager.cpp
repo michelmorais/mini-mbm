@@ -657,6 +657,14 @@ namespace
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
                     }
                 }
+                if (infoHead->effectShader && !infoHead->effectShader->normalizeLegacyTextureAnimationEffectPaths())
+                {
+                    return log_util::onFailed(fp,
+                                              __FILE__,
+                                              __LINE__,
+                                              "conflicting legacy TextureAnimationEffect paths between PS and VS in mesh [%s]",
+                                              fileNamePath);
+                }
             }
         }
         return true;
@@ -671,8 +679,11 @@ namespace
     {
         util::HEADER_INFO_SHADER_STEP headerPS_VS;
         headerPS_VS.lenNameShader = static_cast<short>(strlen(infoShader->fileNameShader) + 1);
-        if (writeTextureStage2 && infoShader->fileNameTextureStage2)
-            headerPS_VS.lenTextureStage2 = static_cast<short>(strlen(infoShader->fileNameTextureStage2) + 1);
+        const char *textureAnimationEffect = infoShaderStep ? infoShaderStep->getTextureAnimationEffectFileName() : nullptr;
+        if (textureAnimationEffect == nullptr)
+            textureAnimationEffect = infoShader->fileNameTextureStage2;
+        if (writeTextureStage2 && textureAnimationEffect)
+            headerPS_VS.lenTextureStage2 = static_cast<short>(strlen(textureAnimationEffect) + 1);
         else
             headerPS_VS.lenTextureStage2 = 0;
         headerPS_VS.sizeArrayVarInBytes  = static_cast<short>(infoShader->lenVars * 4);
@@ -694,7 +705,7 @@ namespace
         if (headerPS_VS.lenTextureStage2)
         {
             if (!util::addToFileBinary(fileOut,
-                                       infoShader->fileNameTextureStage2,
+                                       textureAnimationEffect,
                                        static_cast<size_t>(headerPS_VS.lenTextureStage2),
                                        file))
                 return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add textures name stage 2");
@@ -4179,12 +4190,10 @@ namespace mbm
                 continue;
             }
 
-            bool shouldWriteVertexTextureStage2 = true;
             // Pixel Shader
             util::INFO_SHADER_DATA *pixelShaderData = effectShader->dataPS;
             if (pixelShaderData)
             {
-                shouldWriteVertexTextureStage2 = false;
                 if (!write_shader_step_to_file(fileOut,
                                                file,
                                                effectShader,
@@ -4207,7 +4216,7 @@ namespace mbm
                                                file,
                                                effectShader,
                                                vertexShaderData,
-                                               shouldWriteVertexTextureStage2,
+                                               true,
                                                "failed to add name of shader to file"))
                     return false;
             }
@@ -5766,16 +5775,18 @@ namespace mbm
                 auto infoStepShader = new util::INFO_FX();
                 infoHead->effectShader = infoStepShader;
                 infoStepShader->blendOperation = pInfoStepShader->blendOperation;
+                infoStepShader->setTextureAnimationEffectFileName(pInfoStepShader->getTextureAnimationEffectFileName());
+                const char *textureAnimationEffect = pInfoStepShader->getTextureAnimationEffectFileName();
 
                 if (pInfoStepShader->dataPS)
                 {
                     infoStepShader->dataPS = new util::INFO_SHADER_DATA(
                         pInfoStepShader->dataPS->lenVars * 4,
                         static_cast<int>(strlen(pInfoStepShader->dataPS->fileNameShader) + 1),
-                        pInfoStepShader->dataPS->fileNameTextureStage2 ? static_cast<int>(strlen(pInfoStepShader->dataPS->fileNameTextureStage2) + 1) : 0);
+                        textureAnimationEffect ? static_cast<int>(strlen(textureAnimationEffect) + 1) : 0);
                     strcpy(infoStepShader->dataPS->fileNameShader, pInfoStepShader->dataPS->fileNameShader);
-                    if (infoStepShader->dataPS->fileNameTextureStage2)
-                        strcpy(infoStepShader->dataPS->fileNameTextureStage2, pInfoStepShader->dataPS->fileNameTextureStage2);
+                    if (infoStepShader->dataPS->fileNameTextureStage2 && textureAnimationEffect)
+                        strcpy(infoStepShader->dataPS->fileNameTextureStage2, textureAnimationEffect);
                     infoStepShader->dataPS->timeAnimation = pInfoStepShader->dataPS->timeAnimation;
                     infoStepShader->dataPS->typeAnimation = pInfoStepShader->dataPS->typeAnimation;
                     for (int k = 0; k < infoStepShader->dataPS->lenVars; ++k)
@@ -5791,10 +5802,10 @@ namespace mbm
                     infoStepShader->dataVS = new util::INFO_SHADER_DATA(
                         pInfoStepShader->dataVS->lenVars * 4,
                         static_cast<int>(strlen(pInfoStepShader->dataVS->fileNameShader) + 1),
-                        pInfoStepShader->dataVS->fileNameTextureStage2 ? static_cast<int>(strlen(pInfoStepShader->dataVS->fileNameTextureStage2) + 1) : 0);
+                        textureAnimationEffect ? static_cast<int>(strlen(textureAnimationEffect) + 1) : 0);
                     strcpy(infoStepShader->dataVS->fileNameShader, pInfoStepShader->dataVS->fileNameShader);
-                    if (infoStepShader->dataVS->fileNameTextureStage2)
-                        strcpy(infoStepShader->dataVS->fileNameTextureStage2, pInfoStepShader->dataVS->fileNameTextureStage2);
+                    if (infoStepShader->dataVS->fileNameTextureStage2 && textureAnimationEffect)
+                        strcpy(infoStepShader->dataVS->fileNameTextureStage2, textureAnimationEffect);
                     infoStepShader->dataVS->timeAnimation = pInfoStepShader->dataVS->timeAnimation;
                     infoStepShader->dataVS->typeAnimation = pInfoStepShader->dataVS->typeAnimation;
                     for (int k = 0; k < infoStepShader->dataVS->lenVars; ++k)
