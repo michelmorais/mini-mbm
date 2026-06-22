@@ -42,7 +42,7 @@ namespace mbm
     void TEXT_DRAW::release()
     {
         this->releaseAnimation();
-        this->mesh                  = nullptr;
+        this->setFontMesh(nullptr);
         this->setIndexAnimation(0);
         this->wildCardChangeAnim      = 0;
     }
@@ -52,9 +52,8 @@ namespace mbm
     {
         this->widthFirstLetter      = 0;
         this->setIndexAnimation(0);
-        this->mesh                  = nullptr;
-        this->onRestoreFont         = ptrOnRestoreFont;
-        this->parentFONT_DRAW       = _parentFONT_DRAW;
+        this->setFontMesh(nullptr);
+        this->setRestoreFontContext(ptrOnRestoreFont, _parentFONT_DRAW);
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
@@ -74,9 +73,8 @@ namespace mbm
     {
         this->widthFirstLetter      = 0;
         this->setIndexAnimation(0);
-        this->mesh                  = nullptr;
-        this->onRestoreFont         = ptrOnRestoreFont;
-        this->parentFONT_DRAW       = _parentFONT_DRAW;
+        this->setFontMesh(nullptr);
+        this->setRestoreFontContext(ptrOnRestoreFont, _parentFONT_DRAW);
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
@@ -100,9 +98,8 @@ namespace mbm
         this->widthFirstLetter      = 0;
         this->setPosition(position);
         this->setIndexAnimation(0);
-        this->mesh                  = nullptr;
-        this->onRestoreFont         = ptrOnRestoreFont;
-        this->parentFONT_DRAW       = _parentFONT_DRAW;
+        this->setFontMesh(nullptr);
+        this->setRestoreFontContext(ptrOnRestoreFont, _parentFONT_DRAW);
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
@@ -128,7 +125,7 @@ namespace mbm
         textPosition.x              = position.x;
         textPosition.y              = position.y;
         this->setIndexAnimation(0);
-        this->mesh                  = nullptr;
+        this->setFontMesh(nullptr);
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
@@ -140,8 +137,7 @@ namespace mbm
             this->text = newText;
         else
             this->text        = "Hello Font!";
-        this->onRestoreFont   = ptrOnRestoreFont;
-        this->parentFONT_DRAW = _parentFONT_DRAW;
+        this->setRestoreFontContext(ptrOnRestoreFont, _parentFONT_DRAW);
         this->aabbMin         = VEC2(0, 0);
         this->aabbMax         = VEC2(0, 0);
         device->addRenderizable(this);
@@ -312,6 +308,17 @@ namespace mbm
     float TEXT_DRAW::getSpaceYCharacter() const noexcept
     {
         return this->spaceYCharacter;
+    }
+
+    void TEXT_DRAW::setFontMesh(MESH_MBM *newMesh) noexcept
+    {
+        this->mesh = newMesh;
+    }
+
+    void TEXT_DRAW::setRestoreFontContext(OnRestoreFont ptrOnRestoreFont, FONT_DRAW *parentFontDraw) noexcept
+    {
+        this->onRestoreFont = ptrOnRestoreFont;
+        this->parentFONT_DRAW = parentFontDraw;
     }
     
     bool TEXT_DRAW::getWidthHeight(float *_width, float *_height, const bool ) const
@@ -913,7 +920,7 @@ namespace mbm
     
     bool TEXT_DRAW::onRestoreDevice()
     {
-		this->mesh = nullptr; // it is ok to release the mesh here, because onRestoreFont will recreate it or get it from cache if exists more than once
+		this->setFontMesh(nullptr); // it is ok to release the mesh here, because onRestoreFont will recreate it or get it from cache if exists more than once
 		this->parentFONT_DRAW->onStop();// also release all texts meshes
         return this->onRestoreFont(this->parentFONT_DRAW, this);
     }
@@ -1153,7 +1160,7 @@ namespace mbm
     {
         if (text == nullptr || this->mesh == nullptr)
             return;
-        text->mesh            = this->mesh;
+        text->setFontMesh(this->mesh);
         const INFO_BOUND_FONT * infoFont = mesh->getInfoFont();
         text->setSpaceXCharacter(infoFont->spaceXCharacter);
         text->setSpaceYCharacter(infoFont->spaceYCharacter);
@@ -1215,7 +1222,7 @@ namespace mbm
         }
         else
         {
-            whatText->mesh = this->mesh;
+            whatText->setFontMesh(this->mesh);
             return true;
         }
         return false;

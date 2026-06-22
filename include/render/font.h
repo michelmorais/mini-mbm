@@ -74,6 +74,8 @@ namespace mbm
         API_IMPL float getSpaceXCharacter() const noexcept;
         API_IMPL void setSpaceYCharacter(const float newSpaceYCharacter) noexcept;
         API_IMPL float getSpaceYCharacter() const noexcept;
+        API_IMPL void setFontMesh(MESH_MBM *newMesh) noexcept;
+        API_IMPL void setRestoreFontContext(OnRestoreFont ptrOnRestoreFont, FONT_DRAW *parentFontDraw) noexcept;
         API_IMPL bool getWidthHeight(float *_width, float *_height, const bool consider_scale = true) const override;
         // Recalculates bounding dimensions. Call after changing scale or position.
         // Not needed after setText() — that calls it automatically.
