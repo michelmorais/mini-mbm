@@ -2660,7 +2660,7 @@ namespace mbm
                 auto * infoAnim	                            = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
                 infoAnim->headerAnim						= new util::HEADER_ANIMATION();
                 infoAnim->effectShader						= new util::INFO_FX();
-                meshDebug.infoAnimation.lsHeaderAnim.push_back(infoAnim);
+                meshDebug.appendAnimationHeader(infoAnim);
 
                 snprintf(infoAnim->headerAnim->nameAnimation,sizeof(infoAnim->headerAnim->nameAnimation), "layer-%zu",k+1);
                 if(layer->fx.fxPS->getCurrentShader() != nullptr)

@@ -105,6 +105,17 @@ namespace mbm
         API_IMPL void setModeFrontFaceDirection(const unsigned int modeFrontFaceDirection) noexcept;
         API_IMPL void * getDetailInfo() const noexcept;
         API_IMPL void replaceDetailInfo(void *detailInfo) noexcept;
+        API_IMPL uint32_t getTotalAnimationHeaders() const noexcept;
+        API_IMPL util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnimationHeader(const uint32_t index) const noexcept;
+        API_IMPL void appendAnimationHeader(util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead) noexcept;
+        API_IMPL void clearBlendOperations() noexcept;
+        API_IMPL void resizeBlendOperations(const uint32_t totalAnimations);
+        API_IMPL void setBlendOperation(const uint32_t index, const int blendOperation);
+        API_IMPL uint32_t getTotalFrames() const noexcept;
+        API_IMPL util::BUFFER_MESH_DEBUG *getFrameBuffer(const uint32_t indexFrame) const noexcept;
+        API_IMPL uint32_t getTotalSubsets(const uint32_t indexFrame) const noexcept;
+        API_IMPL util::SUBSET_DEBUG *getSubset(const uint32_t indexFrame, const uint32_t indexSubset) const noexcept;
+        API_IMPL bool hasIndexBuffer(const uint32_t indexFrame) const noexcept;
         API_IMPL void calculateNormals();
         API_IMPL void calculateUV();
         API_IMPL void removeNormals();

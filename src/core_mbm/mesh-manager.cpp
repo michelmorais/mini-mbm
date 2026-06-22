@@ -1854,6 +1854,74 @@ namespace mbm
         this->deleteExtraInfo();
         this->extraInfo = detailInfo;
     }
+
+    uint32_t MESH_MBM_DEBUG::getTotalAnimationHeaders() const noexcept
+    {
+        return static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size());
+    }
+
+    util::INFO_ANIMATION::INFO_HEADER_ANIM * MESH_MBM_DEBUG::getAnimationHeader(const uint32_t index) const noexcept
+    {
+        if (index < this->infoAnimation.lsHeaderAnim.size())
+            return this->infoAnimation.lsHeaderAnim[index];
+        return nullptr;
+    }
+
+    void MESH_MBM_DEBUG::appendAnimationHeader(util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead) noexcept
+    {
+        if (infoHead)
+            this->infoAnimation.lsHeaderAnim.push_back(infoHead);
+    }
+
+    void MESH_MBM_DEBUG::clearBlendOperations() noexcept
+    {
+        this->lsBlendOperation.clear();
+    }
+
+    void MESH_MBM_DEBUG::resizeBlendOperations(const uint32_t totalAnimations)
+    {
+        this->lsBlendOperation.resize(totalAnimations);
+    }
+
+    void MESH_MBM_DEBUG::setBlendOperation(const uint32_t index, const int blendOperation)
+    {
+        if (index < this->lsBlendOperation.size())
+            this->lsBlendOperation[index] = blendOperation;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalFrames() const noexcept
+    {
+        return static_cast<uint32_t>(this->buffer.size());
+    }
+
+    util::BUFFER_MESH_DEBUG *MESH_MBM_DEBUG::getFrameBuffer(const uint32_t indexFrame) const noexcept
+    {
+        if (indexFrame < this->buffer.size())
+            return this->buffer[indexFrame];
+        return nullptr;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalSubsets(const uint32_t indexFrame) const noexcept
+    {
+        const util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        if (bufferCurrent)
+            return static_cast<uint32_t>(bufferCurrent->subset.size());
+        return 0;
+    }
+
+    util::SUBSET_DEBUG *MESH_MBM_DEBUG::getSubset(const uint32_t indexFrame, const uint32_t indexSubset) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        if (bufferCurrent && indexSubset < bufferCurrent->subset.size())
+            return bufferCurrent->subset[indexSubset];
+        return nullptr;
+    }
+
+    bool MESH_MBM_DEBUG::hasIndexBuffer(const uint32_t indexFrame) const noexcept
+    {
+        const util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent && bufferCurrent->indexBuffer != nullptr;
+    }
     
     util::TYPE_MESH MESH_MBM_DEBUG::getType(const char *fileNamePath)
     {
