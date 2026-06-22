@@ -25,10 +25,14 @@
 
 namespace mbm
 {
+    struct HMD::Impl
+    {
+        BUFFER_GL rightEyeBuffer;
+    };
 
     HMD::HMD(const SCENE *scene) 
         : RENDER_2_TEXTURE(scene, true, true)
-
+        , impl(new Impl())
     {
     }
     
@@ -224,12 +228,12 @@ namespace mbm
 
     BUFFER_GL & HMD::getRightEyeBuffer() noexcept
     {
-        return this->bufferGLRight;
+        return this->impl->rightEyeBuffer;
     }
 
     const BUFFER_GL & HMD::getRightEyeBuffer() const noexcept
     {
-        return this->bufferGLRight;
+        return this->impl->rightEyeBuffer;
     }
     
 };

@@ -27,6 +27,7 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
 #include <render/render-2-texture.h>
+#include <memory>
 
 namespace mbm
 {
@@ -44,7 +45,10 @@ namespace mbm
         const INFO_PHYSICS * getInfoPhysics() const override;
         BUFFER_GL & getRightEyeBuffer() noexcept;
         const BUFFER_GL & getRightEyeBuffer() const noexcept;
-        BUFFER_GL bufferGLRight;
+
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 };
 
