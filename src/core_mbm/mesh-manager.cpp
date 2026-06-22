@@ -4446,14 +4446,14 @@ namespace mbm
         return this->buffer != nullptr;
     }
     
-    bool MESH_MBM::render(const uint32_t indexFrame,const SHADER *pShader,TEXTURE* ptrTexture1,
+    bool MESH_MBM::render(const uint32_t indexFrame,const SHADER *pShader,TEXTURE* textureAnimationEffect,
                           const RENDERIZABLE *renderizableOwner)
     {
         if (indexFrame < totalFramesMesh && buffer)
         {
             DEVICE *device = DEVICE::getInstance();
             device->setRenderMaterial(this->material);
-            buffer[indexFrame].pBufferGL->setTextureByStage(ptrTexture1, 1, 0);
+            buffer[indexFrame].pBufferGL->setTextureByStage(textureAnimationEffect, 1, 0);
             const bool ret = pShader->render(buffer[indexFrame].pBufferGL, renderizableOwner);
             device->clearRenderMaterial();
             return ret;
@@ -4462,13 +4462,13 @@ namespace mbm
     }
 
     bool MESH_MBM::renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
-                                    VEC2 *uv, TEXTURE* ptrTexture1, const RENDERIZABLE *renderizableOwner)
+                                    VEC2 *uv, TEXTURE* textureAnimationEffect, const RENDERIZABLE *renderizableOwner)
     {
         if (indexFrame < totalFramesMesh && buffer)
         {
             DEVICE *device = DEVICE::getInstance();
             device->setRenderMaterial(this->material);
-            buffer[indexFrame].pBufferGL->setTextureByStage(ptrTexture1, 1, 0);
+            buffer[indexFrame].pBufferGL->setTextureByStage(textureAnimationEffect, 1, 0);
             const bool ret = pShader->renderDynamic(buffer[indexFrame].pBufferGL, vertex, normal, uv,
                                                     renderizableOwner);
             device->clearRenderMaterial();

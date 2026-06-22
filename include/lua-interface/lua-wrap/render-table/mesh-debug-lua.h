@@ -67,7 +67,7 @@ namespace mbm
     int onSetStrideMeshDebugLua(lua_State *lua);
     int onEnableNormalsMeshDebugLua(lua_State *lua);
     int onEnableUvMeshDebugLua(lua_State *lua);
-    void fillEffect(const EFFECT_SHADER* effect,const char* textureStage2,util::INFO_SHADER_DATA** dataInfoShader);
+    void fillEffect(const EFFECT_SHADER* effect,const char* textureAnimationEffect,util::INFO_SHADER_DATA** dataInfoShader);
     int onCopyAnimationsFromMeshLua(lua_State *lua);
     int onNewIndexMeshDebug(lua_State *lua);
     int onIndexMeshDebug(lua_State *lua);

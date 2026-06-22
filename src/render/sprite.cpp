@@ -73,7 +73,7 @@ namespace mbm
                     return false;
                 }
             }
-            this->populateTextureStage2FromMesh(this->mesh);
+            this->populateTextureAnimationEffectFromMesh(this->mesh);
             this->setInternalFileName(fileName);
             this->restartAnimation();
             this->updateAABB();
@@ -142,10 +142,10 @@ namespace mbm
             this->setBlendState(anim->getBlendState());
             fx.shader.update();
             fx.setBlendOp();
-            if (fx.textureOverrideStage2)
+            if (fx.textureAnimationEffect)
             {
                 if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader,
-                                        fx.textureOverrideStage2, this))
+                                        fx.textureAnimationEffect, this))
                     return false;
             }
             else

@@ -1174,13 +1174,13 @@ namespace mbm
             {
                 fx.shader.update();
                 fx.setBlendOp();
-                if (fx.textureOverrideStage2)
+                if (fx.textureAnimationEffect)
                 {
                     if (!mesh->renderDynamic(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 nullptr,
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),
-                                                fx.textureOverrideStage2, this))
+                                                fx.textureAnimationEffect, this))
                         return false;
                 }
                 else
@@ -1196,10 +1196,10 @@ namespace mbm
             {
                 fx.shader.update();
                 fx.setBlendOp();
-                if (fx.textureOverrideStage2)
+                if (fx.textureAnimationEffect)
                 {
                     if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
-                                      fx.textureOverrideStage2, this))
+                                      fx.textureAnimationEffect, this))
                         return false;
                 }
                 else

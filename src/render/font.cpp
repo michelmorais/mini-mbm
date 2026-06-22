@@ -774,10 +774,10 @@ namespace mbm
                                         FX &fx = anim->getFx();
                                         fx.shader.update(); // glUseProgram
                                         fx.setBlendOp();
-                                        if (fx.textureOverrideStage2)
+                                        if (fx.textureAnimationEffect)
                                         {
                                             if (!this->mesh->render(detail->indexFrame, &fx.shader,
-                                                                    fx.textureOverrideStage2, this))
+                                                                    fx.textureAnimationEffect, this))
                                                 return false;
                                         }
                                         else
@@ -946,7 +946,7 @@ namespace mbm
     }
 
     bool TEXT_DRAW::setTexture(
-        const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
+        const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para TextureAnimationEffect
         const char *fileNametexture, const unsigned int stage, const bool hasAlpha)
     {
         mbm::ANIMATION *anim = this->getAnimation();
@@ -980,13 +980,13 @@ namespace mbm
                     }
                     else
                     {
-                        fx.textureOverrideStage2 = newTex;
+                        fx.textureAnimationEffect = newTex;
                         return true;
                     }
                 }
                 else if (stage)
                 {
-                    fx.textureOverrideStage2 = newTex;
+                    fx.textureAnimationEffect = newTex;
                     return true;
                 }
             }
@@ -1176,8 +1176,8 @@ namespace mbm
                 return; // mesh is now null; do not continue iterating
             }
         }
-        // carregamos a textura do estagio 2
-        text->populateTextureStage2FromMesh(this->mesh);
+        // carregamos a TextureAnimationEffect legacy associada a esta animacao
+        text->populateTextureAnimationEffectFromMesh(this->mesh);
     }
     
     bool FONT_DRAW::OnRestoreFont(FONT_DRAW *that, TEXT_DRAW *TEXT_DRAW_ptr)

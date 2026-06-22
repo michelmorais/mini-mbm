@@ -47,7 +47,7 @@ namespace mbm
         API_IMPL BUFFER_GL *getFrame();
         API_IMPL TEXTURE *getTexture() const;
         API_IMPL virtual bool setTexture(
-            const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
+            const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para TextureAnimationEffect
             const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
         API_IMPL void setTextureToNull();
         API_IMPL std::string getFileNameTexture()const;

@@ -59,8 +59,8 @@ namespace mbm
         API_IMPL bool loadTexture(const char *fileNameMeshMbm, const bool hasAlpha);
         API_IMPL void setFrontGround(const bool enable);
         API_IMPL bool load(const char *fileName, const bool hasAlpha = false, const bool majorScale = true);
-        API_IMPL bool setTexture(const MESH_MBM *_mesh, // fixa textura para o estagio 0 e 1, stage = 1 para textura de estagio 2
-        const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
+        API_IMPL bool setTexture(const MESH_MBM *_mesh, // fixa textura para o estagio 0 e 1, stage = 1 para TextureAnimationEffect
+                                 const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
 		API_IMPL FX*  getFx() const override;
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
 

@@ -1650,11 +1650,11 @@ namespace mbm
         return 0;
     }
 
-    void fillEffect(const EFFECT_SHADER* fx,const char* textureStage2,util::INFO_SHADER_DATA** dataInfoShader)
+    void fillEffect(const EFFECT_SHADER* fx,const char* textureAnimationEffect,util::INFO_SHADER_DATA** dataInfoShader)
     {
         if(fx->getCurrentShader())
         {
-            const unsigned int sTexStage2    = textureStage2 ? static_cast<unsigned int>(strlen(textureStage2)): 0;
+            const unsigned int sTexStage2    = textureAnimationEffect ? static_cast<unsigned int>(strlen(textureAnimationEffect)): 0;
             const unsigned int sizeFileName  = static_cast<unsigned int>(fx->getCurrentShader()->fileName.size());
             const unsigned int totalVar      = fx->getCurrentShader()->getTotalVar();
             const unsigned int sizeArrayVarInBytes = totalVar * 4;
@@ -1667,7 +1667,7 @@ namespace mbm
             if(sizeFileName)
                 strncpy(dataInfo->fileNameShader,fx->getCurrentShader()->fileName.c_str(),sizeFileName + 1);
             if(sTexStage2)
-                strncpy(dataInfo->fileNameTextureStage2,textureStage2,sTexStage2 + 1);
+                strncpy(dataInfo->fileNameTextureStage2,textureAnimationEffect,sTexStage2 + 1);
             for(unsigned int k=0; k < totalVar; ++k)
             {
                 const int index       = k * 4;
@@ -1720,7 +1720,7 @@ namespace mbm
             {
                 ANIMATION* anim             = animations->getAnimation(i);
                 FX &fx                      = anim->getFx();
-                const char* textureStage2   = fx.textureOverrideStage2 ? fx.textureOverrideStage2->getFileNameTexture() : nullptr;
+                const char* textureAnimationEffect = fx.textureAnimationEffect ? fx.textureAnimationEffect->getFileNameTexture() : nullptr;
 
                 util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = meshDebug->mesh.getAnimationHeader(i);
                 if(infoHead == nullptr && i == meshDebug->mesh.getTotalAnimationHeaders())
@@ -1747,7 +1747,7 @@ namespace mbm
                     {
                         infoHead->effectShader = new util::INFO_FX();
                         infoHead->effectShader->blendOperation = fx.blendOperation;
-                        fillEffect(fx.fxPS,textureStage2,&infoHead->effectShader->dataPS);
+                        fillEffect(fx.fxPS,textureAnimationEffect,&infoHead->effectShader->dataPS);
                     }
                     if(fx.fxVS->getCurrentShader())
                     {
@@ -1756,7 +1756,7 @@ namespace mbm
                             infoHead->effectShader = new util::INFO_FX();
                             infoHead->effectShader->blendOperation = fx.blendOperation;
                         }
-                        fillEffect(fx.fxVS,textureStage2,&infoHead->effectShader->dataVS);
+                        fillEffect(fx.fxVS,textureAnimationEffect,&infoHead->effectShader->dataVS);
                     }
                 }
             }

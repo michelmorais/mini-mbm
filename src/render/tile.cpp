@@ -94,7 +94,7 @@ namespace mbm
                     return false;
                 }
             }
-            this->populateTextureStage2FromMesh(this->mesh);
+            this->populateTextureAnimationEffectFromMesh(this->mesh);
             this->setInternalFileName(fileName);
             this->restartAnimation();
             const auto * ptr_TileInfo = this->mesh->getInfoTile();
@@ -296,7 +296,7 @@ namespace mbm
         this->setBlendState(anim->getBlendState());
         fx.setBlendOp();
 
-        TEXTURE* idTextureOverrideStage2 = fx.textureOverrideStage2 ? fx.textureOverrideStage2 : nullptr;
+        TEXTURE* textureAnimationEffect = fx.textureAnimationEffect ? fx.textureAnimationEffect : nullptr;
         VEC3 thePosBrick(renderPos);
         const MATRIX *matrixPerspective = nullptr;
         const CAMERA &camera = device->getCamera();
@@ -334,7 +334,7 @@ namespace mbm
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
                                 &fx.shader,
-                                idTextureOverrideStage2,
+                                textureAnimationEffect,
                                 i,
                                 j - 1,
                                 offset_x,
@@ -357,7 +357,7 @@ namespace mbm
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
                                 &fx.shader,
-                                idTextureOverrideStage2,
+                                textureAnimationEffect,
                                 i,
                                 j,
                                 offset_x,
@@ -383,7 +383,7 @@ namespace mbm
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
                                 &fx.shader,
-                                idTextureOverrideStage2,
+                                textureAnimationEffect,
                                 i - 1,
                                 j - 1,
                                 offset_x,
@@ -406,7 +406,7 @@ namespace mbm
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
                                 &fx.shader,
-                                idTextureOverrideStage2,
+                                textureAnimationEffect,
                                 i - 1,
                                 j,
                                 offset_x,
@@ -435,7 +435,7 @@ namespace mbm
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
                                 &fx.shader,
-                                idTextureOverrideStage2,
+                                textureAnimationEffect,
                                 i,
                                 j - 1,
                                 offset_x,
@@ -458,7 +458,7 @@ namespace mbm
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
                                 &fx.shader,
-                                idTextureOverrideStage2,
+                                textureAnimationEffect,
                                 i,
                                 j,
                                 offset_x,
@@ -484,7 +484,7 @@ namespace mbm
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
                                 &fx.shader,
-                                idTextureOverrideStage2,
+                                textureAnimationEffect,
                                 i - 1,
                                 j - 1,
                                 offset_x,
@@ -507,7 +507,7 @@ namespace mbm
                             if (renderBrick(ptr_TileInfo,
                                 layer->lsIndexTiles,
                                 &fx.shader,
-                                idTextureOverrideStage2,
+                                textureAnimationEffect,
                                 i - 1,
                                 j,
                                 offset_x,
@@ -530,7 +530,7 @@ namespace mbm
     inline bool TILE::renderBrick( const util::BTILE_INFO * ptr_TileInfo, 
                             const util::BTILE_INDEX_TILE * lsIndexTiles,
                             const mbm::SHADER * shader,
-                            TEXTURE* idTextureOverrideStage2,
+                            TEXTURE* textureAnimationEffect,
                             const uint32_t i, 
                             const uint32_t j,
                             const float offset_x,
@@ -546,7 +546,7 @@ namespace mbm
             SHADER::modelView._41 = (bTileIndex->x * scale.x) + offset_x + pos->x;
             SHADER::modelView._42 = (bTileIndex->y * scale.y) + offset_y + pos->y;
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, matrixPerspective);
-            if (this->mesh->render(bTileIndex->index, shader, idTextureOverrideStage2, this) == false)
+            if (this->mesh->render(bTileIndex->index, shader, textureAnimationEffect, this) == false)
             {
                 return false;
             }
@@ -1234,7 +1234,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
 
-            return this->ptr_Mesh->render(brickID, &fx.shader, fx.textureOverrideStage2, this);
+            return this->ptr_Mesh->render(brickID, &fx.shader, fx.textureAnimationEffect, this);
         }
         return false;
     }

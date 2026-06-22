@@ -605,8 +605,8 @@ Default MSL generation should:
   state.
 - Keep texture ownership separate from backend binding slots:
   - `TextureDiffuse`: primary per-frame/per-subset texture.
-  - `TextureAnimationEffect`: per-animation shader-effect texture currently stored through the
-    legacy `fileNameTextureStage2` / `textureOverrideStage2` path.
+  - `TextureAnimationEffect`: per-animation shader-effect texture currently serialized through the
+    legacy `fileNameTextureStage2` path and stored at runtime as `FX::textureAnimationEffect`.
   - `TextureNormal`: per-frame/per-subset material normal-map texture.
   - `TextureSpecular`, `TextureEmissive`, and `TextureMask`: known/reserved material texture roles
     until their runtime binding and shader behavior are implemented.

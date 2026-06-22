@@ -140,6 +140,7 @@ namespace mbm
       public:
         API_IMPL ANIMATION_MANAGER() noexcept;
         API_IMPL virtual ~ANIMATION_MANAGER();
+        API_IMPL void populateTextureAnimationEffectFromMesh(MESH_MBM *mesh);
         API_IMPL void populateTextureStage2FromMesh(MESH_MBM *mesh);
         API_IMPL bool populateAnimationFromHeader(MESH_MBM *mesh, util::HEADER_ANIMATION *header, const uint32_t index);
         API_IMPL ANIMATION *getAnimation() const;

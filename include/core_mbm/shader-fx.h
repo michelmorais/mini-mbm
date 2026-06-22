@@ -75,7 +75,11 @@ namespace mbm
         EFFECT_SHADER* fxPS;//pixel shader
         EFFECT_SHADER* fxVS;//vertex shader
         SHADER        shader;
-        TEXTURE *     textureOverrideStage2;
+        union
+        {
+            TEXTURE *textureAnimationEffect;
+            TEXTURE *textureOverrideStage2; // Legacy alias kept for compatibility.
+        };
         int           blendOperation;
         DEFAULT_SHADER_MODE defaultShaderMode;
         API_IMPL void setBlendDefaultOp();

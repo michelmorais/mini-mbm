@@ -43,7 +43,7 @@ namespace mbm
     {
         fxPS = new EFFECT_SHADER();
         fxVS = new EFFECT_SHADER();
-        textureOverrideStage2 = nullptr;
+        textureAnimationEffect = nullptr;
         blendOperation = 1;
         defaultShaderMode = DEFAULT_SHADER_MODE_UNLIT;
     }

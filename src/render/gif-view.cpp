@@ -153,7 +153,7 @@ namespace mbm
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
         TEXTURE * idTexture0 = this->impl->bufferGL.getTextureByStage(0, 0);
-        TEXTURE * idTexture1 = this->impl->bufferGL.getTextureByStage(1, 0);
+        TEXTURE * textureAnimationEffect = this->impl->bufferGL.getTextureByStage(1, 0);
         this->impl->bufferGL.release();
         mbm::fillVertexQuadTexture(_position, uv,
                                    diameter <= 0.0f ? 100.0f : diameter,
@@ -162,7 +162,7 @@ namespace mbm
         if (ret)
         {
             this->impl->bufferGL.setTextureByStage(idTexture0, 0, 0 );
-            this->impl->bufferGL.setTextureByStage(idTexture1, 1, 0 );
+            this->impl->bufferGL.setTextureByStage(textureAnimationEffect, 1, 0 );
         }
         else
             return false;
@@ -188,7 +188,7 @@ namespace mbm
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
         TEXTURE * idTexture0 = this->impl->bufferGL.getTextureByStage(0, 0);
-        TEXTURE * idTexture1 = this->impl->bufferGL.getTextureByStage(1, 0);
+        TEXTURE * textureAnimationEffect = this->impl->bufferGL.getTextureByStage(1, 0);
         mbm::fillVertexQuadTexture(_position, uv,
                                    width  <= 0.0f ? 100.0f : width,
                                    height <= 0.0f ? 100.0f : height);
@@ -196,7 +196,7 @@ namespace mbm
         if (ret)
         {
             this->impl->bufferGL.setTextureByStage(idTexture0, 0, 0 );
-            this->impl->bufferGL.setTextureByStage(idTexture1, 1, 0 );
+            this->impl->bufferGL.setTextureByStage(textureAnimationEffect, 1, 0 );
         }
         else
             return false;
@@ -233,7 +233,7 @@ namespace mbm
     }
     
     bool GIF_VIEW::setTexture(
-        const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
+        const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para TextureAnimationEffect
         const char *fileNametexture, const unsigned int stage, const bool hasAlpha)
     {
         if (stage == 0)
@@ -333,8 +333,8 @@ namespace mbm
             }
             fx.setBlendOp();
             fx.shader.update();
-            if (fx.textureOverrideStage2)
-                this->impl->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
+            if (fx.textureAnimationEffect)
+                this->impl->bufferGL.setTextureByStage(fx.textureAnimationEffect, 1, 0);
                 
             if (!fx.shader.render(&this->impl->bufferGL, this))
                 return false;

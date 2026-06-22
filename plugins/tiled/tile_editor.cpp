@@ -1403,7 +1403,7 @@ namespace mbm
                 anim_over->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
                 overFx.setBlendOp();
                 overFx.shader.update();
-                if(brick->render(&overFx.shader,layer->fx.textureOverrideStage2) == false)
+                if(brick->render(&overFx.shader,layer->fx.textureAnimationEffect) == false)
                     return false;
             }
             else if(bSelected)
@@ -1416,17 +1416,17 @@ namespace mbm
                     selectedFx.setBlendOp();
                     selectedFx.shader.update();
                 }
-                if(brick->render(&selectedFx.shader,layer->fx.textureOverrideStage2) == false)
+                if(brick->render(&selectedFx.shader,layer->fx.textureAnimationEffect) == false)
                     return false;
             }
             else if(transparency == true)
             {
-                if(brick->render(&transparentFx.shader,layer->fx.textureOverrideStage2) == false)
+                if(brick->render(&transparentFx.shader,layer->fx.textureAnimationEffect) == false)
                     return false;
             }
             else
             {
-                if(brick->render(&layer->fx.shader,layer->fx.textureOverrideStage2) == false)
+                if(brick->render(&layer->fx.shader,layer->fx.textureAnimationEffect) == false)
                     return false;
             }
             if(render_what == RENDER_LAYER)
@@ -2208,7 +2208,7 @@ namespace mbm
                             fTimePs       = anim->effectShader->dataPS->timeAnimation;
                             if(anim->effectShader->dataPS->fileNameTextureStage2)
                             {
-                                layer->fx.textureOverrideStage2 = tex->load(anim->effectShader->dataPS->fileNameTextureStage2,true);
+                                layer->fx.textureAnimationEffect = tex->load(anim->effectShader->dataPS->fileNameTextureStage2,true);
                             }
                         }
                         if(anim->effectShader->dataVS && anim->effectShader->dataVS->fileNameShader)
@@ -2219,7 +2219,7 @@ namespace mbm
                             fTimeVs       = anim->effectShader->dataVS->timeAnimation;
                             if(anim->effectShader->dataVS->fileNameTextureStage2)
                             {
-                                layer->fx.textureOverrideStage2 = tex->load(anim->effectShader->dataVS->fileNameTextureStage2,true);
+                                layer->fx.textureAnimationEffect = tex->load(anim->effectShader->dataVS->fileNameTextureStage2,true);
                             }
                         }
                         if(layer->fx.loadNewShader(psShaderCfg, vsShaderCfg, psTypeAnim, fTimePs, vsTypeAnim, fTimeVs) == true)
@@ -2672,12 +2672,12 @@ namespace mbm
                     if(sizeFileName)
                         strcpy(infoAnim->effectShader->dataPS->fileNameShader,layer->fx.fxPS->getCurrentShader()->fileName.c_str());
 
-                    if(layer->fx.textureOverrideStage2)
+                    if(layer->fx.textureAnimationEffect)
                     {
-                        const char * textureOverrideStage2 = layer->fx.textureOverrideStage2->getFileNameTexture();
-                        const int len                      = strlen(textureOverrideStage2);
+                        const char * textureAnimationEffect = layer->fx.textureAnimationEffect->getFileNameTexture();
+                        const int len                       = strlen(textureAnimationEffect);
                         infoAnim->effectShader->dataPS->fileNameTextureStage2 = new char[len + 1];
-                        strncpy(infoAnim->effectShader->dataPS->fileNameTextureStage2,textureOverrideStage2,len+1);
+                        strncpy(infoAnim->effectShader->dataPS->fileNameTextureStage2,textureAnimationEffect,len+1);
                         infoAnim->effectShader->dataPS->fileNameTextureStage2[len] = 0;
                     }
                     infoAnim->effectShader->dataPS->typeAnimation = layer->fx.fxPS->getTypeAnim();

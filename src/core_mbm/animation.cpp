@@ -982,7 +982,7 @@ namespace mbm
         this->releaseAnimation();
     }
 
-    void ANIMATION_MANAGER::populateTextureStage2FromMesh(MESH_MBM *mesh)
+    void ANIMATION_MANAGER::populateTextureAnimationEffectFromMesh(MESH_MBM *mesh)
     {
         TEXTURE_MANAGER *texMan = TEXTURE_MANAGER::getInstance();
         const uint32_t totalAnimations = mesh->getTotalAnimations();
@@ -997,7 +997,7 @@ namespace mbm
                 {
                     TEXTURE *  tex  = texMan->load(infoPS->fileNameTextureStage2, true);
                     if (anim && tex)
-                        anim->getFx().textureOverrideStage2 = tex;
+                        anim->getFx().textureAnimationEffect = tex;
                 }
 
                 util::INFO_SHADER_DATA *infoVS = infoHead->effectShader->dataVS;
@@ -1005,12 +1005,17 @@ namespace mbm
                 {
                     TEXTURE *  tex  = texMan->load(infoVS->fileNameTextureStage2, true);
                     if (anim && tex)
-                        anim->getFx().textureOverrideStage2 = tex;
+                        anim->getFx().textureAnimationEffect = tex;
                 }
                 if(anim)
                     anim->setBlendState(static_cast<mbm::BLEND_STATE>(infoHead->headerAnim->blendState));
             }
         }
+    }
+
+    void ANIMATION_MANAGER::populateTextureStage2FromMesh(MESH_MBM *mesh)
+    {
+        this->populateTextureAnimationEffectFromMesh(mesh);
     }
 
     bool ANIMATION_MANAGER::populateAnimationFromHeader(MESH_MBM *mesh, util::HEADER_ANIMATION *header, const uint32_t index)
@@ -1043,7 +1048,7 @@ namespace mbm
                 fx.fxPS->setTimeAnimation(data->timeAnimation);
                 fx.blendOperation          = infoShaderStep->blendOperation;
                 if (data->fileNameTextureStage2)
-                    fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
+                    fx.textureAnimationEffect = texMan->load(data->fileNameTextureStage2, true);
                 SHADER_CFG *cfgShader              = device->getShaderConfig().getShader(data->fileNameShader);
                 if (cfgShader)
                 {
@@ -1067,7 +1072,7 @@ namespace mbm
                 fx.fxVS->setTimeAnimation(data->timeAnimation);
                 fx.blendOperation          = infoShaderStep->blendOperation;
                 if (data->fileNameTextureStage2)
-                    fx.textureOverrideStage2 = texMan->load(data->fileNameTextureStage2, true);
+                    fx.textureAnimationEffect = texMan->load(data->fileNameTextureStage2, true);
                 SHADER_CFG *cfgShader              = device->getShaderConfig().getShader(data->fileNameShader);
                 if (cfgShader)
                 {
@@ -1142,7 +1147,7 @@ namespace mbm
                         if (data->fileNameTextureStage2)
                         {
                             TEXTURE_MANAGER *man = TEXTURE_MANAGER::getInstance();
-                            fx.textureOverrideStage2   = man->load(data->fileNameTextureStage2, true);
+                            fx.textureAnimationEffect  = man->load(data->fileNameTextureStage2, true);
                         }
                     }
                     else
@@ -1193,7 +1198,7 @@ namespace mbm
                         if (data->fileNameTextureStage2)
                         {
                             TEXTURE_MANAGER *man = TEXTURE_MANAGER::getInstance();
-                            fx.textureOverrideStage2   = man->load(data->fileNameTextureStage2, true);
+                            fx.textureAnimationEffect  = man->load(data->fileNameTextureStage2, true);
                         }
                     }
                     else
@@ -1385,7 +1390,7 @@ namespace mbm
     }
 
     bool ANIMATION_MANAGER::setTexture(
-        const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
+        const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para TextureAnimationEffect
         const char *fileNametexture, const uint32_t stage, const bool hasAlpha)
     {
         mbm::ANIMATION *anim = this->getAnimation();
@@ -1417,13 +1422,13 @@ namespace mbm
                     }
                     else
                     {
-                        anim->getFx().textureOverrideStage2 = newTex;
+                        anim->getFx().textureAnimationEffect = newTex;
                         return true;
                     }
                 }
                 else if (stage)
                 {
-                    anim->getFx().textureOverrideStage2 = newTex;
+                    anim->getFx().textureAnimationEffect = newTex;
                     return true;
                 }
             }
@@ -1489,8 +1494,8 @@ namespace mbm
             TYPE_ANIMATION type;
             float          currentTimeToChangeAnimation;
 
-            std::string    fx_textureOverrideStage2;
-            bool           fx_textureOverrideStage2Alpha;
+            std::string    fx_textureAnimationEffect;
+            bool           fx_textureAnimationEffectAlpha;
             int            fx_blendOperation;
             DEFAULT_SHADER_MODE fx_defaultShaderMode;
         };
@@ -1687,8 +1692,8 @@ namespace mbm
                     state.type                          = anim->getType();
                     state.currentTimeToChangeAnimation  = anim->getCurrentTimeToChangeAnimation();
                     //fx
-                    state.fx_textureOverrideStage2      = fx.textureOverrideStage2 ? fx.textureOverrideStage2->getFileNameTexture() : "";
-                    state.fx_textureOverrideStage2Alpha = fx.textureOverrideStage2 ? fx.textureOverrideStage2->hasAlphaChannel() : false;
+                    state.fx_textureAnimationEffect      = fx.textureAnimationEffect ? fx.textureAnimationEffect->getFileNameTexture() : "";
+                    state.fx_textureAnimationEffectAlpha = fx.textureAnimationEffect ? fx.textureAnimationEffect->hasAlphaChannel() : false;
                     state.fx_blendOperation             = fx.blendOperation;
                     state.fx_defaultShaderMode          = fx.defaultShaderMode;
                     this->impl->lsAnimationState.push_back(state);
@@ -1730,9 +1735,9 @@ namespace mbm
                     anim->setType(state.type);
                     anim->setCurrentTimeToChangeAnimation(state.currentTimeToChangeAnimation);
                     //fx
-                    fx.textureOverrideStage2     = state.fx_textureOverrideStage2.size() > 0 ? texManager->load(state.fx_textureOverrideStage2.c_str(), state.fx_textureOverrideStage2Alpha) : nullptr;
-                    fx.blendOperation            = state.fx_blendOperation;
-                    fx.defaultShaderMode         = state.fx_defaultShaderMode;
+                    fx.textureAnimationEffect = state.fx_textureAnimationEffect.size() > 0 ? texManager->load(state.fx_textureAnimationEffect.c_str(), state.fx_textureAnimationEffectAlpha) : nullptr;
+                    fx.blendOperation          = state.fx_blendOperation;
+                    fx.defaultShaderMode       = state.fx_defaultShaderMode;
                     if (i < this->impl->lsFxBackup.size())
                     {
                         Impl::FX_BACKUP* it = this->impl->lsFxBackup[i];

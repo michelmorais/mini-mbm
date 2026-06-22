@@ -527,7 +527,7 @@ namespace mbm
                 if(anim)
                 {
                     FX &fx = anim->getFx();
-                    fx.textureOverrideStage2 = newTex;
+                    fx.textureAnimationEffect = newTex;
                     bufferGl.setTextureByStage(newTex, stage, 0);
                     return true;
                 }
