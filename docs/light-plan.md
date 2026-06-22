@@ -1,5 +1,15 @@
 # Mini MBM Light Plan
 
+This document is now the lighting roadmap/history companion to `docs/light.md`.
+
+Use:
+
+- `docs/light.md` for the current engine behavior and public lighting/material contract
+- `docs/light-plan.md` for milestone history, resolved design decisions, and deferred future work
+
+The branch is now past the original early milestones. The main remaining future item is shadow-map
+design/implementation, plus any later editor polish or optimization work.
+
 ## Goal
 
 Introduce portable engine lighting that works consistently on DirectX 9, OpenGL ES, and Metal.
@@ -666,10 +676,18 @@ Only after the first path, 2D lighting design, and multi-light design are proven
   - attenuation
   - emissive material
   - normal maps
-- The next real lighting-model slice is:
+- Current shipped state now also includes:
   - specular highlights using `MaterialSpecular` and `MaterialPower`
-- Keep shadow work separate and later:
-- shadow maps
+- Keep remaining shadow work separate and later:
+  - shadow maps
+
+## Remaining Work
+
+- shadow-map design and scope freeze
+- eventual shadow-map implementation after that design is accepted
+- optional editor polish around lighting/material authoring
+- optional performance optimizations such as runtime-selected narrower light shader variants
+  (`1`/`2`/`3`/`4`-light variants) beyond the current coarse build-time `SUPPORTED_MAX_LIGHTS` cap
 
 ## Open Questions
 

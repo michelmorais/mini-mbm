@@ -46,7 +46,7 @@ The first Mini MBM lighting implementation should use this classic model. It is 
 - ambient light
 - directional diffuse light
 - emissive material contribution
-- later specular highlights
+- specular highlights
 
 ## Other Material Models
 
@@ -109,7 +109,7 @@ For the first lighting pass:
   - `MaterialSpecular`
   - `MaterialEmissive`
   - `MaterialPower`
-- Do not add PBR fields such as metallic, roughness, ambient occlusion, or normal-map material slots.
+- Do not add PBR fields such as metallic, roughness, or ambient occlusion.
 
 PBR should be treated as a separate future rendering/material-system design, not as part of the
 first light feature.
@@ -153,9 +153,33 @@ Default values:
 
 Color channels are clamped to `0..1`. Directional light directions are normalized by the engine.
 
+## Current Implementation Scope
+
+The current shipped lighting implementation covers:
+
+- `3d` lighting
+- `2dw` lighting
+- target-specific ambient and directional light state
+- per-target point-light lists
+- per-object nearest-light selection for `2dw`
+- typed per-subset material texture slots, with the normal-map slot consumed at runtime
+- default lit/unlit shader classification for engine-generated shaders
+- built-in lit pixel shaders
+- diffuse, emissive, and specular material contribution
+
+Current intentional exclusions or limitations:
+
+- `2ds` lighting is not implemented
+- shadow maps are not implemented
+- reserved material texture roles `TextureSpecular`, `TextureEmissive`, and `TextureMask` are known
+  but not runtime-bindable yet
+- custom shaders receive engine lighting only when they explicitly declare the reserved inputs
+- runtime material upload currently comes from the active mesh/subset material path; broader
+  per-renderable material ownership is still limited by existing render-path wiring
+
 ## Intentional Multi-Light Limitation
 
-The future multi-light path is intentionally designed around a validated maximum light count, not
+The current multi-light path is intentionally designed around a validated maximum light count, not
 an unbounded runtime list.
 
 Reason:
@@ -175,7 +199,7 @@ In practice, the multi-light pipeline should:
 - accept a developer-requested max light count
 - validate that count against the active backend/profile
 - fail clearly when the request exceeds supported limits
-- compile/use shader variants that match the validated maximum
+- compile against a bounded supported maximum
 - upload `LightCount` as the current active runtime count within that validated capacity
 
 This is an intentional limitation, not a temporary weakness. It keeps the shader contract explicit
@@ -418,5 +442,23 @@ Current reserved slot ids are:
 - `MATERIAL_TEXTURE_SLOT_MASK`
 
 The slot list is stored adjacent to each subset descriptor. Unknown slot types are skipped by
-recorded payload length so older/newer tools can coexist more safely. The render path groundwork is
-now in place; normal-map consumption is still a follow-up step.
+recorded payload length so older/newer tools can coexist more safely.
+
+Current runtime binding behavior:
+
+- `TextureDiffuse` stays on slot/register/index `0`
+- `TextureAnimationEffect` stays on slot/register/index `1`
+- `TextureNormal` uses slot/register/index `2`
+
+Current `2dw` normal-map behavior:
+
+- when a per-subset normal map exists, `2dw` lighting samples it from `TextureNormal`
+- when no normal map exists, `2dw` lighting falls back to the flat normal `(0, 0, 1)`
+- current `2dw` lighting does not consume stored mesh/vertex normals; the normal-map texture or the
+  flat fallback drives the lighting normal
+
+Fallback textures:
+
+- missing `TextureDiffuse` -> white texture
+- missing `TextureAnimationEffect` -> white texture
+- missing `TextureNormal` -> flat normal texture `(0.5, 0.5, 1.0, 1.0)`
