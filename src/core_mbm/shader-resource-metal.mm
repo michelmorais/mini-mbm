@@ -17,10 +17,90 @@
 
 #if defined(USE_METAL)
 
+#include <light.h>
 #include <string>
 
 namespace mbm
 {
+    static std::string buildLitTexturedPixelShaderMetal()
+    {
+        const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
+        return R"msl(
+fragment float4 frag_main(VOut in [[stage_in]],
+    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> sample2 [[texture(2)]],
+    sampler          samp    [[sampler(0)]],
+    constant int    &LightEnabled      [[buffer(4)]],
+    constant float4 &AmbientColor      [[buffer(6)]],
+    constant float3 &LightDirectionView [[buffer(7)]],
+    constant float4 *LightColor        [[buffer(8)]],
+    constant float4 &MaterialDiffuse   [[buffer(9)]],
+    constant float4 &MaterialAmbient   [[buffer(10)]],
+    constant float4 &MaterialSpecular  [[buffer(11)]],
+    constant float4 &MaterialEmissive  [[buffer(12)]],
+    constant float  &MaterialPower     [[buffer(13)]],
+    constant int    &LightMode         [[buffer(14)]],
+    constant float3 *LightPositionView [[buffer(15)]],
+    constant float  *LightRadius       [[buffer(16)]],
+    constant int    &LightCount        [[buffer(5)]],
+    constant int    &HasNormalMap      [[buffer(17)]])
+{
+    float4 texColor = sample0.sample(samp, in.uv);
+    if (LightEnabled == 0 || LightMode == 0)
+        return texColor;
+    float3 base        = texColor.rgb * MaterialDiffuse.rgb;
+    float3 light       = AmbientColor.rgb * MaterialAmbient.rgb;
+    float3 specular    = float3(0.0f);
+    if (LightMode == 1)
+    {
+        float3 normalView  = normalize(in.nor);
+        float3 viewDir     = normalize(-in.positionView);
+        float3 lightTravel = normalize(LightDirectionView);
+        float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
+        light += LightColor[0].rgb * diffuse;
+        if (diffuse > 0.0f && MaterialPower > 0.0f)
+        {
+            float3 lightDir = normalize(-lightTravel);
+            float3 halfDir  = normalize(lightDir + viewDir);
+            float  spec     = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);
+            specular       += LightColor[0].rgb * MaterialSpecular.rgb * spec;
+        }
+    }
+    else
+    {
+        float3 normalView = float3(0.0f, 0.0f, 1.0f);
+        if (HasNormalMap != 0)
+            normalView = normalize((sample2.sample(samp, in.uv).xyz * 2.0f) - 1.0f);
+        for (int i = 0; i < )msl" + supportedMaxLights + R"msl(; ++i)
+        {
+            if (i >= LightCount) break;
+            float3 toLight = LightPositionView[i] - in.positionView;
+            float  dist = length(toLight);
+            if (LightRadius[i] > 0.0001f)
+            {
+                float3 lightDir = toLight / max(dist, 0.0001f);
+                float  diffuse = max(dot(normalView, lightDir), 0.0f);
+                float  attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);
+                attenuation *= attenuation;
+                light += LightColor[i].rgb * diffuse * attenuation;
+                if (diffuse > 0.0f && MaterialPower > 0.0f)
+                {
+                    float3 viewDir = normalize(-in.positionView);
+                    float3 halfDir = normalize(lightDir + viewDir);
+                    float  spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);
+                    specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;
+                }
+            }
+        }
+    }
+    light = clamp(light, 0.0f, 1.0f);
+    float3 litColor    = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0f, 1.0f);
+    return float4(litColor, texColor.a * MaterialDiffuse.a);
+}
+)msl";
+    }
+
+    static const std::string kLitTexturedPixelShaderMetal = buildLitTexturedPixelShaderMetal();
     static const char* resourceShader[] = {
 
     /* =========================================================
@@ -1384,6 +1464,49 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "[ps-texture-map.ps][float][horizontalOffset]     = min 0.0         max 1.0                 default 0.0 \n"
     "[ps-texture-map.ps][float][verticalOffset]       = min 0.0         max 1.0                 default 0.0 \n"
     "[ps-texture-map.ps][float][strength]             = min 0.0         max 1.0                 default 0.3 \n",
+
+    // ---- lit textured ------------------------------------------------------
+    "lit textured.ps",
+    kLitTexturedPixelShaderMetal.c_str(),
+    "[ps-lit-textured.ps] = lit textured.ps\n",
+
+    // ---- lit solid ---------------------------------------------------------
+    "lit solid.ps",
+    R"msl(
+fragment float4 frag_main(VOut in [[stage_in]],
+    constant int    &LightEnabled      [[buffer(4)]],
+    constant float4 &AmbientColor      [[buffer(6)]],
+    constant float3 &LightDirectionView [[buffer(7)]],
+    constant float4 &LightColor        [[buffer(8)]],
+    constant float4 &MaterialDiffuse   [[buffer(9)]],
+    constant float4 &MaterialAmbient   [[buffer(10)]],
+    constant float4 &MaterialSpecular  [[buffer(11)]],
+    constant float4 &MaterialEmissive  [[buffer(12)]],
+    constant float  &MaterialPower     [[buffer(13)]],
+    constant int    &LightMode         [[buffer(14)]])
+{
+    float4 baseColor = float4(1.0f);
+    if (LightEnabled == 0 || LightMode != 1)
+        return baseColor;
+    float3 normalView  = normalize(in.nor);
+    float3 viewDir     = normalize(-in.positionView);
+    float3 lightTravel = normalize(LightDirectionView);
+    float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
+    float3 base        = MaterialDiffuse.rgb;
+    float3 light       = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0f, 1.0f);
+    float3 specular    = float3(0.0f);
+    if (diffuse > 0.0f && MaterialPower > 0.0f)
+    {
+        float3 lightDir = normalize(-lightTravel);
+        float3 halfDir  = normalize(lightDir + viewDir);
+        float  spec     = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);
+        specular        = LightColor.rgb * MaterialSpecular.rgb * spec;
+    }
+    float3 litColor    = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0f, 1.0f);
+    return float4(litColor, MaterialDiffuse.a);
+}
+)msl",
+    "[ps-lit-solid.ps] = lit solid.ps\n",
 
     /* =========================================================
        VERTEX SHADERS  (complete MSL programs: vertex + fragment)

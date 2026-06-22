@@ -22,6 +22,7 @@
 
 #include "core-exports.h"
 #include "shader-cfg.h"
+#include "light.h"
 #include "order-render.h"
 #include "primitives.h"
 #include "frustum.h"
@@ -30,6 +31,11 @@
 #include <map>
 #include <memory>
 #include <string>
+
+namespace util
+{
+    struct MATERIAL;
+}
 
 namespace mbm
 {
@@ -148,6 +154,24 @@ namespace mbm
         API_IMPL void enableFilteringAfterPixelPerfect() noexcept;//backend specific way to restore texture filtering
         API_IMPL bool isPixelPerfectRendering() const noexcept;// true while tile (etc.) is drawing; used to skip UV inset on D3D9
         API_IMPL bool isGamePaused() const noexcept;
+        API_IMPL LIGHT_STATE &getMutableLightState(const LIGHT_TARGET target) noexcept;
+        API_IMPL const LIGHT_STATE &getLightStateInternal(const LIGHT_TARGET target) const noexcept;
+        API_IMPL LIGHT_MULTI_SETTINGS &getMutableLightMultiSettings(const LIGHT_TARGET target) noexcept;
+        API_IMPL const LIGHT_MULTI_SETTINGS &getLightMultiSettingsInternal(const LIGHT_TARGET target) const noexcept;
+        API_IMPL std::vector<LIGHT_POINT> &getMutablePointLights(const LIGHT_TARGET target) noexcept;
+        API_IMPL const std::vector<LIGHT_POINT> &getPointLightsInternal(const LIGHT_TARGET target) const noexcept;
+        API_IMPL void setLightTargetForRender(const LIGHT_TARGET target) noexcept;
+        API_IMPL void disableLightForRender() noexcept;
+        API_IMPL bool getLightStateForCurrentRender(LIGHT_STATE &outState) const noexcept;
+        API_IMPL bool getLightTargetForCurrentRender(LIGHT_TARGET &outTarget) const noexcept;
+        API_IMPL void setRenderizableForCurrentRender(const RENDERIZABLE *renderizable) noexcept;
+        API_IMPL void clearRenderizableForCurrentRender() noexcept;
+        API_IMPL bool getRenderizableForCurrentRender(const RENDERIZABLE *&outRenderizable) const noexcept;
+        API_IMPL uint32_t getSelectedPointLightsForCurrentRender(LIGHT_POINT_SELECTION *outSelections,
+                                                                 uint32_t maxOutSelections) const noexcept;
+        API_IMPL void setRenderMaterial(const util::MATERIAL &material) noexcept;
+        API_IMPL void clearRenderMaterial() noexcept;
+        API_IMPL bool getMaterialForCurrentRender(util::MATERIAL &outMaterial) const noexcept;
 
     private:
         static DEVICE *                       instanceDevice;

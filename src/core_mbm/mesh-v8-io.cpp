@@ -170,7 +170,7 @@ namespace
                writeF32LE(fp, in.a);
     }
 
-    inline bool readMaterial(FILE *fp, util::MATERIAL_GLES &out)
+    inline bool readMaterial(FILE *fp, util::MATERIAL &out)
     {
         return readColor(fp, out.Diffuse) &&
                readColor(fp, out.Ambient) &&
@@ -179,7 +179,7 @@ namespace
                readF32LE(fp, out.Power);
     }
 
-    inline bool writeMaterial(FILE *fp, const util::MATERIAL_GLES &in)
+    inline bool writeMaterial(FILE *fp, const util::MATERIAL &in)
     {
         return writeColor(fp, in.Diffuse) &&
                writeColor(fp, in.Ambient) &&
@@ -385,6 +385,54 @@ namespace util
              writeI32LE(fp, in.indexStart) &&
              writeI32LE(fp, in.indexCount) &&
                writeBytes(fp, in.alphaColor, sizeof(in.alphaColor));
+    }
+
+    bool readHeaderDescSubsetV9(FILE *fp, util::HEADER_DESC_SUBSET &out)
+    {
+        uint16_t materialTextureSlotCount = 0;
+        uint16_t reservedMaterialTextureSlots = 0;
+        if (!readHeaderDescSubsetV8(fp, out) ||
+            !readU16LE(fp, materialTextureSlotCount) ||
+            !readU16LE(fp, reservedMaterialTextureSlots))
+        {
+            return false;
+        }
+        out.materialTextureSlotCount = materialTextureSlotCount;
+        out.reservedMaterialTextureSlots = reservedMaterialTextureSlots;
+        return true;
+    }
+
+    bool writeHeaderDescSubsetV9(FILE *fp, const util::HEADER_DESC_SUBSET &in)
+    {
+        return writeHeaderDescSubsetV8(fp, in) &&
+               writeU16LE(fp, in.materialTextureSlotCount) &&
+               writeU16LE(fp, in.reservedMaterialTextureSlots);
+    }
+
+    bool readMaterialTextureSlotHeaderV9(FILE *fp, util::MATERIAL_TEXTURE_SLOT_HEADER &out)
+    {
+        uint16_t type = 0;
+        uint16_t reserved = 0;
+        uint32_t payloadSizeInBytes = 0;
+        if (!readU16LE(fp, type) ||
+            !readU16LE(fp, reserved) ||
+            !readU32LE(fp, payloadSizeInBytes) ||
+            !readBytes(fp, out.nameTexture, sizeof(out.nameTexture)))
+        {
+            return false;
+        }
+        out.type = type;
+        out.reserved = reserved;
+        out.payloadSizeInBytes = payloadSizeInBytes;
+        return true;
+    }
+
+    bool writeMaterialTextureSlotHeaderV9(FILE *fp, const util::MATERIAL_TEXTURE_SLOT_HEADER &in)
+    {
+        return writeU16LE(fp, in.type) &&
+               writeU16LE(fp, in.reserved) &&
+               writeU32LE(fp, in.payloadSizeInBytes) &&
+               writeBytes(fp, in.nameTexture, sizeof(in.nameTexture));
     }
 
     bool readHeaderImgV8(FILE *fp, util::HEADER_IMG &out)

@@ -32,8 +32,12 @@ namespace mbm
         VAR_VECTOR     = 2,
         VAR_VECTOR2    = 3,
         VAR_COLOR_RGB  = 4,
-        VAR_COLOR_RGBA = 5
+        VAR_COLOR_RGBA = 5,
+        VAR_INT        = 6
     };
+
+    API_IMPL bool isReservedShaderUniformName(const char *name) noexcept;
+    API_IMPL int roundClampShaderIntValue(float value, float minValue, float maxValue) noexcept;
 
     struct VAR_SHADER
     {
@@ -51,6 +55,7 @@ namespace mbm
         
         API_IMPL VAR_SHADER(const std::string Name,const TYPE_VAR_SHADER TypeVar,const bool isPS) noexcept;
         API_IMPL void set(const float newMin[4], const float newMax[4],const float timeAnim);
+        API_IMPL int getCurrentInt(const int index = 0) const noexcept;
 
         ~VAR_SHADER();
         // Prevent copying

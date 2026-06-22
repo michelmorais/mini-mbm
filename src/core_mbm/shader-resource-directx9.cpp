@@ -20,11 +20,89 @@
 #if defined (USE_DIRECTX9)
 
 #include <core_mbm/core-exports.h>
+#include <core_mbm/light.h>
 #include <string>
 #include <stdio.h>
 
 namespace mbm
 {
+    static std::string buildLitTexturedPixelShaderD3D9()
+    {
+        const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
+        return
+            "int LightEnabled;\n"
+            "int LightMode;\n"
+            "int HasNormalMap;\n"
+            "float4 AmbientColor;\n"
+            "float3 LightDirectionView;\n"
+            "float3 LightPositionView[" + supportedMaxLights + "];\n"
+            "float LightRadius[" + supportedMaxLights + "];\n"
+            "float4 LightColor[" + supportedMaxLights + "];\n"
+            "int LightCount;\n"
+            "float4 MaterialDiffuse;\n"
+            "float4 MaterialAmbient;\n"
+            "float4 MaterialSpecular;\n"
+            "float4 MaterialEmissive;\n"
+            "float MaterialPower;\n"
+            "sampler2D sample0 : register(s0);\n"
+            "sampler2D sample2 : register(s2);\n"
+            "\n"
+            "float4 main(float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2) : COLOR\n"
+            "{\n"
+            "    float4 texColor = tex2D(sample0, texCoord);\n"
+            "    if (LightEnabled == 0 || LightMode == 0)\n"
+            "        return texColor;\n"
+            "    float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
+            "    float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
+            "    float3 specular = float3(0, 0, 0);\n"
+            "    if (LightMode == 1)\n"
+            "    {\n"
+            "        float3 normalView = normalize(normalViewIn);\n"
+            "        float3 viewDir = normalize(-positionViewIn);\n"
+            "        float3 lightTravel = normalize(LightDirectionView);\n"
+            "        float diffuse = max(dot(normalView, -lightTravel), 0);\n"
+            "        light += LightColor[0].rgb * diffuse;\n"
+            "        if (diffuse > 0.0f && MaterialPower > 0.0f)\n"
+            "        {\n"
+            "            float3 lightDir = normalize(-lightTravel);\n"
+            "            float3 halfDir = normalize(lightDir + viewDir);\n"
+            "            float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);\n"
+            "            specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;\n"
+            "        }\n"
+            "    }\n"
+            "    else\n"
+            "    {\n"
+            "        float3 normalView = float3(0, 0, 1);\n"
+            "        if (HasNormalMap != 0) normalView = normalize((tex2D(sample2, texCoord).xyz * 2.0f) - 1.0f);\n"
+            "        for (int i = 0; i < " + supportedMaxLights + "; ++i)\n"
+            "        {\n"
+            "            if (i >= LightCount) break;\n"
+            "            float3 toLight = LightPositionView[i] - positionViewIn;\n"
+            "            float dist = length(toLight);\n"
+            "            if (LightRadius[i] > 0.0001f)\n"
+            "            {\n"
+            "                float3 lightDir = toLight / max(dist, 0.0001f);\n"
+            "                float diffuse = max(dot(normalView, lightDir), 0);\n"
+            "                float attenuation = 1.0f - saturate(dist / LightRadius[i]);\n"
+            "                attenuation *= attenuation;\n"
+            "                light += LightColor[i].rgb * diffuse * attenuation;\n"
+            "                if (diffuse > 0.0f && MaterialPower > 0.0f)\n"
+            "                {\n"
+            "                    float3 viewDir = normalize(-positionViewIn);\n"
+            "                    float3 halfDir = normalize(lightDir + viewDir);\n"
+            "                    float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);\n"
+            "                    specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;\n"
+            "                }\n"
+            "            }\n"
+            "        }\n"
+            "    }\n"
+            "    light = saturate(light);\n"
+            "    float3 litColor = saturate((base * light) + MaterialEmissive.rgb + specular);\n"
+            "    return float4(litColor, texColor.a * MaterialDiffuse.a);\n"
+            "}\n";
+    }
+
+    static const std::string kLitTexturedPixelShaderD3D9 = buildLitTexturedPixelShaderD3D9();
     static const char* resourceShader[] = {// Organized in groups of 3: filename, shader code, and CFG configurations.
 
 
@@ -1589,6 +1667,53 @@ namespace mbm
 "[ps-texture-map.ps][float][verticalOffset]       = min 0.0         max 1.0                 default 0.0 \n"
 "[ps-texture-map.ps][float][strength]             = min 0.0         max 10.0                default 1.0 \n",
 //Texture Map **********************
+
+//Lit Textured **********************
+"lit textured.ps",
+kLitTexturedPixelShaderD3D9.c_str(),
+
+"[ps-lit-textured.ps] = lit textured.ps\n",
+//Lit Textured **********************
+
+//Lit Solid **********************
+"lit solid.ps",
+
+"int LightEnabled;\n"
+"int LightMode;\n"
+"float4 AmbientColor;\n"
+"float3 LightDirectionView;\n"
+"float4 LightColor;\n"
+"float4 MaterialDiffuse;\n"
+"float4 MaterialAmbient;\n"
+"float4 MaterialSpecular;\n"
+"float4 MaterialEmissive;\n"
+"float MaterialPower;\n"
+"\n"
+"float4 main(float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2) : COLOR\n"
+"{\n"
+"    float4 baseColor = float4(1,1,1,1);\n"
+"    if (LightEnabled == 0 || LightMode != 1)\n"
+"        return baseColor;\n"
+"    float3 normalView = normalize(normalViewIn);\n"
+"    float3 viewDir = normalize(-positionViewIn);\n"
+"    float3 lightTravel = normalize(LightDirectionView);\n"
+"    float diffuse = max(dot(normalView, -lightTravel), 0);\n"
+"    float3 base = MaterialDiffuse.rgb;\n"
+"    float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));\n"
+"    float3 specular = float3(0, 0, 0);\n"
+"    if (diffuse > 0.0f && MaterialPower > 0.0f)\n"
+"    {\n"
+"        float3 lightDir = normalize(-lightTravel);\n"
+"        float3 halfDir = normalize(lightDir + viewDir);\n"
+"        float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);\n"
+"        specular = LightColor.rgb * MaterialSpecular.rgb * spec;\n"
+"    }\n"
+"    float3 litColor = saturate((base * light) + MaterialEmissive.rgb + specular);\n"
+"    return float4(litColor, MaterialDiffuse.a);\n"
+"}\n",
+
+"[ps-lit-solid.ps] = lit solid.ps\n",
+//Lit Solid **********************
 
 
 

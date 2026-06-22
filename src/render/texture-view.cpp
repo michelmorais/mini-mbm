@@ -68,6 +68,8 @@ namespace mbm
         auto anim = new mbm::ANIMATION();
         this->appendAnimation(anim);
         FX &fx = anim->getFx();
+        fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
+        fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
         if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), getFvfFromBuffer()))
             return false;
         return true;
@@ -283,7 +285,7 @@ namespace mbm
             fx.shader.update();
             if (fx.textureOverrideStage2)
                 this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
-            if (!fx.shader.render(&this->bufferGL))
+            if (!fx.shader.render(&this->bufferGL, this))
                 return false;
             return true;
         }

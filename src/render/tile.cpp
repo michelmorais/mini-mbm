@@ -249,7 +249,7 @@ namespace mbm
                 FX &fx = anim->getFx();
                 MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &angle, &backGround_scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
-                if (fx.shader.render(&this->backGroundMap) == false)
+                if (fx.shader.render(&this->backGroundMap, this) == false)
                 {
                     device->enableFilteringAfterPixelPerfect();
                     return false;
@@ -544,7 +544,7 @@ namespace mbm
             SHADER::modelView._41 = (bTileIndex->x * scale.x) + offset_x + pos->x;
             SHADER::modelView._42 = (bTileIndex->y * scale.y) + offset_y + pos->y;
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, matrixPerspective);
-            if (this->mesh->render(bTileIndex->index, shader, idTextureOverrideStage2) == false)
+            if (this->mesh->render(bTileIndex->index, shader, idTextureOverrideStage2, this) == false)
             {
                 return false;
             }
@@ -1232,7 +1232,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
 
-            return this->ptr_Mesh->render(brickID, &fx.shader, fx.textureOverrideStage2);
+            return this->ptr_Mesh->render(brickID, &fx.shader, fx.textureOverrideStage2, this);
         }
         return false;
     }

@@ -21,6 +21,8 @@
 #if defined (USE_OPENGL_ES)
 
 #include <shader.h>
+#include <device.h>
+#include <light.h>
 #include <texture-manager.h>
 #include <specific-opengl_es.h>
 #include "specific-opengl_es-buffer.h"
@@ -35,6 +37,301 @@ namespace mbm
 {
     static uint32_t loadShaderProgram(BASE_SHADER* pShader, BASE_SHADER* vShader, void* ptrShaderSpecific, const char* vertShaderSrc, const char* fragShaderSrc);
     static uint32_t compileCodeShader(BASE_SHADER* ptrShader, const unsigned int type, const char* shaderSrc);
+
+    static const MATRIX &getViewMatrixForLightTarget(const LIGHT_TARGET target)
+    {
+        const CAMERA &camera = DEVICE::getInstance()->getCamera();
+        return target == LIGHT_TARGET_2DW ? camera.matrixView2d : camera.matrixView;
+    }
+
+    static VEC3 getLightDirectionView(const LIGHT_STATE &lightState, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTarget(target);
+        VEC3 directionView(
+            (lightState.directionalDirection.x * view._11) +
+            (lightState.directionalDirection.y * view._21) +
+            (lightState.directionalDirection.z * view._31),
+            (lightState.directionalDirection.x * view._12) +
+            (lightState.directionalDirection.y * view._22) +
+            (lightState.directionalDirection.z * view._32),
+            (lightState.directionalDirection.x * view._13) +
+            (lightState.directionalDirection.y * view._23) +
+            (lightState.directionalDirection.z * view._33));
+        Vec3Normalize(&directionView, &directionView);
+        return directionView;
+    }
+
+    static VEC3 getLightPositionView(const LIGHT_STATE &lightState, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTarget(target);
+        return VEC3(
+            (lightState.pointPosition.x * view._11) +
+            (lightState.pointPosition.y * view._21) +
+            (lightState.pointPosition.z * view._31) + view._41,
+            (lightState.pointPosition.x * view._12) +
+            (lightState.pointPosition.y * view._22) +
+            (lightState.pointPosition.z * view._32) + view._42,
+            (lightState.pointPosition.x * view._13) +
+            (lightState.pointPosition.y * view._23) +
+            (lightState.pointPosition.z * view._33) + view._43);
+    }
+
+    static VEC3 getPointLightPositionView(const VEC3 &pointPosition, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTarget(target);
+        return VEC3(
+            (pointPosition.x * view._11) +
+            (pointPosition.y * view._21) +
+            (pointPosition.z * view._31) + view._41,
+            (pointPosition.x * view._12) +
+            (pointPosition.y * view._22) +
+            (pointPosition.z * view._32) + view._42,
+            (pointPosition.x * view._13) +
+            (pointPosition.y * view._23) +
+            (pointPosition.z * view._33) + view._43);
+    }
+
+    static bool bufferHasUv(const BUFFER_GL *pBufferId) noexcept
+    {
+        if (pBufferId == nullptr)
+            return false;
+        return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV ||
+               pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static bool bufferHasNormal(const BUFFER_GL *pBufferId) noexcept
+    {
+        if (pBufferId == nullptr)
+            return false;
+        return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+               pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static int getReservedLightMode(const LIGHT_STATE &lightState, const LIGHT_TARGET target,
+                                    const BUFFER_GL *pBufferId) noexcept
+    {
+        if (lightState.enabled == false)
+            return 0;
+        if (target == LIGHT_TARGET_2DW)
+            return bufferHasUv(pBufferId) ? 2 : 0;
+        return bufferHasNormal(pBufferId) ? 1 : 0;
+    }
+
+    static util::MATERIAL getReservedMaterialForCurrentRender()
+    {
+        util::MATERIAL material;
+        if (DEVICE::getInstance()->getMaterialForCurrentRender(material))
+            return material;
+        material.Diffuse = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        material.Ambient = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        material.Specular = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        material.Emissive = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        material.Power = 0.0f;
+        return material;
+    }
+
+    struct ScopedRenderizableContext
+    {
+        DEVICE *device;
+
+        ScopedRenderizableContext(const RENDERIZABLE *renderizableOwner) noexcept
+            : device(DEVICE::getInstance())
+        {
+            device->setRenderizableForCurrentRender(renderizableOwner);
+        }
+
+        ~ScopedRenderizableContext() noexcept
+        {
+            device->clearRenderizableForCurrentRender();
+        }
+    };
+
+    static GLint getOptionalArrayUniformLocation(const uint32_t programObject, const char *uniformName)
+    {
+        char uniformNameIndex0[128];
+        snprintf(uniformNameIndex0, sizeof(uniformNameIndex0), "%s[0]", uniformName);
+        return GLGetUniformLocationOptional(programObject, uniformNameIndex0);
+    }
+
+    static void uploadReservedLightUniformsOpenGlEs(const uint32_t programObject, const BUFFER_GL *pBufferId,
+                                                    const uint32_t subsetIndex)
+    {
+        if (programObject == 0)
+            return;
+        LIGHT_STATE lightState;
+        LIGHT_TARGET lightTarget = LIGHT_TARGET_3D;
+        const bool hasRenderLight = DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
+        DEVICE::getInstance()->getLightTargetForCurrentRender(lightTarget);
+        if (hasRenderLight == false)
+            lightState = LIGHT_STATE();
+        const util::MATERIAL material = getReservedMaterialForCurrentRender();
+        const int lightMode = getReservedLightMode(lightState, lightTarget, pBufferId);
+        const int enabled = lightMode != 0 ? 1 : 0;
+        const int hasNormalMap = (lightMode == 2 && pBufferId && pBufferId->getTextureByStage(2, subsetIndex)) ? 1 : 0;
+        const VEC3 directionView = getLightDirectionView(lightState, lightTarget);
+        VEC3 positionView = getLightPositionView(lightState, lightTarget);
+        COLOR lightColor = lightTarget == LIGHT_TARGET_2DW ? lightState.pointColor : lightState.directionalColor;
+        float lightRadius = lightState.pointRadius;
+        float lightPositionViewArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 3] = {};
+        float lightRadiusArray[DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
+        float lightColorArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+        uint32_t selectedPointLightCount = 0u;
+        if (lightMode == 2)
+        {
+            LIGHT_POINT_SELECTION pointLightSelections[DEFAULT_SUPPORTED_MAX_LIGHTS];
+            selectedPointLightCount = DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
+                pointLightSelections, DEFAULT_SUPPORTED_MAX_LIGHTS);
+            for (uint32_t i = 0; i < selectedPointLightCount; ++i)
+            {
+                const VEC3 selectedPositionView =
+                    getPointLightPositionView(pointLightSelections[i].pointLight.position, lightTarget);
+                lightPositionViewArray[(i * 3u) + 0u] = selectedPositionView.x;
+                lightPositionViewArray[(i * 3u) + 1u] = selectedPositionView.y;
+                lightPositionViewArray[(i * 3u) + 2u] = selectedPositionView.z;
+                lightRadiusArray[i] = pointLightSelections[i].pointLight.radius;
+                lightColorArray[(i * 4u) + 0u] = pointLightSelections[i].pointLight.color.r;
+                lightColorArray[(i * 4u) + 1u] = pointLightSelections[i].pointLight.color.g;
+                lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
+                lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
+            }
+            if (selectedPointLightCount > 0u)
+            {
+                positionView.x = lightPositionViewArray[0];
+                positionView.y = lightPositionViewArray[1];
+                positionView.z = lightPositionViewArray[2];
+                lightRadius = lightRadiusArray[0];
+                lightColor = COLOR(lightColorArray[0], lightColorArray[1], lightColorArray[2], lightColorArray[3]);
+            }
+        }
+        else
+        {
+            lightPositionViewArray[0] = positionView.x;
+            lightPositionViewArray[1] = positionView.y;
+            lightPositionViewArray[2] = positionView.z;
+            lightRadiusArray[0] = lightRadius;
+            lightColorArray[0] = lightColor.r;
+            lightColorArray[1] = lightColor.g;
+            lightColorArray[2] = lightColor.b;
+            lightColorArray[3] = lightColor.a;
+        }
+        const int lightCount = lightMode == 2 ? static_cast<int>(selectedPointLightCount) : (enabled != 0 ? 1 : 0);
+
+        GLint handle = GLGetUniformLocationOptional(programObject, "LightEnabled");
+        if (handle != -1)
+        {
+            GLUniform1i(handle, enabled);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "LightCount");
+        if (handle != -1)
+        {
+            GLUniform1i(handle, lightCount);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "LightMode");
+        if (handle != -1)
+        {
+            GLUniform1i(handle, lightMode);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "AmbientColor");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, lightState.ambientColor.r, lightState.ambientColor.g,
+                        lightState.ambientColor.b, lightState.ambientColor.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "LightDirectionView");
+        if (handle != -1)
+        {
+            GLUniform3f(handle, directionView.x, directionView.y, directionView.z);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "LightPositionView");
+        if (handle != -1)
+        {
+            GLUniform3f(handle, positionView.x, positionView.y, positionView.z);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "LightRadius");
+        if (handle != -1)
+        {
+            GLUniform1f(handle, lightRadius);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "LightColor");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, lightColor.r, lightColor.g, lightColor.b, lightColor.a);
+        }
+        handle = getOptionalArrayUniformLocation(programObject, "LightPositionView");
+        if (handle != -1)
+        {
+            glUniform3fv(handle, DEFAULT_SUPPORTED_MAX_LIGHTS, lightPositionViewArray);
+        }
+        handle = getOptionalArrayUniformLocation(programObject, "LightRadius");
+        if (handle != -1)
+        {
+            glUniform1fv(handle, DEFAULT_SUPPORTED_MAX_LIGHTS, lightRadiusArray);
+        }
+        handle = getOptionalArrayUniformLocation(programObject, "LightColor");
+        if (handle != -1)
+        {
+            glUniform4fv(handle, DEFAULT_SUPPORTED_MAX_LIGHTS, lightColorArray);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "HasNormalMap");
+        if (handle != -1)
+        {
+            GLUniform1i(handle, hasNormalMap);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialDiffuse");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, material.Diffuse.r, material.Diffuse.g, material.Diffuse.b, material.Diffuse.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialAmbient");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, material.Ambient.r, material.Ambient.g, material.Ambient.b, material.Ambient.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialSpecular");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, material.Specular.r, material.Specular.g, material.Specular.b, material.Specular.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialEmissive");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, material.Emissive.r, material.Emissive.g, material.Emissive.b, material.Emissive.a);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "MaterialPower");
+        if (handle != -1)
+        {
+            GLUniform1f(handle, material.Power);
+        }
+    }
+
+    static const TEXTURE *getBoundTextureForRoleOpenGlEs(const BUFFER_GL *pBufferId,
+                                                         const uint32_t subsetIndex,
+                                                         const TEXTURE_ROLE role)
+    {
+        if (pBufferId == nullptr)
+            return nullptr;
+        const uint32_t stageIndex = static_cast<uint32_t>(getTextureRoleBackendSlot(role));
+        const uint32_t textureSubset = role == TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
+        const TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+        if (texture)
+            return texture;
+        return TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
+    }
+
+    static void bindTextureRoleOpenGlEs(const BUFFER_GL *pBufferId,
+                                        const uint32_t subsetIndex,
+                                        const TEXTURE_ROLE role,
+                                        const GLint samplerHandle)
+    {
+        const int backendSlot = getTextureRoleBackendSlot(role);
+        GLActiveTexture(GL_TEXTURE0 + backendSlot);
+        const TEXTURE *texture = getBoundTextureForRoleOpenGlEs(pBufferId, subsetIndex, role);
+        GLBindTexture(GL_TEXTURE_2D, texture ? texture->getBackendTextureId() : 0);
+        if (samplerHandle != -1)
+        {
+            GLUniform1i(samplerHandle, backendSlot);
+        }
+    }
 
     static GLenum getOpenGlEsModeDraw(const uint32_t mode_draw)
     {
@@ -111,8 +408,7 @@ namespace mbm
         mode_cull_face(GL_BACK),
         mode_front_face_direction(GL_CW),
         totalSubset(0),
-        initializedIndexBuffer(false),
-        texture1(nullptr)
+        initializedIndexBuffer(false)
     {
         setBackendBuffer(new BUFFER_SPECIFIC());
     }
@@ -126,8 +422,7 @@ namespace mbm
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
-        texture1 = nullptr;
-        texture0.clear();
+        texturesByStage.clear();
     }
 
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept : 
@@ -428,7 +723,8 @@ namespace mbm
             }
             switch (typeVar)
             {
-                case VAR_FLOAT: { var->current[0] = defaultValue[0];
+                case VAR_FLOAT:
+                case VAR_INT: { var->current[0] = defaultValue[0];
                 }
                 break;
                 case VAR_VECTOR2:
@@ -487,6 +783,9 @@ namespace mbm
                     case VAR_FLOAT: { GLUniform1f(handleVar, var->current[0]);
                     }
                     break;
+                    case VAR_INT: { GLUniform1i(handleVar, var->getCurrentInt());
+                    }
+                    break;
                     case VAR_VECTOR2: { GLUniform2f(handleVar, var->current[0], var->current[1]);
                     }
                     break;
@@ -515,6 +814,7 @@ namespace mbm
           mvMatrixHandle(-1),
           samplerHandle0(-1),
           samplerHandle1(-1),
+          samplerHandle2(-1),
           programObject(0)
     {
 	}
@@ -533,6 +833,7 @@ namespace mbm
         mvMatrixHandle  = -1;
         samplerHandle0  = -1;
         samplerHandle1  = -1;
+        samplerHandle2  = -1;
         if (programObject)
         {
             GLDeleteProgram(programObject);
@@ -585,27 +886,201 @@ namespace mbm
         this->vShader            = ptrVshader;
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
+        const bool canUsePointLight2D = useReservedLightScaffolding && (this->vShader == nullptr);
+        const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
+        const char *textureDiffuseName =
+            getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+        const char *textureNormalName =
+            getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
 
         std::string defaultCodePs;
         if (hasUV)
         {
             defaultCodePs = "precision mediump float;"
                 "varying vec2 vTexCoord;"
-                "uniform sampler2D sample0;"
-                "void main() { gl_FragColor = texture2D(sample0, vTexCoord); }";
+                "uniform sampler2D ";
+            defaultCodePs += textureDiffuseName;
+            defaultCodePs += ";";
+            if (useReservedLightScaffolding == false)
+            {
+                defaultCodePs += "void main() { gl_FragColor = texture2D(";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += ", vTexCoord); }";
+            }
+            else
+            {
+                defaultCodePs += "uniform int LightEnabled;"
+                    "uniform vec4 AmbientColor;"
+                    "uniform vec3 LightDirectionView;"
+                    "uniform vec4 MaterialSpecular;"
+                    "uniform vec4 MaterialDiffuse;"
+                    "uniform vec4 MaterialAmbient;"
+                    "uniform vec4 MaterialEmissive;"
+                    "uniform float MaterialPower;";
+                if (canUsePointLight2D == false)
+                {
+                    defaultCodePs += "uniform vec4 LightColor;";
+                }
+                if (canUsePointLight2D)
+                {
+                    defaultCodePs += "varying vec3 vPositionView;"
+                        "uniform sampler2D ";
+                    defaultCodePs += textureNormalName;
+                    defaultCodePs += ";"
+                        "uniform int LightMode;"
+                        "uniform int HasNormalMap;"
+                        "uniform vec3 LightPositionView[";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "];"
+                        "uniform float LightRadius[";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "];"
+                        "uniform vec4 LightColor[";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "];"
+                        "uniform int LightCount;";
+                }
+                if (hasNormal)
+                    defaultCodePs += "varying vec3 vNormalView;";
+                defaultCodePs += "void main() {"
+                    " vec4 texColor = texture2D(";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += ", vTexCoord);"
+                    " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
+                    " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
+                    " vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;"
+                    " vec3 specular = vec3(0.0);";
+                if (canUsePointLight2D == false)
+                {
+                    if (hasNormal)
+                    {
+                        defaultCodePs += " vec3 normalView = normalize(vNormalView);"
+                            " vec3 viewDir = normalize(-vPositionView);"
+                            " vec3 lightTravel = normalize(LightDirectionView);"
+                            " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                            " light += LightColor[0].rgb * diffuse;"
+                            " if (diffuse > 0.0 && MaterialPower > 0.0) {"
+                            "  vec3 lightDir = normalize(-lightTravel);"
+                            "  vec3 halfDir = normalize(lightDir + viewDir);"
+                            "  float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
+                            "  specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;"
+                            " }";
+                    }
+                    defaultCodePs += " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb + specular, 0.0, 1.0);"
+                        " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
+                        "}";
+                }
+                else if (hasNormal)
+                {
+                    defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
+                        " if (LightMode == 1) {"
+                        "  vec3 normalView = normalize(vNormalView);"
+                        "  vec3 viewDir = normalize(-vPositionView);"
+                        "  vec3 lightTravel = normalize(LightDirectionView);"
+                        "  float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                        "  light += LightColor[0].rgb * diffuse;"
+                        "  if (diffuse > 0.0 && MaterialPower > 0.0) {"
+                        "   vec3 lightDir = normalize(-lightTravel);"
+                        "   vec3 halfDir = normalize(lightDir + viewDir);"
+                        "   float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
+                        "   specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;"
+                        "  }"
+                        " } else ";
+                }
+                else
+                {
+                    defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
+                        " if (LightMode == 2) ";
+                }
+                if (canUsePointLight2D)
+                {
+                    defaultCodePs += "{"
+                        "  vec3 normalView = vec3(0.0, 0.0, 1.0);"
+                        "  if (HasNormalMap != 0) normalView = normalize((texture2D(";
+                    defaultCodePs += textureNormalName;
+                    defaultCodePs += ", vTexCoord).xyz * 2.0) - 1.0);"
+                        "  for (int i = 0; i < ";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "; ++i) {"
+                        "   if (i >= LightCount) break;"
+                        "   vec3 toLight = LightPositionView[i] - vPositionView;"
+                        "   float dist = length(toLight);"
+                        "   if (LightRadius[i] > 0.0001) {"
+                        "    vec3 lightDir = toLight / max(dist, 0.0001);"
+                        "    float diffuse = max(dot(normalView, lightDir), 0.0);"
+                        "    float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);"
+                        "    attenuation *= attenuation;"
+                        "    light += LightColor[i].rgb * diffuse * attenuation;"
+                        "    if (diffuse > 0.0 && MaterialPower > 0.0) {"
+                        "     vec3 viewDir = normalize(-vPositionView);"
+                        "     vec3 halfDir = normalize(lightDir + viewDir);"
+                        "     float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
+                        "     specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;"
+                        "    }"
+                        "   }"
+                        "  }"
+                        " }"
+                        " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb + specular, 0.0, 1.0);"
+                        " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
+                        "}";
+                }
+            }
         }
         else
         {
-            defaultCodePs = "precision mediump float;"
-                "void main() { gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); }";
+            defaultCodePs = "precision mediump float;";
+            if (hasNormal && useReservedLightScaffolding)
+            {
+                defaultCodePs += "varying vec3 vNormalView;"
+                    "uniform int LightEnabled;"
+                    "uniform int LightMode;"
+                    "uniform vec4 AmbientColor;"
+                    "uniform vec3 LightDirectionView;"
+                    "uniform vec4 LightColor;"
+                    "uniform vec4 MaterialSpecular;"
+                    "uniform vec4 MaterialDiffuse;"
+                    "uniform vec4 MaterialAmbient;"
+                    "uniform vec4 MaterialEmissive;"
+                    "uniform float MaterialPower;"
+                    "varying vec3 vPositionView;"
+                    "void main() {"
+                    " vec4 baseColor = vec4(1.0, 1.0, 1.0, 1.0);"
+                    " if (LightEnabled == 0 || LightMode != 1) { gl_FragColor = baseColor; return; }"
+                    " vec3 normalView = normalize(vNormalView);"
+                    " vec3 viewDir = normalize(-vPositionView);"
+                    " vec3 lightTravel = normalize(LightDirectionView);"
+                    " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
+                    " vec3 base = MaterialDiffuse.rgb;"
+                    " vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);"
+                    " vec3 specular = vec3(0.0);"
+                    " if (diffuse > 0.0 && MaterialPower > 0.0) {"
+                    "  vec3 lightDir = normalize(-lightTravel);"
+                    "  vec3 halfDir = normalize(lightDir + viewDir);"
+                    "  float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
+                    "  specular = LightColor.rgb * MaterialSpecular.rgb * spec;"
+                    " }"
+                    " vec3 litColor = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0, 1.0);"
+                    " gl_FragColor = vec4(litColor, MaterialDiffuse.a);"
+                    "}";
+            }
+            else
+            {
+                defaultCodePs += "void main() { gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); }";
+            }
         }
 
         std::string defaultCodeVs = "attribute vec4 aPosition;";
         if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
         defaultCodeVs += " uniform mat4 mvpMatrix;";
+        if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += " uniform mat4 mvMatrix;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " varying vec3 vNormalView;";
         if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
+        if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " varying vec3 vPositionView;";
         defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
+        if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -642,6 +1117,21 @@ namespace mbm
         const std::string vertexShaderCode(this->vShader ? this->vShader->getCode() : defaultCodeVs);
         const std::string pixelShaderCode(this->pShader ? this->pShader->getCode() : defaultCodePs);
         const std::string bothShaderCode(pixelShaderCode + vertexShaderCode);
+        const SHADER_TEXTURE_NAMING textureNaming =
+            detectShaderTextureNamingProfile(bothShaderCode.c_str());
+        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            ERROR_LOG("OpenGL ES shader mixes legacy texture names with semantic texture roles");
+            return false;
+        }
+        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
+            (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
+             shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
+             shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
+        {
+            ERROR_LOG("OpenGL ES shader declares a reserved semantic texture role without runtime binding support");
+            return false;
+        }
 
         if (bothShaderCode.find("aPosition") != std::string::npos)
         {
@@ -649,11 +1139,11 @@ namespace mbm
         }
         if (bothShaderCode.find("mvpMatrix") != std::string::npos)
         {
-            gles_shaderSpecific->mvpMatrixHandle = GLGetUniformLocation(gles_shaderSpecific->programObject, "mvpMatrix");
+            gles_shaderSpecific->mvpMatrixHandle = GLGetUniformLocationOptional(gles_shaderSpecific->programObject, "mvpMatrix");
         }
         if (bothShaderCode.find("mvMatrix") != std::string::npos)
         {
-            gles_shaderSpecific->mvMatrixHandle = GLGetUniformLocation(gles_shaderSpecific->programObject, "mvMatrix");
+            gles_shaderSpecific->mvMatrixHandle = GLGetUniformLocationOptional(gles_shaderSpecific->programObject, "mvMatrix");
         }
         if (vertexShaderCode.find("aNormal") != std::string::npos)
         {   // Attributes are vertex-only; use Optional - aNormal can be inactive if linker optimizes out unused varying
@@ -671,21 +1161,32 @@ namespace mbm
         {
             gles_shaderSpecific->texCoordHandle = -1;
         }
-        if (bothShaderCode.find("sample0") != std::string::npos)
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_DIFFUSE, textureNaming))
         {
-            gles_shaderSpecific->samplerHandle0 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample0");
+            gles_shaderSpecific->samplerHandle0 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, textureNaming));
         }
-        if (bothShaderCode.find("sample1") != std::string::npos)
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_ANIMATION_EFFECT, textureNaming))
         {
-            gles_shaderSpecific->samplerHandle1 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample1");
+            gles_shaderSpecific->samplerHandle1 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_ANIMATION_EFFECT, textureNaming));
+        }
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_NORMAL, textureNaming))
+        {
+            gles_shaderSpecific->samplerHandle2 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, textureNaming));
         }
         
         return true;
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
@@ -719,30 +1220,25 @@ namespace mbm
                 GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             }
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            if (gles_shaderSpecific->mvpMatrixHandle != -1)
+            {
+                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+            }
+            if (gles_shaderSpecific->mvMatrixHandle != -1)
+            {
+                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            }
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
-                const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
-                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
-
-                GLActiveTexture(GL_TEXTURE1);
-                const TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-                if (texture1)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
+                bindTextureRoleOpenGlEs(
+                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
@@ -772,32 +1268,27 @@ namespace mbm
                     GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                if (gles_shaderSpecific->mvpMatrixHandle != -1)
+                {
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+                }
+                if (gles_shaderSpecific->mvMatrixHandle != -1)
+                {
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                }
                 //-----------------------------------------------------------------------------------------------------------
-                GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
-                const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
-                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-
-                GLActiveTexture(GL_TEXTURE1);
-                const TEXTURE* texture1 = pBufferId->getTextureByStage(0, i);
-                if (texture1)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
+                bindTextureRoleOpenGlEs(
+                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1)
                     && backendBuffer->vboNormalSubsetVB && backendBuffer->vboNormalSubsetVB[i] != 0;
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1)
                     && backendBuffer->vboTextureSubsetVB && backendBuffer->vboTextureSubsetVB[i] != 0;
+                uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
                 GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
@@ -808,8 +1299,10 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
+    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
+                               const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(backendShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
@@ -837,28 +1330,23 @@ namespace mbm
             GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
             GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            if (gles_shaderSpecific->mvpMatrixHandle != -1)
+            {
+                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+            }
+            if (gles_shaderSpecific->mvMatrixHandle != -1)
+            {
+                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            }
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLActiveTexture(GL_TEXTURE0);
-                const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
-                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
-
-                const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
-                GLActiveTexture(GL_TEXTURE1);
-                if (texture1)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
+                bindTextureRoleOpenGlEs(
+                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
@@ -885,28 +1373,23 @@ namespace mbm
                     GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                if (gles_shaderSpecific->mvpMatrixHandle != -1)
+                {
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+                }
+                if (gles_shaderSpecific->mvMatrixHandle != -1)
+                {
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                }
                 //-----------------------------------------------------------------------------------------------------------
-                GLActiveTexture(GL_TEXTURE0);
-                const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
-                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
-                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-
-                GLActiveTexture(GL_TEXTURE1);
-                const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
-                if (texture1)
-                {
-                    GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-                }
-                else
-                {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
-                }
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
+                bindTextureRoleOpenGlEs(
+                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1) && (normal != nullptr);
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1) && (uv != nullptr);
+                uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
                 GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
@@ -924,29 +1407,15 @@ namespace mbm
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer)
             return false;
-        const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
-        GLActiveTexture(GL_TEXTURE0);
-        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
+        bindTextureRoleOpenGlEs(pBufferId, index_subset, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
         const GLenum modeDrawGl      = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
             ERROR_AT(__LINE__, __FILE__, "Mode draw for OpenGlEs renderParticle not supported!");
             return false;
         }
-        
-        GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-
-        GLActiveTexture(GL_TEXTURE1);
-        const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
-        if (texture1)
-        {
-            GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-            GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-        }
-        else
-        {
-            GLBindTexture(GL_TEXTURE_2D, 0);
-        }
+        bindTextureRoleOpenGlEs(
+            pBufferId, index_subset, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
 
         GLboolean depthTestEnabled = true;
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
@@ -959,8 +1428,14 @@ namespace mbm
             GLDisable(GL_CULL_FACE);
         }
         
-        GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE,SHADER::modelView.p);
+        if (gles_shaderSpecific->mvpMatrixHandle != -1)
+        {
+            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        }
+        if (gles_shaderSpecific->mvMatrixHandle != -1)
+        {
+            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+        }
         // Unbind VBO so vertex pointers are treated as client-side arrays, and disable
         // stale attrib arrays left by a previous draw (e.g. LINE_MESH position-only shader)
         // to avoid GL_INVALID_OPERATION on strict GLES drivers (ANGLE, Mesa).
@@ -1026,29 +1501,15 @@ namespace mbm
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
         if (!backendBuffer)
             return false;
-        const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
-        GLActiveTexture(GL_TEXTURE0);
-        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->getBackendTextureId() : 0);
+        bindTextureRoleOpenGlEs(pBufferId, index_subset, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
         const GLenum modeDrawGl = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
             ERROR_AT(__LINE__, __FILE__, "Mode draw for OpenGlEs renderParticle not supported!");
             return false;
         }
-
-        GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
-
-        GLActiveTexture(GL_TEXTURE1);
-        const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
-        if (texture1)
-        {
-            GLBindTexture(GL_TEXTURE_2D, texture1->getBackendTextureId());
-            GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
-        }
-        else
-        {
-            GLBindTexture(GL_TEXTURE_2D, 0);
-        }
+        bindTextureRoleOpenGlEs(
+            pBufferId, index_subset, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
 
         GLboolean depthTestEnabled = true;
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
@@ -1061,8 +1522,14 @@ namespace mbm
             GLDisable(GL_CULL_FACE);
         }
 
-        GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+        if (gles_shaderSpecific->mvpMatrixHandle != -1)
+        {
+            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        }
+        if (gles_shaderSpecific->mvMatrixHandle != -1)
+        {
+            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+        }
 
         // Unbind VBO so vertex pointers are treated as client-side arrays, and disable
         // stale attrib arrays left by a previous draw (e.g. LINE_MESH position-only shader)

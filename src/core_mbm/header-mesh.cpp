@@ -259,6 +259,21 @@ namespace util
         vertexStart = 0;
         indexCount  = 0;
         memset(alphaColor, 0, sizeof(alphaColor));
+        materialTextureSlotCount = 0;
+        reservedMaterialTextureSlots = 0;
+    }
+
+    MATERIAL_TEXTURE_SLOT_HEADER::MATERIAL_TEXTURE_SLOT_HEADER() noexcept
+    {
+        type = 0;
+        reserved = 0;
+        payloadSizeInBytes = 0;
+        memset(nameTexture, 0, sizeof(nameTexture));
+    }
+
+    MATERIAL_TEXTURE_SLOT_DEBUG::MATERIAL_TEXTURE_SLOT_DEBUG() noexcept
+    {
+        type = 0;
     }
 
     SUBSET_DEBUG::SUBSET_DEBUG() noexcept
@@ -558,5 +573,4 @@ namespace util
         {}
 
 }
-
 

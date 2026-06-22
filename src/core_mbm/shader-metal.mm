@@ -15,6 +15,7 @@
 
 #include <shader.h>
 #include <shader-var-cfg.h>
+#include <light.h>
 #include <texture-manager.h>
 #include "specific-metal-context.h"
 #include "specific-metal-buffer.h"
@@ -29,6 +30,255 @@ static mbm::SPECIFIC_AUX_CONTEXT_DEVICE* getMetalCtx()
 {
     mbm::DEVICE* dev = mbm::DEVICE::getInstance();
     return dev ? dev->getSpecificContextDevice() : nullptr;
+}
+
+static void packMetalShaderVar(float *buffer, const mbm::VAR_SHADER *var, const int32_t offset)
+{
+    if (!buffer || !var || offset < 0)
+        return;
+    if (var->typeVar == mbm::VAR_INT)
+    {
+        buffer[offset] = static_cast<float>(var->getCurrentInt());
+        return;
+    }
+    memcpy(buffer + offset, var->current, static_cast<size_t>(var->sizeVar) * sizeof(float));
+}
+
+static const mbm::MATRIX &getViewMatrixForLightTargetMetal(const mbm::LIGHT_TARGET target)
+{
+    const mbm::CAMERA &camera = mbm::DEVICE::getInstance()->getCamera();
+    return target == mbm::LIGHT_TARGET_2DW ? camera.matrixView2d : camera.matrixView;
+}
+
+static mbm::VEC3 getLightDirectionViewMetal(const mbm::LIGHT_STATE &lightState, const mbm::LIGHT_TARGET target)
+{
+    const mbm::MATRIX &view = getViewMatrixForLightTargetMetal(target);
+    mbm::VEC3 directionView(
+        (lightState.directionalDirection.x * view._11) +
+        (lightState.directionalDirection.y * view._21) +
+        (lightState.directionalDirection.z * view._31),
+        (lightState.directionalDirection.x * view._12) +
+        (lightState.directionalDirection.y * view._22) +
+        (lightState.directionalDirection.z * view._32),
+        (lightState.directionalDirection.x * view._13) +
+        (lightState.directionalDirection.y * view._23) +
+        (lightState.directionalDirection.z * view._33));
+    mbm::Vec3Normalize(&directionView, &directionView);
+    return directionView;
+}
+
+static mbm::VEC3 getLightPositionViewMetal(const mbm::LIGHT_STATE &lightState, const mbm::LIGHT_TARGET target)
+{
+    const mbm::MATRIX &view = getViewMatrixForLightTargetMetal(target);
+    return mbm::VEC3(
+        (lightState.pointPosition.x * view._11) +
+        (lightState.pointPosition.y * view._21) +
+        (lightState.pointPosition.z * view._31) + view._41,
+        (lightState.pointPosition.x * view._12) +
+        (lightState.pointPosition.y * view._22) +
+        (lightState.pointPosition.z * view._32) + view._42,
+        (lightState.pointPosition.x * view._13) +
+        (lightState.pointPosition.y * view._23) +
+        (lightState.pointPosition.z * view._33) + view._43);
+}
+
+static mbm::VEC3 getPointLightPositionViewMetal(const mbm::VEC3 &pointPosition, const mbm::LIGHT_TARGET target)
+{
+    const mbm::MATRIX &view = getViewMatrixForLightTargetMetal(target);
+    return mbm::VEC3(
+        (pointPosition.x * view._11) +
+        (pointPosition.y * view._21) +
+        (pointPosition.z * view._31) + view._41,
+        (pointPosition.x * view._12) +
+        (pointPosition.y * view._22) +
+        (pointPosition.z * view._32) + view._42,
+        (pointPosition.x * view._13) +
+        (pointPosition.y * view._23) +
+        (pointPosition.z * view._33) + view._43);
+}
+
+static bool bufferHasUvMetal(const mbm::BUFFER_GL *pBufferId) noexcept
+{
+    if (pBufferId == nullptr)
+        return false;
+    return pBufferId->fvf == mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_UV ||
+           pBufferId->fvf == mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+}
+
+static bool bufferHasNormalMetal(const mbm::BUFFER_GL *pBufferId) noexcept
+{
+    if (pBufferId == nullptr)
+        return false;
+    return pBufferId->fvf == mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+           pBufferId->fvf == mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+}
+
+static int getReservedLightModeMetal(const mbm::LIGHT_STATE &lightState, const mbm::LIGHT_TARGET target,
+                                     const mbm::BUFFER_GL *pBufferId) noexcept
+{
+    if (lightState.enabled == false)
+        return 0;
+    if (target == mbm::LIGHT_TARGET_2DW)
+        return bufferHasUvMetal(pBufferId) ? 2 : 0;
+    return bufferHasNormalMetal(pBufferId) ? 1 : 0;
+}
+
+static util::MATERIAL getReservedMaterialForCurrentRenderMetal()
+{
+    util::MATERIAL material;
+    if (mbm::DEVICE::getInstance()->getMaterialForCurrentRender(material))
+        return material;
+    material.Diffuse = mbm::COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+    material.Ambient = mbm::COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+    material.Specular = mbm::COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+    material.Emissive = mbm::COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+    material.Power = 0.0f;
+    return material;
+}
+
+struct ScopedRenderizableContextMetal
+{
+    mbm::DEVICE *device;
+
+    ScopedRenderizableContextMetal(const mbm::RENDERIZABLE *renderizableOwner) noexcept
+        : device(mbm::DEVICE::getInstance())
+    {
+        device->setRenderizableForCurrentRender(renderizableOwner);
+    }
+
+    ~ScopedRenderizableContextMetal() noexcept
+    {
+        device->clearRenderizableForCurrentRender();
+    }
+};
+
+static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, const mbm::BUFFER_GL *pBufferId,
+                                            const uint32_t subsetIndex)
+{
+    if (!enc)
+        return;
+    mbm::LIGHT_STATE lightState;
+    mbm::LIGHT_TARGET lightTarget = mbm::LIGHT_TARGET_3D;
+    const bool hasRenderLight = mbm::DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
+    mbm::DEVICE::getInstance()->getLightTargetForCurrentRender(lightTarget);
+    if (hasRenderLight == false)
+        lightState = mbm::LIGHT_STATE();
+    int32_t lightMode = getReservedLightModeMetal(lightState, lightTarget, pBufferId);
+    int32_t lightEnabled = lightMode != 0 ? 1 : 0;
+    int32_t hasNormalMap = (lightMode == 2 && pBufferId && pBufferId->getTextureByStage(2, subsetIndex)) ? 1 : 0;
+    float ambientColor[4] = {lightState.ambientColor.r, lightState.ambientColor.g,
+                             lightState.ambientColor.b, lightState.ambientColor.a};
+    const mbm::VEC3 directionView = getLightDirectionViewMetal(lightState, lightTarget);
+    mbm::VEC3 positionView = getLightPositionViewMetal(lightState, lightTarget);
+    float lightDirectionView[4] = {directionView.x, directionView.y, directionView.z, 0.0f};
+    mbm::COLOR currentLightColor = lightTarget == mbm::LIGHT_TARGET_2DW ? lightState.pointColor
+                                                                         : lightState.directionalColor;
+    float lightRadius = lightState.pointRadius;
+    float lightPositionView[4] = {positionView.x, positionView.y, positionView.z, 0.0f};
+    float lightPositionViewArray[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+    float lightRadiusArray[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
+    float lightColorArray[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+    uint32_t selectedPointLightCount = 0u;
+    if (lightMode == 2)
+    {
+        mbm::LIGHT_POINT_SELECTION pointLightSelections[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS];
+        selectedPointLightCount = mbm::DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
+            pointLightSelections, mbm::DEFAULT_SUPPORTED_MAX_LIGHTS);
+        for (uint32_t i = 0; i < selectedPointLightCount; ++i)
+        {
+            const mbm::VEC3 selectedPositionView =
+                getPointLightPositionViewMetal(pointLightSelections[i].pointLight.position, lightTarget);
+            lightPositionViewArray[(i * 4u) + 0u] = selectedPositionView.x;
+            lightPositionViewArray[(i * 4u) + 1u] = selectedPositionView.y;
+            lightPositionViewArray[(i * 4u) + 2u] = selectedPositionView.z;
+            lightRadiusArray[i] = pointLightSelections[i].pointLight.radius;
+            lightColorArray[(i * 4u) + 0u] = pointLightSelections[i].pointLight.color.r;
+            lightColorArray[(i * 4u) + 1u] = pointLightSelections[i].pointLight.color.g;
+            lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
+            lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
+        }
+        if (selectedPointLightCount > 0u)
+        {
+            positionView.x = lightPositionViewArray[0];
+            positionView.y = lightPositionViewArray[1];
+            positionView.z = lightPositionViewArray[2];
+            lightPositionView[0] = positionView.x;
+            lightPositionView[1] = positionView.y;
+            lightPositionView[2] = positionView.z;
+            lightRadius = lightRadiusArray[0];
+            currentLightColor = mbm::COLOR(lightColorArray[0], lightColorArray[1], lightColorArray[2], lightColorArray[3]);
+        }
+    }
+    else
+    {
+        lightPositionViewArray[0] = positionView.x;
+        lightPositionViewArray[1] = positionView.y;
+        lightPositionViewArray[2] = positionView.z;
+        lightRadiusArray[0] = lightRadius;
+        lightColorArray[0] = currentLightColor.r;
+        lightColorArray[1] = currentLightColor.g;
+        lightColorArray[2] = currentLightColor.b;
+        lightColorArray[3] = currentLightColor.a;
+    }
+    int32_t lightCount = lightMode == 2 ? static_cast<int32_t>(selectedPointLightCount) : (lightEnabled != 0 ? 1 : 0);
+    [enc setVertexBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
+    [enc setFragmentBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
+    [enc setVertexBytes:&lightCount length:sizeof(lightCount) atIndex:5];
+    [enc setFragmentBytes:&lightCount length:sizeof(lightCount) atIndex:5];
+    [enc setVertexBytes:ambientColor length:sizeof(ambientColor) atIndex:6];
+    [enc setFragmentBytes:ambientColor length:sizeof(ambientColor) atIndex:6];
+    [enc setVertexBytes:lightDirectionView length:sizeof(lightDirectionView) atIndex:7];
+    [enc setFragmentBytes:lightDirectionView length:sizeof(lightDirectionView) atIndex:7];
+    [enc setVertexBytes:lightColorArray length:sizeof(lightColorArray) atIndex:8];
+    [enc setFragmentBytes:lightColorArray length:sizeof(lightColorArray) atIndex:8];
+
+    const util::MATERIAL material = getReservedMaterialForCurrentRenderMetal();
+    float materialDiffuse[4] = {material.Diffuse.r, material.Diffuse.g, material.Diffuse.b, material.Diffuse.a};
+    float materialAmbient[4] = {material.Ambient.r, material.Ambient.g, material.Ambient.b, material.Ambient.a};
+    float materialSpecular[4] = {material.Specular.r, material.Specular.g, material.Specular.b, material.Specular.a};
+    float materialEmissive[4] = {material.Emissive.r, material.Emissive.g, material.Emissive.b, material.Emissive.a};
+    float materialPower = material.Power;
+    [enc setVertexBytes:materialDiffuse length:sizeof(materialDiffuse) atIndex:9];
+    [enc setFragmentBytes:materialDiffuse length:sizeof(materialDiffuse) atIndex:9];
+    [enc setVertexBytes:materialAmbient length:sizeof(materialAmbient) atIndex:10];
+    [enc setFragmentBytes:materialAmbient length:sizeof(materialAmbient) atIndex:10];
+    [enc setVertexBytes:materialSpecular length:sizeof(materialSpecular) atIndex:11];
+    [enc setFragmentBytes:materialSpecular length:sizeof(materialSpecular) atIndex:11];
+    [enc setVertexBytes:materialEmissive length:sizeof(materialEmissive) atIndex:12];
+    [enc setFragmentBytes:materialEmissive length:sizeof(materialEmissive) atIndex:12];
+    [enc setVertexBytes:&materialPower length:sizeof(materialPower) atIndex:13];
+    [enc setFragmentBytes:&materialPower length:sizeof(materialPower) atIndex:13];
+    [enc setVertexBytes:&lightMode length:sizeof(lightMode) atIndex:14];
+    [enc setFragmentBytes:&lightMode length:sizeof(lightMode) atIndex:14];
+    [enc setVertexBytes:lightPositionViewArray length:sizeof(lightPositionViewArray) atIndex:15];
+    [enc setFragmentBytes:lightPositionViewArray length:sizeof(lightPositionViewArray) atIndex:15];
+    [enc setVertexBytes:lightRadiusArray length:sizeof(lightRadiusArray) atIndex:16];
+    [enc setFragmentBytes:lightRadiusArray length:sizeof(lightRadiusArray) atIndex:16];
+    [enc setVertexBytes:&hasNormalMap length:sizeof(hasNormalMap) atIndex:17];
+    [enc setFragmentBytes:&hasNormalMap length:sizeof(hasNormalMap) atIndex:17];
+}
+
+static const mbm::TEXTURE *getBoundTextureForRoleMetal(const mbm::BUFFER_GL *pBufferId,
+                                                       const uint32_t subsetIndex,
+                                                       const mbm::TEXTURE_ROLE role)
+{
+    if (pBufferId == nullptr)
+        return nullptr;
+    const uint32_t stageIndex = static_cast<uint32_t>(mbm::getTextureRoleBackendSlot(role));
+    const uint32_t textureSubset = role == mbm::TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
+    const mbm::TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+    if (texture)
+        return texture;
+    return mbm::TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
+}
+
+static id<MTLTexture> getMetalTextureForRole(const mbm::BUFFER_GL *pBufferId,
+                                             const uint32_t subsetIndex,
+                                             const mbm::TEXTURE_ROLE role)
+{
+    const mbm::TEXTURE *texture = getBoundTextureForRoleMetal(pBufferId, subsetIndex, role);
+    void *texturePointer = texture ? texture->getBackendTexturePointer() : nullptr;
+    return texturePointer ? (__bridge id<MTLTexture>)texturePointer : nil;
 }
 
 static NSUInteger strideForFVF(mbm::FVF_PROVIDE_BY_ENGINE fvf)
@@ -241,19 +491,24 @@ static NSString* buildVertexHeader(mbm::FVF_PROVIDE_BY_ENGINE fvf)
     if (hasNor && hasUV) [src appendString:@" float2 uv [[attribute(2)]];"];
     else if (hasUV)      [src appendString:@" float2 uv [[attribute(1)]];"];
     [src appendString:@" };\n"];
-    [src appendString:@"struct VOut { float4 pos [[position]]; float2 uv; };\n"];
+    [src appendString:@"struct VOut { float4 pos [[position]]; float2 uv;"];
+    if (hasNor) [src appendString:@" float3 nor;"];
+    if (hasUV)  [src appendString:@" float3 positionView;"];
+    [src appendString:@" };\n"];
 
     [src appendString:
         @"vertex VOut vert_main(VIn in [[stage_in]], constant MbmUniforms& u [[buffer(1)]]) {\n"
          "    VOut o;\n"
          "    o.pos = u.mvp * float4(in.pos, 1.0f);\n"];
     [src appendString: hasUV ? @"    o.uv = in.uv;\n" : @"    o.uv = float2(0.0f);\n"];
+    if (hasNor) [src appendString:@"    o.nor = (u.mv * float4(in.nor, 0.0f)).xyz;\n"];
+    if (hasUV)  [src appendString:@"    o.positionView = (u.mv * float4(in.pos, 1.0f)).xyz;\n"];
     [src appendString: @"    return o;\n}\n"];
     return src;
 }
 
 // Builds the MSL source for the default shader matching the given FVF.
-static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
+static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding)
 {
     using F = mbm::FVF_PROVIDE_BY_ENGINE;
     const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
@@ -273,8 +528,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
 
     // vertex output struct
     [src appendString:@"struct VOut { float4 pos [[position]];"];
-    if (hasNor) [src appendString:@" float3 nor;"];
+    if (hasNor && useReservedLightScaffolding) [src appendString:@" float3 nor;"];
     if (hasUV)  [src appendString:@" float2 uv;"];
+    if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@" float3 positionView;"];
     [src appendString:@" };\n"];
 
     // vertex function
@@ -282,26 +538,138 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
         @"vertex VOut vert_main(VIn in [[stage_in]], constant Uniforms& u [[buffer(1)]]) {\n"
          "  VOut out;\n"
          "  out.pos = u.mvpMatrix * float4(in.pos, 1.0);\n"];
-    if (hasNor) [src appendString:@"  out.nor = (u.mvMatrix * float4(in.nor, 0.0)).xyz;\n"];
+    if (hasNor && useReservedLightScaffolding) [src appendString:@"  out.nor = (u.mvMatrix * float4(in.nor, 0.0)).xyz;\n"];
     if (hasUV)  [src appendString:@"  out.uv = in.uv;\n"];
+    if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@"  out.positionView = (u.mvMatrix * float4(in.pos, 1.0)).xyz;\n"];
     [src appendString:@"  return out;\n}\n"];
 
     // fragment function
     if (hasUV)
     {
+        const char *textureDiffuseName =
+            mbm::getTextureRoleShaderName(mbm::TEXTURE_ROLE_DIFFUSE, mbm::SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
         [src appendString:
             @"fragment float4 frag_main(VOut in [[stage_in]],"
-             " texture2d<float> tex [[texture(0)]],"
              " sampler samp [[sampler(0)]],"
-             " constant Uniforms& u [[buffer(1)]]) {\n"
-             "  return tex.sample(samp, in.uv) * u.color;\n}\n"];
+             " constant Uniforms& u [[buffer(1)]]"];
+        [src appendFormat:@", texture2d<float> %s [[texture(0)]]", textureDiffuseName];
+        if (useReservedLightScaffolding == false)
+        {
+            [src appendFormat:@") {\n  return %s.sample(samp, in.uv) * u.color;\n}\n", textureDiffuseName];
+        }
+        else
+        {
+            const char *textureNormalName =
+                mbm::getTextureRoleShaderName(mbm::TEXTURE_ROLE_NORMAL, mbm::SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+            [src appendFormat:@", texture2d<float> %s [[texture(2)]]", textureNormalName];
+            [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
+                              " constant float4& AmbientColor [[buffer(6)]],"
+                              " constant float3& LightDirectionView [[buffer(7)]],"
+                              " constant float4& MaterialDiffuse [[buffer(9)]],"
+                              " constant float4& MaterialAmbient [[buffer(10)]],"
+                              " constant float4& MaterialSpecular [[buffer(11)]],"
+                              " constant float4& MaterialEmissive [[buffer(12)]],"
+                              " constant float& MaterialPower [[buffer(13)]],"
+                              " constant int& LightMode [[buffer(14)]],"
+                              " constant int& HasNormalMap [[buffer(17)]]"];
+            [src appendString:@", constant float4* LightColor [[buffer(8)]],"
+                              " constant float3* LightPositionView [[buffer(15)]],"
+                              " constant float* LightRadius [[buffer(16)]],"
+                              " constant int& LightCount [[buffer(5)]]"];
+            [src appendFormat:@") {\n  float4 texColor = %s.sample(samp, in.uv) * u.color;\n",
+                              textureDiffuseName];
+            [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
+                              "  float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
+                              "  float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
+                              "  float3 specular = float3(0.0f);\n"];
+            if (hasNor)
+            {
+                [src appendString:@"  if (LightMode == 1) {\n"
+                                  "    float3 normalView = normalize(in.nor);\n"
+                                  "    float3 viewDir = normalize(-in.positionView);\n"
+                                  "    float3 lightTravel = normalize(LightDirectionView);\n"
+                                  "    float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
+                                  "    light += LightColor[0].rgb * diffuse;\n"
+                                  "    if (diffuse > 0.0f && MaterialPower > 0.0f) {\n"
+                                  "      float3 lightDir = normalize(-lightTravel);\n"
+                                  "      float3 halfDir = normalize(lightDir + viewDir);\n"
+                                  "      float spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);\n"
+                                  "      specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;\n"
+                                  "    }\n"
+                                  "  } else {\n"];
+            }
+            else
+            {
+                [src appendString:@"  if (LightMode == 2) {\n"];
+            }
+            [src appendFormat:@"    float3 normalView = float3(0.0, 0.0, 1.0);\n"
+                              "    if (HasNormalMap != 0) normalView = normalize((%s.sample(samp, in.uv).xyz * 2.0f) - 1.0f);\n"
+                              "    for (int i = 0; i < %u; ++i) {\n"
+                              "      if (i >= LightCount) break;\n"
+                              "      float3 toLight = LightPositionView[i] - in.positionView;\n"
+                              "      float dist = length(toLight);\n"
+                              "      if (LightRadius[i] > 0.0001f) {\n"
+                              "        float3 lightDir = toLight / max(dist, 0.0001f);\n"
+                              "        float diffuse = max(dot(normalView, lightDir), 0.0f);\n"
+                              "        float attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);\n"
+                              "        attenuation *= attenuation;\n"
+                              "        light += LightColor[i].rgb * diffuse * attenuation;\n"
+                              "        if (diffuse > 0.0f && MaterialPower > 0.0f) {\n"
+                              "          float3 viewDir = normalize(-in.positionView);\n"
+                              "          float3 halfDir = normalize(lightDir + viewDir);\n"
+                              "          float spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);\n"
+                              "          specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;\n"
+                              "        }\n"
+                              "      }\n"
+                              "    }\n"
+                              "  }\n"
+                              "  float3 litColor = clamp((base * clamp(light, 0.0f, 1.0f)) + MaterialEmissive.rgb + specular, 0.0f, 1.0f);\n"
+                              "  return float4(litColor, texColor.a * MaterialDiffuse.a);\n}\n",
+                              textureNormalName, static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
+        }
     }
     else
     {
         [src appendString:
             @"fragment float4 frag_main(VOut in [[stage_in]],"
-             " constant Uniforms& u [[buffer(1)]]) {\n"
-             "  return u.color;\n}\n"];
+             " constant Uniforms& u [[buffer(1)]]"];
+        if (hasNor && useReservedLightScaffolding)
+        {
+            [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
+                              " constant float4& AmbientColor [[buffer(6)]],"
+                              " constant float3& LightDirectionView [[buffer(7)]],"
+                              " constant float4& LightColor [[buffer(8)]],"
+                              " constant float4& MaterialDiffuse [[buffer(9)]],"
+                              " constant float4& MaterialAmbient [[buffer(10)]],"
+                              " constant float4& MaterialSpecular [[buffer(11)]],"
+                              " constant float4& MaterialEmissive [[buffer(12)]],"
+                              " constant float& MaterialPower [[buffer(13)]],"
+                              " constant int& LightMode [[buffer(14)]]"];
+        }
+        [src appendString:@") {\n"];
+        if (hasNor && useReservedLightScaffolding)
+        {
+            [src appendString:@"  if (LightEnabled == 0 || LightMode != 1) return u.color;\n"
+                              "  float3 normalView = normalize(in.nor);\n"
+                              "  float3 viewDir = normalize(-in.positionView);\n"
+                              "  float3 lightTravel = normalize(LightDirectionView);\n"
+                              "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
+                              "  float3 base = MaterialDiffuse.rgb;\n"
+                              "  float3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
+                              "  float3 specular = float3(0.0f);\n"
+                              "  if (diffuse > 0.0f && MaterialPower > 0.0f) {\n"
+                              "    float3 lightDir = normalize(-lightTravel);\n"
+                              "    float3 halfDir = normalize(lightDir + viewDir);\n"
+                              "    float spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);\n"
+                              "    specular = LightColor.rgb * MaterialSpecular.rgb * spec;\n"
+                              "  }\n"
+                              "  float3 litColor = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0, 1.0);\n"
+                              "  return float4(litColor, MaterialDiffuse.a);\n}\n"];
+        }
+        else
+        {
+            [src appendString:@"  return u.color;\n}\n"];
+        }
     }
     return src;
 }
@@ -371,8 +739,7 @@ namespace mbm
         mode_cull_face(0),
         mode_front_face_direction(0),
         totalSubset(0),
-        initializedIndexBuffer(false),
-        texture1(nullptr)
+        initializedIndexBuffer(false)
     {
         setBackendBuffer(new BUFFER_SPECIFIC());
     }
@@ -385,8 +752,7 @@ namespace mbm
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
-        texture1 = nullptr;
-        texture0.clear();
+        texturesByStage.clear();
     }
 
     // ---- BUFFER_GL backend methods ---- (Must be provided by each backend)
@@ -723,7 +1089,22 @@ namespace mbm
                     mslSrc = [buildVertexHeader(fvf)
                         stringByAppendingString:[NSString stringWithUTF8String:ptrPshader->getCode()]];
                 else
-                    mslSrc = defaultMSLSource(fvf);
+                    mslSrc = defaultMSLSource(fvf, this->shouldCompileReservedLightDefault());
+            }
+            const char *mslSourceText = [mslSrc UTF8String];
+            const SHADER_TEXTURE_NAMING textureNaming = detectShaderTextureNamingProfile(mslSourceText);
+            if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+            {
+                ERROR_LOG("Metal shader mixes legacy texture names with semantic texture roles");
+                return false;
+            }
+            if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
+                (shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_SPECULAR, textureNaming) ||
+                 shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_EMISSIVE, textureNaming) ||
+                 shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_MASK, textureNaming)))
+            {
+                ERROR_LOG("Metal shader declares a reserved semantic texture role without runtime binding support");
+                return false;
             }
             NSError* err = nil;
             id<MTLLibrary> lib = [ctx->mtlDevice newLibraryWithSource:mslSrc options:nil error:&err];
@@ -757,8 +1138,9 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::render(const BUFFER_GL* pBufferId) const
+    bool SHADER::render(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         if (!backendShaderSpecific || !pBufferId) return false;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
@@ -794,14 +1176,11 @@ namespace mbm
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+            uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
             // Bind stage-1 texture (constant across all subsets).
-            {
-                const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
-                void *texturePointer = t1 ? t1->getBackendTexturePointer() : nullptr;
-                [enc setFragmentTexture:(texturePointer
-                    ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:1];
-            }
+            [enc setFragmentTexture:getMetalTextureForRole(pBufferId, 0, mbm::TEXTURE_ROLE_ANIMATION_EFFECT)
+                            atIndex:1];
 
             // Upload custom fragment uniforms to [[buffer(2)]].
             if (pShader && !pShader->lsVar.empty())
@@ -814,7 +1193,7 @@ namespace mbm
                     for (const auto* v : pShader->lsVar)
                     {
                         const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
-                        memcpy(fbuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(fbuf, v, off);
                     }
                     [enc setFragmentBytes:fbuf length:(NSUInteger)totalF * sizeof(float) atIndex:2];
                 }
@@ -831,7 +1210,7 @@ namespace mbm
                     for (const auto* v : vShader->lsVar)
                     {
                         const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
-                        memcpy(vbuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(vbuf, v, off);
                     }
                     [enc setVertexBytes:vbuf length:(NSUInteger)totalF * sizeof(float) atIndex:3];
                 }
@@ -846,10 +1225,11 @@ namespace mbm
                 [enc setVertexBuffer:backendBuffer->vertexBuffer offset:0 atIndex:0];
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
-                    const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer
-                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
+                                    atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
+                                    atIndex:2];
+                    uploadReservedLightBuffersMetal(enc, pBufferId, i);
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -864,10 +1244,11 @@ namespace mbm
                 if (!backendBuffer->vertexBuffer) return false;
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
-                    const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer
-                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
+                                    atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
+                                    atIndex:2];
+                    uploadReservedLightBuffersMetal(enc, pBufferId, i);
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:backendBuffer->vertexBuffer offset:off atIndex:0];
@@ -881,8 +1262,10 @@ namespace mbm
     }
 
     bool SHADER::renderDynamic(const BUFFER_GL* pBufferId, const VEC3* vertex,
-                               const VEC3* normal, const VEC2* uv) const
+                               const VEC3* normal, const VEC2* uv,
+                               const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
         if (!backendShaderSpecific || !pBufferId || !vertex) return false;
         BUFFER_SPECIFIC *backendBuffer = pBufferId->getBackendBuffer();
@@ -927,14 +1310,11 @@ namespace mbm
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+            uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
             // Bind stage-1 texture (constant across all subsets).
-            {
-                const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
-                void *texturePointer = t1 ? t1->getBackendTexturePointer() : nullptr;
-                [enc setFragmentTexture:(texturePointer
-                    ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:1];
-            }
+            [enc setFragmentTexture:getMetalTextureForRole(pBufferId, 0, mbm::TEXTURE_ROLE_ANIMATION_EFFECT)
+                            atIndex:1];
 
             // Upload custom fragment uniforms to [[buffer(2)]].
             if (pShader && !pShader->lsVar.empty())
@@ -947,7 +1327,7 @@ namespace mbm
                     for (const auto* v : pShader->lsVar)
                     {
                         const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
-                        memcpy(fbuf2 + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(fbuf2, v, off);
                     }
                     [enc setFragmentBytes:fbuf2 length:(NSUInteger)totalF * sizeof(float) atIndex:2];
                 }
@@ -964,7 +1344,7 @@ namespace mbm
                     for (const auto* v : vShader->lsVar)
                     {
                         const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
-                        memcpy(vbuf2 + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(vbuf2, v, off);
                     }
                     [enc setVertexBytes:vbuf2 length:(NSUInteger)totalF * sizeof(float) atIndex:3];
                 }
@@ -979,10 +1359,10 @@ namespace mbm
                 if (!backendBuffer->indexBuffer) return false;
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
-                    const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer
-                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
+                                    atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
+                                    atIndex:2];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -996,10 +1376,10 @@ namespace mbm
             {
                 for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
                 {
-                    const TEXTURE* t = pBufferId->getTextureByStage(0, i);
-                    void *texturePointer = t ? t->getBackendTexturePointer() : nullptr;
-                    [enc setFragmentTexture:(texturePointer
-                        ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
+                                    atIndex:0];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
+                                    atIndex:2];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:vbuf offset:off atIndex:0];
@@ -1040,11 +1420,10 @@ namespace mbm
             [enc setCullMode:MTLCullModeNone]; // match OpenGL: disable face culling for particles
             [enc setDepthStencilState:getOrCreateNoDepthState(ctx)]; // match OpenGL: no depth test
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+            uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
-            const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
-            void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
-            [enc setFragmentTexture:(texturePointer
-                ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+            [enc setFragmentTexture:getMetalTextureForRole(pBufferId, 0, mbm::TEXTURE_ROLE_DIFFUSE)
+                            atIndex:0];
 
             const VERTEX_UV*    vbuf      = particleControl->getVertexBuffer();
             const ATT_PARTICLE* particles = particleControl->getAttParticle();
@@ -1066,7 +1445,7 @@ namespace mbm
                 {
                     const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
                     if (off >= 0 && off + v->sizeVar <= 64)
-                        memcpy(fragBuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(fragBuf, v, off);
                 }
             }
 
@@ -1126,11 +1505,10 @@ namespace mbm
             [enc setCullMode:MTLCullModeNone]; // no culling for particles
             [enc setDepthStencilState:getOrCreateNoDepthState(ctx)]; // no depth test
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+            uploadReservedLightBuffersMetal(enc, pBufferId, 0);
 
-            const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
-            void *texturePointer = tex0 ? tex0->getBackendTexturePointer() : nullptr;
-            [enc setFragmentTexture:(texturePointer
-                ? (__bridge id<MTLTexture>)texturePointer : nil) atIndex:0];
+            [enc setFragmentTexture:getMetalTextureForRole(pBufferId, 0, mbm::TEXTURE_ROLE_DIFFUSE)
+                            atIndex:0];
 
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;
@@ -1152,7 +1530,7 @@ namespace mbm
                 {
                     const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
                     if (off >= 0 && off + v->sizeVar <= 64)
-                        memcpy(fragBuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                        packMetalShaderVar(fragBuf, v, off);
                 }
             }
             if (pGroup->color && colorOff >= 0 && colorOff + 4 <= 64)

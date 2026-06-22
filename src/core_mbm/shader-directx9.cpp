@@ -24,6 +24,7 @@
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <device.h>
+#include <light.h>
 #include "specific-directx9-context.h"
 #include "specific-directx9-buffer.h"
 #include "specific-directx9-shader.h"
@@ -37,6 +38,276 @@
 
 namespace mbm
 {
+    static const MATRIX &getViewMatrixForLightTargetD3D(const LIGHT_TARGET target)
+    {
+        const CAMERA &camera = DEVICE::getInstance()->getCamera();
+        return target == LIGHT_TARGET_2DW ? camera.matrixView2d : camera.matrixView;
+    }
+
+    static VEC3 getLightDirectionViewD3D(const LIGHT_STATE &lightState, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTargetD3D(target);
+        VEC3 directionView(
+            (lightState.directionalDirection.x * view._11) +
+            (lightState.directionalDirection.y * view._21) +
+            (lightState.directionalDirection.z * view._31),
+            (lightState.directionalDirection.x * view._12) +
+            (lightState.directionalDirection.y * view._22) +
+            (lightState.directionalDirection.z * view._32),
+            (lightState.directionalDirection.x * view._13) +
+            (lightState.directionalDirection.y * view._23) +
+            (lightState.directionalDirection.z * view._33));
+        Vec3Normalize(&directionView, &directionView);
+        return directionView;
+    }
+
+    static VEC3 getLightPositionViewD3D(const LIGHT_STATE &lightState, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTargetD3D(target);
+        return VEC3(
+            (lightState.pointPosition.x * view._11) +
+            (lightState.pointPosition.y * view._21) +
+            (lightState.pointPosition.z * view._31) + view._41,
+            (lightState.pointPosition.x * view._12) +
+            (lightState.pointPosition.y * view._22) +
+            (lightState.pointPosition.z * view._32) + view._42,
+            (lightState.pointPosition.x * view._13) +
+            (lightState.pointPosition.y * view._23) +
+            (lightState.pointPosition.z * view._33) + view._43);
+    }
+
+    static VEC3 getPointLightPositionViewD3D(const VEC3 &pointPosition, const LIGHT_TARGET target)
+    {
+        const MATRIX &view = getViewMatrixForLightTargetD3D(target);
+        return VEC3(
+            (pointPosition.x * view._11) +
+            (pointPosition.y * view._21) +
+            (pointPosition.z * view._31) + view._41,
+            (pointPosition.x * view._12) +
+            (pointPosition.y * view._22) +
+            (pointPosition.z * view._32) + view._42,
+            (pointPosition.x * view._13) +
+            (pointPosition.y * view._23) +
+            (pointPosition.z * view._33) + view._43);
+    }
+
+    static bool bufferHasUvD3D(const BUFFER_GL *pBufferId) noexcept
+    {
+        if (pBufferId == nullptr)
+            return false;
+        return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV ||
+               pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static bool bufferHasNormalD3D(const BUFFER_GL *pBufferId) noexcept
+    {
+        if (pBufferId == nullptr)
+            return false;
+        return pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+               pBufferId->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+    }
+
+    static int getReservedLightModeD3D(const LIGHT_STATE &lightState, const LIGHT_TARGET target,
+                                       const BUFFER_GL *pBufferId) noexcept
+    {
+        if (lightState.enabled == false)
+            return 0;
+        if (target == LIGHT_TARGET_2DW)
+            return bufferHasUvD3D(pBufferId) ? 2 : 0;
+        return bufferHasNormalD3D(pBufferId) ? 1 : 0;
+    }
+
+    static util::MATERIAL getReservedMaterialForCurrentRenderD3D()
+    {
+        util::MATERIAL material;
+        if (DEVICE::getInstance()->getMaterialForCurrentRender(material))
+            return material;
+        material.Diffuse = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        material.Ambient = COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+        material.Specular = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        material.Emissive = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        material.Power = 0.0f;
+        return material;
+    }
+
+    struct ScopedRenderizableContextD3D
+    {
+        DEVICE *device;
+
+        ScopedRenderizableContextD3D(const RENDERIZABLE *renderizableOwner) noexcept
+            : device(DEVICE::getInstance())
+        {
+            device->setRenderizableForCurrentRender(renderizableOwner);
+        }
+
+        ~ScopedRenderizableContextD3D() noexcept
+        {
+            device->clearRenderizableForCurrentRender();
+        }
+    };
+
+    static void setFloatConstantElementsD3D(ID3DXConstantTable *constantTable, IDirect3DDevice9 *pd3dDevice,
+                                            const char *constantName, const float *values,
+                                            const uint32_t floatsPerElement,
+                                            const uint32_t totalElements) noexcept
+    {
+        if (constantTable == nullptr || pd3dDevice == nullptr || constantName == nullptr || values == nullptr ||
+            floatsPerElement == 0u || totalElements == 0u)
+            return;
+        D3DXHANDLE baseHandle = constantTable->GetConstantByName(nullptr, constantName);
+        if (baseHandle == nullptr)
+            return;
+        constantTable->SetFloatArray(pd3dDevice, baseHandle, values, floatsPerElement);
+        for (uint32_t i = 1; i < totalElements; ++i)
+        {
+            D3DXHANDLE elementHandle = constantTable->GetConstantElement(baseHandle, i);
+            if (elementHandle == nullptr)
+                break;
+            constantTable->SetFloatArray(pd3dDevice, elementHandle, values + (i * floatsPerElement), floatsPerElement);
+        }
+    }
+
+    static void uploadReservedLightConstantsD3D(IDirect3DDevice9 *pd3dDevice, ID3DXConstantTable *constantTable,
+                                                const BUFFER_GL *pBufferId, const uint32_t subsetIndex)
+    {
+        if (pd3dDevice == nullptr || constantTable == nullptr)
+            return;
+        LIGHT_STATE lightState;
+        LIGHT_TARGET lightTarget = LIGHT_TARGET_3D;
+        const bool hasRenderLight = DEVICE::getInstance()->getLightStateForCurrentRender(lightState);
+        DEVICE::getInstance()->getLightTargetForCurrentRender(lightTarget);
+        if (hasRenderLight == false)
+            lightState = LIGHT_STATE();
+        const util::MATERIAL material = getReservedMaterialForCurrentRenderD3D();
+        const int lightMode = getReservedLightModeD3D(lightState, lightTarget, pBufferId);
+        const int enabled = lightMode != 0 ? 1 : 0;
+        const int hasNormalMap = (lightMode == 2 && pBufferId && pBufferId->getTextureByStage(2, subsetIndex)) ? 1 : 0;
+        const VEC3 directionView = getLightDirectionViewD3D(lightState, lightTarget);
+        VEC3 positionView = getLightPositionViewD3D(lightState, lightTarget);
+        COLOR lightColor = lightTarget == LIGHT_TARGET_2DW ? lightState.pointColor : lightState.directionalColor;
+        float lightRadius = lightState.pointRadius;
+        float lightPositionViewArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 3] = {};
+        float lightRadiusArray[DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
+        float lightColorArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
+        uint32_t selectedPointLightCount = 0u;
+        if (lightMode == 2)
+        {
+            LIGHT_POINT_SELECTION pointLightSelections[DEFAULT_SUPPORTED_MAX_LIGHTS];
+            selectedPointLightCount = DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
+                pointLightSelections, DEFAULT_SUPPORTED_MAX_LIGHTS);
+            for (uint32_t i = 0; i < selectedPointLightCount; ++i)
+            {
+                const VEC3 selectedPositionView =
+                    getPointLightPositionViewD3D(pointLightSelections[i].pointLight.position, lightTarget);
+                lightPositionViewArray[(i * 3u) + 0u] = selectedPositionView.x;
+                lightPositionViewArray[(i * 3u) + 1u] = selectedPositionView.y;
+                lightPositionViewArray[(i * 3u) + 2u] = selectedPositionView.z;
+                lightRadiusArray[i] = pointLightSelections[i].pointLight.radius;
+                lightColorArray[(i * 4u) + 0u] = pointLightSelections[i].pointLight.color.r;
+                lightColorArray[(i * 4u) + 1u] = pointLightSelections[i].pointLight.color.g;
+                lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
+                lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
+            }
+            if (selectedPointLightCount > 0u)
+            {
+                positionView.x = lightPositionViewArray[0];
+                positionView.y = lightPositionViewArray[1];
+                positionView.z = lightPositionViewArray[2];
+                lightRadius = lightRadiusArray[0];
+                lightColor = COLOR(lightColorArray[0], lightColorArray[1], lightColorArray[2], lightColorArray[3]);
+            }
+        }
+        else
+        {
+            lightPositionViewArray[0] = positionView.x;
+            lightPositionViewArray[1] = positionView.y;
+            lightPositionViewArray[2] = positionView.z;
+            lightRadiusArray[0] = lightRadius;
+            lightColorArray[0] = lightColor.r;
+            lightColorArray[1] = lightColor.g;
+            lightColorArray[2] = lightColor.b;
+            lightColorArray[3] = lightColor.a;
+        }
+        const int lightCount = lightMode == 2 ? static_cast<int>(selectedPointLightCount) : (enabled != 0 ? 1 : 0);
+
+        D3DXHANDLE handle = constantTable->GetConstantByName(nullptr, "LightEnabled");
+        if (handle)
+            constantTable->SetInt(pd3dDevice, handle, enabled);
+        handle = constantTable->GetConstantByName(nullptr, "LightCount");
+        if (handle)
+            constantTable->SetInt(pd3dDevice, handle, lightCount);
+        handle = constantTable->GetConstantByName(nullptr, "LightMode");
+        if (handle)
+            constantTable->SetInt(pd3dDevice, handle, lightMode);
+        handle = constantTable->GetConstantByName(nullptr, "AmbientColor");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &lightState.ambientColor.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "LightDirectionView");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &directionView.x, 3);
+        handle = constantTable->GetConstantByName(nullptr, "LightPositionView");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &positionView.x, 3);
+        handle = constantTable->GetConstantByName(nullptr, "LightRadius");
+        if (handle)
+            constantTable->SetFloat(pd3dDevice, handle, lightRadius);
+        handle = constantTable->GetConstantByName(nullptr, "LightColor");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &lightColor.r, 4);
+        setFloatConstantElementsD3D(constantTable, pd3dDevice, "LightPositionView", lightPositionViewArray, 3u,
+                                    DEFAULT_SUPPORTED_MAX_LIGHTS);
+        setFloatConstantElementsD3D(constantTable, pd3dDevice, "LightRadius", lightRadiusArray, 1u,
+                                    DEFAULT_SUPPORTED_MAX_LIGHTS);
+        setFloatConstantElementsD3D(constantTable, pd3dDevice, "LightColor", lightColorArray, 4u,
+                                    DEFAULT_SUPPORTED_MAX_LIGHTS);
+        handle = constantTable->GetConstantByName(nullptr, "HasNormalMap");
+        if (handle)
+            constantTable->SetInt(pd3dDevice, handle, hasNormalMap);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialDiffuse");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &material.Diffuse.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialAmbient");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &material.Ambient.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialSpecular");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &material.Specular.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialEmissive");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &material.Emissive.r, 4);
+        handle = constantTable->GetConstantByName(nullptr, "MaterialPower");
+        if (handle)
+            constantTable->SetFloat(pd3dDevice, handle, material.Power);
+    }
+
+    static TEXTURE *getBoundTextureForRoleD3D(const BUFFER_GL *pBufferId,
+                                              const uint32_t subsetIndex,
+                                              const TEXTURE_ROLE role)
+    {
+        if (pBufferId == nullptr)
+            return nullptr;
+        const uint32_t stageIndex = static_cast<uint32_t>(getTextureRoleBackendSlot(role));
+        const uint32_t textureSubset = role == TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
+        TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+        if (texture)
+            return texture;
+        return TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
+    }
+
+    static void bindTextureRoleD3D(IDirect3DDevice9 *pd3dDevice,
+                                   const BUFFER_GL *pBufferId,
+                                   const uint32_t subsetIndex,
+                                   const TEXTURE_ROLE role)
+    {
+        if (pd3dDevice == nullptr)
+            return;
+        TEXTURE *texture = getBoundTextureForRoleD3D(pBufferId, subsetIndex, role);
+        IDirect3DTexture9 *d3dTexture = texture
+            ? static_cast<IDirect3DTexture9*>(texture->getBackendTexturePointer())
+            : nullptr;
+        pd3dDevice->SetTexture(getTextureRoleBackendSlot(role), d3dTexture);
+    }
+
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept :
         FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS),
         sizeStructVertexInBytes(0),
@@ -74,8 +345,7 @@ namespace mbm
         mode_cull_face(util::CULL_BACK),
         mode_front_face_direction(util::CCW),
         totalSubset(0),
-        initializedIndexBuffer(false),
-        texture1(nullptr)
+        initializedIndexBuffer(false)
     {
         //we initialize this at the moment (just once)
         setBackendBuffer(new BUFFER_SPECIFIC());
@@ -90,8 +360,7 @@ namespace mbm
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
-        texture1 = nullptr;
-        texture0.clear();
+        texturesByStage.clear();
     }
 
     void BUFFER_GL::release()
@@ -561,7 +830,8 @@ namespace mbm
             
             switch (typeVar)
             {
-                case VAR_FLOAT: { var->current[0] = defaultValue[0];
+                case VAR_FLOAT:
+                case VAR_INT: { var->current[0] = defaultValue[0];
                 }
                 break;
                 case VAR_VECTOR2:
@@ -621,6 +891,8 @@ namespace mbm
                     // Uniform
                     case VAR_FLOAT: { constantTable->SetFloat(pd3dDevice, *pHandleVar, var->current[0]); }
                     break;
+                    case VAR_INT: { constantTable->SetInt(pd3dDevice, *pHandleVar, var->getCurrentInt()); }
+                    break;
                     case VAR_VECTOR2:{ constantTable->SetFloatArray(pd3dDevice, *pHandleVar, var->current, 2); }
                     break;
                     case VAR_COLOR_RGB:
@@ -643,7 +915,8 @@ namespace mbm
         mvpMatrixHandle(nullptr),
         mvMatrixHandle(nullptr),
         samplerHandle0(nullptr),
-        samplerHandle1(nullptr)
+        samplerHandle1(nullptr),
+        samplerHandle2(nullptr)
     {
     }
 
@@ -679,6 +952,7 @@ namespace mbm
         mvMatrixHandle  = nullptr;
         samplerHandle0  = nullptr;
         samplerHandle1  = nullptr;
+        samplerHandle2  = nullptr;
     }
 
     SHADER::SHADER() : 
@@ -720,31 +994,191 @@ namespace mbm
         this->vShader             = ptrVshader;
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
+        const char *textureDiffuseName =
+            getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+        const char *textureNormalName =
+            getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
 
         std::string defaultCodePs;
+        const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
         if (hasUV)
         {
-            defaultCodePs = "sampler2D sample0 : register(s0);"
-                "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
-                "{ return tex2D(sample0, texCoord); }";
+            defaultCodePs = "sampler2D ";
+            defaultCodePs += textureDiffuseName;
+            defaultCodePs += " : register(s0);"
+                "float4 main(float2 texCoord : TEXCOORD0";
+            if (useReservedLightScaffolding)
+            {
+                defaultCodePs = "";
+                defaultCodePs += "int LightEnabled;"
+                    "int LightMode;"
+                    "int HasNormalMap;"
+                    "float4 AmbientColor;"
+                    "float3 LightDirectionView;"
+                    "float4 LightColor[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];";
+                defaultCodePs += "float4 MaterialDiffuse;"
+                    "float4 MaterialAmbient;"
+                    "float4 MaterialSpecular;"
+                    "float4 MaterialEmissive;"
+                    "float MaterialPower;"
+                    "float3 LightPositionView[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "float LightRadius[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "int LightCount;";
+                defaultCodePs += "sampler2D ";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += " : register(s0);"
+                    "sampler2D ";
+                defaultCodePs += textureNormalName;
+                defaultCodePs += " : register(s2);"
+                    "float4 main(";
+                if (hasNormal)
+                {
+                    defaultCodePs += "float2 texCoord : TEXCOORD0, float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2";
+                }
+                else
+                {
+                    defaultCodePs += "float2 texCoord : TEXCOORD0, float3 positionViewIn : TEXCOORD1";
+                }
+                defaultCodePs += ") : COLOR"
+                    "{ float4 texColor = tex2D(";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += ", texCoord);";
+                defaultCodePs += " if (LightEnabled == 0 || LightMode == 0) return texColor;"
+                    " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
+                    " float3 light = AmbientColor.rgb * MaterialAmbient.rgb;"
+                    " float3 specular = float3(0, 0, 0);";
+                if (hasNormal)
+                {
+                    defaultCodePs += " if (LightMode == 1) {"
+                        "  float3 normalView = normalize(normalViewIn);"
+                        "  float3 viewDir = normalize(-positionViewIn);"
+                        "  float3 lightTravel = normalize(LightDirectionView);"
+                        "  float diffuse = max(dot(normalView, -lightTravel), 0);"
+                        "  light += LightColor[0].rgb * diffuse;"
+                        "  if (diffuse > 0.0f && MaterialPower > 0.0f) {"
+                        "   float3 lightDir = normalize(-lightTravel);"
+                        "   float3 halfDir = normalize(lightDir + viewDir);"
+                        "   float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);"
+                        "   specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;"
+                        "  }"
+                        " } else ";
+                }
+                else
+                {
+                    defaultCodePs += " if (LightMode == 2) ";
+                }
+                defaultCodePs += "{"
+                    "  float3 normalView = float3(0, 0, 1);"
+                    "  if (HasNormalMap != 0) normalView = normalize((tex2D(";
+                defaultCodePs += textureNormalName;
+                defaultCodePs += ", texCoord).xyz * 2.0f) - 1.0f);"
+                    "  for (int i = 0; i < ";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "; ++i) {"
+                    "   if (i >= LightCount) break;"
+                    "   float3 toLight = LightPositionView[i] - positionViewIn;"
+                    "   float dist = length(toLight);"
+                    "   if (LightRadius[i] > 0.0001f) {"
+                    "    float3 lightDir = toLight / max(dist, 0.0001f);"
+                    "    float diffuse = max(dot(normalView, lightDir), 0);"
+                    "    float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
+                    "    attenuation *= attenuation;"
+                    "    light += LightColor[i].rgb * diffuse * attenuation;"
+                    "    if (diffuse > 0.0f && MaterialPower > 0.0f) {"
+                    "     float3 viewDir = normalize(-positionViewIn);"
+                    "     float3 halfDir = normalize(lightDir + viewDir);"
+                    "     float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);"
+                    "     specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;"
+                    "    }"
+                    "   }"
+                    "  }"
+                    " }"
+                    " float3 litColor = saturate((base * saturate(light)) + MaterialEmissive.rgb + specular);"
+                    " return float4(litColor, texColor.a * MaterialDiffuse.a);";
+                defaultCodePs += " }";
+            }
+            else
+            {
+                defaultCodePs += ") : COLOR"
+                    "{ return tex2D(";
+                defaultCodePs += textureDiffuseName;
+                defaultCodePs += ", texCoord); }";
+            }
         }
         else
         {
-            defaultCodePs = "float4 main() : COLOR"
-                "{ return float4(1,1,1,1); }";
+            defaultCodePs = "";
+            if (hasNormal && useReservedLightScaffolding)
+            {
+                defaultCodePs += "int LightEnabled;"
+                    "int LightMode;"
+                    "float4 AmbientColor;"
+                    "float3 LightDirectionView;"
+                    "float4 LightColor;"
+                    "float4 MaterialDiffuse;"
+                    "float4 MaterialAmbient;"
+                    "float4 MaterialSpecular;"
+                    "float4 MaterialEmissive;"
+                    "float MaterialPower;";
+            }
+            defaultCodePs += "float4 main(";
+            if (hasNormal && useReservedLightScaffolding)
+            {
+                defaultCodePs += "float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2";
+            }
+            defaultCodePs += ") : COLOR"
+                "{ float4 baseColor = float4(1,1,1,1);";
+            if (hasNormal && useReservedLightScaffolding)
+            {
+                defaultCodePs += " if (LightEnabled == 0 || LightMode != 1) return baseColor;"
+                    " float3 normalView = normalize(normalViewIn);"
+                    " float3 viewDir = normalize(-positionViewIn);"
+                    " float3 lightTravel = normalize(LightDirectionView);"
+                    " float diffuse = max(dot(normalView, -lightTravel), 0);"
+                    " float3 base = MaterialDiffuse.rgb;"
+                    " float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));"
+                    " float3 specular = float3(0, 0, 0);"
+                    " if (diffuse > 0.0f && MaterialPower > 0.0f) {"
+                    "  float3 lightDir = normalize(-lightTravel);"
+                    "  float3 halfDir = normalize(lightDir + viewDir);"
+                    "  float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);"
+                    "  specular = LightColor.rgb * MaterialSpecular.rgb * spec;"
+                    " }"
+                    " float3 litColor = saturate((base * light) + MaterialEmissive.rgb + specular);"
+                    " return float4(litColor, MaterialDiffuse.a);";
+            }
+            else
+            {
+                defaultCodePs += " return baseColor;";
+            }
+            defaultCodePs += " }";
         }
 
-        std::string defaultCodeVs = "float4x4 mvpMatrix : register(c0);"
+        std::string defaultCodeVs = "float4x4 mvpMatrix : register(c0);";
+        if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += "float4x4 mvMatrix;";
+        defaultCodeVs +=
             "struct VS_INPUT { float4 position : POSITION;";
         if (hasNormal) defaultCodeVs += " float3 normal : NORMAL;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
         defaultCodeVs += " };"
             "struct VS_OUTPUT { float4 position : POSITION;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 normalView : TEXCOORD1;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD2;";
+        else if (hasUV && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD1;";
         defaultCodeVs += " };"
             "VS_OUTPUT main(VS_INPUT input)"
             "{ VS_OUTPUT output; output.position = mul(input.position, mvpMatrix);";
         if (hasUV) defaultCodeVs += " output.texCoord = input.texCoord;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " output.normalView = mul(float4(input.normal, 0), mvMatrix).xyz;";
+        if (hasUV && useReservedLightScaffolding) defaultCodeVs += " output.positionView = mul(input.position, mvMatrix).xyz;";
         defaultCodeVs += " return output; }";
 
         constexpr const char* mainFunction = "main";
@@ -761,6 +1195,22 @@ namespace mbm
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs.c_str();
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);
+        const std::string combinedShaderCode = std::string(codePS) + codeVS;
+        const SHADER_TEXTURE_NAMING textureNaming =
+            detectShaderTextureNamingProfile(combinedShaderCode.c_str());
+        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            ERROR_LOG("DirectX9 shader mixes legacy texture names with semantic texture roles");
+            return false;
+        }
+        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
+            (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
+             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
+             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
+        {
+            ERROR_LOG("DirectX9 shader declares a reserved semantic texture role without runtime binding support");
+            return false;
+        }
 #if defined _DEBUG
         constexpr DWORD flag = D3DXSHADER_DEBUG;
 #else
@@ -819,8 +1269,21 @@ namespace mbm
         if (d3dPsVs->constantTablePS)
         {
             d3dPsVs->constantTablePS->SetDefaults(pd3dDevice);
-            d3dPsVs->samplerHandle0 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample0");
-            d3dPsVs->samplerHandle1 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample1");
+            if (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_DIFFUSE, textureNaming))
+            {
+                d3dPsVs->samplerHandle0 = d3dPsVs->constantTablePS->GetConstantByName(
+                    nullptr, getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, textureNaming));
+            }
+            if (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_ANIMATION_EFFECT, textureNaming))
+            {
+                d3dPsVs->samplerHandle1 = d3dPsVs->constantTablePS->GetConstantByName(
+                    nullptr, getTextureRoleShaderName(TEXTURE_ROLE_ANIMATION_EFFECT, textureNaming));
+            }
+            if (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_NORMAL, textureNaming))
+            {
+                d3dPsVs->samplerHandle2 = d3dPsVs->constantTablePS->GetConstantByName(
+                    nullptr, getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, textureNaming));
+            }
 
             //D3DXCONSTANT_DESC desc;
             //UINT count = 1;
@@ -858,8 +1321,9 @@ namespace mbm
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContextD3D scopedRenderizableContext(renderizableOwner);
         BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
         if (backendBuffer == nullptr || backendBuffer->pVertexBuffer == nullptr)
         {
@@ -918,6 +1382,8 @@ namespace mbm
                 return false;
             }
         }
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, 0);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, 0);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
@@ -982,29 +1448,14 @@ namespace mbm
                 return false;
             }
 
-            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
-            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-            if (texture1)
-            {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
-                pd3dDevice->SetTexture(1, pp3DTexture9);
-            }
-            else
-            {
-                pd3dDevice->SetTexture(1, nullptr);
-            }
+            // TextureAnimationEffect stays shared across subsets by design.
+            bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                if (texture0)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(0, nullptr);
-                }
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
+                uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
+                uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
@@ -1087,30 +1538,15 @@ namespace mbm
                 backendBuffer->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
                 return false;
 
-            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
-            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-            if (texture1)
-            {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
-                pd3dDevice->SetTexture(1, pp3DTexture9);
-            }
-            else
-            {
-                pd3dDevice->SetTexture(1, nullptr);
-            }
+            // TextureAnimationEffect stays shared across subsets by design.
+            bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
 
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                if (texture0)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(0, nullptr);
-                }
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
+                uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
+                uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
                 switch (pBufferId->mode_draw)
                 {
@@ -1166,8 +1602,10 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
+    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
+                               const RENDERIZABLE *renderizableOwner) const
     {
+        const ScopedRenderizableContextD3D scopedRenderizableContext(renderizableOwner);
         BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
         if (pBufferId && vertex && backendBuffer && backendBuffer->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
         {
@@ -1183,7 +1621,7 @@ namespace mbm
             d3d_converter.copyTod3dVertexBuffer(pvertex);
             backendBuffer->pVertexBuffer->Unlock();
 
-            return render(pBufferId);
+            return render(pBufferId, renderizableOwner);
         }
         return false;
     }
@@ -1248,6 +1686,8 @@ namespace mbm
                 return false;
             }
         }
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, 0);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, 0);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
@@ -1318,30 +1758,13 @@ namespace mbm
             const uint32_t totalAlive = particleControl->getTotalAlive();
             const VERTEX_UV* buffer = particleControl->getVertexBuffer();
 
-            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
-            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-            if (texture1)
-            {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
-                pd3dDevice->SetTexture(1, pp3DTexture9);
-            }
-            else
-            {
-                pd3dDevice->SetTexture(1, nullptr);
-            }
+            // TextureAnimationEffect stays shared across subsets by design.
+            bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
 
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                if (texture0)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(0, nullptr);
-                }
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
@@ -1537,6 +1960,8 @@ namespace mbm
                 return false;
             }
         }
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, 0);
+        uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, 0);
         #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
         // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
@@ -1604,30 +2029,13 @@ namespace mbm
                 ? this->pShader->getVarByName("color")
                 : nullptr;
 
-            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
-            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-            if (texture1)
-            {
-                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->getBackendTexturePointer());
-                pd3dDevice->SetTexture(1, pp3DTexture9);
-            }
-            else
-            {
-                pd3dDevice->SetTexture(1, nullptr);
-            }
+            // TextureAnimationEffect stays shared across subsets by design.
+            bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
 
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                if (texture0)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->getBackendTexturePointer());
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(0, nullptr);
-                }
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 

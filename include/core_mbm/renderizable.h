@@ -48,7 +48,6 @@ namespace mbm
         TYPE_CLASS_GIF               = 5,
         TYPE_CLASS_TEXT              = 6,
         TYPE_CLASS_PRIMITIVE         = 7,
-        TYPE_CLASS_LIGHT             = 8,
         TYPE_CLASS_UNKNOWN           = 9,
         TYPE_CLASS_TEMP              = 10,
         TYPE_CLASS_SHAPE_MESH        = 11,

@@ -67,8 +67,7 @@ namespace mbm
             delete static_cast<BUFFER_SPECIFIC*>(backendBuffer);
         }
         setBackendBuffer(nullptr);
-        texture1 = nullptr;
-        texture0.clear();
+        texturesByStage.clear();
         REMINDER_TODO
     }
 
@@ -206,12 +205,17 @@ namespace mbm
             return false;
         this->pShader             = ptrPshader;
         this->vShader             = ptrVshader;
-        constexpr char *defaultCodePs = "sampler2D sample0 : register(s0);"
-                                        ""
-                                        "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
-                                        "{"
-                                        "    return tex2D(sample0, texCoord);"
-                                        "}";
+        const char *textureDiffuseName =
+            getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
+        std::string defaultCodePs = "sampler2D ";
+        defaultCodePs += textureDiffuseName;
+        defaultCodePs += " : register(s0);"
+                         "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
+                         "{"
+                         "    return tex2D(";
+        defaultCodePs += textureDiffuseName;
+        defaultCodePs += ", texCoord);"
+                         "}";
 
         constexpr char *defaultCodeVs = "float4x4 mvpMatrix : register(c0);"
                                         ""
@@ -243,22 +247,39 @@ namespace mbm
         const char* versionPS        = getPSVersion();
         const char* versionVS        = getVSVersion();
         
-        const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs;
+        const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs.c_str();
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs;
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);
+        const std::string combinedShaderCode = std::string(codePS) + codeVS;
+        const SHADER_TEXTURE_NAMING textureNaming =
+            detectShaderTextureNamingProfile(combinedShaderCode.c_str());
+        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            ERROR_LOG("Dummy shader mixes legacy texture names with semantic texture roles");
+            return false;
+        }
+        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
+            (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
+             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
+             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
+        {
+            ERROR_LOG("Dummy shader declares a reserved semantic texture role without runtime binding support");
+            return false;
+        }
         REMINDER_TODO
         return true;
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
     {
         REMINDER_TODO
         return true;
     }
 
-    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
+    bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
+                               const RENDERIZABLE *renderizableOwner) const
     {
         REMINDER_TODO
         return false;

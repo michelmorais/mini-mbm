@@ -88,14 +88,14 @@ namespace util
         TYPE_MESH_TILE_MAP,
     };
 
-    struct API_IMPL MATERIAL_GLES
+    struct API_IMPL MATERIAL
     {
         mbm::COLOR Diffuse;
         mbm::COLOR Ambient;
         mbm::COLOR Specular;
         mbm::COLOR Emissive;
         float      Power;
-        constexpr MATERIAL_GLES() noexcept:
+        constexpr MATERIAL() noexcept:
             Diffuse(1.0f,1.0f,1.0f,1.0f) ,
             Ambient(1.0f,1.0f,1.0f,1.0f) ,
             Specular(1.0f,1.0f,1.0f,1.0f) ,
@@ -103,6 +103,8 @@ namespace util
             Power(1.0f)
         {}
     };
+
+    using MATERIAL_GLES = MATERIAL;
 
     #define INITIAL_VERSION_MBM_HEADER     1
     #define SPRITE_INFO_VERSION_MBM_HEADER 2
@@ -112,8 +114,9 @@ namespace util
     #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
     #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
     #define STRONG_TYPES_VERSION_MBM_HEADER 8     // v8: new baseline for current mesh generation
+    #define MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER 9 // v9: per-subset typed material texture slots
 
-    #define CURRENT_VERSION_MBM_HEADER     STRONG_TYPES_VERSION_MBM_HEADER
+    #define CURRENT_VERSION_MBM_HEADER     MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER
 
     /* hasNorText[0] (normals) */
     #define HAS_NOR_NO           0  /* no normals */
@@ -162,7 +165,7 @@ namespace util
 
     struct API_IMPL HEADER_MESH_DISK_V8
     {
-        MATERIAL_GLES material;
+        MATERIAL material;
         int32_t totalAnimation;
         int32_t totalFrames;
         int32_t deprecated_typePhysics;
@@ -209,6 +212,34 @@ namespace util
         int32_t indexStart;
         int32_t indexCount;
         uint8_t alphaColor[4];
+    };
+
+    enum MATERIAL_TEXTURE_SLOT_TYPE : uint16_t
+    {
+        MATERIAL_TEXTURE_SLOT_NORMAL   = 1,
+        MATERIAL_TEXTURE_SLOT_SPECULAR = 2,
+        MATERIAL_TEXTURE_SLOT_EMISSIVE = 3,
+        MATERIAL_TEXTURE_SLOT_MASK     = 4,
+    };
+
+    struct API_IMPL HEADER_DESC_SUBSET_DISK_V9
+    {
+        char nameTexture[64];
+        int32_t vertexCount;
+        int32_t vertexStart;
+        int32_t indexStart;
+        int32_t indexCount;
+        uint8_t alphaColor[4];
+        uint16_t materialTextureSlotCount;
+        uint16_t reservedMaterialTextureSlots;
+    };
+
+    struct API_IMPL MATERIAL_TEXTURE_SLOT_HEADER_DISK_V9
+    {
+        uint16_t type;
+        uint16_t reserved;
+        uint32_t payloadSizeInBytes;
+        char nameTexture[64];
     };
 
     struct API_IMPL HEADER_IMG_DISK_V8
@@ -398,7 +429,7 @@ namespace util
 
     struct API_IMPL HEADER_MESH // Header principal para objetos 3d MBM
     {
-        MATERIAL_GLES material;              // Material aplicado nesta subset
+        MATERIAL material;              // Material aplicado nesta subset
         int32_t      totalAnimation;         // Total animations in mesh
         int32_t      totalFrames;            // Total frames for the file. Each frame is divided into one or more subsets.
         int32_t      deprecated_typePhysics; // not used anymore, 'deprecated' (just keep for compatibility,old typePhysics)
@@ -507,8 +538,28 @@ namespace util
                 uint8_t r, g, b;       // Cor  color alpha
             };
         };
+        uint16_t materialTextureSlotCount;
+        uint16_t reservedMaterialTextureSlots;
     
         HEADER_DESC_SUBSET()noexcept;
+    };
+
+    struct MATERIAL_TEXTURE_SLOT_HEADER
+    {
+        uint16_t type;
+        uint16_t reserved;
+        uint32_t payloadSizeInBytes;
+        char nameTexture[64];
+
+        API_IMPL MATERIAL_TEXTURE_SLOT_HEADER()noexcept;
+    };
+
+    struct MATERIAL_TEXTURE_SLOT_DEBUG
+    {
+        uint16_t    type;
+        std::string texture;
+
+        API_IMPL MATERIAL_TEXTURE_SLOT_DEBUG()noexcept;
     };
 
     struct API_IMPL HEADER_IMG
@@ -536,6 +587,7 @@ namespace util
     struct SUBSET_DEBUG
     {
         std::string texture;
+        std::vector<MATERIAL_TEXTURE_SLOT_DEBUG> materialTextureSlots;
         int         vertexStart; 
         int         indexStart;  
         int         vertexCount; 
@@ -560,6 +612,8 @@ namespace util
     struct SUBSET
     {
         mbm::TEXTURE *texture;
+        std::vector<MATERIAL_TEXTURE_SLOT_HEADER> materialTextureSlotHeaders;
+        std::vector<mbm::TEXTURE*>                materialTextures;
         int           vertexStart; // Inicial do vertex
         int           indexStart;  // Index start
         int           vertexCount; // Total de vertex no subset

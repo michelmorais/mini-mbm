@@ -42,6 +42,7 @@ namespace mbm
         switch (typeVar)
         {
             case VAR_FLOAT: this->sizeVar      = 1; break;
+            case VAR_INT: this->sizeVar        = 1; break;
             case VAR_VECTOR: this->sizeVar     = 3; break;
             case VAR_VECTOR2: this->sizeVar    = 2; break;
             case VAR_COLOR_RGB: this->sizeVar  = 3; break;

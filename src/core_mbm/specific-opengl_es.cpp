@@ -79,6 +79,12 @@ GLint checkAttribLocation(const GLint location, const char* name)
     return location;
 }
 
+GLint checkUniformLocationOptional(const GLint location, const char *name)
+{
+    static_cast<void>(name);
+    return location;
+}
+
 GLint checkAttribLocationOptional(const GLint location, const char* name)
 {
     if (location == -1)

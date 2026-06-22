@@ -33,6 +33,7 @@ namespace mbm
         GLint mvMatrixHandle;  // Handle para a matrix do modelo
         GLint samplerHandle0;
         GLint samplerHandle1;
+        GLint samplerHandle2;
 
         GLuint programObject;
 

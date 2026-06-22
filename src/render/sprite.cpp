@@ -143,12 +143,13 @@ namespace mbm
             fx.setBlendOp();
             if (fx.textureOverrideStage2)
             {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, fx.textureOverrideStage2))
+                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader,
+                                        fx.textureOverrideStage2, this))
                     return false;
             }
             else
             {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader,0))
+                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader,0, this))
                     return false;
             }
             return true;

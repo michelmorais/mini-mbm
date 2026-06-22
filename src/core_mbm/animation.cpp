@@ -1088,6 +1088,9 @@ namespace mbm
         // compile shader in pair
         util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->infoAnimation.lsHeaderAnim[index];
         const FVF_PROVIDE_BY_ENGINE fvf = mesh->getBuffer(0)->pBufferGL->fvf;
+        RENDERIZABLE *renderizable = dynamic_cast<RENDERIZABLE*>(this);
+        fx.defaultShaderMode = getDefaultShaderModeForRenderizable(renderizable);
+        fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
         if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf))
         {
             if(infoHead->effectShader && infoHead->effectShader->blendOperation != 0)
@@ -1330,6 +1333,8 @@ namespace mbm
         RENDERIZABLE* r = dynamic_cast<RENDERIZABLE*>(this);
         const FVF_PROVIDE_BY_ENGINE fvf = r ? r->getFvfFromBuffer() : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
         FX &fx = anim->getFx();
+        fx.defaultShaderMode = getDefaultShaderModeForRenderizable(r);
+        fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
         if (!fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf))
         {
             ERROR_AT(__LINE__,__FILE__, "error on add animation");
@@ -1480,6 +1485,7 @@ namespace mbm
             std::string    fx_textureOverrideStage2;
             bool           fx_textureOverrideStage2Alpha;
             int            fx_blendOperation;
+            DEFAULT_SHADER_MODE fx_defaultShaderMode;
         };
 
         std::vector<ANIMATION_STATE> lsAnimationState;
@@ -1504,13 +1510,13 @@ namespace mbm
         }
     }
 
-    ANIMATION_BACKUP::Impl::FX_BACKUP::FX_BACKUP(const FX& fx) noexcept:
-        statusFxPs(fx.fxPS ? fx.fxPS->getStatusFx() : STATUS_FX::FX_GROWING),
-		statusFxVs(fx.fxVS ? fx.fxVS->getStatusFx() : STATUS_FX::FX_GROWING),
-		typeAnimPs(fx.fxPS ? fx.fxPS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
-		typeAnimVs(fx.fxVS ? fx.fxVS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
-		timeAnimationPs(fx.fxPS ? fx.fxPS->getTimeAnimation() : 0.0f),
-		timeAnimationVs(fx.fxVS ? fx.fxVS->getTimeAnimation() : 0.0f)
+	    ANIMATION_BACKUP::Impl::FX_BACKUP::FX_BACKUP(const FX& fx) noexcept:
+	        statusFxPs(fx.fxPS ? fx.fxPS->getStatusFx() : STATUS_FX::FX_GROWING),
+			statusFxVs(fx.fxVS ? fx.fxVS->getStatusFx() : STATUS_FX::FX_GROWING),
+			typeAnimPs(fx.fxPS ? fx.fxPS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
+			typeAnimVs(fx.fxVS ? fx.fxVS->getTypeAnim() : TYPE_ANIMATION::TYPE_ANIMATION_PAUSED),
+			timeAnimationPs(fx.fxPS ? fx.fxPS->getTimeAnimation() : 0.0f),
+			timeAnimationVs(fx.fxVS ? fx.fxVS->getTimeAnimation() : 0.0f)
     {		
         if (fx.fxPS->getCurrentShader())
         {
@@ -1677,6 +1683,7 @@ namespace mbm
                     state.fx_textureOverrideStage2      = fx.textureOverrideStage2 ? fx.textureOverrideStage2->getFileNameTexture() : "";
                     state.fx_textureOverrideStage2Alpha = fx.textureOverrideStage2 ? fx.textureOverrideStage2->useAlphaChannel : false;
                     state.fx_blendOperation             = fx.blendOperation;
+                    state.fx_defaultShaderMode          = fx.defaultShaderMode;
                     this->impl->lsAnimationState.push_back(state);
 
                     Impl::FX_BACKUP* fxBackup = new Impl::FX_BACKUP(fx);
@@ -1718,6 +1725,7 @@ namespace mbm
                     //fx
                     fx.textureOverrideStage2     = state.fx_textureOverrideStage2.size() > 0 ? texManager->load(state.fx_textureOverrideStage2.c_str(), state.fx_textureOverrideStage2Alpha) : nullptr;
                     fx.blendOperation            = state.fx_blendOperation;
+                    fx.defaultShaderMode         = state.fx_defaultShaderMode;
                     if (i < this->impl->lsFxBackup.size())
                     {
                         Impl::FX_BACKUP* it = this->impl->lsFxBackup[i];

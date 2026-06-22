@@ -423,12 +423,13 @@ namespace mbm
                 if (fx.textureOverrideStage2)
                 {
                     if (!this->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
-                                            fx.textureOverrideStage2))
+                                            fx.textureOverrideStage2, this))
                         return false;
                 }
                 else
                 {
-                    if (!this->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0))
+                    if (!this->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0,
+                                            this))
                         return false;
                 }
                 return true;
@@ -450,12 +451,14 @@ namespace mbm
                 fx.setBlendOp();
                 if (fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,fx.textureOverrideStage2))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
+                                      fx.textureOverrideStage2, this))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader, nullptr))
+                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader, nullptr,
+                                      this))
                         return false;
                 }
                 return true;
@@ -535,12 +538,14 @@ namespace mbm
                                     fx.setBlendOp();
                                     if (fx.textureOverrideStage2)
                                     {
-                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &fx.shader,fx.textureOverrideStage2))
+                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame),
+                                                                &fx.shader,fx.textureOverrideStage2, this))
                                             return false;
                                     }
                                     else
                                     {
-                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &fx.shader, nullptr))
+                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame),
+                                                                &fx.shader, nullptr, this))
                                             return false;
                                     }
                                 }

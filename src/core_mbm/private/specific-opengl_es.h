@@ -84,6 +84,7 @@ GLint checkUniformLocation(const GLint location, const char * name);
 GLint checkAttribLocation(const GLint location, const char* name);
 #endif
 
+GLint checkUniformLocationOptional(const GLint location, const char * name);
 GLint checkAttribLocationOptional(const GLint location, const char* name);
 
 #ifdef _DEBUG
@@ -93,6 +94,8 @@ GLint checkAttribLocationOptional(const GLint location, const char* name);
 #else
     #define GLGetUniformLocation(program, name) glGetUniformLocation(program, name);
 #endif
+
+#define GLGetUniformLocationOptional(program, name) checkUniformLocationOptional(glGetUniformLocation(program, name), name);
 
 #ifdef _DEBUG
 #define GLDeleteProgram(program)                                                                                         \

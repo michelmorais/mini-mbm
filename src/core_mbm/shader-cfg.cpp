@@ -62,7 +62,7 @@ namespace mbm
             }
         }
 
-        if (this->type == VAR_FLOAT)
+        if (this->type == VAR_FLOAT || this->type == VAR_INT)
         {
             if (bySpace.size() != 6)
             {
@@ -231,7 +231,7 @@ namespace mbm
                     }
                 }
             }
-            if (this->type == VAR_FLOAT)
+            if (this->type == VAR_FLOAT || this->type == VAR_INT)
             {
                 if (lsMin.size() != 1)
                 {
@@ -397,16 +397,32 @@ namespace mbm
             {
                 for (uint32_t i = 0; i < lsMin.size(); ++i)
                 {
-                    this->Min[i]     = lsMin[i];
-                    this->Max[i]     = lsMax[i];
-                    this->Default[i] = lsDefault[i];
-                    this->current[i] = lsDefault[i];
+                    if (this->type == VAR_INT)
+                    {
+                        const int minInt     = roundClampShaderIntValue(lsMin[i], lsMin[i], lsMax[i]);
+                        const int maxInt     = roundClampShaderIntValue(lsMax[i], lsMin[i], lsMax[i]);
+                        const int defaultInt = roundClampShaderIntValue(lsDefault[i], lsMin[i], lsMax[i]);
+                        this->Min[i]         = static_cast<float>(minInt);
+                        this->Max[i]         = static_cast<float>(maxInt);
+                        this->Default[i]     = static_cast<float>(defaultInt);
+                        this->current[i]     = static_cast<float>(defaultInt);
+                    }
+                    else
+                    {
+                        this->Min[i]     = lsMin[i];
+                        this->Max[i]     = lsMax[i];
+                        this->Default[i] = lsDefault[i];
+                        this->current[i] = lsDefault[i];
+                    }
                 }
             }
         }
     }
 
-    SHADER_CFG::SHADER_CFG(const char *FileName):fileName(FileName)
+    SHADER_CFG::SHADER_CFG(const char *FileName):
+        fileName(FileName),
+        textureNamingDeclaration(SHADER_TEXTURE_NAMING_NONE),
+        textureNamingProfile(SHADER_TEXTURE_NAMING_NONE)
     {
     }
 
@@ -419,9 +435,16 @@ namespace mbm
         this->lsVar.clear();
     }
 
-    void SHADER_CFG::addVar(const char *type, const char *name, const char *values)
+    bool SHADER_CFG::addVar(const char *type, const char *name, const char *values)
     {
         VAR_CFG *var = nullptr;
+        if (isReservedShaderUniformName(name))
+        {
+#if defined _DEBUG
+            PRINT_IF_DEBUG("\nfailed: addVar. variable [%s] is a reserved engine shader uniform", name);
+#endif
+            return false;
+        }
         for (uint32_t i = 0; i < this->lsVar.size(); ++i)
         {
             VAR_CFG *tVar = this->lsVar[i];
@@ -435,6 +458,10 @@ namespace mbm
         if (strcmp("float", type) == 0)
         {
             var = new VAR_CFG(VAR_FLOAT, name, values,nullptr,0);
+        }
+        else if (strcmp("int", type) == 0 || strcmp("integer", type) == 0)
+        {
+            var = new VAR_CFG(VAR_INT, name, values,nullptr,0);
         }
         else if (strcmp("color", type) == 0 || strcmp("cor", type) == 0 || strcmp("rgb", type) == 0)
         {
@@ -463,6 +490,7 @@ namespace mbm
             if (var->validVar)
             {
                 this->lsVar.push_back(var);
+                return true;
             }
             else
             {
@@ -473,6 +501,44 @@ namespace mbm
                 delete var;
             }
         }
+        return false;
+    }
+
+    bool SHADER_CFG::setTextureNamingDeclaration(const char *value)
+    {
+        const SHADER_TEXTURE_NAMING naming = parseShaderTextureNaming(value);
+        if (naming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            PRINT_IF_DEBUG("\n invalid textureNaming [%s] for shader [%s]", value ? value : "",
+                           this->fileName.c_str());
+            return false;
+        }
+        this->textureNamingDeclaration = naming;
+        return true;
+    }
+
+    bool SHADER_CFG::validateTextureNamingProfile()
+    {
+        this->textureNamingProfile = detectShaderTextureNamingProfile(this->codeShader.c_str());
+        if (this->textureNamingProfile == SHADER_TEXTURE_NAMING_MIXED_INVALID)
+        {
+            ERROR_LOG("Shader [%s] mixes legacy texture names with semantic texture roles",
+                      this->fileName.c_str());
+            return false;
+        }
+        if (this->textureNamingDeclaration != SHADER_TEXTURE_NAMING_NONE &&
+            this->textureNamingProfile != SHADER_TEXTURE_NAMING_NONE &&
+            this->textureNamingDeclaration != this->textureNamingProfile)
+        {
+            ERROR_LOG("Shader [%s] textureNaming CFG declares [%s] but source uses [%s]",
+                      this->fileName.c_str(),
+                      getShaderTextureNamingName(this->textureNamingDeclaration),
+                      getShaderTextureNamingName(this->textureNamingProfile));
+            return false;
+        }
+        if (this->textureNamingProfile == SHADER_TEXTURE_NAMING_NONE)
+            this->textureNamingProfile = this->textureNamingDeclaration;
+        return true;
     }
 
     VAR_CFG * SHADER_CFG::getVarByName(const char *name)
@@ -754,8 +820,17 @@ namespace mbm
                 }
             }
         }
-        this->addVariablesFromContents();
+        if (!this->addVariablesFromContents())
+        {
+            this->clearContents();
+            return false;
+        }
         this->parserShaders();
+        if (!this->validateTextureNamingProfiles())
+        {
+            this->clearContents();
+            return false;
+        }
         this->clearContents();
         return true;
     }
@@ -811,7 +886,7 @@ namespace mbm
         return nullptr;
     }
 
-    void SHADER_CFG_LOADER::addVariablesFromContents()
+    bool SHADER_CFG_LOADER::addVariablesFromContents()
     {
         for (const auto & content : this->contents)
         {
@@ -836,31 +911,77 @@ namespace mbm
                                 result[i].resize(result[i].size() - 1);
                         }
                     }
-                    if (result.size() == 3)
+                    if (result.size() == 2 && strcmp(result[1].c_str(), "textureNaming") == 0)
+                    {
+                        SHADER_CFG *shaderCfg = this->getShader(result[0].c_str());
+                        if (shaderCfg)
+                        {
+                            const char *values = this->getValue(key, nullptr);
+                            if (values == nullptr || !shaderCfg->setTextureNamingDeclaration(values))
+                            {
+                                PRINT_IF_DEBUG("\n  error adding shader metadata key:'%s'", key);
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            PRINT_IF_DEBUG( "\n shaderCfg '%s' not included in the SHADER_CFG_LOADER",
+                                         result[0].c_str());
+                            return false;
+                        }
+                    }
+                    else if (result.size() == 3)
                     {
                         SHADER_CFG *shaderCfg = this->getShader(result[0].c_str());
                         if (shaderCfg)
                         {
                             const char *values = this->getValue(key, "key search not founded");
                             if (values)
-                                shaderCfg->addVar(result[1].c_str(), result[2].c_str(), values);
+                            {
+                                if (!shaderCfg->addVar(result[1].c_str(), result[2].c_str(), values))
+                                {
+                                    PRINT_IF_DEBUG("\n  error adding shader variable key:'%s'", key);
+                                    return false;
+                                }
+                            }
                             else
+                            {
                                 PRINT_IF_DEBUG( "\n  error on get key value:'%s values: %s'", key,
                                              values);
+                                return false;
+                            }
                         }
                         else
                         {
                             PRINT_IF_DEBUG( "\n shaderCfg '%s' not included in the SHADER_CFG_LOADER",
                                          result[0].c_str());
+                            return false;
                         }
                     }
                     else
                     {
                         PRINT_IF_DEBUG( "\n result.size() != 3");
+                        return false;
                     }
                 }
             }
         }
+        return true;
+    }
+
+    bool SHADER_CFG_LOADER::validateTextureNamingProfiles()
+    {
+        for (auto ps : this->lsPs)
+        {
+            if (ps && !ps->validateTextureNamingProfile())
+                return false;
+        }
+        for (auto vs : this->lsVs)
+        {
+            if (vs && !vs->validateTextureNamingProfile())
+                return false;
+        }
+        return true;
     }
 
     void SHADER_CFG_LOADER::parserShaders()
@@ -1000,4 +1121,3 @@ namespace mbm
         delete[] _buffer;
     }*/
 }
-

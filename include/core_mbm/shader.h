@@ -37,6 +37,7 @@ namespace util
 namespace mbm
 {
     class TEXTURE;
+    class RENDERIZABLE;
     struct VAR_SHADER;
     struct BUFFER_SPECIFIC;
     struct PARTICLE_CONTROL;
@@ -69,6 +70,35 @@ namespace mbm
     {
         FX_GROWING, FX_DECREASING, FX_END, FX_END_CALLBACK
     };
+
+    enum TEXTURE_ROLE : uint8_t
+    {
+        TEXTURE_ROLE_DIFFUSE = 0,
+        TEXTURE_ROLE_ANIMATION_EFFECT = 1,
+        TEXTURE_ROLE_NORMAL = 2,
+        TEXTURE_ROLE_SPECULAR = 3,
+        TEXTURE_ROLE_EMISSIVE = 4,
+        TEXTURE_ROLE_MASK = 5
+    };
+
+    enum SHADER_TEXTURE_NAMING : uint8_t
+    {
+        SHADER_TEXTURE_NAMING_NONE = 0,
+        SHADER_TEXTURE_NAMING_LEGACY_SAMPLE = 1,
+        SHADER_TEXTURE_NAMING_SEMANTIC_ROLE = 2,
+        SHADER_TEXTURE_NAMING_MIXED_INVALID = 3
+    };
+
+    API_IMPL const char *getTextureRoleShaderName(TEXTURE_ROLE role, SHADER_TEXTURE_NAMING naming) noexcept;
+    API_IMPL int getTextureRoleBackendSlot(TEXTURE_ROLE role) noexcept;
+    API_IMPL SHADER_TEXTURE_NAMING parseShaderTextureNaming(const char *value) noexcept;
+    API_IMPL const char *getShaderTextureNamingName(SHADER_TEXTURE_NAMING naming) noexcept;
+    API_IMPL SHADER_TEXTURE_NAMING detectShaderTextureNamingProfile(const char *shaderCode) noexcept;
+    API_IMPL SHADER_TEXTURE_NAMING mergeShaderTextureNamingProfiles(SHADER_TEXTURE_NAMING a,
+                                                                    SHADER_TEXTURE_NAMING b) noexcept;
+    API_IMPL bool shaderCodeDeclaresTextureRole(const char *shaderCode,
+                                                TEXTURE_ROLE role,
+                                                SHADER_TEXTURE_NAMING naming) noexcept;
 
     
     class BUFFER_GL // Buffer graphic layer (must be implemented by specific backend, e.g.: Opengl_es, Directx, Vulkan)
@@ -157,9 +187,10 @@ namespace mbm
                                           const int* indexCountSubset,
                                           const util::INFO_DRAW_MODE* info_draw_mode);
 
-
-        std::unordered_map<uint32_t,TEXTURE*> texture0; // Existe 1 textura para cada subset. (stagio 0)
-        TEXTURE* texture1;// id textura stagio 1 passado no momento de renderizar o shader
+        // Stage 0 keeps the historical "one texture per subset" contract.
+        // Stage 1 keeps the legacy shared FX texture semantics (subset 0 fallback).
+        // Stage 2+ can be used for per-subset material textures such as normal maps.
+        std::unordered_map<uint32_t, std::unordered_map<uint32_t, TEXTURE*>> texturesByStage;
     };
 
     class BASE_SHADER
@@ -176,6 +207,7 @@ namespace mbm
         API_IMPL unsigned int getTotalVar() const noexcept;
         API_IMPL void releaseVars();
         API_IMPL bool loadShader(const char *fileNameShaderVS_PS, const char *code);
+        API_IMPL SHADER_TEXTURE_NAMING getTextureNamingProfile() const noexcept;
         std::vector<VAR_SHADER *> *getVars();
       private:
         bool isThereVarIntoLsVars(const char *nameVar);
@@ -183,6 +215,7 @@ namespace mbm
       protected:
         std::vector<VAR_SHADER *> lsVar;
         std::string        stringCodeShader;
+        SHADER_TEXTURE_NAMING textureNamingProfile;
     };
 
     class SHADER
@@ -194,16 +227,20 @@ namespace mbm
         API_IMPL virtual ~SHADER();
         API_IMPL void * getBackendShaderSpecific() const noexcept;
         API_IMPL void setBackendShaderSpecific(void *backendShaderSpecific) noexcept;
+        API_IMPL void setUseReservedLightDefault(bool enabled) noexcept;
         API_IMPL void releaseShader();
         API_IMPL void onRestore();
         API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
         API_IMPL bool isLoad() const noexcept;
-        API_IMPL bool render(const BUFFER_GL *pBufferId) const;
+        API_IMPL bool render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner = nullptr) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
         API_IMPL bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
-        API_IMPL bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
+        API_IMPL bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,
+                                    const RENDERIZABLE *renderizableOwner = nullptr) const;
         API_IMPL void update();
       private:
+        bool usesPureDefaultShaderPair() const noexcept;
+        bool shouldCompileReservedLightDefault() const noexcept;
         struct BackendData;
         struct BackendDataDeleter
         {

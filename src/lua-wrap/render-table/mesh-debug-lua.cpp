@@ -57,6 +57,84 @@ namespace mbm
 {
 	class LINE_MESH;
 
+    namespace
+    {
+        bool parseMaterialTextureSlotType(lua_State *lua, const int indexArg, uint16_t &slotType)
+        {
+            const int type = lua_type(lua, indexArg);
+            if (type == LUA_TNUMBER)
+            {
+                const auto raw = static_cast<uint16_t>(luaL_checkinteger(lua, indexArg));
+                switch (raw)
+                {
+                    case util::MATERIAL_TEXTURE_SLOT_NORMAL:
+                    case util::MATERIAL_TEXTURE_SLOT_SPECULAR:
+                    case util::MATERIAL_TEXTURE_SLOT_EMISSIVE:
+                    case util::MATERIAL_TEXTURE_SLOT_MASK:
+                    {
+                        slotType = raw;
+                        return true;
+                    }
+                    default:
+                    {
+                        return false;
+                    }
+                }
+            }
+            if (type == LUA_TSTRING)
+            {
+                const char *name = lua_tostring(lua, indexArg);
+                if (strcasecmp(name, "normal") == 0)
+                {
+                    slotType = util::MATERIAL_TEXTURE_SLOT_NORMAL;
+                    return true;
+                }
+                if (strcasecmp(name, "specular") == 0)
+                {
+                    slotType = util::MATERIAL_TEXTURE_SLOT_SPECULAR;
+                    return true;
+                }
+                if (strcasecmp(name, "emissive") == 0)
+                {
+                    slotType = util::MATERIAL_TEXTURE_SLOT_EMISSIVE;
+                    return true;
+                }
+                if (strcasecmp(name, "mask") == 0)
+                {
+                    slotType = util::MATERIAL_TEXTURE_SLOT_MASK;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        util::MATERIAL_TEXTURE_SLOT_DEBUG *findMaterialTextureSlot(util::SUBSET_DEBUG *subset,
+                                                                   const uint16_t slotType) noexcept
+        {
+            if (subset == nullptr)
+                return nullptr;
+            for (auto &slot : subset->materialTextureSlots)
+            {
+                if (slot.type == slotType)
+                    return &slot;
+            }
+            return nullptr;
+        }
+
+        const util::MATERIAL_TEXTURE_SLOT_DEBUG *findMaterialTextureSlot(const util::SUBSET_DEBUG *subset,
+                                                                         const uint16_t slotType) noexcept
+        {
+            if (subset == nullptr)
+                return nullptr;
+            for (const auto &slot : subset->materialTextureSlots)
+            {
+                if (slot.type == slotType)
+                    return &slot;
+            }
+            return nullptr;
+        }
+    }
+
     class MESH_DEBUG_LUA
     {
       public:
@@ -716,7 +794,7 @@ namespace mbm
     int onGetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const util::MATERIAL_GLES &m = meshDebug->mesh.headerMesh.material;
+        const util::MATERIAL &m = meshDebug->mesh.headerMesh.material;
         lua_newtable(lua);
         lua_newtable(lua);
         lua_pushnumber(lua, m.Diffuse.r);
@@ -766,7 +844,7 @@ namespace mbm
     int onSetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        util::MATERIAL_GLES &m = meshDebug->mesh.headerMesh.material;
+        util::MATERIAL &m = meshDebug->mesh.headerMesh.material;
         luaL_checktype(lua, 2, LUA_TTABLE);
         auto getColor = [lua](const char *key, float *r, float *g, float *b, float *a) {
             *r = *g = *b = *a = 1.0f;
@@ -1291,6 +1369,85 @@ namespace mbm
         }
     }
 
+    int onGetMaterialTextureNameMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const auto indexFrame = static_cast<unsigned int>(luaL_checkinteger(lua, 2) - 1);
+        const auto indexSubset = static_cast<unsigned int>(luaL_checkinteger(lua, 3) - 1);
+        uint16_t slotType = 0;
+        if (!parseMaterialTextureSlotType(lua, 4, slotType))
+            return lua_error_debug(lua, "Expected material texture slot type [normal|specular|emissive|mask]");
+        if (indexFrame < static_cast<unsigned int>(meshDebug->mesh.buffer.size()) &&
+            indexSubset < static_cast<unsigned int>(meshDebug->mesh.buffer[indexFrame]->subset.size()))
+        {
+            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
+            const util::SUBSET_DEBUG *subset = buffer->subset[indexSubset];
+            const auto *slot = findMaterialTextureSlot(subset, slotType);
+            if (slot && slot->texture.size())
+                lua_pushstring(lua, slot->texture.c_str());
+            else
+                lua_pushnil(lua);
+            return 1;
+        }
+        const int tSubset =
+            indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+        return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
+                        "indexFrame %d indexSubset %d",
+                   static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+    }
+
+    int onSetMaterialTextureNameMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const auto indexFrame = static_cast<unsigned int>(luaL_checkinteger(lua, 2) - 1);
+        const auto indexSubset = static_cast<unsigned int>(luaL_checkinteger(lua, 3) - 1);
+        uint16_t slotType = 0;
+        if (!parseMaterialTextureSlotType(lua, 4, slotType))
+            return lua_error_debug(lua, "Expected material texture slot type [normal|specular|emissive|mask]");
+        const char *fileName = lua_type(lua, 5) == LUA_TSTRING ? luaL_checkstring(lua, 5) : nullptr;
+        if (indexFrame < static_cast<unsigned int>(meshDebug->mesh.buffer.size()) &&
+            indexSubset < static_cast<unsigned int>(meshDebug->mesh.buffer[indexFrame]->subset.size()))
+        {
+            util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
+            util::SUBSET_DEBUG *subset = buffer->subset[indexSubset];
+            auto *slot = findMaterialTextureSlot(subset, slotType);
+            if (fileName && strlen(fileName))
+            {
+                if (slot == nullptr)
+                {
+                    util::MATERIAL_TEXTURE_SLOT_DEBUG newSlot;
+                    newSlot.type = slotType;
+                    newSlot.texture = fileName;
+                    subset->materialTextureSlots.push_back(newSlot);
+                }
+                else
+                {
+                    slot->texture = fileName;
+                }
+                util::addPath(fileName);
+            }
+            else if (slot)
+            {
+                auto &slots = subset->materialTextureSlots;
+                for (auto it = slots.begin(); it != slots.end(); ++it)
+                {
+                    if (it->type == slotType)
+                    {
+                        slots.erase(it);
+                        break;
+                    }
+                }
+            }
+            lua_pushboolean(lua, 1);
+            return 1;
+        }
+        const int tSubset =
+            indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
+        return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
+                        "indexFrame %d indexSubset %d",
+                   static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
+    }
+
     int onAddFrameDebugLua(lua_State *lua)
     {
         const int          top       = lua_gettop(lua);
@@ -1426,6 +1583,20 @@ namespace mbm
             return lua_error_debug(lua, "Index frame invalid [%d/%d]",top > 2 ? indexFrame + 1 : indexFrame, meshDebug->mesh.buffer.size());
         }
         return 0;
+    }
+
+    int onGetStrideMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       top        = lua_gettop(lua);
+        const int       indexFrame = top > 1 ? luaL_checkinteger(lua, 2) - 1 : 0;
+        if (indexFrame >= 0 && indexFrame < static_cast<int>(meshDebug->mesh.buffer.size()))
+        {
+            util::BUFFER_MESH_DEBUG *bufferCurrent = meshDebug->mesh.buffer[indexFrame];
+            lua_pushinteger(lua, bufferCurrent->headerFrame.stride);
+            return 1;
+        }
+        return lua_error_debug(lua, "Index frame invalid [%d/%d]", top > 1 ? indexFrame + 1 : indexFrame, meshDebug->mesh.buffer.size());
     }
 
     int onEnableNormalsMeshDebugLua(lua_State *lua)
@@ -1754,6 +1925,8 @@ namespace mbm
                                           {"addIndex", onAddIndexMeshDebugLua},
                                           {"getTexture", onGetTextureNameMeshDebugLua},
                                           {"setTexture", onSetTextureNameMeshDebugLua},
+                                          {"getMaterialTexture", onGetMaterialTextureNameMeshDebugLua},
+                                          {"setMaterialTexture", onSetMaterialTextureNameMeshDebugLua},
                                           {"addFrame", onAddFrameDebugLua},
                                           {"removeFrame", onRemoveFrameDebugLua},
                                           {"addSubSet", onAddSubsetDebugLua},
@@ -1767,6 +1940,7 @@ namespace mbm
                                           {"scaleFrame", onScaleFrameDebugLua},
                                           {"translateFrame", onTranslateFrameDebugLua},
                                           {"check", onCheckMeshDebugLua},
+                                          {"getStride", onGetStrideMeshDebugLua},
                                           {"setStride", onSetStrideMeshDebugLua},
                                           {"enableNormal", onEnableNormalsMeshDebugLua},
                                           {"removeNormals", onRemoveNormalsMeshDebugLua},

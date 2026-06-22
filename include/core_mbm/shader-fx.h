@@ -29,7 +29,16 @@ namespace mbm
     class SHADER_CFG;
 	class TEXTURE;
 	class EFFECT_SHADER;
+    class RENDERIZABLE;
     struct VAR_SHADER;
+
+    enum DEFAULT_SHADER_MODE : uint8_t
+    {
+        DEFAULT_SHADER_MODE_UNLIT = 0,
+        DEFAULT_SHADER_MODE_LIT = 1
+    };
+
+    API_IMPL DEFAULT_SHADER_MODE getDefaultShaderModeForRenderizable(const RENDERIZABLE *renderizable) noexcept;
     
     class FX
     {
@@ -68,6 +77,7 @@ namespace mbm
         SHADER        shader;
         TEXTURE *     textureOverrideStage2;
         int           blendOperation;
+        DEFAULT_SHADER_MODE defaultShaderMode;
         API_IMPL void setBlendDefaultOp();
         API_IMPL void setBlendOp();
     };

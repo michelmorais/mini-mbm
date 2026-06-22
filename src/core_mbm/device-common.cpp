@@ -25,6 +25,10 @@
 #include <util-interface.h>
 #include <dynamic-var.h>
 #include <core-manager.h>
+#include <header-mesh.h>
+#include <algorithm>
+#include <cmath>
+#include <cstring>
 
 //#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 //    #include <plusWindows/defaultThemePlusWindows.h>
@@ -65,6 +69,17 @@ namespace mbm
         VEC3 dimFarFrustum3d = VEC3(0, 0, 0);
         VEC3 dimNearFrustum3d = VEC3(0, 0, 0);
         COLOR colorClearBackGround = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
+        LIGHT_STATE light3D;
+        LIGHT_STATE light2DW;
+        LIGHT_MULTI_SETTINGS lightMulti3D;
+        LIGHT_MULTI_SETTINGS lightMulti2DW;
+        std::vector<LIGHT_POINT> pointLights3D;
+        std::vector<LIGHT_POINT> pointLights2DW;
+        LIGHT_TARGET currentRenderLightTarget = LIGHT_TARGET_3D;
+        bool currentRenderLightTargetEnabled = false;
+        const RENDERIZABLE *currentRenderizable = nullptr;
+        util::MATERIAL currentRenderMaterial;
+        bool currentRenderMaterialEnabled = false;
         bool clearBackGround = true;
         bool stopScriptOnError = false;
         int swapBackBufferStep = 3;
@@ -131,6 +146,573 @@ namespace mbm
     SCENE * DEVICE::getScene() const noexcept
     {
         return impl->scene;
+    }
+
+    LIGHT_STATE &DEVICE::getMutableLightState(const LIGHT_TARGET target) noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->light2DW : impl->light3D;
+    }
+
+    const LIGHT_STATE &DEVICE::getLightStateInternal(const LIGHT_TARGET target) const noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->light2DW : impl->light3D;
+    }
+
+    LIGHT_MULTI_SETTINGS &DEVICE::getMutableLightMultiSettings(const LIGHT_TARGET target) noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->lightMulti2DW : impl->lightMulti3D;
+    }
+
+    const LIGHT_MULTI_SETTINGS &DEVICE::getLightMultiSettingsInternal(const LIGHT_TARGET target) const noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->lightMulti2DW : impl->lightMulti3D;
+    }
+
+    std::vector<LIGHT_POINT> &DEVICE::getMutablePointLights(const LIGHT_TARGET target) noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->pointLights2DW : impl->pointLights3D;
+    }
+
+    const std::vector<LIGHT_POINT> &DEVICE::getPointLightsInternal(const LIGHT_TARGET target) const noexcept
+    {
+        return target == LIGHT_TARGET_2DW ? impl->pointLights2DW : impl->pointLights3D;
+    }
+
+    void DEVICE::setLightTargetForRender(const LIGHT_TARGET target) noexcept
+    {
+        impl->currentRenderLightTarget = isValidLightTarget(target) ? target : LIGHT_TARGET_3D;
+        impl->currentRenderLightTargetEnabled = isValidLightTarget(target);
+    }
+
+    void DEVICE::disableLightForRender() noexcept
+    {
+        impl->currentRenderLightTargetEnabled = false;
+    }
+
+    bool DEVICE::getLightStateForCurrentRender(LIGHT_STATE &outState) const noexcept
+    {
+        if (impl->currentRenderLightTargetEnabled == false)
+            return false;
+        outState = getLightStateInternal(impl->currentRenderLightTarget);
+        return true;
+    }
+
+    bool DEVICE::getLightTargetForCurrentRender(LIGHT_TARGET &outTarget) const noexcept
+    {
+        if (impl->currentRenderLightTargetEnabled == false)
+            return false;
+        outTarget = impl->currentRenderLightTarget;
+        return true;
+    }
+
+    void DEVICE::setRenderizableForCurrentRender(const RENDERIZABLE *renderizable) noexcept
+    {
+        impl->currentRenderizable = renderizable;
+    }
+
+    void DEVICE::clearRenderizableForCurrentRender() noexcept
+    {
+        impl->currentRenderizable = nullptr;
+    }
+
+    bool DEVICE::getRenderizableForCurrentRender(const RENDERIZABLE *&outRenderizable) const noexcept
+    {
+        if (impl->currentRenderizable == nullptr)
+            return false;
+        outRenderizable = impl->currentRenderizable;
+        return true;
+    }
+
+    uint32_t DEVICE::getSelectedPointLightsForCurrentRender(LIGHT_POINT_SELECTION *outSelections,
+                                                            const uint32_t maxOutSelections) const noexcept
+    {
+        if (impl->currentRenderLightTargetEnabled == false || impl->currentRenderizable == nullptr)
+            return 0u;
+        return selectPointLightsForObject(impl->currentRenderLightTarget, impl->currentRenderizable->getPosition(),
+                                          impl->currentRenderizable->getBoundingAABB(), outSelections,
+                                          maxOutSelections);
+    }
+
+    void DEVICE::setRenderMaterial(const util::MATERIAL &material) noexcept
+    {
+        impl->currentRenderMaterial = material;
+        impl->currentRenderMaterialEnabled = true;
+    }
+
+    void DEVICE::clearRenderMaterial() noexcept
+    {
+        impl->currentRenderMaterialEnabled = false;
+    }
+
+    bool DEVICE::getMaterialForCurrentRender(util::MATERIAL &outMaterial) const noexcept
+    {
+        if (impl->currentRenderMaterialEnabled == false)
+            return false;
+        outMaterial = impl->currentRenderMaterial;
+        return true;
+    }
+
+    namespace
+    {
+        float clampLightChannel(const float value) noexcept
+        {
+            return std::max(0.0f, std::min(1.0f, value));
+        }
+
+        COLOR clampLightColor(const COLOR &color) noexcept
+        {
+            return COLOR(clampLightChannel(color.r), clampLightChannel(color.g), clampLightChannel(color.b),
+                         clampLightChannel(color.a));
+        }
+
+        VEC3 normalizeLightDirection(const VEC3 &direction) noexcept
+        {
+            const float length = direction.length();
+            if (length <= 0.000001f)
+                return VEC3(0.0f, -0.70710677f, -0.70710677f);
+            return direction / length;
+        }
+
+        float clampPointRadius(const float value) noexcept
+        {
+            return std::max(0.0f, value);
+        }
+
+        LIGHT_STATE makeDefaultLightState() noexcept
+        {
+            return LIGHT_STATE();
+        }
+
+        LIGHT_MULTI_SETTINGS makeDefaultLightMultiSettings() noexcept
+        {
+            return LIGHT_MULTI_SETTINGS();
+        }
+
+        uint32_t clampRequestedMaxLights(const uint32_t requestedMaxLights) noexcept
+        {
+            return std::max<uint32_t>(1u, requestedMaxLights);
+        }
+
+        uint32_t getSupportedMaxLightsForActiveBackend() noexcept
+        {
+#if defined(USE_DIRECTX9)
+            return DEFAULT_SUPPORTED_MAX_LIGHTS;
+#elif defined(USE_METAL)
+            return DEFAULT_SUPPORTED_MAX_LIGHTS;
+#elif defined(USE_OPENGL_ES)
+            return DEFAULT_SUPPORTED_MAX_LIGHTS;
+#else
+            return DEFAULT_SUPPORTED_MAX_LIGHTS;
+#endif
+        }
+
+        float getObjectLightSelectionRadius(const VEC3 &objectBoundingAABB) noexcept
+        {
+            return objectBoundingAABB.length() * 0.5f;
+        }
+
+        uint32_t selectPointLightsForObjectImpl(const LIGHT_TARGET target, const VEC3 &objectCenter,
+                                                const VEC3 &objectBoundingAABB,
+                                                LIGHT_POINT_SELECTION *outSelections,
+                                                const uint32_t maxOutSelections) noexcept;
+    }
+
+    bool isValidLightTarget(const LIGHT_TARGET target) noexcept
+    {
+        return target == LIGHT_TARGET_3D || target == LIGHT_TARGET_2DW;
+    }
+
+    const char *getLightTargetName(const LIGHT_TARGET target) noexcept
+    {
+        switch (target)
+        {
+            case LIGHT_TARGET_3D: return "3d";
+            case LIGHT_TARGET_2DW: return "2dw";
+            default: return "unknown";
+        }
+    }
+
+    bool lightTargetFromString(const char *targetName, LIGHT_TARGET &targetOut) noexcept
+    {
+        if (targetName == nullptr)
+            return false;
+        if (strcmp(targetName, "3d") == 0)
+        {
+            targetOut = LIGHT_TARGET_3D;
+            return true;
+        }
+        if (strcmp(targetName, "2dw") == 0)
+        {
+            targetOut = LIGHT_TARGET_2DW;
+            return true;
+        }
+        return false;
+    }
+
+    bool isValidLightSelectionMode(const LIGHT_SELECTION_MODE selectionMode) noexcept
+    {
+        return selectionMode == LIGHT_SELECTION_PER_OBJECT_NEAREST;
+    }
+
+    const char *getLightSelectionModeName(const LIGHT_SELECTION_MODE selectionMode) noexcept
+    {
+        switch (selectionMode)
+        {
+            case LIGHT_SELECTION_PER_OBJECT_NEAREST: return "per_object_nearest";
+            default: return "unknown";
+        }
+    }
+
+    bool lightSelectionModeFromString(const char *selectionModeName,
+                                      LIGHT_SELECTION_MODE &selectionModeOut) noexcept
+    {
+        if (selectionModeName == nullptr)
+            return false;
+        if (strcmp(selectionModeName, "per_object_nearest") == 0)
+        {
+            selectionModeOut = LIGHT_SELECTION_PER_OBJECT_NEAREST;
+            return true;
+        }
+        return false;
+    }
+
+    bool setLightEnabled(const LIGHT_TARGET target, const bool enabled) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.enabled = enabled;
+        return true;
+    }
+
+    bool setAmbientLight(const LIGHT_TARGET target, const COLOR &ambientColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.ambientColor = clampLightColor(ambientColor);
+        state.ambientConfigured = true;
+        return true;
+    }
+
+    bool setDirectionalLight(const LIGHT_TARGET target, const VEC3 &directionalDirection,
+                             const COLOR &directionalColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.directionalDirection = normalizeLightDirection(directionalDirection);
+        state.directionalColor = clampLightColor(directionalColor);
+        state.directionalDirectionConfigured = true;
+        state.directionalColorConfigured = true;
+        return true;
+    }
+
+    bool setDirectionalLightDirection(const LIGHT_TARGET target, const VEC3 &directionalDirection) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.directionalDirection = normalizeLightDirection(directionalDirection);
+        state.directionalDirectionConfigured = true;
+        return true;
+    }
+
+    bool setDirectionalLightColor(const LIGHT_TARGET target, const COLOR &directionalColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.directionalColor = clampLightColor(directionalColor);
+        state.directionalColorConfigured = true;
+        return true;
+    }
+
+    bool setPointLight(const LIGHT_TARGET target, const VEC3 &pointPosition, const float pointRadius,
+                       const COLOR &pointColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.pointPosition = pointPosition;
+        state.pointRadius = clampPointRadius(pointRadius);
+        state.pointColor = clampLightColor(pointColor);
+        state.pointPositionConfigured = true;
+        state.pointRadiusConfigured = true;
+        state.pointColorConfigured = true;
+        return true;
+    }
+
+    bool setPointLightPosition(const LIGHT_TARGET target, const VEC3 &pointPosition) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.pointPosition = pointPosition;
+        state.pointPositionConfigured = true;
+        return true;
+    }
+
+    bool setPointLightRadius(const LIGHT_TARGET target, const float pointRadius) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.pointRadius = clampPointRadius(pointRadius);
+        state.pointRadiusConfigured = true;
+        return true;
+    }
+
+    bool setPointLightColor(const LIGHT_TARGET target, const COLOR &pointColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_STATE &state = DEVICE::getInstance()->getMutableLightState(target);
+        state.pointColor = clampLightColor(pointColor);
+        state.pointColorConfigured = true;
+        return true;
+    }
+
+    bool setRequestedMaxLights(const LIGHT_TARGET target, const uint32_t requestedMaxLights) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        const uint32_t normalizedRequestedMaxLights = clampRequestedMaxLights(requestedMaxLights);
+        uint32_t validatedMaxLights = 0u;
+        if (validateRequestedMaxLights(target, normalizedRequestedMaxLights, validatedMaxLights) == false)
+        {
+            DEVICE *device = DEVICE::getInstance();
+            ERROR_LOG("Requested max lights [%u] exceeds supported max lights [%u] for backend [%s] target [%s]",
+                      normalizedRequestedMaxLights, getSupportedMaxLights(target), device->getBackendEngineName(),
+                      getLightTargetName(target));
+            return false;
+        }
+        LIGHT_MULTI_SETTINGS &settings = DEVICE::getInstance()->getMutableLightMultiSettings(target);
+        settings.requestedMaxLights = validatedMaxLights;
+        return true;
+    }
+
+    uint32_t getRequestedMaxLights(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return DEFAULT_REQUESTED_MAX_LIGHTS;
+        return DEVICE::getInstance()->getLightMultiSettingsInternal(target).requestedMaxLights;
+    }
+
+    uint32_t getSupportedMaxLights(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return 0u;
+        return getSupportedMaxLightsForActiveBackend();
+    }
+
+    bool validateRequestedMaxLights(const LIGHT_TARGET target, const uint32_t requestedMaxLights,
+                                    uint32_t &validatedMaxLightsOut) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        const uint32_t normalizedRequestedMaxLights = clampRequestedMaxLights(requestedMaxLights);
+        const uint32_t supportedMaxLights = getSupportedMaxLights(target);
+        if (supportedMaxLights == 0u || normalizedRequestedMaxLights > supportedMaxLights)
+            return false;
+        validatedMaxLightsOut = normalizedRequestedMaxLights;
+        return true;
+    }
+
+    bool getValidatedMaxLights(const LIGHT_TARGET target, uint32_t &validatedMaxLightsOut) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        return validateRequestedMaxLights(target, getRequestedMaxLights(target), validatedMaxLightsOut);
+    }
+
+    bool setLightSelectionMode(const LIGHT_TARGET target,
+                               const LIGHT_SELECTION_MODE selectionMode) noexcept
+    {
+        if (isValidLightTarget(target) == false || isValidLightSelectionMode(selectionMode) == false)
+            return false;
+        LIGHT_MULTI_SETTINGS &settings = DEVICE::getInstance()->getMutableLightMultiSettings(target);
+        settings.selectionMode = selectionMode;
+        return true;
+    }
+
+    LIGHT_SELECTION_MODE getLightSelectionMode(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return LIGHT_SELECTION_PER_OBJECT_NEAREST;
+        return DEVICE::getInstance()->getLightMultiSettingsInternal(target).selectionMode;
+    }
+
+    bool addPointLight(const LIGHT_TARGET target, const VEC3 &pointPosition, const float pointRadius,
+                       const COLOR &pointColor) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        LIGHT_POINT pointLight;
+        pointLight.position = pointPosition;
+        pointLight.radius = clampPointRadius(pointRadius);
+        pointLight.color = clampLightColor(pointColor);
+        DEVICE::getInstance()->getMutablePointLights(target).push_back(pointLight);
+        return true;
+    }
+
+    bool clearPointLights(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        DEVICE::getInstance()->getMutablePointLights(target).clear();
+        return true;
+    }
+
+    uint32_t getTotalPointLights(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return 0u;
+        return static_cast<uint32_t>(DEVICE::getInstance()->getPointLightsInternal(target).size());
+    }
+
+    bool getPointLightAt(const LIGHT_TARGET target, const uint32_t index, LIGHT_POINT &outLight) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        const std::vector<LIGHT_POINT> &pointLights = DEVICE::getInstance()->getPointLightsInternal(target);
+        if (index >= pointLights.size())
+            return false;
+        outLight = pointLights[index];
+        return true;
+    }
+
+    uint32_t selectPointLightsForObject(const LIGHT_TARGET target, const VEC3 &objectCenter,
+                                        const VEC3 &objectBoundingAABB,
+                                        LIGHT_POINT_SELECTION *outSelections,
+                                        const uint32_t maxOutSelections) noexcept
+    {
+        return selectPointLightsForObjectImpl(target, objectCenter, objectBoundingAABB, outSelections,
+                                              maxOutSelections);
+    }
+
+    namespace
+    {
+        uint32_t selectPointLightsForObjectImpl(const LIGHT_TARGET target, const VEC3 &objectCenter,
+                                                const VEC3 &objectBoundingAABB,
+                                                LIGHT_POINT_SELECTION *outSelections,
+                                                const uint32_t maxOutSelections) noexcept
+        {
+        if (isValidLightTarget(target) == false || outSelections == nullptr || maxOutSelections == 0u)
+            return 0u;
+
+        uint32_t validatedMaxLights = 0u;
+        if (getValidatedMaxLights(target, validatedMaxLights) == false || validatedMaxLights == 0u)
+            return 0u;
+
+        const LIGHT_SELECTION_MODE selectionMode = getLightSelectionMode(target);
+        if (selectionMode != LIGHT_SELECTION_PER_OBJECT_NEAREST)
+            return 0u;
+
+        const float objectRadius = getObjectLightSelectionRadius(objectBoundingAABB);
+        std::vector<LIGHT_POINT_SELECTION> candidates;
+        const std::vector<LIGHT_POINT> &pointLights = DEVICE::getInstance()->getPointLightsInternal(target);
+        if (pointLights.empty())
+        {
+            const LIGHT_STATE &lightState = DEVICE::getInstance()->getLightStateInternal(target);
+            LIGHT_POINT_SELECTION selection;
+            selection.pointLight.position = lightState.pointPosition;
+            selection.pointLight.radius = lightState.pointRadius;
+            selection.pointLight.color = lightState.pointColor;
+            const float distanceToObjectCenter = (selection.pointLight.position - objectCenter).length();
+            const float reach = selection.pointLight.radius + objectRadius;
+            if (distanceToObjectCenter > reach)
+                return 0u;
+            selection.sourceIndex = 0u;
+            selection.distanceToObjectCenter = distanceToObjectCenter;
+            candidates.push_back(selection);
+        }
+        else
+        {
+            candidates.reserve(pointLights.size());
+
+            for (std::vector<LIGHT_POINT>::size_type i = 0; i < pointLights.size(); ++i)
+            {
+                const LIGHT_POINT &pointLight = pointLights[i];
+                const float distanceToObjectCenter = (pointLight.position - objectCenter).length();
+                const float reach = pointLight.radius + objectRadius;
+                if (distanceToObjectCenter > reach)
+                    continue;
+
+                LIGHT_POINT_SELECTION selection;
+                selection.pointLight = pointLight;
+                selection.sourceIndex = static_cast<uint32_t>(i);
+                selection.distanceToObjectCenter = distanceToObjectCenter;
+                candidates.push_back(selection);
+            }
+        }
+
+        if (candidates.empty())
+            return 0u;
+
+        std::stable_sort(candidates.begin(), candidates.end(),
+                         [](const LIGHT_POINT_SELECTION &a, const LIGHT_POINT_SELECTION &b) noexcept
+                         {
+                             if (a.distanceToObjectCenter != b.distanceToObjectCenter)
+                                 return a.distanceToObjectCenter < b.distanceToObjectCenter;
+                             return a.sourceIndex < b.sourceIndex;
+                         });
+
+        const uint32_t maxSelectedLights = std::min<uint32_t>(validatedMaxLights, maxOutSelections);
+        const uint32_t totalSelectedLights = std::min<uint32_t>(maxSelectedLights,
+                                                                static_cast<uint32_t>(candidates.size()));
+        for (uint32_t i = 0; i < totalSelectedLights; ++i)
+        {
+            outSelections[i] = candidates[i];
+        }
+        return totalSelectedLights;
+        }
+    }
+
+    bool resetLight(const LIGHT_TARGET target) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        DEVICE::getInstance()->getMutableLightState(target) = makeDefaultLightState();
+        DEVICE::getInstance()->getMutableLightMultiSettings(target) = makeDefaultLightMultiSettings();
+        DEVICE::getInstance()->getMutablePointLights(target).clear();
+        return true;
+    }
+
+    void resetAllLights() noexcept
+    {
+        DEVICE::getInstance()->getMutableLightState(LIGHT_TARGET_3D) = makeDefaultLightState();
+        DEVICE::getInstance()->getMutableLightState(LIGHT_TARGET_2DW) = makeDefaultLightState();
+        DEVICE::getInstance()->getMutableLightMultiSettings(LIGHT_TARGET_3D) = makeDefaultLightMultiSettings();
+        DEVICE::getInstance()->getMutableLightMultiSettings(LIGHT_TARGET_2DW) = makeDefaultLightMultiSettings();
+        DEVICE::getInstance()->getMutablePointLights(LIGHT_TARGET_3D).clear();
+        DEVICE::getInstance()->getMutablePointLights(LIGHT_TARGET_2DW).clear();
+    }
+
+    bool getLightState(const LIGHT_TARGET target, LIGHT_STATE &outState) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        outState = DEVICE::getInstance()->getLightStateInternal(target);
+        return true;
+    }
+
+    const LIGHT_STATE &getLightState(const LIGHT_TARGET target) noexcept
+    {
+        return DEVICE::getInstance()->getLightStateInternal(target);
+    }
+
+    bool getLightMultiSettings(const LIGHT_TARGET target, LIGHT_MULTI_SETTINGS &outSettings) noexcept
+    {
+        if (isValidLightTarget(target) == false)
+            return false;
+        outSettings = DEVICE::getInstance()->getLightMultiSettingsInternal(target);
+        return true;
+    }
+
+    const LIGHT_MULTI_SETTINGS &getLightMultiSettings(const LIGHT_TARGET target) noexcept
+    {
+        return DEVICE::getInstance()->getLightMultiSettingsInternal(target);
     }
 
     void DEVICE::setTotalObjectsOnFrustum3D(const uint32_t total) noexcept

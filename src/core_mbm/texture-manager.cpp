@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <texture-manager.h>
+#include <shader.h>
 #include <renderizable.h>
 #include <uber-image.h>
 #include <image-resource.h>
@@ -1166,6 +1167,24 @@ namespace mbm
         maxTextureSizeFound = impl->maxTextureSize;
         maxTextureWidthFound = impl->maxTextureWidth;
         maxTextureHeightFound = impl->maxTextureHeight;
+    }
+
+    TEXTURE *TEXTURE_MANAGER::getFallbackTexture(const TEXTURE_ROLE role)
+    {
+        const char *fallbackName = nullptr;
+        switch (role)
+        {
+            case TEXTURE_ROLE_DIFFUSE:
+            case TEXTURE_ROLE_ANIMATION_EFFECT:
+                fallbackName = "#FFFFFFFF";
+            break;
+            case TEXTURE_ROLE_NORMAL:
+                fallbackName = "#FF8080FF";
+            break;
+            default:
+                return nullptr;
+        }
+        return this->load(fallbackName, true);
     }
 
     TEXTURE * TEXTURE_MANAGER::getCachedTexture(const std::string &fileName) const

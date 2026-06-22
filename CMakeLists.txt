@@ -18,6 +18,13 @@ cmake_policy(SET CMP0054 NEW)
 
 set(CMAKE_SUCCESS_SET_PLAT           0)
 set(OPTIMIZED                    "-O3")
+set(SUPPORTED_MAX_LIGHTS "4" CACHE STRING "Compile-time supported max lights for engine lighting (1..4)")
+
+if(NOT SUPPORTED_MAX_LIGHTS MATCHES "^[1-4]$")
+    message(SEND_ERROR "SUPPORTED_MAX_LIGHTS must be an integer in the range 1..4")
+endif()
+
+add_definitions(-DSUPPORTED_MAX_LIGHTS=${SUPPORTED_MAX_LIGHTS})
 
 # On Apple platforms, suppress the "has no symbols" ranlib/libtool warning that
 # fires for platform-specific .cpp files that compile to empty object files when
@@ -115,6 +122,8 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
     else()
         message("-DUSE_METAL=0              : Use Metal as backend  (Current is DISABLED)")
     endif()
+
+    message("-DSUPPORTED_MAX_LIGHTS=${SUPPORTED_MAX_LIGHTS} : Compile-time supported max lights for engine lighting (Current value)")
 
     if(USE_LUA)
         message("-DUSE_LUA=1                : Use LUA script engine embedded on core_mbm (Current is ENABLED)")

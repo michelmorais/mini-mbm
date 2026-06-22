@@ -26,6 +26,7 @@
 
 #include <core-manager.h>
 #include <device.h>
+#include <light.h>
 #include <scene.h>
 #include <renderizable.h>
 #include <physics.h>
@@ -653,6 +654,7 @@ namespace mbm
         device->setTotalObjectsIsRendering3D(0);
         if (this->beginRender())
         {
+            device->setLightTargetForRender(LIGHT_TARGET_3D);
             for (auto ptrRender : lsRender3d)
             {
                 if (ptrRender->render())
@@ -667,18 +669,21 @@ namespace mbm
             // colour attachment (3D scene) while clearing depth to 1.0.
             device->clearDepth();
             device->setDepthTest(true);
+            device->setLightTargetForRender(LIGHT_TARGET_2DW);
             for (auto ptrRender : lsRender2dw)
             {
                 if (ptrRender->render())
                     device->incrementTotalObjectsIsRendering2D();
             }
             device->setDepthTest(false);
+            device->disableLightForRender();
             for (auto ptrRender : lsRender2ds)
             {
                 if (ptrRender->render())
                     device->incrementTotalObjectsIsRendering2D();
             }
             device->setDepthTest(true);
+            device->disableLightForRender();
 
             for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
             {
@@ -877,6 +882,7 @@ namespace mbm
                         scene->setEndScene(false);
                     this->setChangeScene(true);
                     device->setClearBackGround(true);
+                    resetAllLights();
                     if(scene)
                         scene->startLoading();
                 }

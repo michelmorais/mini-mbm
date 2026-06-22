@@ -18,10 +18,57 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <shader-var-cfg.h>
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace mbm
 {
+
+    bool isReservedShaderUniformName(const char *name) noexcept
+    {
+        if (name == nullptr)
+            return false;
+        static const char *reservedNames[] = {
+            "LightEnabled",
+            "LightCount",
+            "LightMode",
+            "AmbientColor",
+            "LightDirectionView",
+            "LightPositionView",
+            "LightRadius",
+            "LightColor",
+            "HasNormalMap",
+            "MaterialDiffuse",
+            "MaterialAmbient",
+            "MaterialSpecular",
+            "MaterialEmissive",
+            "MaterialPower",
+            "TextureDiffuse",
+            "TextureAnimationEffect",
+            "TextureNormal",
+            "TextureSpecular",
+            "TextureEmissive",
+            "TextureMask",
+            nullptr
+        };
+        for (const char **it = reservedNames; *it; ++it)
+        {
+            if (strcmp(name, *it) == 0)
+                return true;
+        }
+        return false;
+    }
+
+    int roundClampShaderIntValue(float value, float minValue, float maxValue) noexcept
+    {
+        if (minValue > maxValue)
+            std::swap(minValue, maxValue);
+        const int rounded = static_cast<int>(std::lround(value));
+        const int minInt  = static_cast<int>(std::lround(minValue));
+        const int maxInt  = static_cast<int>(std::lround(maxValue));
+        return std::max(minInt, std::min(maxInt, rounded));
+    }
 
     void VAR_SHADER::set(const float newMin[4], const float newMax[4],const float timeAnim)
     {
@@ -50,5 +97,12 @@ namespace mbm
                 this->granThen[i] = false;
             }
         }
+    }
+
+    int VAR_SHADER::getCurrentInt(const int index) const noexcept
+    {
+        if (index < 0 || index >= this->sizeVar)
+            return 0;
+        return roundClampShaderIntValue(this->current[index], this->min[index], this->max[index]);
     }
 }
