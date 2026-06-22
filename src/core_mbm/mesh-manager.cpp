@@ -5010,18 +5010,18 @@ namespace mbm
         if(mesh)
             return mesh;
         mesh = new MESH_MBM();
-        std::vector<stbtt_aligned_quad *> lsStbFont;
-        std::vector<VEC2>                 lsWidthLetter;
+        std::vector<FONT_GLYPH_QUAD> lsGlyphQuad;
+        std::vector<VEC2>            lsWidthLetter;
 
-        TEXTURE *texture = TEXTURE_MANAGER::getInstance()->loadTTF(fileNameTtf, &lsStbFont, &lsWidthLetter, heightLetter,saveTextureAsPng);
-        if (texture == nullptr || lsStbFont.size() < 30)
+        TEXTURE *texture = TEXTURE_MANAGER::getInstance()->loadTTF(fileNameTtf, &lsGlyphQuad, &lsWidthLetter, heightLetter,saveTextureAsPng);
+        if (texture == nullptr || lsGlyphQuad.size() < 30)
         {
             delete mesh;
             return nullptr;
         }
         if(texture_loaded != nullptr)
             *texture_loaded = texture;
-        auto tTotalSTB = static_cast<uint32_t>(lsStbFont.size() - 30);
+        auto tTotalSTB = static_cast<uint32_t>(lsGlyphQuad.size() - 30);
         VEC3         pPosition[4];
         VEC3*        pNormal = nullptr; // no normal for font, only position and texture
         VEC2         pTexture[4];
@@ -5056,10 +5056,10 @@ namespace mbm
             lsWidthLetter['\t'].y  = lsWidthLetter['M'].y * 4.0f;
         }
         
-        for (uint32_t i = 30, index = 0; i < lsStbFont.size(); ++i)
+        for (uint32_t i = 30, index = 0; i < lsGlyphQuad.size(); ++i)
         {
-            stbtt_aligned_quad *q = lsStbFont[i];
-            if (q)
+            const FONT_GLYPH_QUAD &q = lsGlyphQuad[i];
+            if (q.valid)
             {
                 const float y  = lsWidthLetter[i].y;
                 float       dy = (middleHeight - y) * 0.5f;
@@ -5120,14 +5120,14 @@ namespace mbm
                 }
                 fillvertexQuadTrueFont(pPosition, lsWidthLetter[i].x, y, dy);
 
-                pTexture[0].x = q->s0;
-                pTexture[0].y = q->t1;
-                pTexture[1].x = q->s0;
-                pTexture[1].y = q->t0;
-                pTexture[2].x = q->s1;
-                pTexture[2].y = q->t1;
-                pTexture[3].x = q->s1;
-                pTexture[3].y = q->t0;
+                pTexture[0].x = q.s0;
+                pTexture[0].y = q.t1;
+                pTexture[1].x = q.s0;
+                pTexture[1].y = q.t0;
+                pTexture[2].x = q.s1;
+                pTexture[2].y = q.t1;
+                pTexture[3].x = q.s1;
+                pTexture[3].y = q.t0;
 
                 mesh->buffer[index].pBufferGL            = new BUFFER_GL();
                 mesh->buffer[index].subset               = new util::SUBSET[1];
@@ -5154,19 +5154,9 @@ namespace mbm
                     PRINT_IF_DEBUG( "error on load buffer bufferTriangleList [%s]", fileNameTtf);
                     delete mesh;
                     mesh = nullptr;
-                    for(auto qq : lsStbFont)
-                    {
-                        if(qq)
-                            delete qq;
-                    }
                     break;
                 }
             }
-        }
-        for (auto q : lsStbFont)
-        {
-            if (q)
-                delete q;
         }
         if (mesh)
         {

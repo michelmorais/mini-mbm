@@ -125,7 +125,7 @@ namespace mbm
         }
     };
 
-    bool TEXTURE::loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
+    bool TEXTURE::loadTTF(const char *fileNameTTF, std::vector<FONT_GLYPH_QUAD> *lsGlyphQuadOut,
                        std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng)
     {
         if (!fileNameTTF)
@@ -230,17 +230,27 @@ namespace mbm
             fp = nullptr;
             if (ret)
             {
-                if (lsStbFontOut && lsWidthLetterOut)
+                if (lsGlyphQuadOut && lsWidthLetterOut)
                 {
-                    lsStbFontOut->resize(255);
+                    lsGlyphQuadOut->resize(255);
                     lsWidthLetterOut->resize(255);
                     for (int index = 0; index < 225; ++index)
                     {
                         float               x = 0, y = 0;
-                        auto q = new stbtt_aligned_quad();
-                        stbtt_GetBakedQuad(cdata, static_cast<int>(this->width),static_cast<int>(this->height), index, &x, &y, q,1); // 1=opengl & d3d10+,0=d3d9
+                        stbtt_aligned_quad q{};
+                        stbtt_GetBakedQuad(cdata, static_cast<int>(this->width),static_cast<int>(this->height), index, &x, &y, &q,1); // 1=opengl & d3d10+,0=d3d9
                         const VEC2 p(static_cast<float>(cdata[index].x1 - cdata[index].x0),static_cast<float>(cdata[index].y1 - cdata[index].y0));
-                        (*lsStbFontOut)[static_cast<std::vector<VEC2>::size_type>(index + 30)]      = q;
+                        FONT_GLYPH_QUAD glyphQuad;
+                        glyphQuad.x0 = q.x0;
+                        glyphQuad.y0 = q.y0;
+                        glyphQuad.s0 = q.s0;
+                        glyphQuad.t0 = q.t0;
+                        glyphQuad.x1 = q.x1;
+                        glyphQuad.y1 = q.y1;
+                        glyphQuad.s1 = q.s1;
+                        glyphQuad.t1 = q.t1;
+                        glyphQuad.valid = true;
+                        (*lsGlyphQuadOut)[static_cast<std::vector<VEC2>::size_type>(index + 30)] = glyphQuad;
                         (*lsWidthLetterOut)[ static_cast<std::vector<VEC2>::size_type>(index + 30)] = p;
                     }
                 }
@@ -759,8 +769,8 @@ namespace mbm
         return infoGif.totalFrames > 0;
     }
     
-    TEXTURE * TEXTURE_MANAGER::loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
-                     std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng)
+    TEXTURE * TEXTURE_MANAGER::loadTTF(const char *fileNameTTF, std::vector<FONT_GLYPH_QUAD> *lsGlyphQuadOut,
+                                    std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng)
     {
         std::string fileNameBase = util::getBaseName(fileNameTTF);
         std::string fileNameBaseSuppose(fileNameBase);
@@ -782,7 +792,7 @@ namespace mbm
         if (util::existFile(fileNameFullPath))
             fileNameTTF = fileNameFullPath;
         texture         = new TEXTURE();
-        if (texture->loadTTF(fileNameTTF, lsStbFontOut, lsWidthLetterOut, heightLetter,saveAsPng))
+        if (texture->loadTTF(fileNameTTF, lsGlyphQuadOut, lsWidthLetterOut, heightLetter,saveAsPng))
         {
             texture->fileName = std::move(fileNameBaseSuppose);
             texture->setAlphaChannelEnabled(true);
