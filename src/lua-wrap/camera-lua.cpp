@@ -855,7 +855,7 @@ namespace mbm
     {
         const float  angle  = luaL_checknumber(lua, 2);
         DEVICE *device = DEVICE::getInstance();
-        device->getCamera().angleOfView = angle;
+        device->getCamera().setAngleOfView(angle);
         return 0;
     }
 
@@ -863,7 +863,7 @@ namespace mbm
     {
         const float  ffar   = luaL_checknumber(lua, 2);
         DEVICE *device      = DEVICE::getInstance();
-        device->getCamera().zFar = ffar;
+        device->getCamera().setFarPlane(ffar);
         return 0;
     }
 
@@ -872,7 +872,7 @@ namespace mbm
         const float  zNear  = luaL_checknumber(lua, 2);
         DEVICE *device      = DEVICE::getInstance();
         device->zNear       = zNear;
-        device->getCamera().zNear       = zNear;
+        device->getCamera().setNearPlane(zNear);
         return 0;
     }
 

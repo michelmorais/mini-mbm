@@ -73,7 +73,7 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
         if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(renderTargetHeight))
             return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",renderTargetWidth,renderTargetHeight,x,y,_width,_height);
-        const int channel = renderTargetTexture->useAlphaChannel ? 4 : 3;
+        const int channel = renderTargetTexture->hasAlphaChannel() ? 4 : 3;
         const int sizeImage = _width * _height * channel;
         auto  image = new unsigned char[sizeImage];
 

@@ -34,6 +34,16 @@ namespace mbm
         void calculateAzimuthFromCamera() noexcept;
         void updateNormalsRelativeCam() noexcept;
         void updateCam(const bool is3d, const float width, const float height);
+        float getAngleOfView() const noexcept;
+        void setAngleOfView(const float angle) noexcept;
+        float getNearPlane() const noexcept;
+        void setNearPlane(const float nearPlane) noexcept;
+        float getFarPlane() const noexcept;
+        void setFarPlane(const float farPlane) noexcept;
+        float getNearPlane2d() const noexcept;
+        void setNearPlane2d(const float nearPlane) noexcept;
+        float getFarPlane2d() const noexcept;
+        void setFarPlane2d(const float farPlane) noexcept;
     
         VEC3 position;   //(3d)
         VEC2 position2d; //(2d)
@@ -64,6 +74,8 @@ namespace mbm
         float   angleOfView;
         float zNear;
         float zFar;
+        float zNear2d;
+        float zFar2d;
         bool perfectPixel;
     };
 }

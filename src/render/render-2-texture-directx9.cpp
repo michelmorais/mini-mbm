@@ -94,7 +94,7 @@ namespace mbm
         //Usage : D3DUSAGE_RENDERTARGET(used as render target)
         //DirectX9 rule : Surfaces in D3DPOOL_DEFAULT with D3DUSAGE_RENDERTARGET cannot be locked -
         // they are GPU - exclusive.You need to use GetRenderTargetData() to copy from GPU to system memory first.
-        const int channel = renderTargetTexture->useAlphaChannel ? 4 : 3;
+        const int channel = renderTargetTexture->hasAlphaChannel() ? 4 : 3;
         const int sizeImage = _width * _height * channel;
         IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->getSpecificContextDevice()->pd3dDevice;
         D3DSURFACE_DESC	descSurfaceDest;
@@ -113,7 +113,7 @@ namespace mbm
 
         // Create a staging surface in SYSTEMMEM to copy the render target to
         IDirect3DSurface9* stagingSurface = nullptr;
-        D3DFORMAT requested_format = renderTargetTexture->useAlphaChannel ? D3DFMT_A8R8G8B8 : D3DFMT_R8G8B8;
+        D3DFORMAT requested_format = renderTargetTexture->hasAlphaChannel() ? D3DFMT_A8R8G8B8 : D3DFMT_R8G8B8;
         HRESULT hrCreateStaging = pd3dDevice->CreateOffscreenPlainSurface(
             renderTargetWidth, renderTargetHeight,
             requested_format,

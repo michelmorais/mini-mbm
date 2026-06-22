@@ -25,10 +25,14 @@
 
 namespace mbm
 {
+    struct HMD::Impl
+    {
+        BUFFER_GL rightEyeBuffer;
+    };
 
     HMD::HMD(const SCENE *scene) 
         : RENDER_2_TEXTURE(scene, true, true)
-
+        , impl(new Impl())
     {
     }
     
@@ -37,7 +41,8 @@ namespace mbm
         this->setRenderTargetTexture(nullptr);
         this->clearRenderObjectLists();
         this->clearInternalFileName();
-        this->bufferGLRight.release();
+        BUFFER_GL &rightEyeBuffer = this->getRightEyeBuffer();
+        rightEyeBuffer.release();
         this->getRenderTargetBuffer().release();
     }
     
@@ -108,9 +113,10 @@ namespace mbm
                     return false;
                 }
 
-                if (this->bufferGLRight.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
+                BUFFER_GL &rightEyeBuffer = this->getRightEyeBuffer();
+                if (rightEyeBuffer.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGLRight.setTextureByStage(renderTargetTexture, 0, 0);
+                    rightEyeBuffer.setTextureByStage(renderTargetTexture, 0, 0);
                 }
                 else
                 {
@@ -136,10 +142,11 @@ namespace mbm
         const CAMERA &camera = device->getCamera();
         CAMERA_TARGET &camera2dTarget = this->getCamera2d();
         CAMERA_TARGET &camera3dTarget = this->getCamera3d();
-        camera2dTarget.position.x = camera.position2d.x;
-        camera2dTarget.position.y = camera.position2d.y;
-        camera3dTarget.position   = camera.position;
-        camera3dTarget.focus      = camera.focus;
+        VEC3 &camera2dPosition = camera2dTarget.getPosition();
+        camera2dPosition.x = camera.position2d.x;
+        camera2dPosition.y = camera.position2d.y;
+        camera3dTarget.getPosition() = camera.position;
+        camera3dTarget.getFocus() = camera.focus;
         return RENDER_2_TEXTURE::isOnFrustum();
     }
     
@@ -151,10 +158,11 @@ namespace mbm
             const CAMERA &camera = device->getCamera();
             CAMERA_TARGET &camera2dTarget = this->getCamera2d();
             CAMERA_TARGET &camera3dTarget = this->getCamera3d();
-            camera2dTarget.position.x = camera.position2d.x;
-            camera2dTarget.position.y = camera.position2d.y;
-            camera3dTarget.position   = camera.position;
-            camera3dTarget.focus      = camera.focus;
+            VEC3 &camera2dPosition = camera2dTarget.getPosition();
+            camera2dPosition.x = camera.position2d.x;
+            camera2dPosition.y = camera.position2d.y;
+            camera3dTarget.getPosition() = camera.position;
+            camera3dTarget.getFocus() = camera.focus;
         }
         VEC3 &position = this->getPosition();
         position.x = device->getScaleBackBufferWidth() * 0.25f;
@@ -162,7 +170,8 @@ namespace mbm
         if (!this->renderVR(&this->getRenderTargetBuffer())) // left
             return false;
         position.x = device->getScaleBackBufferWidth() * 0.75f;
-        if (!this->renderVR(&this->bufferGLRight)) // right
+        BUFFER_GL &rightEyeBuffer = this->getRightEyeBuffer();
+        if (!this->renderVR(&rightEyeBuffer)) // right
             return false;
         return true;
     }
@@ -217,6 +226,16 @@ namespace mbm
     const INFO_PHYSICS * HMD::getInfoPhysics() const
     {
         return nullptr;
+    }
+
+    BUFFER_GL & HMD::getRightEyeBuffer() noexcept
+    {
+        return this->impl->rightEyeBuffer;
+    }
+
+    const BUFFER_GL & HMD::getRightEyeBuffer() const noexcept
+    {
+        return this->impl->rightEyeBuffer;
     }
     
 };

@@ -26,6 +26,7 @@
 #include <core_mbm/renderizable.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
+#include <memory>
 
 namespace util
 {
@@ -73,13 +74,9 @@ namespace mbm
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;
-    
-        MESH_MBM *          mesh;
-        util::TYPE_MESH type;
-        TEXTURE *           texture;
-        BUFFER_GL *         buffer; 
-        uint32_t        lasIndexAnimation;
-        bool                isFrontGround;
+
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 };
 

@@ -423,6 +423,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 
 - **CMake ≥ 3.25.1** is required; `cmake_policy(SET CMP0054 NEW)` is set everywhere
 - **`-DUSE_ALL=1`** is the recommended common full-featured build flag — it enables Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled; Steam and Bullet3D remain explicit
+- **When touching `src/core_mbm/` or `include/core_mbm/`, preserve the current PIMPL/header-hygiene direction** — do not introduce new public mutable storage, backend handles, STL container exposure, or convenience accessors that leak `Impl`-owned state into public headers just to ship a feature. If a feature needs new internal state, prefer keeping it in `Impl`/`BackendData` or private translation-unit helpers, and update `docs/core-pimpl-gap-report.md` when the work changes that boundary.
 - **Plugin naming**: `CMAKE_SHARED_LIBRARY_PREFIX ""` removes the `lib` prefix so plugins load as `box2d.so` not `libbox2d.so`
 - **iOS plugins are STATIC** — do not link Lua/core_mbm inside them (absorbed by final link)
 - **`util::addPath(__FILE__)`** is a debug trick — add the source file's directory to the asset search path so relative image paths work from the IDE

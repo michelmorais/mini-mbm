@@ -42,9 +42,61 @@ namespace mbm
         angleOfView       (110.0f),
         zNear(0.1f),
         zFar(1000.0f),
+        zNear2d(-200.0f),
+        zFar2d(200.0f),
         perfectPixel(true)
     {
         memset(this->stretch, 0, sizeof(stretch));
+    }
+
+    float CAMERA::getAngleOfView() const noexcept
+    {
+        return this->angleOfView;
+    }
+
+    void CAMERA::setAngleOfView(const float angle) noexcept
+    {
+        this->angleOfView = angle;
+    }
+
+    float CAMERA::getNearPlane() const noexcept
+    {
+        return this->zNear;
+    }
+
+    void CAMERA::setNearPlane(const float nearPlane) noexcept
+    {
+        this->zNear = nearPlane;
+    }
+
+    float CAMERA::getFarPlane() const noexcept
+    {
+        return this->zFar;
+    }
+
+    void CAMERA::setFarPlane(const float farPlane) noexcept
+    {
+        this->zFar = farPlane;
+    }
+
+    float CAMERA::getNearPlane2d() const noexcept
+    {
+        return this->zNear2d;
+    }
+
+    void CAMERA::setNearPlane2d(const float nearPlane) noexcept
+    {
+        this->zNear2d = nearPlane;
+    }
+
+    float CAMERA::getFarPlane2d() const noexcept
+    {
+        return this->zFar2d;
+    }
+
+    void CAMERA::setFarPlane2d(const float farPlane) noexcept
+    {
+        this->zFar2d = farPlane;
     }
     
     void CAMERA::calculateAzimuthFromCamera() noexcept
@@ -137,8 +189,8 @@ namespace mbm
 			}
             static VEC3 zero(0, 0, 0);
             const float    aspect = width / height;
-            const float    scale  = 1.0f / tanf(this->angleOfView * 0.5f * static_cast<float>(M_PI / 180.0f));
-            MatrixPerspectiveFovLH(&this->matrixProj, scale, aspect, zNear, zFar);
+            const float    scale  = 1.0f / tanf(this->getAngleOfView() * 0.5f * static_cast<float>(M_PI / 180.0f));
+            MatrixPerspectiveFovLH(&this->matrixProj, scale, aspect, this->getNearPlane(), this->getFarPlane());
             MatrixLookAtLH(&this->matrixView, &perfectPosition, &perfectFocus, &this->up);
             MatrixLookAtLH(&this->matrixViewRayCastInverse, &zero, &this->normalForward, &this->up);
             MatrixMultiply(&this->matrixPerspective, &this->matrixView, &this->matrixProj);
@@ -149,8 +201,6 @@ namespace mbm
             // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
             // The position of camera influence in what is cutoff, so if we put z near -200 and far 200 and the position z 100, then we have visible from -100 to 100 in z axis
 			// this affect mbm::ORDER_RENDER -> TODO: :update getNextZOrderControl2d  and getNextZOrderControl2dBackground functions
-            constexpr float zNear2d = -200;
-            constexpr float zFar2d  = 200;
 			VEC2 perfectPosition(this->position2d);
 			if (perfectPixel)
 			{
@@ -161,7 +211,7 @@ namespace mbm
             static const VEC3 angleDefault(0, 0, 0);
             MatrixIdentity(&this->matrixView2d);
             MatrixTranslationRotationScale(&this->matrixView2d, &posCam, &angleDefault, &this->scale2d);
-            MatrixOrthoLH(&matrixOrtho, width, height, zNear2d, zFar2d);
+            MatrixOrthoLH(&matrixOrtho, width, height, this->getNearPlane2d(), this->getFarPlane2d());
             MatrixMultiply(&this->matrixPerspective2d, &matrixView2d, &matrixOrtho);
         }
     }

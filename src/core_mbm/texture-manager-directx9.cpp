@@ -42,7 +42,7 @@ namespace mbm
         setBackendTexturePointer(nullptr);
         width           = 0;
         height          = 0;
-        useAlphaChannel = false;
+        this->setAlphaChannelEnabled(false);
     }
 
     struct PIXELS_FROM_3_DEPTH_TO_4
@@ -330,7 +330,7 @@ namespace mbm
         IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(getBackendTexturePointerAddress());
         this->width  = w;
         this->height = h;
-        this->useAlphaChannel = hasAlpha ? true : false;
+        this->setAlphaChannelEnabled(hasAlpha ? true : false);
         return created3dTexture(pp3DTexture9,
             TEXTURE::isPixelPerfectTextureEnabled,
             data,
@@ -344,7 +344,7 @@ namespace mbm
             return false;
         this->width           = image->width;
         this->height          = image->height;
-        this->useAlphaChannel = true;
+        this->setAlphaChannelEnabled(true);
         const int  channel    = 4;
         const bool alpha      = true;
 
@@ -412,7 +412,7 @@ namespace mbm
                 PRINT_IF_DEBUG("failed to load texture from file [%s] ", fileName);
                 return nullptr;
             }
-            tex->useAlphaChannel = forceAlpha;
+            tex->setAlphaChannelEnabled(forceAlpha);
             tex->fileName = fileName;
             cacheTexture(fileNameBase, tex);
             return tex;
@@ -493,7 +493,7 @@ namespace mbm
 
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
-        texture->useAlphaChannel            = enableAlpha;
+        texture->setAlphaChannelEnabled(enableAlpha);
         texture->fileName                   = std::move(fileNameBase);
         cacheTexture(texture->fileName, texture);
         return texture;

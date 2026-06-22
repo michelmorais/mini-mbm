@@ -37,7 +37,7 @@ namespace mbm
         setBackendTexturePointer(nullptr);
         width           = 0;
         height          = 0;
-        useAlphaChannel = false;
+        this->setAlphaChannelEnabled(false);
     }
 
     bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
@@ -57,7 +57,7 @@ namespace mbm
         }
         this->width  = w;
         this->height = h;
-        this->useAlphaChannel = hasAlpha ? true : false;
+        this->setAlphaChannelEnabled(hasAlpha ? true : false);
         REMINDER_TODO
         return true;
     }
@@ -68,7 +68,7 @@ namespace mbm
             return false;
         this->width           = image->width;
         this->height          = image->height;
-        this->useAlphaChannel = true;
+        this->setAlphaChannelEnabled(true);
         const int  channel    = 4;
         const bool alpha      = true;
 
@@ -89,7 +89,7 @@ namespace mbm
             return nullptr;
         tex = new TEXTURE();
         
-        tex->useAlphaChannel = forceAlpha;
+        tex->setAlphaChannelEnabled(forceAlpha);
         tex->fileName = fileName;
         cacheTexture(fileNameBase, tex);
         REMINDER_TODO
@@ -120,7 +120,7 @@ namespace mbm
         REMINDER_TODO
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
-        texture->useAlphaChannel            = enableAlpha;
+        texture->setAlphaChannelEnabled(enableAlpha);
         texture->fileName                   = std::move(fileNameBase);
         cacheTexture(texture->fileName, texture);
         return texture;

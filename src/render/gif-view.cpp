@@ -31,9 +31,17 @@
 
 namespace mbm
 {
+    struct GIF_VIEW::Impl
+    {
+        INFO_PHYSICS infoPhysics;
+        std::vector<TEXTURE *> textures;
+        std::vector<float> interval;
+        BUFFER_GL bufferGL;
+    };
 
     GIF_VIEW::GIF_VIEW(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
-        : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_GIF, _is3d && _is2dScreen == false, _is2dScreen)
+        : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_GIF, _is3d && _is2dScreen == false, _is2dScreen),
+          impl(std::make_unique<Impl>())
     {
         this->setEnableRender(true);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -50,9 +58,9 @@ namespace mbm
     
     void GIF_VIEW::release()
     {
-        this->textures.clear();
-        this->bufferGL.release();
-        this->interval.clear();
+        this->impl->textures.clear();
+        this->impl->bufferGL.release();
+        this->impl->interval.clear();
     }
 
     FX*  GIF_VIEW::getFx()const
@@ -83,7 +91,7 @@ namespace mbm
     
     bool GIF_VIEW::load(const char *fileNameTexture, const float w , const float h)
     {
-        if (this->textures.size())
+        if (this->impl->textures.size())
             return true;
         if (fileNameTexture == nullptr)
             return false;
@@ -97,21 +105,21 @@ namespace mbm
             return false;
         if (!createAnimationAndShader2Texture())
             return false;
-        this->interval.clear();
+        this->impl->interval.clear();
         for(unsigned int i=0; i< infoGif.totalFrames; ++i)
         {
             TEXTURE* texture = manTex->load(infoGif.fileNames[i].c_str(),true);
             if(texture)
             {
-                this->textures.push_back(texture);
-                this->interval.push_back(infoGif.interval[i]);
+                this->impl->textures.push_back(texture);
+                this->impl->interval.push_back(infoGif.interval[i]);
             }
             else
             {
 #if defined _DEBUG
                 PRINT_IF_DEBUG("Failed to load Gif [%s]", log_util::basename(infoGif.fileNames[i].c_str()));
 #endif
-                this->textures.clear();
+                this->impl->textures.clear();
                 return false;
             }
         }
@@ -124,7 +132,7 @@ namespace mbm
             anim->setType(TYPE_ANIMATION_GROWING_LOOP);
             anim->setIntervalChangeFrame(infoGif.interval[0]);
         }
-        this->bufferGL.setTextureByStage(this->textures[0], 0, 0);
+        this->impl->bufferGL.setTextureByStage(this->impl->textures[0], 0, 0);
         
         std::string restoreFileName = fileNameTexture;
         restoreFileName += '|';
@@ -144,27 +152,27 @@ namespace mbm
         VEC3            _position[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
-        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
-        this->bufferGL.release();
+        TEXTURE * idTexture0 = this->impl->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->impl->bufferGL.getTextureByStage(1, 0);
+        this->impl->bufferGL.release();
         mbm::fillVertexQuadTexture(_position, uv,
                                    diameter <= 0.0f ? 100.0f : diameter,
                                    diameter <= 0.0f ? 100.0f : diameter);
-        const bool ret = this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount, nullptr);
+        const bool ret = this->impl->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount, nullptr);
         if (ret)
         {
-            this->bufferGL.setTextureByStage(idTexture0, 0, 0 );
-            this->bufferGL.setTextureByStage(idTexture1, 1, 0 );
+            this->impl->bufferGL.setTextureByStage(idTexture0, 0, 0 );
+            this->impl->bufferGL.setTextureByStage(idTexture1, 1, 0 );
         }
         else
             return false;
         mbm::CUBE *cube = nullptr;
-        if (this->infoPhysics.lsCube.size())
-            cube = this->infoPhysics.lsCube[0];
+        if (this->impl->infoPhysics.lsCube.size())
+            cube = this->impl->infoPhysics.lsCube[0];
         else
         {
             cube = new mbm::CUBE();
-            this->infoPhysics.lsCube.push_back(cube);
+            this->impl->infoPhysics.lsCube.push_back(cube);
         }
         cube->halfDim.x = diameter * 0.5f;
         cube->halfDim.y = diameter * 0.5f;
@@ -179,26 +187,26 @@ namespace mbm
         VEC3            _position[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
-        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
+        TEXTURE * idTexture0 = this->impl->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->impl->bufferGL.getTextureByStage(1, 0);
         mbm::fillVertexQuadTexture(_position, uv,
                                    width  <= 0.0f ? 100.0f : width,
                                    height <= 0.0f ? 100.0f : height);
-        const bool ret = this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount, nullptr);
+        const bool ret = this->impl->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount, nullptr);
         if (ret)
         {
-            this->bufferGL.setTextureByStage(idTexture0, 0, 0 );
-            this->bufferGL.setTextureByStage(idTexture1, 1, 0 );
+            this->impl->bufferGL.setTextureByStage(idTexture0, 0, 0 );
+            this->impl->bufferGL.setTextureByStage(idTexture1, 1, 0 );
         }
         else
             return false;
         mbm::CUBE *cube = nullptr;
-        if (this->infoPhysics.lsCube.size())
-            cube = this->infoPhysics.lsCube[0];
+        if (this->impl->infoPhysics.lsCube.size())
+            cube = this->impl->infoPhysics.lsCube[0];
         else
         {
             cube = new mbm::CUBE();
-            this->infoPhysics.lsCube.push_back(cube);
+            this->impl->infoPhysics.lsCube.push_back(cube);
         }
         cube->halfDim.x = width * 0.5f;
         cube->halfDim.y = height * 0.5f;
@@ -208,7 +216,7 @@ namespace mbm
     
     BUFFER_GL * GIF_VIEW::getFrame()
     {
-        return &this->bufferGL;
+        return &this->impl->bufferGL;
     }
     
     TEXTURE * GIF_VIEW::getTexture() const
@@ -218,8 +226,8 @@ namespace mbm
         if(anim)
         {
             const int currentFrame = anim->getIndexCurrentFrame();
-            if(currentFrame < static_cast<int>(this->textures.size()))
-                return this->textures[currentFrame];
+            if(currentFrame < static_cast<int>(this->impl->textures.size()))
+                return this->impl->textures[currentFrame];
         }
         return nullptr;
     }
@@ -238,10 +246,10 @@ namespace mbm
                 if(anim)
                 {
                     const int currentFrame = anim->getIndexCurrentFrame();
-                    if(currentFrame < static_cast<int>(this->textures.size()))
-                        this->textures[currentFrame] = newTex;
+                    if(currentFrame < static_cast<int>(this->impl->textures.size()))
+                        this->impl->textures[currentFrame] = newTex;
                 }
-                this->bufferGL.setTextureByStage(newTex, 0, 0);
+                this->impl->bufferGL.setTextureByStage(newTex, 0, 0);
                 return true;
             }
         }
@@ -259,14 +267,14 @@ namespace mbm
         if(anim)
         {
             const int currentFrame = anim->getIndexCurrentFrame();
-            if(currentFrame < static_cast<int>(this->textures.size()))
-                this->textures[currentFrame] = nullptr;
+            if(currentFrame < static_cast<int>(this->impl->textures.size()))
+                this->impl->textures[currentFrame] = nullptr;
         }
     }
     
     bool GIF_VIEW::isOnFrustum()
     {
-        if (this->bufferGL.isLoadedBuffer())
+        if (this->impl->bufferGL.isLoadedBuffer())
         {
             IS_ON_FRUSTUM verify(this);
             bool ret = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
@@ -283,7 +291,7 @@ namespace mbm
     
     bool GIF_VIEW::render()
     {
-        if (this->bufferGL.isLoadedBuffer())
+        if (this->impl->bufferGL.isLoadedBuffer())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
@@ -313,22 +321,22 @@ namespace mbm
             this->setBlendState(animation->getBlendState());
             animation->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             const int currentFrame = animation->getIndexCurrentFrame();
-            if(currentFrame < static_cast<int>(this->textures.size()))
+            if(currentFrame < static_cast<int>(this->impl->textures.size()))
             {
-                if(currentFrame < static_cast<int>(interval.size()))
-                    animation->setIntervalChangeFrame(interval[currentFrame]);
+                if(currentFrame < static_cast<int>(this->impl->interval.size()))
+                    animation->setIntervalChangeFrame(this->impl->interval[currentFrame]);
                 else
-                    animation->setIntervalChangeFrame(interval[0]);
+                    animation->setIntervalChangeFrame(this->impl->interval[0]);
 
-                TEXTURE* curTex = this->textures[currentFrame];
-                this->bufferGL.setTextureByStage(curTex, 0, 0);
+                TEXTURE* curTex = this->impl->textures[currentFrame];
+                this->impl->bufferGL.setTextureByStage(curTex, 0, 0);
             }
             fx.setBlendOp();
             fx.shader.update();
             if (fx.textureOverrideStage2)
-                this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
+                this->impl->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
                 
-            if (!fx.shader.render(&this->bufferGL, this))
+            if (!fx.shader.render(&this->impl->bufferGL, this))
                 return false;
             return true;
         }
@@ -368,7 +376,7 @@ namespace mbm
     
     FVF_PROVIDE_BY_ENGINE GIF_VIEW::getFvfFromBuffer() const noexcept
     {
-        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+        return this->impl->bufferGL.isLoadedBuffer() ? this->impl->bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     void GIF_VIEW::updateRestoreTexture(const float w, const float h)
@@ -391,7 +399,7 @@ namespace mbm
     
     const mbm::INFO_PHYSICS * GIF_VIEW::getInfoPhysics() const
     {
-        return &infoPhysics;
+        return &this->impl->infoPhysics;
     }
     
     const MESH_MBM * GIF_VIEW::getMesh() const
@@ -401,7 +409,7 @@ namespace mbm
     
     bool GIF_VIEW::isLoaded() const
     {
-        return this->bufferGL.isLoadedBuffer() && this->textures.size() && this->getTotalAnimation() > 0;
+        return this->impl->bufferGL.isLoadedBuffer() && this->impl->textures.size() && this->getTotalAnimation() > 0;
     }
     
 }

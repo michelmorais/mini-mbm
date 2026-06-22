@@ -27,6 +27,7 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
 #include <render/render-2-texture.h>
+#include <memory>
 
 namespace mbm
 {
@@ -42,7 +43,12 @@ namespace mbm
         virtual bool render() override;
         bool renderVR(BUFFER_GL *bufferSide);
         const INFO_PHYSICS * getInfoPhysics() const override;
-        BUFFER_GL bufferGLRight;
+        BUFFER_GL & getRightEyeBuffer() noexcept;
+        const BUFFER_GL & getRightEyeBuffer() const noexcept;
+
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 };
 

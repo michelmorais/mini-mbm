@@ -165,7 +165,7 @@ namespace mbm
             if (tex)
             {
                 fileNameOldTexture = tex->getFileNameTexture();
-                hasOldAlpha        = tex->useAlphaChannel;
+                hasOldAlpha        = tex->hasAlphaChannel();
             }
         }
         dynamicIndex.resize(_sizeIndexArray);
@@ -179,13 +179,14 @@ namespace mbm
         {
             if (fileNameOldTexture.size())
                 mesh->setTexture(0, 0, fileNameOldTexture.c_str(), hasOldAlpha);
+            INFO_PHYSICS &physicsInfo = this->mesh->getPhysicsInfo();
             mbm::CUBE *cube = nullptr;
-            if (this->mesh->infoPhysics.lsCube.size())
-                cube = this->mesh->infoPhysics.lsCube[0];
+            if (physicsInfo.lsCube.size())
+                cube = physicsInfo.lsCube[0];
             else
             {
                 cube = new mbm::CUBE();
-                this->mesh->infoPhysics.lsCube.push_back(cube);
+                physicsInfo.lsCube.push_back(cube);
             }
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
             cube->halfDim.y   = (vMax.y - vMin.y) * 0.5f;
@@ -234,7 +235,7 @@ namespace mbm
                 FX &fx = anim->getFx();
                 fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
                 fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-                if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+                if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                     return false;
             }
             this->setInternalFileName(nickName);
@@ -332,17 +333,17 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->infoPhysics.release();
+            mesh->resetPhysicsInfo();
             mbm::SPHERE* sphere = new mbm::SPHERE();
             sphere->ray = width > height ? width * 0.5f : height * 0.5f;
-            mesh->infoPhysics.lsSphere.push_back(sphere);
+            mesh->appendPhysicsSphere(sphere);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("circle");
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -498,16 +499,16 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->infoPhysics.release();
+            mesh->resetPhysicsInfo();
             mbm::CUBE* cube = new mbm::CUBE(width,height,0.0f);
-            mesh->infoPhysics.lsCube.push_back(cube);
+            mesh->appendPhysicsCube(cube);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("rectangle");
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -579,7 +580,7 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->infoPhysics.release();
+            mesh->resetPhysicsInfo();
             mbm::TRIANGLE* triangle = new mbm::TRIANGLE();
 
             triangle->point[0].x = points[0];
@@ -594,14 +595,14 @@ namespace mbm
             triangle->point[2].y = points[5];
             triangle->point[2].z = 0;
             
-            mesh->infoPhysics.lsTriangle.push_back(triangle);
+            mesh->appendPhysicsTriangle(triangle);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("triangle");
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -733,7 +734,7 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->infoPhysics.release();
+            mesh->resetPhysicsInfo();
             mbm::TRIANGLE* triangle = new mbm::TRIANGLE();
 
             if(width <= 0.0f )
@@ -756,14 +757,14 @@ namespace mbm
             triangle->point[2].y = -y;
             triangle->point[2].z = 0;
             
-            mesh->infoPhysics.lsTriangle.push_back(triangle);
+            mesh->appendPhysicsTriangle(triangle);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("triangle");
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -860,7 +861,7 @@ namespace mbm
         {
             this->getPosition() += mesh->positionOffset;
             this->setAngle(mesh->angleDefault);
-            this->mesh->infoPhysics.release();
+            this->mesh->resetPhysicsInfo();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
             cube->halfDim.y   = (vMax.y - vMin.y) * 0.5f;
@@ -904,12 +905,12 @@ namespace mbm
 
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
-            this->mesh->infoPhysics.lsCube.push_back(cube);
+            this->mesh->appendPhysicsCube(cube);
             anim->setNameAnimation("unic-anim");
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -1008,7 +1009,7 @@ namespace mbm
         {
             this->getPosition() += mesh->positionOffset;
             this->setAngle(mesh->angleDefault);
-            this->mesh->infoPhysics.release();
+            this->mesh->resetPhysicsInfo();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
             cube->halfDim.y   = (vMax.y - vMin.y) * 0.5f;
@@ -1052,11 +1053,11 @@ namespace mbm
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("unic-anim");
-            this->mesh->infoPhysics.lsCube.push_back(cube);
+            this->mesh->appendPhysicsCube(cube);
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
+            if (!fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->getRenderBuffer()->fvf))
                 return false;
             this->setInternalFileName(nickName);
             this->updateAABB();
@@ -1226,7 +1227,7 @@ namespace mbm
     const mbm::INFO_PHYSICS * SHAPE_MESH::getInfoPhysics() const  noexcept
     {
         if (this->mesh)
-            return &this->mesh->infoPhysics;
+            return &this->mesh->getPhysicsInfo();
         return nullptr;
     }
     
@@ -1253,8 +1254,8 @@ namespace mbm
         if (mesh)
         {
             BUFFER_MESH* buf = mesh->getBuffer(0);
-            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
-                return buf->pBufferGL->fvf;
+            if (buf && buf->hasLoadedRenderBuffer())
+                return buf->getRenderBuffer()->fvf;
         }
         return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }

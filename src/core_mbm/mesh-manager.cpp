@@ -1349,6 +1349,28 @@ namespace mbm
         totalSubset = 0;
     }
 
+    BUFFER_GL *BUFFER_MESH::getRenderBuffer() const noexcept
+    {
+        return this->pBufferGL;
+    }
+
+    bool BUFFER_MESH::hasLoadedRenderBuffer() const noexcept
+    {
+        return this->pBufferGL && this->pBufferGL->isLoadedBuffer();
+    }
+
+    uint32_t BUFFER_MESH::getTotalSubsets() const noexcept
+    {
+        return this->totalSubset;
+    }
+
+    util::SUBSET *BUFFER_MESH::getSubset(const uint32_t indexSubset) const noexcept
+    {
+        if (this->subset && indexSubset < this->totalSubset)
+            return &this->subset[indexSubset];
+        return nullptr;
+    }
+
 
 
     MESH_MBM_DEBUG::MESH_MBM_DEBUG() noexcept
@@ -1498,6 +1520,16 @@ namespace mbm
             }
         }
         return nullptr;
+    }
+
+    util::TYPE_MESH MESH_MBM_DEBUG::getMeshType() const noexcept
+    {
+        return this->typeMe;
+    }
+
+    void MESH_MBM_DEBUG::setMeshType(const util::TYPE_MESH type) noexcept
+    {
+        this->typeMe = type;
     }
     
     bool MESH_MBM_DEBUG::getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
@@ -1776,6 +1808,165 @@ namespace mbm
         if (this->buffer.size())
             return this->typeMe;
         return util::TYPE_MESH_UNKNOWN;
+    }
+
+    VEC3 MESH_MBM_DEBUG::getAngleDefault() const noexcept
+    {
+        return this->angleDefault;
+    }
+
+    void MESH_MBM_DEBUG::setAngleDefault(const VEC3 &angle) noexcept
+    {
+        this->angleDefault = angle;
+        this->headerMesh.angleX = angle.x;
+        this->headerMesh.angleY = angle.y;
+        this->headerMesh.angleZ = angle.z;
+    }
+
+    VEC3 MESH_MBM_DEBUG::getPositionOffset() const noexcept
+    {
+        return this->positionOffset;
+    }
+
+    void MESH_MBM_DEBUG::setPositionOffset(const VEC3 &position) noexcept
+    {
+        this->positionOffset = position;
+        this->headerMesh.posX = position.x;
+        this->headerMesh.posY = position.y;
+        this->headerMesh.posZ = position.z;
+    }
+
+    unsigned int MESH_MBM_DEBUG::getModeDraw() const noexcept
+    {
+        return this->info_mode.mode_draw;
+    }
+
+    void MESH_MBM_DEBUG::setModeDraw(const unsigned int modeDraw) noexcept
+    {
+        this->info_mode.mode_draw = modeDraw;
+    }
+
+    unsigned int MESH_MBM_DEBUG::getModeCullFace() const noexcept
+    {
+        return this->info_mode.mode_cull_face;
+    }
+
+    void MESH_MBM_DEBUG::setModeCullFace(const unsigned int modeCullFace) noexcept
+    {
+        this->info_mode.mode_cull_face = modeCullFace;
+    }
+
+    unsigned int MESH_MBM_DEBUG::getModeFrontFaceDirection() const noexcept
+    {
+        return this->info_mode.mode_front_face_direction;
+    }
+
+    void MESH_MBM_DEBUG::setModeFrontFaceDirection(const unsigned int modeFrontFaceDirection) noexcept
+    {
+        this->info_mode.mode_front_face_direction = modeFrontFaceDirection;
+    }
+
+    void * MESH_MBM_DEBUG::getDetailInfo() const noexcept
+    {
+        return this->extraInfo;
+    }
+
+    void MESH_MBM_DEBUG::replaceDetailInfo(void *detailInfo) noexcept
+    {
+        this->deleteExtraInfo();
+        this->extraInfo = detailInfo;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalAnimationHeaders() const noexcept
+    {
+        return static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size());
+    }
+
+    util::INFO_ANIMATION::INFO_HEADER_ANIM * MESH_MBM_DEBUG::getAnimationHeader(const uint32_t index) const noexcept
+    {
+        if (index < this->infoAnimation.lsHeaderAnim.size())
+            return this->infoAnimation.lsHeaderAnim[index];
+        return nullptr;
+    }
+
+    void MESH_MBM_DEBUG::appendAnimationHeader(util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead) noexcept
+    {
+        if (infoHead)
+            this->infoAnimation.lsHeaderAnim.push_back(infoHead);
+    }
+
+    void MESH_MBM_DEBUG::clearBlendOperations() noexcept
+    {
+        this->lsBlendOperation.clear();
+    }
+
+    void MESH_MBM_DEBUG::resizeBlendOperations(const uint32_t totalAnimations)
+    {
+        this->lsBlendOperation.resize(totalAnimations);
+    }
+
+    void MESH_MBM_DEBUG::setBlendOperation(const uint32_t index, const int blendOperation)
+    {
+        if (index < this->lsBlendOperation.size())
+            this->lsBlendOperation[index] = blendOperation;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalFrames() const noexcept
+    {
+        return static_cast<uint32_t>(this->buffer.size());
+    }
+
+    util::BUFFER_MESH_DEBUG *MESH_MBM_DEBUG::getFrameBuffer(const uint32_t indexFrame) const noexcept
+    {
+        if (indexFrame < this->buffer.size())
+            return this->buffer[indexFrame];
+        return nullptr;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalSubsets(const uint32_t indexFrame) const noexcept
+    {
+        const util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        if (bufferCurrent)
+            return static_cast<uint32_t>(bufferCurrent->subset.size());
+        return 0;
+    }
+
+    util::SUBSET_DEBUG *MESH_MBM_DEBUG::getSubset(const uint32_t indexFrame, const uint32_t indexSubset) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        if (bufferCurrent && indexSubset < bufferCurrent->subset.size())
+            return bufferCurrent->subset[indexSubset];
+        return nullptr;
+    }
+
+    bool MESH_MBM_DEBUG::hasIndexBuffer(const uint32_t indexFrame) const noexcept
+    {
+        const util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent && bufferCurrent->indexBuffer != nullptr;
+    }
+
+    VEC3 *MESH_MBM_DEBUG::getPositionArray(const uint32_t indexFrame) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent ? reinterpret_cast<VEC3 *>(bufferCurrent->position) : nullptr;
+    }
+
+    VEC3 *MESH_MBM_DEBUG::getNormalArray(const uint32_t indexFrame) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent ? reinterpret_cast<VEC3 *>(bufferCurrent->normal) : nullptr;
+    }
+
+    VEC2 *MESH_MBM_DEBUG::getUvArray(const uint32_t indexFrame) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent ? reinterpret_cast<VEC2 *>(bufferCurrent->uv) : nullptr;
+    }
+
+    uint16_t *MESH_MBM_DEBUG::getIndexArray(const uint32_t indexFrame) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent ? bufferCurrent->indexBuffer : nullptr;
     }
     
     util::TYPE_MESH MESH_MBM_DEBUG::getType(const char *fileNamePath)
@@ -4108,6 +4299,67 @@ namespace mbm
     {
         return fileName.c_str();
     }
+
+    INFO_PHYSICS & MESH_MBM::getPhysicsInfo() noexcept
+    {
+        return this->infoPhysics;
+    }
+
+    const INFO_PHYSICS & MESH_MBM::getPhysicsInfo() const noexcept
+    {
+        return this->infoPhysics;
+    }
+
+    void MESH_MBM::resetPhysicsInfo()
+    {
+        this->infoPhysics.release();
+    }
+
+    void MESH_MBM::appendPhysicsCube(CUBE *cube) noexcept
+    {
+        if (cube)
+            this->infoPhysics.lsCube.push_back(cube);
+    }
+
+    void MESH_MBM::appendPhysicsSphere(SPHERE *sphere) noexcept
+    {
+        if (sphere)
+            this->infoPhysics.lsSphere.push_back(sphere);
+    }
+
+    void MESH_MBM::appendPhysicsCubeComplex(CUBE_COMPLEX *cubeComplex) noexcept
+    {
+        if (cubeComplex)
+            this->infoPhysics.lsCubeComplex.push_back(cubeComplex);
+    }
+
+    void MESH_MBM::appendPhysicsTriangle(TRIANGLE *triangle) noexcept
+    {
+        if (triangle)
+            this->infoPhysics.lsTriangle.push_back(triangle);
+    }
+
+    util::INFO_ANIMATION & MESH_MBM::getAnimationInfo() noexcept
+    {
+        return this->infoAnimation;
+    }
+
+    const util::INFO_ANIMATION & MESH_MBM::getAnimationInfo() const noexcept
+    {
+        return this->infoAnimation;
+    }
+
+    uint32_t MESH_MBM::getTotalAnimations() const noexcept
+    {
+        return static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size());
+    }
+
+    util::INFO_ANIMATION::INFO_HEADER_ANIM * MESH_MBM::getAnimationHeader(const uint32_t index) const noexcept
+    {
+        if (index < this->infoAnimation.lsHeaderAnim.size())
+            return this->infoAnimation.lsHeaderAnim[index];
+        return nullptr;
+    }
     
     MESH_MBM::~MESH_MBM()
     {
@@ -4498,7 +4750,7 @@ namespace mbm
                                     else
                                     {
                                         lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                                 else
@@ -4587,7 +4839,7 @@ namespace mbm
                                             {
                                                 lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
                                                 lsHasColorKeying.push_back(
-                                                    buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1 : 0);
+                                                    buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1 : 0);
                                             }
                                             else
                                             {
@@ -4630,7 +4882,7 @@ namespace mbm
                                     else
                                     {
                                         lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                                 else
@@ -4646,7 +4898,7 @@ namespace mbm
                                     else
                                     {
                                         lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                             }
@@ -5010,18 +5262,18 @@ namespace mbm
         if(mesh)
             return mesh;
         mesh = new MESH_MBM();
-        std::vector<stbtt_aligned_quad *> lsStbFont;
-        std::vector<VEC2>                 lsWidthLetter;
+        std::vector<FONT_GLYPH_QUAD> lsGlyphQuad;
+        std::vector<VEC2>            lsWidthLetter;
 
-        TEXTURE *texture = TEXTURE_MANAGER::getInstance()->loadTTF(fileNameTtf, &lsStbFont, &lsWidthLetter, heightLetter,saveTextureAsPng);
-        if (texture == nullptr || lsStbFont.size() < 30)
+        TEXTURE *texture = TEXTURE_MANAGER::getInstance()->loadTTF(fileNameTtf, &lsGlyphQuad, &lsWidthLetter, heightLetter,saveTextureAsPng);
+        if (texture == nullptr || lsGlyphQuad.size() < 30)
         {
             delete mesh;
             return nullptr;
         }
         if(texture_loaded != nullptr)
             *texture_loaded = texture;
-        auto tTotalSTB = static_cast<uint32_t>(lsStbFont.size() - 30);
+        auto tTotalSTB = static_cast<uint32_t>(lsGlyphQuad.size() - 30);
         VEC3         pPosition[4];
         VEC3*        pNormal = nullptr; // no normal for font, only position and texture
         VEC2         pTexture[4];
@@ -5056,10 +5308,10 @@ namespace mbm
             lsWidthLetter['\t'].y  = lsWidthLetter['M'].y * 4.0f;
         }
         
-        for (uint32_t i = 30, index = 0; i < lsStbFont.size(); ++i)
+        for (uint32_t i = 30, index = 0; i < lsGlyphQuad.size(); ++i)
         {
-            stbtt_aligned_quad *q = lsStbFont[i];
-            if (q)
+            const FONT_GLYPH_QUAD &q = lsGlyphQuad[i];
+            if (q.valid)
             {
                 const float y  = lsWidthLetter[i].y;
                 float       dy = (middleHeight - y) * 0.5f;
@@ -5120,14 +5372,14 @@ namespace mbm
                 }
                 fillvertexQuadTrueFont(pPosition, lsWidthLetter[i].x, y, dy);
 
-                pTexture[0].x = q->s0;
-                pTexture[0].y = q->t1;
-                pTexture[1].x = q->s0;
-                pTexture[1].y = q->t0;
-                pTexture[2].x = q->s1;
-                pTexture[2].y = q->t1;
-                pTexture[3].x = q->s1;
-                pTexture[3].y = q->t0;
+                pTexture[0].x = q.s0;
+                pTexture[0].y = q.t1;
+                pTexture[1].x = q.s0;
+                pTexture[1].y = q.t0;
+                pTexture[2].x = q.s1;
+                pTexture[2].y = q.t1;
+                pTexture[3].x = q.s1;
+                pTexture[3].y = q.t0;
 
                 mesh->buffer[index].pBufferGL            = new BUFFER_GL();
                 mesh->buffer[index].subset               = new util::SUBSET[1];
@@ -5154,19 +5406,9 @@ namespace mbm
                     PRINT_IF_DEBUG( "error on load buffer bufferTriangleList [%s]", fileNameTtf);
                     delete mesh;
                     mesh = nullptr;
-                    for(auto qq : lsStbFont)
-                    {
-                        if(qq)
-                            delete qq;
-                    }
                     break;
                 }
             }
-        }
-        for (auto q : lsStbFont)
-        {
-            if (q)
-                delete q;
         }
         if (mesh)
         {
@@ -5430,12 +5672,13 @@ namespace mbm
         headerMain.magic = 0x010203ff;
         typeMe = meshMemory->getTypeMesh();
         // step 2: --------------------------------------------------------------------------------------------------
-        for (auto pCube : meshMemory->infoPhysics.lsCube)
+        const INFO_PHYSICS &meshPhysics = meshMemory->getPhysicsInfo();
+        for (auto pCube : meshPhysics.lsCube)
         {
             auto cube = new CUBE(pCube->halfDim, pCube->absCenter);
             this->infoPhysics.lsCube.push_back(cube);
         }
-        for (auto pBase : meshMemory->infoPhysics.lsSphere)
+        for (auto pBase : meshPhysics.lsSphere)
         {
             auto base = new SPHERE();
             base->absCenter[0] = pBase->absCenter[0];
@@ -5444,14 +5687,14 @@ namespace mbm
             base->ray = pBase->ray;
             this->infoPhysics.lsSphere.push_back(base);
         }
-        for (auto pComplex : meshMemory->infoPhysics.lsCubeComplex)
+        for (auto pComplex : meshPhysics.lsCubeComplex)
         {
             auto complex = new CUBE_COMPLEX();
             for (int k = 0; k < 8; k++)
                 complex->p[k] = pComplex->p[k];
             this->infoPhysics.lsCubeComplex.push_back(complex);
         }
-        for (auto pTriangle : meshMemory->infoPhysics.lsTriangle)
+        for (auto pTriangle : meshPhysics.lsTriangle)
         {
             auto triangle = new TRIANGLE();
             triangle->point[0] = pTriangle->point[0];

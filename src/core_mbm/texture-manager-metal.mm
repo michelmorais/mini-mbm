@@ -35,7 +35,7 @@ namespace mbm
         }
         width           = 0;
         height          = 0;
-        useAlphaChannel = false;
+        this->setAlphaChannelEnabled(false);
     }
 
     bool TEXTURE::loadFromData(const uint8_t* data,
@@ -103,7 +103,7 @@ namespace mbm
         if (!tex) return false;
         this->width           = w;
         this->height          = h;
-        this->useAlphaChannel = (channel == 4 || hasAlpha);
+        this->setAlphaChannelEnabled(channel == 4 || hasAlpha);
         return true;
     }
 
@@ -130,7 +130,7 @@ namespace mbm
         setBackendTexturePointer((__bridge_retained void*)tex);
         this->width           = image->width;
         this->height          = image->height;
-        this->useAlphaChannel = true;
+        this->setAlphaChannelEnabled(true);
         return true;
     }
 
@@ -226,7 +226,7 @@ namespace mbm
             newTexture->setBackendTexturePointer((__bridge_retained void*)colorTex);
             newTexture->width           = static_cast<uint32_t>(tw);
             newTexture->height          = static_cast<uint32_t>(th);
-            newTexture->useAlphaChannel = enableAlpha;
+            newTexture->setAlphaChannelEnabled(enableAlpha);
             newTexture->fileName        = std::move(fileNameBase);
             cacheTexture(newTexture->fileName, newTexture);
         }

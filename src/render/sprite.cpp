@@ -62,9 +62,10 @@ namespace mbm
                 ERROR_LOG( "type of file is not sprite!\ntype: %s",MESH_MANAGER::typeClassName(type));
                 return false;
             }
-            for (unsigned int i = 0; i < this->mesh->infoAnimation.lsHeaderAnim.size(); ++i)
+            const uint32_t totalAnimations = this->mesh->getTotalAnimations();
+            for (uint32_t i = 0; i < totalAnimations; ++i)
             {
-                util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->infoAnimation.lsHeaderAnim[i];
+                util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->getAnimationHeader(i);
                 if (!this->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
                 {
                     this->release();
@@ -180,7 +181,7 @@ namespace mbm
     const mbm::INFO_PHYSICS * SPRITE::getInfoPhysics() const
     {
         if(this->mesh)
-            return &this->mesh->infoPhysics;
+            return &this->mesh->getPhysicsInfo();
         return nullptr;
     }
     
@@ -207,8 +208,8 @@ namespace mbm
         if (mesh)
         {
             BUFFER_MESH* buf = mesh->getBuffer(0);
-            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
-                return buf->pBufferGL->fvf;
+            if (buf && buf->hasLoadedRenderBuffer())
+                return buf->getRenderBuffer()->fvf;
         }
         return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }

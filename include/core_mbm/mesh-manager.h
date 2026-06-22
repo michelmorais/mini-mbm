@@ -55,6 +55,10 @@ namespace mbm
         constexpr BUFFER_MESH() noexcept;
         API_IMPL virtual ~BUFFER_MESH();
         API_IMPL void release();
+        API_IMPL BUFFER_GL *getRenderBuffer() const noexcept;
+        API_IMPL bool hasLoadedRenderBuffer() const noexcept;
+        API_IMPL uint32_t getTotalSubsets() const noexcept;
+        API_IMPL util::SUBSET *getSubset(const uint32_t indexSubset) const noexcept;
     };
 
     class MESH_MBM_DEBUG
@@ -89,8 +93,37 @@ namespace mbm
                                   std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut = nullptr);
         API_IMPL static const char* getValidExtension(const char* fileName,bool &isImage,bool &isMesh,bool &isUnknown);
         API_IMPL static std::string getExtension(const char* fileName);
+        API_IMPL util::TYPE_MESH getMeshType() const noexcept;
+        API_IMPL void setMeshType(const util::TYPE_MESH type) noexcept;
         API_IMPL util::TYPE_MESH getType() noexcept;
         API_IMPL util::TYPE_MESH getType(const char *fileNamePath);
+        API_IMPL VEC3 getAngleDefault() const noexcept;
+        API_IMPL void setAngleDefault(const VEC3 &angle) noexcept;
+        API_IMPL VEC3 getPositionOffset() const noexcept;
+        API_IMPL void setPositionOffset(const VEC3 &position) noexcept;
+        API_IMPL unsigned int getModeDraw() const noexcept;
+        API_IMPL void setModeDraw(const unsigned int modeDraw) noexcept;
+        API_IMPL unsigned int getModeCullFace() const noexcept;
+        API_IMPL void setModeCullFace(const unsigned int modeCullFace) noexcept;
+        API_IMPL unsigned int getModeFrontFaceDirection() const noexcept;
+        API_IMPL void setModeFrontFaceDirection(const unsigned int modeFrontFaceDirection) noexcept;
+        API_IMPL void * getDetailInfo() const noexcept;
+        API_IMPL void replaceDetailInfo(void *detailInfo) noexcept;
+        API_IMPL uint32_t getTotalAnimationHeaders() const noexcept;
+        API_IMPL util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnimationHeader(const uint32_t index) const noexcept;
+        API_IMPL void appendAnimationHeader(util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead) noexcept;
+        API_IMPL void clearBlendOperations() noexcept;
+        API_IMPL void resizeBlendOperations(const uint32_t totalAnimations);
+        API_IMPL void setBlendOperation(const uint32_t index, const int blendOperation);
+        API_IMPL uint32_t getTotalFrames() const noexcept;
+        API_IMPL util::BUFFER_MESH_DEBUG *getFrameBuffer(const uint32_t indexFrame) const noexcept;
+        API_IMPL uint32_t getTotalSubsets(const uint32_t indexFrame) const noexcept;
+        API_IMPL util::SUBSET_DEBUG *getSubset(const uint32_t indexFrame, const uint32_t indexSubset) const noexcept;
+        API_IMPL bool hasIndexBuffer(const uint32_t indexFrame) const noexcept;
+        API_IMPL VEC3 *getPositionArray(const uint32_t indexFrame) const noexcept;
+        API_IMPL VEC3 *getNormalArray(const uint32_t indexFrame) const noexcept;
+        API_IMPL VEC2 *getUvArray(const uint32_t indexFrame) const noexcept;
+        API_IMPL uint16_t *getIndexArray(const uint32_t indexFrame) const noexcept;
         API_IMPL void calculateNormals();
         API_IMPL void calculateUV();
         API_IMPL void removeNormals();
@@ -167,6 +200,17 @@ namespace mbm
         API_IMPL bool setTexture(const uint32_t indexFrame, const uint32_t indexSubset, const char *fileNameTexture,
                                const bool hasAlpha);
         API_IMPL const char *getFilenameMesh() const;
+        API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
+        API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
+        API_IMPL void resetPhysicsInfo();
+        API_IMPL void appendPhysicsCube(CUBE *cube) noexcept;
+        API_IMPL void appendPhysicsSphere(SPHERE *sphere) noexcept;
+        API_IMPL void appendPhysicsCubeComplex(CUBE_COMPLEX *cubeComplex) noexcept;
+        API_IMPL void appendPhysicsTriangle(TRIANGLE *triangle) noexcept;
+        API_IMPL util::INFO_ANIMATION &getAnimationInfo() noexcept;
+        API_IMPL const util::INFO_ANIMATION &getAnimationInfo() const noexcept;
+        API_IMPL uint32_t getTotalAnimations() const noexcept;
+        API_IMPL util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnimationHeader(const uint32_t index) const noexcept;
         API_IMPL virtual ~MESH_MBM();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();

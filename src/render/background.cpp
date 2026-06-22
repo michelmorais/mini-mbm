@@ -28,22 +28,36 @@
 
 namespace mbm
 {
+    struct BACKGROUND::Impl
+    {
+        MESH_MBM *mesh;
+        util::TYPE_MESH type;
+        TEXTURE *texture;
+        BUFFER_GL *buffer;
+        uint32_t lastIndexAnimation;
+        bool isFrontGround;
+
+        Impl() noexcept
+            : mesh(nullptr),
+              type(util::TYPE_MESH_UNKNOWN),
+              texture(nullptr),
+              buffer(nullptr),
+              lastIndexAnimation(0xffffffff),
+              isFrontGround(false)
+        {
+        }
+    };
 
     BACKGROUND::BACKGROUND(const SCENE *scene, const bool isBackGround3d)
-        : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_BACKGROUND, isBackGround3d, false)
+        : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_BACKGROUND, isBackGround3d, false),
+          impl(std::make_unique<Impl>())
     {
         this->isMajorScale      = true;
         this->howFar3d          = 800.0f;
         this->spaceXCharacter   = 0;
         this->spaceYCharacter   = 0;
-        this->buffer            = nullptr;
-        this->texture           = nullptr;
-        this->type              = util::TYPE_MESH_UNKNOWN;
-        this->mesh              = nullptr;
-        this->lasIndexAnimation = 0xffffffff;
         mbm::DEVICE* device     = mbm::DEVICE::getInstance();
         this->getPosition().z   = device->getOrderRender().getNextZOrderControl2dBackground();
-        this->isFrontGround     = false;
         device->addRenderizable(this);
     }
     
@@ -57,22 +71,22 @@ namespace mbm
     void BACKGROUND::release()
     {
         this->releaseAnimation();
-        if (this->buffer)
-            delete this->buffer;
-        this->buffer                = nullptr;
-        this->mesh                  = nullptr;
+        if (this->impl->buffer)
+            delete this->impl->buffer;
+        this->impl->buffer          = nullptr;
+        this->impl->mesh            = nullptr;
         this->setIndexAnimation(0);
         this->text.clear();
     }
     
     const char * BACKGROUND::getFileName()
     {
-        switch (this->type)
+        switch (this->impl->type)
         {
             case util::TYPE_MESH_TEXTURE:
             {
-                if (this->texture)
-                    return this->texture->getFileNameTexture();
+                if (this->impl->texture)
+                    return this->impl->texture->getFileNameTexture();
             }
             break;
             case util::TYPE_MESH_FONT:
@@ -80,8 +94,8 @@ namespace mbm
             case util::TYPE_MESH_TILE_MAP:
             case util::TYPE_MESH_3D:
             {
-                if (this->mesh)
-                    return this->mesh->getFilenameMesh();
+                if (this->impl->mesh)
+                    return this->impl->mesh->getFilenameMesh();
             }
             break;
             default: { return nullptr;
@@ -112,12 +126,12 @@ namespace mbm
     
     util::TYPE_MESH BACKGROUND::getType() const
     {
-        return this->type;
+        return this->impl->type;
     }
     
     TEXTURE * BACKGROUND::getTexture() const
     {
-        return this->texture;
+        return this->impl->texture;
     }
 
     bool BACKGROUND::onRestoreDevice()
@@ -141,8 +155,8 @@ namespace mbm
             if ((lsresult[lsresult.size() - 1].compare("mbm") == 0) ||
                 (lsresult[lsresult.size() - 1].compare("MBM") == 0))
             {
-                this->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
-                if (this->mesh == nullptr)
+                this->impl->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
+                if (this->impl->mesh == nullptr)
                     return false;
             }
             else // Textura
@@ -155,10 +169,11 @@ namespace mbm
             if (!this->setScale(this->isMajorScale))
                 return false;
             // adicionamos as animações
-            for (unsigned int i = 0; i < this->mesh->infoAnimation.lsHeaderAnim.size(); ++i)
+            const uint32_t totalAnimations = this->impl->mesh->getTotalAnimations();
+            for (uint32_t i = 0; i < totalAnimations; ++i)
             {
-                util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->mesh->infoAnimation.lsHeaderAnim[i];
-                if (!this->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
+                util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->impl->mesh->getAnimationHeader(i);
+                if (!this->populateAnimationFromHeader(this->impl->mesh, header->headerAnim, i))
                 {
                     this->release();
                     PRINT_IF_DEBUG("error on add animation!!");
@@ -166,7 +181,7 @@ namespace mbm
                 }
             }
             // carregamos a textura do estagio 2
-            this->populateTextureStage2FromMesh(this->mesh);
+            this->populateTextureStage2FromMesh(this->impl->mesh);
             if (isFont && this->text.size() == 0)
             {
                 this->text = result[2];
@@ -185,10 +200,10 @@ namespace mbm
                 return false;
             const char* fileName = result[1].c_str();
             const bool  alpha_color = result[2].compare("1") == 0;
-            if (this->buffer)
-                delete this->buffer;
-            this->buffer = nullptr;
-            this->texture = nullptr;
+            if (this->impl->buffer)
+                delete this->impl->buffer;
+            this->impl->buffer = nullptr;
+            this->impl->texture = nullptr;
 #if defined DEBUG
             PRINT_INFO_IF_DEBUG("background [%s] successfully restored", log_util::basename(fileName));
 #endif
@@ -205,13 +220,13 @@ namespace mbm
     
     void BACKGROUND::setFrontGround(const bool enable)
     {
-        this->isFrontGround = enable;
+        this->impl->isFrontGround = enable;
         this->setScale(this->isMajorScale);
     }
     
     bool BACKGROUND::load(const char *fileName, const bool hasAlpha , const bool majorScale)
     {
-        if (this->mesh || this->texture)
+        if (this->impl->mesh || this->impl->texture)
             return true;
         if (fileName == nullptr)
             return false;
@@ -223,18 +238,19 @@ namespace mbm
             (lsresult[lsresult.size() - 1].compare("spt") == 0) ||
             (lsresult[lsresult.size() - 1].compare("msh") == 0))
         {
-            this->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
-            if (this->mesh == nullptr)
+            this->impl->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
+            if (this->impl->mesh == nullptr)
                 return false;
-            this->type = this->mesh->getTypeMesh();
+            this->impl->type = this->impl->mesh->getTypeMesh();
             if (!this->setScale(majorScale))
                 return false;
 
             // adicionamos as animações
-            for (unsigned int i = 0; i < this->mesh->infoAnimation.lsHeaderAnim.size(); ++i)
+            const uint32_t totalAnimations = this->impl->mesh->getTotalAnimations();
+            for (uint32_t i = 0; i < totalAnimations; ++i)
             {
-                util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->mesh->infoAnimation.lsHeaderAnim[i];
-                if (!this->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
+                util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->impl->mesh->getAnimationHeader(i);
+                if (!this->populateAnimationFromHeader(this->impl->mesh, header->headerAnim, i))
                 {
                     this->release();
                     PRINT_IF_DEBUG("error on add animation!!");
@@ -242,7 +258,7 @@ namespace mbm
                 }
             }
             // carregamos a textura do estagio 2
-            this->populateTextureStage2FromMesh(this->mesh);
+            this->populateTextureStage2FromMesh(this->impl->mesh);
             this->restartAnimation();
             std::string restoreFileName = "load|";
             restoreFileName += fileName;
@@ -252,29 +268,29 @@ namespace mbm
         }
         else // Textura
         {
-            if (this->buffer)
-                delete this->buffer;
-            this->buffer                  = nullptr;
+            if (this->impl->buffer)
+                delete this->impl->buffer;
+            this->impl->buffer            = nullptr;
             int                indexStart = 0;
             int                indexCount = 6;
             VEC3            _position[4];
             VEC2            uv[4];
             unsigned short int index[6] = {0, 1, 2, 2, 1, 3};
-            this->texture               = TEXTURE_MANAGER::getInstance()->load(fileName, hasAlpha);
-            if (this->texture == nullptr)
+            this->impl->texture         = TEXTURE_MANAGER::getInstance()->load(fileName, hasAlpha);
+            if (this->impl->texture == nullptr)
                 return false;
-            this->buffer = new BUFFER_GL();
-            mbm::fillVertexQuadTexture(_position, uv, static_cast<float>(this->texture->getWidth()),
-                                     static_cast<float>(this->texture->getHeight()));
-            this->bound.halfDim.x = static_cast<float>(this->texture->getWidth()) * 0.5f;
-            this->bound.halfDim.y = static_cast<float>(this->texture->getHeight()) * 0.5f;
-            const bool ret = this->buffer->loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+            this->impl->buffer = new BUFFER_GL();
+            mbm::fillVertexQuadTexture(_position, uv, static_cast<float>(this->impl->texture->getWidth()),
+                                     static_cast<float>(this->impl->texture->getHeight()));
+            this->bound.halfDim.x = static_cast<float>(this->impl->texture->getWidth()) * 0.5f;
+            this->bound.halfDim.y = static_cast<float>(this->impl->texture->getHeight()) * 0.5f;
+            const bool ret = this->impl->buffer->loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
             if (ret == false)
                 return false;
 			this->addAnimation();
-            this->buffer->setTextureByStage(this->texture, 0, 0);
-            bool useAlpha  = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
-            this->type     = util::TYPE_MESH_TEXTURE;
+            this->impl->buffer->setTextureByStage(this->impl->texture, 0, 0);
+            bool useAlpha  = this->impl->texture ? (this->impl->texture->hasAlphaChannel() ? 1 : 0) : 0;
+            this->impl->type = util::TYPE_MESH_TEXTURE;
             std::string restoreFileName = "loadTexture|";
             restoreFileName += fileName;
             if (useAlpha)
@@ -290,16 +306,16 @@ namespace mbm
     
     bool BACKGROUND::setTexture(const MESH_MBM *_mesh,const char *fileNametexture, const unsigned int stage, const bool hasAlpha)
     {
-        if (this->type == util::TYPE_MESH_TEXTURE)
+        if (this->impl->type == util::TYPE_MESH_TEXTURE)
         {
             if (stage == 0)
             {
                 mbm::TEXTURE *newTex = mbm::TEXTURE_MANAGER::getInstance()->load(fileNametexture, hasAlpha);
                 if (newTex)
                 {
-                    this->texture = newTex;
-                    if (this->buffer)
-                        this->buffer->setTextureByStage(newTex, stage, 0);
+                    this->impl->texture = newTex;
+                    if (this->impl->buffer)
+                        this->impl->buffer->setTextureByStage(newTex, stage, 0);
                     return true;
                 }
             }
@@ -323,10 +339,10 @@ namespace mbm
     
     bool BACKGROUND::isOnFrustum()
     {
-        if (this->type == util::TYPE_MESH_UNKNOWN)
+        if (this->impl->type == util::TYPE_MESH_UNKNOWN)
             return false;
         const uint32_t indexAnimation = this->getIndexAnimation();
-        if (this->lasIndexAnimation != indexAnimation)
+        if (this->impl->lastIndexAnimation != indexAnimation)
         {
             if (!this->setScale(this->isMajorScale))
                 return false;
@@ -339,7 +355,7 @@ namespace mbm
         VEC3 &position = this->getPosition();
         if (this->is3DObject())
         {
-            if (this->isFrontGround)
+            if (this->impl->isFrontGround)
                 device->transformeScreen2dToWorld3d_scaled(w, h, &position, 60);
             else
                 device->transformeScreen2dToWorld3d_scaled(w, h, &position, this->howFar3d);
@@ -374,7 +390,7 @@ namespace mbm
         VEC3 &angle = this->getAngle();
         VEC3 &scale = this->getScale();
         const bool is3dObject = this->is3DObject();
-        switch (this->type)
+        switch (this->impl->type)
         {
             case util::TYPE_MESH_TEXTURE:
             {
@@ -394,8 +410,8 @@ namespace mbm
                 fx.setBlendOp();
 
                 if (fx.textureOverrideStage2)
-                    this->buffer->setTextureByStage(fx.textureOverrideStage2, 1, 0);
-                if (!fx.shader.render(this->buffer))
+                    this->impl->buffer->setTextureByStage(fx.textureOverrideStage2, 1, 0);
+                if (!fx.shader.render(this->impl->buffer))
                     return false;
                 return true;
             }
@@ -422,13 +438,13 @@ namespace mbm
                 fx.setBlendOp();
                 if (fx.textureOverrideStage2)
                 {
-                    if (!this->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
+                    if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
                                             fx.textureOverrideStage2, this))
                         return false;
                 }
                 else
                 {
-                    if (!this->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0,
+                    if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0,
                                             this))
                         return false;
                 }
@@ -451,13 +467,13 @@ namespace mbm
                 fx.setBlendOp();
                 if (fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
+                    if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
                                       fx.textureOverrideStage2, this))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader, nullptr,
+                    if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader, nullptr,
                                       this))
                         return false;
                 }
@@ -475,7 +491,7 @@ namespace mbm
                     MatrixTranslationRotationScale(&SHADER::modelView, &posTemp2d, &angle, &scale);
                 this->setBlendState(animation->getBlendState());
                 float curWidthLetter = 0;
-                const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
+                const INFO_BOUND_FONT * infoFont = this->impl->mesh->getInfoFont();
                 if(infoFont == nullptr)
                     return false;
                 for (unsigned int i = 0; i < s; ++i)
@@ -523,7 +539,7 @@ namespace mbm
                             util::DETAIL_LETTER *detail = infoFont->letter[index].detail;
                             if (detail) // existe esta letra nesta fonte?
                             {
-                                BUFFER_MESH *frame = this->mesh->getBuffer(detail->indexFrame);
+                                BUFFER_MESH *frame = this->impl->mesh->getBuffer(detail->indexFrame);
                                 if (frame)
                                 {
                                     curWidthLetter = static_cast<float>(detail->widthLetter) * 0.5f;
@@ -538,13 +554,13 @@ namespace mbm
                                     fx.setBlendOp();
                                     if (fx.textureOverrideStage2)
                                     {
-                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame),
+                                        if (!this->impl->mesh->render(static_cast<unsigned int>(detail->indexFrame),
                                                                 &fx.shader,fx.textureOverrideStage2, this))
                                             return false;
                                     }
                                     else
                                     {
-                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame),
+                                        if (!this->impl->mesh->render(static_cast<unsigned int>(detail->indexFrame),
                                                                 &fx.shader, nullptr, this))
                                             return false;
                                     }
@@ -566,7 +582,7 @@ namespace mbm
     bool BACKGROUND::setScale(const bool majorScale)
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        switch (this->type)
+        switch (this->impl->type)
         {
             // Aqui buscamos preencher baseado no maior bounding box que representa o objeto como todo.
             // Isso porque sempre vamos renderizar o objeto então só precisamos de sua maior dimensão como todo (um simple
@@ -576,29 +592,30 @@ namespace mbm
             
             case util::TYPE_MESH_3D:
             {
-                if (mesh == nullptr)
+                if (this->impl->mesh == nullptr)
                     return false;
                 unsigned int index = 0;
                 const uint32_t indexAnimation = this->getIndexAnimation();
-                if (mesh->infoPhysics.lsCube.size())
+                const INFO_PHYSICS &physicsInfo = this->impl->mesh->getPhysicsInfo();
+                if (physicsInfo.lsCube.size())
                 {
-                    if (indexAnimation < mesh->infoPhysics.lsCube.size())
+                    if (indexAnimation < physicsInfo.lsCube.size())
                         index = indexAnimation;
-                    if (index < mesh->infoPhysics.lsCube.size())
+                    if (index < physicsInfo.lsCube.size())
                     {
-                        CUBE *cube            = mesh->infoPhysics.lsCube[index];
+                        CUBE *cube            = physicsInfo.lsCube[index];
                         this->bound.halfDim.x = cube->halfDim.x;
                         this->bound.halfDim.y = cube->halfDim.y;
                         this->bound.halfDim.z = cube->halfDim.z;
                     }
                 }
-                else if (mesh->infoPhysics.lsSphere.size())
+                else if (physicsInfo.lsSphere.size())
                 {
-                    if (indexAnimation < mesh->infoPhysics.lsSphere.size())
+                    if (indexAnimation < physicsInfo.lsSphere.size())
                         index = indexAnimation;
-                    if (index < mesh->infoPhysics.lsSphere.size())
+                    if (index < physicsInfo.lsSphere.size())
                     {
-                        mbm::SPHERE *sphere   = mesh->infoPhysics.lsSphere[index];
+                        mbm::SPHERE *sphere   = physicsInfo.lsSphere[index];
                         this->bound.halfDim.x = sphere->ray;
                         this->bound.halfDim.y = sphere->ray;
                         this->bound.halfDim.z = sphere->ray;
@@ -610,9 +627,9 @@ namespace mbm
             
             case util::TYPE_MESH_FONT:
             {
-                if (mesh == nullptr)
+                if (this->impl->mesh == nullptr)
                     return false;
-                const INFO_BOUND_FONT* infoFont = mesh->getInfoFont();
+                const INFO_BOUND_FONT* infoFont = this->impl->mesh->getInfoFont();
                 if(infoFont == nullptr)
                     return false;
                 for (auto & i : infoFont->letter)
@@ -644,7 +661,7 @@ namespace mbm
             break;
             case util::TYPE_MESH_SPRITE:
             {
-                if (mesh == nullptr)
+                if (this->impl->mesh == nullptr)
                     return false;
                 unsigned int index = 0;
                 // this->bound.halfDim.z    =   1.0f;
@@ -712,25 +729,25 @@ namespace mbm
             
             case util::TYPE_MESH_TEXTURE:
             {
-                if (this->texture == nullptr)
+                if (this->impl->texture == nullptr)
                     return false;
-                this->bound.halfDim.x = static_cast<float>(this->texture->getWidth()) * 0.5f;
-                this->bound.halfDim.y = static_cast<float>(this->texture->getHeight()) * 0.5f;
+                this->bound.halfDim.x = static_cast<float>(this->impl->texture->getWidth()) * 0.5f;
+                this->bound.halfDim.y = static_cast<float>(this->impl->texture->getHeight()) * 0.5f;
             }
             break;
             case util::TYPE_MESH_UNKNOWN: { return false;}
             default: { return false;}
                 
         }
-        this->lasIndexAnimation = this->getIndexAnimation();
+        this->impl->lastIndexAnimation = this->getIndexAnimation();
         VEC3 &scale = this->getScale();
         if (this->is3DObject())
         {
             VEC3 dimNear, dimFar;
             device->getDimFromFrustum(&dimNear, &dimFar);
 
-            const float percX = (this->isFrontGround ? dimNear.x : dimFar.x) / (this->bound.halfDim.x * 2.0f);
-            const float percY = (this->isFrontGround ? dimNear.y : dimFar.y) / (this->bound.halfDim.y * 2.0f);
+            const float percX = (this->impl->isFrontGround ? dimNear.x : dimFar.x) / (this->bound.halfDim.x * 2.0f);
+            const float percY = (this->impl->isFrontGround ? dimNear.y : dimFar.y) / (this->bound.halfDim.y * 2.0f);
             if (majorScale)
             {
                 if (percX >= percY)
@@ -797,21 +814,21 @@ namespace mbm
     
     FVF_PROVIDE_BY_ENGINE BACKGROUND::getFvfFromBuffer() const noexcept
     {
-        return (buffer && buffer->isLoadedBuffer()) ? buffer->fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+        return (this->impl->buffer && this->impl->buffer->isLoadedBuffer()) ? this->impl->buffer->fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     const mbm::INFO_PHYSICS * BACKGROUND::getInfoPhysics() const 
     {
-        if (this->mesh)
-            return &this->mesh->infoPhysics;
+        if (this->impl->mesh)
+            return &this->impl->mesh->getPhysicsInfo();
         return nullptr;
     }
     
     const MESH_MBM * BACKGROUND::getMesh() const 
     {
-        if (this->type == util::TYPE_MESH_TEXTURE)
+        if (this->impl->type == util::TYPE_MESH_TEXTURE)
             return nullptr;
-        return this->mesh;
+        return this->impl->mesh;
     }
 
     FX*  BACKGROUND::getFx()const
@@ -829,7 +846,7 @@ namespace mbm
     
     bool BACKGROUND::isLoaded() const 
     {
-        return this->mesh != nullptr || this->texture != nullptr;
+        return this->impl->mesh != nullptr || this->impl->texture != nullptr;
     }
 
 };

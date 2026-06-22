@@ -90,7 +90,7 @@ namespace mbm
         TEXTURE_INFO_DATA *data = getTextureInfoDataFromRawTable(lua, 1, 1);
         TEXTURE *texture = data ? data->getTexture() : nullptr;
         if (texture)
-            lua_pushboolean(lua, texture->useAlphaChannel);
+            lua_pushboolean(lua, texture->hasAlphaChannel());
         else
             lua_pushboolean(lua, 0);
         return 1;
@@ -168,7 +168,7 @@ namespace mbm
                 data->fileName.c_str(),
                 texture->getWidth(), 
                 texture->getHeight(),
-                texture->useAlphaChannel ? "true" : "false");
+                texture->hasAlphaChannel() ? "true" : "false");
         }
         else if (data && !data->fileName.empty())
             lua_pushfstring(lua, "TextureInfo: %s (invalid/released)", data->fileName.c_str());
@@ -210,7 +210,7 @@ namespace mbm
         lua_setmetatable(lua, -2);
 
         auto **udata = static_cast<TEXTURE_INFO_DATA **>(lua_newuserdata(lua, sizeof(TEXTURE_INFO_DATA *)));
-        *udata = new TEXTURE_INFO_DATA(fileName, texture->useAlphaChannel);
+        *udata = new TEXTURE_INFO_DATA(fileName, texture->hasAlphaChannel());
 
         /* trick to ensure that we will receive the expected metatable type. */
         const char *__userdata_name = getUserTypeAsString(L_USER_TYPE_TEXTURE_INFO);

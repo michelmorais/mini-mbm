@@ -181,11 +181,11 @@ namespace mbm
                 {
                     const char* align = luaL_checkstring(lua,3);
                     if(strcmp(align,"center") == 0)
-                        draw->aligned = ALIGN_CENTER;
+                        draw->setAligned(ALIGN_CENTER);
                     else if(strcmp(align,"right") == 0)
-                        draw->aligned = ALIGN_RIGHT;
+                        draw->setAligned(ALIGN_RIGHT);
                     else if(strcmp(align,"left") == 0)
-                        draw->aligned = ALIGN_LEFT;
+                        draw->setAligned(ALIGN_LEFT);
                 }
                 else
                     return setVariable(lua, draw, what);
@@ -287,7 +287,7 @@ namespace mbm
             {
                 if (strcmp("align", what) == 0)
                 {
-                    switch(draw->aligned)
+                    switch(draw->getAligned())
                     {
                         case ALIGN_LEFT:
                         {
@@ -541,7 +541,7 @@ namespace mbm
                 for (unsigned int i=0; i< s; ++i)
                 {
                     TEXT_DRAW* text =  font->getText(static_cast<char>(i));
-                    text->spaceXCharacter = v;
+                    text->setSpaceXCharacter(static_cast<float>(v));
                 }
                 lua_pushboolean(lua,1);
             }
@@ -551,7 +551,7 @@ namespace mbm
                 for (unsigned int i=0; i< s; ++i)
                 {
                     TEXT_DRAW* text =  font->getText(static_cast<char>(i));
-                    text->spaceYCharacter = v;
+                    text->setSpaceYCharacter(static_cast<float>(v));
                 }
                 lua_pushboolean(lua,1);
             }

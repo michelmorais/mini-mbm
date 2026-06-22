@@ -26,6 +26,7 @@
 #include <core_mbm/renderizable.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
+#include <memory>
 
 namespace mbm
 {
@@ -62,10 +63,9 @@ namespace mbm
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;
-    
-        INFO_PHYSICS infoPhysics;
-        TEXTURE *    texture;
-        BUFFER_GL    bufferGL;
+
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 }
 

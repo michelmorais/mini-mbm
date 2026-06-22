@@ -26,13 +26,23 @@
 #include <vector>
 #include <memory>
 
-#include <stb/stb-interface.h>
-
 namespace mbm
 {
     class RENDERIZABLE_TO_TARGET;
     struct IMAGE_RESOURCE;
     enum TEXTURE_ROLE : uint8_t;
+    struct FONT_GLYPH_QUAD
+    {
+        float x0 = 0.0f;
+        float y0 = 0.0f;
+        float s0 = 0.0f;
+        float t0 = 0.0f;
+        float x1 = 0.0f;
+        float y1 = 0.0f;
+        float s1 = 0.0f;
+        float t1 = 0.0f;
+        bool valid = false;
+    };
 
     class TEXTURE
     {
@@ -44,7 +54,7 @@ namespace mbm
         API_IMPL virtual ~TEXTURE();
         API_IMPL void release();
         API_IMPL const char *getFileNameTexture() const noexcept;
-        API_IMPL bool loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng);
+        API_IMPL bool loadTTF(const char *fileNameTTF, std::vector<FONT_GLYPH_QUAD> *lsGlyphQuadOut,std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng);
         API_IMPL bool load(const char *fileNameTexture, const bool hasColorAlpha);
 		API_IMPL bool loadSolidColor(const char* colorAsString, const bool hasColorAlpha);
         API_IMPL uint32_t getWidth()const noexcept;
@@ -55,6 +65,8 @@ namespace mbm
         API_IMPL void * getBackendTexturePointer() const noexcept;
         API_IMPL void setBackendTexturePointer(void *texturePointer) noexcept;
         API_IMPL void ** getBackendTexturePointerAddress() noexcept;
+        API_IMPL bool hasAlphaChannel() const noexcept;
+        API_IMPL void setAlphaChannelEnabled(const bool enabled) noexcept;
         API_IMPL static void EnablePixelPerfectTexture(bool value) noexcept;
 
         bool     useAlphaChannel;
@@ -101,7 +113,7 @@ namespace mbm
                              const char *nickName, const uint16_t depth, const uint16_t channel,
                              const bool hasAlpha);
         API_IMPL TEXTURE *load(const char *fileName, const bool hasAlpha);
-        API_IMPL TEXTURE *loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
+        API_IMPL TEXTURE *loadTTF(const char *fileNameTTF, std::vector<FONT_GLYPH_QUAD> *lsGlyphQuadOut,
                          std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng);
         API_IMPL bool loadGIF(const char *fileNameGIF,INFO_GIF & infoGif);
         API_IMPL bool existTexture(const char *fileNametexture);

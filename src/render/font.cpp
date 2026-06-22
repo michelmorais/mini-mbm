@@ -42,7 +42,7 @@ namespace mbm
     void TEXT_DRAW::release()
     {
         this->releaseAnimation();
-        this->mesh                  = nullptr;
+        this->setFontMesh(nullptr);
         this->setIndexAnimation(0);
         this->wildCardChangeAnim      = 0;
     }
@@ -52,9 +52,8 @@ namespace mbm
     {
         this->widthFirstLetter      = 0;
         this->setIndexAnimation(0);
-        this->mesh                  = nullptr;
-        this->onRestoreFont         = ptrOnRestoreFont;
-        this->parentFONT_DRAW       = _parentFONT_DRAW;
+        this->setFontMesh(nullptr);
+        this->setRestoreFontContext(ptrOnRestoreFont, _parentFONT_DRAW);
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
@@ -74,9 +73,8 @@ namespace mbm
     {
         this->widthFirstLetter      = 0;
         this->setIndexAnimation(0);
-        this->mesh                  = nullptr;
-        this->onRestoreFont         = ptrOnRestoreFont;
-        this->parentFONT_DRAW       = _parentFONT_DRAW;
+        this->setFontMesh(nullptr);
+        this->setRestoreFontContext(ptrOnRestoreFont, _parentFONT_DRAW);
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
@@ -100,9 +98,8 @@ namespace mbm
         this->widthFirstLetter      = 0;
         this->setPosition(position);
         this->setIndexAnimation(0);
-        this->mesh                  = nullptr;
-        this->onRestoreFont         = ptrOnRestoreFont;
-        this->parentFONT_DRAW       = _parentFONT_DRAW;
+        this->setFontMesh(nullptr);
+        this->setRestoreFontContext(ptrOnRestoreFont, _parentFONT_DRAW);
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
@@ -128,7 +125,7 @@ namespace mbm
         textPosition.x              = position.x;
         textPosition.y              = position.y;
         this->setIndexAnimation(0);
-        this->mesh                  = nullptr;
+        this->setFontMesh(nullptr);
         this->beginText             = VEC2(0, 0);
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
@@ -140,8 +137,7 @@ namespace mbm
             this->text = newText;
         else
             this->text        = "Hello Font!";
-        this->onRestoreFont   = ptrOnRestoreFont;
-        this->parentFONT_DRAW = _parentFONT_DRAW;
+        this->setRestoreFontContext(ptrOnRestoreFont, _parentFONT_DRAW);
         this->aabbMin         = VEC2(0, 0);
         this->aabbMax         = VEC2(0, 0);
         device->addRenderizable(this);
@@ -283,6 +279,47 @@ namespace mbm
     {
         return this->text;
     }
+
+    void TEXT_DRAW::setAligned(const ALIGNED newAligned) noexcept
+    {
+        this->aligned = newAligned;
+    }
+
+    ALIGNED TEXT_DRAW::getAligned() const noexcept
+    {
+        return this->aligned;
+    }
+
+    void TEXT_DRAW::setSpaceXCharacter(const float newSpaceXCharacter) noexcept
+    {
+        this->spaceXCharacter = newSpaceXCharacter;
+    }
+
+    float TEXT_DRAW::getSpaceXCharacter() const noexcept
+    {
+        return this->spaceXCharacter;
+    }
+
+    void TEXT_DRAW::setSpaceYCharacter(const float newSpaceYCharacter) noexcept
+    {
+        this->spaceYCharacter = newSpaceYCharacter;
+    }
+
+    float TEXT_DRAW::getSpaceYCharacter() const noexcept
+    {
+        return this->spaceYCharacter;
+    }
+
+    void TEXT_DRAW::setFontMesh(MESH_MBM *newMesh) noexcept
+    {
+        this->mesh = newMesh;
+    }
+
+    void TEXT_DRAW::setRestoreFontContext(OnRestoreFont ptrOnRestoreFont, FONT_DRAW *parentFontDraw) noexcept
+    {
+        this->onRestoreFont = ptrOnRestoreFont;
+        this->parentFONT_DRAW = parentFontDraw;
+    }
     
     bool TEXT_DRAW::getWidthHeight(float *_width, float *_height, const bool ) const
     {
@@ -301,15 +338,16 @@ namespace mbm
         float w, h;
         if (this->getWidthHeight(&w, &h))
         {
+            INFO_PHYSICS &physicsInfo = this->mesh->getPhysicsInfo();
             mbm::CUBE *cube = nullptr;
-            if (this->mesh->infoPhysics.lsCube.size() == 0)
+            if (physicsInfo.lsCube.size() == 0)
             {
                 cube = new mbm::CUBE();
-                this->mesh->infoPhysics.lsCube.push_back(cube);
+                physicsInfo.lsCube.push_back(cube);
             }
             else
             {
-                cube = this->mesh->infoPhysics.lsCube[0];
+                cube = physicsInfo.lsCube[0];
             }
             const VEC3 &position = this->getPosition();
             VEC3 &boundingAABB = this->getBoundingAABB();
@@ -448,15 +486,16 @@ namespace mbm
             float h = 0.0f;
             if (this->getWidthHeight(&w, &h))
             {
+                INFO_PHYSICS &physicsInfo = this->mesh->getPhysicsInfo();
                 mbm::CUBE *cube = nullptr;
-                if (this->mesh->infoPhysics.lsCube.size() == 0)
+                if (physicsInfo.lsCube.size() == 0)
                 {
                     cube = new mbm::CUBE();
-                    this->mesh->infoPhysics.lsCube.push_back(cube);
+                    physicsInfo.lsCube.push_back(cube);
                 }
                 else
                 {
-                    cube = this->mesh->infoPhysics.lsCube[0];
+                    cube = physicsInfo.lsCube[0];
                 }
                 if (is2dScreen)
                 {
@@ -881,7 +920,7 @@ namespace mbm
     
     bool TEXT_DRAW::onRestoreDevice()
     {
-		this->mesh = nullptr; // it is ok to release the mesh here, because onRestoreFont will recreate it or get it from cache if exists more than once
+		this->setFontMesh(nullptr); // it is ok to release the mesh here, because onRestoreFont will recreate it or get it from cache if exists more than once
 		this->parentFONT_DRAW->onStop();// also release all texts meshes
         return this->onRestoreFont(this->parentFONT_DRAW, this);
     }
@@ -889,7 +928,7 @@ namespace mbm
     const mbm::INFO_PHYSICS * TEXT_DRAW::getInfoPhysics() const
     {
         if (this->mesh)
-            return &this->mesh->infoPhysics;
+            return &this->mesh->getPhysicsInfo();
         return nullptr;
     }
     
@@ -928,11 +967,13 @@ namespace mbm
                             mbm::BUFFER_MESH *buff = mesh->getBuffer(static_cast<unsigned int>(i));
                             if (buff)
                             {
-                                for (unsigned int j = 0; j < buff->totalSubset; ++j)
+                                BUFFER_GL *renderBuffer = buff->getRenderBuffer();
+                                const uint32_t totalSubsets = buff->getTotalSubsets();
+                                for (uint32_t j = 0; j < totalSubsets; ++j)
                                 {
-                                    util::SUBSET *subset           = &buff->subset[j];
+                                    util::SUBSET *subset           = buff->getSubset(j);
                                     subset->texture                = newTex;
-                                    buff->pBufferGL->setTextureByStage(newTex, 0, j);
+                                    renderBuffer->setTextureByStage(newTex, 0, j);
                                 }
                             }
                         }
@@ -963,8 +1004,8 @@ namespace mbm
         if (mesh)
         {
             BUFFER_MESH* buf = mesh->getBuffer(0);
-            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
-                return buf->pBufferGL->fvf;
+            if (buf && buf->hasLoadedRenderBuffer())
+                return buf->getRenderBuffer()->fvf;
         }
         return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
@@ -1004,8 +1045,7 @@ namespace mbm
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
-        boundingAABB.x = text->endText.x - text->beginText.x;
-        boundingAABB.y = text->beginText.y - text->endText.y;
+        text->getWidthHeight(&boundingAABB.x, &boundingAABB.y, false);
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1020,8 +1060,7 @@ namespace mbm
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
-        boundingAABB.x = text->endText.x - text->beginText.x;
-        boundingAABB.y = text->beginText.y - text->endText.y;
+        text->getWidthHeight(&boundingAABB.x, &boundingAABB.y, false);
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1037,8 +1076,7 @@ namespace mbm
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
-        boundingAABB.x = text->endText.x - text->beginText.x;
-        boundingAABB.y = text->beginText.y - text->endText.y;
+        text->getWidthHeight(&boundingAABB.x, &boundingAABB.y, false);
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1122,14 +1160,15 @@ namespace mbm
     {
         if (text == nullptr || this->mesh == nullptr)
             return;
-        text->mesh            = this->mesh;
+        text->setFontMesh(this->mesh);
         const INFO_BOUND_FONT * infoFont = mesh->getInfoFont();
-        text->spaceXCharacter = infoFont->spaceXCharacter;
-        text->spaceYCharacter = infoFont->spaceYCharacter;
+        text->setSpaceXCharacter(infoFont->spaceXCharacter);
+        text->setSpaceYCharacter(infoFont->spaceYCharacter);
         // adicionamos as animações
-        for (unsigned int i = 0; i < this->mesh->infoAnimation.lsHeaderAnim.size(); ++i)
+        const uint32_t totalAnimations = this->mesh->getTotalAnimations();
+        for (uint32_t i = 0; i < totalAnimations; ++i)
         {
-            util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->infoAnimation.lsHeaderAnim[i];
+            util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->getAnimationHeader(i);
             if (!text->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
             {
                 this->release();
@@ -1183,7 +1222,7 @@ namespace mbm
         }
         else
         {
-            whatText->mesh = this->mesh;
+            whatText->setFontMesh(this->mesh);
             return true;
         }
         return false;

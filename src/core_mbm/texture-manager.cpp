@@ -89,12 +89,22 @@ namespace mbm
         fileName[0]     = 0;
         width           = 0;
         height          = 0;
-        useAlphaChannel = false;
+        this->setAlphaChannelEnabled(false);
     }
 
     bool TEXTURE::isLoaded()const
     {
         return fileName[0] != 0;
+    }
+
+    bool TEXTURE::hasAlphaChannel() const noexcept
+    {
+        return this->useAlphaChannel;
+    }
+
+    void TEXTURE::setAlphaChannelEnabled(const bool enabled) noexcept
+    {
+        this->useAlphaChannel = enabled;
     }
     
     TEXTURE::~TEXTURE()
@@ -115,12 +125,12 @@ namespace mbm
         }
     };
 
-    bool TEXTURE::loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
+    bool TEXTURE::loadTTF(const char *fileNameTTF, std::vector<FONT_GLYPH_QUAD> *lsGlyphQuadOut,
                        std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng)
     {
         if (!fileNameTTF)
             return false;
-        this->useAlphaChannel = true;
+        this->setAlphaChannelEnabled(true);
         FILE *fp              = util::openFile(fileNameTTF, "rb");
         size_t   sFile        = 0;
         if (fp && util::getSizeFile(fp, &sFile))
@@ -220,17 +230,27 @@ namespace mbm
             fp = nullptr;
             if (ret)
             {
-                if (lsStbFontOut && lsWidthLetterOut)
+                if (lsGlyphQuadOut && lsWidthLetterOut)
                 {
-                    lsStbFontOut->resize(255);
+                    lsGlyphQuadOut->resize(255);
                     lsWidthLetterOut->resize(255);
                     for (int index = 0; index < 225; ++index)
                     {
                         float               x = 0, y = 0;
-                        auto q = new stbtt_aligned_quad();
-                        stbtt_GetBakedQuad(cdata, static_cast<int>(this->width),static_cast<int>(this->height), index, &x, &y, q,1); // 1=opengl & d3d10+,0=d3d9
+                        stbtt_aligned_quad q{};
+                        stbtt_GetBakedQuad(cdata, static_cast<int>(this->width),static_cast<int>(this->height), index, &x, &y, &q,1); // 1=opengl & d3d10+,0=d3d9
                         const VEC2 p(static_cast<float>(cdata[index].x1 - cdata[index].x0),static_cast<float>(cdata[index].y1 - cdata[index].y0));
-                        (*lsStbFontOut)[static_cast<std::vector<VEC2>::size_type>(index + 30)]      = q;
+                        FONT_GLYPH_QUAD glyphQuad;
+                        glyphQuad.x0 = q.x0;
+                        glyphQuad.y0 = q.y0;
+                        glyphQuad.s0 = q.s0;
+                        glyphQuad.t0 = q.t0;
+                        glyphQuad.x1 = q.x1;
+                        glyphQuad.y1 = q.y1;
+                        glyphQuad.s1 = q.s1;
+                        glyphQuad.t1 = q.t1;
+                        glyphQuad.valid = true;
+                        (*lsGlyphQuadOut)[static_cast<std::vector<VEC2>::size_type>(index + 30)] = glyphQuad;
                         (*lsWidthLetterOut)[ static_cast<std::vector<VEC2>::size_type>(index + 30)] = p;
                     }
                 }
@@ -313,7 +333,7 @@ namespace mbm
         if (!fileNameTexture)
             return false;
         this->release();
-        this->useAlphaChannel = true;
+        this->setAlphaChannelEnabled(true);
         if(fileNameTexture[0] == '#' )
             return loadSolidColor(fileNameTexture,hasColorAlpha);
         std::vector<std::string> result;
@@ -374,7 +394,7 @@ namespace mbm
                 this->width = resouce->width;
                 this->height = resouce->height;
                 this->fileName = fileNameTexture;
-                this->useAlphaChannel = true;
+                this->setAlphaChannelEnabled(true);
             }
             return resouce != nullptr;
         }
@@ -484,7 +504,7 @@ namespace mbm
                                             (static_cast<int>(pixels[2]) << 8 ) |
                                             (static_cast<int>(pixels[3])));
                 setBackendTextureId(textureId);
-                this->useAlphaChannel = (pixels[4] ? true : false) || hasAlpha;
+                this->setAlphaChannelEnabled((pixels[4] ? true : false) || hasAlpha);
                 PRINT_IF_DEBUG("texture generated externally!\n width:%u height:%u id:%d", this->width, this->height, getBackendTextureId());
                 delete[] pixels;
                 return true;
@@ -542,7 +562,7 @@ namespace mbm
         {
             texture->fileName = std::move(fileNameBase);
             cacheTexture(texture->fileName, texture);
-            texture->useAlphaChannel = true;
+            texture->setAlphaChannelEnabled(true);
         }
         else
         {
@@ -583,7 +603,7 @@ namespace mbm
             PRINT_IF_DEBUG("failed to load texture: %s.", nickName);
         }
         if (channel == 4 && texture)
-            texture->useAlphaChannel = true;
+            texture->setAlphaChannelEnabled(true);
         return texture;
     }
     
@@ -608,7 +628,7 @@ namespace mbm
         if (texture->loadFromData(data, width, height, depth, channel, hasAlpha))
         {
             texture->fileName = std::move(fileNameBase);
-            texture->useAlphaChannel = hasAlpha;
+            texture->setAlphaChannelEnabled(hasAlpha);
             cacheTexture(texture->fileName, texture);
         }
         else
@@ -632,7 +652,7 @@ namespace mbm
         if (texture->load(getFilePathTexture(fileNameBase.c_str(),fileName), hasAlpha))
         {
             texture->fileName = std::move(fileNameBase);
-            texture->useAlphaChannel = hasAlpha ? true : false;
+            texture->setAlphaChannelEnabled(hasAlpha ? true : false);
             cacheTexture(texture->fileName, texture);
         }
         else
@@ -643,7 +663,7 @@ namespace mbm
             if (texture)
             {
                 texture->fileName = std::move(fileNameBase);
-                texture->useAlphaChannel = hasAlpha ? true : false;
+                texture->setAlphaChannelEnabled(hasAlpha ? true : false);
                 cacheTexture(texture->fileName, texture);
             }
             else
@@ -730,7 +750,7 @@ namespace mbm
                     texture->fileName[len+1] = img[start+size];
                     texture->fileName[len+2] = img[start+size+1];
                     texture->fileName[len]   = 0;
-                    texture->useAlphaChannel = true;
+                    texture->setAlphaChannelEnabled(true);
                     cacheTexture(newNameGif, texture);
                     infoGif.fileNames.emplace_back(newNameGif);
                 }
@@ -749,8 +769,8 @@ namespace mbm
         return infoGif.totalFrames > 0;
     }
     
-    TEXTURE * TEXTURE_MANAGER::loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
-                     std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng)
+    TEXTURE * TEXTURE_MANAGER::loadTTF(const char *fileNameTTF, std::vector<FONT_GLYPH_QUAD> *lsGlyphQuadOut,
+                                    std::vector<VEC2> *lsWidthLetterOut, const float heightLetter,const bool saveAsPng)
     {
         std::string fileNameBase = util::getBaseName(fileNameTTF);
         std::string fileNameBaseSuppose(fileNameBase);
@@ -772,10 +792,10 @@ namespace mbm
         if (util::existFile(fileNameFullPath))
             fileNameTTF = fileNameFullPath;
         texture         = new TEXTURE();
-        if (texture->loadTTF(fileNameTTF, lsStbFontOut, lsWidthLetterOut, heightLetter,saveAsPng))
+        if (texture->loadTTF(fileNameTTF, lsGlyphQuadOut, lsWidthLetterOut, heightLetter,saveAsPng))
         {
             texture->fileName = std::move(fileNameBaseSuppose);
-            texture->useAlphaChannel = true;
+            texture->setAlphaChannelEnabled(true);
             cacheTexture(texture->fileName, texture);
         }
         else
