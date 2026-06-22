@@ -985,9 +985,10 @@ namespace mbm
     void ANIMATION_MANAGER::populateTextureStage2FromMesh(MESH_MBM *mesh)
     {
         TEXTURE_MANAGER *texMan = TEXTURE_MANAGER::getInstance();
-        for (std::vector<util::INFO_ANIMATION::INFO_HEADER_ANIM *>::size_type i = 0; i < mesh->infoAnimation.lsHeaderAnim.size(); ++i)
+        const uint32_t totalAnimations = mesh->getTotalAnimations();
+        for (uint32_t i = 0; i < totalAnimations; ++i)
         {
-            util::INFO_ANIMATION::INFO_HEADER_ANIM * infoHead = mesh->infoAnimation.lsHeaderAnim[i];
+            util::INFO_ANIMATION::INFO_HEADER_ANIM * infoHead = mesh->getAnimationHeader(i);
             if(infoHead->effectShader)
             {
                 util::INFO_SHADER_DATA *infoPS         = infoHead->effectShader->dataPS;
@@ -1032,9 +1033,9 @@ namespace mbm
             anim->setNameAnimation("default");
         this->appendAnimation(anim);
         FX &fx = anim->getFx();
-        if (index < mesh->infoAnimation.lsHeaderAnim.size()) // animation total 
+        util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->getAnimationHeader(index);
+        if (infoHead) // animation total
         {
-            util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->infoAnimation.lsHeaderAnim[index];
             util::INFO_FX *infoShaderStep = infoHead->effectShader;
             if (infoShaderStep && infoShaderStep->dataPS)
             {
@@ -1086,7 +1087,8 @@ namespace mbm
             }
         }
         // compile shader in pair
-        util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->infoAnimation.lsHeaderAnim[index];
+        if (infoHead == nullptr)
+            return true;
         const FVF_PROVIDE_BY_ENGINE fvf = mesh->getBuffer(0)->pBufferGL->fvf;
         RENDERIZABLE *renderizable = dynamic_cast<RENDERIZABLE*>(this);
         fx.defaultShaderMode = getDefaultShaderModeForRenderizable(renderizable);

@@ -1127,9 +1127,10 @@ namespace mbm
         text->spaceXCharacter = infoFont->spaceXCharacter;
         text->spaceYCharacter = infoFont->spaceYCharacter;
         // adicionamos as animações
-        for (unsigned int i = 0; i < this->mesh->infoAnimation.lsHeaderAnim.size(); ++i)
+        const uint32_t totalAnimations = this->mesh->getTotalAnimations();
+        for (uint32_t i = 0; i < totalAnimations; ++i)
         {
-            util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->infoAnimation.lsHeaderAnim[i];
+            util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->getAnimationHeader(i);
             if (!text->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
             {
                 this->release();

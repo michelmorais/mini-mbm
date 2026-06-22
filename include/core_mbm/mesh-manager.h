@@ -167,6 +167,12 @@ namespace mbm
         API_IMPL bool setTexture(const uint32_t indexFrame, const uint32_t indexSubset, const char *fileNameTexture,
                                const bool hasAlpha);
         API_IMPL const char *getFilenameMesh() const;
+        API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
+        API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
+        API_IMPL util::INFO_ANIMATION &getAnimationInfo() noexcept;
+        API_IMPL const util::INFO_ANIMATION &getAnimationInfo() const noexcept;
+        API_IMPL uint32_t getTotalAnimations() const noexcept;
+        API_IMPL util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnimationHeader(const uint32_t index) const noexcept;
         API_IMPL virtual ~MESH_MBM();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();

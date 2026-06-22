@@ -105,8 +105,8 @@ namespace mbm
                 return false;
             }
             ANIMATION* anim = this->getAnimation();
-            const util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->infoAnimation.lsHeaderAnim[0];
-            if (anim && mesh->infoAnimation.lsHeaderAnim.size() && infoHead->headerAnim)
+            const util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->getAnimationHeader(0);
+            if (anim && mesh->getTotalAnimations() && infoHead && infoHead->headerAnim)
             {
                 anim->setBlendState(static_cast<BLEND_STATE>(infoHead->headerAnim->blendState));
                 if (infoHead->effectShader)

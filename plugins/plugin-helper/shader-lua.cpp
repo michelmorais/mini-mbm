@@ -780,9 +780,9 @@ namespace mbm
             if(mesh)
             {
                 const unsigned int index = animMan->getIndexAnimation();
-                if(index < mesh->infoAnimation.lsHeaderAnim.size())
+                if(index < mesh->getTotalAnimations())
                 {
-                    util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->infoAnimation.lsHeaderAnim[index];
+                    util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->getAnimationHeader(index);
                     if(infoHead && infoHead->effectShader)
                     {
                         if(pixelShader)

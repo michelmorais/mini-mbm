@@ -4108,6 +4108,38 @@ namespace mbm
     {
         return fileName.c_str();
     }
+
+    INFO_PHYSICS & MESH_MBM::getPhysicsInfo() noexcept
+    {
+        return this->infoPhysics;
+    }
+
+    const INFO_PHYSICS & MESH_MBM::getPhysicsInfo() const noexcept
+    {
+        return this->infoPhysics;
+    }
+
+    util::INFO_ANIMATION & MESH_MBM::getAnimationInfo() noexcept
+    {
+        return this->infoAnimation;
+    }
+
+    const util::INFO_ANIMATION & MESH_MBM::getAnimationInfo() const noexcept
+    {
+        return this->infoAnimation;
+    }
+
+    uint32_t MESH_MBM::getTotalAnimations() const noexcept
+    {
+        return static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size());
+    }
+
+    util::INFO_ANIMATION::INFO_HEADER_ANIM * MESH_MBM::getAnimationHeader(const uint32_t index) const noexcept
+    {
+        if (index < this->infoAnimation.lsHeaderAnim.size())
+            return this->infoAnimation.lsHeaderAnim[index];
+        return nullptr;
+    }
     
     MESH_MBM::~MESH_MBM()
     {
