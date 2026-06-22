@@ -82,6 +82,17 @@ Default assignments:
 You can override without editing the file by passing `/p:MbmBackend=DirectX9` (or
 `OpenGLES`) on the MSBuild command line (see below).
 
+The same property sheet also defines the lighting compile-time cap:
+
+```xml
+<MbmSupportedMaxLights>4</MbmSupportedMaxLights>
+```
+
+Accepted values are `1..4`. This maps to the engine preprocessor define
+`SUPPORTED_MAX_LIGHTS`, which controls the compiled supported light count used by
+the default light-capable shaders and staging arrays. You can override it from
+MSBuild with `/p:MbmSupportedMaxLights=2`.
+
 ---
 
 ## Build Configurations

@@ -211,9 +211,26 @@ The current implementation slice also exposes backend-cap validation:
 - `mbm.getSelectedPointLights(target, objectCenter, objectBoundingAABB)` returns the nearest
   validated point lights whose radius reaches that object
 
-For the first multi-light implementation, the compiled supported cap is intentionally fixed at `4`
-lights on the active backend. This keeps the next shader-array layout explicit while the real
-multi-light upload path is still being added.
+For the first multi-light implementation, the compiled supported cap defaults to `4` lights on the
+active backend, but it is now a build-time engine setting:
+
+- CMake/Xcode generator builds can pass `-DSUPPORTED_MAX_LIGHTS=1..4`
+- the standalone Visual Studio solution can set `MbmSupportedMaxLights=1..4`
+- the default requested max also starts from that compiled supported cap
+
+So a game that knows it only needs `1`, `2`, or `3` supported lights may compile the engine with a
+smaller fixed cap.
+
+The requested max light count is a per-target runtime selection limit, not a registration limit:
+
+- `mbm.addPointLight(...)` may still register more lights than the requested max
+- `mbm.setRequestedMaxLights(target, 2)` means each draw on that target keeps at most the nearest
+  validated `2` lights for that object
+- the other registered lights remain in the target list and may still affect other objects whose
+  nearest-light selection chooses them
+
+So with `per_object_nearest`, requested max `2` means: "for this draw, send only the 2 nearest
+relevant lights to the shader and ignore the others for this object".
 
 For the Lua selection query, `objectBoundingAABB` is the full object AABB size, not half extents.
 That matches `RENDERIZABLE::getBoundingAABB()`.
@@ -241,6 +258,16 @@ defines that:
 
 So the nearest-light selection work matters only for draws that actually use a light-capable shader
 path.
+
+Today the generated shader source still uses the compiled supported cap, not the requested max. In
+practice that means:
+
+- shader arrays are compiled with the backend supported cap
+- the shader loop is compiled against that supported cap
+- runtime `LightCount` stops the loop after the selected light count for that draw
+
+So lowering the requested max from `4` to `2` reduces the selected/uploaded lights for that draw,
+but it does not currently generate a smaller shader variant.
 
 ## Reserved Shader Inputs
 

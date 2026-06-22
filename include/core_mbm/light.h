@@ -25,8 +25,14 @@
 
 namespace mbm
 {
-    static constexpr uint32_t DEFAULT_REQUESTED_MAX_LIGHTS = 4u;
-    static constexpr uint32_t DEFAULT_SUPPORTED_MAX_LIGHTS = 4u;
+    #ifndef SUPPORTED_MAX_LIGHTS
+    #define SUPPORTED_MAX_LIGHTS 4
+    #endif
+
+    static constexpr uint32_t DEFAULT_SUPPORTED_MAX_LIGHTS = static_cast<uint32_t>(SUPPORTED_MAX_LIGHTS);
+    static_assert(DEFAULT_SUPPORTED_MAX_LIGHTS >= 1u && DEFAULT_SUPPORTED_MAX_LIGHTS <= 4u,
+                  "SUPPORTED_MAX_LIGHTS must be in the range 1..4");
+    static constexpr uint32_t DEFAULT_REQUESTED_MAX_LIGHTS = DEFAULT_SUPPORTED_MAX_LIGHTS;
     static_assert(DEFAULT_REQUESTED_MAX_LIGHTS <= DEFAULT_SUPPORTED_MAX_LIGHTS,
                   "default requested max lights must not exceed supported max lights");
 

@@ -13,12 +13,14 @@
     <!-- Keep current solution convention: Debug|Win32 defaults to DirectX9, everything else defaults to OpenGLES -->
     <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)|$(Platform)'=='Debug|Win32'">DirectX9</MbmBackend>
     <MbmBackend Condition="'$(MbmBackend)'==''">OpenGLES</MbmBackend>
+    <MbmSupportedMaxLights Condition="'$(MbmSupportedMaxLights)'==''">4</MbmSupportedMaxLights>
   </PropertyGroup>
 
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX9'">USE_DIRECTX9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(MbmBackend)'=='OpenGLES'">USE_OPENGL_ES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SUPPORTED_MAX_LIGHTS=$(MbmSupportedMaxLights);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
 </Project>
