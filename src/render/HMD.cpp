@@ -142,10 +142,11 @@ namespace mbm
         const CAMERA &camera = device->getCamera();
         CAMERA_TARGET &camera2dTarget = this->getCamera2d();
         CAMERA_TARGET &camera3dTarget = this->getCamera3d();
-        camera2dTarget.position.x = camera.position2d.x;
-        camera2dTarget.position.y = camera.position2d.y;
-        camera3dTarget.position   = camera.position;
-        camera3dTarget.focus      = camera.focus;
+        VEC3 &camera2dPosition = camera2dTarget.getPosition();
+        camera2dPosition.x = camera.position2d.x;
+        camera2dPosition.y = camera.position2d.y;
+        camera3dTarget.getPosition() = camera.position;
+        camera3dTarget.getFocus() = camera.focus;
         return RENDER_2_TEXTURE::isOnFrustum();
     }
     
@@ -157,10 +158,11 @@ namespace mbm
             const CAMERA &camera = device->getCamera();
             CAMERA_TARGET &camera2dTarget = this->getCamera2d();
             CAMERA_TARGET &camera3dTarget = this->getCamera3d();
-            camera2dTarget.position.x = camera.position2d.x;
-            camera2dTarget.position.y = camera.position2d.y;
-            camera3dTarget.position   = camera.position;
-            camera3dTarget.focus      = camera.focus;
+            VEC3 &camera2dPosition = camera2dTarget.getPosition();
+            camera2dPosition.x = camera.position2d.x;
+            camera2dPosition.y = camera.position2d.y;
+            camera3dTarget.getPosition() = camera.position;
+            camera3dTarget.getFocus() = camera.focus;
         }
         VEC3 &position = this->getPosition();
         position.x = device->getScaleBackBufferWidth() * 0.25f;

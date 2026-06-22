@@ -48,34 +48,162 @@ namespace mbm
         }
     };
 
-    CAMERA_TARGET::CAMERA_TARGET() noexcept : position(0, 0, 0), scale(1, 1, 1), angle(0, 0, 0), focus(0, 0, 0), up(0, 1, 0), zNear(0.1f), zFar(1000.0f)
+    CAMERA_TARGET::CAMERA_TARGET() noexcept : position(0, 0, 0), scale(1, 1, 1), angle(0, 0, 0), focus(0, 0, 0), up(0, 1, 0), zNear(0.1f), zFar(1000.0f), zNear2d(-100.0f), zFar2d(100.0f)
     {
         MatrixIdentity(&this->matrixView);
         MatrixIdentity(&this->matrixOrtho);
+    }
+
+    VEC3 & CAMERA_TARGET::getPosition() noexcept
+    {
+        return this->position;
+    }
+
+    const VEC3 & CAMERA_TARGET::getPosition() const noexcept
+    {
+        return this->position;
+    }
+
+    VEC3 & CAMERA_TARGET::getScale() noexcept
+    {
+        return this->scale;
+    }
+
+    const VEC3 & CAMERA_TARGET::getScale() const noexcept
+    {
+        return this->scale;
+    }
+
+    VEC3 & CAMERA_TARGET::getAngle() noexcept
+    {
+        return this->angle;
+    }
+
+    const VEC3 & CAMERA_TARGET::getAngle() const noexcept
+    {
+        return this->angle;
+    }
+
+    VEC3 & CAMERA_TARGET::getFocus() noexcept
+    {
+        return this->focus;
+    }
+
+    const VEC3 & CAMERA_TARGET::getFocus() const noexcept
+    {
+        return this->focus;
+    }
+
+    VEC3 & CAMERA_TARGET::getUp() noexcept
+    {
+        return this->up;
+    }
+
+    const VEC3 & CAMERA_TARGET::getUp() const noexcept
+    {
+        return this->up;
+    }
+
+    float CAMERA_TARGET::getNearPlane() const noexcept
+    {
+        return this->zNear;
+    }
+
+    void CAMERA_TARGET::setNearPlane(const float nearPlane) noexcept
+    {
+        this->zNear = nearPlane;
+    }
+
+    float CAMERA_TARGET::getFarPlane() const noexcept
+    {
+        return this->zFar;
+    }
+
+    void CAMERA_TARGET::setFarPlane(const float farPlane) noexcept
+    {
+        this->zFar = farPlane;
+    }
+
+    float CAMERA_TARGET::getNearPlane2d() const noexcept
+    {
+        return this->zNear2d;
+    }
+
+    void CAMERA_TARGET::setNearPlane2d(const float nearPlane) noexcept
+    {
+        this->zNear2d = nearPlane;
+    }
+
+    float CAMERA_TARGET::getFarPlane2d() const noexcept
+    {
+        return this->zFar2d;
+    }
+
+    void CAMERA_TARGET::setFarPlane2d(const float farPlane) noexcept
+    {
+        this->zFar2d = farPlane;
+    }
+
+    mbm::MATRIX & CAMERA_TARGET::getOrthoMatrix() noexcept
+    {
+        return this->matrixOrtho;
+    }
+
+    const mbm::MATRIX & CAMERA_TARGET::getOrthoMatrix() const noexcept
+    {
+        return this->matrixOrtho;
+    }
+
+    mbm::MATRIX & CAMERA_TARGET::getProjectionMatrix() noexcept
+    {
+        return this->matrixProj;
+    }
+
+    const mbm::MATRIX & CAMERA_TARGET::getProjectionMatrix() const noexcept
+    {
+        return this->matrixProj;
+    }
+
+    mbm::MATRIX & CAMERA_TARGET::getViewMatrix() noexcept
+    {
+        return this->matrixView;
+    }
+
+    const mbm::MATRIX & CAMERA_TARGET::getViewMatrix() const noexcept
+    {
+        return this->matrixView;
     }
     
     void CAMERA_TARGET::enableMode2D(mbm::DEVICE *device, const float width, const float height)
     {
         //TODO: may need adjust this in the future
         // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
-        constexpr float zNear2d = -100;
-        constexpr float zFar2d = 100;
-        const VEC3 posCam(-this->position.x, -this->position.y, 100);
+        const VEC3 &cameraPosition = this->getPosition();
+        const VEC3 &cameraAngle = this->getAngle();
+        const VEC3 &cameraScale = this->getScale();
+        const VEC3 posCam(-cameraPosition.x, -cameraPosition.y, 100);
         CAMERA &camera = device->getCamera();
-        MatrixIdentity(&this->matrixView);
-        MatrixTranslationRotationScale(&SHADER::modelView, &posCam, &this->angle, &this->scale);
-        MatrixOrthoLH(&this->matrixOrtho, width, height, zNear2d, zFar2d);
-        MatrixMultiply(&camera.matrixPerspective2d, &this->matrixView, &this->matrixOrtho);
+        MATRIX &viewMatrix = this->getViewMatrix();
+        MATRIX &orthoMatrix = this->getOrthoMatrix();
+        MatrixIdentity(&viewMatrix);
+        MatrixTranslationRotationScale(&SHADER::modelView, &posCam, &cameraAngle, &cameraScale);
+        MatrixOrthoLH(&orthoMatrix, width, height, this->getNearPlane2d(), this->getFarPlane2d());
+        MatrixMultiply(&camera.matrixPerspective2d, &viewMatrix, &orthoMatrix);
     }
     
     void CAMERA_TARGET::enableMode3D(mbm::DEVICE *device, const float width, const float height)
     {
         CAMERA &camera = device->getCamera();
         const float aspect = width / height;
-        const auto Scale  = static_cast<const float>(1.0f / tan(camera.angleOfView * 0.5f * static_cast<const float>(M_PI) / 180.0f));
-        MatrixPerspectiveFovLH(&this->matrixProj, Scale, aspect, zNear, zFar);
-        MatrixLookAtLH(&this->matrixView, &this->position, &this->focus, &this->up);
-        MatrixMultiply(&camera.matrixPerspective, &this->matrixView, &this->matrixProj);
+        const auto Scale  = static_cast<const float>(1.0f / tan(camera.getAngleOfView() * 0.5f * static_cast<const float>(M_PI) / 180.0f));
+        MATRIX &projectionMatrix = this->getProjectionMatrix();
+        MATRIX &viewMatrix = this->getViewMatrix();
+        VEC3 &cameraPosition = this->getPosition();
+        VEC3 &cameraFocus = this->getFocus();
+        VEC3 &cameraUp = this->getUp();
+        MatrixPerspectiveFovLH(&projectionMatrix, Scale, aspect, this->getNearPlane(), this->getFarPlane());
+        MatrixLookAtLH(&viewMatrix, &cameraPosition, &cameraFocus, &cameraUp);
+        MatrixMultiply(&camera.matrixPerspective, &viewMatrix, &projectionMatrix);
     }
     
     RENDER_2_TEXTURE::RENDER_2_TEXTURE(const SCENE *scene, const bool _is3d, const bool _is2dScreen) :
@@ -386,10 +514,11 @@ namespace mbm
             const float heightFrame = cube->halfDim.y * 2.0f;
             CAMERA_TARGET &camera3dTarget = this->getCamera3d();
             camera3dTarget.enableMode3D(device, widthFrame, heightFrame);
+            const VEC3 &camera3dPosition = camera3dTarget.getPosition();
             for (unsigned int i = 0; i < objects3d.size(); ++i)
             {
                 RENDERIZABLE *ptr = objects3d[i];
-                const VEC3 distFromCam(ptr->getPosition() - camera3dTarget.position);
+                const VEC3 distFromCam(ptr->getPosition() - camera3dPosition);
                 ptr->setDistanceFromView(distFromCam.length());
             }
             std::sort(objects3d.begin(), objects3d.end(),

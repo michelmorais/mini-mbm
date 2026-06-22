@@ -1838,7 +1838,6 @@ Milestone 216 implementation note:
 - Added a Lua-required configuration error for `USE_BULLET3D=1` without `USE_LUA=1`.
 - Added Bullet3D to the final built-target dependency list so `show_built` waits for `bullet3d.so`.
 - Added `USE_BULLET3D` to the Linux/Windows engine feature summary.
-- Verified Linux `-DUSE_LUA=1 -DUSE_BULLET3D=1` builds `bullet3d.so`.
 
 Milestone 217 implementation note:
 
@@ -2070,6 +2069,13 @@ Milestone 248 implementation note:
 - Removed the protected physics storage from `include/render/render-2-texture.h`.
 - Focused scan shows render-target physics storage now appears only in private `Impl`; load/setup, 3D render sizing, restore sizing, and `getInfoPhysics()` use the accessor API.
 
+Milestone 249 implementation note:
+
+- Added main `CAMERA` accessors for angle-of-view plus 3D and 2D near/far planes, replacing hardcoded 2D clip values inside `CAMERA::updateCam()`.
+- Added matching `CAMERA_TARGET` 2D near/far accessors and replaced the hardcoded `enableMode2D()` clip values with accessor-backed storage.
+- Updated engine-side camera call sites touched by this milestone to use the new accessors, including the core camera update path, render-to-texture/HMD camera prep, and Lua camera setters for angle/near/far.
+- Direct public field compatibility remains in place for both camera value objects; this is accessor prep only, not a storage move.
+
 ### Phase 3 - Hide renderer backend handles - COMPLETE
 
 Order:
@@ -2146,7 +2152,7 @@ Future strict-PIMPL work should be picked from the audit table below. The rule i
 | Area/header | Current state | Why it remains | Risk | Safe future milestone |
 |---|---|---|---|---|
 | `include/core_mbm/device.h` light runtime helpers | `LIGHT_STATE`, `LIGHT_MULTI_SETTINGS`, and point-light list storage stay in `DEVICE::Impl` as intended by the light design. The public `DEVICE` header no longer exposes mutable light-state accessors or `std::vector<LIGHT_POINT>` accessors; light mutation and list access now go through file-local `DEVICE_LIGHT_ACCESS` helpers inside `src/core_mbm/device-common.cpp`. | The light API in `include/core_mbm/light.h` is the intended public contract. The removed `DEVICE` accessors were internal plumbing convenience, not gameplay-facing API. | Low. The change stays inside `device-common.cpp` and keeps the public light API untouched. | Done for this milestone. If revisited later, keep further cleanup focused on internal render-context helpers such as current-render light/material state, not on changing the public light API. |
-| `include/render/render-2-texture.h` / `CAMERA_TARGET` | Public camera value fields remain: `position`, `scale`, `angle`, `focus`, `up`, near/far values, and matrices. `RENDER_2_TEXTURE` itself has moved render lists, camera storage, texture, buffer, and physics state behind `Impl`. | `CAMERA_TARGET` is a gameplay/Lua-facing camera value object, not backend SDK storage. Lua code and render-to-texture camera bindings still expect direct field-style access. | Medium. Moving it would affect Lua/editor behavior and C++ source compatibility. | First add `CAMERA_TARGET` accessors and migrate internal repeated access. Only move fields to `CAMERA_TARGET::Impl` if a breaking compatibility decision is accepted. |
+| `include/render/render-2-texture.h` / `CAMERA_TARGET` | Public camera value fields remain: `position`, `scale`, `angle`, `focus`, `up`, near/far values, and matrices. `CAMERA_TARGET` now also exposes accessor helpers for those fields and matrices, and engine-side repeated uses in render-to-texture/HMD paths use the helpers. `RENDER_2_TEXTURE` itself has moved render lists, camera storage, texture, buffer, and physics state behind `Impl`. | `CAMERA_TARGET` is a gameplay/Lua-facing camera value object, not backend SDK storage. Lua code and render-to-texture camera bindings still expect direct field-style access, so this milestone prepares a later move without changing that compatibility surface. | Medium. Moving storage would affect Lua/editor behavior and C++ source compatibility, but accessor prep is low-risk. | Accessor prep is done. Only move `CAMERA_TARGET` fields behind private storage if a breaking compatibility decision is explicitly accepted. |
 | `include/render/HMD.h` | `HMD` right-eye render buffer storage is now behind `HMD::Impl`. The protected `getRightEyeBuffer()` const/non-const helpers remain the compatibility surface, while the inherited left-eye/render-target buffer stays behind `RENDER_2_TEXTURE::Impl`. | This is engine render-resource layout, not a direct SDK type after `BUFFER_GL` itself was PIMPL-ed. Keeping the helper API allows later VR-specific cleanup without reopening callers. | Low to medium. VR/HMD paths are platform-sensitive, but the storage move is now isolated behind the existing helper API. | Done for this milestone. Reopen only for follow-up VR/HMD layout cleanup, not because the right-eye buffer is still visible in the public header. |
 | `include/core_mbm/mesh-manager.h` / `MESH_MBM`, `MESH_MBM_DEBUG`, `BUFFER_MESH` | `MESH_MANAGER` cache/fake-release state is behind `Impl`, but mesh file/debug structs still expose large public layouts, vectors, maps, `INFO_PHYSICS`, material, animation, and editor/debug data. | These are file-format/editor/debug data contracts, not OS/backend SDK handles. Some fields are likely used by mesh loading, Lua debug tooling, editor tooling, and tests. | High. Broad source compatibility and asset-format behavior risk. | Do a read-only compatibility audit first. Split internal-only debug state from file-format value state before any accessors or storage moves. |
 | `include/core_mbm/texture-manager.h` / `TEXTURE`, TTF helpers | `TEXTURE_MANAGER` internals and `TEXTURE` backend handle are hidden. `TEXTURE` now exposes `hasAlphaChannel()` / `setAlphaChannelEnabled()` and repo call sites use those accessors, but `useAlphaChannel` storage remains in the public class for compatibility during this prep stage. The public TTF API no longer exposes `stbtt_aligned_quad`; it now uses engine-owned `FONT_GLYPH_QUAD` value objects. | `useAlphaChannel` is a simple asset property, so accessor prep is low-risk; the actual storage move is a separate compatibility decision. Replacing `stbtt_aligned_quad` removes a third-party type leak without changing the broader font-generation flow. | Medium. Texture/font code is used widely by Lua, editor, and render types, but the wrapped glyph quad is a localized API change with internal callers already migrated. | TTF wrapper decision is done: keep the public API engine-owned and reserve STB types for implementation files. A later milestone can decide whether `useAlphaChannel` storage should move behind private state or remain public for compatibility. |
@@ -2173,9 +2179,8 @@ Use this checklist when resuming the work months later:
 
 ### Suggested future milestone queue
 
-1. `CAMERA_TARGET` accessor prep only. Do not move storage until Lua/editor compatibility is explicitly accepted.
-2. `MESH_MBM` / `MESH_MBM_DEBUG` read-only compatibility audit. Do not edit storage in the audit milestone.
-3. Derived render-type header audit by family: simple texture-like types first, mesh/debug/editor-heavy types last.
+1. `MESH_MBM` / `MESH_MBM_DEBUG` read-only compatibility audit. Do not edit storage in the audit milestone.
+2. Derived render-type header audit by family: simple texture-like types first, mesh/debug/editor-heavy types last.
 
 ## Not worth PIMPL first
 
@@ -2214,5 +2219,7 @@ Current decision:
 20. `HMD` right-eye buffer storage is now behind `HMD::Impl`; `getRightEyeBuffer()` remains the protected compatibility API used by the destructor, load path, and right-eye render path.
 21. `TEXTURE` alpha accessors are now in place: `hasAlphaChannel()` / `setAlphaChannelEnabled()` exist, repo call sites use them, and `useAlphaChannel` storage remains public only as a compatibility holdover for a possible later move.
 22. The public TTF API no longer leaks `stbtt_aligned_quad`; `TEXTURE::loadTTF()` and `TEXTURE_MANAGER::loadTTF()` now use engine-owned `FONT_GLYPH_QUAD` values, and the mesh/font build path converts from STB quads internally.
+23. `CAMERA_TARGET` accessor prep is complete: engine-owned getters/setters now exist for position, scale, angle, focus, up, near/far planes, and matrices, and engine-side repeated uses in render-to-texture/HMD paths use those helpers while direct field-style compatibility remains available for Lua/editor code.
+24. Main `CAMERA` accessor prep now also covers projection settings: `getAngleOfView()` / `setAngleOfView()`, `getNearPlane()` / `setNearPlane()`, `getFarPlane()` / `setFarPlane()`, and the new 2D clip accessors `getNearPlane2d()` / `setNearPlane2d()` and `getFarPlane2d()` / `setFarPlane2d()` back the core update path while direct field-style compatibility remains available.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is optional strict PIMPL and ABI/header hygiene, not backend isolation.
