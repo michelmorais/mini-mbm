@@ -1021,7 +1021,9 @@ namespace mbm
                 defaultCodePs += "];";
                 defaultCodePs += "float4 MaterialDiffuse;"
                     "float4 MaterialAmbient;"
+                    "float4 MaterialSpecular;"
                     "float4 MaterialEmissive;"
+                    "float MaterialPower;"
                     "float3 LightPositionView[";
                 defaultCodePs += supportedMaxLights;
                 defaultCodePs += "];"
@@ -1050,14 +1052,22 @@ namespace mbm
                 defaultCodePs += ", texCoord);";
                 defaultCodePs += " if (LightEnabled == 0 || LightMode == 0) return texColor;"
                     " float3 base = texColor.rgb * MaterialDiffuse.rgb;"
-                    " float3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
+                    " float3 light = AmbientColor.rgb * MaterialAmbient.rgb;"
+                    " float3 specular = float3(0, 0, 0);";
                 if (hasNormal)
                 {
                     defaultCodePs += " if (LightMode == 1) {"
                         "  float3 normalView = normalize(normalViewIn);"
+                        "  float3 viewDir = normalize(-positionViewIn);"
                         "  float3 lightTravel = normalize(LightDirectionView);"
                         "  float diffuse = max(dot(normalView, -lightTravel), 0);"
                         "  light += LightColor[0].rgb * diffuse;"
+                        "  if (diffuse > 0.0f && MaterialPower > 0.0f) {"
+                        "   float3 lightDir = normalize(-lightTravel);"
+                        "   float3 halfDir = normalize(lightDir + viewDir);"
+                        "   float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);"
+                        "   specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;"
+                        "  }"
                         " } else ";
                 }
                 else
@@ -1081,10 +1091,16 @@ namespace mbm
                     "    float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
                     "    attenuation *= attenuation;"
                     "    light += LightColor[i].rgb * diffuse * attenuation;"
+                    "    if (diffuse > 0.0f && MaterialPower > 0.0f) {"
+                    "     float3 viewDir = normalize(-positionViewIn);"
+                    "     float3 halfDir = normalize(lightDir + viewDir);"
+                    "     float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);"
+                    "     specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;"
+                    "    }"
                     "   }"
                     "  }"
                     " }"
-                    " float3 litColor = saturate((base * saturate(light)) + MaterialEmissive.rgb);"
+                    " float3 litColor = saturate((base * saturate(light)) + MaterialEmissive.rgb + specular);"
                     " return float4(litColor, texColor.a * MaterialDiffuse.a);";
                 defaultCodePs += " }";
             }
@@ -1108,12 +1124,14 @@ namespace mbm
                     "float4 LightColor;"
                     "float4 MaterialDiffuse;"
                     "float4 MaterialAmbient;"
-                    "float4 MaterialEmissive;";
+                    "float4 MaterialSpecular;"
+                    "float4 MaterialEmissive;"
+                    "float MaterialPower;";
             }
             defaultCodePs += "float4 main(";
             if (hasNormal && useReservedLightScaffolding)
             {
-                defaultCodePs += "float3 normalViewIn : TEXCOORD1";
+                defaultCodePs += "float3 normalViewIn : TEXCOORD1, float3 positionViewIn : TEXCOORD2";
             }
             defaultCodePs += ") : COLOR"
                 "{ float4 baseColor = float4(1,1,1,1);";
@@ -1121,11 +1139,19 @@ namespace mbm
             {
                 defaultCodePs += " if (LightEnabled == 0 || LightMode != 1) return baseColor;"
                     " float3 normalView = normalize(normalViewIn);"
+                    " float3 viewDir = normalize(-positionViewIn);"
                     " float3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0);"
                     " float3 base = MaterialDiffuse.rgb;"
                     " float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));"
-                    " float3 litColor = saturate((base * light) + MaterialEmissive.rgb);"
+                    " float3 specular = float3(0, 0, 0);"
+                    " if (diffuse > 0.0f && MaterialPower > 0.0f) {"
+                    "  float3 lightDir = normalize(-lightTravel);"
+                    "  float3 halfDir = normalize(lightDir + viewDir);"
+                    "  float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);"
+                    "  specular = LightColor.rgb * MaterialSpecular.rgb * spec;"
+                    " }"
+                    " float3 litColor = saturate((base * light) + MaterialEmissive.rgb + specular);"
                     " return float4(litColor, MaterialDiffuse.a);";
             }
             else
@@ -1145,7 +1171,7 @@ namespace mbm
             "struct VS_OUTPUT { float4 position : POSITION;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
         if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 normalView : TEXCOORD1;";
-        if (hasUV && hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD2;";
+        if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD2;";
         else if (hasUV && useReservedLightScaffolding) defaultCodeVs += " float3 positionView : TEXCOORD1;";
         defaultCodeVs += " };"
             "VS_OUTPUT main(VS_INPUT input)"

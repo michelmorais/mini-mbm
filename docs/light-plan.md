@@ -653,16 +653,22 @@ Default MSL generation should:
 - Sprite Maker must preserve typed per-frame/per-subset material texture slots, including the
   normal-map slot, during load/import/save even before it exposes dedicated authoring UI for those
   extra textures. Round-trip safety comes before editor polish here.
+- Current status: substantially covered. Mesh Debug already exposes typed material texture slots and
+  Sprite Maker already preserves typed per-frame/per-subset material texture slots during
+  load/import/save. Any future work here is editor polish, not the next core-lighting milestone.
 
 ### Milestone 11: Expand lighting model
 
 Only after the first path, 2D lighting design, and multi-light design are proven:
 
-- point lights
-- attenuation
-- emissive material
-- specular highlights using `MaterialSpecular` and `MaterialPower`
-- normal maps
+- Current shipped state already includes:
+  - point lights
+  - attenuation
+  - emissive material
+  - normal maps
+- The next real lighting-model slice is:
+  - specular highlights using `MaterialSpecular` and `MaterialPower`
+- Keep shadow work separate and later:
 - shadow maps
 
 ## Open Questions

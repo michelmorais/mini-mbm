@@ -36,7 +36,9 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant float4 *LightColor        [[buffer(8)]],
     constant float4 &MaterialDiffuse   [[buffer(9)]],
     constant float4 &MaterialAmbient   [[buffer(10)]],
+    constant float4 &MaterialSpecular  [[buffer(11)]],
     constant float4 &MaterialEmissive  [[buffer(12)]],
+    constant float  &MaterialPower     [[buffer(13)]],
     constant int    &LightMode         [[buffer(14)]],
     constant float3 *LightPositionView [[buffer(15)]],
     constant float  *LightRadius       [[buffer(16)]],
@@ -48,12 +50,21 @@ fragment float4 frag_main(VOut in [[stage_in]],
         return texColor;
     float3 base        = texColor.rgb * MaterialDiffuse.rgb;
     float3 light       = AmbientColor.rgb * MaterialAmbient.rgb;
+    float3 specular    = float3(0.0f);
     if (LightMode == 1)
     {
         float3 normalView  = normalize(in.nor);
+        float3 viewDir     = normalize(-in.positionView);
         float3 lightTravel = normalize(LightDirectionView);
         float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
         light += LightColor[0].rgb * diffuse;
+        if (diffuse > 0.0f && MaterialPower > 0.0f)
+        {
+            float3 lightDir = normalize(-lightTravel);
+            float3 halfDir  = normalize(lightDir + viewDir);
+            float  spec     = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);
+            specular       += LightColor[0].rgb * MaterialSpecular.rgb * spec;
+        }
     }
     else
     {
@@ -72,11 +83,18 @@ fragment float4 frag_main(VOut in [[stage_in]],
                 float  attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);
                 attenuation *= attenuation;
                 light += LightColor[i].rgb * diffuse * attenuation;
+                if (diffuse > 0.0f && MaterialPower > 0.0f)
+                {
+                    float3 viewDir = normalize(-in.positionView);
+                    float3 halfDir = normalize(lightDir + viewDir);
+                    float  spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);
+                    specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;
+                }
             }
         }
     }
     light = clamp(light, 0.0f, 1.0f);
-    float3 litColor    = clamp((base * light) + MaterialEmissive.rgb, 0.0f, 1.0f);
+    float3 litColor    = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0f, 1.0f);
     return float4(litColor, texColor.a * MaterialDiffuse.a);
 }
 )msl";
@@ -1462,18 +1480,29 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant float4 &LightColor        [[buffer(8)]],
     constant float4 &MaterialDiffuse   [[buffer(9)]],
     constant float4 &MaterialAmbient   [[buffer(10)]],
+    constant float4 &MaterialSpecular  [[buffer(11)]],
     constant float4 &MaterialEmissive  [[buffer(12)]],
+    constant float  &MaterialPower     [[buffer(13)]],
     constant int    &LightMode         [[buffer(14)]])
 {
     float4 baseColor = float4(1.0f);
     if (LightEnabled == 0 || LightMode != 1)
         return baseColor;
     float3 normalView  = normalize(in.nor);
+    float3 viewDir     = normalize(-in.positionView);
     float3 lightTravel = normalize(LightDirectionView);
     float  diffuse     = max(dot(normalView, -lightTravel), 0.0f);
     float3 base        = MaterialDiffuse.rgb;
     float3 light       = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0f, 1.0f);
-    float3 litColor    = clamp((base * light) + MaterialEmissive.rgb, 0.0f, 1.0f);
+    float3 specular    = float3(0.0f);
+    if (diffuse > 0.0f && MaterialPower > 0.0f)
+    {
+        float3 lightDir = normalize(-lightTravel);
+        float3 halfDir  = normalize(lightDir + viewDir);
+        float  spec     = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);
+        specular        = LightColor.rgb * MaterialSpecular.rgb * spec;
+    }
+    float3 litColor    = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0f, 1.0f);
     return float4(litColor, MaterialDiffuse.a);
 }
 )msl",

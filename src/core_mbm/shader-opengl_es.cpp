@@ -913,9 +913,11 @@ namespace mbm
                 defaultCodePs += "uniform int LightEnabled;"
                     "uniform vec4 AmbientColor;"
                     "uniform vec3 LightDirectionView;"
+                    "uniform vec4 MaterialSpecular;"
                     "uniform vec4 MaterialDiffuse;"
                     "uniform vec4 MaterialAmbient;"
-                    "uniform vec4 MaterialEmissive;";
+                    "uniform vec4 MaterialEmissive;"
+                    "uniform float MaterialPower;";
                 if (canUsePointLight2D == false)
                 {
                     defaultCodePs += "uniform vec4 LightColor;";
@@ -947,17 +949,25 @@ namespace mbm
                 defaultCodePs += ", vTexCoord);"
                     " if (LightEnabled == 0) { gl_FragColor = texColor; return; }"
                     " vec3 base = texColor.rgb * MaterialDiffuse.rgb;"
-                    " vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;";
+                    " vec3 light = AmbientColor.rgb * MaterialAmbient.rgb;"
+                    " vec3 specular = vec3(0.0);";
                 if (canUsePointLight2D == false)
                 {
                     if (hasNormal)
                     {
                         defaultCodePs += " vec3 normalView = normalize(vNormalView);"
+                            " vec3 viewDir = normalize(-vPositionView);"
                             " vec3 lightTravel = normalize(LightDirectionView);"
                             " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                            " light += LightColor[0].rgb * diffuse;";
+                            " light += LightColor[0].rgb * diffuse;"
+                            " if (diffuse > 0.0 && MaterialPower > 0.0) {"
+                            "  vec3 lightDir = normalize(-lightTravel);"
+                            "  vec3 halfDir = normalize(lightDir + viewDir);"
+                            "  float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
+                            "  specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;"
+                            " }";
                     }
-                    defaultCodePs += " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
+                    defaultCodePs += " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb + specular, 0.0, 1.0);"
                         " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
                         "}";
                 }
@@ -966,9 +976,16 @@ namespace mbm
                     defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
                         " if (LightMode == 1) {"
                         "  vec3 normalView = normalize(vNormalView);"
+                        "  vec3 viewDir = normalize(-vPositionView);"
                         "  vec3 lightTravel = normalize(LightDirectionView);"
                         "  float diffuse = max(dot(normalView, -lightTravel), 0.0);"
                         "  light += LightColor[0].rgb * diffuse;"
+                        "  if (diffuse > 0.0 && MaterialPower > 0.0) {"
+                        "   vec3 lightDir = normalize(-lightTravel);"
+                        "   vec3 halfDir = normalize(lightDir + viewDir);"
+                        "   float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
+                        "   specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;"
+                        "  }"
                         " } else ";
                 }
                 else
@@ -995,10 +1012,16 @@ namespace mbm
                         "    float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);"
                         "    attenuation *= attenuation;"
                         "    light += LightColor[i].rgb * diffuse * attenuation;"
+                        "    if (diffuse > 0.0 && MaterialPower > 0.0) {"
+                        "     vec3 viewDir = normalize(-vPositionView);"
+                        "     vec3 halfDir = normalize(lightDir + viewDir);"
+                        "     float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
+                        "     specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;"
+                        "    }"
                         "   }"
                         "  }"
                         " }"
-                        " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb, 0.0, 1.0);"
+                        " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb + specular, 0.0, 1.0);"
                         " gl_FragColor = vec4(litColor, texColor.a * MaterialDiffuse.a);"
                         "}";
                 }
@@ -1015,18 +1038,29 @@ namespace mbm
                     "uniform vec4 AmbientColor;"
                     "uniform vec3 LightDirectionView;"
                     "uniform vec4 LightColor;"
+                    "uniform vec4 MaterialSpecular;"
                     "uniform vec4 MaterialDiffuse;"
                     "uniform vec4 MaterialAmbient;"
                     "uniform vec4 MaterialEmissive;"
+                    "uniform float MaterialPower;"
+                    "varying vec3 vPositionView;"
                     "void main() {"
                     " vec4 baseColor = vec4(1.0, 1.0, 1.0, 1.0);"
                     " if (LightEnabled == 0 || LightMode != 1) { gl_FragColor = baseColor; return; }"
                     " vec3 normalView = normalize(vNormalView);"
+                    " vec3 viewDir = normalize(-vPositionView);"
                     " vec3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
                     " vec3 base = MaterialDiffuse.rgb;"
                     " vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);"
-                    " vec3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);"
+                    " vec3 specular = vec3(0.0);"
+                    " if (diffuse > 0.0 && MaterialPower > 0.0) {"
+                    "  vec3 lightDir = normalize(-lightTravel);"
+                    "  vec3 halfDir = normalize(lightDir + viewDir);"
+                    "  float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
+                    "  specular = LightColor.rgb * MaterialSpecular.rgb * spec;"
+                    " }"
+                    " vec3 litColor = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0, 1.0);"
                     " gl_FragColor = vec4(litColor, MaterialDiffuse.a);"
                     "}";
             }
@@ -1043,10 +1077,10 @@ namespace mbm
         if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += " uniform mat4 mvMatrix;";
         if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " varying vec3 vNormalView;";
         if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
-        if (hasUV && canUsePointLight2D) defaultCodeVs += " varying vec3 vPositionView;";
+        if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " varying vec3 vPositionView;";
         defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
         if (hasNormal && useReservedLightScaffolding) defaultCodeVs += " vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;";
-        if (hasUV && canUsePointLight2D) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz;";
+        if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
         void *backendShaderSpecific = getBackendShaderSpecific();

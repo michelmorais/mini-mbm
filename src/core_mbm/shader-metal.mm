@@ -530,7 +530,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
     [src appendString:@"struct VOut { float4 pos [[position]];"];
     if (hasNor && useReservedLightScaffolding) [src appendString:@" float3 nor;"];
     if (hasUV)  [src appendString:@" float2 uv;"];
-    if (hasUV && useReservedLightScaffolding) [src appendString:@" float3 positionView;"];
+    if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@" float3 positionView;"];
     [src appendString:@" };\n"];
 
     // vertex function
@@ -540,7 +540,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
          "  out.pos = u.mvpMatrix * float4(in.pos, 1.0);\n"];
     if (hasNor && useReservedLightScaffolding) [src appendString:@"  out.nor = (u.mvMatrix * float4(in.nor, 0.0)).xyz;\n"];
     if (hasUV)  [src appendString:@"  out.uv = in.uv;\n"];
-    if (hasUV && useReservedLightScaffolding) [src appendString:@"  out.positionView = (u.mvMatrix * float4(in.pos, 1.0)).xyz;\n"];
+    if (useReservedLightScaffolding && (hasUV || hasNor)) [src appendString:@"  out.positionView = (u.mvMatrix * float4(in.pos, 1.0)).xyz;\n"];
     [src appendString:@"  return out;\n}\n"];
 
     // fragment function
@@ -567,7 +567,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                               " constant float3& LightDirectionView [[buffer(7)]],"
                               " constant float4& MaterialDiffuse [[buffer(9)]],"
                               " constant float4& MaterialAmbient [[buffer(10)]],"
+                              " constant float4& MaterialSpecular [[buffer(11)]],"
                               " constant float4& MaterialEmissive [[buffer(12)]],"
+                              " constant float& MaterialPower [[buffer(13)]],"
                               " constant int& LightMode [[buffer(14)]],"
                               " constant int& HasNormalMap [[buffer(17)]]"];
             [src appendString:@", constant float4* LightColor [[buffer(8)]],"
@@ -578,14 +580,22 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                               textureDiffuseName];
             [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
                               "  float3 base = texColor.rgb * MaterialDiffuse.rgb;\n"
-                              "  float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"];
+                              "  float3 light = AmbientColor.rgb * MaterialAmbient.rgb;\n"
+                              "  float3 specular = float3(0.0f);\n"];
             if (hasNor)
             {
                 [src appendString:@"  if (LightMode == 1) {\n"
                                   "    float3 normalView = normalize(in.nor);\n"
+                                  "    float3 viewDir = normalize(-in.positionView);\n"
                                   "    float3 lightTravel = normalize(LightDirectionView);\n"
                                   "    float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
                                   "    light += LightColor[0].rgb * diffuse;\n"
+                                  "    if (diffuse > 0.0f && MaterialPower > 0.0f) {\n"
+                                  "      float3 lightDir = normalize(-lightTravel);\n"
+                                  "      float3 halfDir = normalize(lightDir + viewDir);\n"
+                                  "      float spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);\n"
+                                  "      specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;\n"
+                                  "    }\n"
                                   "  } else {\n"];
             }
             else
@@ -604,10 +614,16 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                               "        float attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);\n"
                               "        attenuation *= attenuation;\n"
                               "        light += LightColor[i].rgb * diffuse * attenuation;\n"
+                              "        if (diffuse > 0.0f && MaterialPower > 0.0f) {\n"
+                              "          float3 viewDir = normalize(-in.positionView);\n"
+                              "          float3 halfDir = normalize(lightDir + viewDir);\n"
+                              "          float spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);\n"
+                              "          specular += LightColor[i].rgb * MaterialSpecular.rgb * spec * attenuation;\n"
+                              "        }\n"
                               "      }\n"
                               "    }\n"
                               "  }\n"
-                              "  float3 litColor = clamp((base * clamp(light, 0.0f, 1.0f)) + MaterialEmissive.rgb, 0.0f, 1.0f);\n"
+                              "  float3 litColor = clamp((base * clamp(light, 0.0f, 1.0f)) + MaterialEmissive.rgb + specular, 0.0f, 1.0f);\n"
                               "  return float4(litColor, texColor.a * MaterialDiffuse.a);\n}\n",
                               textureNormalName, static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
         }
@@ -625,7 +641,9 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                               " constant float4& LightColor [[buffer(8)]],"
                               " constant float4& MaterialDiffuse [[buffer(9)]],"
                               " constant float4& MaterialAmbient [[buffer(10)]],"
+                              " constant float4& MaterialSpecular [[buffer(11)]],"
                               " constant float4& MaterialEmissive [[buffer(12)]],"
+                              " constant float& MaterialPower [[buffer(13)]],"
                               " constant int& LightMode [[buffer(14)]]"];
         }
         [src appendString:@") {\n"];
@@ -633,11 +651,19 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
         {
             [src appendString:@"  if (LightEnabled == 0 || LightMode != 1) return u.color;\n"
                               "  float3 normalView = normalize(in.nor);\n"
+                              "  float3 viewDir = normalize(-in.positionView);\n"
                               "  float3 lightTravel = normalize(LightDirectionView);\n"
                               "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
                               "  float3 base = MaterialDiffuse.rgb;\n"
                               "  float3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
-                              "  float3 litColor = clamp((base * light) + MaterialEmissive.rgb, 0.0, 1.0);\n"
+                              "  float3 specular = float3(0.0f);\n"
+                              "  if (diffuse > 0.0f && MaterialPower > 0.0f) {\n"
+                              "    float3 lightDir = normalize(-lightTravel);\n"
+                              "    float3 halfDir = normalize(lightDir + viewDir);\n"
+                              "    float spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);\n"
+                              "    specular = LightColor.rgb * MaterialSpecular.rgb * spec;\n"
+                              "  }\n"
+                              "  float3 litColor = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0, 1.0);\n"
                               "  return float4(litColor, MaterialDiffuse.a);\n}\n"];
         }
         else

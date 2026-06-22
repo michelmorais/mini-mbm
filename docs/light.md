@@ -342,6 +342,44 @@ Custom shaders stay authoritative:
 When classified as lit, the default shader uses the reserved material/light values described above.
 When classified as unlit, it keeps the cheaper unlit path even if normals or UVs exist.
 
+Current default-lit shading behavior:
+
+- ambient uses `AmbientColor * MaterialAmbient`
+- diffuse uses `LightColor * NdotL`
+- emissive adds `MaterialEmissive.rgb`
+- specular uses `MaterialSpecular.rgb` and `MaterialPower`
+
+The current specular term is a view-space Blinn-Phong style highlight:
+
+- directional `3d` lighting uses the view-space light direction together with the current fragment
+  view direction
+- `2dw` point-light shading uses the per-light view-space vector together with the current fragment
+  view direction
+- when `MaterialPower <= 0`, the default lit shaders contribute no specular highlight
+
+`MaterialPower` is the shininess exponent, not a linear strength slider. The current shaders use a
+term equivalent to `pow(max(dot(normal, halfDir), 0), MaterialPower)`.
+
+Practical consequence:
+
+- higher `MaterialPower` -> narrower, tighter highlight
+- lower `MaterialPower` -> broader, softer highlight
+
+So values above `1` can make the visible highlight look smaller, which is expected. Very low values
+such as `0.1` can make larger regions appear white or opaque-looking because the broad specular term
+adds across more pixels before the final lit color is clamped to `0..1`.
+
+Use the two material controls with different intent:
+
+- `MaterialPower` controls highlight size/focus
+- `MaterialSpecular` controls highlight color/intensity
+
+Reasonable first-pass ranges:
+
+- `1..4`: broad highlight
+- `8..16`: medium highlight
+- `32+`: tight highlight
+
 ## Built-in Lit Shader Resources
 
 The engine now exposes two explicit built-in lit pixel shaders on every active backend:
@@ -350,8 +388,8 @@ The engine now exposes two explicit built-in lit pixel shaders on every active b
 - `lit solid.ps`
 
 They use only reserved engine inputs such as `LightEnabled`, `AmbientColor`, `LightDirectionView`,
-`LightColor`, `MaterialDiffuse`, and `MaterialAmbient`. Their CFG entries therefore contain no
-user-editable variables.
+`LightColor`, `MaterialDiffuse`, `MaterialAmbient`, `MaterialSpecular`, `MaterialEmissive`, and
+`MaterialPower`. Their CFG entries therefore contain no user-editable variables.
 
 Typical usage is to load only the pixel shader and let the engine provide the FVF-matched default
 vertex shader automatically:
