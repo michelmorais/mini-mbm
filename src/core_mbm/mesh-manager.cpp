@@ -4310,6 +4310,23 @@ namespace mbm
         return this->infoPhysics;
     }
 
+    void MESH_MBM::resetPhysicsInfo()
+    {
+        this->infoPhysics.release();
+    }
+
+    void MESH_MBM::appendPhysicsCube(CUBE *cube) noexcept
+    {
+        if (cube)
+            this->infoPhysics.lsCube.push_back(cube);
+    }
+
+    void MESH_MBM::appendPhysicsTriangle(TRIANGLE *triangle) noexcept
+    {
+        if (triangle)
+            this->infoPhysics.lsTriangle.push_back(triangle);
+    }
+
     util::INFO_ANIMATION & MESH_MBM::getAnimationInfo() noexcept
     {
         return this->infoAnimation;

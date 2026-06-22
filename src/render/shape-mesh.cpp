@@ -499,9 +499,9 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->infoPhysics.release();
+            mesh->resetPhysicsInfo();
             mbm::CUBE* cube = new mbm::CUBE(width,height,0.0f);
-            mesh->infoPhysics.lsCube.push_back(cube);
+            mesh->appendPhysicsCube(cube);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("rectangle");
@@ -580,7 +580,7 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->infoPhysics.release();
+            mesh->resetPhysicsInfo();
             mbm::TRIANGLE* triangle = new mbm::TRIANGLE();
 
             triangle->point[0].x = points[0];
@@ -595,7 +595,7 @@ namespace mbm
             triangle->point[2].y = points[5];
             triangle->point[2].z = 0;
             
-            mesh->infoPhysics.lsTriangle.push_back(triangle);
+            mesh->appendPhysicsTriangle(triangle);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("triangle");
@@ -734,7 +734,7 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->infoPhysics.release();
+            mesh->resetPhysicsInfo();
             mbm::TRIANGLE* triangle = new mbm::TRIANGLE();
 
             if(width <= 0.0f )
@@ -757,7 +757,7 @@ namespace mbm
             triangle->point[2].y = -y;
             triangle->point[2].z = 0;
             
-            mesh->infoPhysics.lsTriangle.push_back(triangle);
+            mesh->appendPhysicsTriangle(triangle);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("triangle");
@@ -861,7 +861,7 @@ namespace mbm
         {
             this->getPosition() += mesh->positionOffset;
             this->setAngle(mesh->angleDefault);
-            this->mesh->infoPhysics.release();
+            this->mesh->resetPhysicsInfo();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
             cube->halfDim.y   = (vMax.y - vMin.y) * 0.5f;
@@ -905,7 +905,7 @@ namespace mbm
 
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
-            this->mesh->infoPhysics.lsCube.push_back(cube);
+            this->mesh->appendPhysicsCube(cube);
             anim->setNameAnimation("unic-anim");
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
@@ -1009,7 +1009,7 @@ namespace mbm
         {
             this->getPosition() += mesh->positionOffset;
             this->setAngle(mesh->angleDefault);
-            this->mesh->infoPhysics.release();
+            this->mesh->resetPhysicsInfo();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
             cube->halfDim.y   = (vMax.y - vMin.y) * 0.5f;
@@ -1053,7 +1053,7 @@ namespace mbm
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("unic-anim");
-            this->mesh->infoPhysics.lsCube.push_back(cube);
+            this->mesh->appendPhysicsCube(cube);
             FX &fx = anim->getFx();
             fx.defaultShaderMode = getDefaultShaderModeForRenderizable(this);
             fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);

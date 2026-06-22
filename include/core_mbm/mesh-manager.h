@@ -202,6 +202,9 @@ namespace mbm
         API_IMPL const char *getFilenameMesh() const;
         API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
         API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
+        API_IMPL void resetPhysicsInfo();
+        API_IMPL void appendPhysicsCube(CUBE *cube) noexcept;
+        API_IMPL void appendPhysicsTriangle(TRIANGLE *triangle) noexcept;
         API_IMPL util::INFO_ANIMATION &getAnimationInfo() noexcept;
         API_IMPL const util::INFO_ANIMATION &getAnimationInfo() const noexcept;
         API_IMPL uint32_t getTotalAnimations() const noexcept;
