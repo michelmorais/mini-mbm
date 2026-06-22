@@ -42,6 +42,8 @@ namespace mbm
         virtual bool render() override;
         bool renderVR(BUFFER_GL *bufferSide);
         const INFO_PHYSICS * getInfoPhysics() const override;
+        BUFFER_GL & getRightEyeBuffer() noexcept;
+        const BUFFER_GL & getRightEyeBuffer() const noexcept;
         BUFFER_GL bufferGLRight;
     };
 };

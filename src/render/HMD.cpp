@@ -37,7 +37,8 @@ namespace mbm
         this->setRenderTargetTexture(nullptr);
         this->clearRenderObjectLists();
         this->clearInternalFileName();
-        this->bufferGLRight.release();
+        BUFFER_GL &rightEyeBuffer = this->getRightEyeBuffer();
+        rightEyeBuffer.release();
         this->getRenderTargetBuffer().release();
     }
     
@@ -108,9 +109,10 @@ namespace mbm
                     return false;
                 }
 
-                if (this->bufferGLRight.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
+                BUFFER_GL &rightEyeBuffer = this->getRightEyeBuffer();
+                if (rightEyeBuffer.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGLRight.setTextureByStage(renderTargetTexture, 0, 0);
+                    rightEyeBuffer.setTextureByStage(renderTargetTexture, 0, 0);
                 }
                 else
                 {
@@ -162,7 +164,8 @@ namespace mbm
         if (!this->renderVR(&this->getRenderTargetBuffer())) // left
             return false;
         position.x = device->getScaleBackBufferWidth() * 0.75f;
-        if (!this->renderVR(&this->bufferGLRight)) // right
+        BUFFER_GL &rightEyeBuffer = this->getRightEyeBuffer();
+        if (!this->renderVR(&rightEyeBuffer)) // right
             return false;
         return true;
     }
@@ -217,6 +220,16 @@ namespace mbm
     const INFO_PHYSICS * HMD::getInfoPhysics() const
     {
         return nullptr;
+    }
+
+    BUFFER_GL & HMD::getRightEyeBuffer() noexcept
+    {
+        return this->bufferGLRight;
+    }
+
+    const BUFFER_GL & HMD::getRightEyeBuffer() const noexcept
+    {
+        return this->bufferGLRight;
     }
     
 };
