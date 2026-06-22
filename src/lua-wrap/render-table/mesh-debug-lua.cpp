@@ -536,42 +536,42 @@ namespace mbm
         {
             if (strcasecmp(typeAsString, "mesh") == 0)
             {
-                meshDebug->mesh.typeMe = util::TYPE_MESH_3D;
+                meshDebug->mesh.setMeshType(util::TYPE_MESH_3D);
                 lua_pushboolean(lua, 1);
             }
             else if (strcasecmp(typeAsString, "sprite") == 0)
             {
-                meshDebug->mesh.typeMe = util::TYPE_MESH_SPRITE;
+                meshDebug->mesh.setMeshType(util::TYPE_MESH_SPRITE);
                 lua_pushboolean(lua, 1);
             }
             else if (strcasecmp(typeAsString, "font") == 0)
             {
-                meshDebug->mesh.typeMe = util::TYPE_MESH_FONT;
+                meshDebug->mesh.setMeshType(util::TYPE_MESH_FONT);
                 lua_pushboolean(lua, 1);
             }
             else if (strcasecmp(typeAsString, "user") == 0)
             {
-                meshDebug->mesh.typeMe = util::TYPE_MESH_USER;
+                meshDebug->mesh.setMeshType(util::TYPE_MESH_USER);
                 lua_pushboolean(lua, 1);
             }
             else if (strcasecmp(typeAsString, "texture") == 0)
             {
-                meshDebug->mesh.typeMe = util::TYPE_MESH_TEXTURE;
+                meshDebug->mesh.setMeshType(util::TYPE_MESH_TEXTURE);
                 lua_pushboolean(lua, 1);
             }
             else if (strcasecmp(typeAsString, "shape") == 0)
             {
-                meshDebug->mesh.typeMe = util::TYPE_MESH_SHAPE;
+                meshDebug->mesh.setMeshType(util::TYPE_MESH_SHAPE);
                 lua_pushboolean(lua, 1);
             }
             else if (strcasecmp(typeAsString, "particle") == 0)
             {
-                meshDebug->mesh.typeMe = util::TYPE_MESH_PARTICLE;
+                meshDebug->mesh.setMeshType(util::TYPE_MESH_PARTICLE);
                 lua_pushboolean(lua, 1);
             }
 			else if (strcasecmp(typeAsString, "tile") == 0)
 			{
-				meshDebug->mesh.typeMe = util::TYPE_MESH_TILE_MAP;
+				meshDebug->mesh.setMeshType(util::TYPE_MESH_TILE_MAP);
 				lua_pushboolean(lua, 1);
 			}
             else
@@ -627,13 +627,12 @@ namespace mbm
         return nullptr;
     }
 
-    int onSetDetailLua(lua_State *lua)
+	int onSetDetailLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug     = getMeshDebugFromRawTable(lua, 1, 1);
-        if (meshDebug->mesh.typeMe == util::TYPE_MESH_FONT)
+        if (meshDebug->mesh.getMeshType() == util::TYPE_MESH_FONT)
         {
-            meshDebug->mesh.deleteExtraInfo();
-            meshDebug->mesh.extraInfo = newInfoFontFromLua(lua,2);
+            meshDebug->mesh.replaceDetailInfo(newInfoFontFromLua(lua,2));
         }
         else
         {
@@ -652,7 +651,7 @@ namespace mbm
                     default : return "UNKNOWN";
                 }
             };
-            return lua_error_debug(lua,"Not implemented setDetail for [%s]", getTypeAsString(meshDebug->mesh.typeMe));
+            return lua_error_debug(lua,"Not implemented setDetail for [%s]", getTypeAsString(meshDebug->mesh.getMeshType()));
         }
         return 0;
     }
@@ -669,7 +668,7 @@ namespace mbm
         }
         else
         {
-            meshDebug->mesh.info_mode.mode_draw = mode_draw;
+            meshDebug->mesh.setModeDraw(mode_draw);
         }
         return 0;
     }
@@ -686,7 +685,7 @@ namespace mbm
         }
         else
         {
-            meshDebug->mesh.info_mode.mode_cull_face = mode_cull_face;
+            meshDebug->mesh.setModeCullFace(mode_cull_face);
         }
         return 0;
     }
@@ -703,7 +702,7 @@ namespace mbm
         }
         else
         {
-            meshDebug->mesh.info_mode.mode_front_face_direction = mode_front_face;
+            meshDebug->mesh.setModeFrontFaceDirection(mode_front_face);
         }
         return 0;
     }
@@ -711,7 +710,7 @@ namespace mbm
 	int onGetMode_drawMeshDebugLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-		const char *  mode_draw   = util::get_mode_draw_from_uint(meshDebug->mesh.info_mode.mode_draw,"nil");
+		const char *  mode_draw   = util::get_mode_draw_from_uint(meshDebug->mesh.getModeDraw(),"nil");
         lua_pushstring(lua,mode_draw);
         return 1;
     }
@@ -719,7 +718,7 @@ namespace mbm
 	int onGetMode_CullFaceMeshDebugLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
-		const char *  mode_cull_face = util::get_mode_cull_face_from_uint(meshDebug->mesh.info_mode.mode_cull_face,"nil");
+		const char *  mode_cull_face = util::get_mode_cull_face_from_uint(meshDebug->mesh.getModeCullFace(),"nil");
         lua_pushstring(lua,mode_cull_face);
         return 1;
     }
@@ -727,7 +726,7 @@ namespace mbm
 	int onGetMode_FrontFaceMeshDebugLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug     = getMeshDebugFromRawTable(lua, 1, 1);
-		const char *  mode_front_face = util::get_mode_front_face_direction_from_uint(meshDebug->mesh.info_mode.mode_front_face_direction,"nil");
+		const char *  mode_front_face = util::get_mode_front_face_direction_from_uint(meshDebug->mesh.getModeFrontFaceDirection(),"nil");
         lua_pushstring(lua,mode_front_face);
         return 1;
     }
@@ -742,12 +741,13 @@ namespace mbm
     int onGetAngleMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const VEC3 angle = meshDebug->mesh.getAngleDefault();
         lua_newtable(lua);
-        lua_pushnumber(lua, meshDebug->mesh.headerMesh.angleX);
+        lua_pushnumber(lua, angle.x);
         lua_setfield(lua, -2, "x");
-        lua_pushnumber(lua, meshDebug->mesh.headerMesh.angleY);
+        lua_pushnumber(lua, angle.y);
         lua_setfield(lua, -2, "y");
-        lua_pushnumber(lua, meshDebug->mesh.headerMesh.angleZ);
+        lua_pushnumber(lua, angle.z);
         lua_setfield(lua, -2, "z");
         return 1;
     }
@@ -758,22 +758,20 @@ namespace mbm
         const float x = static_cast<float>(luaL_checknumber(lua, 2));
         const float y = static_cast<float>(luaL_checknumber(lua, 3));
         const float z = static_cast<float>(luaL_checknumber(lua, 4));
-        meshDebug->mesh.headerMesh.angleX = x;
-        meshDebug->mesh.headerMesh.angleY = y;
-        meshDebug->mesh.headerMesh.angleZ = z;
-        meshDebug->mesh.angleDefault       = VEC3(x, y, z);
+        meshDebug->mesh.setAngleDefault(VEC3(x, y, z));
         return 0;
     }
 
     int onGetPositionMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const VEC3 position = meshDebug->mesh.getPositionOffset();
         lua_newtable(lua);
-        lua_pushnumber(lua, meshDebug->mesh.headerMesh.posX);
+        lua_pushnumber(lua, position.x);
         lua_setfield(lua, -2, "x");
-        lua_pushnumber(lua, meshDebug->mesh.headerMesh.posY);
+        lua_pushnumber(lua, position.y);
         lua_setfield(lua, -2, "y");
-        lua_pushnumber(lua, meshDebug->mesh.headerMesh.posZ);
+        lua_pushnumber(lua, position.z);
         lua_setfield(lua, -2, "z");
         return 1;
     }
@@ -784,10 +782,7 @@ namespace mbm
         const float x = static_cast<float>(luaL_checknumber(lua, 2));
         const float y = static_cast<float>(luaL_checknumber(lua, 3));
         const float z = static_cast<float>(luaL_checknumber(lua, 4));
-        meshDebug->mesh.headerMesh.posX = x;
-        meshDebug->mesh.headerMesh.posY = y;
-        meshDebug->mesh.headerMesh.posZ = z;
-        meshDebug->mesh.positionOffset  = VEC3(x, y, z);
+        meshDebug->mesh.setPositionOffset(VEC3(x, y, z));
         return 0;
     }
 
@@ -1742,8 +1737,7 @@ namespace mbm
                 if (particle)
                 {
 					auto* lsParticleInfo = new std::vector<util::STAGE_PARTICLE*>();
-					meshDebug->mesh.deleteExtraInfo();
-					meshDebug->mesh.extraInfo = lsParticleInfo;
+					meshDebug->mesh.replaceDetailInfo(lsParticleInfo);
                     for (unsigned int i = 0; i < particle->getTotalStage(); ++i)
                     {
                         util::STAGE_PARTICLE* stage = particle->getStageParticle(i);

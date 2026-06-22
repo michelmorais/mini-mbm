@@ -1499,6 +1499,16 @@ namespace mbm
         }
         return nullptr;
     }
+
+    util::TYPE_MESH MESH_MBM_DEBUG::getMeshType() const noexcept
+    {
+        return this->typeMe;
+    }
+
+    void MESH_MBM_DEBUG::setMeshType(const util::TYPE_MESH type) noexcept
+    {
+        this->typeMe = type;
+    }
     
     bool MESH_MBM_DEBUG::getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
                               util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut, 
@@ -1776,6 +1786,73 @@ namespace mbm
         if (this->buffer.size())
             return this->typeMe;
         return util::TYPE_MESH_UNKNOWN;
+    }
+
+    VEC3 MESH_MBM_DEBUG::getAngleDefault() const noexcept
+    {
+        return this->angleDefault;
+    }
+
+    void MESH_MBM_DEBUG::setAngleDefault(const VEC3 &angle) noexcept
+    {
+        this->angleDefault = angle;
+        this->headerMesh.angleX = angle.x;
+        this->headerMesh.angleY = angle.y;
+        this->headerMesh.angleZ = angle.z;
+    }
+
+    VEC3 MESH_MBM_DEBUG::getPositionOffset() const noexcept
+    {
+        return this->positionOffset;
+    }
+
+    void MESH_MBM_DEBUG::setPositionOffset(const VEC3 &position) noexcept
+    {
+        this->positionOffset = position;
+        this->headerMesh.posX = position.x;
+        this->headerMesh.posY = position.y;
+        this->headerMesh.posZ = position.z;
+    }
+
+    unsigned int MESH_MBM_DEBUG::getModeDraw() const noexcept
+    {
+        return this->info_mode.mode_draw;
+    }
+
+    void MESH_MBM_DEBUG::setModeDraw(const unsigned int modeDraw) noexcept
+    {
+        this->info_mode.mode_draw = modeDraw;
+    }
+
+    unsigned int MESH_MBM_DEBUG::getModeCullFace() const noexcept
+    {
+        return this->info_mode.mode_cull_face;
+    }
+
+    void MESH_MBM_DEBUG::setModeCullFace(const unsigned int modeCullFace) noexcept
+    {
+        this->info_mode.mode_cull_face = modeCullFace;
+    }
+
+    unsigned int MESH_MBM_DEBUG::getModeFrontFaceDirection() const noexcept
+    {
+        return this->info_mode.mode_front_face_direction;
+    }
+
+    void MESH_MBM_DEBUG::setModeFrontFaceDirection(const unsigned int modeFrontFaceDirection) noexcept
+    {
+        this->info_mode.mode_front_face_direction = modeFrontFaceDirection;
+    }
+
+    void * MESH_MBM_DEBUG::getDetailInfo() const noexcept
+    {
+        return this->extraInfo;
+    }
+
+    void MESH_MBM_DEBUG::replaceDetailInfo(void *detailInfo) noexcept
+    {
+        this->deleteExtraInfo();
+        this->extraInfo = detailInfo;
     }
     
     util::TYPE_MESH MESH_MBM_DEBUG::getType(const char *fileNamePath)
