@@ -56,6 +56,7 @@ namespace mbm
         // ---------------------------------------------------------------
         int x = width;
         int y = height;
+        DEVICE *device = this->getDevice();
         // Initialize window position
         device->setWindowPosition(px, py);
         this->setNameApplication(nameApplication);
