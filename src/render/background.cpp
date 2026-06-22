@@ -408,9 +408,7 @@ namespace mbm
                 this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
-
-                if (fx.textureAnimationEffect)
-                    this->impl->buffer->setTextureByStage(fx.textureAnimationEffect, 1, 0);
+                fx.bindTextureAnimationEffect(this->impl->buffer);
                 if (!fx.shader.render(this->impl->buffer))
                     return false;
                 return true;
@@ -436,18 +434,11 @@ namespace mbm
                 this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
-                if (fx.textureAnimationEffect)
-                {
-                    if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
-                                            fx.textureAnimationEffect, this))
-                        return false;
-                }
-                else
-                {
-                    if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0,
-                                            this))
-                        return false;
-                }
+                BUFFER_MESH *frameBuffer = this->impl->mesh->getBuffer(static_cast<unsigned int>(animation->getIndexCurrentFrame()));
+                fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+                if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
+                                              this))
+                    return false;
                 return true;
             }
             case util::TYPE_MESH_3D:
@@ -465,18 +456,11 @@ namespace mbm
                 this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
                 fx.setBlendOp();
-                if (fx.textureAnimationEffect)
-                {
-                    if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
-                                      fx.textureAnimationEffect, this))
-                        return false;
-                }
-                else
-                {
-                    if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader, nullptr,
-                                      this))
-                        return false;
-                }
+                BUFFER_MESH *frameBuffer = this->impl->mesh->getBuffer(static_cast<unsigned int>(animation->getIndexCurrentFrame()));
+                fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+                if (!this->impl->mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
+                                              this))
+                    return false;
                 return true;
             }
             case util::TYPE_MESH_FONT:
@@ -552,18 +536,11 @@ namespace mbm
                                                        &camera.matrixPerspective2d);
                                     fx.shader.update(); // glUseProgram
                                     fx.setBlendOp();
-                                    if (fx.textureAnimationEffect)
-                                    {
-                                        if (!this->impl->mesh->render(static_cast<unsigned int>(detail->indexFrame),
-                                                                &fx.shader,fx.textureAnimationEffect, this))
-                                            return false;
-                                    }
-                                    else
-                                    {
-                                        if (!this->impl->mesh->render(static_cast<unsigned int>(detail->indexFrame),
-                                                                &fx.shader, nullptr, this))
-                                            return false;
-                                    }
+                                    BUFFER_MESH *frameBuffer = this->impl->mesh->getBuffer(static_cast<unsigned int>(detail->indexFrame));
+                                    fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+                                    if (!this->impl->mesh->render(static_cast<unsigned int>(detail->indexFrame),
+                                                                  &fx.shader, this))
+                                        return false;
                                 }
                             }
                             SHADER::modelView._41 += curWidthLetter + this->spaceXCharacter;

@@ -125,17 +125,10 @@ namespace mbm
             this->setBlendState(anim->getBlendState());
             fx.shader.update();
             fx.setBlendOp();
-            if (fx.textureAnimationEffect)
-            {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader,
-                                        fx.textureAnimationEffect, this))
-                    return false;
-            }
-            else
-            {
-                if (!mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, nullptr, this))
-                    return false;
-            }
+            BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
+            fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+            if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, this))
+                return false;
             return true;
         }
         return false;

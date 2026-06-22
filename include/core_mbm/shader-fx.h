@@ -38,10 +38,11 @@ namespace mbm
         DEFAULT_SHADER_MODE_LIT = 1
     };
 
-    API_IMPL DEFAULT_SHADER_MODE getDefaultShaderModeForRenderizable(const RENDERIZABLE *renderizable) noexcept;
-    
-    class FX
-    {
+	    API_IMPL DEFAULT_SHADER_MODE getDefaultShaderModeForRenderizable(const RENDERIZABLE *renderizable) noexcept;
+        API_IMPL void bindTextureAnimationEffect(BUFFER_GL *buffer, TEXTURE *textureAnimationEffect) noexcept;
+
+	    class FX
+	    {
       public:
         API_IMPL FX() noexcept;
         API_IMPL virtual ~FX();
@@ -81,10 +82,11 @@ namespace mbm
             TEXTURE *textureOverrideStage2; // Legacy alias kept for compatibility.
         };
         int           blendOperation;
-        DEFAULT_SHADER_MODE defaultShaderMode;
-        API_IMPL void setBlendDefaultOp();
-        API_IMPL void setBlendOp();
-    };
-}
+	        DEFAULT_SHADER_MODE defaultShaderMode;
+	        API_IMPL void setBlendDefaultOp();
+	        API_IMPL void setBlendOp();
+            API_IMPL void bindTextureAnimationEffect(BUFFER_GL *buffer) const noexcept;
+	    };
+	}
 
 #endif

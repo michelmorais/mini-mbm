@@ -1174,39 +1174,22 @@ namespace mbm
             {
                 fx.shader.update();
                 fx.setBlendOp();
-                if (fx.textureAnimationEffect)
-                {
+                BUFFER_MESH *frameBuffer = mesh->getBuffer(static_cast<unsigned int>(animation->getIndexCurrentFrame()));
+                fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
                     if (!mesh->renderDynamic(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
-                                                reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
-                                                nullptr,
-                                                reinterpret_cast<VEC2 *>(this->dynamicUV.data()),
-                                                fx.textureAnimationEffect, this))
-                        return false;
-                }
-                else
-                {
-                    if (!mesh->renderDynamic(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
-                                                reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
-                                                nullptr,
-                                                reinterpret_cast<VEC2 *>(this->dynamicUV.data()),0, this))
-                        return false;
-                }
+                                            reinterpret_cast<VEC3 *>(this->dynamicVertex.data()),
+                                            nullptr,
+                                            reinterpret_cast<VEC2 *>(this->dynamicUV.data()), this))
+                    return false;
             }
             else
             {
                 fx.shader.update();
                 fx.setBlendOp();
-                if (fx.textureAnimationEffect)
-                {
-                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,
-                                      fx.textureAnimationEffect, this))
-                        return false;
-                }
-                else
-                {
-                    if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader,0, this))
-                        return false;
-                }
+                BUFFER_MESH *frameBuffer = mesh->getBuffer(static_cast<unsigned int>(animation->getIndexCurrentFrame()));
+                fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+                if (!mesh->render(static_cast<unsigned int>(animation->getIndexCurrentFrame()), &fx.shader, this))
+                    return false;
             }
             return true;
         }

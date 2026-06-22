@@ -1116,7 +1116,8 @@ namespace mbm
                         SHADER::modelView._42 = renderPosition.y;
                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->getCamera().matrixPerspective2d);
 
-                        brick->render(&fx.shader,0);
+                        brick->bindTextureAnimationEffect(nullptr);
+                        brick->render(&fx.shader);
                         renderPosition.x += (brick->width * renderScale.x) + 5;
                     }
                     else
@@ -1403,7 +1404,8 @@ namespace mbm
                 anim_over->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
                 overFx.setBlendOp();
                 overFx.shader.update();
-                if(brick->render(&overFx.shader,layer->fx.textureAnimationEffect) == false)
+                brick->bindTextureAnimationEffect(layer->fx.textureAnimationEffect);
+                if(brick->render(&overFx.shader) == false)
                     return false;
             }
             else if(bSelected)
@@ -1416,17 +1418,20 @@ namespace mbm
                     selectedFx.setBlendOp();
                     selectedFx.shader.update();
                 }
-                if(brick->render(&selectedFx.shader,layer->fx.textureAnimationEffect) == false)
+                brick->bindTextureAnimationEffect(layer->fx.textureAnimationEffect);
+                if(brick->render(&selectedFx.shader) == false)
                     return false;
             }
             else if(transparency == true)
             {
-                if(brick->render(&transparentFx.shader,layer->fx.textureAnimationEffect) == false)
+                brick->bindTextureAnimationEffect(layer->fx.textureAnimationEffect);
+                if(brick->render(&transparentFx.shader) == false)
                     return false;
             }
             else
             {
-                if(brick->render(&layer->fx.shader,layer->fx.textureAnimationEffect) == false)
+                brick->bindTextureAnimationEffect(layer->fx.textureAnimationEffect);
+                if(brick->render(&layer->fx.shader) == false)
                     return false;
             }
             if(render_what == RENDER_LAYER)
@@ -1924,7 +1929,8 @@ namespace mbm
         {
             ANIMATION *anim = this->getAnimation(0);
             FX &fx = anim->getFx();
-            return it->second->render(&fx.shader,0);
+            it->second->bindTextureAnimationEffect(nullptr);
+            return it->second->render(&fx.shader);
         }
         return false;
     }

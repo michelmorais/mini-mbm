@@ -774,17 +774,10 @@ namespace mbm
                                         FX &fx = anim->getFx();
                                         fx.shader.update(); // glUseProgram
                                         fx.setBlendOp();
-                                        if (fx.textureAnimationEffect)
-                                        {
-                                            if (!this->mesh->render(detail->indexFrame, &fx.shader,
-                                                                    fx.textureAnimationEffect, this))
-                                                return false;
-                                        }
-                                        else
-                                        {
-                                            if (!this->mesh->render(detail->indexFrame, &fx.shader,0, this))
-                                                return false;
-                                        }
+                                        BUFFER_MESH *frameBuffer = this->mesh->getBuffer(detail->indexFrame);
+                                        fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+                                        if (!this->mesh->render(detail->indexFrame, &fx.shader, this))
+                                            return false;
                                     }
                                 }
                             }

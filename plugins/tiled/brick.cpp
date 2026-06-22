@@ -117,11 +117,15 @@ namespace mbm
         }
     }
 
-    bool BRICK::render(SHADER *shader,TEXTURE* idTexStage2)
+    void BRICK::bindTextureAnimationEffect(TEXTURE* textureAnimationEffect)
+    {
+        mbm::bindTextureAnimationEffect(&this->bufferGL, textureAnimationEffect);
+    }
+
+    bool BRICK::render(SHADER *shader)
     {
         if(this->bufferGL.isLoadedBuffer())
         {
-            this->bufferGL.setTextureByStage(idTexStage2, 1, 0);
             return shader->render(&this->bufferGL);
         }
         return false;

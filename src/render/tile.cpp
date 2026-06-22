@@ -546,7 +546,9 @@ namespace mbm
             SHADER::modelView._41 = (bTileIndex->x * scale.x) + offset_x + pos->x;
             SHADER::modelView._42 = (bTileIndex->y * scale.y) + offset_y + pos->y;
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, matrixPerspective);
-            if (this->mesh->render(bTileIndex->index, shader, textureAnimationEffect, this) == false)
+            BUFFER_MESH *frameBuffer = this->mesh->getBuffer(bTileIndex->index);
+            mbm::bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr, textureAnimationEffect);
+            if (this->mesh->render(bTileIndex->index, shader, this) == false)
             {
                 return false;
             }
@@ -1234,7 +1236,9 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
             }
 
-            return this->ptr_Mesh->render(brickID, &fx.shader, fx.textureAnimationEffect, this);
+            BUFFER_MESH *frameBuffer = this->ptr_Mesh->getBuffer(brickID);
+            fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+            return this->ptr_Mesh->render(brickID, &fx.shader, this);
         }
         return false;
     }

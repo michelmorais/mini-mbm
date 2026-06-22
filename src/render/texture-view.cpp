@@ -293,8 +293,7 @@ namespace mbm
             anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
             fx.setBlendOp();
             fx.shader.update();
-            if (fx.textureAnimationEffect)
-                this->impl->bufferGL.setTextureByStage(fx.textureAnimationEffect, 1, 0);
+            fx.bindTextureAnimationEffect(&this->impl->bufferGL);
             if (!fx.shader.render(&this->impl->bufferGL, this))
                 return false;
             return true;
