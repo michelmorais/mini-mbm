@@ -374,7 +374,7 @@ All visible objects in the engine inherit from `mbm::RENDERIZABLE` (defined in `
 
 All renderable types (except `TILE_OBJ`) also inherit from `ANIMATION_MANAGER`, providing built-in animation support with 7 modes: *Paused*, *Growing*, *Growing-Loop*, *Decreasing*, *Decreasing-Loop*, *Recursive*, and *Recursive-Loop*.
 
-> For the full class hierarchy, rendering order internals, and a step-by-step guide to adding a new renderable type, see [src/core_mbm/renderizable-architecture.md](src/core_mbm/renderizable-architecture.md).
+> For the full class hierarchy, rendering order internals, and a step-by-step guide to adding a new renderable type, see [docs/renderizable-architecture.md](docs/renderizable-architecture.md).
 
 ---
 
@@ -429,7 +429,7 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 
 > **macOS + OGG Opus:** Android tooling often exports `.ogg` files encoded with the Opus codec. AVFoundation and stb_vorbis do not support Opus. The engine automatically detects OGG Opus files (by reading the `OpusHead` stream header) and falls back to a `.wav` file with the same base name in the same directory. Keep both `.ogg` and `.wav` versions of your sounds to stay compatible with both Android and macOS.
 
-> For the complete audio subsystem architecture and a step-by-step guide for implementing a new audio backend, see [src/core_mbm/audio-new-implementation.md](src/core_mbm/audio-new-implementation.md).
+> For the complete audio subsystem architecture and a step-by-step guide for implementing a new audio backend, see [docs/audio-new-implementation.md](docs/audio-new-implementation.md).
 
 ---
 
@@ -449,7 +449,7 @@ Each backend implements platform-specific versions of: core manager, device, ble
 
 The **Flexible Vertex Format (FVF)** system communicates vertex layout from each `RENDERIZABLE` to the shader compiler: `FVF_POS`, `FVF_POS_UV`, `FVF_POS_NOR`, `FVF_POS_NOR_UV`.
 
-> For a complete guide to implementing a new render backend (Vulkan, console, etc.) and lessons learned from the Metal port, see [src/core_mbm/new-backend-instructions.md](src/core_mbm/new-backend-instructions.md).
+> For a complete guide to implementing a new render backend (Vulkan, console, etc.) and lessons learned from the Metal port, see [docs/new-backend-instructions.md](docs/new-backend-instructions.md).
 
 ---
 

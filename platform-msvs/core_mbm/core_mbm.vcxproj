@@ -410,7 +410,7 @@
     <ClCompile Include="core-mbm-Windows-dll-entry.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\src\core_mbm\new-backend-instructions.md" />
+    <None Include="..\..\docs\new-backend-instructions.md" />
     <None Include="..\copy-dlls.bat" />
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />

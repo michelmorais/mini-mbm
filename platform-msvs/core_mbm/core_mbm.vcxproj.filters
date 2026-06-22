@@ -753,7 +753,7 @@
     </None>
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />
-    <None Include="..\..\src\core_mbm\new-backend-instructions.md">
+    <None Include="..\..\docs\new-backend-instructions.md">
       <Filter>Source Files\core_mbm</Filter>
     </None>
   </ItemGroup>
