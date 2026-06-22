@@ -30,20 +30,30 @@
 
 namespace mbm
 {
+    struct TEXTURE_VIEW::Impl
+    {
+        INFO_PHYSICS infoPhysics;
+        TEXTURE *texture;
+        BUFFER_GL bufferGL;
+
+        Impl() noexcept : texture(nullptr)
+        {
+        }
+    };
 
     TEXTURE_VIEW::TEXTURE_VIEW(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
-        : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_TEXTURE, _is3d && _is2dScreen == false, _is2dScreen)
+        : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_TEXTURE, _is3d && _is2dScreen == false, _is2dScreen),
+          impl(std::make_unique<Impl>())
     {
-        this->texture      = nullptr;
         this->setEnableRender(true);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
 
     TEXTURE_VIEW::TEXTURE_VIEW(const bool _is3d, const bool _is2dScreen)
-        : RENDERIZABLE(0, TYPE_CLASS_TEXTURE, _is3d && _is2dScreen == false, _is2dScreen)
+        : RENDERIZABLE(0, TYPE_CLASS_TEXTURE, _is3d && _is2dScreen == false, _is2dScreen),
+          impl(std::make_unique<Impl>())
     {
-        this->texture      = nullptr;
         this->setEnableRender(true);
         //no scene - just restore texture
     }
@@ -58,8 +68,8 @@ namespace mbm
     
     void TEXTURE_VIEW::release()
     {
-        this->texture = nullptr;
-        this->bufferGL.release();
+        this->impl->texture = nullptr;
+        this->impl->bufferGL.release();
     }
     
     bool TEXTURE_VIEW::createAnimationAndShader2Texture()
@@ -77,22 +87,22 @@ namespace mbm
     
     bool TEXTURE_VIEW::load(const IMAGE_RESOURCE *image)
     {
-        if (this->texture)
+        if (this->impl->texture)
             return true;
         if (image == nullptr)
             return false;
 
         TEXTURE_MANAGER *texMan = TEXTURE_MANAGER::getInstance();
-        this->texture            = texMan->load(image);
-        if (this->texture == nullptr)
+        this->impl->texture      = texMan->load(image);
+        if (this->impl->texture == nullptr)
             return false;
         if (!this->setFrame(static_cast<float>(image->width), static_cast<float>(image->height)))
             return false;
         if (!createAnimationAndShader2Texture())
             return false;
-        this->bufferGL.setTextureByStage(this->texture, 0, 0);
+        this->impl->bufferGL.setTextureByStage(this->impl->texture, 0, 0);
         char strTemp[255];
-        snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->texture->hasAlphaChannel() ? 1 : 0);
+        snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->impl->texture->hasAlphaChannel() ? 1 : 0);
         this->setInternalFileName(strTemp);
         this->updateAABB();
         return true;
@@ -100,20 +110,20 @@ namespace mbm
     
     bool TEXTURE_VIEW::load(const char *fileNameTexture, const float w , const float h , const bool alpha )
     {
-        if (this->texture)
+        if (this->impl->texture)
             return true;
         if (fileNameTexture == nullptr)
             return false;
-        this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, alpha);
-        if (this->texture == nullptr)
+        this->impl->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, alpha);
+        if (this->impl->texture == nullptr)
             return false;
-        const bool idFrame = this->setFrame(w <= 0.0f ? this->texture->getWidth() : w, h <= 0.0f ? this->texture->getHeight() : h);
+        const bool idFrame = this->setFrame(w <= 0.0f ? this->impl->texture->getWidth() : w, h <= 0.0f ? this->impl->texture->getHeight() : h);
         if (idFrame == false)
             return false;
         if (!createAnimationAndShader2Texture())
             return false;
-        this->bufferGL.setTextureByStage(this->texture, 0, 0);
-        const int useAlpha   = this->texture ? (this->texture->hasAlphaChannel() ? 1 : 0) : 0;
+        this->impl->bufferGL.setTextureByStage(this->impl->texture, 0, 0);
+        const int useAlpha   = this->impl->texture ? (this->impl->texture->hasAlphaChannel() ? 1 : 0) : 0;
         char strTemp[255];
         const std::string baseFileName = util::getBaseName(fileNameTexture);
         snprintf(strTemp, sizeof(strTemp), "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, useAlpha);
@@ -129,26 +139,26 @@ namespace mbm
         VEC3            _position[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
-        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
-        this->bufferGL.release();
+        TEXTURE * idTexture0 = this->impl->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->impl->bufferGL.getTextureByStage(1, 0);
+        this->impl->bufferGL.release();
         mbm::fillVertexQuadTexture(_position, uv, diameter <= 0.0f ? 100.0f : diameter,
                                    diameter <= 0.0f ? 100.0f : diameter);
-        const bool ret = this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+        const bool ret = this->impl->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
-            this->bufferGL.setTextureByStage(idTexture0, 0, 0);
-            this->bufferGL.setTextureByStage(idTexture1, 1, 0);
+            this->impl->bufferGL.setTextureByStage(idTexture0, 0, 0);
+            this->impl->bufferGL.setTextureByStage(idTexture1, 1, 0);
         }
         else
             return false;
         mbm::CUBE *cube = nullptr;
-        if (this->infoPhysics.lsCube.size())
-            cube = this->infoPhysics.lsCube[0];
+        if (this->impl->infoPhysics.lsCube.size())
+            cube = this->impl->infoPhysics.lsCube[0];
         else
         {
             cube = new mbm::CUBE();
-            this->infoPhysics.lsCube.push_back(cube);
+            this->impl->infoPhysics.lsCube.push_back(cube);
         }
         cube->halfDim.x = diameter * 0.5f;
         cube->halfDim.y = diameter * 0.5f;
@@ -163,25 +173,25 @@ namespace mbm
         VEC3            _position[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
-        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
+        TEXTURE * idTexture0 = this->impl->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->impl->bufferGL.getTextureByStage(1, 0);
         mbm::fillVertexQuadTexture(_position, uv, width <= 0.0f ? 100.0f : width,
                                    height <= 0.0f ? 100.0f : height);
-        const bool ret = this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+        const bool ret = this->impl->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
-            this->bufferGL.setTextureByStage(idTexture0, 0, 0);
-            this->bufferGL.setTextureByStage(idTexture1, 1, 0);
+            this->impl->bufferGL.setTextureByStage(idTexture0, 0, 0);
+            this->impl->bufferGL.setTextureByStage(idTexture1, 1, 0);
         }
         else
             return false;
         mbm::CUBE *cube = nullptr;
-        if (this->infoPhysics.lsCube.size())
-            cube = this->infoPhysics.lsCube[0];
+        if (this->impl->infoPhysics.lsCube.size())
+            cube = this->impl->infoPhysics.lsCube[0];
         else
         {
             cube = new mbm::CUBE();
-            this->infoPhysics.lsCube.push_back(cube);
+            this->impl->infoPhysics.lsCube.push_back(cube);
         }
         cube->halfDim.x = width * 0.5f;
         cube->halfDim.y = height * 0.5f;
@@ -191,12 +201,12 @@ namespace mbm
     
     BUFFER_GL * TEXTURE_VIEW::getFrame()
     {
-        return &this->bufferGL;
+        return &this->impl->bufferGL;
     }
     
     TEXTURE * TEXTURE_VIEW::getTexture() const
     {
-        return texture;
+        return this->impl->texture;
     }
     
     bool TEXTURE_VIEW::setTexture(
@@ -208,8 +218,8 @@ namespace mbm
             mbm::TEXTURE *newTex = mbm::TEXTURE_MANAGER::getInstance()->load(fileNametexture, hasAlpha);
             if (newTex)
             {
-                this->texture                = newTex;
-                this->bufferGL.setTextureByStage(newTex, 0, 0);
+                this->impl->texture          = newTex;
+                this->impl->bufferGL.setTextureByStage(newTex, 0, 0);
                 return true;
             }
         }
@@ -222,20 +232,20 @@ namespace mbm
     
     void TEXTURE_VIEW::setTextureToNull()
     {
-        this->texture = nullptr;
+        this->impl->texture = nullptr;
     }
 
     std::string TEXTURE_VIEW::getFileNameTexture()const
     {
         std::string ret;
-        if(this->texture)
-            ret = this->texture->getFileNameTexture();
+        if(this->impl->texture)
+            ret = this->impl->texture->getFileNameTexture();
         return ret;
     }
     
     bool TEXTURE_VIEW::isOnFrustum()
     {
-        if (this->bufferGL.isLoadedBuffer())
+        if (this->impl->bufferGL.isLoadedBuffer())
         {
             IS_ON_FRUSTUM verify(this);
             bool ret = verify.isOnFrustum(this->is3DObject(), this->is2dScreenObject());
@@ -252,7 +262,7 @@ namespace mbm
     
     bool TEXTURE_VIEW::render()
     {
-        if (this->bufferGL.isLoadedBuffer())
+        if (this->impl->bufferGL.isLoadedBuffer())
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
@@ -284,8 +294,8 @@ namespace mbm
             fx.setBlendOp();
             fx.shader.update();
             if (fx.textureOverrideStage2)
-                this->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
-            if (!fx.shader.render(&this->bufferGL, this))
+                this->impl->bufferGL.setTextureByStage(fx.textureOverrideStage2, 1, 0);
+            if (!fx.shader.render(&this->impl->bufferGL, this))
                 return false;
             return true;
         }
@@ -294,19 +304,19 @@ namespace mbm
     
     bool TEXTURE_VIEW::onRestoreDevice()
     {
-        this->texture = nullptr; // we can not release texture after device lost
+        this->impl->texture = nullptr; // we can not release texture after device lost
         std::vector<std::string> result;
         util::split(result, this->getInternalFileName(), '|');
         if (result.size() <= 1)
         {
-            this->bufferGL.release();
+            this->impl->bufferGL.release();
             return false;
         }
         if (result[0].compare("texture") == 0)
         {
             if (result.size() != 5)
             {
-                this->bufferGL.release();
+                this->impl->bufferGL.release();
                 return false;
             }
             const char *fileNameTexture = result[1].c_str();
@@ -334,7 +344,7 @@ namespace mbm
     
     FVF_PROVIDE_BY_ENGINE TEXTURE_VIEW::getFvfFromBuffer() const noexcept
     {
-        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+        return this->impl->bufferGL.isLoadedBuffer() ? this->impl->bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     void TEXTURE_VIEW::updateRestoreTexture(const float w, const float h)
@@ -354,7 +364,7 @@ namespace mbm
     
     const mbm::INFO_PHYSICS * TEXTURE_VIEW::getInfoPhysics() const
     {
-        return &infoPhysics;
+        return &this->impl->infoPhysics;
     }
     
     const MESH_MBM * TEXTURE_VIEW::getMesh() const
@@ -377,6 +387,6 @@ namespace mbm
     
     bool TEXTURE_VIEW::isLoaded() const
     {
-        return this->bufferGL.isLoadedBuffer() && this->texture && this->getTotalAnimation() > 0;
+        return this->impl->bufferGL.isLoadedBuffer() && this->impl->texture && this->getTotalAnimation() > 0;
     }
 }

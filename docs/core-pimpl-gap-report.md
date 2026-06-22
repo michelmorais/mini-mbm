@@ -2142,6 +2142,12 @@ Milestone 259 implementation note:
 - Migrated the remaining focused shape/build `infoPhysics` writes in `src/render/shape-mesh.cpp` to those helpers.
 - Direct field compatibility remains in place. This milestone intentionally did not widen the helper surface to every physics shape type or touch mesh load/legacy/debug physics population paths.
 
+Milestone 260 implementation note:
+
+- Started the derived render-type family work with the simplest texture-like pair: `TEXTURE_VIEW` and `GIF_VIEW`.
+- Moved their private runtime layout behind `Impl` in `include/render/texture-view.h`, `include/render/gif-view.h`, `src/render/texture-view.cpp`, and `src/render/gif-view.cpp`, hiding private `INFO_PHYSICS`, texture storage, interval storage, and `BUFFER_GL` members from the public headers.
+- No public API change was made. This milestone intentionally did not batch `BACKGROUND`, `TEXT_DRAW`, or other heavier derived types with the same change.
+
 ### Phase 3 - Hide renderer backend handles - COMPLETE
 
 Order:
@@ -2226,7 +2232,7 @@ Future strict-PIMPL work should be picked from the audit table below. The rule i
 | `include/core_mbm/plugin-callback.h` | `PLUGIN::onSubscribe(void *context, void *renderDevice)` still passes opaque backend/platform handles. | The types are opaque `void *`, so no concrete backend layout leaks through the header. This is a plugin ABI/design issue, not current PIMPL leakage. | High. Plugin binary/source compatibility risk. | Revisit only if plugin ABI versioning becomes formal. Introduce a stable plugin context wrapper before changing callbacks. |
 | `include/core_mbm/header-mesh.h` and mesh file-format structs | Public file-format value structs remain visible. | They describe serialized data and compatibility with existing asset files. | High. Asset compatibility risk. | Do not PIMPL first. Only revisit during a mesh format redesign. |
 | Public comments/API names mentioning platforms | Some comments, names, or bridge functions may mention Android, Metal, DirectX, OpenGL ES, Win32, or macOS. | Names/comments are not a concrete layout leak. Opaque bridges are acceptable for platform integration. | Low. Mostly documentation consistency. | Optional documentation cleanup only. Do not treat this as backend/OS PIMPL work. |
-| Derived render-type headers such as `sprite.h`, `mesh.h`, `font.h`, `particle.h`, `tile.h`, `shape-mesh.h`, `line-mesh.h`, `background.h`, `gif-view.h`, `texture-view.h` | Base `RENDERIZABLE` state is hidden. Derived classes may still expose gameplay, asset, editor, or render-type-specific fields. | Most remaining state is not an explicit backend/OS dependency. Some is part of long-standing C++/Lua/editor ergonomics. | Medium to high depending on type. | Continue only when a field is clearly internal or creates ABI pressure. Batch similar render types only after focused scans show the same safe accessor pattern. |
+| Derived render-type headers such as `sprite.h`, `mesh.h`, `font.h`, `particle.h`, `tile.h`, `shape-mesh.h`, `line-mesh.h`, `background.h`, `gif-view.h`, `texture-view.h` | Base `RENDERIZABLE` state is hidden. The first simple texture-like pair is now done: `TEXTURE_VIEW` and `GIF_VIEW` private runtime state moved behind `Impl`. Other derived classes may still expose gameplay, asset, editor, or render-type-specific fields. | Most remaining state is not an explicit backend/OS dependency. Some is part of long-standing C++/Lua/editor ergonomics. The simplest texture-only classes were low-risk because their hidden state was private and self-contained. | Medium to high depending on type. `TEXTURE_VIEW`/`GIF_VIEW` are now low. `BACKGROUND` and `FONT_DRAW` remain higher because they mix more gameplay/editor-facing fields and mesh ownership. | Continue by family only when the next type is clearly isolated. After `TEXTURE_VIEW`/`GIF_VIEW`, the next safe step is a focused audit of `BACKGROUND` versus `TEXT_DRAW` to decide which remaining texture-like/header-heavy type is actually worth a move. |
 | `include/core_mbm/animation.h` | `ANIMATION`, `ANIMATION_MANAGER`, `ANIMATION_BACKUP`, and `EFFECT_SHADER` state is behind `Impl`. | No known remaining strict-PIMPL blocker in this header from the current branch. | Low. | Treat as complete. Reopen only for bugs, missing accessors, or new public-state regressions. |
 | `include/core_mbm/core-manager.h`, `scene.h`, `renderizable.h` | Main state is behind `Impl` and repo call sites use accessor APIs. `SCENE` exports customer-visible methods instead of the whole class and uses a custom out-of-line `ImplDeleter`, so MSVC does not require the private `std::unique_ptr<SCENE::Impl>` member to have a DLL interface. | These headers still define the public engine API, but no longer expose the main storage targeted by this cleanup. | Low to medium. | Treat as complete. Future changes should be normal API design, not cleanup for its own sake. |
 
@@ -2245,8 +2251,8 @@ Use this checklist when resuming the work months later:
 
 ### Suggested future milestone queue
 
-1. Optional `MESH_MBM_DEBUG` owner-side algorithm helper review only if continuing this class is still worth the compatibility surface.
-2. Derived render-type header audit by family: simple texture-like types first, mesh/debug/editor-heavy types last.
+1. Derived render-type next-family audit: `BACKGROUND` versus `TEXT_DRAW`, and pick only one if there is a similarly isolated low-risk move.
+2. Optional `MESH_MBM_DEBUG` owner-side algorithm helper review only if continuing this class is still worth the compatibility surface.
 3. Optional `BUFFER_MESH` storage move review only after owner-side construction/load and runtime mutation paths are audited separately.
 4. Optional `MESH_MBM` broader physics-write review only if load/legacy/debug population paths become worth the extra helper surface.
 
@@ -2299,5 +2305,6 @@ Current decision:
 32. The `MESH_MBM_DEBUG` raw geometry helper slice is complete: typed position, normal, UV, and index-array accessors exist, and the remaining Lua mesh-debug vertex/index traversal paths now use them while owner-side mesh-debug algorithms and public debug-buffer storage remain intentionally direct.
 33. The `BUFFER_MESH` read-helper slice is complete: render-buffer lookup, loaded-buffer checks, subset count, and subset lookup helpers exist, and the main render/animation/backend-debug read paths now use them while owner-side construction/load and runtime mutation remain intentionally direct.
 34. The focused `MESH_MBM` physics-write helper slice is complete: reset/cube/triangle helpers exist, and the remaining shape/build `infoPhysics` writes now use them while load/legacy/debug physics population remains intentionally direct.
+35. The first derived render-type family milestone is complete: `TEXTURE_VIEW` and `GIF_VIEW` private runtime layout moved behind `Impl`, which hides their private `INFO_PHYSICS`, texture storage, interval storage, and `BUFFER_GL` members without changing the public API.
 
 For the original PIMPL goal of hiding OS/backend dependencies from public headers, the work is complete. The next work is optional strict PIMPL and ABI/header hygiene, not backend isolation.
