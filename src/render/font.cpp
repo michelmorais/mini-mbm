@@ -283,6 +283,36 @@ namespace mbm
     {
         return this->text;
     }
+
+    void TEXT_DRAW::setAligned(const ALIGNED newAligned) noexcept
+    {
+        this->aligned = newAligned;
+    }
+
+    ALIGNED TEXT_DRAW::getAligned() const noexcept
+    {
+        return this->aligned;
+    }
+
+    void TEXT_DRAW::setSpaceXCharacter(const float newSpaceXCharacter) noexcept
+    {
+        this->spaceXCharacter = newSpaceXCharacter;
+    }
+
+    float TEXT_DRAW::getSpaceXCharacter() const noexcept
+    {
+        return this->spaceXCharacter;
+    }
+
+    void TEXT_DRAW::setSpaceYCharacter(const float newSpaceYCharacter) noexcept
+    {
+        this->spaceYCharacter = newSpaceYCharacter;
+    }
+
+    float TEXT_DRAW::getSpaceYCharacter() const noexcept
+    {
+        return this->spaceYCharacter;
+    }
     
     bool TEXT_DRAW::getWidthHeight(float *_width, float *_height, const bool ) const
     {
@@ -1008,8 +1038,7 @@ namespace mbm
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
-        boundingAABB.x = text->endText.x - text->beginText.x;
-        boundingAABB.y = text->beginText.y - text->endText.y;
+        text->getWidthHeight(&boundingAABB.x, &boundingAABB.y, false);
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1024,8 +1053,7 @@ namespace mbm
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
-        boundingAABB.x = text->endText.x - text->beginText.x;
-        boundingAABB.y = text->beginText.y - text->endText.y;
+        text->getWidthHeight(&boundingAABB.x, &boundingAABB.y, false);
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1041,8 +1069,7 @@ namespace mbm
         text->restartAnimation();
         text->renderText(false);
         VEC3 &boundingAABB = text->getBoundingAABB();
-        boundingAABB.x = text->endText.x - text->beginText.x;
-        boundingAABB.y = text->beginText.y - text->endText.y;
+        text->getWidthHeight(&boundingAABB.x, &boundingAABB.y, false);
         text->isOnFrustum();
         text->updateAABB();
         return text;
@@ -1128,8 +1155,8 @@ namespace mbm
             return;
         text->mesh            = this->mesh;
         const INFO_BOUND_FONT * infoFont = mesh->getInfoFont();
-        text->spaceXCharacter = infoFont->spaceXCharacter;
-        text->spaceYCharacter = infoFont->spaceYCharacter;
+        text->setSpaceXCharacter(infoFont->spaceXCharacter);
+        text->setSpaceYCharacter(infoFont->spaceYCharacter);
         // adicionamos as animações
         const uint32_t totalAnimations = this->mesh->getTotalAnimations();
         for (uint32_t i = 0; i < totalAnimations; ++i)
