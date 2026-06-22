@@ -155,9 +155,10 @@ namespace mbm
             if (!this->setScale(this->isMajorScale))
                 return false;
             // adicionamos as animações
-            for (unsigned int i = 0; i < this->mesh->infoAnimation.lsHeaderAnim.size(); ++i)
+            const uint32_t totalAnimations = this->mesh->getTotalAnimations();
+            for (uint32_t i = 0; i < totalAnimations; ++i)
             {
-                util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->mesh->infoAnimation.lsHeaderAnim[i];
+                util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->mesh->getAnimationHeader(i);
                 if (!this->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
                 {
                     this->release();
@@ -231,9 +232,10 @@ namespace mbm
                 return false;
 
             // adicionamos as animações
-            for (unsigned int i = 0; i < this->mesh->infoAnimation.lsHeaderAnim.size(); ++i)
+            const uint32_t totalAnimations = this->mesh->getTotalAnimations();
+            for (uint32_t i = 0; i < totalAnimations; ++i)
             {
-                util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->mesh->infoAnimation.lsHeaderAnim[i];
+                util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->mesh->getAnimationHeader(i);
                 if (!this->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
                 {
                     this->release();
@@ -580,25 +582,26 @@ namespace mbm
                     return false;
                 unsigned int index = 0;
                 const uint32_t indexAnimation = this->getIndexAnimation();
-                if (mesh->infoPhysics.lsCube.size())
+                const INFO_PHYSICS &physicsInfo = mesh->getPhysicsInfo();
+                if (physicsInfo.lsCube.size())
                 {
-                    if (indexAnimation < mesh->infoPhysics.lsCube.size())
+                    if (indexAnimation < physicsInfo.lsCube.size())
                         index = indexAnimation;
-                    if (index < mesh->infoPhysics.lsCube.size())
+                    if (index < physicsInfo.lsCube.size())
                     {
-                        CUBE *cube            = mesh->infoPhysics.lsCube[index];
+                        CUBE *cube            = physicsInfo.lsCube[index];
                         this->bound.halfDim.x = cube->halfDim.x;
                         this->bound.halfDim.y = cube->halfDim.y;
                         this->bound.halfDim.z = cube->halfDim.z;
                     }
                 }
-                else if (mesh->infoPhysics.lsSphere.size())
+                else if (physicsInfo.lsSphere.size())
                 {
-                    if (indexAnimation < mesh->infoPhysics.lsSphere.size())
+                    if (indexAnimation < physicsInfo.lsSphere.size())
                         index = indexAnimation;
-                    if (index < mesh->infoPhysics.lsSphere.size())
+                    if (index < physicsInfo.lsSphere.size())
                     {
-                        mbm::SPHERE *sphere   = mesh->infoPhysics.lsSphere[index];
+                        mbm::SPHERE *sphere   = physicsInfo.lsSphere[index];
                         this->bound.halfDim.x = sphere->ray;
                         this->bound.halfDim.y = sphere->ray;
                         this->bound.halfDim.z = sphere->ray;
@@ -803,7 +806,7 @@ namespace mbm
     const mbm::INFO_PHYSICS * BACKGROUND::getInfoPhysics() const 
     {
         if (this->mesh)
-            return &this->mesh->infoPhysics;
+            return &this->mesh->getPhysicsInfo();
         return nullptr;
     }
     

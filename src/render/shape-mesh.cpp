@@ -179,13 +179,14 @@ namespace mbm
         {
             if (fileNameOldTexture.size())
                 mesh->setTexture(0, 0, fileNameOldTexture.c_str(), hasOldAlpha);
+            INFO_PHYSICS &physicsInfo = this->mesh->getPhysicsInfo();
             mbm::CUBE *cube = nullptr;
-            if (this->mesh->infoPhysics.lsCube.size())
-                cube = this->mesh->infoPhysics.lsCube[0];
+            if (physicsInfo.lsCube.size())
+                cube = physicsInfo.lsCube[0];
             else
             {
                 cube = new mbm::CUBE();
-                this->mesh->infoPhysics.lsCube.push_back(cube);
+                physicsInfo.lsCube.push_back(cube);
             }
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
             cube->halfDim.y   = (vMax.y - vMin.y) * 0.5f;
@@ -332,10 +333,10 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->infoPhysics.release();
+            mesh->getPhysicsInfo().release();
             mbm::SPHERE* sphere = new mbm::SPHERE();
             sphere->ray = width > height ? width * 0.5f : height * 0.5f;
-            mesh->infoPhysics.lsSphere.push_back(sphere);
+            mesh->getPhysicsInfo().lsSphere.push_back(sphere);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("circle");
@@ -1226,7 +1227,7 @@ namespace mbm
     const mbm::INFO_PHYSICS * SHAPE_MESH::getInfoPhysics() const  noexcept
     {
         if (this->mesh)
-            return &this->mesh->infoPhysics;
+            return &this->mesh->getPhysicsInfo();
         return nullptr;
     }
     

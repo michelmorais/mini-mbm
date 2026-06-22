@@ -301,15 +301,16 @@ namespace mbm
         float w, h;
         if (this->getWidthHeight(&w, &h))
         {
+            INFO_PHYSICS &physicsInfo = this->mesh->getPhysicsInfo();
             mbm::CUBE *cube = nullptr;
-            if (this->mesh->infoPhysics.lsCube.size() == 0)
+            if (physicsInfo.lsCube.size() == 0)
             {
                 cube = new mbm::CUBE();
-                this->mesh->infoPhysics.lsCube.push_back(cube);
+                physicsInfo.lsCube.push_back(cube);
             }
             else
             {
-                cube = this->mesh->infoPhysics.lsCube[0];
+                cube = physicsInfo.lsCube[0];
             }
             const VEC3 &position = this->getPosition();
             VEC3 &boundingAABB = this->getBoundingAABB();
@@ -448,15 +449,16 @@ namespace mbm
             float h = 0.0f;
             if (this->getWidthHeight(&w, &h))
             {
+                INFO_PHYSICS &physicsInfo = this->mesh->getPhysicsInfo();
                 mbm::CUBE *cube = nullptr;
-                if (this->mesh->infoPhysics.lsCube.size() == 0)
+                if (physicsInfo.lsCube.size() == 0)
                 {
                     cube = new mbm::CUBE();
-                    this->mesh->infoPhysics.lsCube.push_back(cube);
+                    physicsInfo.lsCube.push_back(cube);
                 }
                 else
                 {
-                    cube = this->mesh->infoPhysics.lsCube[0];
+                    cube = physicsInfo.lsCube[0];
                 }
                 if (is2dScreen)
                 {
@@ -889,7 +891,7 @@ namespace mbm
     const mbm::INFO_PHYSICS * TEXT_DRAW::getInfoPhysics() const
     {
         if (this->mesh)
-            return &this->mesh->infoPhysics;
+            return &this->mesh->getPhysicsInfo();
         return nullptr;
     }
     
