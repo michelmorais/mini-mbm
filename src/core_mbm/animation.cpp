@@ -1681,7 +1681,7 @@ namespace mbm
                     state.currentTimeToChangeAnimation  = anim->getCurrentTimeToChangeAnimation();
                     //fx
                     state.fx_textureOverrideStage2      = fx.textureOverrideStage2 ? fx.textureOverrideStage2->getFileNameTexture() : "";
-                    state.fx_textureOverrideStage2Alpha = fx.textureOverrideStage2 ? fx.textureOverrideStage2->useAlphaChannel : false;
+                    state.fx_textureOverrideStage2Alpha = fx.textureOverrideStage2 ? fx.textureOverrideStage2->hasAlphaChannel() : false;
                     state.fx_blendOperation             = fx.blendOperation;
                     state.fx_defaultShaderMode          = fx.defaultShaderMode;
                     this->impl->lsAnimationState.push_back(state);

@@ -55,6 +55,8 @@ namespace mbm
         API_IMPL void * getBackendTexturePointer() const noexcept;
         API_IMPL void setBackendTexturePointer(void *texturePointer) noexcept;
         API_IMPL void ** getBackendTexturePointerAddress() noexcept;
+        API_IMPL bool hasAlphaChannel() const noexcept;
+        API_IMPL void setAlphaChannelEnabled(const bool enabled) noexcept;
         API_IMPL static void EnablePixelPerfectTexture(bool value) noexcept;
 
         bool     useAlphaChannel;

@@ -40,7 +40,7 @@ namespace mbm
         setBackendTextureId(0);
         width           = 0;
         height          = 0;
-        useAlphaChannel = false;
+        this->setAlphaChannelEnabled(false);
     }
 
     bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
@@ -110,7 +110,7 @@ namespace mbm
         }
         if (rgba_toDelete)
             delete[] rgba_toDelete;
-        this->useAlphaChannel = hasAlpha ? true : false;
+        this->setAlphaChannelEnabled(hasAlpha ? true : false);
         return true;
     }
     
@@ -120,7 +120,7 @@ namespace mbm
             return false;
         this->width           = image->width;
         this->height          = image->height;
-        this->useAlphaChannel = true;
+        this->setAlphaChannelEnabled(true);
         GLPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         uint32_t *textureId = getBackendTextureIdAddress();
         GLGenTextures(1, textureId);
@@ -232,7 +232,7 @@ namespace mbm
         texture->setBackendTextureId(idTexture2d);
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
-        texture->useAlphaChannel            = enableAlpha;
+        texture->setAlphaChannelEnabled(enableAlpha);
         texture->fileName                   = std::move(fileNameBase);
         cacheTexture(texture->fileName, texture);
         return texture;

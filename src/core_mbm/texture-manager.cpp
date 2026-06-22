@@ -89,12 +89,22 @@ namespace mbm
         fileName[0]     = 0;
         width           = 0;
         height          = 0;
-        useAlphaChannel = false;
+        this->setAlphaChannelEnabled(false);
     }
 
     bool TEXTURE::isLoaded()const
     {
         return fileName[0] != 0;
+    }
+
+    bool TEXTURE::hasAlphaChannel() const noexcept
+    {
+        return this->useAlphaChannel;
+    }
+
+    void TEXTURE::setAlphaChannelEnabled(const bool enabled) noexcept
+    {
+        this->useAlphaChannel = enabled;
     }
     
     TEXTURE::~TEXTURE()
@@ -120,7 +130,7 @@ namespace mbm
     {
         if (!fileNameTTF)
             return false;
-        this->useAlphaChannel = true;
+        this->setAlphaChannelEnabled(true);
         FILE *fp              = util::openFile(fileNameTTF, "rb");
         size_t   sFile        = 0;
         if (fp && util::getSizeFile(fp, &sFile))
@@ -313,7 +323,7 @@ namespace mbm
         if (!fileNameTexture)
             return false;
         this->release();
-        this->useAlphaChannel = true;
+        this->setAlphaChannelEnabled(true);
         if(fileNameTexture[0] == '#' )
             return loadSolidColor(fileNameTexture,hasColorAlpha);
         std::vector<std::string> result;
@@ -374,7 +384,7 @@ namespace mbm
                 this->width = resouce->width;
                 this->height = resouce->height;
                 this->fileName = fileNameTexture;
-                this->useAlphaChannel = true;
+                this->setAlphaChannelEnabled(true);
             }
             return resouce != nullptr;
         }
@@ -484,7 +494,7 @@ namespace mbm
                                             (static_cast<int>(pixels[2]) << 8 ) |
                                             (static_cast<int>(pixels[3])));
                 setBackendTextureId(textureId);
-                this->useAlphaChannel = (pixels[4] ? true : false) || hasAlpha;
+                this->setAlphaChannelEnabled((pixels[4] ? true : false) || hasAlpha);
                 PRINT_IF_DEBUG("texture generated externally!\n width:%u height:%u id:%d", this->width, this->height, getBackendTextureId());
                 delete[] pixels;
                 return true;
@@ -542,7 +552,7 @@ namespace mbm
         {
             texture->fileName = std::move(fileNameBase);
             cacheTexture(texture->fileName, texture);
-            texture->useAlphaChannel = true;
+            texture->setAlphaChannelEnabled(true);
         }
         else
         {
@@ -583,7 +593,7 @@ namespace mbm
             PRINT_IF_DEBUG("failed to load texture: %s.", nickName);
         }
         if (channel == 4 && texture)
-            texture->useAlphaChannel = true;
+            texture->setAlphaChannelEnabled(true);
         return texture;
     }
     
@@ -608,7 +618,7 @@ namespace mbm
         if (texture->loadFromData(data, width, height, depth, channel, hasAlpha))
         {
             texture->fileName = std::move(fileNameBase);
-            texture->useAlphaChannel = hasAlpha;
+            texture->setAlphaChannelEnabled(hasAlpha);
             cacheTexture(texture->fileName, texture);
         }
         else
@@ -632,7 +642,7 @@ namespace mbm
         if (texture->load(getFilePathTexture(fileNameBase.c_str(),fileName), hasAlpha))
         {
             texture->fileName = std::move(fileNameBase);
-            texture->useAlphaChannel = hasAlpha ? true : false;
+            texture->setAlphaChannelEnabled(hasAlpha ? true : false);
             cacheTexture(texture->fileName, texture);
         }
         else
@@ -643,7 +653,7 @@ namespace mbm
             if (texture)
             {
                 texture->fileName = std::move(fileNameBase);
-                texture->useAlphaChannel = hasAlpha ? true : false;
+                texture->setAlphaChannelEnabled(hasAlpha ? true : false);
                 cacheTexture(texture->fileName, texture);
             }
             else
@@ -730,7 +740,7 @@ namespace mbm
                     texture->fileName[len+1] = img[start+size];
                     texture->fileName[len+2] = img[start+size+1];
                     texture->fileName[len]   = 0;
-                    texture->useAlphaChannel = true;
+                    texture->setAlphaChannelEnabled(true);
                     cacheTexture(newNameGif, texture);
                     infoGif.fileNames.emplace_back(newNameGif);
                 }
@@ -775,7 +785,7 @@ namespace mbm
         if (texture->loadTTF(fileNameTTF, lsStbFontOut, lsWidthLetterOut, heightLetter,saveAsPng))
         {
             texture->fileName = std::move(fileNameBaseSuppose);
-            texture->useAlphaChannel = true;
+            texture->setAlphaChannelEnabled(true);
             cacheTexture(texture->fileName, texture);
         }
         else

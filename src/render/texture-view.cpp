@@ -92,7 +92,7 @@ namespace mbm
             return false;
         this->bufferGL.setTextureByStage(this->texture, 0, 0);
         char strTemp[255];
-        snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->texture->useAlphaChannel ? 1 : 0);
+        snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->texture->hasAlphaChannel() ? 1 : 0);
         this->setInternalFileName(strTemp);
         this->updateAABB();
         return true;
@@ -113,7 +113,7 @@ namespace mbm
         if (!createAnimationAndShader2Texture())
             return false;
         this->bufferGL.setTextureByStage(this->texture, 0, 0);
-        const int useAlpha   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+        const int useAlpha   = this->texture ? (this->texture->hasAlphaChannel() ? 1 : 0) : 0;
         char strTemp[255];
         const std::string baseFileName = util::getBaseName(fileNameTexture);
         snprintf(strTemp, sizeof(strTemp), "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, useAlpha);

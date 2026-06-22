@@ -273,7 +273,7 @@ namespace mbm
                 return false;
 			this->addAnimation();
             this->buffer->setTextureByStage(this->texture, 0, 0);
-            bool useAlpha  = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+            bool useAlpha  = this->texture ? (this->texture->hasAlphaChannel() ? 1 : 0) : 0;
             this->type     = util::TYPE_MESH_TEXTURE;
             std::string restoreFileName = "loadTexture|";
             restoreFileName += fileName;

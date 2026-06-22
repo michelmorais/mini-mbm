@@ -119,7 +119,7 @@ namespace mbm
         }
 
         // --- Convert BGRA → RGBA (or BGR → RGB) and feed to lodepng -------------
-        const int channel     = renderTargetTexture->useAlphaChannel ? 4 : 3;
+        const int channel     = renderTargetTexture->hasAlphaChannel() ? 4 : 3;
         const int sizeImage   = _width * _height * channel;
         auto* image           = new unsigned char[sizeImage];
         const auto* src       = static_cast<const uint8_t*>([stagingBuf contents]);

@@ -165,7 +165,7 @@ namespace mbm
             if (tex)
             {
                 fileNameOldTexture = tex->getFileNameTexture();
-                hasOldAlpha        = tex->useAlphaChannel;
+                hasOldAlpha        = tex->hasAlphaChannel();
             }
         }
         dynamicIndex.resize(_sizeIndexArray);

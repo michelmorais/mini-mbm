@@ -4498,7 +4498,7 @@ namespace mbm
                                     else
                                     {
                                         lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                                 else
@@ -4587,7 +4587,7 @@ namespace mbm
                                             {
                                                 lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
                                                 lsHasColorKeying.push_back(
-                                                    buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1 : 0);
+                                                    buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1 : 0);
                                             }
                                             else
                                             {
@@ -4630,7 +4630,7 @@ namespace mbm
                                     else
                                     {
                                         lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                                 else
@@ -4646,7 +4646,7 @@ namespace mbm
                                     else
                                     {
                                         lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                             }
