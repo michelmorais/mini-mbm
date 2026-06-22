@@ -1922,6 +1922,30 @@ namespace mbm
         const util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
         return bufferCurrent && bufferCurrent->indexBuffer != nullptr;
     }
+
+    VEC3 *MESH_MBM_DEBUG::getPositionArray(const uint32_t indexFrame) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent ? reinterpret_cast<VEC3 *>(bufferCurrent->position) : nullptr;
+    }
+
+    VEC3 *MESH_MBM_DEBUG::getNormalArray(const uint32_t indexFrame) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent ? reinterpret_cast<VEC3 *>(bufferCurrent->normal) : nullptr;
+    }
+
+    VEC2 *MESH_MBM_DEBUG::getUvArray(const uint32_t indexFrame) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent ? reinterpret_cast<VEC2 *>(bufferCurrent->uv) : nullptr;
+    }
+
+    uint16_t *MESH_MBM_DEBUG::getIndexArray(const uint32_t indexFrame) const noexcept
+    {
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->getFrameBuffer(indexFrame);
+        return bufferCurrent ? bufferCurrent->indexBuffer : nullptr;
+    }
     
     util::TYPE_MESH MESH_MBM_DEBUG::getType(const char *fileNamePath)
     {

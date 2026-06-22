@@ -951,9 +951,9 @@ namespace mbm
         util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
         if (buffer && subset)
         {
-            auto *pPosition = reinterpret_cast<VEC3 *>(buffer->position);
-            auto *pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
-            auto *pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
+            VEC3 *pPosition = meshDebug->mesh.getPositionArray(indexFrame);
+            VEC3 *pNormal   = meshDebug->mesh.getNormalArray(indexFrame);
+            VEC2 *pUv       = meshDebug->mesh.getUvArray(indexFrame);
             if (indexVertex < (unsigned int)subset->vertexCount)
             {
                 if (totalVertexRet > 1)
@@ -1037,9 +1037,9 @@ namespace mbm
         util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
         if (hasTable == LUA_TTABLE && buffer && subset)
         {
-            auto *pPosition = reinterpret_cast<VEC3 *>(buffer->position);
-            auto *pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
-            auto *pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
+            VEC3 *pPosition = meshDebug->mesh.getPositionArray(indexFrame);
+            VEC3 *pNormal   = meshDebug->mesh.getNormalArray(indexFrame);
+            VEC2 *pUv       = meshDebug->mesh.getUvArray(indexFrame);
             if (indexVertex < static_cast<unsigned int>(subset->vertexCount))
             {
                 int lenTable = lua_rawlen(lua, 5);
@@ -1142,9 +1142,9 @@ namespace mbm
                     {
                         buffer = meshDebug->mesh.getFrameBuffer(indexFrame); // re-fetch after addVertex (may reallocate)
                         subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
-                        auto *             pPosition  = reinterpret_cast<VEC3 *>(buffer->position);
-                        auto *             pNormal    = reinterpret_cast<VEC3 *>(buffer->normal);
-                        auto *             pUv        = reinterpret_cast<VEC2 *>(buffer->uv);
+                        VEC3 *             pPosition  = meshDebug->mesh.getPositionArray(indexFrame);
+                        VEC3 *             pNormal    = meshDebug->mesh.getNormalArray(indexFrame);
+                        VEC2 *             pUv        = meshDebug->mesh.getUvArray(indexFrame);
                         constexpr int      indexTable = 4;
                         const unsigned int indexRaw   = subset->vertexStart + vertexCount;
                         getFieldPrimaryFromTable(lua, indexTable, "x", LUA_TNUMBER, &pPosition[indexRaw].x);
@@ -1170,9 +1170,9 @@ namespace mbm
                 {
                     buffer = meshDebug->mesh.getFrameBuffer(indexFrame); // re-fetch after addVertex (may reallocate)
                     subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
-                    auto *pPosition = reinterpret_cast<VEC3 *>(buffer->position);
-                    auto *pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
-                    auto *pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
+                    VEC3 *pPosition = meshDebug->mesh.getPositionArray(indexFrame);
+                    VEC3 *pNormal   = meshDebug->mesh.getNormalArray(indexFrame);
+                    VEC2 *pUv       = meshDebug->mesh.getUvArray(indexFrame);
                     for (int ii = 0; ii < lenTable; ++ii)
                     {
                         constexpr int indexTable = 5;
@@ -1217,13 +1217,14 @@ namespace mbm
         util::SUBSET_DEBUG *subset = meshDebug->mesh.getSubset(indexFrame, indexSubset);
         if (buffer && subset)
         {
-            if (buffer->indexBuffer)
+            uint16_t *indexArray = meshDebug->mesh.getIndexArray(indexFrame);
+            if (indexArray)
             {
                 lua_newtable(lua);
                 const unsigned int s = (subset->indexCount + subset->indexStart);
                 for (unsigned int i = subset->indexStart, j = 1; i < s; i++, ++j)
                 {
-                    const int indexRaw = buffer->indexBuffer[i] - subset->vertexStart;
+                    const int indexRaw = indexArray[i] - subset->vertexStart;
                     lua_pushinteger(lua, indexRaw+1);
                     lua_rawseti(lua, -2, j);
                 }

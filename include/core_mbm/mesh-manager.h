@@ -116,6 +116,10 @@ namespace mbm
         API_IMPL uint32_t getTotalSubsets(const uint32_t indexFrame) const noexcept;
         API_IMPL util::SUBSET_DEBUG *getSubset(const uint32_t indexFrame, const uint32_t indexSubset) const noexcept;
         API_IMPL bool hasIndexBuffer(const uint32_t indexFrame) const noexcept;
+        API_IMPL VEC3 *getPositionArray(const uint32_t indexFrame) const noexcept;
+        API_IMPL VEC3 *getNormalArray(const uint32_t indexFrame) const noexcept;
+        API_IMPL VEC2 *getUvArray(const uint32_t indexFrame) const noexcept;
+        API_IMPL uint16_t *getIndexArray(const uint32_t indexFrame) const noexcept;
         API_IMPL void calculateNormals();
         API_IMPL void calculateUV();
         API_IMPL void removeNormals();
