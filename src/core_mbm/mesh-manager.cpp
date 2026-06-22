@@ -4321,6 +4321,18 @@ namespace mbm
             this->infoPhysics.lsCube.push_back(cube);
     }
 
+    void MESH_MBM::appendPhysicsSphere(SPHERE *sphere) noexcept
+    {
+        if (sphere)
+            this->infoPhysics.lsSphere.push_back(sphere);
+    }
+
+    void MESH_MBM::appendPhysicsCubeComplex(CUBE_COMPLEX *cubeComplex) noexcept
+    {
+        if (cubeComplex)
+            this->infoPhysics.lsCubeComplex.push_back(cubeComplex);
+    }
+
     void MESH_MBM::appendPhysicsTriangle(TRIANGLE *triangle) noexcept
     {
         if (triangle)
@@ -5660,12 +5672,13 @@ namespace mbm
         headerMain.magic = 0x010203ff;
         typeMe = meshMemory->getTypeMesh();
         // step 2: --------------------------------------------------------------------------------------------------
-        for (auto pCube : meshMemory->infoPhysics.lsCube)
+        const INFO_PHYSICS &meshPhysics = meshMemory->getPhysicsInfo();
+        for (auto pCube : meshPhysics.lsCube)
         {
             auto cube = new CUBE(pCube->halfDim, pCube->absCenter);
             this->infoPhysics.lsCube.push_back(cube);
         }
-        for (auto pBase : meshMemory->infoPhysics.lsSphere)
+        for (auto pBase : meshPhysics.lsSphere)
         {
             auto base = new SPHERE();
             base->absCenter[0] = pBase->absCenter[0];
@@ -5674,14 +5687,14 @@ namespace mbm
             base->ray = pBase->ray;
             this->infoPhysics.lsSphere.push_back(base);
         }
-        for (auto pComplex : meshMemory->infoPhysics.lsCubeComplex)
+        for (auto pComplex : meshPhysics.lsCubeComplex)
         {
             auto complex = new CUBE_COMPLEX();
             for (int k = 0; k < 8; k++)
                 complex->p[k] = pComplex->p[k];
             this->infoPhysics.lsCubeComplex.push_back(complex);
         }
-        for (auto pTriangle : meshMemory->infoPhysics.lsTriangle)
+        for (auto pTriangle : meshPhysics.lsTriangle)
         {
             auto triangle = new TRIANGLE();
             triangle->point[0] = pTriangle->point[0];

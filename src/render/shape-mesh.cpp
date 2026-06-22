@@ -333,10 +333,10 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->getPhysicsInfo().release();
+            mesh->resetPhysicsInfo();
             mbm::SPHERE* sphere = new mbm::SPHERE();
             sphere->ray = width > height ? width * 0.5f : height * 0.5f;
-            mesh->getPhysicsInfo().lsSphere.push_back(sphere);
+            mesh->appendPhysicsSphere(sphere);
             auto anim = new ANIMATION();
             this->appendAnimation(anim);
             anim->setNameAnimation("circle");

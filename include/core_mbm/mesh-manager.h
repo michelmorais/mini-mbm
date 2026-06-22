@@ -204,6 +204,8 @@ namespace mbm
         API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
         API_IMPL void resetPhysicsInfo();
         API_IMPL void appendPhysicsCube(CUBE *cube) noexcept;
+        API_IMPL void appendPhysicsSphere(SPHERE *sphere) noexcept;
+        API_IMPL void appendPhysicsCubeComplex(CUBE_COMPLEX *cubeComplex) noexcept;
         API_IMPL void appendPhysicsTriangle(TRIANGLE *triangle) noexcept;
         API_IMPL util::INFO_ANIMATION &getAnimationInfo() noexcept;
         API_IMPL const util::INFO_ANIMATION &getAnimationInfo() const noexcept;
