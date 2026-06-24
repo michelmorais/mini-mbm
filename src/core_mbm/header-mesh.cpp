@@ -191,9 +191,10 @@ namespace util
 
     INFO_FX::INFO_FX() noexcept
     {
-        dataPS     = nullptr;
-        dataVS     = nullptr;
-        blendOperation = 0;
+        dataPS                         = nullptr;
+        dataVS                         = nullptr;
+        fileNameTextureAnimationEffect = nullptr;
+        blendOperation                 = 0;
     }
     
     INFO_FX::~INFO_FX()noexcept
@@ -205,6 +206,43 @@ namespace util
         if (dataVS)
             delete dataVS;
         dataVS = nullptr;
+
+        if (fileNameTextureAnimationEffect)
+            delete[] fileNameTextureAnimationEffect;
+        fileNameTextureAnimationEffect = nullptr;
+    }
+
+    void INFO_FX::setTextureAnimationEffectFileName(const char *fileName) noexcept
+    {
+        if (fileNameTextureAnimationEffect)
+            delete[] fileNameTextureAnimationEffect;
+        fileNameTextureAnimationEffect = nullptr;
+        if (fileName && fileName[0])
+        {
+            const size_t len = strlen(fileName);
+            fileNameTextureAnimationEffect = new char[len + 1];
+            memcpy(fileNameTextureAnimationEffect, fileName, len + 1);
+        }
+    }
+
+    const char *INFO_FX::getTextureAnimationEffectFileName() const noexcept
+    {
+        return fileNameTextureAnimationEffect;
+    }
+
+    bool INFO_FX::normalizeLegacyTextureAnimationEffectPaths() noexcept
+    {
+        const char *psTexture = dataPS ? dataPS->fileNameTextureStage2 : nullptr;
+        const char *vsTexture = dataVS ? dataVS->fileNameTextureStage2 : nullptr;
+        if (psTexture && psTexture[0] == 0)
+            psTexture = nullptr;
+        if (vsTexture && vsTexture[0] == 0)
+            vsTexture = nullptr;
+        if (psTexture && vsTexture && strcmp(psTexture, vsTexture) != 0)
+            return false;
+        const char *textureAnimationEffect = psTexture ? psTexture : vsTexture;
+        this->setTextureAnimationEffectFileName(textureAnimationEffect);
+        return true;
     }
 
     INFO_ANIMATION::INFO_HEADER_ANIM::INFO_HEADER_ANIM() noexcept
@@ -573,4 +611,3 @@ namespace util
         {}
 
 }
-

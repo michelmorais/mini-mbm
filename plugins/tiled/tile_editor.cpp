@@ -1116,7 +1116,8 @@ namespace mbm
                         SHADER::modelView._42 = renderPosition.y;
                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->getCamera().matrixPerspective2d);
 
-                        brick->render(&fx.shader,0);
+                        brick->bindTextureAnimationEffect(nullptr);
+                        brick->render(&fx.shader);
                         renderPosition.x += (brick->width * renderScale.x) + 5;
                     }
                     else
@@ -1403,7 +1404,8 @@ namespace mbm
                 anim_over->updateAnimation(device->delta, this, onEndAnimation, onEndFx);
                 overFx.setBlendOp();
                 overFx.shader.update();
-                if(brick->render(&overFx.shader,layer->fx.textureOverrideStage2) == false)
+                brick->bindTextureAnimationEffect(layer->fx.textureAnimationEffect);
+                if(brick->render(&overFx.shader) == false)
                     return false;
             }
             else if(bSelected)
@@ -1416,17 +1418,20 @@ namespace mbm
                     selectedFx.setBlendOp();
                     selectedFx.shader.update();
                 }
-                if(brick->render(&selectedFx.shader,layer->fx.textureOverrideStage2) == false)
+                brick->bindTextureAnimationEffect(layer->fx.textureAnimationEffect);
+                if(brick->render(&selectedFx.shader) == false)
                     return false;
             }
             else if(transparency == true)
             {
-                if(brick->render(&transparentFx.shader,layer->fx.textureOverrideStage2) == false)
+                brick->bindTextureAnimationEffect(layer->fx.textureAnimationEffect);
+                if(brick->render(&transparentFx.shader) == false)
                     return false;
             }
             else
             {
-                if(brick->render(&layer->fx.shader,layer->fx.textureOverrideStage2) == false)
+                brick->bindTextureAnimationEffect(layer->fx.textureAnimationEffect);
+                if(brick->render(&layer->fx.shader) == false)
                     return false;
             }
             if(render_what == RENDER_LAYER)
@@ -1924,7 +1929,8 @@ namespace mbm
         {
             ANIMATION *anim = this->getAnimation(0);
             FX &fx = anim->getFx();
-            return it->second->render(&fx.shader,0);
+            it->second->bindTextureAnimationEffect(nullptr);
+            return it->second->render(&fx.shader);
         }
         return false;
     }
@@ -2206,10 +2212,6 @@ namespace mbm
                             psShaderCfg   = mbm::DEVICE::getInstance()->getShaderConfig().getShader(anim->effectShader->dataPS->fileNameShader);
                             psTypeAnim    = (TYPE_ANIMATION)anim->effectShader->dataPS->typeAnimation;
                             fTimePs       = anim->effectShader->dataPS->timeAnimation;
-                            if(anim->effectShader->dataPS->fileNameTextureStage2)
-                            {
-                                layer->fx.textureOverrideStage2 = tex->load(anim->effectShader->dataPS->fileNameTextureStage2,true);
-                            }
                         }
                         if(anim->effectShader->dataVS && anim->effectShader->dataVS->fileNameShader)
                         {
@@ -2217,10 +2219,12 @@ namespace mbm
                             vsShaderCfg   = mbm::DEVICE::getInstance()->getShaderConfig().getShader(anim->effectShader->dataVS->fileNameShader);
                             vsTypeAnim    = (TYPE_ANIMATION)anim->effectShader->dataVS->typeAnimation;
                             fTimeVs       = anim->effectShader->dataVS->timeAnimation;
-                            if(anim->effectShader->dataVS->fileNameTextureStage2)
-                            {
-                                layer->fx.textureOverrideStage2 = tex->load(anim->effectShader->dataVS->fileNameTextureStage2,true);
-                            }
+                        }
+                        if (anim->effectShader)
+                        {
+                            const char *textureAnimationEffect = anim->effectShader->getTextureAnimationEffectFileName();
+                            if (textureAnimationEffect)
+                                layer->fx.textureAnimationEffect = tex->load(textureAnimationEffect,true);
                         }
                         if(layer->fx.loadNewShader(psShaderCfg, vsShaderCfg, psTypeAnim, fTimePs, vsTypeAnim, fTimeVs) == true)
                         {
@@ -2659,8 +2663,8 @@ namespace mbm
                 const auto & layer                          = tileMap.layers[k];
                 auto * infoAnim	                            = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
                 infoAnim->headerAnim						= new util::HEADER_ANIMATION();
-                infoAnim->effectShader						= new util::INFO_FX();
-                meshDebug.appendAnimationHeader(infoAnim);
+	                infoAnim->effectShader						= new util::INFO_FX();
+	                meshDebug.appendAnimationHeader(infoAnim);
 
                 snprintf(infoAnim->headerAnim->nameAnimation,sizeof(infoAnim->headerAnim->nameAnimation), "layer-%zu",k+1);
                 if(layer->fx.fxPS->getCurrentShader() != nullptr)
@@ -2672,13 +2676,14 @@ namespace mbm
                     if(sizeFileName)
                         strcpy(infoAnim->effectShader->dataPS->fileNameShader,layer->fx.fxPS->getCurrentShader()->fileName.c_str());
 
-                    if(layer->fx.textureOverrideStage2)
-                    {
-                        const char * textureOverrideStage2 = layer->fx.textureOverrideStage2->getFileNameTexture();
-                        const int len                      = strlen(textureOverrideStage2);
-                        infoAnim->effectShader->dataPS->fileNameTextureStage2 = new char[len + 1];
-                        strncpy(infoAnim->effectShader->dataPS->fileNameTextureStage2,textureOverrideStage2,len+1);
-                        infoAnim->effectShader->dataPS->fileNameTextureStage2[len] = 0;
+	                    if(layer->fx.textureAnimationEffect)
+	                    {
+	                        const char * textureAnimationEffect = layer->fx.textureAnimationEffect->getFileNameTexture();
+	                        const int len                       = strlen(textureAnimationEffect);
+                            infoAnim->effectShader->setTextureAnimationEffectFileName(textureAnimationEffect);
+	                        infoAnim->effectShader->dataPS->fileNameTextureStage2 = new char[len + 1];
+	                        strncpy(infoAnim->effectShader->dataPS->fileNameTextureStage2,textureAnimationEffect,len+1);
+	                        infoAnim->effectShader->dataPS->fileNameTextureStage2[len] = 0;
                     }
                     infoAnim->effectShader->dataPS->typeAnimation = layer->fx.fxPS->getTypeAnim();
                     infoAnim->effectShader->dataPS->timeAnimation = layer->fx.fxPS->getTimeAnimation();
@@ -2698,11 +2703,15 @@ namespace mbm
                     const unsigned int totalVar            = layer->fx.fxVS->getCurrentShader()->getTotalVar();
                     const unsigned int sizeArrayVarInBytes = totalVar * 4;
                     const unsigned int sizeFileName        = layer->fx.fxVS->getCurrentShader()->fileName.size();
-                    infoAnim->effectShader->dataVS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
-                    if(sizeFileName)
-                        strcpy(infoAnim->effectShader->dataVS->fileNameShader,layer->fx.fxVS->getCurrentShader()->fileName.c_str());
-                    infoAnim->effectShader->dataVS->typeAnimation = layer->fx.fxVS->getTypeAnim();
-                    infoAnim->effectShader->dataVS->timeAnimation = layer->fx.fxVS->getTimeAnimation();
+	                    infoAnim->effectShader->dataVS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
+	                    if(sizeFileName)
+	                        strcpy(infoAnim->effectShader->dataVS->fileNameShader,layer->fx.fxVS->getCurrentShader()->fileName.c_str());
+                        if (layer->fx.textureAnimationEffect)
+                        {
+                            infoAnim->effectShader->setTextureAnimationEffectFileName(layer->fx.textureAnimationEffect->getFileNameTexture());
+                        }
+	                    infoAnim->effectShader->dataVS->typeAnimation = layer->fx.fxVS->getTypeAnim();
+	                    infoAnim->effectShader->dataVS->timeAnimation = layer->fx.fxVS->getTimeAnimation();
 
                     for(unsigned int j=0; j < totalVar; ++j)
                     {

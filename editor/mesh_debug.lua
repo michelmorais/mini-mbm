@@ -55,6 +55,43 @@ end
 -- Mesh entry: { fileName, meshDebug, info, loaded }
 -- info from meshDebug:getInfo(fileName) - type, hasNormal, hasTexture, totalFrames, etc.
 
+local TEXTURE_ANIMATION_EFFECT_VERSION_MESH = 10
+
+local function getMeshFileVersion(info)
+    return tonumber(info and info.version) or 0
+end
+
+local function isLegacyTextureAnimationEffectStorage(info)
+    local version = getMeshFileVersion(info)
+    return version > 0 and version < TEXTURE_ANIMATION_EFFECT_VERSION_MESH
+end
+
+local function getTextureAnimationEffectStorageLabel(info)
+    local version = getMeshFileVersion(info)
+    if version <= 0 then
+        return nil
+    end
+    if version >= TEXTURE_ANIMATION_EFFECT_VERSION_MESH then
+        return tLang.L('fx_texture_storage_native_v10')
+    end
+    return tLang.L('fx_texture_storage_legacy_stage2')
+end
+
+local function refreshEntryInfoFromFile(tEntry, fileName)
+    local targetFile = fileName or (tEntry and tEntry.fileName) or ''
+    if targetFile == '' then
+        return nil
+    end
+    local ok, newInfo = dpCall(function() return meshDebug:getInfo(targetFile) end)
+    if ok and newInfo then
+        if tEntry and targetFile == tEntry.fileName then
+            tEntry.info = newInfo
+        end
+        return newInfo
+    end
+    return nil
+end
+
 function onInitScene()
     camera2d              = mbm.getCamera("2d")
     camera3d              = mbm.getCamera("3d")
@@ -3461,6 +3498,7 @@ function showMeshInfoTable(tEntry, index)
     end
     addRow('File version', info.version)
     do local ok, v = dpCall(function() return meshD:getVersion() end); if ok and v and v > 0 then addRow('Loaded version', v) end end
+    addRow(tLang.L('fx_texture_storage'), getTextureAnimationEffectStorageLabel(info))
     addRow('Type', info.type)
     do local ok, v = dpCall(function() return meshD:getTotalFrame() end); addRow('Total frames', info.totalFrames or (ok and v)) end
     if info.type == 'particle' then addRow('Stages', info.stages) end
@@ -3476,6 +3514,9 @@ function showMeshInfoTable(tEntry, index)
     if #texList > 0 then addRow('Textures', table.concat(texList, ', ')) end
 
     if #tRows > 0 then
+        if isLegacyTextureAnimationEffectStorage(info) then
+            tImGui.TextWrapped(string.format(tLang.L('mesh_migration_warning_fmt'), getMeshFileVersion(info)))
+        end
         local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
         if tImGui.BeginTable('meshInfoRO-' .. index, 2, tblFlags) then
             tImGui.TableSetupColumn('Property')
@@ -4265,8 +4306,14 @@ function showFrameNode(tEntry, meshD, index)
             local ext     = extMap[info.type] or 'msh'
             local newFile = mbm.saveFile(sLastMeshPath, ext)
             if newFile and newFile ~= '' then
+                local wasLegacy = isLegacyTextureAnimationEffectStorage(tEntry.info)
                 if meshD:save(newFile, false, false) then
-                    tUtil.showMessage(string.format(tLang.L('save_as_success_fmt'), tUtil.getShortName(newFile)))
+                    local newInfo = refreshEntryInfoFromFile(nil, newFile)
+                    if wasLegacy and not isLegacyTextureAnimationEffectStorage(newInfo) then
+                        tUtil.showMessage(string.format(tLang.L('mesh_migrated_save_fmt'), tUtil.getShortName(newFile)))
+                    else
+                        tUtil.showMessage(string.format(tLang.L('save_as_success_fmt'), tUtil.getShortName(newFile)))
+                    end
                     sLastMeshPath = newFile
                 else
                     tUtil.showMessageWarn(string.format(tLang.L('save_failed_fmt'), tUtil.getShortName(tEntry.fileName)))
@@ -5177,11 +5224,17 @@ function showMeshOptions(tEntry, index)
         if animErr then
             tUtil.showMessageWarn('Cannot save — animation frame bounds exceeded:\n' .. animErr)
         else
+            local wasLegacy = isLegacyTextureAnimationEffectStorage(tEntry.info)
             local ok = meshD:save(tEntry.fileName, false, false)
             if ok then
                 tEntry.modified = false
+                local newInfo = refreshEntryInfoFromFile(tEntry)
                 iLastPreviewedIndex = 0
-                tUtil.showMessage(string.format('Saved: %s', shortName))
+                if wasLegacy and not isLegacyTextureAnimationEffectStorage(newInfo) then
+                    tUtil.showMessage(string.format(tLang.L('mesh_migrated_save_fmt'), shortName))
+                else
+                    tUtil.showMessage(string.format('Saved: %s', shortName))
+                end
             else
                 tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
             end
@@ -5242,6 +5295,7 @@ function doSaveAs(tEntry, index)
     end
 
     local ok = false
+    local wasLegacy = isLegacyTextureAnimationEffectStorage(tEntry.info)
     if not hasDeselected then
         -- All frames selected: simple save
         ok = meshD:save(newFile, false, false)
@@ -5255,7 +5309,12 @@ function doSaveAs(tEntry, index)
     end
 
     if ok then
-        tUtil.showMessage(string.format(tLang.L("save_as_success_fmt"), tUtil.getShortName(newFile)))
+        local newInfo = refreshEntryInfoFromFile(nil, newFile)
+        if wasLegacy and not isLegacyTextureAnimationEffectStorage(newInfo) then
+            tUtil.showMessage(string.format(tLang.L('mesh_migrated_save_fmt'), tUtil.getShortName(newFile)))
+        else
+            tUtil.showMessage(string.format(tLang.L("save_as_success_fmt"), tUtil.getShortName(newFile)))
+        end
         sLastMeshPath = newFile
     else
         tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
@@ -5406,13 +5465,18 @@ function onSaveAllToFolder()
     local usedPaths = {}
     local success = 0
     local failed = 0
+    local migrated = 0
     local details = {}
 
     for i, tEntry in ipairs(tLoadedMeshes) do
         local outFile = makeUniqueBatchOutputPath(folder, tEntry.fileName, usedPaths, i)
+        local wasLegacy = isLegacyTextureAnimationEffectStorage(tEntry.info)
         local ok, err = saveMeshEntryToPath(tEntry, outFile)
         if ok then
             success = success + 1
+            if wasLegacy then
+                migrated = migrated + 1
+            end
         else
             failed = failed + 1
             if #details < 6 then
@@ -5424,6 +5488,9 @@ function onSaveAllToFolder()
     end
 
     local msg = string.format(tLang.L('save_all_to_folder_result_fmt'), success, #tLoadedMeshes, folder)
+    if migrated > 0 then
+        msg = msg .. '\n' .. string.format(tLang.L('save_all_to_folder_migrated_fmt'), migrated)
+    end
     if failed > 0 then
         msg = msg .. '\n' .. string.format(tLang.L('save_all_to_folder_failed_fmt'), failed)
         if #details > 0 then msg = msg .. '\n' .. table.concat(details, '\n') end
@@ -5760,10 +5827,15 @@ local function applyAllSave(sType, bRecalcNormals)
         if animErr then
             return 'failed', tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr
         end
+        local wasLegacy = isLegacyTextureAnimationEffectStorage(tEntry.info)
         local ok = tEntry.meshDebug:save(tEntry.fileName, bRecalcNormals, false)
         if ok then
             tEntry.modified = false
             if bRecalcNormals and tEntry.info then tEntry.info.hasNormal = true end
+            local newInfo = refreshEntryInfoFromFile(tEntry)
+            if wasLegacy and not isLegacyTextureAnimationEffectStorage(newInfo) then
+                return 'success', tLang.L('mesh_migrated_save_fmt'):format(tUtil.getShortName(tEntry.fileName))
+            end
             return 'success'
         end
         return 'failed', string.format(tLang.L('save_failed_fmt'), tUtil.getShortName(tEntry.fileName))

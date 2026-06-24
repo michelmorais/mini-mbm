@@ -261,7 +261,7 @@ namespace mbm
         }
         else
         {
-            if (!this->fillAnimation_2(headerMesh, fileNamePath, fp))
+            if (!this->fillAnimation_2(headerMesh, headerMain.version, fileNamePath, fp))
                 return false;
         }
 

@@ -943,9 +943,16 @@ namespace deprecated_mbm
                     dataInfoNew->min            = nullptr;
                 }
             }
+            if (infoStepShader && !infoStepShader->normalizeLegacyTextureAnimationEffectPaths())
+            {
+                return log_util::onFailed(fp,
+                                          __FILE__,
+                                          __LINE__,
+                                          "conflicting legacy TextureAnimationEffect paths between PS and VS in mesh [%s]",
+                                          fileNamePath);
+            }
         }
         return true;
     }
 };
 #endif
-

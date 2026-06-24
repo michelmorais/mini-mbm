@@ -624,15 +624,20 @@ namespace mbm
         return 2;
     }
 
-    int onGetTextureStage2AnimationLua(lua_State *lua)
+    int onGetTextureAnimationEffectLua(lua_State *lua)
     {
 	RENDERIZABLE* renderizable  = getRenderizableFromRawTable(lua, 1,1);
         FX* fx						= getSafeFxFromRenderizable(lua,renderizable);
-	if (fx->textureOverrideStage2)
-		lua_pushstring(lua, fx->textureOverrideStage2->getFileNameTexture());
+	if (fx->textureAnimationEffect)
+		lua_pushstring(lua, fx->textureAnimationEffect->getFileNameTexture());
 	else
 		lua_pushnil(lua);
 	return 1;
+    }
+
+    int onGetTextureStage2AnimationLua(lua_State *lua)
+    {
+        return onGetTextureAnimationEffectLua(lua);
     }
 
     int onSetPixelShaderTimeLua(lua_State *lua)
@@ -864,8 +869,9 @@ namespace mbm
                                        {"getVars", onGetVarsShaderLua},
                                        {"getCode", onGetCodeShaderLua},
                                        {"getNames", onGetNamesShaderLua},
+                                       {"getTextureAnimationEffect", onGetTextureAnimationEffectLua},
                                        {"getTextureStage2", onGetTextureStage2AnimationLua},
-			                           {nullptr, nullptr}};
+				                           {nullptr, nullptr}};
         luaL_newlib(lua, regShaderMethods);
 
 		//luaL_getmetatable(lua, "_mbmANIM");

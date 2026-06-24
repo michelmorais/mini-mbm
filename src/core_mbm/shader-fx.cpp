@@ -39,11 +39,21 @@ namespace mbm
         return DEFAULT_SHADER_MODE_UNLIT;
     }
 
+    void bindTextureAnimationEffect(BUFFER_GL *buffer, TEXTURE *textureAnimationEffect) noexcept
+    {
+        if (buffer)
+        {
+            buffer->setTextureByStage(textureAnimationEffect,
+                                      static_cast<uint32_t>(getTextureRoleBackendSlot(TEXTURE_ROLE_ANIMATION_EFFECT)),
+                                      0);
+        }
+    }
+
     FX::FX() noexcept
     {
         fxPS = new EFFECT_SHADER();
         fxVS = new EFFECT_SHADER();
-        textureOverrideStage2 = nullptr;
+        textureAnimationEffect = nullptr;
         blendOperation = 1;
         defaultShaderMode = DEFAULT_SHADER_MODE_UNLIT;
     }
@@ -52,6 +62,11 @@ namespace mbm
     {
         delete fxPS;
         delete fxVS;
+    }
+
+    void FX::bindTextureAnimationEffect(BUFFER_GL *buffer) const noexcept
+    {
+        mbm::bindTextureAnimationEffect(buffer, this->textureAnimationEffect);
     }
 
     bool FX::loadNewShader(SHADER_CFG *pShaderCfg,

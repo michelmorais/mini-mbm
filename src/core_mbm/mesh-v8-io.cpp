@@ -325,6 +325,24 @@ namespace util
                writeF32LE(fp, in.timeAnimation);
     }
 
+    bool readHeaderInfoShaderEffectV10(FILE *fp, int16_t &lenTextureAnimationEffect)
+    {
+        int16_t reserved0 = 0;
+        int32_t reserved1 = 0;
+        return readI16LE(fp, lenTextureAnimationEffect) &&
+               readI16LE(fp, reserved0) &&
+               readI32LE(fp, reserved1);
+    }
+
+    bool writeHeaderInfoShaderEffectV10(FILE *fp, const int16_t lenTextureAnimationEffect)
+    {
+        const int16_t reserved0 = 0;
+        const int32_t reserved1 = 0;
+        return writeI16LE(fp, lenTextureAnimationEffect) &&
+               writeI16LE(fp, reserved0) &&
+               writeI32LE(fp, reserved1);
+    }
+
     bool readHeaderFrameV8(FILE *fp, util::HEADER_FRAME &out)
     {
         int32_t totalSubset = 0;

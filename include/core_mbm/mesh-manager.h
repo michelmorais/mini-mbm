@@ -215,10 +215,10 @@ namespace mbm
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
         API_IMPL bool isLoaded() const;
-        API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader, TEXTURE* ptrTexture1,
+        API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader,
                              const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
-                                        VEC2 *uv, TEXTURE* ptrTexture1,
+                                        VEC2 *uv,
                                         const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL util::TYPE_MESH getTypeMesh() const;
         API_IMPL VEC2 getZoomEditorSprite() const;
@@ -240,7 +240,7 @@ namespace mbm
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);
         bool readTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
-        bool fillAnimation_2(util::HEADER_MESH &headerMesh, const char *fileNamePath, FILE *fp);
+        bool fillAnimation_2(util::HEADER_MESH &headerMesh, const int version, const char *fileNamePath, FILE *fp);
         bool loadLegacyCompat(const char *fileNamePath, RENDERIZABLE *renderizable);
       #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         bool loadLegacyDetailStep(FILE *fp, const char *fileNamePath, const util::HEADER &headerMain,

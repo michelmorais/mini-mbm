@@ -71,8 +71,8 @@ namespace mbm
                     return false;
                 }
             }
-            // carregamos a textura do estagio 2
-            this->populateTextureStage2FromMesh(this->mesh);
+            // carregamos a TextureAnimationEffect legacy associada a esta animacao
+            this->populateTextureAnimationEffectFromMesh(this->mesh);
             this->setInternalFileName(fileName);
             this->restartAnimation();
             this->updateAABB();
@@ -125,17 +125,10 @@ namespace mbm
             this->setBlendState(anim->getBlendState());
             fx.shader.update();
             fx.setBlendOp();
-            if (fx.textureOverrideStage2)
-            {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader,
-                                        fx.textureOverrideStage2, this))
-                    return false;
-            }
-            else
-            {
-                if (!mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, nullptr, this))
-                    return false;
-            }
+            BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
+            fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
+            if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, this))
+                return false;
             return true;
         }
         return false;

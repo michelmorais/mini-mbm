@@ -46,6 +46,7 @@ namespace mbm
     extern "C" PLUGIN_HELPER_API int onGetVarsShaderLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onGetCodeShaderLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onGetNamesShaderLua(lua_State *lua);
+    extern "C" PLUGIN_HELPER_API int onGetTextureAnimationEffectLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onGetTextureStage2AnimationLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onSetPixelShaderTimeLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onSetVertexShaderTimeLua(lua_State *lua);
