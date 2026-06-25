@@ -134,6 +134,12 @@ namespace mbm
         API_IMPL bool saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
         API_IMPL bool loadDebug(const char *fileNamePath);
+        // Reads the v11 section/TLV format back, matching saveV11's milestone 3 core slice exactly.
+        // Standalone: does not go through open_decompressed_mesh_file (v11 files are never whole-file
+        // compressed) and is not wired into loadDebug/loadDebugImpl's dispatch. Fails clearly (not a
+        // partial load) if the file contains a section type outside that core slice (animation/FX,
+        // font/particle/tile detail, embedded-compressed textures).
+        API_IMPL bool loadV11(const char *fileNamePath);
         API_IMPL bool check(char *error,const int lenError);
         API_IMPL void centralizeFrame(const int indexFrame, const int indexSubset);
         API_IMPL void rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ);
@@ -163,6 +169,8 @@ namespace mbm
         std::vector<std::string> getKnowPathsToExtraHeader();
         bool fillAnimation_2(const char *fileNamePath, FILE *fp);
         bool readDebugTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
+        bool readFrameStaticV11Payload(FILE *fp, const util::BUFFER_MESH_DEBUG *frame0, util::BUFFER_MESH_DEBUG *&out,
+                                       util::FRAME_HEADER_V11 &outFrameHeader);
         bool loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,

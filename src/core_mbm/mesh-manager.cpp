@@ -1198,6 +1198,41 @@ namespace
         }
     }
 
+    // Inverse of legacyMaterialSlotTypeToTextureRole, for loadV11. Returns false (caller skips the
+    // slot, with a log warning) for roles that have no legacy slot-type equivalent - DIFFUSE and
+    // ANIMATION_EFFECT are never written as an *extra* slot by saveV11 (DIFFUSE is always the
+    // subset's primaryTexture instead), so seeing one here means an unrecognized/future role byte.
+    bool textureRoleToLegacyMaterialSlotType(const mbm::TEXTURE_ROLE role, uint16_t &outLegacyType) noexcept
+    {
+        switch (role)
+        {
+            case mbm::TEXTURE_ROLE_NORMAL:   outLegacyType = util::MATERIAL_TEXTURE_SLOT_NORMAL;   return true;
+            case mbm::TEXTURE_ROLE_SPECULAR: outLegacyType = util::MATERIAL_TEXTURE_SLOT_SPECULAR; return true;
+            case mbm::TEXTURE_ROLE_EMISSIVE: outLegacyType = util::MATERIAL_TEXTURE_SLOT_EMISSIVE; return true;
+            case mbm::TEXTURE_ROLE_MASK:     outLegacyType = util::MATERIAL_TEXTURE_SLOT_MASK;     return true;
+            default:                         return false;
+        }
+    }
+
+    // Bridges an in-memory v11 section payload (as returned by util::readSectionV11) to a FILE*, so
+    // loadV11 can reuse the project's existing FILE*-based readers (util::readXxxV11, and - for
+    // SECTION_DETAIL_PHYSICS - the real read_detail_mesh_section template) without duplicating any
+    // parsing logic. tmpfile() is standard C (unlike fmemopen, which is POSIX-only and this project
+    // also builds for Windows/DirectX9) and is automatically cleaned up by the OS when closed.
+    FILE *stage_payload_as_tmpfile(const std::vector<uint8_t> &payload)
+    {
+        FILE *tmp = std::tmpfile();
+        if (!tmp)
+            return nullptr;
+        if (!payload.empty() && std::fwrite(payload.data(), payload.size(), 1, tmp) != 1)
+        {
+            std::fclose(tmp);
+            return nullptr;
+        }
+        std::fseek(tmp, 0, SEEK_SET);
+        return tmp;
+    }
+
     bool readMaterialTextureSlotDebug(FILE *fp,
                                       const char *fileNamePath,
                                       const util::MATERIAL_TEXTURE_SLOT_HEADER &slotHeader,
@@ -3358,6 +3393,279 @@ namespace mbm
         if (file)
             fclose(file);
         file = nullptr;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::readFrameStaticV11Payload(FILE *fp, const util::BUFFER_MESH_DEBUG *frame0, util::BUFFER_MESH_DEBUG *&out,
+                                                   util::FRAME_HEADER_V11 &outFrameHeader)
+    {
+        out = nullptr;
+
+        util::FRAME_HEADER_V11 &frameHeader = outFrameHeader;
+        if (!util::readFrameHeaderV11(fp, frameHeader))
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read FRAME_HEADER_V11");
+        if (frameHeader.indexWidth != 16)
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "loadV11 only supports 16-bit indices (milestone 4 core slice)");
+
+        auto pBuffer = new util::BUFFER_MESH_DEBUG();
+        pBuffer->headerFrame.totalSubset      = static_cast<int>(frameHeader.totalSubset);
+        pBuffer->headerFrame.sizeVertexBuffer = static_cast<int>(frameHeader.vertexCount);
+        pBuffer->headerFrame.sizeIndexBuffer  = static_cast<int>(frameHeader.indexCount);
+        pBuffer->headerFrame.stride           = (impl->typeMe == util::TYPE_MESH_SPRITE) ? 2 : 3;
+        strncpy(pBuffer->headerFrame.typeBuffer, frameHeader.indexCount > 0 ? "IB" : "VB", sizeof(pBuffer->headerFrame.typeBuffer) - 1);
+
+        const auto fail = [&]() -> bool
+        {
+            pBuffer->release();
+            delete pBuffer;
+            return false;
+        };
+
+        auto pPosition = new VEC3[frameHeader.vertexCount];
+        pBuffer->position = reinterpret_cast<float *>(pPosition);
+        for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
+        {
+            if (!util::le_io::readF32LE(fp, pPosition[i].x) ||
+                !util::le_io::readF32LE(fp, pPosition[i].y) ||
+                !util::le_io::readF32LE(fp, pPosition[i].z))
+            {
+                log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read frame position");
+                return fail();
+            }
+        }
+
+        if (frameHeader.hasNormal)
+        {
+            auto pNormal = new VEC3[frameHeader.vertexCount];
+            pBuffer->normal = reinterpret_cast<float *>(pNormal);
+            for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
+            {
+                if (!util::le_io::readF32LE(fp, pNormal[i].x) ||
+                    !util::le_io::readF32LE(fp, pNormal[i].y) ||
+                    !util::le_io::readF32LE(fp, pNormal[i].z))
+                {
+                    log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read frame normal");
+                    return fail();
+                }
+            }
+        }
+
+        auto pUv = new VEC2[frameHeader.vertexCount];
+        memset(static_cast<void *>(pUv), 0, sizeof(VEC2) * static_cast<size_t>(frameHeader.vertexCount));
+        pBuffer->uv = reinterpret_cast<float *>(pUv);
+        if (frameHeader.hasUv)
+        {
+            if (frameHeader.uvSource == 0) // OWN
+            {
+                for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
+                {
+                    if (!util::le_io::readF32LE(fp, pUv[i].x) || !util::le_io::readF32LE(fp, pUv[i].y))
+                    {
+                        log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read frame uv");
+                        return fail();
+                    }
+                }
+            }
+            else if (frame0 && frame0->uv) // SHARED_WITH_FRAME_0
+            {
+                const auto *frame0Uv = reinterpret_cast<const VEC2 *>(frame0->uv);
+                const uint32_t safeCopy = std::min(frameHeader.vertexCount, static_cast<uint32_t>(frame0->headerFrame.sizeVertexBuffer));
+                memcpy(static_cast<void *>(pUv), frame0Uv, sizeof(VEC2) * static_cast<size_t>(safeCopy));
+            }
+        }
+
+        if (frameHeader.indexCount > 0)
+        {
+            auto pIndex = new uint16_t[frameHeader.indexCount];
+            pBuffer->indexBuffer = pIndex;
+            for (uint32_t i = 0; i < frameHeader.indexCount; ++i)
+            {
+                if (!util::le_io::readU16LE(fp, pIndex[i]))
+                {
+                    log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read frame index");
+                    return fail();
+                }
+            }
+        }
+
+        for (uint32_t s = 0; s < frameHeader.totalSubset; ++s)
+        {
+            util::SUBSET_DESC_V11 subsetDesc;
+            if (!util::readSubsetDescV11(fp, subsetDesc))
+            {
+                log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read SUBSET_DESC_V11");
+                return fail();
+            }
+
+            auto pSubset = new util::SUBSET_DEBUG();
+            pSubset->vertexStart = subsetDesc.vertexStart;
+            pSubset->vertexCount = subsetDesc.vertexCount;
+            pSubset->indexStart  = subsetDesc.indexStart;
+            pSubset->indexCount  = subsetDesc.indexCount;
+            pSubset->texture     = subsetDesc.primaryTexture.path;
+
+            for (uint16_t e = 0; e < subsetDesc.extraSlotCount; ++e)
+            {
+                util::SUBSET_EXTRA_SLOT_V11 extraSlot;
+                if (!util::readSubsetExtraSlotV11(fp, extraSlot))
+                {
+                    delete pSubset;
+                    log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read SUBSET_EXTRA_SLOT_V11");
+                    return fail();
+                }
+                uint16_t legacyType = 0;
+                if (textureRoleToLegacyMaterialSlotType(static_cast<mbm::TEXTURE_ROLE>(extraSlot.role), legacyType))
+                {
+                    util::MATERIAL_TEXTURE_SLOT_DEBUG slotDebug;
+                    slotDebug.type    = legacyType;
+                    slotDebug.texture = extraSlot.texture.path;
+                    pSubset->materialTextureSlots.push_back(slotDebug);
+                }
+                else
+                {
+                    PRINT_IF_DEBUG("Warning! loadV11 skipped extra texture slot with unrecognized role [%d]\n", extraSlot.role);
+                }
+            }
+            pBuffer->subset.push_back(pSubset);
+        }
+
+        out = pBuffer;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::loadV11(const char *fileNamePath)
+    {
+        this->release();
+        FILE *fp = util::openFile(fileNamePath, "rb");
+        if (!fp)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to open file [%s]", fileNamePath);
+
+        util::FILE_HEADER_V11 fileHeader;
+        if (!util::readFileHeaderV11(fp, fileHeader))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read v11 file header [%s]", fileNamePath);
+
+        impl->typeMe                      = static_cast<util::TYPE_MESH>(fileHeader.typeMesh);
+        impl->headerMain.version          = CURRENT_VERSION_MBM_HEADER;
+        impl->headerMain.backBufferWidth  = fileHeader.backBufferWidth;
+        impl->headerMain.backBufferHeight = fileHeader.backBufferHeight;
+        strncpy(impl->headerMain.name, MBM_HEADER_NAME_MBM, sizeof(impl->headerMain.name) - 1);
+        const char *typeApp = get_type_app_from_mesh_type(impl->typeMe);
+        if (typeApp)
+            strncpy(impl->headerMain.typeApp, typeApp, sizeof(impl->headerMain.typeApp) - 1);
+
+        int16_t hasNormalFlag  = HAS_NOR_NO;
+        int16_t hasTextureFlag = HAS_TEX_NO;
+        bool    sawFirstFrame  = false;
+        util::BUFFER_MESH_DEBUG *frame0 = nullptr;
+
+        for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            std::vector<uint8_t> payload;
+            if (!util::readSectionV11(fp, sectionHeader, payload))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read section %u [%s]", i, fileNamePath);
+
+            if (sectionHeader.type == util::SECTION_MATERIAL_TRANSFORM)
+            {
+                FILE *tmp = stage_payload_as_tmpfile(payload);
+                if (!tmp)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_MATERIAL_TRANSFORM [%s]", fileNamePath);
+                util::MATERIAL_TRANSFORM_V11 materialTransform;
+                const bool ok = util::readMaterialTransformV11(tmp, materialTransform);
+                fclose(tmp);
+                if (!ok)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_MATERIAL_TRANSFORM [%s]", fileNamePath);
+
+                impl->headerMesh.material = materialTransform.material;
+                impl->headerMesh.angleX   = materialTransform.angleX;
+                impl->headerMesh.angleY   = materialTransform.angleY;
+                impl->headerMesh.angleZ   = materialTransform.angleZ;
+                impl->headerMesh.posX     = materialTransform.posX;
+                impl->headerMesh.posY     = materialTransform.posY;
+                impl->headerMesh.posZ     = materialTransform.posZ;
+                // setAngleDefault/setPositionOffset keep impl->angleDefault/positionOffset in sync with
+                // headerMesh.angle*/pos* - loadV11 must mirror that, since getAngleDefault/
+                // getPositionOffset read the impl-> copies, not headerMesh directly.
+                impl->angleDefault = VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
+                impl->positionOffset = VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
+                impl->info_mode.mode_draw = materialTransform.mode_draw;
+                impl->info_mode.mode_cull_face = materialTransform.mode_cull_face;
+                impl->info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
+            }
+            else if (sectionHeader.type == util::SECTION_EXTRA_PATHS)
+            {
+                FILE *tmp = stage_payload_as_tmpfile(payload);
+                if (!tmp)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_EXTRA_PATHS [%s]", fileNamePath);
+                uint32_t count = 0;
+                bool ok = util::le_io::readU32LE(tmp, count);
+                for (uint32_t p = 0; ok && p < count; ++p)
+                {
+                    std::string path;
+                    ok = util::readStringV11(tmp, path);
+                    if (ok)
+                    {
+#ifndef ANDROID
+                        util::addPath(path.c_str());
+#endif
+                    }
+                }
+                fclose(tmp);
+                if (!ok)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_EXTRA_PATHS [%s]", fileNamePath);
+            }
+            else if (sectionHeader.type == util::SECTION_DETAIL_PHYSICS)
+            {
+                FILE *tmp = stage_payload_as_tmpfile(payload);
+                if (!tmp)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_PHYSICS [%s]", fileNamePath);
+                const bool ok = read_detail_mesh_section(tmp, fileNamePath, impl->headerMain, this->impl->infoPhysics, this->impl->extraInfo,
+                                                         [this](FILE *f, const char *n, const int tb, const int fv)
+                                                         {
+                                                             return this->readDebugTriangleDetailCompat(f, n, tb, fv);
+                                                         });
+                fclose(tmp);
+                if (!ok)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_PHYSICS [%s]", fileNamePath);
+            }
+            else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
+            {
+                FILE *tmp = stage_payload_as_tmpfile(payload);
+                if (!tmp)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_FRAME_STATIC [%s]", fileNamePath);
+                util::BUFFER_MESH_DEBUG *pBuffer = nullptr;
+                util::FRAME_HEADER_V11 v11FrameHeader;
+                const bool ok = this->readFrameStaticV11Payload(tmp, frame0, pBuffer, v11FrameHeader);
+                fclose(tmp);
+                if (!ok)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_FRAME_STATIC [%s]", fileNamePath);
+
+                if (!sawFirstFrame)
+                {
+                    sawFirstFrame = true;
+                    frame0        = pBuffer;
+                    hasNormalFlag = v11FrameHeader.hasNormal ? HAS_NOR_IN_FILE : HAS_NOR_NO;
+                    hasTextureFlag = !v11FrameHeader.hasUv ? HAS_TEX_NO
+                                    : (v11FrameHeader.uvSource == 0 ? HAS_TEX_EACH_FRAME : HAS_TEX_FIRST_FRAME);
+                }
+                this->impl->buffer.push_back(pBuffer);
+            }
+            else
+            {
+                return log_util::onFailed(fp, __FILE__, __LINE__,
+                                          "loadV11 does not support section type %u yet (milestone 4 core slice) [%s]",
+                                          sectionHeader.type, fileNamePath);
+            }
+        }
+
+        impl->headerMesh.totalFrames    = static_cast<int>(this->impl->buffer.size());
+        impl->headerMesh.totalAnimation = 0;
+        impl->headerMesh.hasNorText[0]  = hasNormalFlag;
+        impl->headerMesh.hasNorText[1]  = hasTextureFlag;
+        impl->fileName = fileNamePath;
+
+        if (fp)
+            fclose(fp);
         return true;
     }
 

@@ -269,4 +269,59 @@ namespace util
                writeU32LE(fp, in.mode_cull_face) &&
                writeU32LE(fp, in.mode_front_face_direction);
     }
+
+    bool readFrameHeaderV11(FILE *fp, util::FRAME_HEADER_V11 &out)
+    {
+        return readU32LE(fp, out.totalSubset) &&
+               readU32LE(fp, out.vertexCount) &&
+               readBytes(fp, &out.indexWidth, sizeof(out.indexWidth)) &&
+               readBytes(fp, &out.hasNormal, sizeof(out.hasNormal)) &&
+               readBytes(fp, &out.hasUv, sizeof(out.hasUv)) &&
+               readBytes(fp, &out.uvSource, sizeof(out.uvSource)) &&
+               readU32LE(fp, out.indexCount);
+    }
+
+    bool readTextureRefV11(FILE *fp, util::TEXTURE_REF_V11 &out)
+    {
+        if (!readBytes(fp, &out.storage, sizeof(out.storage)))
+            return false;
+        if (out.storage == util::TEXTURE_REF_STORAGE_PATH)
+            return readStringV11(fp, out.path);
+        return false; // EMBEDDED_COMPRESSED is reserved, not implemented (milestone 4 scope)
+    }
+
+    bool readSubsetDescV11(FILE *fp, util::SUBSET_DESC_V11 &out)
+    {
+        return readTextureRefV11(fp, out.primaryTexture) &&
+               readI32LE(fp, out.vertexCount) &&
+               readI32LE(fp, out.vertexStart) &&
+               readI32LE(fp, out.indexStart) &&
+               readI32LE(fp, out.indexCount) &&
+               readBytes(fp, out.alphaColor, sizeof(out.alphaColor)) &&
+               readU16LE(fp, out.extraSlotCount);
+    }
+
+    bool readSubsetExtraSlotV11(FILE *fp, util::SUBSET_EXTRA_SLOT_V11 &out)
+    {
+        return readBytes(fp, &out.role, sizeof(out.role)) &&
+               readTextureRefV11(fp, out.texture);
+    }
+
+    bool readMaterialTransformV11(FILE *fp, util::MATERIAL_TRANSFORM_V11 &out)
+    {
+        const auto readColor = [fp](mbm::COLOR &c) noexcept
+        {
+            return readF32LE(fp, c.r) && readF32LE(fp, c.g) && readF32LE(fp, c.b) && readF32LE(fp, c.a);
+        };
+        return readColor(out.material.Diffuse) &&
+               readColor(out.material.Ambient) &&
+               readColor(out.material.Specular) &&
+               readColor(out.material.Emissive) &&
+               readF32LE(fp, out.material.Power) &&
+               readF32LE(fp, out.angleX) && readF32LE(fp, out.angleY) && readF32LE(fp, out.angleZ) &&
+               readF32LE(fp, out.posX) && readF32LE(fp, out.posY) && readF32LE(fp, out.posZ) &&
+               readU32LE(fp, out.mode_draw) &&
+               readU32LE(fp, out.mode_cull_face) &&
+               readU32LE(fp, out.mode_front_face_direction);
+    }
 }

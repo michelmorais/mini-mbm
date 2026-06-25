@@ -183,7 +183,12 @@ concrete use case shows up.
    `SECTION_ANIMATION`+FX and the `SECTION_DETAIL_FONT`/`PARTICLE`/`TILE` payloads; `saveV11`
    explicitly rejects animated and FONT/PARTICLE/TILE_MAP meshes until that follow-up pass lands.
    Not yet wired into any caller (`MESH_MBM_DEBUG::saveDebug()` and its two call sites are untouched).
-4. v11 reader, synchronous path first (fully replaces the compressed-whole-file path for v11 files).
+4. **Standalone core slice closed 2026-06-25** (`MESH_MBM_DEBUG::loadV11`): reads back exactly what
+   `saveV11` writes (material+transform, static frames, physics, paths). Not wired into
+   `loadDebugImpl`/`MESH_MBM::loadImpl`/`open_decompressed_mesh_file` - no v11 magic-sniffing dispatch
+   yet, so this milestone's "fully replaces the compressed-whole-file path" goal is still open and
+   deferred to a later, explicit pass (once `saveV11` is reachable from a real save action). Rejects
+   (does not silently skip) any section type outside the core slice.
 5. `mesh_deprecated` lib: extract the existing v1-v10 read code out of `core_mbm`; wire it as a
    standalone converter that calls the milestone-3 writer.
 6. Async loading: background parse phase + main-thread GPU finish phase +

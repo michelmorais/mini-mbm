@@ -60,6 +60,14 @@ namespace util
     bool writeSubsetDescV11(FILE *fp, const util::SUBSET_DESC_V11 &in);
     bool writeSubsetExtraSlotV11(FILE *fp, const util::SUBSET_EXTRA_SLOT_V11 &in);
     bool writeMaterialTransformV11(FILE *fp, const util::MATERIAL_TRANSFORM_V11 &in);
+
+    // Milestone 4: the read-side mirror of the serializers above, same FILE*-based style.
+    bool readFrameHeaderV11(FILE *fp, util::FRAME_HEADER_V11 &out);
+    // Fails (returns false) on TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED - reserved, unread this milestone.
+    bool readTextureRefV11(FILE *fp, util::TEXTURE_REF_V11 &out);
+    bool readSubsetDescV11(FILE *fp, util::SUBSET_DESC_V11 &out);
+    bool readSubsetExtraSlotV11(FILE *fp, util::SUBSET_EXTRA_SLOT_V11 &out);
+    bool readMaterialTransformV11(FILE *fp, util::MATERIAL_TRANSFORM_V11 &out);
 }
 
 #endif
