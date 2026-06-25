@@ -647,6 +647,68 @@ namespace util
         SECTION_HEADER_V11() noexcept;
     };
 
+    // -----------------------------------------------------------------------------------------
+    // Mesh v11 section payloads (docs/mesh-v11-format.md Sec. 6) - milestone 3 (core slice: material
+    // transform, static frames, physics detail, extra paths). Animation/FX and the font/particle/tile
+    // detail payloads are not covered here yet.
+    // -----------------------------------------------------------------------------------------
+
+    struct API_IMPL FRAME_HEADER_V11
+    {
+        uint32_t totalSubset;
+        uint32_t vertexCount;
+        uint8_t  indexWidth;   // 16 or 32 (only 16 emitted by the milestone-3 writer)
+        uint8_t  hasNormal;    // bool
+        uint8_t  hasUv;        // bool
+        uint8_t  uvSource;     // 0 = OWN, 1 = SHARED_WITH_FRAME_0
+        uint32_t indexCount;   // in indices, not bytes
+        FRAME_HEADER_V11() noexcept;
+    };
+
+    enum TEXTURE_REF_STORAGE_V11 : uint8_t
+    {
+        TEXTURE_REF_STORAGE_PATH               = 0,
+        TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED = 1, // reserved - no milestone-3 writer emits this
+    };
+
+    struct API_IMPL TEXTURE_REF_V11
+    {
+        uint8_t     storage; // TEXTURE_REF_STORAGE_V11
+        std::string path;    // meaningful only when storage == TEXTURE_REF_STORAGE_PATH
+        TEXTURE_REF_V11() noexcept;
+    };
+
+    struct API_IMPL SUBSET_DESC_V11
+    {
+        TEXTURE_REF_V11 primaryTexture; // implicit role TEXTURE_ROLE_DIFFUSE, always present
+        int32_t  vertexCount;
+        int32_t  vertexStart;
+        int32_t  indexStart;
+        int32_t  indexCount;
+        uint8_t  alphaColor[4];
+        uint16_t extraSlotCount; // caller must set before writing; followed on disk by
+                                  // extraSlotCount * SUBSET_EXTRA_SLOT_V11
+        SUBSET_DESC_V11() noexcept;
+    };
+
+    struct API_IMPL SUBSET_EXTRA_SLOT_V11
+    {
+        uint8_t         role; // an mbm::TEXTURE_ROLE value (NORMAL/SPECULAR/EMISSIVE/MASK only)
+        TEXTURE_REF_V11 texture;
+        SUBSET_EXTRA_SLOT_V11() noexcept;
+    };
+
+    struct API_IMPL MATERIAL_TRANSFORM_V11 // payload for SECTION_MATERIAL_TRANSFORM
+    {
+        MATERIAL material;
+        float    angleX, angleY, angleZ;
+        float    posX, posY, posZ;
+        uint32_t mode_draw;
+        uint32_t mode_cull_face;
+        uint32_t mode_front_face_direction;
+        MATERIAL_TRANSFORM_V11() noexcept;
+    };
+
 }
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))

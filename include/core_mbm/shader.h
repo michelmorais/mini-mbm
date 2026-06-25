@@ -23,6 +23,7 @@
 #include "core-exports.h"
 #include "primitives.h"
 #include "particle-control.h"
+#include "texture-role.h"
 #include <memory>
 #include <vector>
 #include <string>
@@ -69,16 +70,6 @@ namespace mbm
     enum STATUS_FX
     {
         FX_GROWING, FX_DECREASING, FX_END, FX_END_CALLBACK
-    };
-
-    enum TEXTURE_ROLE : uint8_t
-    {
-        TEXTURE_ROLE_DIFFUSE = 0,
-        TEXTURE_ROLE_ANIMATION_EFFECT = 1,
-        TEXTURE_ROLE_NORMAL = 2,
-        TEXTURE_ROLE_SPECULAR = 3,
-        TEXTURE_ROLE_EMISSIVE = 4,
-        TEXTURE_ROLE_MASK = 5
     };
 
     enum SHADER_TEXTURE_NAMING : uint8_t

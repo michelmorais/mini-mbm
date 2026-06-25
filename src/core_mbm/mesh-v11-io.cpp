@@ -170,4 +170,103 @@ namespace util
     {
         return std::fseek(fp, static_cast<long>(header.compressedLength), SEEK_CUR) == 0;
     }
+
+    bool writeSectionV11Streamed(FILE *fp, util::SECTION_HEADER_V11 &header,
+                                 const std::function<bool(FILE*)> &writePayload)
+    {
+        const long headerPos = std::ftell(fp);
+        if (headerPos < 0)
+            return false;
+
+        const util::SECTION_HEADER_V11 placeholder;
+        if (!writeSectionHeaderV11(fp, placeholder))
+            return false;
+
+        const long payloadPos = std::ftell(fp);
+        if (payloadPos < 0 || !writePayload(fp))
+            return false;
+
+        const long payloadEnd = std::ftell(fp);
+        if (payloadEnd < 0 || payloadEnd < payloadPos)
+            return false;
+        const uint32_t payloadSize = static_cast<uint32_t>(payloadEnd - payloadPos);
+
+        std::vector<uint8_t> payloadBytes(payloadSize);
+        if (payloadSize > 0)
+        {
+            if (std::fseek(fp, payloadPos, SEEK_SET) != 0 ||
+                !readBytes(fp, payloadBytes.data(), payloadSize))
+            {
+                return false;
+            }
+        }
+
+        header.compression = util::SECTION_COMPRESSION_NONE;
+        header.uncompressedLength = payloadSize;
+        header.compressedLength = payloadSize;
+        header.crc32Value = mbm::crc32Buffer(payloadBytes.data(), payloadSize);
+
+        if (std::fseek(fp, headerPos, SEEK_SET) != 0 ||
+            !writeSectionHeaderV11(fp, header) ||
+            std::fseek(fp, payloadEnd, SEEK_SET) != 0)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    bool writeFrameHeaderV11(FILE *fp, const util::FRAME_HEADER_V11 &in)
+    {
+        return writeU32LE(fp, in.totalSubset) &&
+               writeU32LE(fp, in.vertexCount) &&
+               writeBytes(fp, &in.indexWidth, sizeof(in.indexWidth)) &&
+               writeBytes(fp, &in.hasNormal, sizeof(in.hasNormal)) &&
+               writeBytes(fp, &in.hasUv, sizeof(in.hasUv)) &&
+               writeBytes(fp, &in.uvSource, sizeof(in.uvSource)) &&
+               writeU32LE(fp, in.indexCount);
+    }
+
+    bool writeTextureRefV11(FILE *fp, const util::TEXTURE_REF_V11 &in)
+    {
+        if (!writeBytes(fp, &in.storage, sizeof(in.storage)))
+            return false;
+        if (in.storage == util::TEXTURE_REF_STORAGE_PATH)
+            return writeStringV11(fp, in.path);
+        return false; // EMBEDDED_COMPRESSED is reserved, not implemented (milestone 3 scope)
+    }
+
+    bool writeSubsetDescV11(FILE *fp, const util::SUBSET_DESC_V11 &in)
+    {
+        return writeTextureRefV11(fp, in.primaryTexture) &&
+               writeI32LE(fp, in.vertexCount) &&
+               writeI32LE(fp, in.vertexStart) &&
+               writeI32LE(fp, in.indexStart) &&
+               writeI32LE(fp, in.indexCount) &&
+               writeBytes(fp, in.alphaColor, sizeof(in.alphaColor)) &&
+               writeU16LE(fp, in.extraSlotCount);
+    }
+
+    bool writeSubsetExtraSlotV11(FILE *fp, const util::SUBSET_EXTRA_SLOT_V11 &in)
+    {
+        return writeBytes(fp, &in.role, sizeof(in.role)) &&
+               writeTextureRefV11(fp, in.texture);
+    }
+
+    bool writeMaterialTransformV11(FILE *fp, const util::MATERIAL_TRANSFORM_V11 &in)
+    {
+        const auto writeColor = [fp](const mbm::COLOR &c) noexcept
+        {
+            return writeF32LE(fp, c.r) && writeF32LE(fp, c.g) && writeF32LE(fp, c.b) && writeF32LE(fp, c.a);
+        };
+        return writeColor(in.material.Diffuse) &&
+               writeColor(in.material.Ambient) &&
+               writeColor(in.material.Specular) &&
+               writeColor(in.material.Emissive) &&
+               writeF32LE(fp, in.material.Power) &&
+               writeF32LE(fp, in.angleX) && writeF32LE(fp, in.angleY) && writeF32LE(fp, in.angleZ) &&
+               writeF32LE(fp, in.posX) && writeF32LE(fp, in.posY) && writeF32LE(fp, in.posZ) &&
+               writeU32LE(fp, in.mode_draw) &&
+               writeU32LE(fp, in.mode_cull_face) &&
+               writeU32LE(fp, in.mode_front_face_direction);
+    }
 }

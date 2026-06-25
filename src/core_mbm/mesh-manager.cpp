@@ -33,6 +33,8 @@
 #include <header-mesh.h>
 #include <header-mesh-legacy-disk.h>
 #include "mesh-v8-io.h"
+#include "mesh-v11-io.h"
+#include "mesh-io-primitives.h"
 
 #include <cfloat>
 #include <string>
@@ -1177,6 +1179,23 @@ namespace
         if (exists && fullPathTexture.size() < 64u)
             strncpy(outNameTexture, fullPathTexture.c_str(), 63);
         return true;
+    }
+
+    // Maps SUBSET_DEBUG::materialTextureSlots[].type (legacy util::MATERIAL_TEXTURE_SLOT_TYPE numbering,
+    // 1-4) onto the v11 on-disk role byte (mbm::TEXTURE_ROLE numbering, 2-5) - the two enums exist for
+    // different reasons (one is the in-memory editor's legacy slot id, the other is the runtime
+    // shader/texture role) and were never given matching values. See docs/mesh-v11-plan.md Scope
+    // Decision 2.
+    mbm::TEXTURE_ROLE legacyMaterialSlotTypeToTextureRole(const uint16_t legacyType) noexcept
+    {
+        switch (legacyType)
+        {
+            case util::MATERIAL_TEXTURE_SLOT_NORMAL:   return mbm::TEXTURE_ROLE_NORMAL;
+            case util::MATERIAL_TEXTURE_SLOT_SPECULAR: return mbm::TEXTURE_ROLE_SPECULAR;
+            case util::MATERIAL_TEXTURE_SLOT_EMISSIVE: return mbm::TEXTURE_ROLE_EMISSIVE;
+            case util::MATERIAL_TEXTURE_SLOT_MASK:     return mbm::TEXTURE_ROLE_MASK;
+            default:                                   return mbm::TEXTURE_ROLE_DIFFUSE;
+        }
     }
 
     bool readMaterialTextureSlotDebug(FILE *fp,
@@ -3009,6 +3028,337 @@ namespace mbm
             fclose(file);
         file = nullptr;
         return this->compressFile(fileOut,errorOut,lenErrorOut);
+    }
+
+    bool MESH_MBM_DEBUG::saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut)
+    {
+        if (this->impl->buffer.size() == 0)
+            return false;
+
+        if (this->getTotalAnimationHeaders() > 0 ||
+            impl->typeMe == util::TYPE_MESH_FONT ||
+            impl->typeMe == util::TYPE_MESH_PARTICLE ||
+            impl->typeMe == util::TYPE_MESH_TILE_MAP)
+        {
+            const char *message = "saveV11 does not support animated or FONT/PARTICLE/TILE_MAP meshes yet (milestone 3 core slice)";
+            if (errorOut && lenErrorOut > 0)
+                snprintf(errorOut, static_cast<size_t>(lenErrorOut), "%s", message);
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, message);
+        }
+
+        FILE *file = nullptr;
+        impl->headerMesh.totalFrames = static_cast<int>(this->impl->buffer.size());
+
+        if (errorOut)
+        {
+            if (!check(errorOut,lenErrorOut))
+                return log_util::onFailed(file,__FILE__, __LINE__, "error on check mesh to save.");
+        }
+        else
+        {
+            char strError[255] = "";
+            if (!check(strError,sizeof(strError)-1))
+                return log_util::onFailed(file,__FILE__, __LINE__, strError);
+        }
+
+        if (recalculateNormal)
+        {
+            this->calculateNormals();
+            this->impl->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
+        }
+        if (recalculateUV)
+        {
+            this->calculateUV();
+            this->impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
+        }
+        {
+            std::string which_mode;
+            if (is_any_mode_valid(this->impl->info_mode,which_mode) == false)
+                return log_util::onFailed(file,__FILE__, __LINE__, "Invalid mode [%s] for [%s]",which_mode.c_str(),fileOut);
+        }
+
+        std::vector<std::string> ls_paths = this->getKnowPathsToExtraHeader();
+
+        int totalBounding = static_cast<int>(this->impl->infoPhysics.lsCube.size())
+                           + static_cast<int>(this->impl->infoPhysics.lsSphere.size())
+                           + static_cast<int>(this->impl->infoPhysics.lsCubeComplex.size())
+                           + static_cast<int>(this->impl->infoPhysics.lsTriangle.size());
+        if (totalBounding == 0)
+            this->fillAtLeastOneBound();
+
+        // "wb+" (not "wb"): writeSectionV11Streamed seeks back and reads each section's just-written
+        // payload bytes to compute crc32Value, which needs the stream open for reading too.
+        file = util::openFile(fileOut, "wb+");
+        if (!file)
+            return log_util::onFailed(file,__FILE__, __LINE__, "Failed to open file [%s]", fileOut);
+
+        util::FILE_HEADER_V11 fileHeader;
+        std::memcpy(fileHeader.magic, MBM_V11_MAGIC, sizeof(fileHeader.magic));
+        fileHeader.formatVersion    = MBM_V11_FORMAT_VERSION;
+        fileHeader.typeMesh         = static_cast<uint8_t>(impl->typeMe);
+        fileHeader.backBufferWidth  = impl->headerMain.backBufferWidth;
+        fileHeader.backBufferHeight = impl->headerMain.backBufferHeight;
+        fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
+                                     + static_cast<uint32_t>(impl->headerMesh.totalFrames);
+        if (!util::writeFileHeaderV11(file, fileHeader))
+            return log_util::onFailed(file,__FILE__, __LINE__, "failed to write v11 file header [%s]", fileOut);
+
+        // SECTION_MATERIAL_TRANSFORM ---------------------------------------------------------------------
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_MATERIAL_TRANSFORM;
+            sectionHeader.sectionVersion = 1;
+            util::MATERIAL_TRANSFORM_V11 materialTransform;
+            materialTransform.material  = impl->headerMesh.material;
+            materialTransform.angleX    = impl->headerMesh.angleX;
+            materialTransform.angleY    = impl->headerMesh.angleY;
+            materialTransform.angleZ    = impl->headerMesh.angleZ;
+            materialTransform.posX      = impl->headerMesh.posX;
+            materialTransform.posY      = impl->headerMesh.posY;
+            materialTransform.posZ      = impl->headerMesh.posZ;
+            materialTransform.mode_draw = impl->info_mode.mode_draw;
+            materialTransform.mode_cull_face = impl->info_mode.mode_cull_face;
+            materialTransform.mode_front_face_direction = impl->info_mode.mode_front_face_direction;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [&materialTransform](FILE *fp)
+            {
+                return util::writeMaterialTransformV11(fp, materialTransform);
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_MATERIAL_TRANSFORM [%s]", fileOut);
+        }
+
+        // SECTION_EXTRA_PATHS ------------------------------------------------------------------------------
+        if (!ls_paths.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_EXTRA_PATHS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [&ls_paths](FILE *fp)
+            {
+                if (!util::le_io::writeU32LE(fp, static_cast<uint32_t>(ls_paths.size())))
+                    return false;
+                for (const auto &path : ls_paths)
+                {
+                    if (!util::writeStringV11(fp, path))
+                        return false;
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_EXTRA_PATHS [%s]", fileOut);
+        }
+
+        // SECTION_DETAIL_PHYSICS - keeps v8's field layout verbatim, just moved into the TLV envelope ------
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_DETAIL_PHYSICS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                const int totalBoundingLocal = static_cast<int>(this->impl->infoPhysics.lsCube.size())
+                                              + static_cast<int>(this->impl->infoPhysics.lsSphere.size())
+                                              + static_cast<int>(this->impl->infoPhysics.lsCubeComplex.size())
+                                              + static_cast<int>(this->impl->infoPhysics.lsTriangle.size());
+                util::DETAIL_MESH detailHeader;
+                detailHeader.totalBounding = totalBoundingLocal;
+                detailHeader.type          = 'P';
+                if (!util::writeDetailMeshV8(fp, detailHeader))
+                    return false;
+
+                if (!this->impl->infoPhysics.lsCube.empty())
+                {
+                    util::DETAIL_MESH detail;
+                    detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsCube.size());
+                    detail.type          = 1;
+                    if (!util::writeDetailMeshV8(fp, detail))
+                        return false;
+                    for (auto *cube : this->impl->infoPhysics.lsCube)
+                        if (!util::writeCubeV8(fp, *cube))
+                            return false;
+                }
+                if (!this->impl->infoPhysics.lsSphere.empty())
+                {
+                    util::DETAIL_MESH detail;
+                    detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsSphere.size());
+                    detail.type          = 2;
+                    if (!util::writeDetailMeshV8(fp, detail))
+                        return false;
+                    for (auto *sphere : this->impl->infoPhysics.lsSphere)
+                        if (!util::writeSphereV8(fp, *sphere))
+                            return false;
+                }
+                if (!this->impl->infoPhysics.lsCubeComplex.empty())
+                {
+                    util::DETAIL_MESH detail;
+                    detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsCubeComplex.size());
+                    detail.type          = 3;
+                    if (!util::writeDetailMeshV8(fp, detail))
+                        return false;
+                    for (auto *complex : this->impl->infoPhysics.lsCubeComplex)
+                        if (!util::writeCubeComplexV8(fp, *complex))
+                            return false;
+                }
+                if (!this->impl->infoPhysics.lsTriangle.empty())
+                {
+                    util::DETAIL_MESH detail;
+                    detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsTriangle.size());
+                    detail.type          = 4;
+                    if (!util::writeDetailMeshV8(fp, detail))
+                        return false;
+                    for (auto *triangle : this->impl->infoPhysics.lsTriangle)
+                        if (!util::writeTriangleV8(fp, *triangle))
+                            return false;
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_DETAIL_PHYSICS [%s]", fileOut);
+        }
+
+        // SECTION_FRAME_STATIC, one per frame --------------------------------------------------------------
+        for (int currentFrame = 0; currentFrame < impl->headerMesh.totalFrames; ++currentFrame)
+        {
+            util::BUFFER_MESH_DEBUG *currentFrameBuffer =
+                this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(currentFrame)];
+            const auto totalSubset = static_cast<uint32_t>(currentFrameBuffer->subset.size());
+            util::HEADER_FRAME *headerFrame = &currentFrameBuffer->headerFrame;
+
+            const bool isIndexBuffer = currentFrameBuffer->indexBuffer != nullptr;
+            if (isIndexBuffer)
+            {
+                uint32_t sIndex = 0;
+                for (uint32_t i = 0; i < totalSubset; ++i)
+                    sIndex += static_cast<uint32_t>(currentFrameBuffer->subset[i]->indexCount);
+                headerFrame->sizeIndexBuffer = static_cast<int>(sIndex);
+            }
+            else
+            {
+                headerFrame->sizeIndexBuffer = 0;
+            }
+            uint32_t sVertex = 0;
+            for (uint32_t i = 0; i < totalSubset; ++i)
+                sVertex += static_cast<uint32_t>(currentFrameBuffer->subset[i]->vertexCount);
+            headerFrame->totalSubset      = static_cast<int>(totalSubset);
+            headerFrame->sizeVertexBuffer = static_cast<int>(sVertex);
+
+            if (headerFrame->sizeVertexBuffer == 0)
+                return log_util::onFailed(file,__FILE__, __LINE__, "total of vertex is zero");
+
+            util::FRAME_HEADER_V11 v11FrameHeader;
+            v11FrameHeader.totalSubset = totalSubset;
+            v11FrameHeader.vertexCount = static_cast<uint32_t>(headerFrame->sizeVertexBuffer);
+            v11FrameHeader.indexWidth  = 16;
+            v11FrameHeader.hasNormal   = (impl->headerMesh.hasNorText[0] != HAS_NOR_NO) ? 1 : 0;
+            const bool ownUv    = (impl->headerMesh.hasNorText[1] == HAS_TEX_EACH_FRAME) ||
+                                  (currentFrame == 0 && impl->headerMesh.hasNorText[1] == HAS_TEX_FIRST_FRAME);
+            const bool sharedUv = (currentFrame != 0 && impl->headerMesh.hasNorText[1] == HAS_TEX_FIRST_FRAME);
+            v11FrameHeader.hasUv      = (ownUv || sharedUv) ? 1 : 0;
+            v11FrameHeader.uvSource   = sharedUv ? 1 : 0; // 0 = OWN, 1 = SHARED_WITH_FRAME_0
+            v11FrameHeader.indexCount = isIndexBuffer ? static_cast<uint32_t>(headerFrame->sizeIndexBuffer) : 0;
+
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_FRAME_STATIC;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [&](FILE *fp) -> bool
+            {
+                if (!util::writeFrameHeaderV11(fp, v11FrameHeader))
+                    return false;
+
+                // Position is always stored in memory as VEC3 regardless of headerFrame.stride - stride
+                // only ever affected what saveDebug wrote to the v8 file (2 vs 3 floats on disk). v11 always
+                // stores VEC3 (format doc §6 has no stride field), so this is a direct copy, not an upconversion.
+                const auto *position3 = reinterpret_cast<const VEC3 *>(currentFrameBuffer->position);
+                for (uint32_t i = 0; i < v11FrameHeader.vertexCount; ++i)
+                {
+                    if (!util::le_io::writeF32LE(fp, position3[i].x) ||
+                        !util::le_io::writeF32LE(fp, position3[i].y) ||
+                        !util::le_io::writeF32LE(fp, position3[i].z))
+                        return false;
+                }
+
+                if (v11FrameHeader.hasNormal)
+                {
+                    const auto *normal3 = reinterpret_cast<const VEC3 *>(currentFrameBuffer->normal);
+                    for (uint32_t i = 0; i < v11FrameHeader.vertexCount; ++i)
+                    {
+                        if (!util::le_io::writeF32LE(fp, normal3[i].x) ||
+                            !util::le_io::writeF32LE(fp, normal3[i].y) ||
+                            !util::le_io::writeF32LE(fp, normal3[i].z))
+                            return false;
+                    }
+                }
+
+                if (v11FrameHeader.hasUv && v11FrameHeader.uvSource == 0)
+                {
+                    const auto *uv2 = reinterpret_cast<const VEC2 *>(currentFrameBuffer->uv);
+                    for (uint32_t i = 0; i < v11FrameHeader.vertexCount; ++i)
+                    {
+                        if (!util::le_io::writeF32LE(fp, uv2[i].x) || !util::le_io::writeF32LE(fp, uv2[i].y))
+                            return false;
+                    }
+                }
+
+                if (v11FrameHeader.indexCount > 0)
+                {
+                    for (uint32_t i = 0; i < v11FrameHeader.indexCount; ++i)
+                        if (!util::le_io::writeU16LE(fp, currentFrameBuffer->indexBuffer[i]))
+                            return false;
+                }
+
+                for (uint32_t i = 0; i < totalSubset; ++i)
+                {
+                    util::SUBSET_DEBUG *pSubset = currentFrameBuffer->subset[i];
+
+                    util::SUBSET_DESC_V11 subsetDesc;
+                    char nameTexture[64];
+                    if (!fillTextureReferenceForHeader(fp, pSubset->texture, impl->typeMe, nameTexture))
+                        return false;
+                    subsetDesc.primaryTexture.storage = util::TEXTURE_REF_STORAGE_PATH;
+                    subsetDesc.primaryTexture.path    = nameTexture;
+                    subsetDesc.vertexCount = pSubset->vertexCount;
+                    subsetDesc.vertexStart = pSubset->vertexStart;
+                    subsetDesc.indexStart  = pSubset->indexStart;
+                    subsetDesc.indexCount  = pSubset->indexCount;
+                    subsetDesc.alphaColor[0] = 1;
+                    subsetDesc.alphaColor[1] = subsetDesc.alphaColor[2] = subsetDesc.alphaColor[3] = 0;
+
+                    std::vector<util::SUBSET_EXTRA_SLOT_V11> extraSlots;
+                    if (this->impl->headerMain.version >= MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
+                    {
+                        for (const auto &slot : pSubset->materialTextureSlots)
+                        {
+                            if (slot.texture.empty())
+                                continue;
+                            util::SUBSET_EXTRA_SLOT_V11 extraSlot;
+                            extraSlot.role = static_cast<uint8_t>(legacyMaterialSlotTypeToTextureRole(slot.type));
+                            char slotNameTexture[64];
+                            if (!fillTextureReferenceForHeader(fp, slot.texture, impl->typeMe, slotNameTexture))
+                                return false;
+                            extraSlot.texture.storage = util::TEXTURE_REF_STORAGE_PATH;
+                            extraSlot.texture.path    = slotNameTexture;
+                            extraSlots.push_back(extraSlot);
+                        }
+                    }
+                    subsetDesc.extraSlotCount = static_cast<uint16_t>(extraSlots.size());
+
+                    if (!util::writeSubsetDescV11(fp, subsetDesc))
+                        return false;
+                    for (const auto &extraSlot : extraSlots)
+                        if (!util::writeSubsetExtraSlotV11(fp, extraSlot))
+                            return false;
+                }
+
+                return true;
+            });
+
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_FRAME_STATIC for frame %d [%s]", currentFrame, fileOut);
+        }
+
+        if (file)
+            fclose(file);
+        file = nullptr;
+        return true;
     }
 
     bool MESH_MBM_DEBUG::loadDebug(const char *fileNamePath)

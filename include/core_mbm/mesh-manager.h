@@ -127,6 +127,11 @@ namespace mbm
         API_IMPL void removeBuffer(uint32_t indexFrame);
         API_IMPL void removeAnimation(uint32_t index);
         API_IMPL bool saveDebug(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
+        // Writes the new v11 section/TLV format (docs/mesh-v11-format.md). Milestone 3 core slice only:
+        // material+transform, static frames (path-referenced textures only), physics bounding volumes,
+        // extra paths. Returns false with a message in errorOut (not a partial file) if the mesh has any
+        // animations or is FONT/PARTICLE/TILE_MAP typed - those land in a later pass of this milestone.
+        API_IMPL bool saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
         API_IMPL bool loadDebug(const char *fileNamePath);
         API_IMPL bool check(char *error,const int lenError);

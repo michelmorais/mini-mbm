@@ -632,4 +632,44 @@ namespace util
         crc32Value         = 0;
     }
 
+    FRAME_HEADER_V11::FRAME_HEADER_V11() noexcept
+    {
+        totalSubset = 0;
+        vertexCount = 0;
+        indexWidth  = 16;
+        hasNormal   = 0;
+        hasUv       = 0;
+        uvSource    = 0;
+        indexCount  = 0;
+    }
+
+    TEXTURE_REF_V11::TEXTURE_REF_V11() noexcept
+    {
+        storage = TEXTURE_REF_STORAGE_PATH;
+    }
+
+    SUBSET_DESC_V11::SUBSET_DESC_V11() noexcept
+    {
+        vertexCount = 0;
+        vertexStart = 0;
+        indexStart  = 0;
+        indexCount  = 0;
+        alphaColor[0] = alphaColor[1] = alphaColor[2] = alphaColor[3] = 0;
+        extraSlotCount = 0;
+    }
+
+    SUBSET_EXTRA_SLOT_V11::SUBSET_EXTRA_SLOT_V11() noexcept
+    {
+        role = 0;
+    }
+
+    MATERIAL_TRANSFORM_V11::MATERIAL_TRANSFORM_V11() noexcept
+    {
+        angleX = angleY = angleZ = 0.0f;
+        posX = posY = posZ = 0.0f;
+        mode_draw = 0;
+        mode_cull_face = 0;
+        mode_front_face_direction = 0;
+    }
+
 }

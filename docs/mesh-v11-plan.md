@@ -173,11 +173,16 @@ concrete use case shows up.
    index-width flag, reserved skinned-frame block id). Layout is in `docs/mesh-v11-format.md`
    (v1, locked); `TEXTURE_ROLE` header location decided in Scope Decision 4 above. Not yet
    implemented — that's milestone 1.
-1. v11 section read/write helpers, reusing the `mesh-v8-io.cpp` little-endian primitive style.
-2. `MESH_MBM` / `MESH_MBM_DEBUG` PIMPL split: `mesh-manager.h` stops transitively including
-   `header-mesh.h`'s disk structs; only runtime-facing types stay public.
-3. v11 writer (Mesh Debug / Sprite Maker save path) — the single source of truth for producing v11
-   files.
+1. **Closed 2026-06-25.** v11 section read/write helpers, reusing the `mesh-v8-io.cpp` little-endian
+   primitive style (`mesh-v11-io.h`/`.cpp`).
+2. **Closed 2026-06-25.** `MESH_MBM` / `MESH_MBM_DEBUG` PIMPL split: `mesh-manager.h` stops
+   transitively including `header-mesh.h`'s disk structs; only runtime-facing types stay public.
+3. **Core slice closed 2026-06-25** (`MESH_MBM_DEBUG::saveV11`): `SECTION_MATERIAL_TRANSFORM`,
+   `SECTION_FRAME_STATIC` (path-referenced textures only), `SECTION_DETAIL_PHYSICS`,
+   `SECTION_EXTRA_PATHS` — covers 3D/sprite meshes fully. Still open within this milestone:
+   `SECTION_ANIMATION`+FX and the `SECTION_DETAIL_FONT`/`PARTICLE`/`TILE` payloads; `saveV11`
+   explicitly rejects animated and FONT/PARTICLE/TILE_MAP meshes until that follow-up pass lands.
+   Not yet wired into any caller (`MESH_MBM_DEBUG::saveDebug()` and its two call sites are untouched).
 4. v11 reader, synchronous path first (fully replaces the compressed-whole-file path for v11 files).
 5. `mesh_deprecated` lib: extract the existing v1-v10 read code out of `core_mbm`; wire it as a
    standalone converter that calls the milestone-3 writer.
