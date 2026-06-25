@@ -157,7 +157,8 @@ concrete use case shows up.
 ## Milestones (draft)
 
 0. Lock the v11 binary layout (section/TLV table, texture-role encoding, index-width flag, reserved
-   skinned-frame block id) — design review before any code lands.
+   skinned-frame block id) — design review before any code lands. Draft layout proposal now exists
+   in `docs/mesh-v11-format.md` (v0, pending review/sign-off, not yet implemented).
 1. v11 section read/write helpers, reusing the `mesh-v8-io.cpp` little-endian primitive style.
 2. `MESH_MBM` / `MESH_MBM_DEBUG` PIMPL split: `mesh-manager.h` stops transitively including
    `header-mesh.h`'s disk structs; only runtime-facing types stay public.
