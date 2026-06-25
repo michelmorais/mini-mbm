@@ -1,13 +1,39 @@
 I have this game engine and I was doing refactoring for some time this year.
 So, now it is the time that I want to break the compatibility between old games made with this engine.
 We have two places (as far I can see that we would break the compatibility).
-One is the MESH_MBM (also MESH_MBM_DEBUG) and other is the embedded shaders itself  (see shader-resource-opengl_es.cpp, shader-resource-metal.mm and shader-resource-directx9.cpp).
+One "break" is the MESH_MBM (also MESH_MBM_DEBUG version).
+The other "break" that I see is the embedded shaders itself (see shader-resource-opengl_es.cpp, shader-resource-metal.mm and shader-resource-directx9.cpp).
 Let me explain my idea...
-Long time ago, the MESH_MBM was written to be binary + small. 
-At the time the goal is to have a Android game where the final APK was very small.
-MESH_MBM store vertex/index vertex / uv mapping, material, animation detail and stuff related to a MESH.
-A MESH in my engine can be sprite, font, particle,mesh (3d), etc...
-The idea was to store it compress the mesh to store and during runtime, uncompress it, then starts to read the binary.
+Long time ago, the MESH_MBM was written to be binary and small (by compressing the binary). 
+At the time, the goal is to have a Android game where the final APK was very small.
+
+A MESH (MESH_MBM) in my engine can be sprite, font, particle,mesh (3d), etc...
+The MESH_MBM store vertex/index vertex / uv mapping, material, animation detail and stuff related to a MESH.
+The idea was to store the mesh compressed and, during runtime, uncompress it, then starts to read the binary.
 But I see that this is not good approach now a days...
-First question: The compress uncompress is really a bad idea? I think for small meshes it goes ok, but when the mesh is "dense"(like hi poly), then I see a slowness during the load at run time.
+First question: The "compress" "uncompress" is really a bad idea right? I think for small meshes it goes ok (size is not issue when small), 
+but when the mesh is "dense"(like high poly), then I see a slowness during the load at run time.
+
+So, my idea is to move the code related to read/write MESH (until version 10 -> TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER) to a lib (lets call lib mesh_deprecated).
+The engine itself will have a version (11) of this MESH.
+I want to re-write all logic of mesh in this new version. 
+It must have:
+1 - It still must support the types of rendezizable of the engine (like sprite, font, particle.. etc)
+2 - It should be support for 23 / 64 bits architecture (Since v8 we do that).
+3 - We need to hide from API (in mesh-manager.h) the header used internally (hygiene of PIMPL style).
+4 - We no longer mandatory store a mesh compressed. That could be a feature that would be preference of the developer.
+5 - Looking for modern way that others engine does to store the "mesh", I would like to have some insight which can be applicable for this 
+   -maybe introduce of bone skeleton in the mesh allowing run time calculating the vertex position (note sure how other engine does, maybe via shader)? 
+   -We could prepare the MESH to have static frame and "non static" (skeleton or something else)...
+6 - Any other idea of optimization?
+
+Together with that, there is one more clean up regarding texture role and shader naming cleanup:
+See light-plan.md.
+We need to change all shader resource as mentioned earlier by replacing the old sample0,sample1 by the texture roles...
+
+This is a big change but at least I know which parts are needed.
+So, lets begin to study my proposal and I am willing to hear from you what is "good" and what is really "bad"...
+Let's    start grill the code and myself.
+Maybe for the brainstorm, you could talk in portuguese pt-BR (from Brazil)? I would understand better.
+
 
