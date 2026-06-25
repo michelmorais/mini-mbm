@@ -1,0 +1,13 @@
+I have this game engine and I was doing refactoring for some time this year.
+So, now it is the time that I want to break the compatibility between old games made with this engine.
+We have two places (as far I can see that we would break the compatibility).
+One is the MESH_MBM (also MESH_MBM_DEBUG) and other is the embedded shaders itself  (see shader-resource-opengl_es.cpp, shader-resource-metal.mm and shader-resource-directx9.cpp).
+Let me explain my idea...
+Long time ago, the MESH_MBM was written to be binary + small. 
+At the time the goal is to have a Android game where the final APK was very small.
+MESH_MBM store vertex/index vertex / uv mapping, material, animation detail and stuff related to a MESH.
+A MESH in my engine can be sprite, font, particle,mesh (3d), etc...
+The idea was to store it compress the mesh to store and during runtime, uncompress it, then starts to read the binary.
+But I see that this is not good approach now a days...
+First question: The compress uncompress is really a bad idea? I think for small meshes it goes ok, but when the mesh is "dense"(like hi poly), then I see a slowness during the load at run time.
+
