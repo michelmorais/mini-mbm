@@ -1,4 +1,5 @@
 #include <mesh-manager.h>
+#include "mesh-manager-impl.h"
 #include <deprecated.h>
 #include <util-interface.h>
 #include "mesh-v8-io.h"
@@ -655,7 +656,7 @@ namespace mbm
             for (int j = 0; j < totalBounding; j++)
             {
                 auto triangle = new TRIANGLE();
-                this->infoPhysics.lsTriangle.push_back(triangle);
+                this->impl->infoPhysics.lsTriangle.push_back(triangle);
                 if (!util::readTriangleV8(fp, *triangle))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
             }
@@ -665,7 +666,7 @@ namespace mbm
             for (int j = 0; j < totalBounding; j++)
             {
                 auto triangle = new TRIANGLE();
-                this->infoPhysics.lsTriangle.push_back(triangle);
+                this->impl->infoPhysics.lsTriangle.push_back(triangle);
                 if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
             }
@@ -680,7 +681,7 @@ namespace mbm
             for (int j = 0; j < totalBounding; j++)
             {
                 auto triangle = new TRIANGLE();
-                this->infoPhysics.lsTriangle.push_back(triangle);
+                this->impl->infoPhysics.lsTriangle.push_back(triangle);
                 if (!util::readTriangleV8(fp, *triangle))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
             }
@@ -690,7 +691,7 @@ namespace mbm
             for (int j = 0; j < totalBounding; j++)
             {
                 auto triangle = new TRIANGLE();
-                this->infoPhysics.lsTriangle.push_back(triangle);
+                this->impl->infoPhysics.lsTriangle.push_back(triangle);
                 if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
             }

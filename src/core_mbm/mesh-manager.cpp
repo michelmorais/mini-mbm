@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <mesh-manager.h>
+#include "mesh-manager-impl.h"
 #include <draw-compatibility.h>
 #include <shader-var-cfg.h>
 #include <texture-manager.h>
@@ -30,6 +31,7 @@
 #include <cr-static-local.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <header-mesh.h>
+#include <header-mesh-legacy-disk.h>
 #include "mesh-v8-io.h"
 
 #include <cfloat>
@@ -1483,20 +1485,21 @@ namespace mbm
 
 
 
-    MESH_MBM_DEBUG::MESH_MBM_DEBUG() noexcept
+    MESH_MBM_DEBUG::MESH_MBM_DEBUG()
+        : impl(std::make_unique<Impl>())
     {
-        positionOffset      = VEC3(0, 0, 0);
-        angleDefault        = VEC3(0, 0, 0);
-        coordTexFrame_0     = nullptr;
-        sizeCoordTexFrame_0 = 0;
-        typeMe              = util::TYPE_MESH_UNKNOWN;
+        impl->positionOffset      = VEC3(0, 0, 0);
+        impl->angleDefault        = VEC3(0, 0, 0);
+        impl->coordTexFrame_0     = nullptr;
+        impl->sizeCoordTexFrame_0 = 0;
+        impl->typeMe              = util::TYPE_MESH_UNKNOWN;
         util::MATERIAL m;
-        this->headerMesh.material      = m;
-        this->headerMesh.hasNorText[0] = HAS_NOR_NO;
-        this->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
-        zoomEditorSprite.x            = 1.0f;
-        zoomEditorSprite.y            = 1.0f;
-        extraInfo                     = nullptr;
+        impl->headerMesh.material      = m;
+        impl->headerMesh.hasNorText[0] = HAS_NOR_NO;
+        impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
+        impl->zoomEditorSprite.x      = 1.0f;
+        impl->zoomEditorSprite.y      = 1.0f;
+        impl->extraInfo                = nullptr;
     }
 
     MESH_MBM_DEBUG::~MESH_MBM_DEBUG()
@@ -1510,18 +1513,18 @@ namespace mbm
         {
             auto pBuffer = new util::BUFFER_MESH_DEBUG();
             pBuffer->headerFrame.stride      = stride;
-            this->buffer.push_back(pBuffer);
-            return static_cast<uint32_t>(this->buffer.size());
+            this->impl->buffer.push_back(pBuffer);
+            return static_cast<uint32_t>(this->impl->buffer.size());
         }
         return 0;
     }
     
     uint32_t MESH_MBM_DEBUG::addSubset(uint32_t indexFrame)
     {
-        if (indexFrame < static_cast<uint32_t>(this->buffer.size()))
+        if (indexFrame < static_cast<uint32_t>(this->impl->buffer.size()))
         {
-            this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)]->subset.push_back(new util::SUBSET_DEBUG());
-            return static_cast<uint32_t>(this->buffer[indexFrame]->subset.size());
+            this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)]->subset.push_back(new util::SUBSET_DEBUG());
+            return static_cast<uint32_t>(this->impl->buffer[indexFrame]->subset.size());
         }
         return 0;
     }
@@ -1529,19 +1532,19 @@ namespace mbm
     bool MESH_MBM_DEBUG::getInfo(util::HEADER_MESH &headerMeshMbmOut, util::TYPE_MESH &typeOut,
                               INFO_BOUND_FONT **datailFontOut, std::vector<util::STAGE_PARTICLE> & lsStageParticle)
     {
-        if (this->buffer.size())
+        if (this->impl->buffer.size())
         {
-            headerMeshMbmOut = this->headerMesh;
-            typeOut          = this->typeMe;
+            headerMeshMbmOut = this->impl->headerMesh;
+            typeOut          = this->impl->typeMe;
 
-            if(this->typeMe == util::TYPE_MESH_FONT)
+            if(this->impl->typeMe == util::TYPE_MESH_FONT)
             {
-                *datailFontOut   = static_cast<INFO_BOUND_FONT *>(this->extraInfo);
+                *datailFontOut   = static_cast<INFO_BOUND_FONT *>(this->impl->extraInfo);
             }
             lsStageParticle.clear();
-            if(this->typeMe == util::TYPE_MESH_PARTICLE)
+            if(this->impl->typeMe == util::TYPE_MESH_PARTICLE)
             {
-                auto* lsParticleInfo = static_cast<std::vector<util::STAGE_PARTICLE*>*>(this->extraInfo);
+                auto* lsParticleInfo = static_cast<std::vector<util::STAGE_PARTICLE*>*>(this->impl->extraInfo);
                 if(lsParticleInfo)
                 {
                     for (auto & i : *lsParticleInfo)
@@ -1634,12 +1637,12 @@ namespace mbm
 
     util::TYPE_MESH MESH_MBM_DEBUG::getMeshType() const noexcept
     {
-        return this->typeMe;
+        return this->impl->typeMe;
     }
 
     void MESH_MBM_DEBUG::setMeshType(const util::TYPE_MESH type) noexcept
     {
-        this->typeMe = type;
+        this->impl->typeMe = type;
     }
     
     bool MESH_MBM_DEBUG::getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
@@ -1915,121 +1918,171 @@ namespace mbm
     
     util::TYPE_MESH MESH_MBM_DEBUG::getType() noexcept
     {
-        if (this->buffer.size())
-            return this->typeMe;
+        if (this->impl->buffer.size())
+            return this->impl->typeMe;
         return util::TYPE_MESH_UNKNOWN;
     }
 
     VEC3 MESH_MBM_DEBUG::getAngleDefault() const noexcept
     {
-        return this->angleDefault;
+        return this->impl->angleDefault;
     }
 
     void MESH_MBM_DEBUG::setAngleDefault(const VEC3 &angle) noexcept
     {
-        this->angleDefault = angle;
-        this->headerMesh.angleX = angle.x;
-        this->headerMesh.angleY = angle.y;
-        this->headerMesh.angleZ = angle.z;
+        this->impl->angleDefault = angle;
+        this->impl->headerMesh.angleX = angle.x;
+        this->impl->headerMesh.angleY = angle.y;
+        this->impl->headerMesh.angleZ = angle.z;
     }
 
     VEC3 MESH_MBM_DEBUG::getPositionOffset() const noexcept
     {
-        return this->positionOffset;
+        return this->impl->positionOffset;
     }
 
     void MESH_MBM_DEBUG::setPositionOffset(const VEC3 &position) noexcept
     {
-        this->positionOffset = position;
-        this->headerMesh.posX = position.x;
-        this->headerMesh.posY = position.y;
-        this->headerMesh.posZ = position.z;
+        this->impl->positionOffset = position;
+        this->impl->headerMesh.posX = position.x;
+        this->impl->headerMesh.posY = position.y;
+        this->impl->headerMesh.posZ = position.z;
+    }
+
+    INFO_PHYSICS & MESH_MBM_DEBUG::getPhysicsInfo() noexcept
+    {
+        return impl->infoPhysics;
+    }
+
+    const INFO_PHYSICS & MESH_MBM_DEBUG::getPhysicsInfo() const noexcept
+    {
+        return impl->infoPhysics;
+    }
+
+    int MESH_MBM_DEBUG::getFileVersion() const noexcept
+    {
+        return impl->headerMain.version;
+    }
+
+    util::MATERIAL & MESH_MBM_DEBUG::getMaterial() noexcept
+    {
+        return impl->headerMesh.material;
+    }
+
+    const util::MATERIAL & MESH_MBM_DEBUG::getMaterial() const noexcept
+    {
+        return impl->headerMesh.material;
+    }
+
+    int16_t MESH_MBM_DEBUG::getHasNormal() const noexcept
+    {
+        return impl->headerMesh.hasNorText[0];
+    }
+
+    void MESH_MBM_DEBUG::setHasNormal(const int16_t hasNormalMode) noexcept
+    {
+        impl->headerMesh.hasNorText[0] = hasNormalMode;
+    }
+
+    int16_t MESH_MBM_DEBUG::getHasTexture() const noexcept
+    {
+        return impl->headerMesh.hasNorText[1];
+    }
+
+    void MESH_MBM_DEBUG::setHasTexture(const int16_t hasTextureMode) noexcept
+    {
+        impl->headerMesh.hasNorText[1] = hasTextureMode;
+    }
+
+    const char * MESH_MBM_DEBUG::getFilenameMesh() const noexcept
+    {
+        return impl->fileName.c_str();
     }
 
     unsigned int MESH_MBM_DEBUG::getModeDraw() const noexcept
     {
-        return this->info_mode.mode_draw;
+        return this->impl->info_mode.mode_draw;
     }
 
     void MESH_MBM_DEBUG::setModeDraw(const unsigned int modeDraw) noexcept
     {
-        this->info_mode.mode_draw = modeDraw;
+        this->impl->info_mode.mode_draw = modeDraw;
     }
 
     unsigned int MESH_MBM_DEBUG::getModeCullFace() const noexcept
     {
-        return this->info_mode.mode_cull_face;
+        return this->impl->info_mode.mode_cull_face;
     }
 
     void MESH_MBM_DEBUG::setModeCullFace(const unsigned int modeCullFace) noexcept
     {
-        this->info_mode.mode_cull_face = modeCullFace;
+        this->impl->info_mode.mode_cull_face = modeCullFace;
     }
 
     unsigned int MESH_MBM_DEBUG::getModeFrontFaceDirection() const noexcept
     {
-        return this->info_mode.mode_front_face_direction;
+        return this->impl->info_mode.mode_front_face_direction;
     }
 
     void MESH_MBM_DEBUG::setModeFrontFaceDirection(const unsigned int modeFrontFaceDirection) noexcept
     {
-        this->info_mode.mode_front_face_direction = modeFrontFaceDirection;
+        this->impl->info_mode.mode_front_face_direction = modeFrontFaceDirection;
     }
 
     void * MESH_MBM_DEBUG::getDetailInfo() const noexcept
     {
-        return this->extraInfo;
+        return this->impl->extraInfo;
     }
 
     void MESH_MBM_DEBUG::replaceDetailInfo(void *detailInfo) noexcept
     {
         this->deleteExtraInfo();
-        this->extraInfo = detailInfo;
+        this->impl->extraInfo = detailInfo;
     }
 
     uint32_t MESH_MBM_DEBUG::getTotalAnimationHeaders() const noexcept
     {
-        return static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size());
+        return static_cast<uint32_t>(this->impl->infoAnimation.lsHeaderAnim.size());
     }
 
     util::INFO_ANIMATION::INFO_HEADER_ANIM * MESH_MBM_DEBUG::getAnimationHeader(const uint32_t index) const noexcept
     {
-        if (index < this->infoAnimation.lsHeaderAnim.size())
-            return this->infoAnimation.lsHeaderAnim[index];
+        if (index < this->impl->infoAnimation.lsHeaderAnim.size())
+            return this->impl->infoAnimation.lsHeaderAnim[index];
         return nullptr;
     }
 
     void MESH_MBM_DEBUG::appendAnimationHeader(util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead) noexcept
     {
         if (infoHead)
-            this->infoAnimation.lsHeaderAnim.push_back(infoHead);
+            this->impl->infoAnimation.lsHeaderAnim.push_back(infoHead);
     }
 
     void MESH_MBM_DEBUG::clearBlendOperations() noexcept
     {
-        this->lsBlendOperation.clear();
+        this->impl->lsBlendOperation.clear();
     }
 
     void MESH_MBM_DEBUG::resizeBlendOperations(const uint32_t totalAnimations)
     {
-        this->lsBlendOperation.resize(totalAnimations);
+        this->impl->lsBlendOperation.resize(totalAnimations);
     }
 
     void MESH_MBM_DEBUG::setBlendOperation(const uint32_t index, const int blendOperation)
     {
-        if (index < this->lsBlendOperation.size())
-            this->lsBlendOperation[index] = blendOperation;
+        if (index < this->impl->lsBlendOperation.size())
+            this->impl->lsBlendOperation[index] = blendOperation;
     }
 
     uint32_t MESH_MBM_DEBUG::getTotalFrames() const noexcept
     {
-        return static_cast<uint32_t>(this->buffer.size());
+        return static_cast<uint32_t>(this->impl->buffer.size());
     }
 
     util::BUFFER_MESH_DEBUG *MESH_MBM_DEBUG::getFrameBuffer(const uint32_t indexFrame) const noexcept
     {
-        if (indexFrame < this->buffer.size())
-            return this->buffer[indexFrame];
+        if (indexFrame < this->impl->buffer.size())
+            return this->impl->buffer[indexFrame];
         return nullptr;
     }
 
@@ -2119,10 +2172,10 @@ namespace mbm
     
     void MESH_MBM_DEBUG::calculateNormals()
     {
-        headerMesh.totalFrames = static_cast<int>(this->buffer.size());
-        for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
+        impl->headerMesh.totalFrames = static_cast<int>(this->impl->buffer.size());
+        for (int currentFrame = 0; currentFrame < impl->headerMesh.totalFrames; ++currentFrame)
         {
-            util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(currentFrame)];
+            util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(currentFrame)];
             auto *                   position           = reinterpret_cast<VEC3 *>(currentFrameBuffer->position);
             if (currentFrameBuffer->normal == nullptr)
             {
@@ -2197,37 +2250,37 @@ namespace mbm
     
     void MESH_MBM_DEBUG::removeNormals()
     {
-        for (std::vector<util::BUFFER_MESH_DEBUG *>::size_type i = 0; i < this->buffer.size(); ++i)
+        for (std::vector<util::BUFFER_MESH_DEBUG *>::size_type i = 0; i < this->impl->buffer.size(); ++i)
         {
-            util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[i];
+            util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[i];
             if (bufferCurrent->normal)
             {
                 delete[] bufferCurrent->normal;
                 bufferCurrent->normal = nullptr;
             }
         }
-        headerMesh.hasNorText[0] = HAS_NOR_NO;
+        impl->headerMesh.hasNorText[0] = HAS_NOR_NO;
     }
     
     void MESH_MBM_DEBUG::addNormals()
     {
         calculateNormals();
-        headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
+        impl->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
     }
 
     void MESH_MBM_DEBUG::removeBuffer(uint32_t indexFrame)
     {
-        if (indexFrame >= static_cast<uint32_t>(this->buffer.size()))
+        if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
             return;
-        delete this->buffer[indexFrame];
-        this->buffer.erase(this->buffer.begin() + static_cast<ptrdiff_t>(indexFrame));
+        delete this->impl->buffer[indexFrame];
+        this->impl->buffer.erase(this->impl->buffer.begin() + static_cast<ptrdiff_t>(indexFrame));
     }
 
     void MESH_MBM_DEBUG::removeSubset(uint32_t indexFrame, uint32_t indexSubset)
     {
-        if (indexFrame >= static_cast<uint32_t>(this->buffer.size()))
+        if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
             return;
-        util::BUFFER_MESH_DEBUG *buf = this->buffer[indexFrame];
+        util::BUFFER_MESH_DEBUG *buf = this->impl->buffer[indexFrame];
         if (indexSubset >= static_cast<uint32_t>(buf->subset.size()))
             return;
         util::SUBSET_DEBUG *sub = buf->subset[indexSubset];
@@ -2299,9 +2352,9 @@ namespace mbm
 
     uint32_t MESH_MBM_DEBUG::copyBufferFrom(MESH_MBM_DEBUG &src, uint32_t srcFrameIdx)
     {
-        if (srcFrameIdx >= static_cast<uint32_t>(src.buffer.size()))
+        if (srcFrameIdx >= static_cast<uint32_t>(src.impl->buffer.size()))
             return 0;
-        util::BUFFER_MESH_DEBUG *srcBuf = src.buffer[srcFrameIdx];
+        util::BUFFER_MESH_DEBUG *srcBuf = src.impl->buffer[srcFrameIdx];
         auto *newBuf                    = new util::BUFFER_MESH_DEBUG();
         newBuf->headerFrame             = srcBuf->headerFrame;
         const int stride  = srcBuf->headerFrame.stride;
@@ -2337,18 +2390,18 @@ namespace mbm
             *newSub      = *srcSub;
             newBuf->subset.push_back(newSub);
         }
-        this->buffer.push_back(newBuf);
-        return static_cast<uint32_t>(this->buffer.size());
+        this->impl->buffer.push_back(newBuf);
+        return static_cast<uint32_t>(this->impl->buffer.size());
     }
 
     uint32_t MESH_MBM_DEBUG::copySubsetFrom(uint32_t targetFrame, MESH_MBM_DEBUG &src, uint32_t srcFrame, uint32_t srcSubsetIdx)
     {
-        if (targetFrame >= static_cast<uint32_t>(this->buffer.size()))
+        if (targetFrame >= static_cast<uint32_t>(this->impl->buffer.size()))
             return 0;
-        if (srcFrame >= static_cast<uint32_t>(src.buffer.size()))
+        if (srcFrame >= static_cast<uint32_t>(src.impl->buffer.size()))
             return 0;
-        util::BUFFER_MESH_DEBUG *tgtBuf = this->buffer[targetFrame];
-        util::BUFFER_MESH_DEBUG *srcBuf = src.buffer[srcFrame];
+        util::BUFFER_MESH_DEBUG *tgtBuf = this->impl->buffer[targetFrame];
+        util::BUFFER_MESH_DEBUG *srcBuf = src.impl->buffer[srcFrame];
         if (srcSubsetIdx >= static_cast<uint32_t>(srcBuf->subset.size()))
             return 0;
         const int tgtStride = tgtBuf->headerFrame.stride;
@@ -2432,19 +2485,19 @@ namespace mbm
 
     void MESH_MBM_DEBUG::removeAnimation(uint32_t index)
     {
-        if (index >= static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size()))
+        if (index >= static_cast<uint32_t>(this->impl->infoAnimation.lsHeaderAnim.size()))
             return;
-        delete this->infoAnimation.lsHeaderAnim[index];
-        this->infoAnimation.lsHeaderAnim.erase(
-            this->infoAnimation.lsHeaderAnim.begin() + static_cast<ptrdiff_t>(index));
+        delete this->impl->infoAnimation.lsHeaderAnim[index];
+        this->impl->infoAnimation.lsHeaderAnim.erase(
+            this->impl->infoAnimation.lsHeaderAnim.begin() + static_cast<ptrdiff_t>(index));
     }
     
     void MESH_MBM_DEBUG::calculateUV()
     {
-        headerMesh.totalFrames = static_cast<int>(this->buffer.size());
-        for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
+        impl->headerMesh.totalFrames = static_cast<int>(this->impl->buffer.size());
+        for (int currentFrame = 0; currentFrame < impl->headerMesh.totalFrames; ++currentFrame)
         {
-            util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(currentFrame)];
+            util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(currentFrame)];
             const auto  sSub   = static_cast<uint32_t>(currentFrameBuffer->subset.size());
             VEC2                     vMin(FLT_MAX, FLT_MAX);
             VEC2                     vMax(-FLT_MAX, -FLT_MAX);
@@ -2491,24 +2544,24 @@ namespace mbm
     
     bool MESH_MBM_DEBUG::saveDebug(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut)
     {
-        if (this->buffer.size() == 0)
+        if (this->impl->buffer.size() == 0)
             return false;
         FILE *file = nullptr;
-        strncpy(headerMain.name, MBM_HEADER_NAME_MBM,sizeof(headerMain.name)-1);
-        headerMesh.totalFrames  = static_cast<int>(this->buffer.size());
-        headerMain.version     = CURRENT_VERSION_MBM_HEADER;
-        headerMain.reserved    = 0;
-        headerMain.extraHeader = 0;
-        headerMain.magic       = 0x010203ff;
-        const char* typeApp = get_type_app_from_mesh_type(typeMe);
+        strncpy(impl->headerMain.name, MBM_HEADER_NAME_MBM,sizeof(impl->headerMain.name)-1);
+        impl->headerMesh.totalFrames  = static_cast<int>(this->impl->buffer.size());
+        impl->headerMain.version     = CURRENT_VERSION_MBM_HEADER;
+        impl->headerMain.reserved    = 0;
+        impl->headerMain.extraHeader = 0;
+        impl->headerMain.magic       = 0x010203ff;
+        const char* typeApp = get_type_app_from_mesh_type(impl->typeMe);
         if (typeApp)
         {
-            strncpy(headerMain.typeApp, typeApp, sizeof(headerMain.typeApp)-1);
+            strncpy(impl->headerMain.typeApp, typeApp, sizeof(impl->headerMain.typeApp)-1);
         }
         else
         {
             bool allstride2 = true;
-            for (auto & i : this->buffer)
+            for (auto & i : this->impl->buffer)
             {
                 if (i->headerFrame.stride != 2)
                 {
@@ -2518,13 +2571,13 @@ namespace mbm
             }
             if (allstride2)
             {
-                typeMe = util::TYPE_MESH_SPRITE;
+                impl->typeMe = util::TYPE_MESH_SPRITE;
             }
             else
             {
-                typeMe = util::TYPE_MESH_3D;
+                impl->typeMe = util::TYPE_MESH_3D;
             }
-            strncpy(headerMain.typeApp, get_type_app_from_mesh_type(typeMe), sizeof(headerMain.typeApp)-1);
+            strncpy(impl->headerMain.typeApp, get_type_app_from_mesh_type(impl->typeMe), sizeof(impl->headerMain.typeApp)-1);
         }
         if (errorOut)
         {
@@ -2544,16 +2597,16 @@ namespace mbm
         if (recalculateNormal)
         {
             this->calculateNormals();
-            this->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
+            this->impl->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
         }
         if (recalculateUV)
         {
             this->calculateUV();
-            this->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
+            this->impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         }
         {
             std::string which_mode;
-            if(is_any_mode_valid(this->info_mode,which_mode) == false)
+            if(is_any_mode_valid(this->impl->info_mode,which_mode) == false)
             {
                 return log_util::onFailed(file,__FILE__, __LINE__, "Invalid mode [%s] for [%s]",which_mode.c_str(),fileOut);
             }
@@ -2561,11 +2614,11 @@ namespace mbm
 
         // 1 header MBM -------------------------------------------------------------------------------
         std::vector<std::string> ls_paths = this->getKnowPathsToExtraHeader();
-        headerMain.extraHeader = static_cast<int>(ls_paths.size());
+        impl->headerMain.extraHeader = static_cast<int>(ls_paths.size());
         file = util::openFile(fileOut, "wb");
         if (!file)
             return log_util::onFailed(file,__FILE__, __LINE__, "Failed to open file [%s]", fileOut);
-        if (!util::writeHeaderV8(file, this->headerMain))
+        if (!util::writeHeaderV8(file, this->impl->headerMain))
             return log_util::onFailed(file,__FILE__, __LINE__, "Failed to save file [%s]", fileOut);
 
 
@@ -2582,14 +2635,14 @@ namespace mbm
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to save path for EXTRA_HEADER [%s]", fileOut);
         }
 
-        if (!util::writeInfoDrawModeV8(file, this->info_mode))
+        if (!util::writeInfoDrawModeV8(file, this->impl->info_mode))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail INFO_DRAW_MODE [%s]", fileOut);
 
-        int totalBounding = ((typeMe == util::TYPE_MESH_FONT) || (typeMe == util::TYPE_MESH_PARTICLE) || (typeMe == util::TYPE_MESH_TILE_MAP)) ? 1 : 0;
-        totalBounding += static_cast<int>(this->infoPhysics.lsCube.size());
-        totalBounding += static_cast<int>(this->infoPhysics.lsSphere.size());
-        totalBounding += static_cast<int>(this->infoPhysics.lsCubeComplex.size());
-        totalBounding += static_cast<int>(this->infoPhysics.lsTriangle.size());
+        int totalBounding = ((impl->typeMe == util::TYPE_MESH_FONT) || (impl->typeMe == util::TYPE_MESH_PARTICLE) || (impl->typeMe == util::TYPE_MESH_TILE_MAP)) ? 1 : 0;
+        totalBounding += static_cast<int>(this->impl->infoPhysics.lsCube.size());
+        totalBounding += static_cast<int>(this->impl->infoPhysics.lsSphere.size());
+        totalBounding += static_cast<int>(this->impl->infoPhysics.lsCubeComplex.size());
+        totalBounding += static_cast<int>(this->impl->infoPhysics.lsTriangle.size());
         if (totalBounding == 0)
         {
             this->fillAtLeastOneBound();
@@ -2601,66 +2654,66 @@ namespace mbm
         if (!util::writeDetailMeshV8(file, detailHeader))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail header bounding box!!");
 
-        if (this->infoPhysics.lsCube.size())
+        if (this->impl->infoPhysics.lsCube.size())
         {
             util::DETAIL_MESH detail;
-            detail.totalBounding = static_cast<int>(this->infoPhysics.lsCube.size());
+            detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsCube.size());
             detail.type          = 1;
             if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail bounding box!!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
-                CUBE *cube = this->infoPhysics.lsCube[static_cast<std::vector<CUBE*>::size_type>(i)];
+                CUBE *cube = this->impl->infoPhysics.lsCube[static_cast<std::vector<CUBE*>::size_type>(i)];
                 if (!util::writeCubeV8(file, *cube))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save bounding box!");
             }
         }
-        if (this->infoPhysics.lsSphere.size())
+        if (this->impl->infoPhysics.lsSphere.size())
         {
             util::DETAIL_MESH detail;
-            detail.totalBounding = static_cast<int>(this->infoPhysics.lsSphere.size());
+            detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsSphere.size());
             detail.type          = 2;
             if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail bounding box!!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
-                SPHERE *sphere = this->infoPhysics.lsSphere[static_cast<std::vector<SPHERE*>::size_type>(i)];
+                SPHERE *sphere = this->impl->infoPhysics.lsSphere[static_cast<std::vector<SPHERE*>::size_type>(i)];
                 if (!util::writeSphereV8(file, *sphere))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save bounding box!");
             }
         }
-        if (this->infoPhysics.lsCubeComplex.size())
+        if (this->impl->infoPhysics.lsCubeComplex.size())
         {
             util::DETAIL_MESH detail;
-            detail.totalBounding = static_cast<int>(this->infoPhysics.lsCubeComplex.size());
+            detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsCubeComplex.size());
             detail.type          = 3;
             if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail bounding box!!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
-                CUBE_COMPLEX *complex = this->infoPhysics.lsCubeComplex[static_cast<std::vector<CUBE_COMPLEX*>::size_type>(i)];
+                CUBE_COMPLEX *complex = this->impl->infoPhysics.lsCubeComplex[static_cast<std::vector<CUBE_COMPLEX*>::size_type>(i)];
                 if (!util::writeCubeComplexV8(file, *complex))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save bounding box!");
             }
         }
-        if (this->infoPhysics.lsTriangle.size())
+        if (this->impl->infoPhysics.lsTriangle.size())
         {
             util::DETAIL_MESH detail;
-            detail.totalBounding = static_cast<int>(this->infoPhysics.lsTriangle.size());
+            detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsTriangle.size());
             detail.type          = 4;
             if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail bounding box!!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
-                TRIANGLE *triangle = this->infoPhysics.lsTriangle[static_cast<std::vector<TRIANGLE*>::size_type>(i)];
+                TRIANGLE *triangle = this->impl->infoPhysics.lsTriangle[static_cast<std::vector<TRIANGLE*>::size_type>(i)];
                 if (!util::writeTriangleV8(file, *triangle))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save bounding box!");
             }
         }
-        if (typeMe == util::TYPE_MESH_FONT)
+        if (impl->typeMe == util::TYPE_MESH_FONT)
         {
             util::DETAIL_MESH detail;
-            auto *infoFont = static_cast<INFO_BOUND_FONT *>(this->extraInfo);
+            auto *infoFont = static_cast<INFO_BOUND_FONT *>(this->impl->extraInfo);
             if(infoFont == nullptr)
               return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail font, infoFont is null!");
             detail.totalBounding = 1;
@@ -2699,14 +2752,14 @@ namespace mbm
                     totalLetters++;
                 }
             }
-            if (totalLetters != this->headerMesh.totalFrames)
+            if (totalLetters != this->impl->headerMesh.totalFrames)
                 return log_util::onFailed(
                     file, __FILE__,__LINE__, "failed to include detail DETAIL_LETTER!!\ntotal of frames different of letters!!!");
         }
-        else if (typeMe == util::TYPE_MESH_PARTICLE)
+        else if (impl->typeMe == util::TYPE_MESH_PARTICLE)
         {
             util::DETAIL_MESH detail;
-            const auto* lsParticleInfo = static_cast<const std::vector<util::STAGE_PARTICLE*>*>(this->extraInfo);
+            const auto* lsParticleInfo = static_cast<const std::vector<util::STAGE_PARTICLE*>*>(this->impl->extraInfo);
             if(lsParticleInfo == nullptr)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to include detail particle!!");
             detail.totalBounding = static_cast<int>(lsParticleInfo->size());
@@ -2720,11 +2773,11 @@ namespace mbm
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to include detail particle!!");
             }
         }
-        else if (typeMe == util::TYPE_MESH_TILE_MAP)
+        else if (impl->typeMe == util::TYPE_MESH_TILE_MAP)
         {
             util::DETAIL_MESH detail;
             
-            auto* infoTileMap = static_cast<util::BTILE_INFO*>(this->extraInfo);
+            auto* infoTileMap = static_cast<util::BTILE_INFO*>(this->impl->extraInfo);
             if(infoTileMap == nullptr)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail tile!");
             detail.totalBounding = infoTileMap->map.layerCount;
@@ -2798,18 +2851,18 @@ namespace mbm
                 }
             }
         }
-        headerMesh.totalAnimation = static_cast<int>(this->infoAnimation.lsHeaderAnim.size());
-        if (headerMesh.totalAnimation == 0)
+        impl->headerMesh.totalAnimation = static_cast<int>(this->impl->infoAnimation.lsHeaderAnim.size());
+        if (impl->headerMesh.totalAnimation == 0)
         {
             auto infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
-            this->infoAnimation.lsHeaderAnim.push_back(infoHead);
-            headerMesh.totalAnimation = static_cast<int>(this->infoAnimation.lsHeaderAnim.size());
+            this->impl->infoAnimation.lsHeaderAnim.push_back(infoHead);
+            impl->headerMesh.totalAnimation = static_cast<int>(this->impl->infoAnimation.lsHeaderAnim.size());
             infoHead->headerAnim     = new util::HEADER_ANIMATION();
             strncpy(infoHead->headerAnim->nameAnimation, "default",sizeof(infoHead->headerAnim->nameAnimation)-1);
         }
 
         // 3 headerMesh MBM -------------------------------------------------------------------------------
-        if (!util::writeHeaderMeshV8(file, headerMesh))
+        if (!util::writeHeaderMeshV8(file, impl->headerMesh))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to save header of file!!");
 
         // 4 header anim -- Todas as animações -----------------------------------------------------------
@@ -2817,9 +2870,9 @@ namespace mbm
             return false;
 
         // Loop principal atraves de todos os frames deste arquivo -----------------------------------------------
-        for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
+        for (int currentFrame = 0; currentFrame < impl->headerMesh.totalFrames; ++currentFrame)
         {
-            util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(currentFrame)];
+            util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(currentFrame)];
             auto             totalSubset        = static_cast<uint32_t>(currentFrameBuffer->subset.size());
             // 5 Cada header Frame
             // --------------------------------------------------------------------------------------------------
@@ -2861,7 +2914,7 @@ namespace mbm
             {
                 util::HEADER_DESC_SUBSET headerDescSubset;
                 util::SUBSET_DEBUG *     pSubset = currentFrameBuffer->subset[static_cast<std::vector<util::SUBSET_DEBUG *>::size_type>(i)];
-                if (!fillTextureReferenceForHeader(file, pSubset->texture, typeMe, headerDescSubset.nameTexture))
+                if (!fillTextureReferenceForHeader(file, pSubset->texture, impl->typeMe, headerDescSubset.nameTexture))
                     return false;
                 headerDescSubset.vertexStart = pSubset->vertexStart;
                 headerDescSubset.indexStart  = pSubset->indexStart;
@@ -2869,7 +2922,7 @@ namespace mbm
                 headerDescSubset.indexCount  = pSubset->indexCount;
                 headerDescSubset.hasAlphaColor  = 1;
                 std::vector<util::MATERIAL_TEXTURE_SLOT_HEADER> materialSlotHeaders;
-                if (this->headerMain.version >= MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
+                if (this->impl->headerMain.version >= MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
                 {
                     materialSlotHeaders.reserve(pSubset->materialTextureSlots.size());
                     for (const auto &slot : pSubset->materialTextureSlots)
@@ -2878,7 +2931,7 @@ namespace mbm
                             continue;
                         util::MATERIAL_TEXTURE_SLOT_HEADER slotHeader;
                         slotHeader.type = slot.type;
-                        if (!fillTextureReferenceForHeader(file, slot.texture, typeMe, slotHeader.nameTexture))
+                        if (!fillTextureReferenceForHeader(file, slot.texture, impl->typeMe, slotHeader.nameTexture))
                             return false;
                         materialSlotHeaders.push_back(slotHeader);
                     }
@@ -2886,7 +2939,7 @@ namespace mbm
                         static_cast<uint16_t>(materialSlotHeaders.size());
                 }
 
-                if (!writeHeaderDescSubsetVersioned(file, headerDescSubset, this->headerMain.version))
+                if (!writeHeaderDescSubsetVersioned(file, headerDescSubset, this->impl->headerMain.version))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to add header of subset!");
                 for (const auto &slotHeader : materialSlotHeaders)
                 {
@@ -2929,20 +2982,20 @@ namespace mbm
                                                 static_cast<uint32_t>(headerFrame->sizeVertexBuffer)))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
                 }
-                if (headerMesh.hasNorText[0] != HAS_NOR_NO)
+                if (impl->headerMesh.hasNorText[0] != HAS_NOR_NO)
                 {
                     if (!util::writeVec3ArrayV8(file,
                                                 reinterpret_cast<VEC3*>(currentFrameBuffer->normal),
                                                 static_cast<uint32_t>(headerFrame->sizeVertexBuffer)))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
                 }
-                if (headerMesh.hasNorText[1] == HAS_TEX_EACH_FRAME)
+                if (impl->headerMesh.hasNorText[1] == HAS_TEX_EACH_FRAME)
                 {
                     if (!util::addToFileBinary(fileOut, currentFrameBuffer->uv,
                                                static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC2), &file))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
                 }
-                else if (currentFrame == 0 && headerMesh.hasNorText[1] == HAS_TEX_FIRST_FRAME)
+                else if (currentFrame == 0 && impl->headerMesh.hasNorText[1] == HAS_TEX_FIRST_FRAME)
                 {
                     if (!util::addToFileBinary(fileOut, currentFrameBuffer->uv,
                                                static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC2), &file))
@@ -2972,12 +3025,12 @@ namespace mbm
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         deprecated_mbm::INFO_SPRITE deprectedInfoSprite; // version <=SPRITE_INFO_VERSION_MBM_HEADER
 #endif
-        fileName = fileNamePath;
+        impl->fileName = fileNamePath;
         // step 1: Verificação do header  MBM principal
         // -------------------------------------------------------------------------------
-        if (!read_main_header_and_type(fp, fileNamePath, headerMain, typeMe))
+        if (!read_main_header_and_type(fp, fileNamePath, impl->headerMain, impl->typeMe))
             return false;
-        if (allowLegacyDispatch && headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
+        if (allowLegacyDispatch && impl->headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
             if (fp)
@@ -2985,18 +3038,18 @@ namespace mbm
             fp = nullptr;
             return this->loadDebugLegacyCompat(fileNamePath);
 #else
-            return log_util::onFailed(fp,__FILE__, __LINE__, "legacy mesh version [%d] disabled at compile time. Rebuild with MBM_ENABLE_MESH_LEGACY_V7", headerMain.version);
+            return log_util::onFailed(fp,__FILE__, __LINE__, "legacy mesh version [%d] disabled at compile time. Rebuild with MBM_ENABLE_MESH_LEGACY_V7", impl->headerMain.version);
 #endif
         }
 
-        if (headerMain.version >= EXTRA_MBM_HEADER_PATH_TEXTURE)
+        if (impl->headerMain.version >= EXTRA_MBM_HEADER_PATH_TEXTURE)
         {
-            if (!read_extra_headers(fp, fileNamePath, headerMain.extraHeader, true))
+            if (!read_extra_headers(fp, fileNamePath, impl->headerMain.extraHeader, true))
                 return false;
         }
-        if (!read_info_mode_if_needed(fp, fileNamePath, headerMain.version, info_mode, false))
+        if (!read_info_mode_if_needed(fp, fileNamePath, impl->headerMain.version, impl->info_mode, false))
             return false;
-        if(typeMe == util::TYPE_MESH_TILE_MAP)
+        if(impl->typeMe == util::TYPE_MESH_TILE_MAP)
         {
             mbm::TEXTURE::EnablePixelPerfectTexture(true);
         }
@@ -3005,13 +3058,13 @@ namespace mbm
             mbm::TEXTURE::EnablePixelPerfectTexture(false);
         }
         // step 2: --------------------------------------------------------------------------------------------------
-        if (headerMain.version >= DETAIL_MESH_VERSION_MBM_HEADER)
+        if (impl->headerMain.version >= DETAIL_MESH_VERSION_MBM_HEADER)
         {
             if (!read_detail_mesh_section(fp,
                                           fileNamePath,
-                                          headerMain,
-                                          this->infoPhysics,
-                                          this->extraInfo,
+                                          impl->headerMain,
+                                          this->impl->infoPhysics,
+                                          this->impl->extraInfo,
                                           [this](FILE *file, const char *name, const int totalBounding, const int fileVersion)
                                           {
                                               return this->readDebugTriangleDetailCompat(file, name, totalBounding, fileVersion);
@@ -3027,23 +3080,23 @@ namespace mbm
 #else
         else
         {
-            return log_util::onFailed(fp,__FILE__, __LINE__, "Imcompatible version [%d]", headerMain.version);
+            return log_util::onFailed(fp,__FILE__, __LINE__, "Imcompatible version [%d]", impl->headerMain.version);
         }
 #endif
         // 3 headerMesh MBM -------------------------------------------------------------------------------
-        if (!util::readHeaderMeshV8(fp, headerMesh))
+        if (!util::readHeaderMeshV8(fp, impl->headerMesh))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read HEADER_MESH [%s]", fileNamePath);
-        if (headerMesh.totalAnimation == 0)
+        if (impl->headerMesh.totalAnimation == 0)
             return log_util::onFailed(fp,__FILE__, __LINE__, "there is no animation [%s]", fileNamePath);
 
         // 4 header anim -- Todas as animações -----------------------------------------------------------
-        if (headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
+        if (impl->headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
             if (!this->loadDebugLegacyAnimationStep(fp, fileNamePath, deprectedInfoSprite))
                 return false;
 #else
-            return log_util::onFailed(fp,__FILE__, __LINE__, "unexpected version [%s] Version [%d]", fileNamePath, headerMain.version);
+            return log_util::onFailed(fp,__FILE__, __LINE__, "unexpected version [%s] Version [%d]", fileNamePath, impl->headerMain.version);
 #endif
         }
         else if (!this->fillAnimation_2(fileNamePath, fp))
@@ -3051,10 +3104,10 @@ namespace mbm
             return false;
         }
         // Loop principal atraves de todos os frames deste arquivo -----------------------------------------------
-        for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
+        for (int currentFrame = 0; currentFrame < impl->headerMesh.totalFrames; ++currentFrame)
         {
             auto pBuffer = new util::BUFFER_MESH_DEBUG();
-            this->buffer.push_back(pBuffer);
+            this->impl->buffer.push_back(pBuffer);
             // 5 Sequencia lógica dos frames --------------------------------------------------------------------------
             // Cada header Frame
             // --------------------------------------------------------------------------------------------------
@@ -3062,7 +3115,7 @@ namespace mbm
             if (!read_frame_headers_and_subsets(
                     fp,
                     fileNamePath,
-                    headerMain.version,
+                    impl->headerMain.version,
                     *headerFrame,
                     [](util::HEADER_FRAME &) -> bool
                     {
@@ -3138,7 +3191,7 @@ namespace mbm
                                     {
 #if defined _DEBUG
                                         PRINT_IF_DEBUG( "error on create texture: %s \n Linha %d",
-                                                     fileName.c_str());
+                                                     impl->fileName.c_str());
 #endif
                                     }
                                 }
@@ -3276,7 +3329,7 @@ namespace mbm
                         }
                         if (!readMaterialTextureSlotsDebug(fp,
                                                            fileNamePath,
-                                                           headerMain.version,
+                                                           impl->headerMain.version,
                                                            headerDescSubset.materialTextureSlotCount,
                                                            *pSubset))
                             return false;
@@ -3288,8 +3341,8 @@ namespace mbm
                     fp,
                     fileNamePath,
                     *headerFrame,
-                    headerMesh.hasNorText,
-                    this->headerMain.version,
+                    impl->headerMesh.hasNorText,
+                    this->impl->headerMain.version,
                     [this](FILE *file,
                            const int sizeVertexBuffer,
                            VEC3 **positionOut,
@@ -3352,28 +3405,28 @@ namespace mbm
         }
         fclose(fp);
         fp             = nullptr;
-        positionOffset = VEC3(headerMesh.posX, headerMesh.posY, headerMesh.posZ);
-        angleDefault   = VEC3(headerMesh.angleX, headerMesh.angleY, headerMesh.angleZ);
+        impl->positionOffset = VEC3(impl->headerMesh.posX, impl->headerMesh.posY, impl->headerMesh.posZ);
+        impl->angleDefault   = VEC3(impl->headerMesh.angleX, impl->headerMesh.angleY, impl->headerMesh.angleZ);
         remove(util::getDecompressModelFileName());
 
-        this->sizeCoordTexFrame_0 = 0;
-        if (this->coordTexFrame_0)
-            delete[] this->coordTexFrame_0;
-        this->coordTexFrame_0 = nullptr;
+        this->impl->sizeCoordTexFrame_0 = 0;
+        if (this->impl->coordTexFrame_0)
+            delete[] this->impl->coordTexFrame_0;
+        this->impl->coordTexFrame_0 = nullptr;
         return true;
     }
     
     bool MESH_MBM_DEBUG::check(char *error,const int lenError)
     {
-        if (this->buffer.size() == 0)
+        if (this->impl->buffer.size() == 0)
         {
             if (error)
                 strncpy(error, "Empty buffer",lenError);
             return false;
         }
-        for (std::vector<util::BUFFER_MESH_DEBUG *>::size_type i = 0; i < this->buffer.size(); ++i)
+        for (std::vector<util::BUFFER_MESH_DEBUG *>::size_type i = 0; i < this->impl->buffer.size(); ++i)
         {
-            util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[i];
+            util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[i];
             const std::vector<util::SUBSET_DEBUG *>::size_type s = bufferCurrent->subset.size();
             if (s == 0)
             {
@@ -3406,11 +3459,11 @@ namespace mbm
             }
         }
 
-        for (uint32_t i = 0; i < this->buffer.size(); ++i)
+        for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
         {
             int                      iTotalVertex  = 0;
             int                      iTotalIndex   = 0;
-            util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[i];
+            util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[i];
             const std::vector<util::BUFFER_MESH_DEBUG *>::size_type s = bufferCurrent->subset.size();
             for (std::vector<util::BUFFER_MESH_DEBUG *>::size_type j = 0; j < s; ++j)
             {
@@ -3514,14 +3567,14 @@ namespace mbm
     {
         if (indexFrame < 0) //-1
         {
-            for (uint32_t i = 0; i < this->buffer.size(); ++i)
+            for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
             {
                 centralizeFrame(static_cast<int>(i), indexSubset);
             }
         }
-        else if (indexFrame < static_cast<int>(this->buffer.size()))
+        else if (indexFrame < static_cast<int>(this->impl->buffer.size()))
         {
-            util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG*>::size_type>(indexFrame)];
+            util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG*>::size_type>(indexFrame)];
             auto *                   pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
             const auto       s             = static_cast<uint32_t>(bufferCurrent->subset.size());
             VEC3                     maxSize(-FLT_MAX, -FLT_MAX, -FLT_MAX);
@@ -3650,18 +3703,18 @@ namespace mbm
     {
         if (indexFrame < 0)
         {
-            for (uint32_t i = 0; i < this->buffer.size(); ++i)
+            for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
                 rotateFrame(static_cast<int>(i), indexSubset, angleX, angleY, angleZ);
             return;
         }
-        if (indexFrame >= static_cast<int>(this->buffer.size())) return;
+        if (indexFrame >= static_cast<int>(this->impl->buffer.size())) return;
         const float radX = angleX * static_cast<float>(M_PI) / 180.0f;
         const float radY = angleY * static_cast<float>(M_PI) / 180.0f;
         const float radZ = angleZ * static_cast<float>(M_PI) / 180.0f;
         const float cosX = cosf(radX), sinX = sinf(radX);
         const float cosY = cosf(radY), sinY = sinf(radY);
         const float cosZ = cosf(radZ), sinZ = sinf(radZ);
-        util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
         auto *const              pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
         const auto               s             = static_cast<uint32_t>(bufferCurrent->subset.size());
         auto applyRotation                      = [&](const uint32_t vertexStart, const uint32_t vertexCount) {
@@ -3708,12 +3761,12 @@ namespace mbm
     {
         if (indexFrame < 0)
         {
-            for (uint32_t i = 0; i < this->buffer.size(); ++i)
+            for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
                 scaleFrame(static_cast<int>(i), indexSubset, sx, sy, sz);
             return;
         }
-        if (indexFrame >= static_cast<int>(this->buffer.size())) return;
-        util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+        if (indexFrame >= static_cast<int>(this->impl->buffer.size())) return;
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
         auto *const              pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
         const auto               s             = static_cast<uint32_t>(bufferCurrent->subset.size());
         auto applyScale                         = [&](const uint32_t vertexStart, const uint32_t vertexCount) {
@@ -3743,12 +3796,12 @@ namespace mbm
     {
         if (indexFrame < 0)
         {
-            for (uint32_t i = 0; i < this->buffer.size(); ++i)
+            for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
                 translateFrame(static_cast<int>(i), indexSubset, dx, dy, dz);
             return;
         }
-        if (indexFrame >= static_cast<int>(this->buffer.size())) return;
-        util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+        if (indexFrame >= static_cast<int>(this->impl->buffer.size())) return;
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
         auto *const              pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
         const auto               s             = static_cast<uint32_t>(bufferCurrent->subset.size());
         auto applyTranslate                     = [&](const uint32_t vertexStart, const uint32_t vertexCount) {
@@ -3778,9 +3831,9 @@ namespace mbm
                         const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,
                         char *strErrorOut, const int strErrorOutLen)
     {
-        if (indexFrame < this->buffer.size() && indexSubset < this->buffer[indexFrame]->subset.size())
+        if (indexFrame < this->impl->buffer.size() && indexSubset < this->impl->buffer[indexFrame]->subset.size())
         {
-            util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[indexFrame];
+            util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[indexFrame];
             util::SUBSET_DEBUG *     pSubset       = bufferCurrent->subset[indexSubset];
             if (pSubset->vertexCount == 0)
             {
@@ -3883,10 +3936,10 @@ namespace mbm
         {
             if (strErrorOut)
             {
-                const auto tSubset = static_cast<int>(indexFrame < this->buffer.size() ? this->buffer[indexFrame]->subset.size() : 0);
+                const auto tSubset = static_cast<int>(indexFrame < this->impl->buffer.size() ? this->impl->buffer[indexFrame]->subset.size() : 0);
                 snprintf(strErrorOut, strErrorOutLen, "Out of bound[indexFrame(total %u),indexSubset(total %d)\n"
                                      "indexFrame %u indexSubset %u",
-                        static_cast<uint32_t>(this->buffer.size()), tSubset, indexFrame, indexSubset);
+                        static_cast<uint32_t>(this->impl->buffer.size()), tSubset, indexFrame, indexSubset);
             }
             return false;
         }
@@ -3894,9 +3947,9 @@ namespace mbm
     
     bool MESH_MBM_DEBUG::addVertex(const uint32_t indexFrame, const uint32_t indexSubset, const uint32_t totalVertex)
     {
-        if (indexFrame < this->buffer.size() && indexSubset < this->buffer[indexFrame]->subset.size())
+        if (indexFrame < this->impl->buffer.size() && indexSubset < this->impl->buffer[indexFrame]->subset.size())
         {
-            util::BUFFER_MESH_DEBUG *bufferCurrent    = this->buffer[indexFrame];
+            util::BUFFER_MESH_DEBUG *bufferCurrent    = this->impl->buffer[indexFrame];
             util::SUBSET_DEBUG *     pSubset          = nullptr;
             unsigned  int            vertexCountTotal = 0;
             unsigned  int            vertexEndSubset  = 0;
@@ -3969,7 +4022,7 @@ namespace mbm
             if (oldUv)
                 delete[] oldUv;
 
-            headerMesh.hasNorText[0] = HAS_NOR_IN_FILE; // addVertex always allocates normals
+            impl->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE; // addVertex always allocates normals
             pSubset->vertexCount += totalVertex;
             // update
             uint32_t lastCountVertex = 0;
@@ -3987,22 +4040,22 @@ namespace mbm
     int MESH_MBM_DEBUG::addAnimation(const char *nameAnimation, const int initialFrame, const int finalFrame,
                            const float timeBetweenFrame, const int typeAnimation, char *errorOut, const int errorOutLen)
     {
-        if (this->buffer.size() == 0)
+        if (this->impl->buffer.size() == 0)
         {
             if (errorOut)
                 snprintf(errorOut, errorOutLen, "there is no frame ");
             return 0;
         }
-        if (initialFrame < 0 || initialFrame >= static_cast<int>(this->buffer.size()))
+        if (initialFrame < 0 || initialFrame >= static_cast<int>(this->impl->buffer.size()))
         {
             if (errorOut)
-                snprintf(errorOut, errorOutLen, "initial frame [%d] out of range ->[%d]", initialFrame, static_cast<int>(this->buffer.size()));
+                snprintf(errorOut, errorOutLen, "initial frame [%d] out of range ->[%d]", initialFrame, static_cast<int>(this->impl->buffer.size()));
             return 0;
         }
-        if (finalFrame < 0 || finalFrame >= static_cast<int>(this->buffer.size()))
+        if (finalFrame < 0 || finalFrame >= static_cast<int>(this->impl->buffer.size()))
         {
             if (errorOut)
-                snprintf(errorOut, errorOutLen, "final frame [%d] out of range ->[%d]", finalFrame, static_cast<int>(this->buffer.size()));
+                snprintf(errorOut, errorOutLen, "final frame [%d] out of range ->[%d]", finalFrame, static_cast<int>(this->impl->buffer.size()));
             return 0;
         }
         if (typeAnimation < 0 || typeAnimation > 6)
@@ -4012,8 +4065,8 @@ namespace mbm
             return 0;
         }
         auto infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
-        this->infoAnimation.lsHeaderAnim.push_back(infoHead);
-        headerMesh.totalAnimation = static_cast<int>(this->infoAnimation.lsHeaderAnim.size());
+        this->impl->infoAnimation.lsHeaderAnim.push_back(infoHead);
+        impl->headerMesh.totalAnimation = static_cast<int>(this->impl->infoAnimation.lsHeaderAnim.size());
         infoHead->headerAnim     = new util::HEADER_ANIMATION();
         if (nameAnimation)
             strncpy(infoHead->headerAnim->nameAnimation, nameAnimation, sizeof(infoHead->headerAnim->nameAnimation) - 1);
@@ -4023,34 +4076,34 @@ namespace mbm
         infoHead->headerAnim->finalFrame       = finalFrame;
         infoHead->headerAnim->timeBetweenFrame = timeBetweenFrame <= 0.0f ? 0.0f : timeBetweenFrame;
         infoHead->headerAnim->typeAnimation    = typeAnimation;
-        return headerMesh.totalAnimation;
+        return impl->headerMesh.totalAnimation;
     }
 
     bool MESH_MBM_DEBUG::updateAnimation(const uint32_t index, const char *nameAnimation, const int initialFrame, const int finalFrame,
                            const float timeBetweenFrame, const int typeAnimation, char *errorOut,const int lenError)
     {
-        if (this->buffer.size() == 0)
+        if (this->impl->buffer.size() == 0)
         {
             if (errorOut)
                 snprintf(errorOut,lenError, "there is no frame ");
             return false;
         }
-        if(index >= this->infoAnimation.lsHeaderAnim.size())
+        if(index >= this->impl->infoAnimation.lsHeaderAnim.size())
         {
             if (errorOut)
-                snprintf(errorOut, lenError,"index animation out of range. Total anim -> [%d] index -> [%d] ",static_cast<int>(this->infoAnimation.lsHeaderAnim.size()),static_cast<int>(index));
+                snprintf(errorOut, lenError,"index animation out of range. Total anim -> [%d] index -> [%d] ",static_cast<int>(this->impl->infoAnimation.lsHeaderAnim.size()),static_cast<int>(index));
             return false;
         }
-        if (initialFrame < 0 || initialFrame >= static_cast<int>(this->buffer.size()))
+        if (initialFrame < 0 || initialFrame >= static_cast<int>(this->impl->buffer.size()))
         {
             if (errorOut)
-                snprintf(errorOut, lenError,"initial frame [%d] out of range ->[%d]", initialFrame, static_cast<int>(this->buffer.size()));
+                snprintf(errorOut, lenError,"initial frame [%d] out of range ->[%d]", initialFrame, static_cast<int>(this->impl->buffer.size()));
             return false;
         }
-        if (finalFrame < 0 || finalFrame >= static_cast<int>(this->buffer.size()))
+        if (finalFrame < 0 || finalFrame >= static_cast<int>(this->impl->buffer.size()))
         {
             if (errorOut)
-                snprintf(errorOut,lenError, "final frame [%d] out of range ->[%d]", finalFrame, static_cast<int>(this->buffer.size()));
+                snprintf(errorOut,lenError, "final frame [%d] out of range ->[%d]", finalFrame, static_cast<int>(this->impl->buffer.size()));
             return false;
         }
         if (typeAnimation < 0 || typeAnimation > 6)
@@ -4059,7 +4112,7 @@ namespace mbm
                 snprintf(errorOut,lenError, "type of animation [%d] out of range ->[0-6]", typeAnimation);
             return false;
         }
-        util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = this->infoAnimation.lsHeaderAnim[index];
+        util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = this->impl->infoAnimation.lsHeaderAnim[index];
         if(infoHead->headerAnim == nullptr)
         {
             if (errorOut)
@@ -4079,25 +4132,25 @@ namespace mbm
 
     const util::INFO_ANIMATION::INFO_HEADER_ANIM *MESH_MBM_DEBUG::getAnim(const uint32_t index)const
     {
-        if(index < this->infoAnimation.lsHeaderAnim.size())
-            return this->infoAnimation.lsHeaderAnim[index];
+        if(index < this->impl->infoAnimation.lsHeaderAnim.size())
+            return this->impl->infoAnimation.lsHeaderAnim[index];
         return nullptr;
     }
 
     void MESH_MBM_DEBUG::deleteExtraInfo()
     {
-        switch(typeMe)
+        switch(impl->typeMe)
         {
             case util::TYPE_MESH_FONT:
             {
-                auto* infoFont = static_cast<mbm::INFO_BOUND_FONT*>(extraInfo);
+                auto* infoFont = static_cast<mbm::INFO_BOUND_FONT*>(impl->extraInfo);
                 if(infoFont)
                     delete infoFont;
             }
             break;
             case util::TYPE_MESH_PARTICLE:
             {
-                auto* lsParticleInfo = static_cast<std::vector<util::STAGE_PARTICLE*>*>(extraInfo);
+                auto* lsParticleInfo = static_cast<std::vector<util::STAGE_PARTICLE*>*>(impl->extraInfo);
                 if(lsParticleInfo)
                 {
                     for (auto stage : *lsParticleInfo)
@@ -4111,80 +4164,80 @@ namespace mbm
             break;
             case util::TYPE_MESH_TILE_MAP:
             {
-                auto* infoTileMap = static_cast<util::BTILE_INFO*>(extraInfo);
+                auto* infoTileMap = static_cast<util::BTILE_INFO*>(impl->extraInfo);
                 if(infoTileMap)
                     delete infoTileMap;
             }
             break;
                         case util::TYPE_MESH_SHAPE:
             {
-                auto* infoShape = static_cast<util::DYNAMIC_SHAPE*>(extraInfo);
+                auto* infoShape = static_cast<util::DYNAMIC_SHAPE*>(impl->extraInfo);
                 if(infoShape)
                     delete infoShape;
             }
             break;
             default:
             {
-                if (extraInfo)
+                if (impl->extraInfo)
                 {
-                    auto * charExtraInfo = static_cast<char*>(extraInfo);
+                    auto * charExtraInfo = static_cast<char*>(impl->extraInfo);
                     delete[] charExtraInfo;
                 }
             }
         }
-        extraInfo           = nullptr;
+        impl->extraInfo           = nullptr;
     }
     
     void MESH_MBM_DEBUG::fixDefaultBoud()
     {
-        if (this->infoPhysics.lsCube.size() == 0)
+        if (this->impl->infoPhysics.lsCube.size() == 0)
         {
             this->fillAtLeastOneBound();
-            headerMesh.deprecated_typePhysics = 1;
+            impl->headerMesh.deprecated_typePhysics = 1;
         }
     }
     
     void MESH_MBM_DEBUG::release()
     {
         deleteExtraInfo();
-        if (this->coordTexFrame_0)
-            delete[] this->coordTexFrame_0;
-        this->coordTexFrame_0 = nullptr;
+        if (this->impl->coordTexFrame_0)
+            delete[] this->impl->coordTexFrame_0;
+        this->impl->coordTexFrame_0 = nullptr;
         
-        for (auto meshBuffer : this->buffer)
+        for (auto meshBuffer : this->impl->buffer)
         {
             if (meshBuffer)
                 delete meshBuffer;
             meshBuffer = nullptr;
         }
-        buffer.clear();
-        angleDefault        = VEC3(0, 0, 0);
-        positionOffset      = VEC3(0, 0, 0);
-        sizeCoordTexFrame_0 = 0;
-        typeMe              = util::TYPE_MESH_UNKNOWN;
-        memset(static_cast<void*>(&this->headerMain), 0, sizeof(this->headerMain));
-        memset(static_cast<void*>(&this->headerMesh), 0, sizeof(this->headerMesh));
-        zoomEditorSprite.x = 1.0f;
-        zoomEditorSprite.y = 1.0f;
+        impl->buffer.clear();
+        impl->angleDefault        = VEC3(0, 0, 0);
+        impl->positionOffset      = VEC3(0, 0, 0);
+        impl->sizeCoordTexFrame_0 = 0;
+        impl->typeMe              = util::TYPE_MESH_UNKNOWN;
+        memset(static_cast<void*>(&this->impl->headerMain), 0, sizeof(this->impl->headerMain));
+        memset(static_cast<void*>(&this->impl->headerMesh), 0, sizeof(this->impl->headerMesh));
+        impl->zoomEditorSprite.x = 1.0f;
+        impl->zoomEditorSprite.y = 1.0f;
         util::MATERIAL m;
-        this->headerMesh.material      = m;
-        this->headerMesh.hasNorText[0] = HAS_NOR_NO;
-        this->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
-        this->infoPhysics.release();
-        this->infoAnimation.release();
+        this->impl->headerMesh.material      = m;
+        this->impl->headerMesh.hasNorText[0] = HAS_NOR_NO;
+        this->impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
+        this->impl->infoPhysics.release();
+        this->impl->infoAnimation.release();
     }
 
     void MESH_MBM_DEBUG::fillAtLeastOneBound()
     {
-        headerMesh.deprecated_typePhysics = 1;
+        impl->headerMesh.deprecated_typePhysics = 1;
         auto base                       = new CUBE();
-        this->infoPhysics.release();
-        this->infoPhysics.lsCube.push_back(base);
+        this->impl->infoPhysics.release();
+        this->impl->infoPhysics.lsCube.push_back(base);
         VEC3 vMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
         VEC3 vMin(FLT_MAX, FLT_MAX, FLT_MAX);
-        for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
+        for (int currentFrame = 0; currentFrame < impl->headerMesh.totalFrames; ++currentFrame)
         {
-            util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->buffer[std::vector<util::BUFFER_MESH_DEBUG *>::size_type(currentFrame)];
+            util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->impl->buffer[std::vector<util::BUFFER_MESH_DEBUG *>::size_type(currentFrame)];
             auto *                   pPosition          = reinterpret_cast<VEC3 *>(currentFrameBuffer->position);
             for (auto pSubset : currentFrameBuffer->subset)
             {
@@ -4243,9 +4296,9 @@ namespace mbm
     {
         return fill_animation_headers_common(fp,
                                              fileNamePath,
-                                             this->headerMain.version,
-                                             this->headerMesh.totalAnimation,
-                                             this->infoAnimation);
+                                             this->impl->headerMain.version,
+                                             this->impl->headerMesh.totalAnimation,
+                                             this->impl->infoAnimation);
     }
     
     bool MESH_MBM_DEBUG::loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
@@ -4263,19 +4316,19 @@ namespace mbm
                                         sizeArrayIndex,
                                         stride,
                                         fileVersion,
-                                        this->coordTexFrame_0,
-                                        this->sizeCoordTexFrame_0);
+                                        this->impl->coordTexFrame_0,
+                                        this->impl->sizeCoordTexFrame_0);
     }
     
     bool MESH_MBM_DEBUG::saveAnimationHeaders(const char *fileOut, FILE **file)
     {
         const bool writeAnimationEffectHeader =
-            this->headerMain.version >= TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER;
+            this->impl->headerMain.version >= TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER;
 
         // 4 header anim -- Todas as animações -----------------------------------------------------------
-        for (int i = 0; i < this->headerMesh.totalAnimation; ++i)
+        for (int i = 0; i < this->impl->headerMesh.totalAnimation; ++i)
         {
-            util::INFO_ANIMATION::INFO_HEADER_ANIM * infoHead   = this->infoAnimation.lsHeaderAnim[ std::vector<util::INFO_ANIMATION::INFO_HEADER_ANIM *>::size_type(i)];
+            util::INFO_ANIMATION::INFO_HEADER_ANIM * infoHead   = this->impl->infoAnimation.lsHeaderAnim[ std::vector<util::INFO_ANIMATION::INFO_HEADER_ANIM *>::size_type(i)];
             util::HEADER_ANIMATION       headerAnim = *infoHead->headerAnim;
             if (headerAnim.hasShaderEffect == 0)
                 headerAnim.hasShaderEffect = 1;
@@ -4288,8 +4341,8 @@ namespace mbm
                 if (writeAnimationEffectHeader && !write_texture_animation_effect_header_v10(fileOut, file, nullptr))
                     return false;
                 int blendOperation = 0;
-                if(i < static_cast<int>(lsBlendOperation.size()) && lsBlendOperation[i] != 0)
-                    blendOperation = lsBlendOperation[i];
+                if(i < static_cast<int>(impl->lsBlendOperation.size()) && impl->lsBlendOperation[i] != 0)
+                    blendOperation = impl->lsBlendOperation[i];
                 if (!write_empty_shader_steps_pair(file, blendOperation))
                     return false;
                 continue;
@@ -4372,19 +4425,39 @@ namespace mbm
 
 
 
+    VEC3 MESH_MBM::getPositionOffset() const noexcept
+    {
+        return impl->positionOffset;
+    }
+
+    void MESH_MBM::setPositionOffset(const VEC3 &position) noexcept
+    {
+        impl->positionOffset = position;
+    }
+
+    VEC3 MESH_MBM::getAngleDefault() const noexcept
+    {
+        return impl->angleDefault;
+    }
+
+    void MESH_MBM::setAngleDefault(const VEC3 &angle) noexcept
+    {
+        impl->angleDefault = angle;
+    }
+
     BUFFER_MESH * MESH_MBM::getBuffer(const uint32_t index) const
     {
-        if (index < this->totalFramesMesh && buffer)
-            return &buffer[index];
+        if (index < this->impl->totalFramesMesh && impl->buffer)
+            return &impl->buffer[index];
         return nullptr;
     }
-    
+
     TEXTURE * MESH_MBM::getTexture(const uint32_t indexFrame, const uint32_t indexSubset)
     {
-        if (indexFrame < totalFramesMesh && buffer)
+        if (indexFrame < impl->totalFramesMesh && impl->buffer)
         {
-            if (indexSubset < buffer[indexFrame].totalSubset)
-                return buffer[indexFrame].subset[indexSubset].texture;
+            if (indexSubset < impl->buffer[indexFrame].totalSubset)
+                return impl->buffer[indexFrame].subset[indexSubset].texture;
         }
         return nullptr;
     }
@@ -4392,21 +4465,21 @@ namespace mbm
     bool MESH_MBM::setTexture(const uint32_t indexFrame, const uint32_t indexSubset, const char *fileNameTexture,
                            const bool hasAlpha)
     {
-        if (indexFrame < totalFramesMesh && buffer)
+        if (indexFrame < impl->totalFramesMesh && impl->buffer)
         {
-            if (indexSubset < buffer[indexFrame].totalSubset)
+            if (indexSubset < impl->buffer[indexFrame].totalSubset)
             {
-                buffer[indexFrame].subset[indexSubset].texture =
+                impl->buffer[indexFrame].subset[indexSubset].texture =
                     TEXTURE_MANAGER::getInstance()->load(fileNameTexture, hasAlpha);
-                if (buffer[indexFrame].pBufferGL && buffer[indexFrame].subset[indexSubset].texture)
+                if (impl->buffer[indexFrame].pBufferGL && impl->buffer[indexFrame].subset[indexSubset].texture)
                 {
-                    for (uint32_t i = 0; i < buffer[indexFrame].pBufferGL->totalSubset; ++i)
+                    for (uint32_t i = 0; i < impl->buffer[indexFrame].pBufferGL->totalSubset; ++i)
                     {
-                        buffer[indexFrame].pBufferGL->setTextureByStage(buffer[indexFrame].subset[indexSubset].texture, 0, i);
+                        impl->buffer[indexFrame].pBufferGL->setTextureByStage(impl->buffer[indexFrame].subset[indexSubset].texture, 0, i);
                     }
                     return true;
                 }
-                return buffer[indexFrame].subset[indexSubset].texture != nullptr;
+                return impl->buffer[indexFrame].subset[indexSubset].texture != nullptr;
             }
         }
         return false;
@@ -4414,67 +4487,67 @@ namespace mbm
     
     const char * MESH_MBM::getFilenameMesh() const
     {
-        return fileName.c_str();
+        return impl->fileName.c_str();
     }
 
     INFO_PHYSICS & MESH_MBM::getPhysicsInfo() noexcept
     {
-        return this->infoPhysics;
+        return this->impl->infoPhysics;
     }
 
     const INFO_PHYSICS & MESH_MBM::getPhysicsInfo() const noexcept
     {
-        return this->infoPhysics;
+        return this->impl->infoPhysics;
     }
 
     void MESH_MBM::resetPhysicsInfo()
     {
-        this->infoPhysics.release();
+        this->impl->infoPhysics.release();
     }
 
     void MESH_MBM::appendPhysicsCube(CUBE *cube) noexcept
     {
         if (cube)
-            this->infoPhysics.lsCube.push_back(cube);
+            this->impl->infoPhysics.lsCube.push_back(cube);
     }
 
     void MESH_MBM::appendPhysicsSphere(SPHERE *sphere) noexcept
     {
         if (sphere)
-            this->infoPhysics.lsSphere.push_back(sphere);
+            this->impl->infoPhysics.lsSphere.push_back(sphere);
     }
 
     void MESH_MBM::appendPhysicsCubeComplex(CUBE_COMPLEX *cubeComplex) noexcept
     {
         if (cubeComplex)
-            this->infoPhysics.lsCubeComplex.push_back(cubeComplex);
+            this->impl->infoPhysics.lsCubeComplex.push_back(cubeComplex);
     }
 
     void MESH_MBM::appendPhysicsTriangle(TRIANGLE *triangle) noexcept
     {
         if (triangle)
-            this->infoPhysics.lsTriangle.push_back(triangle);
+            this->impl->infoPhysics.lsTriangle.push_back(triangle);
     }
 
     util::INFO_ANIMATION & MESH_MBM::getAnimationInfo() noexcept
     {
-        return this->infoAnimation;
+        return this->impl->infoAnimation;
     }
 
     const util::INFO_ANIMATION & MESH_MBM::getAnimationInfo() const noexcept
     {
-        return this->infoAnimation;
+        return this->impl->infoAnimation;
     }
 
     uint32_t MESH_MBM::getTotalAnimations() const noexcept
     {
-        return static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size());
+        return static_cast<uint32_t>(this->impl->infoAnimation.lsHeaderAnim.size());
     }
 
     util::INFO_ANIMATION::INFO_HEADER_ANIM * MESH_MBM::getAnimationHeader(const uint32_t index) const noexcept
     {
-        if (index < this->infoAnimation.lsHeaderAnim.size())
-            return this->infoAnimation.lsHeaderAnim[index];
+        if (index < this->impl->infoAnimation.lsHeaderAnim.size())
+            return this->impl->infoAnimation.lsHeaderAnim[index];
         return nullptr;
     }
     
@@ -4485,18 +4558,18 @@ namespace mbm
 
     void MESH_MBM::deleteExtraInfo()
     {
-        switch(typeMe)
+        switch(impl->typeMe)
         {
             case util::TYPE_MESH_FONT:
             {
-                auto* infoFont = static_cast<mbm::INFO_BOUND_FONT*>(extraInfo);
+                auto* infoFont = static_cast<mbm::INFO_BOUND_FONT*>(impl->extraInfo);
                 if(infoFont)
                     delete infoFont;
             }
             break;
             case util::TYPE_MESH_PARTICLE:
             {
-                auto* lsParticleInfo = static_cast<std::vector<util::STAGE_PARTICLE*>*>(extraInfo);
+                auto* lsParticleInfo = static_cast<std::vector<util::STAGE_PARTICLE*>*>(impl->extraInfo);
                 if(lsParticleInfo)
                 {
                     for (auto stage : *lsParticleInfo)
@@ -4510,67 +4583,67 @@ namespace mbm
             break;
             case util::TYPE_MESH_TILE_MAP:
             {
-                auto* infoTileMap = static_cast<util::BTILE_INFO*>(extraInfo);
+                auto* infoTileMap = static_cast<util::BTILE_INFO*>(impl->extraInfo);
                 if(infoTileMap)
                     delete infoTileMap;
             }
             break;
             case util::TYPE_MESH_SHAPE:
             {
-                auto* infoShape = static_cast<util::DYNAMIC_SHAPE*>(extraInfo);
+                auto* infoShape = static_cast<util::DYNAMIC_SHAPE*>(impl->extraInfo);
                 if(infoShape)
                     delete infoShape;
             }
             break;
             default:
             {
-                if (extraInfo)
+                if (impl->extraInfo)
                 {
-                    auto * charExtraInfo = static_cast<char*>(extraInfo);
+                    auto * charExtraInfo = static_cast<char*>(impl->extraInfo);
                     delete[] charExtraInfo;
                 }
             }
         }
-        extraInfo           = nullptr;
+        impl->extraInfo           = nullptr;
     }
     
     void MESH_MBM::release() //
     {
         deleteExtraInfo();
-        if (buffer)
-            delete[] buffer;
-        buffer = nullptr;
-        this->infoPhysics.release();
-        this->infoAnimation.release();
+        if (impl->buffer)
+            delete[] impl->buffer;
+        impl->buffer = nullptr;
+        this->impl->infoPhysics.release();
+        this->impl->infoAnimation.release();
 
-        if (coordTexFrame_0)
-            delete[] coordTexFrame_0;
-        coordTexFrame_0 = nullptr;
+        if (impl->coordTexFrame_0)
+            delete[] impl->coordTexFrame_0;
+        impl->coordTexFrame_0 = nullptr;
 
-        totalFramesMesh = 0;
+        impl->totalFramesMesh = 0;
         
-        zoomEditorSprite.x  = 0;
-        zoomEditorSprite.y  = 0;
-        typeMe              = util::TYPE_MESH_UNKNOWN;
-        hasNormTex[0]       = 0;
-        hasNormTex[1]       = 0;
-        depthUberImage      = 8;
-        sizeCoordTexFrame_0 = 0;
+        impl->zoomEditorSprite.x  = 0;
+        impl->zoomEditorSprite.y  = 0;
+        impl->typeMe              = util::TYPE_MESH_UNKNOWN;
+        impl->hasNormTex[0]       = 0;
+        impl->hasNormTex[1]       = 0;
+        impl->depthUberImage      = 8;
+        impl->sizeCoordTexFrame_0 = 0;
     }
     
     bool MESH_MBM::isLoaded() const
     {
-        return this->buffer != nullptr;
+        return this->impl->buffer != nullptr;
     }
     
     bool MESH_MBM::render(const uint32_t indexFrame,const SHADER *pShader,
                           const RENDERIZABLE *renderizableOwner)
     {
-        if (indexFrame < totalFramesMesh && buffer)
+        if (indexFrame < impl->totalFramesMesh && impl->buffer)
         {
             DEVICE *device = DEVICE::getInstance();
-            device->setRenderMaterial(this->material);
-            const bool ret = pShader->render(buffer[indexFrame].pBufferGL, renderizableOwner);
+            device->setRenderMaterial(this->impl->material);
+            const bool ret = pShader->render(impl->buffer[indexFrame].pBufferGL, renderizableOwner);
             device->clearRenderMaterial();
             return ret;
         }
@@ -4580,11 +4653,11 @@ namespace mbm
     bool MESH_MBM::renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
                                     VEC2 *uv, const RENDERIZABLE *renderizableOwner)
     {
-        if (indexFrame < totalFramesMesh && buffer)
+        if (indexFrame < impl->totalFramesMesh && impl->buffer)
         {
             DEVICE *device = DEVICE::getInstance();
-            device->setRenderMaterial(this->material);
-            const bool ret = pShader->renderDynamic(buffer[indexFrame].pBufferGL, vertex, normal, uv,
+            device->setRenderMaterial(this->impl->material);
+            const bool ret = pShader->renderDynamic(impl->buffer[indexFrame].pBufferGL, vertex, normal, uv,
                                                     renderizableOwner);
             device->clearRenderMaterial();
             return ret;
@@ -4617,41 +4690,42 @@ namespace mbm
     
     util::TYPE_MESH MESH_MBM::getTypeMesh() const
     {
-        return typeMe;
+        return impl->typeMe;
     }
     
     VEC2 MESH_MBM::getZoomEditorSprite() const
     {
-        return this->zoomEditorSprite;
+        return this->impl->zoomEditorSprite;
     }
     
     uint32_t MESH_MBM::getTotalFrame() const
     {
-        return totalFramesMesh;
+        return impl->totalFramesMesh;
     }
     
     uint32_t MESH_MBM::getTotalSubset(const uint32_t indexFrame) const
     {
-        if (indexFrame < totalFramesMesh && buffer)
-            return buffer[indexFrame].totalSubset;
+        if (indexFrame < impl->totalFramesMesh && impl->buffer)
+            return impl->buffer[indexFrame].totalSubset;
         return 0;
     }
     
-    MESH_MBM::MESH_MBM() noexcept
+    MESH_MBM::MESH_MBM()
+        : impl(std::make_unique<Impl>())
     {
-        buffer          = nullptr;
-        extraInfo       = nullptr;
-        totalFramesMesh = 0;
-        
-        coordTexFrame_0     = nullptr;
-        sizeCoordTexFrame_0 = 0;
+        impl->buffer          = nullptr;
+        impl->extraInfo       = nullptr;
+        impl->totalFramesMesh = 0;
 
-        zoomEditorSprite.x  = 0;
-        zoomEditorSprite.y  = 0;
-        typeMe              = util::TYPE_MESH_UNKNOWN;
-        hasNormTex[0]       = 0;
-        hasNormTex[1]       = 0;
-        depthUberImage      = 8;
+        impl->coordTexFrame_0     = nullptr;
+        impl->sizeCoordTexFrame_0 = 0;
+
+        impl->zoomEditorSprite.x  = 0;
+        impl->zoomEditorSprite.y  = 0;
+        impl->typeMe              = util::TYPE_MESH_UNKNOWN;
+        impl->hasNormTex[0]       = 0;
+        impl->hasNormTex[1]       = 0;
+        impl->depthUberImage      = 8;
     }
     
     bool MESH_MBM::load(const char *fileNamePath)
@@ -4675,10 +4749,10 @@ namespace mbm
 #endif
         if (!open_decompressed_mesh_file(fileNamePath, fp, "Not found or failure to open file [%s]"))
             return false;
-        this->fileName = fileNamePath;
+        this->impl->fileName = fileNamePath;
         // step 1: Verificação do header  principal
         // -------------------------------------------------------------------------------
-        if (!read_main_header_and_type(fp, fileNamePath, headerMain, typeMe))
+        if (!read_main_header_and_type(fp, fileNamePath, headerMain, impl->typeMe))
             return false;
         if (allowLegacyDispatch && headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
@@ -4695,9 +4769,9 @@ namespace mbm
         if (!read_extra_headers(fp, fileNamePath, headerMain.extraHeader, true))
             return false;
 
-        if (!read_info_mode_if_needed(fp, fileNamePath, headerMain.version, info_mode, true))
+        if (!read_info_mode_if_needed(fp, fileNamePath, headerMain.version, impl->info_mode, true))
             return false;
-        if(typeMe == util::TYPE_MESH_TILE_MAP)
+        if(impl->typeMe == util::TYPE_MESH_TILE_MAP)
         {
             mbm::TEXTURE::EnablePixelPerfectTexture(true);
         }
@@ -4711,8 +4785,8 @@ namespace mbm
             if (!read_detail_mesh_section(fp,
                                           fileNamePath,
                                           headerMain,
-                                          this->infoPhysics,
-                                          this->extraInfo,
+                                          this->impl->infoPhysics,
+                                          this->impl->extraInfo,
                                           [this](FILE *file, const char *name, const int totalBounding, const int fileVersion)
                                           {
                                               return this->readTriangleDetailCompat(file, name, totalBounding, fileVersion);
@@ -4735,13 +4809,13 @@ namespace mbm
         // 3 headerMesh MBM -------------------------------------------------------------------------------
         if (!util::readHeaderMeshV8(fp, headerMesh))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read HEADER_MESH [%s]", fileNamePath);
-        this->hasNormTex[0]     = headerMesh.hasNorText[0];
-        this->hasNormTex[1]     = headerMesh.hasNorText[1];
-        this->material.Ambient  = headerMesh.material.Ambient;
-        this->material.Diffuse  = headerMesh.material.Diffuse;
-        this->material.Emissive = headerMesh.material.Emissive;
-        this->material.Specular = headerMesh.material.Specular;
-        this->material.Power    = headerMesh.material.Power;
+        this->impl->hasNormTex[0]     = headerMesh.hasNorText[0];
+        this->impl->hasNormTex[1]     = headerMesh.hasNorText[1];
+        this->impl->material.Ambient  = headerMesh.material.Ambient;
+        this->impl->material.Diffuse  = headerMesh.material.Diffuse;
+        this->impl->material.Emissive = headerMesh.material.Emissive;
+        this->impl->material.Specular = headerMesh.material.Specular;
+        this->impl->material.Power    = headerMesh.material.Power;
         if (headerMesh.totalAnimation == 0)
             return log_util::onFailed(fp,__FILE__, __LINE__, "there is no animation [%s]", fileNamePath);
 
@@ -4759,8 +4833,8 @@ namespace mbm
         {
             return false;
         }
-        this->buffer          = new BUFFER_MESH[headerMesh.totalFrames];
-        this->totalFramesMesh = static_cast<uint32_t>(headerMesh.totalFrames);
+        this->impl->buffer          = new BUFFER_MESH[headerMesh.totalFrames];
+        this->impl->totalFramesMesh = static_cast<uint32_t>(headerMesh.totalFrames);
 
         // Loop principal atraves de todos os frames deste arquivo -----------------------------------------------
         for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
@@ -4778,16 +4852,16 @@ namespace mbm
                     headerFrame,
                     [&](util::HEADER_FRAME &header) -> bool
                     {
-                        buffer[currentFrame].subset      = new util::SUBSET[header.totalSubset];
-                        buffer[currentFrame].totalSubset = static_cast<uint32_t>(header.totalSubset);
+                        impl->buffer[currentFrame].subset      = new util::SUBSET[header.totalSubset];
+                        impl->buffer[currentFrame].totalSubset = static_cast<uint32_t>(header.totalSubset);
                         return true;
                     },
                     [&](const util::HEADER_FRAME &, const int i, util::HEADER_DESC_SUBSET &headerDescSubset) -> bool
                     {
-                        buffer[currentFrame].subset[i].vertexStart = headerDescSubset.vertexStart;
-                        buffer[currentFrame].subset[i].indexStart  = headerDescSubset.indexStart;
-                        buffer[currentFrame].subset[i].indexCount  = headerDescSubset.indexCount;
-                        buffer[currentFrame].subset[i].vertexCount = headerDescSubset.vertexCount;
+                        impl->buffer[currentFrame].subset[i].vertexStart = headerDescSubset.vertexStart;
+                        impl->buffer[currentFrame].subset[i].indexStart  = headerDescSubset.indexStart;
+                        impl->buffer[currentFrame].subset[i].indexCount  = headerDescSubset.indexCount;
+                        impl->buffer[currentFrame].subset[i].vertexCount = headerDescSubset.vertexCount;
                         if (strcmp(headerDescSubset.nameTexture, "default") != 0)
                         {
                             char *pch = strchr(headerDescSubset.nameTexture, '#');
@@ -4807,7 +4881,7 @@ namespace mbm
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);
                                 }
                                 uint32_t sizeOfImage = 0;
-                                this->depthUberImage     = static_cast<uint8_t>(headerImg.depth);
+                                this->impl->depthUberImage     = static_cast<uint8_t>(headerImg.depth);
                                 if (headerImg.channel != 4 && headerImg.channel != 3 && headerImg.channel != 0)
                                 {
                                     delete [] data;
@@ -4851,21 +4925,21 @@ namespace mbm
                                 {
                                     delete[] data;
                                     TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
-                                    buffer[currentFrame].subset[i].texture = textureManager->load(
+                                    impl->buffer[currentFrame].subset[i].texture = textureManager->load(
                                         headerImg.width, headerImg.height, miniz.getDataStreamOut(), headerDescSubset.nameTexture,
                                         headerImg.depth, headerImg.channel, headerImg.hasAlpha ? true : false);
-                                    if (buffer[currentFrame].subset[i].texture == nullptr)
+                                    if (impl->buffer[currentFrame].subset[i].texture == nullptr)
                                     {
                                         lsIdTexture.push_back(nullptr);
                                         lsHasColorKeying.push_back(0);
 #if defined _DEBUG
-                                        PRINT_IF_DEBUG( "error on creating texture: %s", fileName.c_str());
+                                        PRINT_IF_DEBUG( "error on creating texture: %s", impl->fileName.c_str());
 #endif
                                     }
                                     else
                                     {
-                                        lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
+                                        lsIdTexture.push_back(impl->buffer[currentFrame].subset[i].texture);
+                                        lsHasColorKeying.push_back(impl->buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                                 else
@@ -4948,13 +5022,13 @@ namespace mbm
                                                 dataARGB[pixel + 2] = static_cast<uint8_t>(dwG);
                                                 dataARGB[pixel + 3] = static_cast<uint8_t>(dwB);
                                             }
-                                            buffer[currentFrame].subset[i].texture =
+                                            impl->buffer[currentFrame].subset[i].texture =
                                                 textureManager->load(2, 2, dataARGB, headerDescSubset.nameTexture, 8, 4);
-                                            if (buffer[currentFrame].subset[i].texture)
+                                            if (impl->buffer[currentFrame].subset[i].texture)
                                             {
-                                                lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
+                                                lsIdTexture.push_back(impl->buffer[currentFrame].subset[i].texture);
                                                 lsHasColorKeying.push_back(
-                                                    buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1 : 0);
+                                                    impl->buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1 : 0);
                                             }
                                             else
                                             {
@@ -4965,7 +5039,7 @@ namespace mbm
                                     }
                                     else
                                     {
-                                        buffer[currentFrame].subset[i].texture = nullptr;
+                                        impl->buffer[currentFrame].subset[i].texture = nullptr;
                                         lsIdTexture.push_back(nullptr);
                                         lsHasColorKeying.push_back(0);
                                     }
@@ -4977,11 +5051,11 @@ namespace mbm
                                     const size_t len = strlen(headerDescSubset.nameTexture);
                                     if(len > 4 && strcasecmp(&headerDescSubset.nameTexture[len-4],".ttf")==0)
                                     {
-                                        buffer[currentFrame].subset[i].texture = textureManager->loadTTF(headerDescSubset.nameTexture,nullptr,nullptr,pInfoFont->heightLetter,true);
+                                        impl->buffer[currentFrame].subset[i].texture = textureManager->loadTTF(headerDescSubset.nameTexture,nullptr,nullptr,pInfoFont->heightLetter,true);
                                     }
                                     else
                                     {
-                                        buffer[currentFrame].subset[i].texture = textureManager->load(
+                                        impl->buffer[currentFrame].subset[i].texture = textureManager->load(
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
                                             headerDescSubset.nameTexture, true);
                                             headerDescSubset.hasAlphaColor = 1;
@@ -4989,31 +5063,31 @@ namespace mbm
                                             headerDescSubset.nameTexture, headerDescSubset.hasAlphaColor ? true : false);
 #endif
                                     }
-                                    if (!buffer[currentFrame].subset[i].texture)
+                                    if (!impl->buffer[currentFrame].subset[i].texture)
                                     {
                                         lsIdTexture.push_back(0);
                                         lsHasColorKeying.push_back(0);
                                     }
                                     else
                                     {
-                                        lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
+                                        lsIdTexture.push_back(impl->buffer[currentFrame].subset[i].texture);
+                                        lsHasColorKeying.push_back(impl->buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                                 else
                                 {
                                     TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
-                                    buffer[currentFrame].subset[i].texture = textureManager->load(
+                                    impl->buffer[currentFrame].subset[i].texture = textureManager->load(
                                         headerDescSubset.nameTexture, headerDescSubset.hasAlphaColor ? true : false);
-                                    if (!buffer[currentFrame].subset[i].texture)
+                                    if (!impl->buffer[currentFrame].subset[i].texture)
                                     {
                                         lsIdTexture.push_back(nullptr);
                                         lsHasColorKeying.push_back(0);
                                     }
                                     else
                                     {
-                                        lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
+                                        lsIdTexture.push_back(impl->buffer[currentFrame].subset[i].texture);
+                                        lsHasColorKeying.push_back(impl->buffer[currentFrame].subset[i].texture->hasAlphaChannel() ? 1: 0);
                                     }
                                 }
                             }
@@ -5022,7 +5096,7 @@ namespace mbm
                                                              fileNamePath,
                                                              headerMain.version,
                                                              headerDescSubset.materialTextureSlotCount,
-                                                             buffer[currentFrame].subset[i]))
+                                                             impl->buffer[currentFrame].subset[i]))
                             return false;
                         return true;
                     }))
@@ -5058,23 +5132,23 @@ namespace mbm
                     },
                     [&](VEC3 *&pPosition, VEC3 *&pNormal, VEC2 *&pTexture, uint16_t *&indexArray) -> bool
                     {
-                        buffer[currentFrame].pBufferGL = new BUFFER_GL();
-                        auto indexStart = new int[buffer[currentFrame].totalSubset];
-                        auto indexCount = new int[buffer[currentFrame].totalSubset];
+                        impl->buffer[currentFrame].pBufferGL = new BUFFER_GL();
+                        auto indexStart = new int[impl->buffer[currentFrame].totalSubset];
+                        auto indexCount = new int[impl->buffer[currentFrame].totalSubset];
                         for (int subIndex = 0; subIndex < headerFrame.totalSubset; ++subIndex)
                         {
-                            indexStart[subIndex] = buffer[currentFrame].subset[subIndex].indexStart;
-                            indexCount[subIndex] = buffer[currentFrame].subset[subIndex].indexCount;
+                            indexStart[subIndex] = impl->buffer[currentFrame].subset[subIndex].indexStart;
+                            indexCount[subIndex] = impl->buffer[currentFrame].subset[subIndex].indexCount;
                         }
-                        if (!buffer[currentFrame].pBufferGL->loadBuffer(pPosition,
+                        if (!impl->buffer[currentFrame].pBufferGL->loadBuffer(pPosition,
                                                                         pNormal,
                                                                         pTexture,
                                                                         static_cast<uint32_t>(headerFrame.sizeVertexBuffer),
                                                                         indexArray,
-                                                                        buffer[currentFrame].totalSubset,
+                                                                        impl->buffer[currentFrame].totalSubset,
                                                                         indexStart,
                                                                         indexCount,
-                                                                        &this->info_mode))
+                                                                        &this->impl->info_mode))
 
                         {
                             delete[] indexStart;
@@ -5095,23 +5169,23 @@ namespace mbm
                     [&](VEC3 *&pPosition, VEC3 *&pNormal, VEC2 *&pTexture) -> bool
                     {
                         constexpr bool isDynamic = false;
-                        buffer[currentFrame].pBufferGL = new BUFFER_GL();
-                        auto vertexStart               = new int[buffer[currentFrame].totalSubset];
-                        auto vertexCount               = new int[buffer[currentFrame].totalSubset];
+                        impl->buffer[currentFrame].pBufferGL = new BUFFER_GL();
+                        auto vertexStart               = new int[impl->buffer[currentFrame].totalSubset];
+                        auto vertexCount               = new int[impl->buffer[currentFrame].totalSubset];
                         for (int subIndex = 0; subIndex < headerFrame.totalSubset; ++subIndex)
                         {
-                            vertexStart[subIndex] = buffer[currentFrame].subset[subIndex].vertexStart;
-                            vertexCount[subIndex] = buffer[currentFrame].subset[subIndex].vertexCount;
+                            vertexStart[subIndex] = impl->buffer[currentFrame].subset[subIndex].vertexStart;
+                            vertexCount[subIndex] = impl->buffer[currentFrame].subset[subIndex].vertexCount;
                         }
-                        if (!buffer[currentFrame].pBufferGL->loadBuffer(
+                        if (!impl->buffer[currentFrame].pBufferGL->loadBuffer(
                                 pPosition,
                                 pNormal,
                                 pTexture,
                                 static_cast<uint32_t>(headerFrame.sizeVertexBuffer),
-                                buffer[currentFrame].totalSubset,
+                                impl->buffer[currentFrame].totalSubset,
                                 vertexStart,
                                 vertexCount,
-                                &this->info_mode,
+                                &this->impl->info_mode,
                                 isDynamic))
                         {
                             delete[] vertexStart;
@@ -5130,13 +5204,13 @@ namespace mbm
                         return true;
                     }))
                 return false;
-            const std::vector<int>::size_type  totalIdTexture = ((buffer[currentFrame].pBufferGL->totalSubset > lsIdTexture.size())
+            const std::vector<int>::size_type  totalIdTexture = ((impl->buffer[currentFrame].pBufferGL->totalSubset > lsIdTexture.size())
                                                      ? lsIdTexture.size()
-                                                     : buffer[currentFrame].pBufferGL->totalSubset);
+                                                     : impl->buffer[currentFrame].pBufferGL->totalSubset);
             for (std::vector<int>::size_type i = 0; i < totalIdTexture; ++i)
             {
-                buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[i], 0, static_cast<uint32_t>(i));
-                const util::SUBSET &subsetRuntime = buffer[currentFrame].subset[i];
+                impl->buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[i], 0, static_cast<uint32_t>(i));
+                const util::SUBSET &subsetRuntime = impl->buffer[currentFrame].subset[i];
                 const std::vector<util::MATERIAL_TEXTURE_SLOT_HEADER>::size_type totalMaterialTextures =
                     subsetRuntime.materialTextureSlotHeaders.size() < subsetRuntime.materialTextures.size()
                         ? subsetRuntime.materialTextureSlotHeaders.size()
@@ -5147,7 +5221,7 @@ namespace mbm
                 {
                     if (subsetRuntime.materialTextureSlotHeaders[materialIndex].type == util::MATERIAL_TEXTURE_SLOT_NORMAL)
                     {
-                        buffer[currentFrame].pBufferGL->setTextureByStage(
+                        impl->buffer[currentFrame].pBufferGL->setTextureByStage(
                             subsetRuntime.materialTextures[materialIndex], 2, static_cast<uint32_t>(i));
                         break;
                     }
@@ -5156,19 +5230,19 @@ namespace mbm
         }
         fclose(fp);
         fp             = nullptr;
-        positionOffset = VEC3(headerMesh.posX, headerMesh.posY, headerMesh.posZ);
-        angleDefault   = VEC3(headerMesh.angleX, headerMesh.angleY, headerMesh.angleZ);
+        impl->positionOffset = VEC3(headerMesh.posX, headerMesh.posY, headerMesh.posZ);
+        impl->angleDefault   = VEC3(headerMesh.angleX, headerMesh.angleY, headerMesh.angleZ);
         remove(util::getDecompressModelFileName());
 
-        this->sizeCoordTexFrame_0 = 0;
-        if (this->coordTexFrame_0)
-            delete[] this->coordTexFrame_0;
-        this->coordTexFrame_0 = nullptr;
+        this->impl->sizeCoordTexFrame_0 = 0;
+        if (this->impl->coordTexFrame_0)
+            delete[] this->impl->coordTexFrame_0;
+        this->impl->coordTexFrame_0 = nullptr;
 
         if (renderizable)
         {
-            renderizable->getPosition() += this->positionOffset;
-            renderizable->setAngle(this->angleDefault);
+            renderizable->getPosition() += this->impl->positionOffset;
+            renderizable->setAngle(this->impl->angleDefault);
         }
         return true;
     }
@@ -5223,8 +5297,8 @@ namespace mbm
                                         sizeArrayIndex,
                                         stride,
                                         fileVersion,
-                                        this->coordTexFrame_0,
-                                        this->sizeCoordTexFrame_0);
+                                        this->impl->coordTexFrame_0,
+                                        this->impl->sizeCoordTexFrame_0);
     }
     
     bool MESH_MBM::fillAnimation_2(util::HEADER_MESH &headerMesh,
@@ -5236,34 +5310,34 @@ namespace mbm
                                              fileNamePath,
                                              version,
                                              headerMesh.totalAnimation,
-                                             this->infoAnimation);
+                                             this->impl->infoAnimation);
     }
 
     const INFO_BOUND_FONT* MESH_MBM::getInfoFont()const
     {
-        if(this->typeMe == util::TYPE_MESH_FONT)
-            return static_cast<INFO_BOUND_FONT*>(this->extraInfo);
+        if(this->impl->typeMe == util::TYPE_MESH_FONT)
+            return static_cast<INFO_BOUND_FONT*>(this->impl->extraInfo);
         return nullptr;
     }
 
     const std::vector<util::STAGE_PARTICLE*>* MESH_MBM::getInfoParticle()const
     {
-        if(this->typeMe == util::TYPE_MESH_PARTICLE)
-            return static_cast<std::vector<util::STAGE_PARTICLE*>*>(this->extraInfo);
+        if(this->impl->typeMe == util::TYPE_MESH_PARTICLE)
+            return static_cast<std::vector<util::STAGE_PARTICLE*>*>(this->impl->extraInfo);
         return nullptr;
     }
 
     const util::BTILE_INFO* MESH_MBM::getInfoTile()const
     {
-        if(this->typeMe == util::TYPE_MESH_TILE_MAP)
-            return static_cast<util::BTILE_INFO*>(this->extraInfo);
+        if(this->impl->typeMe == util::TYPE_MESH_TILE_MAP)
+            return static_cast<util::BTILE_INFO*>(this->impl->extraInfo);
         return nullptr;
     }
 
         API_IMPL const util::DYNAMIC_SHAPE* MESH_MBM::getInfoShape()const
         {
-            if(this->typeMe == util::TYPE_MESH_SHAPE)
-                 return static_cast<util::DYNAMIC_SHAPE*>(this->extraInfo);
+            if(this->impl->typeMe == util::TYPE_MESH_SHAPE)
+                 return static_cast<util::DYNAMIC_SHAPE*>(this->impl->extraInfo);
             return nullptr;
         }
 
@@ -5319,8 +5393,8 @@ namespace mbm
         {
             if (renderizable)
             {
-                renderizable->getPosition() += mesh->positionOffset;
-                renderizable->setAngle(mesh->angleDefault);
+                renderizable->getPosition() += mesh->impl->positionOffset;
+                renderizable->setAngle(mesh->impl->angleDefault);
             }
             return mesh;
         }
@@ -5404,11 +5478,11 @@ namespace mbm
             i.z = 1;
         }*/
 
-        mesh->buffer                       = new BUFFER_MESH[tTotalSTB];
-        mesh->totalFramesMesh              = tTotalSTB;
+        mesh->impl->buffer                       = new BUFFER_MESH[tTotalSTB];
+        mesh->impl->totalFramesMesh              = tTotalSTB;
         uint16_t    indexQuad[6] = {0, 1, 2, 2, 1, 3};
         auto* infoFont          = new INFO_BOUND_FONT();
-        mesh->extraInfo					   = infoFont;
+        mesh->impl->extraInfo					   = infoFont;
         infoFont->spaceXCharacter          = spaceWidth;
         infoFont->spaceYCharacter          = spaceHeight;
         infoFont->heightLetter             = static_cast<unsigned short>(heightLetter);
@@ -5500,18 +5574,18 @@ namespace mbm
                 pTexture[3].x = q.s1;
                 pTexture[3].y = q.t0;
 
-                mesh->buffer[index].pBufferGL            = new BUFFER_GL();
-                mesh->buffer[index].subset               = new util::SUBSET[1];
-                mesh->buffer[index].totalSubset          = 1;
-                mesh->buffer[index].subset[0].indexCount = 6;
+                mesh->impl->buffer[index].pBufferGL            = new BUFFER_GL();
+                mesh->impl->buffer[index].subset               = new util::SUBSET[1];
+                mesh->impl->buffer[index].totalSubset          = 1;
+                mesh->impl->buffer[index].subset[0].indexCount = 6;
                 
-                if (mesh->buffer[index].pBufferGL->loadBuffer(
-                        pPosition, pNormal, pTexture, 4, indexQuad, mesh->buffer[index].totalSubset,
-                        &mesh->buffer[index].subset[0].indexStart, &mesh->buffer[index].subset[0].indexCount,nullptr))
+                if (mesh->impl->buffer[index].pBufferGL->loadBuffer(
+                        pPosition, pNormal, pTexture, 4, indexQuad, mesh->impl->buffer[index].totalSubset,
+                        &mesh->impl->buffer[index].subset[0].indexStart, &mesh->impl->buffer[index].subset[0].indexCount,nullptr))
                 {
 
-                    mesh->buffer[index].subset[0].texture        = texture;
-                    mesh->buffer[index].pBufferGL->setTextureByStage(texture, 0, 0);
+                    mesh->impl->buffer[index].subset[0].texture        = texture;
+                    mesh->impl->buffer[index].pBufferGL->setTextureByStage(texture, 0, 0);
                     infoFont->letter[i].detail                   = new util::DETAIL_LETTER();
                     infoFont->letter[i].detail->indexFrame       = static_cast<uint8_t>(index);
                     infoFont->letter[i].detail->widthLetter      = static_cast<uint8_t>(lsWidthLetter[i].x);
@@ -5531,18 +5605,18 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->positionOffset                    = VEC3(0, 0, 0);
-            mesh->angleDefault                      = VEC3(0, 0, 0);
-            mesh->typeMe                            = util::TYPE_MESH_FONT;
+            mesh->impl->positionOffset                    = VEC3(0, 0, 0);
+            mesh->impl->angleDefault                      = VEC3(0, 0, 0);
+            mesh->impl->typeMe                            = util::TYPE_MESH_FONT;
             auto header = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
-            mesh->infoAnimation.lsHeaderAnim.push_back(header);
+            mesh->impl->infoAnimation.lsHeaderAnim.push_back(header);
             header->headerAnim             = new util::HEADER_ANIMATION();
             header->headerAnim->hasShaderEffect = 1; // always will be 1
             this->impl->lsMeshes[fileNameBaseSuppose] = mesh;
             const char *fontps                 = "font.ps";
             header->headerAnim->typeAnimation  = 1;
-            mesh->hasNormTex[0] = HAS_NOR_IN_FILE;//has normal
-            mesh->hasNormTex[1] = HAS_TEX_EACH_FRAME;//uv each frame
+            mesh->impl->hasNormTex[0] = HAS_NOR_IN_FILE;//has normal
+            mesh->impl->hasNormTex[1] = HAS_TEX_EACH_FRAME;//uv each frame
             strncpy(header->headerAnim->nameAnimation,"font-1",sizeof(header->headerAnim->nameAnimation)-1);
             auto effectFont = new util::INFO_FX();
             header->effectShader = effectFont;
@@ -5555,7 +5629,7 @@ namespace mbm
             effectFont->dataPS->typeVars[0]   = VAR_COLOR_RGB;
             memcpy(effectFont->dataPS->min, mmin, sizeof(mmin));
             memcpy(effectFont->dataPS->max, mmax, sizeof(mmax));
-            mesh->fileName = std::move(fileNameBaseSuppose);
+            mesh->impl->fileName = std::move(fileNameBaseSuppose);
             
         }
         return mesh;
@@ -5570,12 +5644,12 @@ namespace mbm
             return mesh;
         constexpr bool isDynamic              = false;
         mesh                                  = new MESH_MBM();
-        mesh->buffer                          = new BUFFER_MESH[1];
-        mesh->totalFramesMesh                 = 1;
-        mesh->buffer[0].pBufferGL             = new BUFFER_GL();
-        mesh->buffer[0].subset                = new util::SUBSET[1];
-        mesh->buffer[0].totalSubset           = 1;
-        mesh->buffer[0].subset[0].vertexCount = sizeVertexBuffer / 3;
+        mesh->impl->buffer                          = new BUFFER_MESH[1];
+        mesh->impl->totalFramesMesh                 = 1;
+        mesh->impl->buffer[0].pBufferGL             = new BUFFER_GL();
+        mesh->impl->buffer[0].subset                = new util::SUBSET[1];
+        mesh->impl->buffer[0].totalSubset           = 1;
+        mesh->impl->buffer[0].subset[0].vertexCount = sizeVertexBuffer / 3;
 
         {
             std::string which_mode;
@@ -5587,23 +5661,23 @@ namespace mbm
             }
         }
 
-        if (!mesh->buffer[0].pBufferGL->loadBuffer(
-                reinterpret_cast<VEC3 *>(pPosition), reinterpret_cast<VEC3 *>(pNormal), reinterpret_cast<VEC2 *>(pTexture), sizeVertexBuffer / 3, mesh->buffer[0].totalSubset,
-                &mesh->buffer[0].subset[0].vertexStart, &mesh->buffer[0].subset[0].vertexCount,info_mode, isDynamic))
+        if (!mesh->impl->buffer[0].pBufferGL->loadBuffer(
+                reinterpret_cast<VEC3 *>(pPosition), reinterpret_cast<VEC3 *>(pNormal), reinterpret_cast<VEC2 *>(pTexture), sizeVertexBuffer / 3, mesh->impl->buffer[0].totalSubset,
+                &mesh->impl->buffer[0].subset[0].vertexStart, &mesh->impl->buffer[0].subset[0].vertexCount,info_mode, isDynamic))
         {
             ERROR_LOG( "error on load buffer bufferTriangleList [%s]", nickName);
             delete mesh;
             return nullptr;
         }
 
-        mesh->positionOffset = VEC3(0, 0, 0);
-        mesh->angleDefault   = VEC3(0, 0, 0);
-        mesh->typeMe         = util::TYPE_MESH_SHAPE;
+        mesh->impl->positionOffset = VEC3(0, 0, 0);
+        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         if(info_mode)
         {
-            mesh->info_mode.mode_draw = info_mode->mode_draw;
-            mesh->info_mode.mode_cull_face = info_mode->mode_cull_face;
-            mesh->info_mode.mode_front_face_direction = info_mode->mode_front_face_direction;
+            mesh->impl->info_mode.mode_draw = info_mode->mode_draw;
+            mesh->impl->info_mode.mode_cull_face = info_mode->mode_cull_face;
+            mesh->impl->info_mode.mode_front_face_direction = info_mode->mode_front_face_direction;
         }
         this->impl->lsMeshes[fileNameBase] = mesh;
         return mesh;
@@ -5618,13 +5692,13 @@ namespace mbm
         if(mesh)
             return mesh;
         mesh                                  = new MESH_MBM();
-        mesh->buffer                          = new BUFFER_MESH[1];
-        mesh->totalFramesMesh                 = 1;
-        mesh->buffer[0].pBufferGL             = new BUFFER_GL();
-        mesh->buffer[0].subset                = new util::SUBSET[1];
-        mesh->buffer[0].totalSubset           = 1;
-        mesh->buffer[0].subset[0].vertexCount = sizeVertexBuffer / 3;
-        mesh->buffer[0].subset[0].indexCount  = static_cast<int>(sizeIndex);
+        mesh->impl->buffer                          = new BUFFER_MESH[1];
+        mesh->impl->totalFramesMesh                 = 1;
+        mesh->impl->buffer[0].pBufferGL             = new BUFFER_GL();
+        mesh->impl->buffer[0].subset                = new util::SUBSET[1];
+        mesh->impl->buffer[0].totalSubset           = 1;
+        mesh->impl->buffer[0].subset[0].vertexCount = sizeVertexBuffer / 3;
+        mesh->impl->buffer[0].subset[0].indexCount  = static_cast<int>(sizeIndex);
 
         std::string which_mode;
         if(info_draw_mode && is_any_mode_valid(*info_draw_mode,which_mode) == false)
@@ -5634,24 +5708,24 @@ namespace mbm
             return nullptr;
         }
 
-        if (!mesh->buffer[0].pBufferGL->loadBuffer(reinterpret_cast<VEC3*>(pPosition),reinterpret_cast<VEC3 *>(pNormal), reinterpret_cast<VEC2 *>(pTexture),
-                                                   sizeVertexBuffer / 3, index, mesh->buffer[0].totalSubset,
-                                                   &mesh->buffer[0].subset[0].indexStart,
-                                                   &mesh->buffer[0].subset[0].indexCount,info_draw_mode))
+        if (!mesh->impl->buffer[0].pBufferGL->loadBuffer(reinterpret_cast<VEC3*>(pPosition),reinterpret_cast<VEC3 *>(pNormal), reinterpret_cast<VEC2 *>(pTexture),
+                                                   sizeVertexBuffer / 3, index, mesh->impl->buffer[0].totalSubset,
+                                                   &mesh->impl->buffer[0].subset[0].indexStart,
+                                                   &mesh->impl->buffer[0].subset[0].indexCount,info_draw_mode))
         {
             ERROR_LOG( "error on load buffer bufferTriangleList [%s]", nickName);
             delete mesh;
             return nullptr;
         }
 
-        mesh->positionOffset = VEC3(0, 0, 0);
-        mesh->angleDefault   = VEC3(0, 0, 0);
-        mesh->typeMe         = util::TYPE_MESH_SHAPE;
+        mesh->impl->positionOffset = VEC3(0, 0, 0);
+        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         if(info_draw_mode)
         {
-            mesh->info_mode.mode_draw = info_draw_mode->mode_draw;
-            mesh->info_mode.mode_cull_face = info_draw_mode->mode_cull_face;
-            mesh->info_mode.mode_front_face_direction = info_draw_mode->mode_front_face_direction;
+            mesh->impl->info_mode.mode_draw = info_draw_mode->mode_draw;
+            mesh->impl->info_mode.mode_cull_face = info_draw_mode->mode_cull_face;
+            mesh->impl->info_mode.mode_front_face_direction = info_draw_mode->mode_front_face_direction;
         }
         this->impl->lsMeshes[fileNameBase] = mesh;
         return mesh;
@@ -5665,13 +5739,13 @@ namespace mbm
             mesh = new MESH_MBM();
         else
             mesh->release();
-        mesh->buffer                          = new BUFFER_MESH[1];
-        mesh->totalFramesMesh                 = 1;
-        mesh->buffer[0].pBufferGL             = new BUFFER_GL();
-        mesh->buffer[0].subset                = new util::SUBSET[1];
-        mesh->buffer[0].totalSubset           = 1;
-        mesh->buffer[0].subset[0].vertexCount = sizeVertexBuffer / 3;
-        mesh->buffer[0].subset[0].indexCount  = static_cast<int>(sizeIndex);
+        mesh->impl->buffer                          = new BUFFER_MESH[1];
+        mesh->impl->totalFramesMesh                 = 1;
+        mesh->impl->buffer[0].pBufferGL             = new BUFFER_GL();
+        mesh->impl->buffer[0].subset                = new util::SUBSET[1];
+        mesh->impl->buffer[0].totalSubset           = 1;
+        mesh->impl->buffer[0].subset[0].vertexCount = sizeVertexBuffer / 3;
+        mesh->impl->buffer[0].subset[0].indexCount  = static_cast<int>(sizeIndex);
         const bool hasNormal                  = dynamic_shape_info.size_normal > 0;
         const bool hasUv                      = dynamic_shape_info.size_uv > 0;
 
@@ -5683,26 +5757,26 @@ namespace mbm
             return nullptr;
         }
 
-        if (!mesh->buffer[0].pBufferGL->loadBufferDynamic(index, mesh->buffer[0].totalSubset,
-                                                          &mesh->buffer[0].subset[0].indexStart,
-                                                          &mesh->buffer[0].subset[0].indexCount, 
+        if (!mesh->impl->buffer[0].pBufferGL->loadBufferDynamic(index, mesh->impl->buffer[0].totalSubset,
+                                                          &mesh->impl->buffer[0].subset[0].indexStart,
+                                                          &mesh->impl->buffer[0].subset[0].indexCount, 
                                                           hasNormal, hasUv, info_draw_mode))
         {
             ERROR_LOG( "error on load buffer bufferTriangleList [%s]", nickName);
             delete mesh;
             return nullptr;
         }
-        mesh->positionOffset = VEC3(0, 0, 0);
-        mesh->angleDefault   = VEC3(0, 0, 0);
-        mesh->typeMe         = util::TYPE_MESH_SHAPE;
+        mesh->impl->positionOffset = VEC3(0, 0, 0);
+        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         util::DYNAMIC_SHAPE * extra_info_shape = new util::DYNAMIC_SHAPE(dynamic_shape_info.dynamicVertex,dynamic_shape_info.dynamicNormal,dynamic_shape_info.dynamicUV,dynamic_shape_info.size_vertex,dynamic_shape_info.size_normal,dynamic_shape_info.size_uv);
-        mesh->extraInfo      = extra_info_shape;
-        mesh->fileName       = fileNameBase;
+        mesh->impl->extraInfo      = extra_info_shape;
+        mesh->impl->fileName       = fileNameBase;
         if(info_draw_mode)
         {
-            mesh->info_mode.mode_draw = info_draw_mode->mode_draw;
-            mesh->info_mode.mode_cull_face = info_draw_mode->mode_cull_face;
-            mesh->info_mode.mode_front_face_direction = info_draw_mode->mode_front_face_direction;
+            mesh->impl->info_mode.mode_draw = info_draw_mode->mode_draw;
+            mesh->impl->info_mode.mode_cull_face = info_draw_mode->mode_cull_face;
+            mesh->impl->info_mode.mode_front_face_direction = info_draw_mode->mode_front_face_direction;
         }
         this->impl->lsMeshes[fileNameBase] = mesh;
         return mesh;
@@ -5768,7 +5842,7 @@ namespace mbm
 //        if (glUnmapBufferOES == nullptr)
 //            return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [glUnmapBufferOES] not supported!");
         this->release();
-        fileName = meshMemory->getFilenameMesh();
+        impl->fileName = meshMemory->getFilenameMesh();
         // step 1: Verificação do header
         // -------------------------------------------------------------------------------
         switch (meshMemory->getTypeMesh())
@@ -5780,22 +5854,22 @@ namespace mbm
             case util::TYPE_MESH_TILE_MAP:
             case util::TYPE_MESH_FONT:
             case util::TYPE_MESH_PARTICLE:
-                strncpy(headerMain.typeApp, get_type_app_from_mesh_type(meshMemory->getTypeMesh()), sizeof(headerMain.typeApp) - 1);
+                strncpy(impl->headerMain.typeApp, get_type_app_from_mesh_type(meshMemory->getTypeMesh()), sizeof(impl->headerMain.typeApp) - 1);
                 break;
             default:
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh invalid type");
                 break;
         }
-        strncpy(headerMain.name, MBM_HEADER_NAME_MBM, sizeof(headerMain.name) - 1);
-        headerMain.version = CURRENT_VERSION_MBM_HEADER;
-        headerMain.magic = 0x010203ff;
-        typeMe = meshMemory->getTypeMesh();
+        strncpy(impl->headerMain.name, MBM_HEADER_NAME_MBM, sizeof(impl->headerMain.name) - 1);
+        impl->headerMain.version = CURRENT_VERSION_MBM_HEADER;
+        impl->headerMain.magic = 0x010203ff;
+        impl->typeMe = meshMemory->getTypeMesh();
         // step 2: --------------------------------------------------------------------------------------------------
         const INFO_PHYSICS &meshPhysics = meshMemory->getPhysicsInfo();
         for (auto pCube : meshPhysics.lsCube)
         {
             auto cube = new CUBE(pCube->halfDim, pCube->absCenter);
-            this->infoPhysics.lsCube.push_back(cube);
+            this->impl->infoPhysics.lsCube.push_back(cube);
         }
         for (auto pBase : meshPhysics.lsSphere)
         {
@@ -5804,14 +5878,14 @@ namespace mbm
             base->absCenter[1] = pBase->absCenter[1];
             base->absCenter[2] = pBase->absCenter[2];
             base->ray = pBase->ray;
-            this->infoPhysics.lsSphere.push_back(base);
+            this->impl->infoPhysics.lsSphere.push_back(base);
         }
         for (auto pComplex : meshPhysics.lsCubeComplex)
         {
             auto complex = new CUBE_COMPLEX();
             for (int k = 0; k < 8; k++)
                 complex->p[k] = pComplex->p[k];
-            this->infoPhysics.lsCubeComplex.push_back(complex);
+            this->impl->infoPhysics.lsCubeComplex.push_back(complex);
         }
         for (auto pTriangle : meshPhysics.lsTriangle)
         {
@@ -5819,14 +5893,14 @@ namespace mbm
             triangle->point[0] = pTriangle->point[0];
             triangle->point[1] = pTriangle->point[1];
             triangle->point[2] = pTriangle->point[2];
-            this->infoPhysics.lsTriangle.push_back(triangle);
+            this->impl->infoPhysics.lsTriangle.push_back(triangle);
         }
         if (meshMemory->getInfoFont() != nullptr)
         {
             const INFO_BOUND_FONT* pMemoryInfoFont = meshMemory->getInfoFont();
-            headerMain.backBufferHeight = pMemoryInfoFont->heightLetter;
-            this->extraInfo = new INFO_BOUND_FONT();
-            auto* infoFont = static_cast<INFO_BOUND_FONT*>(this->extraInfo);
+            impl->headerMain.backBufferHeight = pMemoryInfoFont->heightLetter;
+            this->impl->extraInfo = new INFO_BOUND_FONT();
+            auto* infoFont = static_cast<INFO_BOUND_FONT*>(this->impl->extraInfo);
             util::DETAIL_HEADER_FONT headerFont;
             infoFont->fontName = pMemoryInfoFont->fontName;
             infoFont->heightLetter = pMemoryInfoFont->heightLetter;
@@ -5850,7 +5924,7 @@ namespace mbm
         {
             const std::vector<util::STAGE_PARTICLE*>* thatParticleInfo = meshMemory->getInfoParticle();
             auto* lsParticleInfo = new std::vector<util::STAGE_PARTICLE*>();
-            this->extraInfo = lsParticleInfo;
+            this->impl->extraInfo = lsParticleInfo;
             for (auto thatStage : *thatParticleInfo)
             {
                 auto* stage = new util::STAGE_PARTICLE(thatStage);
@@ -5860,15 +5934,15 @@ namespace mbm
         if (meshMemory->getInfoTile() != nullptr)
         {
             const util::BTILE_INFO* thatInfoTile = meshMemory->getInfoTile();
-            this->extraInfo = thatInfoTile->clone();
+            this->impl->extraInfo = thatInfoTile->clone();
         }
-        headerMesh.totalAnimation = static_cast<int32_t>(meshMemory->infoAnimation.lsHeaderAnim.size());
-        for (int i = 0; i < headerMesh.totalAnimation; ++i)
+        impl->headerMesh.totalAnimation = static_cast<int32_t>(meshMemory->getAnimationInfo().lsHeaderAnim.size());
+        for (int i = 0; i < impl->headerMesh.totalAnimation; ++i)
         {
-            const util::INFO_ANIMATION::INFO_HEADER_ANIM* pInfoAnim = meshMemory->infoAnimation.lsHeaderAnim[i];
+            const util::INFO_ANIMATION::INFO_HEADER_ANIM* pInfoAnim = meshMemory->getAnimationInfo().lsHeaderAnim[i];
             auto  infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
             infoHead->headerAnim = new util::HEADER_ANIMATION();
-            this->infoAnimation.lsHeaderAnim.push_back(infoHead);
+            this->impl->infoAnimation.lsHeaderAnim.push_back(infoHead);
             util::HEADER_ANIMATION* headerAnim = infoHead->headerAnim;
             headerAnim->hasShaderEffect = pInfoAnim->headerAnim->hasShaderEffect;
             headerAnim->blendState = pInfoAnim->headerAnim->blendState;
@@ -5931,12 +6005,12 @@ namespace mbm
             }
         }
 
-        headerMesh.totalFrames = meshMemory->getTotalFrame();
+        impl->headerMesh.totalFrames = meshMemory->getTotalFrame();
         {
             const BUFFER_MESH* pBufferMesh0 = meshMemory->getBuffer(0);
             const BUFFER_GL* pGl0 = pBufferMesh0 ? pBufferMesh0->pBufferGL : nullptr;
             const bool hasNormals = pGl0 && (pGl0->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl0->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
-            headerMesh.hasNorText[0] = hasNormals ? HAS_NOR_IN_FILE : HAS_NOR_NO;
+            impl->headerMesh.hasNorText[0] = hasNormals ? HAS_NOR_IN_FILE : HAS_NOR_NO;
         }
         //std::map<int, float> lsLetterChangedValuesByLetterX;
         std::map<int, float> lsLetterChangedValuesByCurFrameX;
@@ -5979,10 +6053,10 @@ namespace mbm
             //    }
             //}
         }
-        for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
+        for (int currentFrame = 0; currentFrame < impl->headerMesh.totalFrames; ++currentFrame)
         {
             auto pBuffer = new util::BUFFER_MESH_DEBUG();
-            this->buffer.push_back(pBuffer);
+            this->impl->buffer.push_back(pBuffer);
             // 5 Sequencia lógica dos frames --------------------------------------------------------------------------
             // Cada header Frame
             // --------------------------------------------------------------------------------------------------
@@ -6021,12 +6095,12 @@ namespace mbm
             // moved to MESH_MBM_DEBUG::fillInSubsetDebug
             // 
         }
-        positionOffset = VEC3(headerMesh.posX, headerMesh.posY, headerMesh.posZ);
-        angleDefault = VEC3(headerMesh.angleX, headerMesh.angleY, headerMesh.angleZ);
-        this->sizeCoordTexFrame_0 = 0;
-        if (this->coordTexFrame_0)
-            delete[] this->coordTexFrame_0;
-        this->coordTexFrame_0 = nullptr;
+        impl->positionOffset = VEC3(impl->headerMesh.posX, impl->headerMesh.posY, impl->headerMesh.posZ);
+        impl->angleDefault = VEC3(impl->headerMesh.angleX, impl->headerMesh.angleY, impl->headerMesh.angleZ);
+        this->impl->sizeCoordTexFrame_0 = 0;
+        if (this->impl->coordTexFrame_0)
+            delete[] this->impl->coordTexFrame_0;
+        this->impl->coordTexFrame_0 = nullptr;
         return true;
     }
 }

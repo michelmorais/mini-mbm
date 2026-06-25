@@ -64,22 +64,8 @@ namespace mbm
     class MESH_MBM_DEBUG
     {
       public:
-        util::HEADER						               headerMain;
-        util::HEADER_MESH					             headerMesh;
-        INFO_PHYSICS                           infoPhysics;
-        util::INFO_ANIMATION                   infoAnimation;
-        util::INFO_DRAW_MODE			             info_mode;
-        VEC2                                   zoomEditorSprite;
-        util::TYPE_MESH                        typeMe;
-        int                                    sizeCoordTexFrame_0;
-        VEC2 *                                 coordTexFrame_0;
-        VEC3                                   positionOffset;
-        VEC3                                   angleDefault;
-        std::vector<util::BUFFER_MESH_DEBUG *> buffer;
-        std::string                            fileName;
-        std::vector<int>                       lsBlendOperation;
-        API_IMPL MESH_MBM_DEBUG() noexcept;
-    
+        API_IMPL MESH_MBM_DEBUG();
+
         API_IMPL virtual ~MESH_MBM_DEBUG();
         API_IMPL uint32_t addBuffer(const int stride = 3);
         API_IMPL uint32_t addSubset(uint32_t indexFrame);
@@ -101,6 +87,16 @@ namespace mbm
         API_IMPL void setAngleDefault(const VEC3 &angle) noexcept;
         API_IMPL VEC3 getPositionOffset() const noexcept;
         API_IMPL void setPositionOffset(const VEC3 &position) noexcept;
+        API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
+        API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
+        API_IMPL int getFileVersion() const noexcept;
+        API_IMPL util::MATERIAL &getMaterial() noexcept;
+        API_IMPL const util::MATERIAL &getMaterial() const noexcept;
+        API_IMPL int16_t getHasNormal() const noexcept;
+        API_IMPL void setHasNormal(const int16_t hasNormalMode) noexcept;
+        API_IMPL int16_t getHasTexture() const noexcept;
+        API_IMPL void setHasTexture(const int16_t hasTextureMode) noexcept;
+        API_IMPL const char *getFilenameMesh() const noexcept;
         API_IMPL unsigned int getModeDraw() const noexcept;
         API_IMPL void setModeDraw(const unsigned int modeDraw) noexcept;
         API_IMPL unsigned int getModeCullFace() const noexcept;
@@ -150,7 +146,6 @@ namespace mbm
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
-        void *       extraInfo;
       private:
         bool loadDebugImpl(const char *fileNamePath, const bool allowLegacyDispatch);
         void fillAtLeastOneBound();
@@ -181,6 +176,9 @@ namespace mbm
     
         bool saveAnimationHeaders(const char *fileOut, FILE **file);
         bool compressFile(const char *fileNameIn, char *stringStatus,const int lenStatus);
+
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 
 
@@ -188,13 +186,10 @@ namespace mbm
     {
         friend class MESH_MANAGER;
       public:
-        VEC3                            positionOffset;
-        VEC3                            angleDefault;
-        util::MATERIAL                  material;
-        INFO_PHYSICS                    infoPhysics;
-        util::INFO_ANIMATION            infoAnimation;
-        util::INFO_DRAW_MODE		        info_mode;
-        
+        API_IMPL VEC3 getPositionOffset() const noexcept;
+        API_IMPL void setPositionOffset(const VEC3 &position) noexcept;
+        API_IMPL VEC3 getAngleDefault() const noexcept;
+        API_IMPL void setAngleDefault(const VEC3 &angle) noexcept;
         API_IMPL BUFFER_MESH *getBuffer(const uint32_t index) const;
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
         API_IMPL bool setTexture(const uint32_t indexFrame, const uint32_t indexSubset, const char *fileNameTexture,
@@ -230,7 +225,7 @@ namespace mbm
         API_IMPL const util::DYNAMIC_SHAPE* getInfoShape()const;
         
       private:
-        MESH_MBM() noexcept;
+        MESH_MBM();
         bool load(const char *fileNamePath);
         bool load(const char *fileNamePath, RENDERIZABLE *renderizable);
         bool loadImpl(const char *fileNamePath, const bool allowLegacyDispatch, RENDERIZABLE *renderizable);
@@ -251,16 +246,8 @@ namespace mbm
                      VEC3 *position, const uint32_t currentFrame, util::SUBSET *subsetArray);
       #endif
 
-        BUFFER_MESH *               buffer;
-        std::string                 fileName;
-        VEC2                        zoomEditorSprite; // Zoom do editor de sprite
-        util::TYPE_MESH             typeMe;
-        int16_t                     hasNormTex[2];       // Indica se tem normal e textura vinda do arquivo
-        uint8_t                     depthUberImage;      // Quando uber image esta no arquivo é setado esta variavel
-        int                         sizeCoordTexFrame_0; // Tamanho do array das coordenadas de textura do frame 0
-        VEC2 *                      coordTexFrame_0;     // Coordenadas de Textura do frame 0 (faz cópia para os outros frames)
-        uint32_t                    totalFramesMesh;
-        void *                      extraInfo;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 
     class MESH_MANAGER
