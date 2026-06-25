@@ -1,8 +1,9 @@
-# Mesh v11 Binary Format — Proposal v0 (pending review)
+# Mesh v11 Binary Format — v1 (Milestone 0 closed 2026-06-25)
 
-Companion to `docs/mesh-v11-plan.md`, Milestone 0. This is a concrete layout proposal, not yet
-implemented and not yet signed off — it exists so the design can be reviewed and argued with before
-any `mesh-v11-io.cpp` gets written. Field names/sizes here are a starting point, not final.
+Companion to `docs/mesh-v11-plan.md`, Milestone 0. This layout is locked: the four open questions
+below are resolved, so field names/sizes here are final for the v11.0 implementation (milestones
+1-5). Anything still genuinely open (per-blob compression default, thread pool ownership, class
+naming) lives in `mesh-v11-plan.md`'s Open Questions and belongs to later milestones, not this one.
 
 Serialization style follows the existing `mesh-v8-io.cpp` convention: every multi-byte field is
 read/written field-by-field through explicit little-endian helpers, never struct-blitted. That
@@ -180,16 +181,29 @@ where actually needed, keeping the common case small.
   `DETAIL_MESH.type` dispatch. No reason to redesign payloads that aren't part of the problems this
   break is solving.
 
-## Open Questions Specific to This Layout
+## Milestone 0 Decisions (resolved 2026-06-25)
 
-1. Is a 4-byte ASCII magic (`"MBM1"`) enough, or should it encode more (e.g. a fixed 8-byte magic
-   with a build/tooling stamp) given this is the one chance to make it self-describing before any
-   other field is trusted?
-2. `crc32` per section: always written, or only for compressed sections (where there's no other
-   integrity signal at all)? Proposal above defaults to "always," at the cost of one `mz_crc32` pass
-   per section even when uncompressed.
-3. Should `SECTION_ANIMATION` / `SECTION_FRAME_STATIC` carry an explicit index field after all
-   (trading a few bytes for files that tolerate reordering/sparse indices), or is file-order-as-index
-   fine to carry forward unchanged from the current format?
-4. `reserved0` / `reserved1` padding bytes: worth spending them now on anything concrete (e.g. a
-   per-file "default compression policy" flag), or genuinely reserve-and-zero for now?
+1. **Magic stays 4 bytes (`"MBM1"`), no build/tooling stamp.** Self-identification only needs to
+   answer "do I understand this file," not "who/what produced it." `formatVersion` (uint16)
+   immediately follows the magic, giving 6 bytes of self-description before anything size-dependent
+   is trusted — that's enough. Provenance/build metadata, if ever wanted, belongs in a section
+   payload (a future `SECTION_BUILD_INFO`) where it can evolve independently, not baked into the one
+   fixed field every reader must hardcode forever.
+2. **`crc32` is always written, for every section, regardless of compression.** It's one `mz_crc32`
+   pass on top of I/O the loader is already paying for, and it buys a single uniform validation path
+   in the reader instead of a "verify only if compressed" branch. It also catches truncation/
+   corruption in *uncompressed* sections — exactly the gap left open once whole-file compression's
+   implicit zlib check goes away.
+3. **No explicit index field on repeated sections.** `SECTION_ANIMATION` / `SECTION_FRAME_STATIC`
+   keep file-order-as-index, unchanged from today's format. No real use case for sparse/reordered
+   animations or frames exists today. `sectionVersion` is the designed escape hatch — an explicit
+   index can be added later as a new section version if that need ever materializes, without
+   spending bytes on every file now for a hypothetical.
+4. **`reserved0` / `reserved1` stay reserve-and-zero.** Same reasoning as #3: no concrete present use,
+   and `sectionVersion` / new section types are the mechanism for adding fields later. Baking a guess
+   (e.g. a compression-policy flag) into padding now risks locking in the wrong shape before there's a
+   real requirement driving it.
+
+These four, plus the `TEXTURE_ROLE`-mapping location decided in `docs/mesh-v11-plan.md` (Scope
+Decision 4), close Milestone 0. Implementation (`mesh-v11-io.cpp`, milestone 1) can proceed against
+this layout as written.

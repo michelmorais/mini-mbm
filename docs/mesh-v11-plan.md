@@ -87,6 +87,19 @@ delivery window as v11: v11 is what finally lets a subset declare `TextureNormal
 converting the built-in shaders to semantic naming by default should ship alongside it rather than
 as a separate, later pass.
 
+### 4. `TEXTURE_ROLE` is defined in a new minimal shared header, not in `shader.h` directly
+
+`shader.h` is a heavy include (`particle-control.h`, forward decls of `TEXTURE`/`RENDERIZABLE`,
+`<unordered_map>`, ...) — appropriate for runtime/rendering code, wrong for `header-mesh.h`, which is
+deliberately lean (`stdint.h`, `<vector>`, `<string>`, `primitives.h`, `core-exports.h`) so that
+on-disk format types stay usable by tools (`mesh_deprecated`, a standalone validator) without pulling
+in shader/texture/particle machinery.
+
+`mbm::TEXTURE_ROLE` moves out of `shader.h` into a new dependency-free header (e.g.
+`include/core_mbm/texture-role.h`); both `shader.h` and `header-mesh.h` include that header. This
+keeps Scope Decision 2's "one enum, one definition" intact while keeping `header-mesh.h`'s include
+graph unchanged.
+
 ### 3. Async loading ships for real in v11, not just designed for
 
 No thread pool or background-loading primitive exists anywhere in the engine today (confirmed by
@@ -156,9 +169,10 @@ concrete use case shows up.
 
 ## Milestones (draft)
 
-0. Lock the v11 binary layout (section/TLV table, texture-role encoding, index-width flag, reserved
-   skinned-frame block id) — design review before any code lands. Draft layout proposal now exists
-   in `docs/mesh-v11-format.md` (v0, pending review/sign-off, not yet implemented).
+0. **Closed 2026-06-25.** Lock the v11 binary layout (section/TLV table, texture-role encoding,
+   index-width flag, reserved skinned-frame block id). Layout is in `docs/mesh-v11-format.md`
+   (v1, locked); `TEXTURE_ROLE` header location decided in Scope Decision 4 above. Not yet
+   implemented — that's milestone 1.
 1. v11 section read/write helpers, reusing the `mesh-v8-io.cpp` little-endian primitive style.
 2. `MESH_MBM` / `MESH_MBM_DEBUG` PIMPL split: `mesh-manager.h` stops transitively including
    `header-mesh.h`'s disk structs; only runtime-facing types stay public.
@@ -179,8 +193,9 @@ concrete use case shows up.
 
 ## Open Questions
 
-- Where should the v11-to-`TEXTURE_ROLE` on-disk integer mapping live: in `header-mesh.h` referencing
-  `shader.h`'s enum directly, or in a new small shared header that neither file owns exclusively?
+(Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items
+below belong to later milestones.)
+
 - Default per-blob compression for new saves from Mesh Debug/Sprite Maker: on or off by default?
 - Thread pool lifetime/ownership for milestone 6: private to `MESH_MANAGER::Impl`, or a small shared
   engine utility other systems (textures, audio) could reuse later without turning it into a full job
