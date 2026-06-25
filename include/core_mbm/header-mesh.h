@@ -810,6 +810,61 @@ namespace util
         ~DYNAMIC_SHAPE() noexcept = default;
     };
 
+    // -----------------------------------------------------------------------------------------
+    // Mesh v11 format (docs/mesh-v11-format.md) - section/TLV envelope. Layout locked, milestone 0
+    // closed 2026-06-25 (docs/mesh-v11-plan.md). Section payload structs (frame/subset/material...)
+    // are not defined yet - they land with the v11 writer/reader (milestones 3-4).
+    // -----------------------------------------------------------------------------------------
+
+    #define MBM_V11_MAGIC "MBM1"
+    #define MBM_V11_FORMAT_VERSION 11
+
+    enum SECTION_TYPE : uint16_t
+    {
+        SECTION_MATERIAL_TRANSFORM = 1,  // material + angle/pos + draw mode (replaces HEADER_MESH + INFO_DRAW_MODE)
+        SECTION_ANIMATION          = 2,  // repeated: one per animation, in order, including its FX block
+        SECTION_FRAME_STATIC       = 10, // repeated: one per frame, in order
+        SECTION_FRAME_SKINNED      = 11, // reserved id only - no v11.0 writer ever emits this
+        SECTION_DETAIL_PHYSICS     = 20,
+        SECTION_DETAIL_FONT        = 21,
+        SECTION_DETAIL_PARTICLE    = 22,
+        SECTION_DETAIL_TILE        = 23,
+        SECTION_EXTRA_PATHS        = 30, // replaces legacy EXTRA_HEADER type==1 path-registration hint
+    };
+
+    enum SECTION_COMPRESSION : uint8_t
+    {
+        SECTION_COMPRESSION_NONE    = 0,
+        SECTION_COMPRESSION_DEFLATE = 1,
+    };
+
+    struct API_IMPL FILE_HEADER_V11
+    {
+        char     magic[4];        // MBM_V11_MAGIC ("MBM1"), checked first, before anything else is trusted
+        uint16_t formatVersion;   // MBM_V11_FORMAT_VERSION, independent of `magic`
+        uint8_t  typeMesh;        // util::TYPE_MESH value directly
+        uint8_t  reserved0;       // must be 0
+        int32_t  backBufferWidth;
+        int32_t  backBufferHeight;
+        uint32_t sectionCount;    // number of SECTION_HEADER_V11 blocks that follow, back-to-back
+        FILE_HEADER_V11() noexcept;
+    };
+
+    struct API_IMPL SECTION_HEADER_V11
+    {
+        uint16_t type;               // SECTION_TYPE
+        uint16_t sectionVersion;     // per-section-type version
+        uint8_t  compression;        // SECTION_COMPRESSION
+        uint8_t  reserved1[3];       // must be 0
+        uint32_t uncompressedLength;
+        uint32_t compressedLength;   // == uncompressedLength when compression == SECTION_COMPRESSION_NONE
+        uint32_t crc32Value;         // mz_crc32() of the *uncompressed* payload, always written.
+                                      // Named crc32Value, not crc32: miniz.h #defines crc32 to
+                                      // mz_crc32 for zlib-API compat, which mangles a field literally
+                                      // named crc32 in any TU that includes both headers.
+        SECTION_HEADER_V11() noexcept;
+    };
+
 }
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))

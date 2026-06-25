@@ -55,18 +55,21 @@ struct SECTION_HEADER_V11
     uint8_t  reserved1[3];       // must be 0
     uint32_t uncompressedLength;
     uint32_t compressedLength;   // == uncompressedLength when compression == NONE
-    uint32_t crc32;              // mz_crc32() of the *uncompressed* payload (third-party/miniz
-                                  // already exposes mz_crc32; just needs a one-line wrapper in
-                                  // miniz-wrap.h — no new dependency)
+    uint32_t crc32Value;          // mz_crc32() of the *uncompressed* payload, wrapped as
+                                  // mbm::crc32Buffer() in miniz-wrap.h — no new dependency. Named
+                                  // crc32Value, not crc32: miniz.h #defines crc32 to mz_crc32 for
+                                  // zlib-API compatibility, which mangles a field literally named
+                                  // crc32 in any translation unit that includes both headers (found
+                                  // while implementing milestone 1).
 };
 // 16 bytes, followed immediately by `compressedLength` bytes of payload.
 ```
 
-`crc32` is a deliberate addition over the current format, which has no integrity check of its own
-beyond whatever zlib/miniz validates implicitly during whole-file decompression. Since v11 makes
-compression optional and per-blob, that implicit check goes away for uncompressed sections — `crc32`
-replaces it cheaply and also catches truncated/corrupted files earlier and with a clearer error than
-a downstream parse failure would.
+`crc32Value` is a deliberate addition over the current format, which has no integrity check of its
+own beyond whatever zlib/miniz validates implicitly during whole-file decompression. Since v11 makes
+compression optional and per-blob, that implicit check goes away for uncompressed sections —
+`crc32Value` replaces it cheaply and also catches truncated/corrupted files earlier and with a
+clearer error than a downstream parse failure would.
 
 ## 4. Section types
 
@@ -189,7 +192,7 @@ where actually needed, keeping the common case small.
    is trusted — that's enough. Provenance/build metadata, if ever wanted, belongs in a section
    payload (a future `SECTION_BUILD_INFO`) where it can evolve independently, not baked into the one
    fixed field every reader must hardcode forever.
-2. **`crc32` is always written, for every section, regardless of compression.** It's one `mz_crc32`
+2. **`crc32Value` is always written, for every section, regardless of compression.** It's one `mz_crc32`
    pass on top of I/O the loader is already paying for, and it buys a single uniform validation path
    in the reader instead of a "verify only if compressed" branch. It also catches truncation/
    corruption in *uncompressed* sections — exactly the gap left open once whole-file compression's

@@ -31,6 +31,11 @@ constexpr uint32_t BUF_SIZE = (1024 * 1024);
 namespace mbm
 {
 
+    uint32_t crc32Buffer(const uint8_t *data, const uint32_t lengthInBytes) noexcept
+    {
+        return static_cast<uint32_t>(mz_crc32(MZ_CRC32_INIT, data, lengthInBytes));
+    }
+
     MINIZ::MINIZ() noexcept
     {
         dataStreamOut       =   nullptr;

@@ -27,6 +27,11 @@
 namespace mbm
 {
 
+// Wraps mz_crc32() for callers that just want a CRC-32 over an in-memory buffer (e.g. the v11 mesh
+// section envelope, docs/mesh-v11-format.md). data == nullptr / lengthInBytes == 0 yields the
+// initial CRC-32 value (MZ_CRC32_INIT), matching mz_crc32()'s own seed convention.
+API_IMPL uint32_t crc32Buffer(const uint8_t *data, const uint32_t lengthInBytes) noexcept;
+
 class API_IMPL MINIZ
 {
 public:

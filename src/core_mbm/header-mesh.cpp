@@ -610,4 +610,26 @@ namespace util
           dynamicVertex(vertex),dynamicNormal(normal),dynamicUV(uv),size_vertex(sv),size_normal(sn),size_uv(suv)
         {}
 
+    FILE_HEADER_V11::FILE_HEADER_V11() noexcept
+    {
+        std::memcpy(magic, MBM_V11_MAGIC, sizeof(magic));
+        formatVersion    = MBM_V11_FORMAT_VERSION;
+        typeMesh         = 0;
+        reserved0        = 0;
+        backBufferWidth  = 0;
+        backBufferHeight = 0;
+        sectionCount     = 0;
+    }
+
+    SECTION_HEADER_V11::SECTION_HEADER_V11() noexcept
+    {
+        type               = 0;
+        sectionVersion     = 0;
+        compression        = SECTION_COMPRESSION_NONE;
+        reserved1[0] = reserved1[1] = reserved1[2] = 0;
+        uncompressedLength = 0;
+        compressedLength   = 0;
+        crc32Value         = 0;
+    }
+
 }
