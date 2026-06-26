@@ -40,6 +40,11 @@
 #include <algorithm> // std::sort
 #include <unordered_map>
 #include <unordered_set>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <queue>
 
 
 const bool is_any_mode_valid(const util::INFO_DRAW_MODE & info_mode,std::string & which_mode_is_invalid)noexcept
@@ -65,6 +70,96 @@ const bool is_any_mode_valid(const util::INFO_DRAW_MODE & info_mode,std::string 
     return true;
 }
 
+namespace mbm
+{
+    // Milestone 6 (async loading): the pure-CPU result of parsing a v11 file, safe to build on a
+    // worker thread and hand to the main thread - no BUFFER_GL/TEXTURE_MANAGER/addPath/global-state
+    // calls anywhere in here (see docs/mesh-v11-plan.md's Async Loading section for why those must
+    // stay main-thread-only). MESH_MBM::finishLoadFromIntermediate (main thread) consumes this.
+    // Declared with external linkage (not in the anonymous namespace below) so it can be
+    // forward-declared in mesh-manager.h for the MESH_MBM::finishLoadFromIntermediate declaration -
+    // same PIMPL-style "forward declare in the header, define in the .cpp" pattern already used for
+    // MESH_MBM::Impl/MESH_MANAGER::Impl.
+    struct IntermediateExtraSlotV11
+    {
+        uint16_t    legacyType = 0; // already mapped via textureRoleToLegacyMaterialSlotType
+        std::string path;
+    };
+
+    struct IntermediateSubsetV11
+    {
+        int32_t     vertexStart = 0;
+        int32_t     vertexCount = 0;
+        int32_t     indexStart  = 0;
+        int32_t     indexCount  = 0;
+        std::string primaryTexturePath;
+        bool        hasAlphaColor = false;
+        std::vector<IntermediateExtraSlotV11> extraSlots;
+    };
+
+    struct IntermediateFrameV11
+    {
+        uint32_t                    vertexCount = 0;
+        bool                        hasNormal   = false;
+        std::unique_ptr<VEC3[]>     position;
+        std::unique_ptr<VEC3[]>     normal; // nullptr when !hasNormal
+        std::unique_ptr<VEC2[]>     uv;
+        uint32_t                    indexCount = 0;
+        std::unique_ptr<uint16_t[]> index; // nullptr when indexCount == 0
+        std::vector<IntermediateSubsetV11> subsets;
+    };
+
+    struct MESH_LOAD_INTERMEDIATE_V11
+    {
+        util::TYPE_MESH          typeMe = util::TYPE_MESH_UNKNOWN;
+        util::MATERIAL           material;
+        VEC3                     positionOffset;
+        VEC3                     angleDefault;
+        util::INFO_DRAW_MODE     info_mode;
+        mbm::INFO_PHYSICS        infoPhysics;
+        std::vector<std::string> extraPaths;
+        std::vector<IntermediateFrameV11> frames;
+
+        MESH_LOAD_INTERMEDIATE_V11() = default;
+        // mbm::INFO_PHYSICS has a user-declared destructor, so it has no implicit move ctor/
+        // assignment (only the implicit copy ops, which would shallow-copy its owning raw-pointer
+        // vectors and double-free on destruction) - move its vectors individually instead of
+        // letting the compiler fall back to copying infoPhysics, which would also force every
+        // container holding this struct (e.g. the worker-pool completion queue) to copy rather than
+        // move the whole thing, and that fails outright since IntermediateFrameV11 holds
+        // unique_ptr's and genuinely can't be copied.
+        MESH_LOAD_INTERMEDIATE_V11(MESH_LOAD_INTERMEDIATE_V11 &&other) noexcept
+            : typeMe(other.typeMe), material(other.material), positionOffset(other.positionOffset),
+              angleDefault(other.angleDefault), info_mode(other.info_mode),
+              extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames))
+        {
+            infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
+            infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
+            infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
+            infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
+        }
+        MESH_LOAD_INTERMEDIATE_V11 &operator=(MESH_LOAD_INTERMEDIATE_V11 &&other) noexcept
+        {
+            if (this == &other)
+                return *this;
+            typeMe         = other.typeMe;
+            material       = other.material;
+            positionOffset = other.positionOffset;
+            angleDefault   = other.angleDefault;
+            info_mode      = other.info_mode;
+            extraPaths     = std::move(other.extraPaths);
+            frames         = std::move(other.frames);
+            infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
+            infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
+            infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
+            infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
+            return *this;
+        }
+        MESH_LOAD_INTERMEDIATE_V11(const MESH_LOAD_INTERMEDIATE_V11 &)            = delete;
+        MESH_LOAD_INTERMEDIATE_V11 &operator=(const MESH_LOAD_INTERMEDIATE_V11 &) = delete;
+    };
+}
+
 namespace
 {
     const char* get_type_app_from_mesh_type(const util::TYPE_MESH type) noexcept
@@ -88,7 +183,6 @@ namespace
                                   const char *fileNamePath,
                                   const util::HEADER &headerMain,
                                   mbm::INFO_PHYSICS &infoPhysics,
-                                  void *&extraInfo,
                                   TriangleReader readTriangleDetail)
     {
         util::DETAIL_MESH detailInfo;
@@ -284,6 +378,260 @@ namespace
         return tmp;
     }
 
+    // Worker-thread-safe equivalent of MESH_MBM::readTriangleDetailCompat/
+    // MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic, takes INFO_PHYSICS directly
+    // instead of going through `this->impl` (parse_v11_intermediate has no MESH_MBM instance).
+    bool read_triangle_detail_v11(FILE *fp, const char *fileNamePath, const int totalBounding,
+                                  const int fileVersion, mbm::INFO_PHYSICS &infoPhysics)
+    {
+        for (int j = 0; j < totalBounding; j++)
+        {
+            auto triangle = new mbm::TRIANGLE();
+            infoPhysics.lsTriangle.push_back(triangle);
+            const bool ok = (fileVersion >= MODE_DRAW_VERSION_MBM_HEADER) ? util::readTriangleV8(fp, *triangle)
+                                                                          : util::readTriangleLegacyNoPosV8(fp, *triangle);
+            if (!ok)
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+        }
+        return true;
+    }
+
+    // Worker-thread-safe equivalent of MESH_MBM::readFrameStaticV11Payload's CPU-side parsing (the
+    // per-subset TEXTURE_MANAGER::load + BUFFER_GL upload moves to finishLoadFromIntermediate,
+    // main-thread only). frame0Uv/frame0UvCount let later SHARED_WITH_FRAME_0 frames copy frame 0's
+    // already-parsed uv array, mirroring readFrameStaticV11Payload's impl->coordTexFrame_0 cache.
+    bool parse_v11_frame_intermediate(FILE *fp, const char *fileNamePath, mbm::IntermediateFrameV11 &outFrame,
+                                      const mbm::VEC2 *frame0Uv, const int frame0UvCount)
+    {
+        util::FRAME_HEADER_V11 frameHeader;
+        if (!util::readFrameHeaderV11(fp, frameHeader))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read FRAME_HEADER_V11 [%s]", fileNamePath);
+        if (frameHeader.indexWidth != 16)
+            return log_util::onFailed(fp, __FILE__, __LINE__,
+                                      "loadV11 only supports 16-bit indices (milestone 4 core slice) [%s]", fileNamePath);
+
+        outFrame.vertexCount = frameHeader.vertexCount;
+        outFrame.hasNormal   = frameHeader.hasNormal != 0;
+        outFrame.position    = std::make_unique<mbm::VEC3[]>(frameHeader.vertexCount);
+        if (outFrame.hasNormal)
+            outFrame.normal = std::make_unique<mbm::VEC3[]>(frameHeader.vertexCount);
+        outFrame.uv = std::make_unique<mbm::VEC2[]>(frameHeader.vertexCount);
+        memset(static_cast<void *>(outFrame.uv.get()), 0, sizeof(mbm::VEC2) * static_cast<size_t>(frameHeader.vertexCount));
+
+        for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
+        {
+            if (!util::le_io::readF32LE(fp, outFrame.position[i].x) || !util::le_io::readF32LE(fp, outFrame.position[i].y) ||
+                !util::le_io::readF32LE(fp, outFrame.position[i].z))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame position [%s]", fileNamePath);
+        }
+
+        if (outFrame.hasNormal)
+        {
+            for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
+            {
+                if (!util::le_io::readF32LE(fp, outFrame.normal[i].x) || !util::le_io::readF32LE(fp, outFrame.normal[i].y) ||
+                    !util::le_io::readF32LE(fp, outFrame.normal[i].z))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame normal [%s]", fileNamePath);
+            }
+        }
+
+        if (frameHeader.hasUv)
+        {
+            if (frameHeader.uvSource == 0) // OWN
+            {
+                for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
+                {
+                    if (!util::le_io::readF32LE(fp, outFrame.uv[i].x) || !util::le_io::readF32LE(fp, outFrame.uv[i].y))
+                        return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame uv [%s]", fileNamePath);
+                }
+            }
+            else if (frame0Uv) // SHARED_WITH_FRAME_0
+            {
+                const uint32_t safeCopy = std::min(frameHeader.vertexCount, static_cast<uint32_t>(frame0UvCount));
+                memcpy(static_cast<void *>(outFrame.uv.get()), frame0Uv, sizeof(mbm::VEC2) * static_cast<size_t>(safeCopy));
+            }
+        }
+
+        outFrame.indexCount = frameHeader.indexCount;
+        if (frameHeader.indexCount > 0)
+        {
+            outFrame.index = std::make_unique<uint16_t[]>(frameHeader.indexCount);
+            for (uint32_t i = 0; i < frameHeader.indexCount; ++i)
+            {
+                if (!util::le_io::readU16LE(fp, outFrame.index[i]))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame index [%s]", fileNamePath);
+            }
+        }
+
+        outFrame.subsets.resize(frameHeader.totalSubset);
+        for (uint32_t s = 0; s < frameHeader.totalSubset; ++s)
+        {
+            util::SUBSET_DESC_V11 subsetDesc;
+            if (!util::readSubsetDescV11(fp, subsetDesc))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read SUBSET_DESC_V11 [%s]", fileNamePath);
+
+            mbm::IntermediateSubsetV11 &subset = outFrame.subsets[s];
+            subset.vertexStart        = subsetDesc.vertexStart;
+            subset.vertexCount        = subsetDesc.vertexCount;
+            subset.indexStart         = subsetDesc.indexStart;
+            subset.indexCount         = subsetDesc.indexCount;
+            subset.primaryTexturePath = subsetDesc.primaryTexture.path;
+            subset.hasAlphaColor      = subsetDesc.alphaColor[0] != 0;
+
+            for (uint16_t e = 0; e < subsetDesc.extraSlotCount; ++e)
+            {
+                util::SUBSET_EXTRA_SLOT_V11 extraSlot;
+                if (!util::readSubsetExtraSlotV11(fp, extraSlot))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read SUBSET_EXTRA_SLOT_V11 [%s]", fileNamePath);
+                uint16_t legacyType = 0;
+                if (textureRoleToLegacyMaterialSlotType(static_cast<mbm::TEXTURE_ROLE>(extraSlot.role), legacyType))
+                {
+                    mbm::IntermediateExtraSlotV11 slot;
+                    slot.legacyType = legacyType;
+                    slot.path       = extraSlot.texture.path;
+                    subset.extraSlots.push_back(std::move(slot));
+                }
+                else
+                {
+                    PRINT_IF_DEBUG("Warning! loadV11 skipped extra texture slot with unrecognized role [%d]\n", extraSlot.role);
+                }
+            }
+        }
+        return true;
+    }
+
+    // Worker-thread-safe equivalent of MESH_MBM::loadV11's section loop - see the struct comment
+    // above for the main-thread-only calls this deliberately omits (deferred to
+    // MESH_MBM::finishLoadFromIntermediate instead).
+    bool parse_v11_intermediate(const char *fileNamePath, mbm::MESH_LOAD_INTERMEDIATE_V11 &out, std::string &errorOut)
+    {
+        FILE *fp = util::openFile(fileNamePath, "rb");
+        if (!fp)
+        {
+            errorOut = "Failed to open file";
+            return false;
+        }
+
+        util::FILE_HEADER_V11 fileHeader;
+        if (!util::readFileHeaderV11(fp, fileHeader))
+        {
+            fclose(fp);
+            errorOut = "failed to read v11 file header";
+            return false;
+        }
+
+        out.typeMe = static_cast<util::TYPE_MESH>(fileHeader.typeMesh);
+        util::HEADER headerMain;
+        headerMain.version = CURRENT_VERSION_MBM_HEADER;
+
+        struct StagedSection
+        {
+            util::SECTION_HEADER_V11 header;
+            std::vector<uint8_t>     payload;
+        };
+        std::vector<StagedSection> sections;
+        sections.reserve(fileHeader.sectionCount);
+        for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
+        {
+            StagedSection staged;
+            if (!util::readSectionV11(fp, staged.header, staged.payload))
+            {
+                fclose(fp);
+                errorOut = "failed to read section";
+                return false;
+            }
+            sections.push_back(std::move(staged));
+        }
+        fclose(fp);
+
+        const mbm::VEC2 *frame0Uv      = nullptr;
+        int               frame0UvCount = 0;
+
+        for (const auto &staged : sections)
+        {
+            FILE *tmp = stage_payload_as_tmpfile(staged.payload);
+            if (!tmp)
+            {
+                errorOut = "failed to stage section";
+                return false;
+            }
+
+            if (staged.header.type == util::SECTION_MATERIAL_TRANSFORM)
+            {
+                util::MATERIAL_TRANSFORM_V11 materialTransform;
+                const bool                   ok = util::readMaterialTransformV11(tmp, materialTransform);
+                fclose(tmp);
+                if (!ok)
+                {
+                    errorOut = "failed to parse SECTION_MATERIAL_TRANSFORM";
+                    return false;
+                }
+                out.material        = materialTransform.material;
+                out.positionOffset  = mbm::VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
+                out.angleDefault    = mbm::VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
+                out.info_mode.mode_draw                 = materialTransform.mode_draw;
+                out.info_mode.mode_cull_face            = materialTransform.mode_cull_face;
+                out.info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
+            }
+            else if (staged.header.type == util::SECTION_EXTRA_PATHS)
+            {
+                uint32_t count = 0;
+                bool     ok    = util::le_io::readU32LE(tmp, count);
+                for (uint32_t p = 0; ok && p < count; ++p)
+                {
+                    std::string path;
+                    ok = util::readStringV11(tmp, path);
+                    if (ok)
+                        out.extraPaths.push_back(path);
+                }
+                fclose(tmp);
+                if (!ok)
+                {
+                    errorOut = "failed to parse SECTION_EXTRA_PATHS";
+                    return false;
+                }
+            }
+            else if (staged.header.type == util::SECTION_DETAIL_PHYSICS)
+            {
+                const bool ok = read_detail_mesh_section(tmp, fileNamePath, headerMain, out.infoPhysics,
+                                                         [&out](FILE *f, const char *n, const int tb, const int fv)
+                                                         {
+                                                             return read_triangle_detail_v11(f, n, tb, fv, out.infoPhysics);
+                                                         });
+                fclose(tmp);
+                if (!ok)
+                {
+                    errorOut = "failed to parse SECTION_DETAIL_PHYSICS";
+                    return false;
+                }
+            }
+            else if (staged.header.type == util::SECTION_FRAME_STATIC)
+            {
+                mbm::IntermediateFrameV11 frame;
+                const bool                 ok = parse_v11_frame_intermediate(tmp, fileNamePath, frame, frame0Uv, frame0UvCount);
+                fclose(tmp);
+                if (!ok)
+                {
+                    errorOut = "failed to parse SECTION_FRAME_STATIC";
+                    return false;
+                }
+                out.frames.push_back(std::move(frame));
+                if (out.frames.size() == 1)
+                {
+                    frame0Uv      = out.frames[0].uv.get();
+                    frame0UvCount = static_cast<int>(out.frames[0].vertexCount);
+                }
+            }
+            else
+            {
+                fclose(tmp);
+                errorOut = "loadV11 does not support this section type yet (milestone 4 core slice)";
+                return false;
+            }
+        }
+        return true;
+    }
+
 }
 
 namespace mbm
@@ -292,7 +640,94 @@ namespace mbm
     {
         std::unordered_map<std::string, MESH_MBM *> lsMeshes;
         std::vector<MESH_MBM *> lsFakeRelease;
+
+        // Milestone 6: async loading. A small fixed worker pool does file I/O + v11 parsing
+        // (parse_v11_intermediate, pure CPU, no GPU/global-state touch); pumpAsyncLoads() (main
+        // thread) drains completedJobs and does the GPU-finish work. Lazily started on first
+        // loadAsync() call so games that never use async loading never spin up threads.
+        struct AsyncJob
+        {
+            std::string            fileName;
+            MeshAsyncLoadCallback  onComplete;
+        };
+
+        struct AsyncResult
+        {
+            std::string                fileName;
+            MeshAsyncLoadCallback      onComplete;
+            bool                        cacheHit    = false; // already-loaded mesh, no parse/finish needed
+            MESH_MBM                   *cachedMesh  = nullptr; // valid when cacheHit
+            bool                        parseOk     = false;
+            std::string                 error;
+            MESH_LOAD_INTERMEDIATE_V11  intermediate;
+        };
+
+        std::vector<std::thread> workerThreads;
+        std::atomic<bool>        stopWorkers{false};
+
+        std::mutex                jobMutex;
+        std::condition_variable   jobCv;
+        std::queue<AsyncJob>      jobQueue;
+
+        std::mutex                completionMutex;
+        std::vector<AsyncResult>  completedJobs;
+
+        void ensureWorkersStarted();
+        void workerLoop();
+        void stopAndJoinWorkers();
     };
+
+    void MESH_MANAGER::Impl::ensureWorkersStarted()
+    {
+        if (!workerThreads.empty())
+            return;
+        constexpr int kWorkerCount = 2;
+        for (int i = 0; i < kWorkerCount; ++i)
+            workerThreads.emplace_back([this]() { this->workerLoop(); });
+    }
+
+    void MESH_MANAGER::Impl::workerLoop()
+    {
+        for (;;)
+        {
+            AsyncJob job;
+            {
+                std::unique_lock<std::mutex> lock(jobMutex);
+                jobCv.wait(lock, [this]() { return stopWorkers.load() || !jobQueue.empty(); });
+                if (jobQueue.empty()) // predicate guarantees stopWorkers is true here
+                    return;
+                job = std::move(jobQueue.front());
+                jobQueue.pop();
+            }
+
+            AsyncResult result;
+            result.fileName   = job.fileName;
+            result.onComplete = std::move(job.onComplete);
+            result.parseOk    = parse_v11_intermediate(job.fileName.c_str(), result.intermediate, result.error);
+
+            {
+                std::lock_guard<std::mutex> lock(completionMutex);
+                completedJobs.push_back(std::move(result));
+            }
+        }
+    }
+
+    void MESH_MANAGER::Impl::stopAndJoinWorkers()
+    {
+        if (workerThreads.empty())
+            return;
+        {
+            std::lock_guard<std::mutex> lock(jobMutex);
+            stopWorkers = true;
+        }
+        jobCv.notify_all();
+        for (auto &worker : workerThreads)
+        {
+            if (worker.joinable())
+                worker.join();
+        }
+        workerThreads.clear();
+    }
 
     // Relocated from mesh-manager-legacy.cpp in milestone 5 (that file is gone - it held the
     // MBM_ENABLE_MESH_LEGACY_V7-gated v1-v7 path, but these two functions were always-compiled and
@@ -1814,7 +2249,7 @@ namespace mbm
                 FILE *tmp = stage_payload_as_tmpfile(payload);
                 if (!tmp)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_PHYSICS [%s]", fileNamePath);
-                const bool ok = read_detail_mesh_section(tmp, fileNamePath, impl->headerMain, this->impl->infoPhysics, this->impl->extraInfo,
+                const bool ok = read_detail_mesh_section(tmp, fileNamePath, impl->headerMain, this->impl->infoPhysics,
                                                          [this](FILE *f, const char *n, const int tb, const int fv)
                                                          {
                                                              return this->readDebugTriangleDetailCompat(f, n, tb, fv);
@@ -3063,320 +3498,128 @@ namespace mbm
         return true;
     }
 
-    bool MESH_MBM::readFrameStaticV11Payload(FILE *fp, const char *fileNamePath, const uint32_t currentFrame)
-    {
-        util::FRAME_HEADER_V11 frameHeader;
-        if (!util::readFrameHeaderV11(fp, frameHeader))
-            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read FRAME_HEADER_V11 [%s]", fileNamePath);
-        if (frameHeader.indexWidth != 16)
-            return log_util::onFailed(fp, __FILE__, __LINE__, "loadV11 only supports 16-bit indices (milestone 4 core slice) [%s]", fileNamePath);
-
-        impl->buffer[currentFrame].subset      = new util::SUBSET[frameHeader.totalSubset];
-        impl->buffer[currentFrame].totalSubset = frameHeader.totalSubset;
-
-        auto pPosition = new VEC3[frameHeader.vertexCount];
-        VEC3 *pNormal  = frameHeader.hasNormal ? new VEC3[frameHeader.vertexCount] : nullptr;
-        auto pTexture  = new VEC2[frameHeader.vertexCount];
-        memset(static_cast<void *>(pTexture), 0, sizeof(VEC2) * static_cast<size_t>(frameHeader.vertexCount));
-        uint16_t *pIndex = nullptr;
-
-        const auto cleanup = [&]()
-        {
-            delete[] pPosition;
-            delete[] pNormal;
-            delete[] pTexture;
-            delete[] pIndex;
-        };
-
-        for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
-        {
-            if (!util::le_io::readF32LE(fp, pPosition[i].x) || !util::le_io::readF32LE(fp, pPosition[i].y) ||
-                !util::le_io::readF32LE(fp, pPosition[i].z))
-            {
-                cleanup();
-                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame position [%s]", fileNamePath);
-            }
-        }
-
-        if (frameHeader.hasNormal)
-        {
-            for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
-            {
-                if (!util::le_io::readF32LE(fp, pNormal[i].x) || !util::le_io::readF32LE(fp, pNormal[i].y) ||
-                    !util::le_io::readF32LE(fp, pNormal[i].z))
-                {
-                    cleanup();
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame normal [%s]", fileNamePath);
-                }
-            }
-        }
-
-        if (frameHeader.hasUv)
-        {
-            if (frameHeader.uvSource == 0) // OWN
-            {
-                for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
-                {
-                    if (!util::le_io::readF32LE(fp, pTexture[i].x) || !util::le_io::readF32LE(fp, pTexture[i].y))
-                    {
-                        cleanup();
-                        return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame uv [%s]", fileNamePath);
-                    }
-                }
-                // mirrors load_from_separated_buffers_common's HAS_TEX_FIRST_FRAME caching (~line 388-409):
-                // BUFFER_MESH does not keep CPU-side uv arrays around after GPU upload, so frame 0's uv is
-                // cached on impl for later SHARED_WITH_FRAME_0 frames to copy from.
-                if (!impl->coordTexFrame_0)
-                {
-                    impl->coordTexFrame_0     = new VEC2[frameHeader.vertexCount];
-                    impl->sizeCoordTexFrame_0 = static_cast<int>(frameHeader.vertexCount);
-                    memcpy(static_cast<void *>(impl->coordTexFrame_0), pTexture, sizeof(VEC2) * static_cast<size_t>(frameHeader.vertexCount));
-                }
-            }
-            else if (impl->coordTexFrame_0) // SHARED_WITH_FRAME_0
-            {
-                const uint32_t safeCopy =
-                    std::min(frameHeader.vertexCount, static_cast<uint32_t>(impl->sizeCoordTexFrame_0));
-                memcpy(static_cast<void *>(pTexture), impl->coordTexFrame_0, sizeof(VEC2) * static_cast<size_t>(safeCopy));
-            }
-        }
-
-        if (frameHeader.indexCount > 0)
-        {
-            pIndex = new uint16_t[frameHeader.indexCount];
-            for (uint32_t i = 0; i < frameHeader.indexCount; ++i)
-            {
-                if (!util::le_io::readU16LE(fp, pIndex[i]))
-                {
-                    cleanup();
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame index [%s]", fileNamePath);
-                }
-            }
-        }
-
-        std::vector<TEXTURE *> lsIdTexture;
-        std::vector<uint8_t>   lsHasColorKeying;
-        TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
-        for (uint32_t s = 0; s < frameHeader.totalSubset; ++s)
-        {
-            util::SUBSET_DESC_V11 subsetDesc;
-            if (!util::readSubsetDescV11(fp, subsetDesc))
-            {
-                cleanup();
-                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read SUBSET_DESC_V11 [%s]", fileNamePath);
-            }
-
-            util::SUBSET &subset = impl->buffer[currentFrame].subset[s];
-            subset.vertexStart   = subsetDesc.vertexStart;
-            subset.vertexCount   = subsetDesc.vertexCount;
-            subset.indexStart    = subsetDesc.indexStart;
-            subset.indexCount    = subsetDesc.indexCount;
-            subset.texture       = textureManager->load(subsetDesc.primaryTexture.path.c_str(), subsetDesc.alphaColor[0] != 0);
-            if (subset.texture)
-            {
-                lsIdTexture.push_back(subset.texture);
-                lsHasColorKeying.push_back(subset.texture->hasAlphaChannel() ? 1 : 0);
-            }
-            else
-            {
-                lsIdTexture.push_back(nullptr);
-                lsHasColorKeying.push_back(0);
-            }
-
-            for (uint16_t e = 0; e < subsetDesc.extraSlotCount; ++e)
-            {
-                util::SUBSET_EXTRA_SLOT_V11 extraSlot;
-                if (!util::readSubsetExtraSlotV11(fp, extraSlot))
-                {
-                    cleanup();
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read SUBSET_EXTRA_SLOT_V11 [%s]", fileNamePath);
-                }
-                uint16_t legacyType = 0;
-                if (textureRoleToLegacyMaterialSlotType(static_cast<mbm::TEXTURE_ROLE>(extraSlot.role), legacyType))
-                {
-                    util::MATERIAL_TEXTURE_SLOT_HEADER slotHeader;
-                    slotHeader.type = legacyType;
-                    strncpy(slotHeader.nameTexture, extraSlot.texture.path.c_str(), sizeof(slotHeader.nameTexture) - 1);
-                    slotHeader.nameTexture[sizeof(slotHeader.nameTexture) - 1] = 0;
-                    slotHeader.payloadSizeInBytes = 0;
-                    subset.materialTextureSlotHeaders.push_back(slotHeader);
-                    subset.materialTextures.push_back(textureManager->load(extraSlot.texture.path.c_str(), true));
-                }
-                else
-                {
-                    PRINT_IF_DEBUG("Warning! loadV11 skipped extra texture slot with unrecognized role [%d]\n", extraSlot.role);
-                }
-            }
-        }
-
-        impl->buffer[currentFrame].pBufferGL = new BUFFER_GL();
-        const bool hasIndex                  = frameHeader.indexCount > 0;
-        bool       loadOk                    = false;
-        if (hasIndex)
-        {
-            auto indexStartSubset = new int[impl->buffer[currentFrame].totalSubset];
-            auto indexCountSubset = new int[impl->buffer[currentFrame].totalSubset];
-            for (uint32_t s = 0; s < frameHeader.totalSubset; ++s)
-            {
-                indexStartSubset[s] = impl->buffer[currentFrame].subset[s].indexStart;
-                indexCountSubset[s] = impl->buffer[currentFrame].subset[s].indexCount;
-            }
-            loadOk = impl->buffer[currentFrame].pBufferGL->loadBuffer(pPosition, pNormal, pTexture,
-                                                                      static_cast<uint32_t>(frameHeader.vertexCount), pIndex,
-                                                                      impl->buffer[currentFrame].totalSubset, indexStartSubset,
-                                                                      indexCountSubset, &impl->info_mode);
-            delete[] indexStartSubset;
-            delete[] indexCountSubset;
-        }
-        else
-        {
-            auto vertexStartSubset = new int[impl->buffer[currentFrame].totalSubset];
-            auto vertexCountSubset = new int[impl->buffer[currentFrame].totalSubset];
-            for (uint32_t s = 0; s < frameHeader.totalSubset; ++s)
-            {
-                vertexStartSubset[s] = impl->buffer[currentFrame].subset[s].vertexStart;
-                vertexCountSubset[s] = impl->buffer[currentFrame].subset[s].vertexCount;
-            }
-            constexpr bool isDynamic = false;
-            loadOk = impl->buffer[currentFrame].pBufferGL->loadBuffer(pPosition, pNormal, pTexture,
-                                                                      static_cast<uint32_t>(frameHeader.vertexCount),
-                                                                      impl->buffer[currentFrame].totalSubset, vertexStartSubset,
-                                                                      vertexCountSubset, &impl->info_mode, isDynamic);
-            delete[] vertexStartSubset;
-            delete[] vertexCountSubset;
-        }
-        cleanup();
-        if (!loadOk)
-            return log_util::onFailed(fp, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
-
-        const std::vector<TEXTURE *>::size_type totalIdTexture =
-            (impl->buffer[currentFrame].pBufferGL->totalSubset > lsIdTexture.size())
-                ? lsIdTexture.size()
-                : impl->buffer[currentFrame].pBufferGL->totalSubset;
-        for (std::vector<TEXTURE *>::size_type s = 0; s < totalIdTexture; ++s)
-            impl->buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[s], 0, static_cast<uint32_t>(s));
-        return true;
-    }
-
-    bool MESH_MBM::loadV11(const char *fileNamePath)
+    // Main-thread-only GPU-finish half of loading a v11 mesh (milestone 6: async loading). Consumes
+    // the pure-CPU MESH_LOAD_INTERMEDIATE_V11 that parse_v11_intermediate produced (on the calling
+    // thread for loadV11, on a worker thread for loadAsync) and does everything that touches the GPU
+    // or other shared/global state: TEXTURE_MANAGER::load, BUFFER_GL, EnablePixelPerfectTexture,
+    // util::addPath. `in` is consumed (its owning vectors/arrays are moved out of), not just read.
+    bool MESH_MBM::finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath)
     {
         this->release();
-        FILE *fp = util::openFile(fileNamePath, "rb");
-        if (!fp)
-            return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to open file [%s]", fileNamePath);
+        impl->fileName       = fileNamePath;
+        impl->typeMe         = in.typeMe;
+        impl->material       = in.material;
+        impl->positionOffset = in.positionOffset;
+        impl->angleDefault   = in.angleDefault;
+        impl->info_mode      = in.info_mode;
+        impl->infoPhysics.lsCube        = std::move(in.infoPhysics.lsCube);
+        impl->infoPhysics.lsCubeComplex = std::move(in.infoPhysics.lsCubeComplex);
+        impl->infoPhysics.lsSphere      = std::move(in.infoPhysics.lsSphere);
+        impl->infoPhysics.lsTriangle    = std::move(in.infoPhysics.lsTriangle);
 
-        util::FILE_HEADER_V11 fileHeader;
-        if (!util::readFileHeaderV11(fp, fileHeader))
-            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read v11 file header [%s]", fileNamePath);
-
-        impl->fileName = fileNamePath;
-        impl->typeMe   = static_cast<util::TYPE_MESH>(fileHeader.typeMesh);
-        util::HEADER headerMain;
-        headerMain.version = CURRENT_VERSION_MBM_HEADER;
         if (impl->typeMe == util::TYPE_MESH_TILE_MAP)
             mbm::TEXTURE::EnablePixelPerfectTexture(true);
         else
             mbm::TEXTURE::EnablePixelPerfectTexture(false);
 
-        // First pass: stage every section's payload in memory and count SECTION_FRAME_STATIC entries,
-        // since impl->buffer is a fixed-size array (unlike MESH_MBM_DEBUG's vector) and must be
-        // allocated to the right size up front, matching loadImpl's `new BUFFER_MESH[headerMesh.totalFrames]`.
-        struct StagedSection
-        {
-            util::SECTION_HEADER_V11 header;
-            std::vector<uint8_t>     payload;
-        };
-        std::vector<StagedSection> sections;
-        sections.reserve(fileHeader.sectionCount);
-        uint32_t totalFrames = 0;
-        for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
-        {
-            StagedSection staged;
-            if (!util::readSectionV11(fp, staged.header, staged.payload))
-            {
-                fclose(fp);
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read section %u [%s]", i, fileNamePath);
-            }
-            if (staged.header.type == util::SECTION_FRAME_STATIC)
-                ++totalFrames;
-            sections.push_back(std::move(staged));
-        }
-        fclose(fp);
-
-        impl->buffer          = new BUFFER_MESH[totalFrames];
-        impl->totalFramesMesh = totalFrames;
-
-        uint32_t currentFrame = 0;
-        for (const auto &staged : sections)
-        {
-            FILE *tmp = stage_payload_as_tmpfile(staged.payload);
-            if (!tmp)
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to stage section %u [%s]", staged.header.type, fileNamePath);
-
-            if (staged.header.type == util::SECTION_MATERIAL_TRANSFORM)
-            {
-                util::MATERIAL_TRANSFORM_V11 materialTransform;
-                const bool ok = util::readMaterialTransformV11(tmp, materialTransform);
-                fclose(tmp);
-                if (!ok)
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to parse SECTION_MATERIAL_TRANSFORM [%s]", fileNamePath);
-                impl->material        = materialTransform.material;
-                impl->positionOffset  = VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
-                impl->angleDefault    = VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
-                impl->info_mode.mode_draw                 = materialTransform.mode_draw;
-                impl->info_mode.mode_cull_face            = materialTransform.mode_cull_face;
-                impl->info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
-            }
-            else if (staged.header.type == util::SECTION_EXTRA_PATHS)
-            {
-                uint32_t count = 0;
-                bool ok = util::le_io::readU32LE(tmp, count);
-                for (uint32_t p = 0; ok && p < count; ++p)
-                {
-                    std::string path;
-                    ok = util::readStringV11(tmp, path);
-                    if (ok)
-                    {
 #ifndef ANDROID
-                        util::addPath(path.c_str());
+        for (const auto &path : in.extraPaths)
+            util::addPath(path.c_str());
 #endif
-                    }
+
+        const auto totalFrames = static_cast<uint32_t>(in.frames.size());
+        impl->buffer           = new BUFFER_MESH[totalFrames];
+        impl->totalFramesMesh  = totalFrames;
+
+        TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
+        for (uint32_t currentFrame = 0; currentFrame < totalFrames; ++currentFrame)
+        {
+            IntermediateFrameV11 &frame       = in.frames[currentFrame];
+            const auto            totalSubset = static_cast<uint32_t>(frame.subsets.size());
+            impl->buffer[currentFrame].subset      = new util::SUBSET[totalSubset];
+            impl->buffer[currentFrame].totalSubset = totalSubset;
+
+            std::vector<TEXTURE *> lsIdTexture;
+            for (uint32_t s = 0; s < totalSubset; ++s)
+            {
+                IntermediateSubsetV11 &subsetIn = frame.subsets[s];
+                util::SUBSET          &subset   = impl->buffer[currentFrame].subset[s];
+                subset.vertexStart = subsetIn.vertexStart;
+                subset.vertexCount = subsetIn.vertexCount;
+                subset.indexStart  = subsetIn.indexStart;
+                subset.indexCount  = subsetIn.indexCount;
+                subset.texture     = textureManager->load(subsetIn.primaryTexturePath.c_str(), subsetIn.hasAlphaColor);
+                lsIdTexture.push_back(subset.texture);
+
+                for (const auto &extraSlot : subsetIn.extraSlots)
+                {
+                    util::MATERIAL_TEXTURE_SLOT_HEADER slotHeader;
+                    slotHeader.type = extraSlot.legacyType;
+                    strncpy(slotHeader.nameTexture, extraSlot.path.c_str(), sizeof(slotHeader.nameTexture) - 1);
+                    slotHeader.nameTexture[sizeof(slotHeader.nameTexture) - 1] = 0;
+                    slotHeader.payloadSizeInBytes                              = 0;
+                    subset.materialTextureSlotHeaders.push_back(slotHeader);
+                    subset.materialTextures.push_back(textureManager->load(extraSlot.path.c_str(), true));
                 }
-                fclose(tmp);
-                if (!ok)
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to parse SECTION_EXTRA_PATHS [%s]", fileNamePath);
             }
-            else if (staged.header.type == util::SECTION_DETAIL_PHYSICS)
+
+            impl->buffer[currentFrame].pBufferGL = new BUFFER_GL();
+            const bool hasIndex                  = frame.indexCount > 0;
+            bool       loadOk                    = false;
+            if (hasIndex)
             {
-                const bool ok = read_detail_mesh_section(tmp, fileNamePath, headerMain, impl->infoPhysics, impl->extraInfo,
-                                                         [this](FILE *f, const char *n, const int tb, const int fv)
-                                                         {
-                                                             return this->readTriangleDetailCompat(f, n, tb, fv);
-                                                         });
-                fclose(tmp);
-                if (!ok)
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_PHYSICS [%s]", fileNamePath);
-            }
-            else if (staged.header.type == util::SECTION_FRAME_STATIC)
-            {
-                const bool ok = this->readFrameStaticV11Payload(tmp, fileNamePath, currentFrame);
-                fclose(tmp);
-                if (!ok)
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to parse SECTION_FRAME_STATIC [%s]", fileNamePath);
-                ++currentFrame;
+                auto indexStartSubset = new int[totalSubset];
+                auto indexCountSubset = new int[totalSubset];
+                for (uint32_t s = 0; s < totalSubset; ++s)
+                {
+                    indexStartSubset[s] = impl->buffer[currentFrame].subset[s].indexStart;
+                    indexCountSubset[s] = impl->buffer[currentFrame].subset[s].indexCount;
+                }
+                loadOk = impl->buffer[currentFrame].pBufferGL->loadBuffer(frame.position.get(), frame.normal.get(), frame.uv.get(),
+                                                                          frame.vertexCount, frame.index.get(), totalSubset,
+                                                                          indexStartSubset, indexCountSubset, &impl->info_mode);
+                delete[] indexStartSubset;
+                delete[] indexCountSubset;
             }
             else
             {
-                fclose(tmp);
-                return log_util::onFailed(nullptr, __FILE__, __LINE__,
-                                          "loadV11 does not support section type %u yet (milestone 4 core slice) [%s]",
-                                          staged.header.type, fileNamePath);
+                auto vertexStartSubset = new int[totalSubset];
+                auto vertexCountSubset = new int[totalSubset];
+                for (uint32_t s = 0; s < totalSubset; ++s)
+                {
+                    vertexStartSubset[s] = impl->buffer[currentFrame].subset[s].vertexStart;
+                    vertexCountSubset[s] = impl->buffer[currentFrame].subset[s].vertexCount;
+                }
+                constexpr bool isDynamic = false;
+                loadOk = impl->buffer[currentFrame].pBufferGL->loadBuffer(frame.position.get(), frame.normal.get(), frame.uv.get(),
+                                                                          frame.vertexCount, totalSubset, vertexStartSubset,
+                                                                          vertexCountSubset, &impl->info_mode, isDynamic);
+                delete[] vertexStartSubset;
+                delete[] vertexCountSubset;
             }
+            if (!loadOk)
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
+
+            const std::vector<TEXTURE *>::size_type totalIdTexture =
+                (impl->buffer[currentFrame].pBufferGL->totalSubset > lsIdTexture.size())
+                    ? lsIdTexture.size()
+                    : impl->buffer[currentFrame].pBufferGL->totalSubset;
+            for (std::vector<TEXTURE *>::size_type s = 0; s < totalIdTexture; ++s)
+                impl->buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[s], 0, static_cast<uint32_t>(s));
         }
 
         impl->hasNormTex[0] = 0;
         impl->hasNormTex[1] = 0;
         return true;
+    }
+
+    bool MESH_MBM::loadV11(const char *fileNamePath)
+    {
+        MESH_LOAD_INTERMEDIATE_V11 intermediate;
+        std::string                error;
+        if (!parse_v11_intermediate(fileNamePath, intermediate, error))
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "%s [%s]", error.c_str(), fileNamePath);
+        return this->finishLoadFromIntermediate(intermediate, fileNamePath);
     }
 
     const INFO_BOUND_FONT* MESH_MBM::getInfoFont()const
@@ -3479,7 +3722,84 @@ namespace mbm
             return nullptr;
         }
     }
-    
+
+    // Milestone 6: async loading. onComplete always fires from pumpAsyncLoads() on the main thread,
+    // never inline here - even on a cache hit, so callers never have to special-case "sometimes
+    // synchronous" behavior. Real parsing happens on a worker thread (lazily started); the GPU-finish
+    // work (TEXTURE_MANAGER::load/BUFFER_GL/addPath/EnablePixelPerfectTexture) happens in
+    // pumpAsyncLoads, on the main thread, since those touch the GPU context and other shared state
+    // that isn't safe off the main thread (see docs/mesh-v11-plan.md's Async Loading section).
+    void MESH_MANAGER::loadAsync(const char *fileName, MeshAsyncLoadCallback onComplete)
+    {
+        const std::string fileNameBase = util::getBaseName(fileName);
+        auto               cached      = this->impl->lsMeshes[fileNameBase];
+        if (cached)
+        {
+            Impl::AsyncResult result;
+            result.fileName   = fileNameBase;
+            result.onComplete = std::move(onComplete);
+            result.cacheHit   = true;
+            result.cachedMesh = cached;
+            std::lock_guard<std::mutex> lock(this->impl->completionMutex);
+            this->impl->completedJobs.push_back(std::move(result));
+            return;
+        }
+
+        this->impl->ensureWorkersStarted();
+        Impl::AsyncJob job;
+        job.fileName   = fileName;
+        job.onComplete = std::move(onComplete);
+        {
+            std::lock_guard<std::mutex> lock(this->impl->jobMutex);
+            this->impl->jobQueue.push(std::move(job));
+        }
+        this->impl->jobCv.notify_one();
+    }
+
+    void MESH_MANAGER::pumpAsyncLoads()
+    {
+        std::vector<Impl::AsyncResult> finished;
+        {
+            std::lock_guard<std::mutex> lock(this->impl->completionMutex);
+            if (this->impl->completedJobs.empty())
+                return;
+            finished.swap(this->impl->completedJobs);
+        }
+
+        for (auto &result : finished)
+        {
+            if (result.cacheHit)
+            {
+                if (result.onComplete)
+                    result.onComplete(result.cachedMesh, true);
+                continue;
+            }
+
+            if (!result.parseOk)
+            {
+                log_util::onFailed(nullptr, __FILE__, __LINE__, "%s [%s]", result.error.c_str(), result.fileName.c_str());
+                if (result.onComplete)
+                    result.onComplete(nullptr, false);
+                continue;
+            }
+
+            auto mesh = new MESH_MBM();
+            if (mesh->finishLoadFromIntermediate(result.intermediate, result.fileName.c_str()))
+            {
+                const std::string fileNameBase     = util::getBaseName(result.fileName.c_str());
+                this->impl->lsMeshes[fileNameBase] = mesh;
+                if (result.onComplete)
+                    result.onComplete(mesh, true);
+            }
+            else
+            {
+                delete mesh;
+                if (result.onComplete)
+                    result.onComplete(nullptr, false);
+            }
+        }
+    }
+
     MESH_MBM * MESH_MANAGER::loadTrueTypeFont(const char *fileNameTtf, const float heightLetter, const short spaceWidth,
                                       const short spaceHeight,const bool saveTextureAsPng, TEXTURE ** texture_loaded)
     {
@@ -3850,6 +4170,12 @@ namespace mbm
 
     MESH_MANAGER::~MESH_MANAGER()
     {
+        // Stop and join the async worker pool first - in-flight jobs are allowed to finish, but no
+        // new ones start. Their results (if any landed in completedJobs after this) are simply
+        // never pumped, and any MESH_MBM* they reference was never registered in lsMeshes, so the
+        // cache-release loop below sees a consistent, fully-synchronous state.
+        this->impl->stopAndJoinWorkers();
+
         for (const auto & i : this->impl->lsMeshes)
         {
             MESH_MBM *ptr = i.second;

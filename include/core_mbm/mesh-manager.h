@@ -26,6 +26,7 @@
 #include "physics.h"
 #include <map>
 #include <memory>
+#include <functional>
 
 namespace util
 {
@@ -41,6 +42,10 @@ namespace mbm
     class SHADER;
     class MESH_MBM;
     struct IMAGE_RESOURCE;
+    // Defined in mesh-manager.cpp only (milestone 6: async loading) - forward-declared here so
+    // MESH_MBM::finishLoadFromIntermediate can be declared without exposing the type's layout in
+    // the public header, same PIMPL-style pattern as MESH_MBM::Impl.
+    struct MESH_LOAD_INTERMEDIATE_V11;
 
     struct BUFFER_MESH
     {
@@ -216,12 +221,18 @@ namespace mbm
         // load()/MESH_MANAGER::load() directly, since v1-v10 support moved to the offline
         // mesh_deprecated library (no longer linked into core_mbm).
         bool loadV11(const char *fileNamePath);
-        bool readFrameStaticV11Payload(FILE *fp, const char *fileNamePath, const uint32_t currentFrame);
+        // Main-thread-only GPU-finish half of loadV11 (milestone 6: async loading) - see
+        // mesh-manager.cpp's IntermediateMeshV11/finishLoadFromIntermediate comments. Takes the
+        // forward-declared struct below by reference; defined in mesh-manager.cpp only, same
+        // forward-declare-in-header pattern as Impl.
+        bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
         bool readTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
 
         struct Impl;
         std::unique_ptr<Impl> impl;
     };
+
+    using MeshAsyncLoadCallback = std::function<void(MESH_MBM *mesh, bool success)>;
 
     class MESH_MANAGER
     {
@@ -229,7 +240,7 @@ namespace mbm
         static MESH_MANAGER *instanceMeshManager;
 
       public:
-    
+
         API_IMPL static MESH_MANAGER *getInstance();
         API_IMPL static void release();
         API_IMPL void fakeRelease(const char* fileName);
@@ -241,6 +252,15 @@ namespace mbm
         API_IMPL MESH_MBM *loadDynamicIndex(const char *nickName, const uint32_t sizeVertexBuffer,uint16_t *index, const uint32_t sizeIndex,const util::INFO_DRAW_MODE * info_draw_mode, const util::DYNAMIC_SHAPE & dynamic_shape_info);
         API_IMPL MESH_MBM *getIfExists(const char* fileName);
         API_IMPL static const char * typeClassName(const util::TYPE_MESH type) noexcept;
+        // Milestone 6: async loading. loadAsync() does file I/O + v11 parsing on a worker thread
+        // (lazily starts a small fixed pool on first use); onComplete always fires from
+        // pumpAsyncLoads() on the main thread (never inline, even on a cache hit) - call
+        // pumpAsyncLoads() once per frame (CORE_MANAGER::update() does this) to finish the load
+        // (GPU buffer/texture creation, which must happen on the thread owning the GL context) and
+        // dispatch completions. Not wired into any render call site yet - load()/loadIndex()/etc.
+        // are unaffected.
+        API_IMPL void loadAsync(const char *fileName, MeshAsyncLoadCallback onComplete);
+        API_IMPL void pumpAsyncLoads();
       private:
         struct Impl;
         std::unique_ptr<Impl> impl;

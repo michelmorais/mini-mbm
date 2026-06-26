@@ -246,8 +246,42 @@ concrete use case shows up.
    format works correctly — this is a real behavior change to an actively-used texture format
    (`texture-manager.cpp`'s `.uberimg` loader), not just an internal refactor, so it got its own
    dynamic verification.
-6. Async loading: background parse phase + main-thread GPU finish phase +
-   `MESH_MANAGER::loadAsync`/`pumpAsyncLoads`.
+6. **Closed 2026-06-26.** Async loading: background parse phase + main-thread GPU finish phase +
+   `MESH_MANAGER::loadAsync`/`pumpAsyncLoads`. `MESH_MBM::loadV11` was split into a pure-CPU
+   `parse_v11_intermediate` free function (file I/O + v11 section parsing into a new
+   `mbm::MESH_LOAD_INTERMEDIATE_V11`, safe on a worker thread - no `BUFFER_GL`/`TEXTURE_MANAGER`/
+   `addPath`/`EnablePixelPerfectTexture` calls anywhere in it) and `MESH_MBM::finishLoadFromIntermediate`
+   (the main-thread-only GPU-finish half: texture loads, `BUFFER_GL` upload, `addPath`, global-state
+   mutation). `loadV11` itself is now just `parse` then `finish`, sharing 100% of its logic with the
+   async path. `MESH_MANAGER::Impl` gained a lazily-started fixed 2-thread worker pool (job queue +
+   completion queue, each behind its own mutex; workers block on a condition variable when idle) -
+   `loadAsync(fileName, callback)` pushes a job (or, on a cache hit, a pre-completed result - the
+   callback always fires from `pumpAsyncLoads()`, on the main thread, never inline, so callers never
+   have to special-case "sometimes synchronous"); `pumpAsyncLoads()` drains completed jobs, does the
+   GPU-finish work, and dispatches callbacks. `~MESH_MANAGER()` signals and joins the pool before its
+   existing cache-release loop runs. Wired into the real frame loop:
+   `CORE_MANAGER::update()` calls `pumpAsyncLoads()` once per frame, right after `logic()`. Per the
+   approved scope, no Lua bindings and no render call site (`mesh.cpp`/`sprite.cpp`/etc.) switched to
+   use it - they keep calling synchronous `load()` exactly as today; this is live, working
+   infrastructure with no callers yet.
+   Non-obvious fix needed along the way: `mbm::INFO_PHYSICS` has a user-declared destructor (see
+   milestone-5 notes), so it has no implicit move ctor - that silently made
+   `MESH_LOAD_INTERMEDIATE_V11` (which embeds an `INFO_PHYSICS`) fall back to copy semantics, which
+   is impossible once it also holds non-copyable `unique_ptr`-based frame buffers, surfacing as a
+   `vector::push_back` "copy ctor is implicitly deleted" build error from deep inside
+   `MESH_MANAGER::Impl`'s completion queue. Fixed by giving `MESH_LOAD_INTERMEDIATE_V11` an explicit
+   `noexcept` move ctor/assignment that moves `infoPhysics`'s four owning vectors individually
+   (mirrors `finishLoadFromIntermediate`'s own ownership-transfer code) and deletes copy.
+   Verified: clean `core_mbm` + full project build; a real dynamic test via `testLib` with a live GL
+   context (`DISPLAY=:1`) - built a throwaway triangle mesh in memory via `MESH_MBM_DEBUG`, saved it
+   (legacy `.msh` fixtures in `src/test-lib/` predate v11 and can't exercise `loadV11`, so a fresh
+   file was required), then exercised: cold `loadAsync` (real worker-thread parse + main-thread GPU
+   finish, success), a forced-fresh sync `load()` after `fakeRelease` (confirms the `loadV11`
+   refactor didn't regress the synchronous path), a cache-hit `loadAsync` on the same file (confirms
+   it still defers to `pumpAsyncLoads` rather than firing inline, and returns the same cached
+   pointer), a missing-file `loadAsync` (confirms a clean `success=false`, no crash), and a `SIGTERM`
+   mid-flight (confirms `stopAndJoinWorkers()` doesn't hang or crash on shutdown). All temporary test
+   code and the throwaway mesh file were removed afterward.
 7. Built-in shader resource cleanup: convert `shader-resource-opengl_es.cpp` /
    `-directx9.cpp` / `-metal.mm` built-ins to semantic `TEXTURE_ROLE` naming by default; keep legacy
    `sample0`/`sample1`/`sample2` only as the documented legacy naming profile for old custom shaders.
