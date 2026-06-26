@@ -100,6 +100,23 @@ in shader/texture/particle machinery.
 keeps Scope Decision 2's "one enum, one definition" intact while keeping `header-mesh.h`'s include
 graph unchanged.
 
+### 5. `UBER_IMG` decouples from the legacy mesh v8 header, not kept as a `core_mbm` dependency
+
+Milestone 5's extraction surfaced an unrelated coupling: `mbm::UBER_IMG` (`uber-image.cpp`/`.h`), a
+standalone compressed-texture-blob format used by `texture-manager*.cpp` — **not a mesh format at
+all** — reads/writes its file header using `util::readHeaderV8`/`writeHeaderV8`/`readHeaderImgV8`/
+`writeHeaderImgV8`, the same `util::HEADER`/`HEADER_IMG` structs the legacy v1-v10 mesh format uses
+(`header.typeApp == "img uberimg"`, hardcoded `version == 1`). This is the *only* reason those four
+functions still live in `core_mbm` after milestone 5's extraction — `saveV11`/`loadV11` never call
+them.
+
+Decision: `mesh_deprecated` keeps `readHeaderV8`/`writeHeaderV8`/`readHeaderImgV8`/`writeHeaderImgV8`
+(needed to *read* old `.uberimg` files during migration, same as any other legacy asset). Going
+forward, `core_mbm`'s `UBER_IMG` gets its own small, self-contained header — not the legacy mesh v8
+`HEADER`/`HEADER_IMG` layout — so `core_mbm` ends up with zero v1-v10 format dependencies, not "zero
+except this one unrelated texture format." This is **not implemented yet** — tracked as milestone
+5.5 below — `core_mbm` currently still carries the four functions for `UBER_IMG`'s sake.
+
 ### 3. Async loading ships for real in v11, not just designed for
 
 No thread pool or background-loading primitive exists anywhere in the engine today (confirmed by
@@ -215,6 +232,13 @@ concrete use case shows up.
    not-implemented placeholder) is deferred** - it's genuinely new code (populating a
    `MESH_MBM_DEBUG` via its public API, since the old `impl->` access isn't visible outside
    `core_mbm`), not a move, and deserves its own focused pass.
+5.5. **Not started.** Decouple `UBER_IMG` from the legacy mesh v8 header (Scope Decision 5): give it
+   its own minimal on-disk header (own magic/version, no dependency on `util::HEADER`/`HEADER_IMG`),
+   update `uber-image.cpp`'s `load`/`loadFromFileOpened`/`save` to use it, then delete
+   `readHeaderV8`/`writeHeaderV8`/`readHeaderImgV8`/`writeHeaderImgV8` from `core_mbm`'s
+   `mesh-v8-io.h`/`.cpp` (they stay in `mesh_deprecated` so old `.uberimg` files remain readable
+   during migration). Once this lands, `core_mbm` has zero v1-v10 format code left anywhere,
+   including outside the mesh subsystem proper.
 6. Async loading: background parse phase + main-thread GPU finish phase +
    `MESH_MANAGER::loadAsync`/`pumpAsyncLoads`.
 7. Built-in shader resource cleanup: convert `shader-resource-opengl_es.cpp` /
