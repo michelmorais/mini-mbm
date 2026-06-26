@@ -43,11 +43,14 @@ namespace util
 
     // Writes one section by streaming its payload directly into `fp` via `writePayload`, instead of
     // building it in a caller-owned buffer first. Reserves the 16-byte envelope, calls writePayload(fp),
-    // measures what it wrote, rewinds to compute crc32Value over exactly those bytes, then patches the
-    // envelope in place and seeks back past the payload. Always writes SECTION_COMPRESSION_NONE - this
-    // helper has no compression support (milestone 8's job). `header.type`/`sectionVersion` must already
-    // be set by the caller. Used for every section in milestone 3 (material transform, static frames,
-    // physics detail, extra paths) so they share one code path instead of four bespoke ones.
+    // measures what it wrote, rewinds and reads those bytes back into memory, then delegates to
+    // writeSectionV11 to compress (if header.compression requests DEFLATE - same pre-set-by-caller
+    // convention as writeSectionV11 itself), checksum, and write the real envelope + payload, and
+    // finally truncates the file to the new end (compression can shrink the payload below what was
+    // originally streamed to disk, so the stale uncompressed tail bytes must not linger). `header.type`/
+    // `sectionVersion` must already be set by the caller. Used for every section in milestone 3
+    // (material transform, static frames, physics detail, extra paths) so they share one code path
+    // instead of four bespoke ones.
     bool writeSectionV11Streamed(FILE *fp, util::SECTION_HEADER_V11 &header,
                                  const std::function<bool(FILE*)> &writePayload);
 

@@ -193,8 +193,9 @@ namespace mbm
         const char *    fileName      = luaL_checkstring(lua, 2);
         const bool      calNormal     = top > 2 ? (lua_toboolean(lua, 3) ? true : false) : false;
         const bool      calUV         = top > 3 ? (lua_toboolean(lua, 4) ? true : false) : false;
+        const bool      compress      = top > 4 ? (lua_toboolean(lua, 5) ? true : false) : false;
         char            strError[255] = "";
-        if (meshDebug->mesh.saveV11(fileName, calNormal, calUV, strError,sizeof(strError)-1))
+        if (meshDebug->mesh.saveV11(fileName, calNormal, calUV, compress, strError,sizeof(strError)-1))
         {
             MESH_MANAGER::getInstance()->fakeRelease(fileName);
             lua_pushboolean(lua, 1);

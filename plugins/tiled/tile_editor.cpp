@@ -2858,7 +2858,7 @@ namespace mbm
             }
 
             char errorText[255] = "";
-            const bool ret = meshDebug.saveV11(fileName,false,false,errorText,sizeof(errorText));
+            const bool ret = meshDebug.saveV11(fileName,false,false,false,errorText,sizeof(errorText));
             if(ret == false)
                 return log_util::fail(__LINE__, __FILE__, "Failed to save mesh\n[%s]",errorText);
             return true;

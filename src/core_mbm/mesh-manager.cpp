@@ -1695,7 +1695,7 @@ namespace mbm
         }
     }
     
-    bool MESH_MBM_DEBUG::saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut)
+    bool MESH_MBM_DEBUG::saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut)
     {
         if (this->impl->buffer.size() == 0)
             return false;
@@ -1924,6 +1924,8 @@ namespace mbm
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_FRAME_STATIC;
             sectionHeader.sectionVersion = 1;
+            if (compress)
+                sectionHeader.compression = util::SECTION_COMPRESSION_DEFLATE;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [&](FILE *fp) -> bool
             {
                 if (!util::writeFrameHeaderV11(fp, v11FrameHeader))

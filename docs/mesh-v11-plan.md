@@ -285,8 +285,37 @@ concrete use case shows up.
 7. Built-in shader resource cleanup: convert `shader-resource-opengl_es.cpp` /
    `-directx9.cpp` / `-metal.mm` built-ins to semantic `TEXTURE_ROLE` naming by default; keep legacy
    `sample0`/`sample1`/`sample2` only as the documented legacy naming profile for old custom shaders.
-8. Per-blob compression (`DEFLATE`) for vertex/index/texture blobs as an opt-in save-time setting,
-   fully replacing mandatory whole-file compression.
+8. **Closed 2026-06-26.** Per-blob compression (`DEFLATE`) for `SECTION_FRAME_STATIC` as an opt-in
+   save-time setting (off by default). The on-disk format and codec were already in place since
+   milestone 0/1 - `SECTION_HEADER_V11`'s `compression`/`uncompressedLength`/`compressedLength`/
+   `crc32Value` fields, and `util::writeSectionV11`/`readSectionV11` (`mesh-v11-io.cpp`) already fully
+   implemented DEFLATE via `mbm::MINIZ`. The actual gap: `MESH_MBM_DEBUG::saveV11` exclusively used
+   `util::writeSectionV11Streamed`, which hardcoded `SECTION_COMPRESSION_NONE` and said so in its own
+   doc comment ("milestone 8's job") - `writeSectionV11`'s compression path was dead code from
+   `saveV11`'s perspective. Fixed by having `writeSectionV11Streamed` delegate its header+payload
+   write to `writeSectionV11` (once the streamed payload is read back into memory for `crc32Value`
+   anyway, it's the same shape `writeSectionV11` already takes) instead of duplicating the
+   NONE-only logic, then truncating the file to the new (possibly shorter, if compressed) end via a
+   new small cross-platform `truncateFileToCurrentPosition` helper (`ftruncate`+`fileno` on
+   POSIX, `_chsize`+`_fileno` on Windows) - needed because the payload was originally streamed to
+   disk uncompressed before compression could shrink it, leaving stale tail bytes otherwise.
+   `saveV11` gained a new `compress` bool parameter, wired into the `SECTION_FRAME_STATIC` per-frame
+   loop only (the one section large enough for compression to matter - material transform/extra
+   paths/physics stay uncompressed). Threaded through both real call sites
+   (`mesh-debug-lua.cpp`'s `meshD:save(file, calcNormal, calcUV, compress)` - new optional 5th Lua
+   arg, defaults to `false` - and `tile_editor.cpp`, which passes `false` explicitly, no behavior
+   change). Reader side needed zero changes - `readSectionV11`/`skipSectionPayloadV11` were already
+   compression-agnostic. (`TEXTURE_REF_V11`'s `EMBEDDED_COMPRESSED` variant still has no writer per
+   milestone 3's scope, so "texture blobs" from this milestone's original one-liner isn't reachable
+   yet - out of scope for this pass.)
+   Verified: clean `core_mbm` + full project build; a real dynamic test via `testLib` with a live GL
+   context (`DISPLAY=:1`) - built a throwaway 32x32 grid mesh (1024 vertices, 1922 triangles; big
+   and repetitive enough to actually compress, unlike a 3-vertex triangle - milestone 5.5 hit that
+   exact trap with too-small test data), saved it once uncompressed and once with `compress=true`,
+   confirmed the compressed file was 27% the size of the plain one, then reloaded both via
+   `MESH_MBM_DEBUG::loadV11` and confirmed byte-for-byte identical position/uv/index data against
+   each other and the original input. All temporary test code and throwaway files were removed
+   afterward.
 9. *(Reserved, not implemented)* skinned-frame block + GPU skinning — only after real demand is
    confirmed, not speculatively.
 

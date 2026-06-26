@@ -4,7 +4,33 @@
 #include <cstring>
 #include <miniz-wrap/miniz-wrap.h>
 
+#if defined _WIN32
+    #include <io.h>
+#else
+    #include <unistd.h>
+#endif
+
 using namespace util::le_io;
+
+namespace
+{
+    // Shrinks fp's underlying file to its current write position - needed after
+    // util::writeSectionV11Streamed compresses a payload that was originally streamed to disk
+    // uncompressed, leaving stale tail bytes past the new (shorter) logical end.
+    bool truncateFileToCurrentPosition(FILE *fp)
+    {
+        if (std::fflush(fp) != 0)
+            return false;
+        const long pos = std::ftell(fp);
+        if (pos < 0)
+            return false;
+#if defined _WIN32
+        return _chsize(_fileno(fp), pos) == 0;
+#else
+        return ftruncate(fileno(fp), pos) == 0;
+#endif
+    }
+}
 
 namespace util
 {
@@ -201,18 +227,18 @@ namespace util
             }
         }
 
-        header.compression = util::SECTION_COMPRESSION_NONE;
-        header.uncompressedLength = payloadSize;
-        header.compressedLength = payloadSize;
-        header.crc32Value = mbm::crc32Buffer(payloadBytes.data(), payloadSize);
-
+        // header.compression carries whatever the caller pre-set (NONE/DEFLATE) - writeSectionV11
+        // honors it, compressing payloadBytes first if requested, and recomputes
+        // uncompressedLength/compressedLength/crc32Value itself.
         if (std::fseek(fp, headerPos, SEEK_SET) != 0 ||
-            !writeSectionHeaderV11(fp, header) ||
-            std::fseek(fp, payloadEnd, SEEK_SET) != 0)
+            !writeSectionV11(fp, header, payloadBytes.data(), payloadSize))
         {
             return false;
         }
-        return true;
+
+        // Compression can make the just-written payload shorter than what was originally streamed
+        // to disk - drop the stale uncompressed tail bytes left over past the new logical end.
+        return truncateFileToCurrentPosition(fp);
     }
 
     bool writeFrameHeaderV11(FILE *fp, const util::FRAME_HEADER_V11 &in)

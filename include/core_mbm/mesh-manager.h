@@ -130,7 +130,10 @@ namespace mbm
         // material+transform, static frames (path-referenced textures only), physics bounding volumes,
         // extra paths. Returns false with a message in errorOut (not a partial file) if the mesh has any
         // animations or is FONT/PARTICLE/TILE_MAP typed - those land in a later pass of this milestone.
-        API_IMPL bool saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
+        // `compress` (milestone 8, opt-in, default-off at every call site): when true, requests DEFLATE
+        // for SECTION_FRAME_STATIC (the vertex/index buffer - the one section large enough for
+        // compression to be worth it); every other section always stays uncompressed.
+        API_IMPL bool saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
         // Reads the v11 section/TLV format. Milestone 5: this is now the only mesh format core_mbm
         // reads/writes - v1-v10 support moved to the offline mesh_deprecated library (no longer
