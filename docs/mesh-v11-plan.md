@@ -314,9 +314,47 @@ concrete use case shows up.
    pointer), a missing-file `loadAsync` (confirms a clean `success=false`, no crash), and a `SIGTERM`
    mid-flight (confirms `stopAndJoinWorkers()` doesn't hang or crash on shutdown). All temporary test
    code and the throwaway mesh file were removed afterward.
-7. Built-in shader resource cleanup: convert `shader-resource-opengl_es.cpp` /
-   `-directx9.cpp` / `-metal.mm` built-ins to semantic `TEXTURE_ROLE` naming by default; keep legacy
-   `sample0`/`sample1`/`sample2` only as the documented legacy naming profile for old custom shaders.
+7. **Closed 2026-06-26.** Built-in shader resource cleanup: converted `shader-resource-opengl_es.cpp`/
+   `-directx9.cpp`/`-metal.mm` built-ins to semantic `TEXTURE_ROLE` naming by default; legacy
+   `sample0`/`sample1`/`sample2` remains fully supported as the naming profile for old custom shaders.
+   **Key finding: almost all the runtime infrastructure already existed** -
+   `SHADER_TEXTURE_NAMING`/`getTextureRoleShaderName`/`detectShaderTextureNamingProfile` (`shader.h`/
+   `.cpp`) already mapped both conventions and ran detection on every shader load
+   (`BASE_SHADER::loadShader`, built-in or custom, no special-casing), and the runtime texture-binding
+   code (`shader-opengl_es.cpp`/`shader-directx9.cpp`) already looked up uniforms via each shader's own
+   *detected* naming profile rather than a hardcoded name. So this milestone touched zero binding/
+   detection code - it was a **pure identifier rename** inside existing built-in shader source strings:
+   `sample0`→`TextureDiffuse`, `sample1`→`TextureAnimationEffect`, `sample2`→`TextureNormal`, applied
+   to each platform's `buildLitTexturedPixelShader*()` (the default lit/textured shader), the
+   `resourceShader[]` catalogue (~40-50 post-processing/effect shaders per platform), and
+   `getParticlePSCode()`/`getSteeredParticlePSCode()`. One real identifier collision was found and
+   preserved: `shader-resource-opengl_es.cpp`'s `"sketch.ps"` declares unrelated local
+   `const vec2 sample1/sample2` offset constants (its own texture is `Image`, not a `TEXTURE_ROLE`
+   uniform) - confirmed as the *only* such collision across all three platforms (the DirectX9 port uses
+   an array instead, the Metal port already renamed its offsets to `k_s1`/`k_s2`/`k_s3`), excluded from
+   the rename, and verified byte-identical to the original afterward. Also updated, per explicit user
+   scope confirmation (AskUserQuestion - "update them too" over "leave as-is"): the Lua-shipped example/
+   template shaders (`editor/shaders/shader_cfg.lua`'s 6-shader library, `editor/shader_editor.lua`'s
+   new-custom-shader template) and one in-editor tooltip string (`editor/lang/language.lua`) describing
+   the old `sample2` name.
+   Verified: whole-word grep audit confirmed zero remaining `sample[012]` identifiers outside the 5
+   preserved `sketch.ps` lines; clean `core_mbm` + full project build; a real dynamic test via
+   `testLib`/`DISPLAY=:1` compiling, through the real GLSL compiler, the default lit-textured shader
+   (paired with a matching test vertex shader providing `vNormalView`/`vPositionView`/`vTexCoord`,
+   since `resourceShader[]` ships no generic paired `.vs` for it - it's meant to be selected alongside
+   a user-authored one), two `resourceShader[]` post-processing entries (`pie.ps` single-texture,
+   `blend.ps` dual-texture), `sketch.ps` itself (confirming the preserved offsets still compile
+   correctly), and an inline legacy custom shader literally using `sample0` (confirming
+   `detectShaderTextureNamingProfile`'s fallback still works after the built-ins changed) - all
+   compiled cleanly with the expected naming profile detected. Two pre-existing, unrelated issues were
+   discovered and explicitly *not* fixed (out of this milestone's scope, confirmed present
+   byte-for-byte in a pre-rename backup): `getParticlePSCode()` has a malformed ternary
+   (`color.rgb ? texColor.rgb` with no `:` false-branch) that's always failed to compile;
+   `detectShaderTextureNamingProfile`'s plain identifier-text scan has always mis-flagged `sketch.ps`
+   as `LEGACY_SAMPLE` (it matches the literal `sample1`/`sample2` text in the unrelated offset
+   constants) even though the shader doesn't use either as a texture - harmless since no actual binding
+   lookup for those names ever succeeds or is needed by that shader. All temporary test code was
+   removed afterward.
 8. **Closed 2026-06-26.** Per-blob compression (`DEFLATE`) for `SECTION_FRAME_STATIC` as an opt-in
    save-time setting (off by default). The on-disk format and codec were already in place since
    milestone 0/1 - `SECTION_HEADER_V11`'s `compression`/`uncompressedLength`/`compressedLength`/

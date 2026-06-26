@@ -1134,24 +1134,24 @@ local tPie =
     code = ]] .. '[[' .. [[
     
     precision mediump float;
-    uniform sampler2D sample0;
+    uniform sampler2D TextureDiffuse;
     varying vec2 vTexCoord;
     uniform float percent;
     uniform float angle;
     uniform float clockwise;
-    
+
     void main( )
     {
         float x = vTexCoord.x - 0.5;
         float y = vTexCoord.y - 0.5;
         x = x * cos(angle) - y * sin(angle);
         y = x * sin(angle) + y * cos(angle);
-        
+
         float a = atan(y,x);
-        
+
         if ((clockwise >= 0.5 && a > percent) || (clockwise < 0.5 && a < percent))
         {
-            gl_FragColor = texture2D(sample0, vTexCoord);
+            gl_FragColor = texture2D(TextureDiffuse, vTexCoord);
         }
         else
         {

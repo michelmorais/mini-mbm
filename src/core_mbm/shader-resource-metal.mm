@@ -27,8 +27,8 @@ namespace mbm
         const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
         return R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample2 [[texture(2)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureNormal [[texture(2)]],
     sampler          samp    [[sampler(0)]],
     constant int    &LightEnabled      [[buffer(4)]],
     constant float4 &AmbientColor      [[buffer(6)]],
@@ -45,7 +45,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     constant int    &LightCount        [[buffer(5)]],
     constant int    &HasNormalMap      [[buffer(17)]])
 {
-    float4 texColor = sample0.sample(samp, in.uv);
+    float4 texColor = TextureDiffuse.sample(samp, in.uv);
     if (LightEnabled == 0 || LightMode == 0)
         return texColor;
     float3 base        = texColor.rgb * MaterialDiffuse.rgb;
@@ -70,7 +70,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     {
         float3 normalView = float3(0.0f, 0.0f, 1.0f);
         if (HasNormalMap != 0)
-            normalView = normalize((sample2.sample(samp, in.uv).xyz * 2.0f) - 1.0f);
+            normalView = normalize((TextureNormal.sample(samp, in.uv).xyz * 2.0f) - 1.0f);
         for (int i = 0; i < )msl" + supportedMaxLights + R"msl(; ++i)
         {
             if (i >= LightCount) break;
@@ -111,7 +111,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "edge gradient magnitude.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -119,7 +119,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float2 imageSize = float2(f[0], f[1]);
     float  tolerance = f[2];
 
-    float4 col = sample0.sample(samp, uv);
+    float4 col = TextureDiffuse.sample(samp, uv);
     if (col.a == 0.0f) discard_fragment();
 
     float2 off = 1.0f / imageSize;
@@ -129,8 +129,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float2 pb = uv + float2(0.0f, -off.y);
 
     float2 grad = float2(
-        length(sample0.sample(samp, pr).xyz - sample0.sample(samp, pl).xyz),
-        length(sample0.sample(samp, pt).xyz - sample0.sample(samp, pb).xyz));
+        length(TextureDiffuse.sample(samp, pr).xyz - TextureDiffuse.sample(samp, pl).xyz),
+        length(TextureDiffuse.sample(samp, pt).xyz - TextureDiffuse.sample(samp, pb).xyz));
     float  a = length(grad);
     float4 result = float4(a, a, a, 1.0f);
 
@@ -147,7 +147,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "pie.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -171,7 +171,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
         delta = fmod(start01 - a01 + 1.0f, 1.0f);
 
     if (delta < percent)
-        return sample0.sample(samp, uv);
+        return TextureDiffuse.sample(samp, uv);
     discard_fragment();
     return float4(0.0f);
 }
@@ -185,7 +185,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "explosion gaussian.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -198,7 +198,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float s  = 2.0f * pow(sigma, 2.0f);
     float q  = 1.0f / (PI * s);
     float a  = q * exp(-(pow(uv.x - center.x, 2.0f) + pow(uv.y - center.y, 2.0f)) / s);
-    float alpha = sample0.sample(samp, uv).a;
+    float alpha = TextureDiffuse.sample(samp, uv).a;
     return float4(a * color.r, a * color.g, a * color.b, alpha);
 }
 )msl",
@@ -211,12 +211,12 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "luminance.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float4 color    = float4(f[0], f[1], f[2], f[3]);
-    float4 texColor = sample0.sample(samp, in.uv);
+    float4 texColor = TextureDiffuse.sample(samp, in.uv);
     float  lum      = dot(texColor, float4(0.2126f, 0.7152f, 0.0722f, 0.0f));
     float4 white    = float4(1.0f);
     float4 output;
@@ -235,8 +235,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "blend.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0       [[texture(0)]],
-    texture2d<float> sample1       [[texture(1)]],
+    texture2d<float> TextureDiffuse       [[texture(0)]],
+    texture2d<float> TextureAnimationEffect       [[texture(1)]],
     sampler          samp          [[sampler(0)]],
     constant float*  f             [[buffer(2)]])
 {
@@ -248,11 +248,11 @@ fragment float4 frag_main(VOut in [[stage_in]],
 
     float4 c0, c1;
     if (invertSample > 0.5f) {
-        c0 = sample1.sample(samp, uv);
-        c1 = sample0.sample(samp, uv);
+        c0 = TextureAnimationEffect.sample(samp, uv);
+        c1 = TextureDiffuse.sample(samp, uv);
     } else {
-        c0 = sample0.sample(samp, uv);
-        c1 = sample1.sample(samp, uv);
+        c0 = TextureDiffuse.sample(samp, uv);
+        c1 = TextureAnimationEffect.sample(samp, uv);
     }
     if (disableSample1 > 0.5f) {
         c0.rgb += colorAdd;
@@ -279,12 +279,12 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "font.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float3 colorFont = float3(f[0], f[1], f[2]);
-    float4 color     = sample0.sample(samp, in.uv);
+    float4 color     = TextureDiffuse.sample(samp, in.uv);
     float3 c2        = float3(1.0f - colorFont.r, 1.0f - colorFont.g, 1.0f - colorFont.b);
     color.rgb -= c2;
     return color;
@@ -297,7 +297,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "color keying.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -306,7 +306,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float4 colorDst  = float4(f[2], f[3], f[4], f[5]);
     float4 colorSrc  = float4(f[6], f[7], f[8], f[9]);
 
-    float4 color = sample0.sample(samp, in.uv);
+    float4 color = TextureDiffuse.sample(samp, in.uv);
     if (color.w == 0.0f) discard_fragment();
 
     if (granThen > 0.5f) {
@@ -329,7 +329,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "tiled map.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -339,7 +339,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  tolerance         = f[3];
     float3 colorSrc          = float3(f[4], f[5], f[6]);
 
-    float4 color = sample0.sample(samp, in.uv);
+    float4 color = TextureDiffuse.sample(samp, in.uv);
     color.a -= alpha;
     if (color.a <= 0.0f) discard_fragment();
     if (enableColorKeying > 0.5f) {
@@ -365,12 +365,12 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "transparent.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float  alpha = f[0];
-    float4 color = sample0.sample(samp, in.uv);
+    float4 color = TextureDiffuse.sample(samp, in.uv);
     color.a -= alpha;
     return color;
 }
@@ -382,12 +382,12 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "saturate.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float3 color = float3(f[0], f[1], f[2]);
-    float4 c1    = sample0.sample(samp, in.uv);
+    float4 c1    = TextureDiffuse.sample(samp, in.uv);
     c1.xyz *= color;
     return c1;
 }
@@ -399,13 +399,13 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "out of bounds.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv       = in.uv;
     float3 color    = float3(f[0], f[1], f[2]);
-    float4 colorRet = sample0.sample(samp, uv);
+    float4 colorRet = TextureDiffuse.sample(samp, uv);
     if (uv.x < 0.0f || uv.x > 1.0f || uv.y < 0.0f || uv.y > 1.0f)
         colorRet.rgb *= color;
     return colorRet;
@@ -418,13 +418,13 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "color it.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float  enable = f[0];
     float3 color  = float3(f[1], f[2], f[3]);
-    float4 c      = sample0.sample(samp, in.uv);
+    float4 c      = TextureDiffuse.sample(samp, in.uv);
     if (enable > 0.5f)
         return float4(color.r, color.g, color.b, c.a);
     return c;
@@ -438,12 +438,12 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "tint.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float3 color = float3(f[0], f[1], f[2]);
-    float4 tex   = sample0.sample(samp, in.uv);
+    float4 tex   = TextureDiffuse.sample(samp, in.uv);
     return float4(max(tex.r, color.r), max(tex.g, color.g), max(tex.b, color.b), tex.a);
 }
 )msl",
@@ -454,7 +454,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "night vision.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -464,17 +464,17 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  iw = fInverseViewportWidth;
     float  ih = fInverseViewportHeight;
 
-    float4 color0 = sample0.sample(samp, uv);
+    float4 color0 = TextureDiffuse.sample(samp, uv);
     float4 col    = color0;
-    col += 0.0625f * sample0.sample(samp, uv + float2(-iw, -ih));
-    col += 0.0625f * sample0.sample(samp, uv + float2(-iw,  ih));
-    col += 0.0625f * sample0.sample(samp, uv + float2( iw, -ih));
-    col += 0.0625f * sample0.sample(samp, uv + float2( iw,  ih));
-    col += 0.125f  * sample0.sample(samp, uv + float2(-iw,  0.0f));
-    col += 0.125f  * sample0.sample(samp, uv + float2( iw,  0.0f));
-    col += 0.125f  * sample0.sample(samp, uv + float2(0.0f, -ih));
-    col += 0.125f  * sample0.sample(samp, uv + float2(0.0f,  ih));
-    col += 0.25f   * sample0.sample(samp, uv);
+    col += 0.0625f * TextureDiffuse.sample(samp, uv + float2(-iw, -ih));
+    col += 0.0625f * TextureDiffuse.sample(samp, uv + float2(-iw,  ih));
+    col += 0.0625f * TextureDiffuse.sample(samp, uv + float2( iw, -ih));
+    col += 0.0625f * TextureDiffuse.sample(samp, uv + float2( iw,  ih));
+    col += 0.125f  * TextureDiffuse.sample(samp, uv + float2(-iw,  0.0f));
+    col += 0.125f  * TextureDiffuse.sample(samp, uv + float2( iw,  0.0f));
+    col += 0.125f  * TextureDiffuse.sample(samp, uv + float2(0.0f, -ih));
+    col += 0.125f  * TextureDiffuse.sample(samp, uv + float2(0.0f,  ih));
+    col += 0.25f   * TextureDiffuse.sample(samp, uv);
     float lum = 0.299f * col.x + 0.587f * col.y + 0.184f * col.z;
     col = float4(lum, lum, lum, col.w);
     col.y *= 3.0f;
@@ -490,13 +490,13 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "night vision blur.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float  brightness = f[0];
     float  contrast   = f[1];
-    float4 color      = sample0.sample(samp, in.uv);
+    float4 color      = TextureDiffuse.sample(samp, in.uv);
     if (color.a == 0.0f) discard_fragment();
 
     float4 pixelColor = color;
@@ -518,14 +518,14 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "multi textura.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float  gamma      = f[0];
-    float4 color1     = sample0.sample(samp, in.uv);
-    float4 color2     = sample1.sample(samp, in.uv);
+    float4 color1     = TextureDiffuse.sample(samp, in.uv);
+    float4 color2     = TextureAnimationEffect.sample(samp, in.uv);
     return clamp(color1 * color2 * gamma, 0.0f, 1.0f);
 }
 )msl",
@@ -540,7 +540,7 @@ static float mbm_wave_dist(float a, float b, float c, float d) {
 }
 
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -552,7 +552,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
               + sin(mbm_wave_dist(uv.x, uv.y, 0.640f, 0.640f) * sizeWave)
               + sin(mbm_wave_dist(uv.x, uv.y + effectTime / 7.0f, 0.192f, 0.640f) * sizeWave);
     uv += val / sizeWave;
-    return sample0.sample(samp, uv);
+    return TextureDiffuse.sample(samp, uv);
 }
 )msl",
     "[ps-wave.ps] = wave.ps\n"
@@ -563,13 +563,13 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "bands.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float  bandDensity   = f[0];
     float  bandIntensity = f[1];
-    float4 color         = sample0.sample(samp, in.uv);
+    float4 color         = TextureDiffuse.sample(samp, in.uv);
     color.xyz += tan(in.uv.x * bandDensity) * bandIntensity;
     return color;
 }
@@ -587,7 +587,7 @@ static float3 mbm_adj_sat(float3 col, float sat) {
 }
 
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -596,7 +596,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  BloomSaturation = f[2];
     float  BaseSaturation  = f[3];
 
-    float4 color = sample0.sample(samp, in.uv);
+    float4 color = TextureDiffuse.sample(samp, in.uv);
     if (color.a == 0.0f) discard_fragment();
 
     float  BloomThreshold = 0.25f;
@@ -618,12 +618,12 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "bright extract.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float  threshold     = f[0];
-    float4 originalColor = sample0.sample(samp, in.uv);
+    float4 originalColor = TextureDiffuse.sample(samp, in.uv);
     float3 rgb           = originalColor.xyz / originalColor.w;
     rgb = saturate((rgb - threshold) / (1.0f - threshold));
     return float4(rgb * originalColor.w, originalColor.w);
@@ -636,7 +636,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "color tone.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -645,7 +645,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float4 lightColor   = float4(f[2], f[3], f[4], f[5]);
     float4 darkColor    = float4(f[6], f[7], f[8], f[9]);
 
-    float4 color = sample0.sample(samp, in.uv);
+    float4 color = TextureDiffuse.sample(samp, in.uv);
     if (color.a == 0.0f) discard_fragment();
 
     float3 scnColor = lightColor.xyz * (color.xyz / color.w);
@@ -666,13 +666,13 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "brightness.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float  brightness  = f[0];
     float  contrast    = f[1];
-    float4 pixelColor  = sample0.sample(samp, in.uv);
+    float4 pixelColor  = TextureDiffuse.sample(samp, in.uv);
     if (pixelColor.a == 0.0f) discard_fragment();
     pixelColor.xyz /= pixelColor.w;
     pixelColor.xyz  = (pixelColor.xyz - 0.5f) * max(contrast, 0.0f) + 0.5f;
@@ -689,7 +689,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "blur directional.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -703,7 +703,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     for (int i = 0; i < 16; ++i) {
         uv.x -= blurAmount * xOff;
         uv.y -= blurAmount * yOff;
-        c += sample0.sample(samp, uv);
+        c += TextureDiffuse.sample(samp, uv);
     }
     return c / 16.0f;
 }
@@ -716,18 +716,18 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "embossed.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv     = in.uv;
     float  amount = f[0];
     float  width  = f[1];
-    float4 color  = sample0.sample(samp, uv);
+    float4 color  = TextureDiffuse.sample(samp, uv);
     if (color.a == 0.0f) discard_fragment();
     float4 outC = float4(0.5f, 0.5f, 0.5f, 1.0f);
-    outC -= sample0.sample(samp, uv - width) * amount;
-    outC += sample0.sample(samp, uv + width) * amount;
+    outC -= TextureDiffuse.sample(samp, uv - width) * amount;
+    outC += TextureDiffuse.sample(samp, uv + width) * amount;
     float avg  = (outC.x + outC.y + outC.z) / 3.0f;
     outC.xyz   = float3(avg);
     return outC;
@@ -741,14 +741,14 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "frosty out line.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv     = in.uv;
     float  width  = f[0];
     float  height = f[1];
-    float4 color  = sample0.sample(samp, uv);
+    float4 color  = TextureDiffuse.sample(samp, uv);
     if (color.a == 0.0f) discard_fragment();
 
     float rw = 1.0f / width;
@@ -762,9 +762,9 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float2 b  = float2(uv.x,      uv.y + rh);
     float2 br = float2(uv.x + rw, uv.y + rh);
 
-    float4 edge = (-sample0.sample(samp, tl) - sample0.sample(samp, t)  - sample0.sample(samp, tr))
-                + (-sample0.sample(samp, l)  + 8.0f * sample0.sample(samp, uv) - sample0.sample(samp, r))
-                + (-sample0.sample(samp, bl) - sample0.sample(samp, b)  - sample0.sample(samp, br));
+    float4 edge = (-TextureDiffuse.sample(samp, tl) - TextureDiffuse.sample(samp, t)  - TextureDiffuse.sample(samp, tr))
+                + (-TextureDiffuse.sample(samp, l)  + 8.0f * TextureDiffuse.sample(samp, uv) - TextureDiffuse.sample(samp, r))
+                + (-TextureDiffuse.sample(samp, bl) - TextureDiffuse.sample(samp, b)  - TextureDiffuse.sample(samp, br));
     float avg  = (edge.x + edge.y + edge.z) / 3.0f;
     edge.xyz   = float3(avg);
     edge.w     = 1.0f;
@@ -779,7 +779,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "glass tile.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -789,11 +789,11 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  offset     = f[2];
     float4 groutColor = float4(f[3], f[4], f[5], f[6]);
 
-    float a = sample0.sample(samp, uv).a;
+    float a = TextureDiffuse.sample(samp, uv).a;
     if (a == 0.0f && groutColor.a == 0.0f) discard_fragment();
 
     float2 newUV = uv + tan(tiles * 2.5f * uv + offset) * (bevelWidth / 100.0f);
-    float4 c1    = sample0.sample(samp, newUV);
+    float4 c1    = TextureDiffuse.sample(samp, newUV);
     if (c1.a == 0.0f && groutColor.a == 0.0f) discard_fragment();
     if (newUV.x < 0.0f || newUV.x > 1.0f || newUV.y < 0.0f || newUV.y > 1.0f)
         c1 = groutColor;
@@ -811,7 +811,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "poisson.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -819,19 +819,19 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  poisson   = f[0];
     float2 inputSize = float2(f[1], f[2]);
 
-    float4 cOut = sample0.sample(samp, uv);
-    cOut += sample0.sample(samp, uv + (float2(-0.326212f, -0.40581f)  / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2(-0.840144f, -0.07358f)  / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2(-0.695914f,  0.457137f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2(-0.203345f,  0.620716f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2( 0.96234f,  -0.194983f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2( 0.473434f, -0.480026f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2( 0.519456f,  0.767022f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2( 0.185461f, -0.893124f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2( 0.507431f,  0.064425f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2( 0.89642f,   0.412458f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2(-0.32194f,  -0.932615f) / inputSize) * poisson);
-    cOut += sample0.sample(samp, uv + (float2(-0.791559f, -0.59771f)  / inputSize) * poisson);
+    float4 cOut = TextureDiffuse.sample(samp, uv);
+    cOut += TextureDiffuse.sample(samp, uv + (float2(-0.326212f, -0.40581f)  / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2(-0.840144f, -0.07358f)  / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2(-0.695914f,  0.457137f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2(-0.203345f,  0.620716f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2( 0.96234f,  -0.194983f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2( 0.473434f, -0.480026f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2( 0.519456f,  0.767022f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2( 0.185461f, -0.893124f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2( 0.507431f,  0.064425f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2( 0.89642f,   0.412458f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2(-0.32194f,  -0.932615f) / inputSize) * poisson);
+    cOut += TextureDiffuse.sample(samp, uv + (float2(-0.791559f, -0.59771f)  / inputSize) * poisson);
     return cOut / 13.0f;
 }
 )msl",
@@ -843,10 +843,10 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "invert color.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]])
 {
-    float4 color = sample0.sample(samp, in.uv);
+    float4 color = TextureDiffuse.sample(samp, in.uv);
     return float4(color.w - color.xyz, color.w);
 }
 )msl",
@@ -856,7 +856,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "magnifying glass.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -866,13 +866,13 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  magnification = f[3];
     float  aspectRatio   = f[4];
 
-    float4 color = sample0.sample(samp, uv);
+    float4 color = TextureDiffuse.sample(samp, uv);
     if (color.a == 0.0f) discard_fragment();
 
     float2 ctp  = uv - center;
     float  dist = length(ctp / float2(1.0f, aspectRatio));
     float2 sp   = (dist < radius) ? (center + ctp / magnification) : uv;
-    return sample0.sample(samp, sp);
+    return TextureDiffuse.sample(samp, sp);
 }
 )msl",
     "[ps-magnifying-glass.ps] = magnifying glass.ps\n"
@@ -885,7 +885,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "old movie.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -894,7 +894,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  noiseAmount   = f[1];
     float  frame         = f[2];
 
-    float4 color = sample0.sample(samp, uv);
+    float4 color = TextureDiffuse.sample(samp, uv);
     if (color.a == 0.0f) discard_fragment();
 
     float  ScratchAmountInv = 1.0f / scratchAmount;
@@ -907,7 +907,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     color.xyz     += float3(scratch);
 
     float2 rCoord = uv * 0.33f;
-    float3 rand   = sample0.sample(samp, rCoord).xyz;
+    float3 rand   = TextureDiffuse.sample(samp, rCoord).xyz;
     if (noiseAmount > rand.x)
         color.xyz = float3(0.1f + rand.z * 0.4f);
 
@@ -927,7 +927,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "pinch mouse.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -946,7 +946,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  dist     = length(scaledDir);
     float  range    = saturate(1.0f - (dist / (abs(-sin(radius * 8.0f) * radius) + 1.0e-8f)));
     float2 sp       = uv + (dir * range) * strength;
-    return sample0.sample(samp, sp);
+    return TextureDiffuse.sample(samp, sp);
 }
 )msl",
     "[ps-pinch-mouse.ps] = pinch mouse.ps\n"
@@ -959,7 +959,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "pinch.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -975,7 +975,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  dist  = length(scaledDir);
     float  range = saturate(1.0f - (dist / (abs(-sin(radius * 8.0f) * radius) + 1.0e-8f)));
     float2 sp    = uv + (dir * range) * strength;
-    return sample0.sample(samp, sp);
+    return TextureDiffuse.sample(samp, sp);
 }
 )msl",
     "[ps-pinch.ps] = pinch.ps\n"
@@ -988,7 +988,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "ripple.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1010,7 +1010,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     falloff       *= falloff;
     dist          += amplitude * waveX * falloff;
     float2 sp      = center + dist * dir;
-    float4 color   = sample0.sample(samp, sp);
+    float4 color   = TextureDiffuse.sample(samp, sp);
     float  lighting = 1.0f - (amplitude * 0.2f * (1.0f - saturate(waveY * falloff)));
     color.xyz      *= lighting;
     return color;
@@ -1027,7 +1027,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "sharpen.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1035,9 +1035,9 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float2 inputSize = float2(f[0], f[1]);
     float  amount    = f[2];
     float2 offset    = 1.0f / inputSize;
-    float4 color     = sample0.sample(samp, uv);
-    color.xyz += float3(sample0.sample(samp, uv - offset) * amount);
-    color.xyz -= float3(sample0.sample(samp, uv + offset) * amount);
+    float4 color     = TextureDiffuse.sample(samp, uv);
+    color.xyz += float3(TextureDiffuse.sample(samp, uv - offset) * amount);
+    color.xyz -= float3(TextureDiffuse.sample(samp, uv + offset) * amount);
     return color;
 }
 )msl",
@@ -1049,7 +1049,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "sketch.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1060,19 +1060,19 @@ fragment float4 frag_main(VOut in [[stage_in]],
     const float2 k_s2 = float2(-1.0f,  0.0f);
     const float2 k_s3 = float2( 1.0f,  0.0f);
 
-    float4 color   = sample0.sample(samp, uv);
+    float4 color   = TextureDiffuse.sample(samp, uv);
     float4 laplace = -4.0f * color;
 
-    laplace += sample0.sample(samp, uv + brushSize * k_s1);
+    laplace += TextureDiffuse.sample(samp, uv + brushSize * k_s1);
     laplace.y = laplace.x; laplace.z = laplace.x;
 
-    laplace += sample0.sample(samp, uv + brushSize * k_s2);
+    laplace += TextureDiffuse.sample(samp, uv + brushSize * k_s2);
     laplace.y = laplace.x; laplace.z = laplace.x;
 
-    laplace += sample0.sample(samp, uv + brushSize * k_s3);
+    laplace += TextureDiffuse.sample(samp, uv + brushSize * k_s3);
     laplace.y = laplace.x; laplace.z = laplace.x;
 
-    laplace += sample0.sample(samp, uv + brushSize * k_s2);
+    laplace += TextureDiffuse.sample(samp, uv + brushSize * k_s2);
     laplace.y = laplace.x; laplace.z = laplace.x;
 
     laplace = 1.0f / laplace;
@@ -1095,7 +1095,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "smooth magnify.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1110,7 +1110,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  dist  = length(ctp / float2(1.0f, aspectRatio));
     float  ratio = smoothstep(innerRadius, max(innerRadius, outerRadius), dist);
     float2 sp    = mix(center + ctp / magnification, uv, float2(ratio));
-    return sample0.sample(samp, sp);
+    return TextureDiffuse.sample(samp, sp);
 }
 )msl",
     "[ps-smooth-magnify.ps] = smooth magnify.ps\n"
@@ -1124,7 +1124,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "spiral.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1142,7 +1142,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     newDir.y      *= aspectRatio;
     float2 sp      = center + newDir * dist;
     bool   valid   = all(sp >= float2(0.0f)) && all(sp <= float2(1.0f));
-    return valid ? sample0.sample(samp, sp) : float4(0.0f);
+    return valid ? TextureDiffuse.sample(samp, sp) : float4(0.0f);
 }
 )msl",
     "[ps-spiral.ps] = spiral.ps\n"
@@ -1154,7 +1154,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "tone mapping.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1168,7 +1168,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  blueShift      = f[7];
     float4 fogColor       = float4(f[8], f[9], f[10], f[11]);
 
-    float4 c = sample0.sample(samp, uv);
+    float4 c = TextureDiffuse.sample(samp, uv);
     c.xyz    = max(float3(0.0f), c.xyz - defog * fogColor.xyz);
     c.xyz   *= pow(2.0f, exposure);
     c.xyz    = pow(c.xyz, float3(gamma));
@@ -1194,12 +1194,12 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "toon.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float  levels = f[0];
-    float4 color  = sample0.sample(samp, in.uv);
+    float4 color  = TextureDiffuse.sample(samp, in.uv);
     if (color.a == 0.0f) discard_fragment();
     color.xyz   /= color.w;
     int    result = int(floor(levels));
@@ -1217,15 +1217,15 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "fade.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv       = in.uv;
     float  progress = f[0];
-    float4 c0       = sample0.sample(samp, uv);
-    float4 c1       = sample1.sample(samp, uv);
+    float4 c0       = TextureDiffuse.sample(samp, uv);
+    float4 c1       = TextureAnimationEffect.sample(samp, uv);
     return mix(c1, c0, float4(progress / 100.0f));
 }
 )msl",
@@ -1236,14 +1236,14 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "fade radial.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv    = in.uv;
     float  prog  = f[0] / 100.0f;
-    float4 color = sample0.sample(samp, uv);
+    float4 color = TextureDiffuse.sample(samp, uv);
     if (color.w == 0.0f) return color;
 
     float2 center    = float2(0.5f, 0.5f);
@@ -1251,7 +1251,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  s         = prog * 0.02f;
     float4 c1        = float4(0.0f);
     for (int i = 0; i < 24; ++i)
-        c1 += sample1.sample(samp, uv - (normToUV * s * float(i)));
+        c1 += TextureAnimationEffect.sample(samp, uv - (normToUV * s * float(i)));
     c1 /= 24.0f;
     return mix(c1, color, float4(prog));
 }
@@ -1263,8 +1263,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "fade ripple.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1280,8 +1280,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  wave          = cos(frequency * distFromCenter - speed * prog);
     float2 newUV1 = center + normToUV * (distFromCenter + prog        * wave * amplitude);
     float2 newUV2 = center + normToUV * (distFromCenter + (1.0f-prog) * wave * amplitude);
-    float4 c1     = sample1.sample(samp, newUV1);
-    float4 c2     = sample0.sample(samp, newUV2);
+    float4 c1     = TextureAnimationEffect.sample(samp, newUV1);
+    float4 c2     = TextureDiffuse.sample(samp, newUV2);
     return mix(c1, c2, float4(prog));
 }
 )msl",
@@ -1292,15 +1292,15 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "fade saturate.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv    = in.uv;
     float  prog  = f[0] / 100.0f;
-    float4 color = sample0.sample(samp, uv);
-    float4 c1    = sample1.sample(samp, uv);
+    float4 color = TextureDiffuse.sample(samp, uv);
+    float4 c1    = TextureAnimationEffect.sample(samp, uv);
     c1           = saturate(c1 * (2.0f * prog + 1.0f));
     if (prog > 0.8f) {
         float new_prog = (prog - 0.8f) * 5.0f;
@@ -1322,15 +1322,15 @@ static inline float4 mbm_swb(float4 border, texture2d<float> tex, sampler samp, 
 }
 
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv          = in.uv;
     float  prog        = f[0] / 100.0f;
     float  twistAmount = f[1];
-    float4 color       = sample0.sample(samp, uv);
+    float4 color       = TextureDiffuse.sample(samp, uv);
     float2 center      = float2(0.5f, 0.5f);
     float2 toUV        = uv - center;
     float  dist        = length(toUV);
@@ -1338,7 +1338,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float  angle       = atan2(normToUV.y, normToUV.x);
     angle             += dist * dist * twistAmount * prog;
     float2 newUV       = float2(cos(angle), sin(angle)) * dist + center;
-    float4 c1          = mbm_swb(float4(0.0f), sample1, samp, newUV);
+    float4 c1          = mbm_swb(float4(0.0f), TextureAnimationEffect, samp, newUV);
     return mix(c1, color, float4(prog));
 }
 )msl",
@@ -1350,15 +1350,15 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "fade twist grid.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv          = in.uv;
     float  prog        = f[0] / 100.0f;
     float  twistAmount = f[1];
-    float4 color       = sample0.sample(samp, uv);
+    float4 color       = TextureDiffuse.sample(samp, uv);
     float  cellsize    = 0.1f;
     float2 cell        = floor(uv * 10.0f);
     float2 oddeven     = fmod(cell, float2(2.0f));
@@ -1375,7 +1375,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     float2 newUV2      = float2(cos(angle), sin(angle)) * dist + center;
     newUV2            *= cellsize;
     newUV2            += cell * cellsize;
-    float4 c1          = sample1.sample(samp, newUV2);
+    float4 c1          = TextureAnimationEffect.sample(samp, newUV2);
     return mix(c1, color, float4(prog));
 }
 )msl",
@@ -1393,19 +1393,19 @@ static inline float4 mbm_swb_fw(float4 border, texture2d<float> tex, sampler sam
 }
 
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float2 uv    = in.uv;
     float  prog  = f[0] / 100.0f;
-    float4 color = sample0.sample(samp, uv);
+    float4 color = TextureDiffuse.sample(samp, uv);
     float  mag   = 0.1f;
     float  phase = 14.0f;
     float  freq  = 20.0f;
     float2 newUV = uv + float2((mag * prog) * sin(freq * uv.y + phase * prog), 0.0f);
-    float4 c1    = mbm_swb_fw(float4(0.0f), sample1, samp, newUV);
+    float4 c1    = mbm_swb_fw(float4(0.0f), TextureAnimationEffect, samp, newUV);
     return mix(c1, color, float4(prog));
 }
 )msl",
@@ -1416,7 +1416,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "blur zoom.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1427,7 +1427,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     uv -= center;
     for (int i = 0; i < 15; ++i) {
         float  scale = 1.0f + blurAmount * (float(i) / 14.0f);
-        c += sample0.sample(samp, uv * scale + center);
+        c += TextureDiffuse.sample(samp, uv * scale + center);
     }
     return c / 15.0f;
 }
@@ -1440,8 +1440,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "texture map.ps",
     R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
-    texture2d<float> sample1 [[texture(1)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    texture2d<float> TextureAnimationEffect [[texture(1)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -1454,8 +1454,8 @@ fragment float4 frag_main(VOut in [[stage_in]],
 
     float  ho     = fract(uv.x / horizontalSize + min(1.0f, horizontalOffset));
     float  vo     = fract(uv.y / verticalSize   + min(1.0f, verticalOffset));
-    float2 offset = (sample1.sample(samp, float2(ho, vo)).xy * strength) - (strength / 8.0f);
-    return sample0.sample(samp, fract(uv + offset));
+    float2 offset = (TextureAnimationEffect.sample(samp, float2(ho, vo)).xy * strength) - (strength / 8.0f);
+    return TextureDiffuse.sample(samp, fract(uv + offset));
 }
 )msl",
     "[ps-texture-map.ps] = texture map.ps\n"
@@ -1531,10 +1531,10 @@ vertex VOut vert_main(VIn in [[stage_in]],
 }
 
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]])
 {
-    return sample0.sample(samp, in.uv);
+    return TextureDiffuse.sample(samp, in.uv);
 }
 )msl",
     "[vs-simple-texture.vs] = simple texture.vs\n",
@@ -1561,10 +1561,10 @@ vertex VOut vert_main(VIn in [[stage_in]],
 }
 
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]])
 {
-    return sample0.sample(samp, in.uv);
+    return TextureDiffuse.sample(samp, in.uv);
 }
 )msl",
     "[vs-scale.vs] = scale.vs\n"
@@ -1610,13 +1610,13 @@ fragment float4 frag_main(VOut in [[stage_in]],
     {
         static const char code[] = R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float4 color               = float4(f[0], f[1], f[2], f[3]);
     float  enableAlphaFromColor = f[4];
-    float4 texColor            = sample0.sample(samp, in.uv);
+    float4 texColor            = TextureDiffuse.sample(samp, in.uv);
     float4 outColor;
     if (enableAlphaFromColor > 0.5f)
         outColor.a = color.a;
@@ -1645,12 +1645,12 @@ fragment float4 frag_main(VOut in [[stage_in]],
         {
             static const char codeColor[] = R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
     float4 color    = float4(f[0], f[1], f[2], f[3]);
-    float4 texColor = sample0.sample(samp, in.uv);
+    float4 texColor = TextureDiffuse.sample(samp, in.uv);
     return color * texColor;
 }
 )msl";
@@ -1660,10 +1660,10 @@ fragment float4 frag_main(VOut in [[stage_in]],
         {
             static const char codeNoColor[] = R"msl(
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]])
 {
-    return sample0.sample(samp, in.uv);
+    return TextureDiffuse.sample(samp, in.uv);
 }
 )msl";
             return codeNoColor;

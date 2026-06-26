@@ -13,7 +13,7 @@ local tShaderGradient_horizontal =
 {   name = 'gradient_horizontal.ps',
     code = [[
     precision mediump float;
-    uniform sampler2D sample0;
+    uniform sampler2D TextureDiffuse;
     uniform vec4 right;
     uniform vec4 left;
     varying vec2 vTexCoord;
@@ -21,7 +21,7 @@ local tShaderGradient_horizontal =
     void main()
     {
         vec4 c1 = mix(left,right,vTexCoord.x);
-        c1.a = min(texture2D(sample0, vTexCoord).a,c1.a);
+        c1.a = min(texture2D(TextureDiffuse, vTexCoord).a,c1.a);
         gl_FragColor = c1;
     }
     ]],
@@ -35,7 +35,7 @@ local tShaderGradient_vertical =
 {   name = 'gradient_vertical.ps',
     code = [[
     precision mediump float;
-    uniform sampler2D sample0;
+    uniform sampler2D TextureDiffuse;
     uniform vec4 top;
     uniform vec4 down;
     varying vec2 vTexCoord;
@@ -43,7 +43,7 @@ local tShaderGradient_vertical =
     void main()
     {
         vec4 c1 = mix(down,top,vTexCoord.y);
-        c1.a = min(texture2D(sample0, vTexCoord).a,c1.a);
+        c1.a = min(texture2D(TextureDiffuse, vTexCoord).a,c1.a);
         gl_FragColor = c1;
     }
     ]],
@@ -59,7 +59,7 @@ local tShaderLife =
     name = 'life.ps',
     code = [[
     precision mediump float;
-    uniform sampler2D sample0;
+    uniform sampler2D TextureDiffuse;
     uniform vec4 right;
     uniform vec4 left;
     uniform float my_life;
@@ -71,7 +71,7 @@ local tShaderLife =
         if((vTexCoord.x) > my_life)
             c1.a = 0.0;
         else
-            c1.a = min(texture2D(sample0, vTexCoord).a,c1.a);
+            c1.a = min(texture2D(TextureDiffuse, vTexCoord).a,c1.a);
         gl_FragColor = c1;
     }
     ]],
@@ -86,7 +86,7 @@ local tShaderParalax =
     name = 'paralax.ps',
     code = [[
     precision mediump float;
-    uniform sampler2D sample0;
+    uniform sampler2D TextureDiffuse;
     uniform vec2 position;
     uniform vec2 scale;
     varying vec2 vTexCoord;
@@ -102,7 +102,7 @@ local tShaderParalax =
         }   
         else
         {
-            vec4 color = texture2D(sample0, newposition);
+            vec4 color = texture2D(TextureDiffuse, newposition);
             gl_FragColor = color;
         }
     }
@@ -118,7 +118,7 @@ local tVerticalGradient =
     code = [[
     
     precision mediump float;
-    uniform sampler2D sample0;
+    uniform sampler2D TextureDiffuse;
     varying vec2 vTexCoord;
     uniform vec4 top;
     uniform vec4 down;
@@ -126,7 +126,7 @@ local tVerticalGradient =
     void main( )
     {
         vec4 c1 = mix(top,down,vTexCoord.y);
-        c1.a = min(texture2D(sample0, vTexCoord).a,c1.a);
+        c1.a = min(texture2D(TextureDiffuse, vTexCoord).a,c1.a);
         gl_FragColor = c1;
     }
 
@@ -144,7 +144,7 @@ local tPie =
     code = [[
     
     precision mediump float;
-    uniform sampler2D sample0;
+    uniform sampler2D TextureDiffuse;
     varying vec2 vTexCoord;
     uniform float percent;
 	uniform float angle;
@@ -161,7 +161,7 @@ local tPie =
 		
 		if ((clockwise >= 0.5 && a > percent) || (clockwise < 0.5 && a < percent))
 		{
-			gl_FragColor = texture2D(sample0, vTexCoord);
+			gl_FragColor = texture2D(TextureDiffuse, vTexCoord);
 		}
 		else
 		{
