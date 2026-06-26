@@ -190,7 +190,20 @@ concrete use case shows up.
    deferred to a later, explicit pass (once `saveV11` is reachable from a real save action). Rejects
    (does not silently skip) any section type outside the core slice.
 5. `mesh_deprecated` lib: extract the existing v1-v10 read code out of `core_mbm`; wire it as a
-   standalone converter that calls the milestone-3 writer.
+   standalone converter that calls the milestone-3 writer. **Phase A closed 2026-06-26**
+   (`MESH_MBM::loadV11`, plus `MESH_MANAGER::loadV11` as a new additive entry point alongside
+   `load()`): the runtime-class mirror of `MESH_MBM_DEBUG::loadV11`, needed because `MESH_MANAGER::
+   load()` - the sole loading path for every renderable type (MESH/SPRITE/PARTICLE/FONT/BACKGROUND/
+   TILE) - had no v11 reader at all until now. Same core slice as milestone 4 (material+transform,
+   static frames, physics, paths); uploads geometry to the GPU via `BUFFER_GL`/`TEXTURE_MANAGER`
+   exactly like the legacy `loadImpl` does. Not wired into `load()`/`loadImpl` - existing render call
+   sites are unaffected. Compiler-verified (clean `core_mbm` + full project build); the GPU-upload
+   path itself isn't dynamically exercised yet since that requires a live GL context, which a
+   headless scratch test can't safely provide. **Phase B (extract+delete v1-v10 from `core_mbm` into
+   a new `mesh_deprecated` target, update `mesh-debug-lua.cpp`/`tile_editor.cpp` call sites) is still
+   only roadmapped, not planned in implementation detail** - see the plan file / migration-status
+   memory for the open items (the `getInfo`/`getType` peek-on-old-files question, whether `loadV11`
+   becomes the permanent `loadImpl` name).
 6. Async loading: background parse phase + main-thread GPU finish phase +
    `MESH_MANAGER::loadAsync`/`pumpAsyncLoads`.
 7. Built-in shader resource cleanup: convert `shader-resource-opengl_es.cpp` /

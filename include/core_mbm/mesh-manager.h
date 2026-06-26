@@ -242,6 +242,13 @@ namespace mbm
         bool load(const char *fileNamePath);
         bool load(const char *fileNamePath, RENDERIZABLE *renderizable);
         bool loadImpl(const char *fileNamePath, const bool allowLegacyDispatch, RENDERIZABLE *renderizable);
+        // Reads the new v11 section/TLV format (docs/mesh-v11-plan.md), the runtime-class mirror of
+        // MESH_MBM_DEBUG::loadV11. Same milestone 4 core slice: material+transform, static frames
+        // (path-referenced textures only), physics bounding volumes, extra paths - no animation+FX,
+        // no font/particle/tile. Uploads geometry to the GPU via BUFFER_GL and resolves subset
+        // textures via TEXTURE_MANAGER, exactly like loadImpl does for the legacy format.
+        bool loadV11(const char *fileNamePath);
+        bool readFrameStaticV11Payload(FILE *fp, const char *fileNamePath, const uint32_t currentFrame);
         void invertMap(const bool u, const bool v, VEC2 *pTexture, const uint32_t arraySize);
         bool loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
@@ -275,6 +282,10 @@ namespace mbm
         API_IMPL void fakeRelease(const char* fileName);
         API_IMPL MESH_MBM *load(const char *fileName);
         API_IMPL MESH_MBM *load(const char *fileName, RENDERIZABLE *renderizable);
+        // New, additive entry point for the v11 section/TLV format (docs/mesh-v11-plan.md) - not
+        // called by load()/loadImpl(), so existing MESH/SPRITE/PARTICLE/FONT/BACKGROUND/TILE call
+        // sites are unaffected. Same milestone 4 core slice as MESH_MBM_DEBUG::loadV11.
+        API_IMPL MESH_MBM *loadV11(const char *fileName);
         API_IMPL MESH_MBM *loadTrueTypeFont(const char *fileNameTtf, const float heightLetter, const short spaceWidth,const short spaceHeight,const bool saveTextureAsPng,TEXTURE ** texture_loaded);
         API_IMPL MESH_MBM *load(const char *nickName, float *pPosition, float *pNormal, float *pTexture,const uint32_t sizeVertexBuffer,const util::INFO_DRAW_MODE * info_mode);
         API_IMPL MESH_MBM *loadIndex(const char *nickName, float *pPosition, float *pNormal, float *pTexture,const uint32_t sizeVertexBuffer, uint16_t *index,const uint32_t sizeIndex,const util::INFO_DRAW_MODE * info_draw_mode);
