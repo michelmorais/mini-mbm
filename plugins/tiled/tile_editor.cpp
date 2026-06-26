@@ -2086,7 +2086,7 @@ namespace mbm
         {
             tileMap.release();
             mbm::MESH_MBM_DEBUG meshDebug;
-            if(meshDebug.loadDebug(fileName))
+            if(meshDebug.loadV11(fileName))
             {
                 if(meshDebug.getMeshType() != util::TYPE_MESH_TILE_MAP)
                 {
@@ -2858,7 +2858,7 @@ namespace mbm
             }
 
             char errorText[255] = "";
-            const bool ret = meshDebug.saveDebug(fileName,false,false,errorText,sizeof(errorText));
+            const bool ret = meshDebug.saveV11(fileName,false,false,errorText,sizeof(errorText));
             if(ret == false)
                 return log_util::fail(__LINE__, __FILE__, "Failed to save mesh\n[%s]",errorText);
             return true;

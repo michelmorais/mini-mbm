@@ -134,10 +134,6 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
 			INFO_LOG("using feature VR");
 			#endif
 
-            #if defined MBM_ENABLE_MESH_LEGACY_V7
-			INFO_LOG("legacy mesh and deprecated features enabled MBM_ENABLE_MESH_LEGACY_V7");
-            #endif
-
             mbm::DEVICE *device = game->getDevice();
             device->setCoreManager(game);
             device->setBackBufferSize(static_cast<float>(width), static_cast<float>(height));

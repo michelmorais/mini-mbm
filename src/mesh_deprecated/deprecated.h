@@ -20,7 +20,9 @@
 #ifndef GLES_DEPRECATED_H
 #define GLES_DEPRECATED_H
 
-#ifdef MBM_ENABLE_MESH_LEGACY_V7
+// Moved here verbatim from core_mbm in milestone 5 (was gated behind MBM_ENABLE_MESH_LEGACY_V7,
+// which no longer exists - mesh_deprecated is itself the dedicated legacy-format-support target, so
+// no extra compile flag is needed to opt in).
 
 #include "primitives.h"
 #include <vector>
@@ -166,5 +168,4 @@ namespace deprecated_mbm
                            util::INFO_ANIMATION *infoAnimation);
 };
 
-#endif
 #endif

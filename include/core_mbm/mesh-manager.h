@@ -27,14 +27,9 @@
 #include <map>
 #include <memory>
 
-namespace util 
+namespace util
 {
     struct SUBSET;
-}
-
-namespace deprecated_mbm
-{
-  struct INFO_SPRITE;
 }
 
 
@@ -126,19 +121,15 @@ namespace mbm
         API_IMPL void addNormals();
         API_IMPL void removeBuffer(uint32_t indexFrame);
         API_IMPL void removeAnimation(uint32_t index);
-        API_IMPL bool saveDebug(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
-        // Writes the new v11 section/TLV format (docs/mesh-v11-format.md). Milestone 3 core slice only:
+        // Writes the v11 section/TLV format (docs/mesh-v11-format.md). Milestone 3 core slice only:
         // material+transform, static frames (path-referenced textures only), physics bounding volumes,
         // extra paths. Returns false with a message in errorOut (not a partial file) if the mesh has any
         // animations or is FONT/PARTICLE/TILE_MAP typed - those land in a later pass of this milestone.
         API_IMPL bool saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
-        API_IMPL bool loadDebug(const char *fileNamePath);
-        // Reads the v11 section/TLV format back, matching saveV11's milestone 3 core slice exactly.
-        // Standalone: does not go through open_decompressed_mesh_file (v11 files are never whole-file
-        // compressed) and is not wired into loadDebug/loadDebugImpl's dispatch. Fails clearly (not a
-        // partial load) if the file contains a section type outside that core slice (animation/FX,
-        // font/particle/tile detail, embedded-compressed textures).
+        // Reads the v11 section/TLV format. Milestone 5: this is now the only mesh format core_mbm
+        // reads/writes - v1-v10 support moved to the offline mesh_deprecated library (no longer
+        // linked into core_mbm), per docs/mesh-v11-plan.md Scope Decision 1.
         API_IMPL bool loadV11(const char *fileNamePath);
         API_IMPL bool check(char *error,const int lenError);
         API_IMPL void centralizeFrame(const int indexFrame, const int indexSubset);
@@ -158,37 +149,17 @@ namespace mbm
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
       private:
-        bool loadDebugImpl(const char *fileNamePath, const bool allowLegacyDispatch);
         void fillAtLeastOneBound();
-        bool fillInSubsetDebug(const MESH_MBM* meshMemory, 
+        bool fillInSubsetDebug(const MESH_MBM* meshMemory,
                                const int currentFrame,
                                const std::map<int, float>& lsLetterChangedValuesByCurFrameX,
                                const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
                                util::HEADER_FRAME* headerFrame,
-                               util::BUFFER_MESH_DEBUG* pBuffer);//need to be implemented by specific backend engine 
-        std::vector<std::string> getKnowPathsToExtraHeader();
-        bool fillAnimation_2(const char *fileNamePath, FILE *fp);
+                               util::BUFFER_MESH_DEBUG* pBuffer);//need to be implemented by specific backend engine
         bool readDebugTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
         bool readFrameStaticV11Payload(FILE *fp, const util::BUFFER_MESH_DEBUG *frame0, util::BUFFER_MESH_DEBUG *&out,
                                        util::FRAME_HEADER_V11 &outFrameHeader);
-        bool loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
-                                    VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
-                                    uint16_t *indexArray, const int sizeArrayIndex, const int stride,
-                                    int fileVersion = CURRENT_VERSION_MBM_HEADER);
-        bool loadDebugLegacyCompat(const char *fileNamePath);
-      #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-        bool loadDebugLegacyDetailStep(FILE *fp, const char *fileNamePath, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
-        bool loadDebugLegacyAnimationStep(FILE *fp, const char *fileNamePath, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
-        static bool getInfoLegacyCompat(FILE *fp, const char *fileNamePath, const util::HEADER &headerMbmOut,
-                                        util::HEADER_MESH &headerMeshMbmOut, util::INFO_DRAW_MODE &info_mode,
-                                        util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut,
-                                        std::vector<util::STAGE_PARTICLE> &lsStageParticle, int *versionOut);
-        void fillDebugLegacyPhysicsIfNeeded(const int fileVersion, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite,
-                    VEC3 *position, const uint32_t currentFrame, std::vector<util::SUBSET_DEBUG *> &subsetArray);
-      #endif
-    
-        bool saveAnimationHeaders(const char *fileOut, FILE **file);
-        bool compressFile(const char *fileNameIn, char *stringStatus,const int lenStatus);
+        std::vector<std::string> getKnowPathsToExtraHeader();
 
         struct Impl;
         std::unique_ptr<Impl> impl;
@@ -241,30 +212,12 @@ namespace mbm
         MESH_MBM();
         bool load(const char *fileNamePath);
         bool load(const char *fileNamePath, RENDERIZABLE *renderizable);
-        bool loadImpl(const char *fileNamePath, const bool allowLegacyDispatch, RENDERIZABLE *renderizable);
-        // Reads the new v11 section/TLV format (docs/mesh-v11-plan.md), the runtime-class mirror of
-        // MESH_MBM_DEBUG::loadV11. Same milestone 4 core slice: material+transform, static frames
-        // (path-referenced textures only), physics bounding volumes, extra paths - no animation+FX,
-        // no font/particle/tile. Uploads geometry to the GPU via BUFFER_GL and resolves subset
-        // textures via TEXTURE_MANAGER, exactly like loadImpl does for the legacy format.
+        // Reads the v11 section/TLV format. Milestone 5: this is now the only mesh format - it backs
+        // load()/MESH_MANAGER::load() directly, since v1-v10 support moved to the offline
+        // mesh_deprecated library (no longer linked into core_mbm).
         bool loadV11(const char *fileNamePath);
         bool readFrameStaticV11Payload(FILE *fp, const char *fileNamePath, const uint32_t currentFrame);
-        void invertMap(const bool u, const bool v, VEC2 *pTexture, const uint32_t arraySize);
-        bool loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
-                                    VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
-                                    uint16_t *indexArray, const int sizeArrayIndex, const int stride,
-                                    int fileVersion = CURRENT_VERSION_MBM_HEADER);
         bool readTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
-        bool fillAnimation_2(util::HEADER_MESH &headerMesh, const int version, const char *fileNamePath, FILE *fp);
-        bool loadLegacyCompat(const char *fileNamePath, RENDERIZABLE *renderizable);
-      #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-        bool loadLegacyDetailStep(FILE *fp, const char *fileNamePath, const util::HEADER &headerMain,
-                deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
-        bool loadLegacyAnimationStep(FILE *fp, const char *fileNamePath, const util::HEADER &headerMain,
-                   util::HEADER_MESH &headerMesh, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
-        void fillLegacyPhysicsIfNeeded(const int fileVersion, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite,
-                     VEC3 *position, const uint32_t currentFrame, util::SUBSET *subsetArray);
-      #endif
 
         struct Impl;
         std::unique_ptr<Impl> impl;
@@ -282,10 +235,6 @@ namespace mbm
         API_IMPL void fakeRelease(const char* fileName);
         API_IMPL MESH_MBM *load(const char *fileName);
         API_IMPL MESH_MBM *load(const char *fileName, RENDERIZABLE *renderizable);
-        // New, additive entry point for the v11 section/TLV format (docs/mesh-v11-plan.md) - not
-        // called by load()/loadImpl(), so existing MESH/SPRITE/PARTICLE/FONT/BACKGROUND/TILE call
-        // sites are unaffected. Same milestone 4 core slice as MESH_MBM_DEBUG::loadV11.
-        API_IMPL MESH_MBM *loadV11(const char *fileName);
         API_IMPL MESH_MBM *loadTrueTypeFont(const char *fileNameTtf, const float heightLetter, const short spaceWidth,const short spaceHeight,const bool saveTextureAsPng,TEXTURE ** texture_loaded);
         API_IMPL MESH_MBM *load(const char *nickName, float *pPosition, float *pNormal, float *pTexture,const uint32_t sizeVertexBuffer,const util::INFO_DRAW_MODE * info_mode);
         API_IMPL MESH_MBM *loadIndex(const char *nickName, float *pPosition, float *pNormal, float *pTexture,const uint32_t sizeVertexBuffer, uint16_t *index,const uint32_t sizeIndex,const util::INFO_DRAW_MODE * info_draw_mode);

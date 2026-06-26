@@ -17,9 +17,6 @@ set(THIRD_PARTY                 ${CMAKE_SOURCE_DIR}/third-party)
 set(RENDER_INCLUDES             ${INCLUDE}/render)
 set(CORE_MBM_INCLUDES           ${INCLUDE}/core_mbm)
 
- 
-#defines
-add_definitions(-DMBM_ENABLE_MESH_LEGACY_V7)
 
 #Bring the headers, such as xxx.h into the project
 if(OPENGLES2_INCLUDE_DIR AND NOT OPENGLES2_INCLUDE_DIR STREQUAL "OPENGLES2_INCLUDE_DIR-NOTFOUND")

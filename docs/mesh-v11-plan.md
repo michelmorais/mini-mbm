@@ -191,19 +191,30 @@ concrete use case shows up.
    (does not silently skip) any section type outside the core slice.
 5. `mesh_deprecated` lib: extract the existing v1-v10 read code out of `core_mbm`; wire it as a
    standalone converter that calls the milestone-3 writer. **Phase A closed 2026-06-26**
-   (`MESH_MBM::loadV11`, plus `MESH_MANAGER::loadV11` as a new additive entry point alongside
-   `load()`): the runtime-class mirror of `MESH_MBM_DEBUG::loadV11`, needed because `MESH_MANAGER::
-   load()` - the sole loading path for every renderable type (MESH/SPRITE/PARTICLE/FONT/BACKGROUND/
-   TILE) - had no v11 reader at all until now. Same core slice as milestone 4 (material+transform,
-   static frames, physics, paths); uploads geometry to the GPU via `BUFFER_GL`/`TEXTURE_MANAGER`
-   exactly like the legacy `loadImpl` does. Not wired into `load()`/`loadImpl` - existing render call
-   sites are unaffected. Compiler-verified (clean `core_mbm` + full project build); the GPU-upload
-   path itself isn't dynamically exercised yet since that requires a live GL context, which a
-   headless scratch test can't safely provide. **Phase B (extract+delete v1-v10 from `core_mbm` into
-   a new `mesh_deprecated` target, update `mesh-debug-lua.cpp`/`tile_editor.cpp` call sites) is still
-   only roadmapped, not planned in implementation detail** - see the plan file / migration-status
-   memory for the open items (the `getInfo`/`getType` peek-on-old-files question, whether `loadV11`
-   becomes the permanent `loadImpl` name).
+   (`MESH_MBM::loadV11`): the runtime-class mirror of `MESH_MBM_DEBUG::loadV11`, needed because
+   `MESH_MANAGER::load()` - the sole loading path for every renderable type (MESH/SPRITE/PARTICLE/
+   FONT/BACKGROUND/TILE) - had no v11 reader at all until then. **Phase B1 closed 2026-06-26**: all
+   v1-v10 read/write code (mesh-v8-io.cpp's non-physics primitives, mesh-manager-legacy.cpp,
+   deprecated.h/.cpp, the `MBM_ENABLE_MESH_LEGACY_V7` flag and every `#if` site) extracted out of
+   `core_mbm` into a new standalone `mesh_deprecated` CMake target (never linked into the runtime -
+   offline-only, per Scope Decision 1). `core_mbm` now only understands v11: `MESH_MBM::load()` /
+   `MESH_MANAGER::load()` call `loadV11` directly (no more `loadImpl`/legacy dispatch), and
+   `MESH_MBM_DEBUG::saveDebug`/`loadDebug` are gone - the two real call sites
+   (`mesh-debug-lua.cpp`, `plugins/tiled/tile_editor.cpp`) now call `saveV11`/`loadV11`. Confirmed,
+   accepted breakage: `saveV11` rejects animated/FONT/PARTICLE/TILE_MAP meshes, so
+   `font_maker.lua`/`particle_editor.lua`/`tile_editor.cpp` can no longer save those types (new or
+   old) until a later milestone gives v11 full section coverage - this branch is isolated and will be
+   tested before merge, per the user's explicit decision. `MESH_MBM_DEBUG::getInfo`/`getType` (static
+   file-peek functions) rewritten to parse the v11 file header only, no legacy fallback.
+   Verified: clean `core_mbm` + full project build (`mini-mbm`/`tilemap`/`testLib`/`mesh_deprecated`),
+   plus a real dynamic smoke test via `mini-mbm` with a live GL context (X11/`DISPLAY` available in
+   this sandbox) - save+reload a plain mesh through `saveV11`/`loadV11`, confirmed FONT-type save
+   fails cleanly (not a crash), and confirmed the runtime `MESH::load()` path
+   (`MESH_MBM::loadV11`, including the real `BUFFER_GL` GPU upload) loads correctly. **Phase B2
+   (writing `mesh_deprecated::convertLegacyMeshToV11`'s actual v1-v10 parsing body, currently a
+   not-implemented placeholder) is deferred** - it's genuinely new code (populating a
+   `MESH_MBM_DEBUG` via its public API, since the old `impl->` access isn't visible outside
+   `core_mbm`), not a move, and deserves its own focused pass.
 6. Async loading: background parse phase + main-thread GPU finish phase +
    `MESH_MANAGER::loadAsync`/`pumpAsyncLoads`.
 7. Built-in shader resource cleanup: convert `shader-resource-opengl_es.cpp` /

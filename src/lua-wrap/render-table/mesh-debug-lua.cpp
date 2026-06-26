@@ -174,7 +174,7 @@ namespace mbm
         else if(type == LUA_TSTRING)
         {
             const char *    fileName  = lua_tostring(lua, 2);
-            if (meshDebug->mesh.loadDebug(fileName))
+            if (meshDebug->mesh.loadV11(fileName))
                 lua_pushboolean(lua, 1);
             else
                 lua_pushboolean(lua, 0);
@@ -194,7 +194,7 @@ namespace mbm
         const bool      calNormal     = top > 2 ? (lua_toboolean(lua, 3) ? true : false) : false;
         const bool      calUV         = top > 3 ? (lua_toboolean(lua, 4) ? true : false) : false;
         char            strError[255] = "";
-        if (meshDebug->mesh.saveDebug(fileName, calNormal, calUV, strError,sizeof(strError)-1))
+        if (meshDebug->mesh.saveV11(fileName, calNormal, calUV, strError,sizeof(strError)-1))
         {
             MESH_MANAGER::getInstance()->fakeRelease(fileName);
             lua_pushboolean(lua, 1);
