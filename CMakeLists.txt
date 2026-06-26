@@ -1091,6 +1091,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
     add_subdirectory(src/mesh_deprecated            src/mesh_deprecated)
+    add_subdirectory(src/mesh_legacy_converter      src/mesh_legacy_converter)
     add_subdirectory(${MINI_MBM}                    ${MINI_MBM})
 
     if (USE_LUA)
