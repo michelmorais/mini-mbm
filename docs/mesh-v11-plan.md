@@ -232,13 +232,20 @@ concrete use case shows up.
    not-implemented placeholder) is deferred** - it's genuinely new code (populating a
    `MESH_MBM_DEBUG` via its public API, since the old `impl->` access isn't visible outside
    `core_mbm`), not a move, and deserves its own focused pass.
-5.5. **Not started.** Decouple `UBER_IMG` from the legacy mesh v8 header (Scope Decision 5): give it
-   its own minimal on-disk header (own magic/version, no dependency on `util::HEADER`/`HEADER_IMG`),
-   update `uber-image.cpp`'s `load`/`loadFromFileOpened`/`save` to use it, then delete
-   `readHeaderV8`/`writeHeaderV8`/`readHeaderImgV8`/`writeHeaderImgV8` from `core_mbm`'s
-   `mesh-v8-io.h`/`.cpp` (they stay in `mesh_deprecated` so old `.uberimg` files remain readable
-   during migration). Once this lands, `core_mbm` has zero v1-v10 format code left anywhere,
-   including outside the mesh subsystem proper.
+5.5. **Closed 2026-06-26.** Decoupled `UBER_IMG` from the legacy mesh v8 header (Scope Decision 5).
+   `uber-image.cpp` now has its own private, self-contained `UberImgHeaderV1` (4-byte `"UBIM"` tag +
+   version/depth/channel/hasAlpha/width/height/lenght, read/written via `util::le_io` primitives
+   directly, no struct shared with mesh files) — `load`/`loadFromFileOpened`/`save` all use it.
+   `readHeaderV8`/`writeHeaderV8`/`readHeaderImgV8`/`writeHeaderImgV8` deleted from `core_mbm`'s
+   `mesh-v8-io.h`/`.cpp` (they remain only in `mesh_deprecated`, for reading old `.uberimg` files
+   during migration — not wired up there yet, since `mesh_deprecated` has no UBER_IMG-aware caller
+   either, this is just keeping the primitives available for Phase B2 if ever needed).
+   `core_mbm` now has zero v1-v10 format code left anywhere, including outside the mesh subsystem
+   proper. Verified: clean `core_mbm` + full project build, plus a standalone round-trip test (save
+   a 64x64 RGB image, reload it, compare metadata and pixel data byte-for-byte) confirming the new
+   format works correctly — this is a real behavior change to an actively-used texture format
+   (`texture-manager.cpp`'s `.uberimg` loader), not just an internal refactor, so it got its own
+   dynamic verification.
 6. Async loading: background parse phase + main-thread GPU finish phase +
    `MESH_MANAGER::loadAsync`/`pumpAsyncLoads`.
 7. Built-in shader resource cleanup: convert `shader-resource-opengl_es.cpp` /

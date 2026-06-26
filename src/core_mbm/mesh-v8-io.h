@@ -6,19 +6,14 @@
 #include <shapes.h>
 
 // v11's SECTION_DETAIL_PHYSICS keeps the v8 on-disk field layout verbatim (docs/mesh-v11-plan.md
-// File Format Design Principles), so saveV11/loadV11 reuse these primitives directly. readHeaderV8/
-// readHeaderImgV8 (+ write counterparts) stay because uber-image.cpp's UBER_IMG - an unrelated
-// standalone compressed-image-blob format, not a mesh format - also reuses them. Every other v8-v10
-// primitive (frames, subsets, animation/shader, material-texture-slot, font/particle/tile/btile)
-// moved to src/mesh_deprecated/mesh-v8-io-legacy.h/.cpp in milestone 5.
+// File Format Design Principles), so saveV11/loadV11 reuse these primitives directly. Every other
+// v8-v10 primitive (headers, frames, subsets, animation/shader, material-texture-slot,
+// font/particle/tile/btile) moved to src/mesh_deprecated/mesh-v8-io-legacy.h/.cpp in milestone 5.
+// readHeaderV8/readHeaderImgV8 (+ write counterparts) moved there too in milestone 5.5 - uber-image.cpp's
+// UBER_IMG (an unrelated compressed-image-blob format, not a mesh format) no longer reuses them, it
+// has its own self-contained header now (docs/mesh-v11-plan.md Scope Decision 5).
 namespace util
 {
-    bool readHeaderV8(FILE *fp, util::HEADER &out);
-    bool writeHeaderV8(FILE *fp, const util::HEADER &in);
-
-    bool readHeaderImgV8(FILE *fp, util::HEADER_IMG &out);
-    bool writeHeaderImgV8(FILE *fp, const util::HEADER_IMG &in);
-
     bool readDetailMeshV8(FILE *fp, util::DETAIL_MESH &out);
     bool writeDetailMeshV8(FILE *fp, const util::DETAIL_MESH &in);
 
