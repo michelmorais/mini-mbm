@@ -228,10 +228,42 @@ concrete use case shows up.
    this sandbox) - save+reload a plain mesh through `saveV11`/`loadV11`, confirmed FONT-type save
    fails cleanly (not a crash), and confirmed the runtime `MESH::load()` path
    (`MESH_MBM::loadV11`, including the real `BUFFER_GL` GPU upload) loads correctly. **Phase B2
-   (writing `mesh_deprecated::convertLegacyMeshToV11`'s actual v1-v10 parsing body, currently a
-   not-implemented placeholder) is deferred** - it's genuinely new code (populating a
-   `MESH_MBM_DEBUG` via its public API, since the old `impl->` access isn't visible outside
-   `core_mbm`), not a move, and deserves its own focused pass.
+   closed 2026-06-26**: `mesh_deprecated::convertLegacyMeshToV11`'s real v8-v10 parsing body
+   (`src/mesh_deprecated/mesh-deprecated.cpp`), replacing the not-implemented placeholder. Scoped to
+   exactly what `saveV11` can persist: static (non-animated) 3D/SPRITE/USER/TEXTURE/SHAPE meshes,
+   v8-v10 only, path-referenced subset textures only - genuinely new code built entirely on
+   `MESH_MBM_DEBUG`'s public API (no `impl->` access available outside `core_mbm`), not a move of the
+   deleted `loadDebugImpl`. Reads via the already-ported `mesh-v8-io-legacy.cpp` primitives in the
+   original on-disk order (header → extra headers (discarded, `saveV11` re-derives its own
+   `SECTION_EXTRA_PATHS`) → draw mode → physics detail (pushed into `INFO_PHYSICS`'s public owning
+   vectors) → mesh header → animation headers → per-frame subset headers + geometry), then calls
+   `saveV11(..., compress=false, ...)` once at the end - never a partial output file. Rejects, with a
+   specific message each: pre-v8 versions, FONT/PARTICLE/TILE_MAP types, embedded (`#u`) or
+   solid-color (`#M`/`#RRGGBBAA`) subset textures, and real animation. Two non-obvious findings drove
+   the design: (1) the old writer always injected a synthetic `"default"`-named, no-shader-effect
+   animation header into every file that had zero real animations, so `totalAnimation >= 1` for
+   virtually all real files - a naive "reject any animation" check would block 100% of static-mesh
+   imports, so exactly that single synthetic shape is detected and discarded, anything else is
+   rejected as real animation; (2) `MESH_MBM_DEBUG::addVertex` unconditionally forces
+   `hasNorText[0] = HAS_NOR_IN_FILE` on every call (it always allocates a normal array), so
+   `setHasNormal`/`setHasTexture` must be called *after* the whole frame/subset/vertex loop, not
+   before, or they'd be silently clobbered back. Also handles: `addVertex`/`addIndex`'s own
+   auto-contiguous vertex/index placement means the legacy file's `vertexStart` is only needed to
+   rebase frame-global index values back to subset-local before calling `addIndex` (which re-adds the
+   *new* vertexStart itself) - not for positioning vertices, which the public API derives from call
+   order automatically. `HAS_TEX_FIRST_FRAME` shares frame 0's UV array into later frames via a small
+   cache, matching the format's own "first frame only" convention.
+   Verified: clean `mesh_deprecated` + full project build; a real dynamic test via two temporary
+   throwaway executables (a fixture generator hand-writing legacy v9 bytes via the preserved
+   `mesh-v8-io-legacy.cpp` write-side primitives + `mbm::MINIZ::compressFile`, since `core_mbm` itself
+   can no longer produce legacy-format files; and a conversion driver) - converted a static v9 fixture
+   (2 frames, indexed subset, path texture, one material texture slot, a CUBE and a SPHERE physics
+   shape, the synthetic `"default"` animation entry) and confirmed, after reloading the v11 output via
+   `MESH_MBM_DEBUG::loadV11`, byte-exact position/texture/material-slot/index/physics round-trip;
+   separately confirmed clean rejection (not a crash, no partial output) for a real-2-animation
+   fixture, a pre-v8 fixture, and a FONT-typed fixture; confirmed no leftover decompressed temp file
+   after any rejected conversion. All temporary executables, fixtures, and the temporary
+   `CMakeLists.txt` entries used to build them were removed afterward.
 5.5. **Closed 2026-06-26.** Decoupled `UBER_IMG` from the legacy mesh v8 header (Scope Decision 5).
    `uber-image.cpp` now has its own private, self-contained `UberImgHeaderV1` (4-byte `"UBIM"` tag +
    version/depth/channel/hasAlpha/width/height/lenght, read/written via `util::le_io` primitives
