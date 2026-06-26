@@ -435,6 +435,39 @@ concrete use case shows up.
     `transparent.ps` effect, `add-support.spt`'s single no-op placeholder) confirmed names/ranges/
     types/shader names/variable values match the original legacy source exactly. All temporary
     diagnostic tooling and `CMakeLists.txt` entries were removed afterward.
+11. **Closed 2026-06-26.** Wired milestone 10's `SECTION_ANIMATION`+FX data into the real runtime load
+    path - the explicit follow-up milestone 10 deferred. Triggered immediately: converting a real
+    sprite in place and previewing it via `mesh_debug.lua` failed with "loadV11 does not support this
+    section type yet" - that error comes from `parse_v11_intermediate` (mesh-manager.cpp), the
+    pure-CPU function shared by `MESH_MBM::loadV11` and the async load path (milestone 6), which
+    milestone 10 never touched (it only extended the offline `MESH_MBM_DEBUG` class).
+    Turned out to be a small, mechanical gap, not a new design problem: `MESH_MBM::Impl` already had
+    its own `INFO_ANIMATION infoAnimation` field (`MESH_MBM::release()` already calls
+    `infoAnimation.release()`), `MESH_MBM::getTotalAnimations()`/`getAnimationHeader()` already
+    existed and worked, and `ANIMATION_MANAGER::populateAnimationFromHeader`/
+    `populateTextureAnimationEffectFromMesh` were already real, active call sites in
+    `SPRITE::load()`/`MESH::load()`/`background.cpp`/`font.cpp`/`tile.cpp` - they'd simply never had
+    real data to consume. Most surprising: the shader-by-name resolution flagged during milestone 10's
+    planning as "a new capability we'd need to build" already existed too -
+    `populateAnimationFromHeader` already calls `device->getShaderConfig().getShader(fileNameShader)`
+    on exactly the `INFO_FX`/`INFO_SHADER_DATA` shapes milestone 10 already populates.
+    So the fix was three steps: (1) added `util::INFO_ANIMATION infoAnimation` to
+    `mbm::MESH_LOAD_INTERMEDIATE_V11`, extending its existing custom move ctor/assignment (the same
+    pattern already used for `infoPhysics`, since `INFO_ANIMATION` also has a user-declared destructor
+    and thus no implicit move) to move `lsHeaderAnim` too; (2) extracted the `SECTION_ANIMATION`
+    parsing logic milestone 10 wrote inline inside `MESH_MBM_DEBUG::loadV11` into a shared
+    `parse_animation_section_v11` free function, used by both it and a new
+    `SECTION_ANIMATION` case in `parse_v11_intermediate`; (3) in `MESH_MBM::finishLoadFromIntermediate`,
+    moved the parsed `infoAnimation.lsHeaderAnim` into `impl->infoAnimation.lsHeaderAnim`, next to the
+    existing `infoPhysics` transfer. No changes needed anywhere else.
+    Verified: clean `core_mbm` + full project build; a real dynamic test via `testLib`/`DISPLAY=:1`
+    (temporary code in `my-scene-test.cpp::onInitScene`, removed after) - loaded a converted
+    `enemy_1.spt` (4 plain animations) and `blast.spt` (a real PS shader effect) through the actual
+    `mbm::SPRITE::load()` runtime path (not just the debug API): `getTotalAnimation()`/names/frame
+    ranges matched the source exactly, and `blast.spt`'s `transparent.ps` effect resolved and loaded
+    successfully (`FX::getCodePS()` non-empty, no "Shader ... not found at cfg shader list!" error) -
+    confirming the shader-name-resolution path genuinely needed zero new code. All temporary test code
+    and converted fixtures were removed afterward.
 
 ## Open Questions
 

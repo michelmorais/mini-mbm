@@ -117,16 +117,17 @@ namespace mbm
         VEC3                     angleDefault;
         util::INFO_DRAW_MODE     info_mode;
         mbm::INFO_PHYSICS        infoPhysics;
+        util::INFO_ANIMATION     infoAnimation;
         std::vector<std::string> extraPaths;
         std::vector<IntermediateFrameV11> frames;
 
         MESH_LOAD_INTERMEDIATE_V11() = default;
-        // mbm::INFO_PHYSICS has a user-declared destructor, so it has no implicit move ctor/
-        // assignment (only the implicit copy ops, which would shallow-copy its owning raw-pointer
-        // vectors and double-free on destruction) - move its vectors individually instead of
-        // letting the compiler fall back to copying infoPhysics, which would also force every
-        // container holding this struct (e.g. the worker-pool completion queue) to copy rather than
-        // move the whole thing, and that fails outright since IntermediateFrameV11 holds
+        // mbm::INFO_PHYSICS/util::INFO_ANIMATION both have user-declared destructors, so neither has
+        // an implicit move ctor/assignment (only the implicit copy ops, which would shallow-copy
+        // their owning raw-pointer vectors and double-free on destruction) - move their vectors
+        // individually instead of letting the compiler fall back to copying them, which would also
+        // force every container holding this struct (e.g. the worker-pool completion queue) to copy
+        // rather than move the whole thing, and that fails outright since IntermediateFrameV11 holds
         // unique_ptr's and genuinely can't be copied.
         MESH_LOAD_INTERMEDIATE_V11(MESH_LOAD_INTERMEDIATE_V11 &&other) noexcept
             : typeMe(other.typeMe), material(other.material), positionOffset(other.positionOffset),
@@ -137,6 +138,7 @@ namespace mbm
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
             infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
+            infoAnimation.lsHeaderAnim = std::move(other.infoAnimation.lsHeaderAnim);
         }
         MESH_LOAD_INTERMEDIATE_V11 &operator=(MESH_LOAD_INTERMEDIATE_V11 &&other) noexcept
         {
@@ -153,6 +155,7 @@ namespace mbm
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
             infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
+            infoAnimation.lsHeaderAnim = std::move(other.infoAnimation.lsHeaderAnim);
             return *this;
         }
         MESH_LOAD_INTERMEDIATE_V11(const MESH_LOAD_INTERMEDIATE_V11 &)            = delete;
@@ -376,6 +379,85 @@ namespace
         }
         std::fseek(tmp, 0, SEEK_SET);
         return tmp;
+    }
+
+    // Parses one SECTION_ANIMATION payload (already staged as `tmp`, an open FILE* positioned at its
+    // start) into a freshly allocated INFO_HEADER_ANIM, shared by MESH_MBM_DEBUG::loadV11 and
+    // parse_v11_intermediate (worker-thread-safe - no impl-> access) so the two don't duplicate this
+    // construction logic. Always closes `tmp`. Returns nullptr on any read failure; callers format
+    // their own error message/context.
+    util::INFO_ANIMATION::INFO_HEADER_ANIM *parse_animation_section_v11(FILE *tmp)
+    {
+        util::ANIMATION_HEADER_V11 v11Anim;
+        bool ok = util::readAnimationHeaderV11(tmp, v11Anim);
+
+        util::FX_HEADER_V11 v11Fx;
+        std::vector<util::SHADER_VAR_V11> psVars, vsVars;
+        if (ok && v11Anim.hasFx)
+        {
+            ok = util::readFxHeaderV11(tmp, v11Fx);
+            if (ok && v11Fx.hasPS)
+            {
+                psVars.resize(v11Fx.ps.varCount);
+                for (uint16_t v = 0; ok && v < v11Fx.ps.varCount; ++v)
+                    ok = util::readShaderVarV11(tmp, psVars[v]);
+            }
+            if (ok && v11Fx.hasVS)
+            {
+                vsVars.resize(v11Fx.vs.varCount);
+                for (uint16_t v = 0; ok && v < v11Fx.vs.varCount; ++v)
+                    ok = util::readShaderVarV11(tmp, vsVars[v]);
+            }
+        }
+        fclose(tmp);
+        if (!ok)
+            return nullptr;
+
+        auto *infoHead   = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
+        auto *headerAnim = new util::HEADER_ANIMATION();
+        strncpy(headerAnim->nameAnimation, v11Anim.name.c_str(), sizeof(headerAnim->nameAnimation) - 1);
+        headerAnim->nameAnimation[sizeof(headerAnim->nameAnimation) - 1] = '\0';
+        headerAnim->initialFrame     = v11Anim.initialFrame;
+        headerAnim->finalFrame       = v11Anim.finalFrame;
+        headerAnim->timeBetweenFrame = v11Anim.timeBetweenFrame;
+        headerAnim->typeAnimation    = v11Anim.typeAnimation;
+        headerAnim->hasShaderEffect  = v11Anim.hasFx;
+        headerAnim->blendState       = v11Anim.blendState;
+        infoHead->headerAnim = headerAnim;
+
+        if (v11Anim.hasFx)
+        {
+            auto *fxOut = new util::INFO_FX();
+            fxOut->blendOperation = v11Fx.blendOperation;
+            if (v11Fx.hasFxTexture)
+                fxOut->setTextureAnimationEffectFileName(v11Fx.fxTexture.path.c_str());
+
+            const auto buildStep = [](const util::SHADER_STEP_V11 &step,
+                                      const std::vector<util::SHADER_VAR_V11> &vars) -> util::INFO_SHADER_DATA *
+            {
+                auto *data = new util::INFO_SHADER_DATA(static_cast<int>(vars.size()) * 4,
+                                                        static_cast<int>(step.name.size()) + 1, 0);
+                std::memcpy(data->fileNameShader, step.name.c_str(), step.name.size() + 1);
+                data->timeAnimation = step.timeAnimation;
+                data->typeAnimation = static_cast<int16_t>(step.typeAnimation);
+                for (size_t v = 0; v < vars.size(); ++v)
+                {
+                    data->typeVars[v] = static_cast<char>(vars[v].typeVar);
+                    for (int c = 0; c < 4; ++c)
+                    {
+                        data->min[v * 4 + c] = vars[v].min[c];
+                        data->max[v * 4 + c] = vars[v].max[c];
+                    }
+                }
+                return data;
+            };
+            if (v11Fx.hasPS)
+                fxOut->dataPS = buildStep(v11Fx.ps, psVars);
+            if (v11Fx.hasVS)
+                fxOut->dataVS = buildStep(v11Fx.vs, vsVars);
+            infoHead->effectShader = fxOut;
+        }
+        return infoHead;
     }
 
     // Worker-thread-safe equivalent of MESH_MBM::readTriangleDetailCompat/
@@ -604,6 +686,16 @@ namespace
                     errorOut = "failed to parse SECTION_DETAIL_PHYSICS";
                     return false;
                 }
+            }
+            else if (staged.header.type == util::SECTION_ANIMATION)
+            {
+                util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = parse_animation_section_v11(tmp);
+                if (!infoHead)
+                {
+                    errorOut = "failed to parse SECTION_ANIMATION";
+                    return false;
+                }
+                out.infoAnimation.lsHeaderAnim.push_back(infoHead);
             }
             else if (staged.header.type == util::SECTION_FRAME_STATIC)
             {
@@ -2354,76 +2446,9 @@ namespace mbm
                 FILE *tmp = stage_payload_as_tmpfile(payload);
                 if (!tmp)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_ANIMATION [%s]", fileNamePath);
-
-                util::ANIMATION_HEADER_V11 v11Anim;
-                bool ok = util::readAnimationHeaderV11(tmp, v11Anim);
-
-                util::FX_HEADER_V11 v11Fx;
-                std::vector<util::SHADER_VAR_V11> psVars, vsVars;
-                if (ok && v11Anim.hasFx)
-                {
-                    ok = util::readFxHeaderV11(tmp, v11Fx);
-                    if (ok && v11Fx.hasPS)
-                    {
-                        psVars.resize(v11Fx.ps.varCount);
-                        for (uint16_t v = 0; ok && v < v11Fx.ps.varCount; ++v)
-                            ok = util::readShaderVarV11(tmp, psVars[v]);
-                    }
-                    if (ok && v11Fx.hasVS)
-                    {
-                        vsVars.resize(v11Fx.vs.varCount);
-                        for (uint16_t v = 0; ok && v < v11Fx.vs.varCount; ++v)
-                            ok = util::readShaderVarV11(tmp, vsVars[v]);
-                    }
-                }
-                fclose(tmp);
-                if (!ok)
+                util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = parse_animation_section_v11(tmp);
+                if (!infoHead)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ANIMATION [%s]", fileNamePath);
-
-                auto *infoHead   = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
-                auto *headerAnim = new util::HEADER_ANIMATION();
-                strncpy(headerAnim->nameAnimation, v11Anim.name.c_str(), sizeof(headerAnim->nameAnimation) - 1);
-                headerAnim->nameAnimation[sizeof(headerAnim->nameAnimation) - 1] = '\0';
-                headerAnim->initialFrame     = v11Anim.initialFrame;
-                headerAnim->finalFrame       = v11Anim.finalFrame;
-                headerAnim->timeBetweenFrame = v11Anim.timeBetweenFrame;
-                headerAnim->typeAnimation    = v11Anim.typeAnimation;
-                headerAnim->hasShaderEffect  = v11Anim.hasFx;
-                headerAnim->blendState       = v11Anim.blendState;
-                infoHead->headerAnim = headerAnim;
-
-                if (v11Anim.hasFx)
-                {
-                    auto *fxOut = new util::INFO_FX();
-                    fxOut->blendOperation = v11Fx.blendOperation;
-                    if (v11Fx.hasFxTexture)
-                        fxOut->setTextureAnimationEffectFileName(v11Fx.fxTexture.path.c_str());
-
-                    const auto buildStep = [](const util::SHADER_STEP_V11 &step,
-                                              const std::vector<util::SHADER_VAR_V11> &vars) -> util::INFO_SHADER_DATA *
-                    {
-                        auto *data = new util::INFO_SHADER_DATA(static_cast<int>(vars.size()) * 4,
-                                                                static_cast<int>(step.name.size()) + 1, 0);
-                        std::memcpy(data->fileNameShader, step.name.c_str(), step.name.size() + 1);
-                        data->timeAnimation = step.timeAnimation;
-                        data->typeAnimation = static_cast<int16_t>(step.typeAnimation);
-                        for (size_t v = 0; v < vars.size(); ++v)
-                        {
-                            data->typeVars[v] = static_cast<char>(vars[v].typeVar);
-                            for (int c = 0; c < 4; ++c)
-                            {
-                                data->min[v * 4 + c] = vars[v].min[c];
-                                data->max[v * 4 + c] = vars[v].max[c];
-                            }
-                        }
-                        return data;
-                    };
-                    if (v11Fx.hasPS)
-                        fxOut->dataPS = buildStep(v11Fx.ps, psVars);
-                    if (v11Fx.hasVS)
-                        fxOut->dataVS = buildStep(v11Fx.vs, vsVars);
-                    infoHead->effectShader = fxOut;
-                }
                 this->appendAnimationHeader(infoHead);
             }
             else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
@@ -3684,6 +3709,7 @@ namespace mbm
         impl->infoPhysics.lsCubeComplex = std::move(in.infoPhysics.lsCubeComplex);
         impl->infoPhysics.lsSphere      = std::move(in.infoPhysics.lsSphere);
         impl->infoPhysics.lsTriangle    = std::move(in.infoPhysics.lsTriangle);
+        impl->infoAnimation.lsHeaderAnim = std::move(in.infoAnimation.lsHeaderAnim);
 
         if (impl->typeMe == util::TYPE_MESH_TILE_MAP)
             mbm::TEXTURE::EnablePixelPerfectTexture(true);
