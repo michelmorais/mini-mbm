@@ -1700,12 +1700,11 @@ namespace mbm
         if (this->impl->buffer.size() == 0)
             return false;
 
-        if (this->getTotalAnimationHeaders() > 0 ||
-            impl->typeMe == util::TYPE_MESH_FONT ||
+        if (impl->typeMe == util::TYPE_MESH_FONT ||
             impl->typeMe == util::TYPE_MESH_PARTICLE ||
             impl->typeMe == util::TYPE_MESH_TILE_MAP)
         {
-            const char *message = "saveV11 does not support animated or FONT/PARTICLE/TILE_MAP meshes yet (milestone 3 core slice)";
+            const char *message = "saveV11 does not support FONT/PARTICLE/TILE_MAP meshes yet (milestone 3 core slice)";
             if (errorOut && lenErrorOut > 0)
                 snprintf(errorOut, static_cast<size_t>(lenErrorOut), "%s", message);
             return log_util::onFailed(nullptr, __FILE__, __LINE__, message);
@@ -1764,7 +1763,8 @@ namespace mbm
         fileHeader.backBufferWidth  = impl->headerMain.backBufferWidth;
         fileHeader.backBufferHeight = impl->headerMain.backBufferHeight;
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
-                                     + static_cast<uint32_t>(impl->headerMesh.totalFrames);
+                                     + static_cast<uint32_t>(impl->headerMesh.totalFrames)
+                                     + this->getTotalAnimationHeaders();
         if (!util::writeFileHeaderV11(file, fileHeader))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to write v11 file header [%s]", fileOut);
 
@@ -1878,6 +1878,95 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_DETAIL_PHYSICS [%s]", fileOut);
+        }
+
+        // SECTION_ANIMATION, one per animation, including its FX block ---------------------------------------
+        for (uint32_t i = 0; i < this->getTotalAnimationHeaders(); ++i)
+        {
+            util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = this->getAnimationHeader(i);
+            util::HEADER_ANIMATION *headerAnim = infoHead->headerAnim;
+            util::INFO_FX *fx = infoHead->effectShader;
+
+            if (fx && ((fx->dataPS && fx->dataPS->fileNameTextureStage2) ||
+                       (fx->dataVS && fx->dataVS->fileNameTextureStage2)))
+            {
+                return log_util::onFailed(file, __FILE__, __LINE__,
+                                          "saveV11 does not support a shader step's secondary texture stage yet (animation [%s]) [%s]",
+                                          headerAnim->nameAnimation, fileOut);
+            }
+
+            util::ANIMATION_HEADER_V11 v11Anim;
+            v11Anim.name             = headerAnim->nameAnimation;
+            v11Anim.initialFrame     = headerAnim->initialFrame;
+            v11Anim.finalFrame       = headerAnim->finalFrame;
+            v11Anim.timeBetweenFrame = headerAnim->timeBetweenFrame;
+            v11Anim.typeAnimation    = headerAnim->typeAnimation;
+            v11Anim.blendState       = headerAnim->blendState;
+            v11Anim.hasFx            = (fx != nullptr) ? 1 : 0;
+
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_ANIMATION;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [&](FILE *fp) -> bool
+            {
+                if (!util::writeAnimationHeaderV11(fp, v11Anim))
+                    return false;
+                if (!fx)
+                    return true;
+
+                util::FX_HEADER_V11 v11Fx;
+                v11Fx.blendOperation = fx->blendOperation;
+                const char *fxTexPath = fx->getTextureAnimationEffectFileName();
+                v11Fx.hasFxTexture = (fxTexPath && fxTexPath[0] != '\0') ? 1 : 0;
+                if (v11Fx.hasFxTexture)
+                {
+                    v11Fx.fxTexture.storage = util::TEXTURE_REF_STORAGE_PATH;
+                    v11Fx.fxTexture.path    = fxTexPath;
+                }
+                v11Fx.hasPS = (fx->dataPS != nullptr) ? 1 : 0;
+                v11Fx.hasVS = (fx->dataVS != nullptr) ? 1 : 0;
+                if (v11Fx.hasPS)
+                {
+                    v11Fx.ps.name          = fx->dataPS->fileNameShader ? fx->dataPS->fileNameShader : "";
+                    v11Fx.ps.timeAnimation = fx->dataPS->timeAnimation;
+                    v11Fx.ps.typeAnimation = fx->dataPS->typeAnimation;
+                    v11Fx.ps.varCount      = static_cast<uint16_t>(fx->dataPS->lenVars);
+                }
+                if (v11Fx.hasVS)
+                {
+                    v11Fx.vs.name          = fx->dataVS->fileNameShader ? fx->dataVS->fileNameShader : "";
+                    v11Fx.vs.timeAnimation = fx->dataVS->timeAnimation;
+                    v11Fx.vs.typeAnimation = fx->dataVS->typeAnimation;
+                    v11Fx.vs.varCount      = static_cast<uint16_t>(fx->dataVS->lenVars);
+                }
+                if (!util::writeFxHeaderV11(fp, v11Fx))
+                    return false;
+
+                const auto writeVars = [fp](const util::INFO_SHADER_DATA *data) -> bool
+                {
+                    for (int v = 0; v < data->lenVars; ++v)
+                    {
+                        util::SHADER_VAR_V11 var;
+                        var.typeVar = static_cast<uint8_t>(data->typeVars[v]);
+                        for (int c = 0; c < 4; ++c)
+                        {
+                            var.min[c] = data->min[v * 4 + c];
+                            var.max[c] = data->max[v * 4 + c];
+                        }
+                        if (!util::writeShaderVarV11(fp, var))
+                            return false;
+                    }
+                    return true;
+                };
+                if (v11Fx.hasPS && !writeVars(fx->dataPS))
+                    return false;
+                if (v11Fx.hasVS && !writeVars(fx->dataVS))
+                    return false;
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_ANIMATION for animation [%s] [%s]",
+                                          headerAnim->nameAnimation, fileOut);
         }
 
         // SECTION_FRAME_STATIC, one per frame --------------------------------------------------------------
@@ -2260,6 +2349,83 @@ namespace mbm
                 if (!ok)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_PHYSICS [%s]", fileNamePath);
             }
+            else if (sectionHeader.type == util::SECTION_ANIMATION)
+            {
+                FILE *tmp = stage_payload_as_tmpfile(payload);
+                if (!tmp)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_ANIMATION [%s]", fileNamePath);
+
+                util::ANIMATION_HEADER_V11 v11Anim;
+                bool ok = util::readAnimationHeaderV11(tmp, v11Anim);
+
+                util::FX_HEADER_V11 v11Fx;
+                std::vector<util::SHADER_VAR_V11> psVars, vsVars;
+                if (ok && v11Anim.hasFx)
+                {
+                    ok = util::readFxHeaderV11(tmp, v11Fx);
+                    if (ok && v11Fx.hasPS)
+                    {
+                        psVars.resize(v11Fx.ps.varCount);
+                        for (uint16_t v = 0; ok && v < v11Fx.ps.varCount; ++v)
+                            ok = util::readShaderVarV11(tmp, psVars[v]);
+                    }
+                    if (ok && v11Fx.hasVS)
+                    {
+                        vsVars.resize(v11Fx.vs.varCount);
+                        for (uint16_t v = 0; ok && v < v11Fx.vs.varCount; ++v)
+                            ok = util::readShaderVarV11(tmp, vsVars[v]);
+                    }
+                }
+                fclose(tmp);
+                if (!ok)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ANIMATION [%s]", fileNamePath);
+
+                auto *infoHead   = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
+                auto *headerAnim = new util::HEADER_ANIMATION();
+                strncpy(headerAnim->nameAnimation, v11Anim.name.c_str(), sizeof(headerAnim->nameAnimation) - 1);
+                headerAnim->nameAnimation[sizeof(headerAnim->nameAnimation) - 1] = '\0';
+                headerAnim->initialFrame     = v11Anim.initialFrame;
+                headerAnim->finalFrame       = v11Anim.finalFrame;
+                headerAnim->timeBetweenFrame = v11Anim.timeBetweenFrame;
+                headerAnim->typeAnimation    = v11Anim.typeAnimation;
+                headerAnim->hasShaderEffect  = v11Anim.hasFx;
+                headerAnim->blendState       = v11Anim.blendState;
+                infoHead->headerAnim = headerAnim;
+
+                if (v11Anim.hasFx)
+                {
+                    auto *fxOut = new util::INFO_FX();
+                    fxOut->blendOperation = v11Fx.blendOperation;
+                    if (v11Fx.hasFxTexture)
+                        fxOut->setTextureAnimationEffectFileName(v11Fx.fxTexture.path.c_str());
+
+                    const auto buildStep = [](const util::SHADER_STEP_V11 &step,
+                                              const std::vector<util::SHADER_VAR_V11> &vars) -> util::INFO_SHADER_DATA *
+                    {
+                        auto *data = new util::INFO_SHADER_DATA(static_cast<int>(vars.size()) * 4,
+                                                                static_cast<int>(step.name.size()) + 1, 0);
+                        std::memcpy(data->fileNameShader, step.name.c_str(), step.name.size() + 1);
+                        data->timeAnimation = step.timeAnimation;
+                        data->typeAnimation = static_cast<int16_t>(step.typeAnimation);
+                        for (size_t v = 0; v < vars.size(); ++v)
+                        {
+                            data->typeVars[v] = static_cast<char>(vars[v].typeVar);
+                            for (int c = 0; c < 4; ++c)
+                            {
+                                data->min[v * 4 + c] = vars[v].min[c];
+                                data->max[v * 4 + c] = vars[v].max[c];
+                            }
+                        }
+                        return data;
+                    };
+                    if (v11Fx.hasPS)
+                        fxOut->dataPS = buildStep(v11Fx.ps, psVars);
+                    if (v11Fx.hasVS)
+                        fxOut->dataVS = buildStep(v11Fx.vs, vsVars);
+                    infoHead->effectShader = fxOut;
+                }
+                this->appendAnimationHeader(infoHead);
+            }
             else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
             {
                 FILE *tmp = stage_payload_as_tmpfile(payload);
@@ -2291,7 +2457,7 @@ namespace mbm
         }
 
         impl->headerMesh.totalFrames    = static_cast<int>(this->impl->buffer.size());
-        impl->headerMesh.totalAnimation = 0;
+        impl->headerMesh.totalAnimation = static_cast<int>(this->getTotalAnimationHeaders());
         impl->headerMesh.hasNorText[0]  = hasNormalFlag;
         impl->headerMesh.hasNorText[1]  = hasTextureFlag;
         impl->fileName = fileNamePath;

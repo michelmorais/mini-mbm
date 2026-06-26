@@ -709,6 +709,48 @@ namespace util
         MATERIAL_TRANSFORM_V11() noexcept;
     };
 
+    struct API_IMPL SHADER_VAR_V11
+    {
+        uint8_t typeVar; // mbm::TYPE_VAR_SHADER
+        float   min[4];
+        float   max[4];
+        SHADER_VAR_V11() noexcept;
+    };
+
+    struct API_IMPL SHADER_STEP_V11
+    {
+        std::string name;          // shader name reference (built-in or custom), e.g. "transparent.ps"
+        float       timeAnimation;
+        int32_t     typeAnimation; // 0-6, shader-level playback type
+        uint16_t    varCount;      // caller must set before writing; followed on disk by
+                                     // varCount * SHADER_VAR_V11
+        SHADER_STEP_V11() noexcept;
+    };
+
+    struct API_IMPL FX_HEADER_V11 // payload for ANIMATION_HEADER_V11.hasFx == 1
+    {
+        int32_t         blendOperation;
+        uint8_t         hasFxTexture; // bool
+        TEXTURE_REF_V11 fxTexture;    // meaningful only if hasFxTexture - role TEXTURE_ROLE_ANIMATION_EFFECT
+        uint8_t         hasPS;        // bool
+        SHADER_STEP_V11 ps;           // meaningful only if hasPS
+        uint8_t         hasVS;        // bool
+        SHADER_STEP_V11 vs;           // meaningful only if hasVS
+        FX_HEADER_V11() noexcept;
+    };
+
+    struct API_IMPL ANIMATION_HEADER_V11 // payload for SECTION_ANIMATION
+    {
+        std::string name;            // replaces today's nameAnimation[32]
+        int32_t     initialFrame;
+        int32_t     finalFrame;
+        float       timeBetweenFrame;
+        int32_t     typeAnimation;
+        uint16_t    blendState;
+        uint8_t     hasFx;           // bool - if 1, an FX_HEADER_V11 follows
+        ANIMATION_HEADER_V11() noexcept;
+    };
+
 }
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))

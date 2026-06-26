@@ -165,6 +165,55 @@ struct TEXTURE_REF_V11
 2." This is the one piece of this proposal that reaches outside `header-mesh.h` into `shader.h`, on
 purpose: one enum, one definition.
 
+## 6b. `SECTION_ANIMATION` payload
+
+One `SECTION_ANIMATION` section per animation, in file order (no explicit index — see Milestone 0
+Decision 3).
+
+```cpp
+struct ANIMATION_HEADER_V11
+{
+    // name: length-prefixed string (§5), replaces today's nameAnimation[32]
+    int32_t  initialFrame;
+    int32_t  finalFrame;
+    float    timeBetweenFrame;
+    int32_t  typeAnimation;
+    uint16_t blendState;
+    uint8_t  hasFx;          // bool - if 1, an FX_HEADER_V11 follows immediately
+};
+
+struct FX_HEADER_V11   // only on disk when ANIMATION_HEADER_V11.hasFx == 1
+{
+    int32_t blendOperation;
+    uint8_t hasFxTexture;    // bool
+    // fxTexture: TEXTURE_REF_V11 (§6), only if hasFxTexture - role TEXTURE_ROLE_ANIMATION_EFFECT
+    uint8_t hasPS;           // bool
+    // ps: SHADER_STEP_V11, only if hasPS
+    uint8_t hasVS;           // bool
+    // vs: SHADER_STEP_V11, only if hasVS
+};
+
+struct SHADER_STEP_V11
+{
+    // name: length-prefixed string (§5) - a shader name reference (built-in or custom), e.g.
+    //       "transparent.ps". Resolved by name at load time, not embedded source.
+    float    timeAnimation;
+    int32_t  typeAnimation;  // 0-6, shader-level playback type
+    uint16_t varCount;       // followed by varCount * SHADER_VAR_V11
+};
+
+struct SHADER_VAR_V11
+{
+    uint8_t typeVar;  // mbm::TYPE_VAR_SHADER (shader-var-cfg.h)
+    float   min[4];
+    float   max[4];
+};
+```
+
+A second texture slot per shader step (legacy `lenTextureStage2`) is not modeled here — no real-world
+file has ever been observed using it, and the v11.0 writer/reader reject it with a clear error rather
+than silently dropping it if a future file ever does.
+
 ## 7. Index width (§6 `indexWidth`)
 
 Per-frame, not per-file: `16` is the default a writer should choose unless the frame's vertex count

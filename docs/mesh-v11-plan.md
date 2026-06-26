@@ -196,9 +196,9 @@ concrete use case shows up.
    transitively including `header-mesh.h`'s disk structs; only runtime-facing types stay public.
 3. **Core slice closed 2026-06-25** (`MESH_MBM_DEBUG::saveV11`): `SECTION_MATERIAL_TRANSFORM`,
    `SECTION_FRAME_STATIC` (path-referenced textures only), `SECTION_DETAIL_PHYSICS`,
-   `SECTION_EXTRA_PATHS` — covers 3D/sprite meshes fully. Still open within this milestone:
-   `SECTION_ANIMATION`+FX and the `SECTION_DETAIL_FONT`/`PARTICLE`/`TILE` payloads; `saveV11`
-   explicitly rejects animated and FONT/PARTICLE/TILE_MAP meshes until that follow-up pass lands.
+   `SECTION_EXTRA_PATHS` — covers 3D/sprite meshes fully. `SECTION_ANIMATION`+FX closed 2026-06-26,
+   see milestone 10. Still open: the `SECTION_DETAIL_FONT`/`PARTICLE`/`TILE` payloads; `saveV11`
+   still rejects FONT/PARTICLE/TILE_MAP meshes until that follow-up pass lands.
    Not yet wired into any caller (`MESH_MBM_DEBUG::saveDebug()` and its two call sites are untouched).
 4. **Standalone core slice closed 2026-06-25** (`MESH_MBM_DEBUG::loadV11`): reads back exactly what
    `saveV11` writes (material+transform, static frames, physics, paths). Not wired into
@@ -388,6 +388,53 @@ concrete use case shows up.
    afterward.
 9. *(Reserved, not implemented)* skinned-frame block + GPU skinning — only after real demand is
    confirmed, not speculatively.
+10. **Closed 2026-06-26.** Real `SECTION_ANIMATION`+FX support in `saveV11`/`loadV11`, unblocking
+    `mesh_legacy_converter` on real animated sprites. Triggered by running the converter against the
+    user's actual production assets (`tower-defense/sprite/*.spt`): the large majority have genuine
+    multi-animation data (named frame ranges) that Phase B2's narrow single-placeholder heuristic
+    correctly rejected as "real animation, not yet supported."
+    `docs/mesh-v11-format.md` §6b now specifies the payload: `ANIMATION_HEADER_V11` (name, frame
+    range, time, type, blend state, `hasFx`) plus an optional `FX_HEADER_V11` (blend operation, an
+    optional FX texture reusing `TEXTURE_REF_V11`, and up to a PS/VS `SHADER_STEP_V11` pair - each a
+    shader *name* reference, e.g. `"transparent.ps"`, plus a `SHADER_VAR_V11` array of per-variable
+    type tag + min/max). `saveV11` no longer rejects animated meshes; both it and `loadV11` gained a
+    `SECTION_ANIMATION` branch (`mesh-manager.cpp`), built on `MESH_MBM_DEBUG::appendAnimationHeader`/
+    `getAnimationHeader`/`getTotalAnimationHeaders` (already public, already used by
+    `mesh-debug-lua.cpp`). Confirmed with the user this lands in `core_mbm` (not isolated inside
+    `mesh_deprecated`) so the data is actually readable by something, even though wiring it into real
+    in-game playback (`MESH_MBM::loadV11` → `ANIMATION_MANAGER::populateAnimationFromHeader`,
+    resolving a stored shader name into a compiled/bound shader) is an explicit, separate, later
+    follow-up - out of scope here.
+    `mesh_deprecated::convertLegacyMeshToV11` (`mesh-deprecated.cpp`) replaced its reject-unless-
+    synthetic-placeholder animation gate with real import logic, reverse-engineered from the
+    recovered pre-deletion writer: for `version >= TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER`, the
+    animation-level FX texture-effect header is read *before* the PS/VS step pair, not after (an
+    earlier diagnostic that assumed the opposite order produced a clean `anim[0]` but corrupted
+    `anim[1]` onward); and a shader step's variable count is `sizeArrayVarInBytes / 4`, not the raw
+    byte count (`INFO_SHADER_DATA`'s own constructor already divides by 4 - the diagnostic initially
+    didn't). Diagnosing all 59 real `.spt` files this way found ~40 with plain frame-range animations
+    and no real shader effect (the legacy `hasShaderEffect` flag is unconditionally set to 1 by the
+    old writer regardless, a writer quirk not real data) and ~9 with a real effect referencing the
+    engine's own named built-in shader catalogue (`transparent.ps`/`blend.ps`/`pie.ps`/`wave.ps`/etc -
+    the same catalogue milestone 7 renamed) plus variable values - never an arbitrary external shader
+    file, never a populated `lenTextureStage2` (a second texture per step - explicitly out of scope,
+    rejected with a clear message, since no real file uses it).
+    A second, unrelated pre-existing bug was found and fixed along the way, discovered only because
+    real sprite geometry (not Phase B2's synthetic fixture) finally exercised it:
+    `mesh-deprecated.cpp`'s `readFrame` read a frame's vertex/normal/uv buffers *before* its index
+    buffer, but the legacy on-disk order (confirmed against the recovered
+    `read_frame_geometry`/`load_from_separated_buffers_common`) is index buffer first, vertex data
+    after, whenever `typeBuffer == "IB"`. Every real indexed sprite subset was silently reading
+    garbage indices until this was reordered to match.
+    Verified: clean `core_mbm`/`mesh_deprecated`/`mesh_legacy_converter` build; a temporary round-trip
+    test (`MESH_MBM_DEBUG` with one plain animation via `addAnimation` and one with a PS shader effect
+    + 1 variable built via `appendAnimationHeader`, `saveV11`, `loadV11`, field-by-field comparison)
+    passed; `mesh_legacy_converter` run against all 59 real `tower-defense/sprite/*.spt` files - all 59
+    now convert successfully (previously: 0, blocked at "animated meshes are not supported yet"); a
+    reload-and-dump check on several converted outputs (`enemy_1.spt`'s 4 animations, `blast.spt`'s PS
+    `transparent.ps` effect, `add-support.spt`'s single no-op placeholder) confirmed names/ranges/
+    types/shader names/variable values match the original legacy source exactly. All temporary
+    diagnostic tooling and `CMakeLists.txt` entries were removed afterward.
 
 ## Open Questions
 

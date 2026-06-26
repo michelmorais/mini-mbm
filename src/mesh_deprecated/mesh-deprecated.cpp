@@ -13,12 +13,13 @@
 #include <string>
 #include <vector>
 
-// Phase B2 (docs/mesh-v11-plan.md): converts a legacy v8-v10 mesh file into v11 by parsing the old
-// bytes directly into a mbm::MESH_MBM_DEBUG via its PUBLIC API (this library has no access to
-// core_mbm's private impl-> members), then calling MESH_MBM_DEBUG::saveV11. Scoped to exactly what
-// saveV11 can persist today: static (non-animated) 3D/SPRITE/USER/TEXTURE/SHAPE meshes with
-// path-referenced textures - FONT/PARTICLE/TILE_MAP, real animations, embedded/solid-color textures,
-// and pre-v8 files are all out of scope and rejected with a clear message rather than silently
+// Phase B2 + milestone 10 (docs/mesh-v11-plan.md): converts a legacy v8-v10 mesh file into v11 by
+// parsing the old bytes directly into a mbm::MESH_MBM_DEBUG via its PUBLIC API (this library has no
+// access to core_mbm's private impl-> members), then calling MESH_MBM_DEBUG::saveV11. Scoped to
+// exactly what saveV11 can persist today: 3D/SPRITE/USER/TEXTURE/SHAPE meshes with path-referenced
+// textures and animations (frame ranges plus an optional named-shader-effect FX block) - FONT/
+// PARTICLE/TILE_MAP, embedded/solid-color textures, a shader step's secondary texture stage, and
+// pre-v8 files are all out of scope and rejected with a clear message rather than silently
 // mishandled. See the mesh-v11-migration-status memory / docs/mesh-v11-plan.md for the full rationale.
 namespace
 {
@@ -228,6 +229,16 @@ namespace
                 return false;
         }
 
+        // On disk, the index buffer comes before the vertex/normal/uv buffers (mirrors the deleted
+        // mesh-manager.cpp's read_frame_geometry/load_from_separated_buffers_common: index buffer is
+        // read first when typeBuffer == "IB", vertex data always follows).
+        if (outFrame.hasIndex)
+        {
+            outFrame.index.resize(static_cast<size_t>(headerFrame.sizeIndexBuffer));
+            if (!util::readU16ArrayV8(fp, outFrame.index.data(), static_cast<uint32_t>(headerFrame.sizeIndexBuffer)))
+                return failf(errorOut, lenErrorOut, "failed to read frame index [%s]", legacyPath);
+        }
+
         outFrame.position.resize(outFrame.vertexCount);
         if (headerFrame.stride == 2)
         {
@@ -265,13 +276,6 @@ namespace
                 return failf(errorOut, lenErrorOut, "failed to read frame uv [%s]", legacyPath);
             if (hasNorText[1] == HAS_TEX_FIRST_FRAME)
                 frame0Uv = outFrame.uv;
-        }
-
-        if (outFrame.hasIndex)
-        {
-            outFrame.index.resize(static_cast<size_t>(headerFrame.sizeIndexBuffer));
-            if (!util::readU16ArrayV8(fp, outFrame.index.data(), static_cast<uint32_t>(headerFrame.sizeIndexBuffer)))
-                return failf(errorOut, lenErrorOut, "failed to read frame index [%s]", legacyPath);
         }
         return true;
     }
@@ -376,16 +380,12 @@ namespace mesh_deprecated
             return failf(errorOut, lenErrorOut, "failed to read mesh header [%s]", legacyPath);
         }
 
-        // Animation gate: the old writer always injected >= 1 animation header, even for genuinely
-        // static meshes (a single synthetic "default"-named, no-shader-effect entry when there were no
-        // real animations) - tolerate and discard exactly that shape; anything else is real animation,
-        // which saveV11 can't persist yet.
-        if (headerMesh.totalAnimation > 1)
-        {
-            cleanup();
-            return failf(errorOut, lenErrorOut, "animated meshes are not supported yet (%d animations) [%s]",
-                        headerMesh.totalAnimation, legacyPath);
-        }
+        // Animations: read each legacy HEADER_ANIMATION and, if present, its FX block (a real shader
+        // effect referencing a built-in/custom shader by name, e.g. "transparent.ps" - never an
+        // embedded shader source). Read order matters and was reverse-engineered from the pre-deletion
+        // writer: for version >= TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER, the animation-level FX
+        // texture-effect header comes BEFORE the PS/VS step pair, not after; and a step's variable
+        // count is sizeArrayVarInBytes / 4, not the raw byte count.
         for (int32_t i = 0; i < headerMesh.totalAnimation; ++i)
         {
             util::HEADER_ANIMATION anim;
@@ -394,11 +394,87 @@ namespace mesh_deprecated
                 cleanup();
                 return failf(errorOut, lenErrorOut, "failed to read animation header [%s]", legacyPath);
             }
-            if (anim.hasShaderEffect != 0 || strcmp(anim.nameAnimation, "default") != 0)
+
+            auto *infoHead   = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
+            auto *headerAnim = new util::HEADER_ANIMATION(anim);
+            infoHead->headerAnim = headerAnim;
+
+            if (anim.hasShaderEffect != 0)
             {
-                cleanup();
-                return failf(errorOut, lenErrorOut, "animated meshes are not supported yet [%s]", legacyPath);
+                util::INFO_FX *fx = new util::INFO_FX();
+                infoHead->effectShader = fx;
+
+                if (header.version >= TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER)
+                {
+                    int16_t lenTextureAnimationEffect = 0;
+                    if (!util::readHeaderInfoShaderEffectV10(fp, lenTextureAnimationEffect))
+                    {
+                        delete infoHead;
+                        cleanup();
+                        return failf(errorOut, lenErrorOut, "failed to read animation FX header [%s]", legacyPath);
+                    }
+                    if (lenTextureAnimationEffect > 0)
+                    {
+                        std::vector<char> fxTexPath(static_cast<size_t>(lenTextureAnimationEffect));
+                        if (!fread(fxTexPath.data(), static_cast<size_t>(lenTextureAnimationEffect), 1, fp))
+                        {
+                            delete infoHead;
+                            cleanup();
+                            return failf(errorOut, lenErrorOut, "failed to read animation FX texture name [%s]", legacyPath);
+                        }
+                        fx->setTextureAnimationEffectFileName(fxTexPath.data());
+                    }
+                }
+
+                const auto readStep = [&](util::INFO_SHADER_DATA *&outData, const char *label) -> bool
+                {
+                    util::HEADER_INFO_SHADER_STEP step;
+                    if (!util::readHeaderInfoShaderStepV8(fp, step))
+                        return failf(errorOut, lenErrorOut, "failed to read %s shader step [%s]", label, legacyPath);
+                    fx->blendOperation = (step.blendOperation != 0) ? step.blendOperation : 1;
+                    if (step.lenNameShader == 0)
+                        return true;
+                    if (step.lenTextureStage2 != 0)
+                        return failf(errorOut, lenErrorOut,
+                                    "a shader step's secondary texture stage is not supported yet [%s]", legacyPath);
+
+                    auto *data = new util::INFO_SHADER_DATA(step.sizeArrayVarInBytes, step.lenNameShader, 0);
+                    data->typeAnimation = step.typeAnimation;
+                    data->timeAnimation = step.timeAnimation;
+                    if (!fread(data->fileNameShader, static_cast<size_t>(step.lenNameShader), 1, fp))
+                    {
+                        delete data;
+                        return failf(errorOut, lenErrorOut, "failed to read %s shader name [%s]", label, legacyPath);
+                    }
+                    if (data->lenVars > 0)
+                    {
+                        if (!fread(data->typeVars, static_cast<size_t>(data->lenVars), 1, fp) ||
+                            !util::readFloatArrayV8(fp, data->min, static_cast<uint32_t>(data->lenVars) * 4) ||
+                            !util::readFloatArrayV8(fp, data->max, static_cast<uint32_t>(data->lenVars) * 4))
+                        {
+                            delete data;
+                            return failf(errorOut, lenErrorOut, "failed to read %s shader variables [%s]", label, legacyPath);
+                        }
+                    }
+                    outData = data;
+                    return true;
+                };
+
+                if (!readStep(fx->dataPS, "pixel"))
+                {
+                    delete infoHead;
+                    cleanup();
+                    return false;
+                }
+                if (!readStep(fx->dataVS, "vertex"))
+                {
+                    delete infoHead;
+                    cleanup();
+                    return false;
+                }
             }
+
+            meshDebug.appendAnimationHeader(infoHead);
         }
 
         meshDebug.setMeshType(typeMe);

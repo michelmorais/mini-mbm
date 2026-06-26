@@ -672,4 +672,36 @@ namespace util
         mode_front_face_direction = 0;
     }
 
+    SHADER_VAR_V11::SHADER_VAR_V11() noexcept
+    {
+        typeVar = 0;
+        min[0] = min[1] = min[2] = min[3] = 0.0f;
+        max[0] = max[1] = max[2] = max[3] = 0.0f;
+    }
+
+    SHADER_STEP_V11::SHADER_STEP_V11() noexcept
+    {
+        timeAnimation = 0.0f;
+        typeAnimation = 0;
+        varCount      = 0;
+    }
+
+    FX_HEADER_V11::FX_HEADER_V11() noexcept
+    {
+        blendOperation = 1;
+        hasFxTexture   = 0;
+        hasPS          = 0;
+        hasVS          = 0;
+    }
+
+    ANIMATION_HEADER_V11::ANIMATION_HEADER_V11() noexcept
+    {
+        initialFrame     = 0;
+        finalFrame       = 0;
+        timeBetweenFrame = 0.0f;
+        typeAnimation    = 0;
+        blendState       = 0;
+        hasFx            = 0;
+    }
+
 }

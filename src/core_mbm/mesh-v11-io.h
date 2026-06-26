@@ -71,6 +71,17 @@ namespace util
     bool readSubsetDescV11(FILE *fp, util::SUBSET_DESC_V11 &out);
     bool readSubsetExtraSlotV11(FILE *fp, util::SUBSET_EXTRA_SLOT_V11 &out);
     bool readMaterialTransformV11(FILE *fp, util::MATERIAL_TRANSFORM_V11 &out);
+
+    // SECTION_ANIMATION payload serializers (docs/mesh-v11-format.md Sec. 6b).
+    bool writeShaderVarV11(FILE *fp, const util::SHADER_VAR_V11 &in);
+    bool writeShaderStepV11(FILE *fp, const util::SHADER_STEP_V11 &in);
+    bool writeFxHeaderV11(FILE *fp, const util::FX_HEADER_V11 &in);
+    bool writeAnimationHeaderV11(FILE *fp, const util::ANIMATION_HEADER_V11 &in);
+
+    bool readShaderVarV11(FILE *fp, util::SHADER_VAR_V11 &out);
+    bool readShaderStepV11(FILE *fp, util::SHADER_STEP_V11 &out);
+    bool readFxHeaderV11(FILE *fp, util::FX_HEADER_V11 &out);
+    bool readAnimationHeaderV11(FILE *fp, util::ANIMATION_HEADER_V11 &out);
 }
 
 #endif

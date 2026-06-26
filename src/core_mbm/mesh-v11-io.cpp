@@ -350,4 +350,104 @@ namespace util
                readU32LE(fp, out.mode_cull_face) &&
                readU32LE(fp, out.mode_front_face_direction);
     }
+
+    bool writeShaderVarV11(FILE *fp, const util::SHADER_VAR_V11 &in)
+    {
+        return writeBytes(fp, &in.typeVar, sizeof(in.typeVar)) &&
+               writeF32LE(fp, in.min[0]) && writeF32LE(fp, in.min[1]) &&
+               writeF32LE(fp, in.min[2]) && writeF32LE(fp, in.min[3]) &&
+               writeF32LE(fp, in.max[0]) && writeF32LE(fp, in.max[1]) &&
+               writeF32LE(fp, in.max[2]) && writeF32LE(fp, in.max[3]);
+    }
+
+    bool writeShaderStepV11(FILE *fp, const util::SHADER_STEP_V11 &in)
+    {
+        if (!writeStringV11(fp, in.name) ||
+            !writeF32LE(fp, in.timeAnimation) ||
+            !writeI32LE(fp, in.typeAnimation) ||
+            !writeU16LE(fp, in.varCount))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    bool writeFxHeaderV11(FILE *fp, const util::FX_HEADER_V11 &in)
+    {
+        if (!writeI32LE(fp, in.blendOperation) ||
+            !writeBytes(fp, &in.hasFxTexture, sizeof(in.hasFxTexture)))
+        {
+            return false;
+        }
+        if (in.hasFxTexture && !writeTextureRefV11(fp, in.fxTexture))
+            return false;
+        if (!writeBytes(fp, &in.hasPS, sizeof(in.hasPS)))
+            return false;
+        if (in.hasPS && !writeShaderStepV11(fp, in.ps))
+            return false;
+        if (!writeBytes(fp, &in.hasVS, sizeof(in.hasVS)))
+            return false;
+        if (in.hasVS && !writeShaderStepV11(fp, in.vs))
+            return false;
+        return true;
+    }
+
+    bool writeAnimationHeaderV11(FILE *fp, const util::ANIMATION_HEADER_V11 &in)
+    {
+        return writeStringV11(fp, in.name) &&
+               writeI32LE(fp, in.initialFrame) &&
+               writeI32LE(fp, in.finalFrame) &&
+               writeF32LE(fp, in.timeBetweenFrame) &&
+               writeI32LE(fp, in.typeAnimation) &&
+               writeU16LE(fp, in.blendState) &&
+               writeBytes(fp, &in.hasFx, sizeof(in.hasFx));
+    }
+
+    bool readShaderVarV11(FILE *fp, util::SHADER_VAR_V11 &out)
+    {
+        return readBytes(fp, &out.typeVar, sizeof(out.typeVar)) &&
+               readF32LE(fp, out.min[0]) && readF32LE(fp, out.min[1]) &&
+               readF32LE(fp, out.min[2]) && readF32LE(fp, out.min[3]) &&
+               readF32LE(fp, out.max[0]) && readF32LE(fp, out.max[1]) &&
+               readF32LE(fp, out.max[2]) && readF32LE(fp, out.max[3]);
+    }
+
+    bool readShaderStepV11(FILE *fp, util::SHADER_STEP_V11 &out)
+    {
+        return readStringV11(fp, out.name) &&
+               readF32LE(fp, out.timeAnimation) &&
+               readI32LE(fp, out.typeAnimation) &&
+               readU16LE(fp, out.varCount);
+    }
+
+    bool readFxHeaderV11(FILE *fp, util::FX_HEADER_V11 &out)
+    {
+        if (!readI32LE(fp, out.blendOperation) ||
+            !readBytes(fp, &out.hasFxTexture, sizeof(out.hasFxTexture)))
+        {
+            return false;
+        }
+        if (out.hasFxTexture && !readTextureRefV11(fp, out.fxTexture))
+            return false;
+        if (!readBytes(fp, &out.hasPS, sizeof(out.hasPS)))
+            return false;
+        if (out.hasPS && !readShaderStepV11(fp, out.ps))
+            return false;
+        if (!readBytes(fp, &out.hasVS, sizeof(out.hasVS)))
+            return false;
+        if (out.hasVS && !readShaderStepV11(fp, out.vs))
+            return false;
+        return true;
+    }
+
+    bool readAnimationHeaderV11(FILE *fp, util::ANIMATION_HEADER_V11 &out)
+    {
+        return readStringV11(fp, out.name) &&
+               readI32LE(fp, out.initialFrame) &&
+               readI32LE(fp, out.finalFrame) &&
+               readF32LE(fp, out.timeBetweenFrame) &&
+               readI32LE(fp, out.typeAnimation) &&
+               readU16LE(fp, out.blendState) &&
+               readBytes(fp, &out.hasFx, sizeof(out.hasFx));
+    }
 }
