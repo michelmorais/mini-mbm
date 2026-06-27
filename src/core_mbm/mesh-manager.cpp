@@ -1155,7 +1155,14 @@ namespace mbm
                     }
                     fclose(tmpFp);
                 }
-                break;
+            }
+            else if (sectionHeader.type == util::SECTION_ANIMATION)
+            {
+                ++headerMeshMbmOut.totalAnimation;
+            }
+            else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
+            {
+                ++headerMeshMbmOut.totalFrames;
             }
         }
         fclose(fp);

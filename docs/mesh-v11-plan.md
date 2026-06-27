@@ -468,6 +468,24 @@ concrete use case shows up.
     successfully (`FX::getCodePS()` non-empty, no "Shader ... not found at cfg shader list!" error) -
     confirming the shader-name-resolution path genuinely needed zero new code. All temporary test code
     and converted fixtures were removed afterward.
+    **Follow-up fix found immediately after, same milestone**: converting a real sprite in place and
+    opening it in `mesh_debug.lua`'s editor showed frames but no animations - a *different* bug from
+    the one above. `MESH_MBM_DEBUG::getInfo(fileNamePath, ...)` (mesh-manager.cpp) - the static
+    "peek a v11 file's info without fully loading it" function `mesh_debug.lua`'s `"getInfo"` Lua
+    binding uses to populate its editor-side `info.animation`/`info.frame` cache - only ever read the
+    *first* section and unconditionally `break`'d out of the section loop right after, regardless of
+    how many sections actually existed. It never read `SECTION_ANIMATION` (or even counted
+    `SECTION_FRAME_STATIC`), so `totalAnimation` (and `totalFrames`) were always 0 for any v11 file -
+    a pre-existing gap since milestone 4, just never user-visible until an editor workflow that
+    actually depends on `getInfo` (rather than a full `loadV11`) needed real animation data. Confirmed
+    via `MESH_MBM_DEBUG::loadV11` directly that the converted file's `SECTION_ANIMATION` data was
+    always correct - this was purely a stale lightweight-peek function, not a data-loss or
+    conversion bug. Fixed by removing the unconditional `break` and adding counters for
+    `SECTION_ANIMATION`/`SECTION_FRAME_STATIC` in the existing per-section loop, so `getInfo` now
+    reports accurate counts without needing a full load. Verified via a temporary diagnostic calling
+    the exact same overload `mesh_debug.lua`'s Lua binding calls: a converted `archer-1.spt` now
+    reports `totalFrames=12 totalAnimation=4`, matching its real content (4 named animations:
+    `stand-right`/`attack-right`/`stand-left`/`attack-left`). Temporary diagnostic removed afterward.
 
 ## Open Questions
 
