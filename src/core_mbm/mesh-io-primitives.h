@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <header-mesh.h> // util::MEM_CURSOR_V11
 
 namespace util
 {
@@ -88,6 +89,19 @@ namespace le_io
         return std::fwrite(value, bytes, 1, fp) == 1;
     }
 
+    // MEM_CURSOR_V11 itself is declared in header-mesh.h (public header-mesh.h, not this internal
+    // header) - see its comment there for why.
+    inline bool readBytes(MEM_CURSOR_V11 &cur, void *value, const size_t bytes)
+    {
+        if (bytes == 0)
+            return true;
+        if (cur.pos + bytes > cur.size)
+            return false;
+        std::memcpy(value, cur.data + cur.pos, bytes);
+        cur.pos += bytes;
+        return true;
+    }
+
     inline bool readI16LE(FILE *fp, int16_t &out)
     {
         int16_t temp = 0;
@@ -161,6 +175,51 @@ namespace le_io
     {
         const float temp = leToF32(in);
         return writeBytes(fp, &temp, sizeof(temp));
+    }
+
+    inline bool readI16LE(MEM_CURSOR_V11 &cur, int16_t &out)
+    {
+        int16_t temp = 0;
+        if (!readBytes(cur, &temp, sizeof(temp)))
+            return false;
+        out = leToI16(temp);
+        return true;
+    }
+
+    inline bool readU16LE(MEM_CURSOR_V11 &cur, uint16_t &out)
+    {
+        uint16_t temp = 0;
+        if (!readBytes(cur, &temp, sizeof(temp)))
+            return false;
+        out = leToU16(temp);
+        return true;
+    }
+
+    inline bool readI32LE(MEM_CURSOR_V11 &cur, int32_t &out)
+    {
+        int32_t temp = 0;
+        if (!readBytes(cur, &temp, sizeof(temp)))
+            return false;
+        out = leToI32(temp);
+        return true;
+    }
+
+    inline bool readU32LE(MEM_CURSOR_V11 &cur, uint32_t &out)
+    {
+        uint32_t temp = 0;
+        if (!readBytes(cur, &temp, sizeof(temp)))
+            return false;
+        out = leToU32(temp);
+        return true;
+    }
+
+    inline bool readF32LE(MEM_CURSOR_V11 &cur, float &out)
+    {
+        float temp = 0.0f;
+        if (!readBytes(cur, &temp, sizeof(temp)))
+            return false;
+        out = leToF32(temp);
+        return true;
     }
 }
 }

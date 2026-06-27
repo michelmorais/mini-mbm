@@ -7,7 +7,7 @@ using namespace util::le_io;
 
 namespace util
 {
-    bool readDetailMeshV8(FILE *fp, util::DETAIL_MESH &out)
+    bool readDetailMeshV8(util::MEM_CURSOR_V11 &fp, util::DETAIL_MESH &out)
     {
         int32_t type = 0;
         int32_t totalBounding = 0;
@@ -27,7 +27,7 @@ namespace util
                writeI32LE(fp, in.totalBounding);
     }
 
-    bool readVec2V8(FILE *fp, mbm::VEC2 &out)
+    bool readVec2V8(util::MEM_CURSOR_V11 &fp, mbm::VEC2 &out)
     {
         return readF32LE(fp, out.x) &&
                readF32LE(fp, out.y);
@@ -39,7 +39,7 @@ namespace util
                writeF32LE(fp, in.y);
     }
 
-    bool readVec3V8(FILE *fp, mbm::VEC3 &out)
+    bool readVec3V8(util::MEM_CURSOR_V11 &fp, mbm::VEC3 &out)
     {
         return readF32LE(fp, out.x) &&
                readF32LE(fp, out.y) &&
@@ -53,7 +53,7 @@ namespace util
                writeF32LE(fp, in.z);
     }
 
-    bool readVec3ArrayV8(FILE *fp, mbm::VEC3 *out, uint32_t count)
+    bool readVec3ArrayV8(util::MEM_CURSOR_V11 &fp, mbm::VEC3 *out, uint32_t count)
     {
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -73,7 +73,7 @@ namespace util
         return true;
     }
 
-    bool readCubeV8(FILE *fp, mbm::CUBE &out)
+    bool readCubeV8(util::MEM_CURSOR_V11 &fp, mbm::CUBE &out)
     {
         return readVec3V8(fp, out.halfDim) &&
                readVec3V8(fp, out.absCenter);
@@ -85,7 +85,7 @@ namespace util
                writeVec3V8(fp, in.absCenter);
     }
 
-    bool readSphereV8(FILE *fp, mbm::SPHERE &out)
+    bool readSphereV8(util::MEM_CURSOR_V11 &fp, mbm::SPHERE &out)
     {
         return readF32LE(fp, out.ray) &&
                readF32LE(fp, out.absCenter[0]) &&
@@ -101,7 +101,7 @@ namespace util
                writeF32LE(fp, in.absCenter[2]);
     }
 
-    bool readCubeComplexV8(FILE *fp, mbm::CUBE_COMPLEX &out)
+    bool readCubeComplexV8(util::MEM_CURSOR_V11 &fp, mbm::CUBE_COMPLEX &out)
     {
         for (int i = 0; i < 8; ++i)
         {
@@ -129,7 +129,7 @@ namespace util
         return true;
     }
 
-    bool readTriangleV8(FILE *fp, mbm::TRIANGLE &out)
+    bool readTriangleV8(util::MEM_CURSOR_V11 &fp, mbm::TRIANGLE &out)
     {
         return readVec3ArrayV8(fp, out.point, 3) &&
                readVec2V8(fp, out.position);
@@ -141,7 +141,7 @@ namespace util
                writeVec2V8(fp, in.position);
     }
 
-    bool readTriangleLegacyNoPosV8(FILE *fp, mbm::TRIANGLE &out)
+    bool readTriangleLegacyNoPosV8(util::MEM_CURSOR_V11 &fp, mbm::TRIANGLE &out)
     {
         out.position.x = 0.0f;
         out.position.y = 0.0f;

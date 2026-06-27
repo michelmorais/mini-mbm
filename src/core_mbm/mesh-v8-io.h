@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <header-mesh.h>
 #include <shapes.h>
+#include "mesh-io-primitives.h" // util::MEM_CURSOR_V11
 
 // v11's SECTION_DETAIL_PHYSICS keeps the v8 on-disk field layout verbatim (docs/mesh-v11-plan.md
 // File Format Design Principles), so saveV11/loadV11 reuse these primitives directly. Every other
@@ -12,32 +13,36 @@
 // readHeaderV8/readHeaderImgV8 (+ write counterparts) moved there too in milestone 5.5 - uber-image.cpp's
 // UBER_IMG (an unrelated compressed-image-blob format, not a mesh format) no longer reuses them, it
 // has its own self-contained header now (docs/mesh-v11-plan.md Scope Decision 5).
+// The read side here only ever runs against an already-staged v11 section payload (MEM_CURSOR_V11,
+// milestone 15) - SECTION_DETAIL_PHYSICS is the only v11 section reusing this v8 layout, and its
+// payload is always read from memory, never a real on-disk FILE*. The write side stays FILE*-based
+// (writeSectionV11Streamed always streams into the real file).
 namespace util
 {
-    bool readDetailMeshV8(FILE *fp, util::DETAIL_MESH &out);
+    bool readDetailMeshV8(util::MEM_CURSOR_V11 &fp, util::DETAIL_MESH &out);
     bool writeDetailMeshV8(FILE *fp, const util::DETAIL_MESH &in);
 
-    bool readVec2V8(FILE *fp, mbm::VEC2 &out);
+    bool readVec2V8(util::MEM_CURSOR_V11 &fp, mbm::VEC2 &out);
     bool writeVec2V8(FILE *fp, const mbm::VEC2 &in);
 
-    bool readVec3V8(FILE *fp, mbm::VEC3 &out);
+    bool readVec3V8(util::MEM_CURSOR_V11 &fp, mbm::VEC3 &out);
     bool writeVec3V8(FILE *fp, const mbm::VEC3 &in);
 
-    bool readVec3ArrayV8(FILE *fp, mbm::VEC3 *out, uint32_t count);
+    bool readVec3ArrayV8(util::MEM_CURSOR_V11 &fp, mbm::VEC3 *out, uint32_t count);
     bool writeVec3ArrayV8(FILE *fp, const mbm::VEC3 *in, uint32_t count);
 
-    bool readCubeV8(FILE *fp, mbm::CUBE &out);
+    bool readCubeV8(util::MEM_CURSOR_V11 &fp, mbm::CUBE &out);
     bool writeCubeV8(FILE *fp, const mbm::CUBE &in);
 
-    bool readSphereV8(FILE *fp, mbm::SPHERE &out);
+    bool readSphereV8(util::MEM_CURSOR_V11 &fp, mbm::SPHERE &out);
     bool writeSphereV8(FILE *fp, const mbm::SPHERE &in);
 
-    bool readCubeComplexV8(FILE *fp, mbm::CUBE_COMPLEX &out);
+    bool readCubeComplexV8(util::MEM_CURSOR_V11 &fp, mbm::CUBE_COMPLEX &out);
     bool writeCubeComplexV8(FILE *fp, const mbm::CUBE_COMPLEX &in);
 
-    bool readTriangleV8(FILE *fp, mbm::TRIANGLE &out);
+    bool readTriangleV8(util::MEM_CURSOR_V11 &fp, mbm::TRIANGLE &out);
     bool writeTriangleV8(FILE *fp, const mbm::TRIANGLE &in);
-    bool readTriangleLegacyNoPosV8(FILE *fp, mbm::TRIANGLE &out);
+    bool readTriangleLegacyNoPosV8(util::MEM_CURSOR_V11 &fp, mbm::TRIANGLE &out);
 }
 
 #endif

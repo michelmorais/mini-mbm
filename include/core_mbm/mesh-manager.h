@@ -164,8 +164,8 @@ namespace mbm
                                const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
                                util::HEADER_FRAME* headerFrame,
                                util::BUFFER_MESH_DEBUG* pBuffer);//need to be implemented by specific backend engine
-        bool readDebugTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
-        bool readFrameStaticV11Payload(FILE *fp, const util::BUFFER_MESH_DEBUG *frame0, util::BUFFER_MESH_DEBUG *&out,
+        bool readDebugTriangleDetailCompat(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
+        bool readFrameStaticV11Payload(util::MEM_CURSOR_V11 &fp, const util::BUFFER_MESH_DEBUG *frame0, util::BUFFER_MESH_DEBUG *&out,
                                        util::FRAME_HEADER_V11 &outFrameHeader);
         std::vector<std::string> getKnowPathsToExtraHeader();
 
@@ -229,7 +229,7 @@ namespace mbm
         // forward-declared struct below by reference; defined in mesh-manager.cpp only, same
         // forward-declare-in-header pattern as Impl.
         bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
-        bool readTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
+        bool readTriangleDetailCompat(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
 
         struct Impl;
         std::unique_ptr<Impl> impl;

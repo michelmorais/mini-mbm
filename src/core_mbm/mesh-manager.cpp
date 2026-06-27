@@ -208,7 +208,7 @@ namespace
     }
 
     template <typename TriangleReader>
-    bool read_detail_mesh_section(FILE *fp,
+    bool read_detail_mesh_section(util::MEM_CURSOR_V11 &fp,
                                   const char *fileNamePath,
                                   const util::HEADER &headerMain,
                                   mbm::INFO_PHYSICS &infoPhysics,
@@ -218,39 +218,39 @@ namespace
         if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
         {
             if (!util::readDetailMeshV8(fp, detailInfo))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
+                return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
             if (detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SCRIPT && detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SHADER)
-                return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
+                return log_util::onFailed(nullptr,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
             if (detailInfo.totalBounding)
             {
                 const auto extraInfoSize = static_cast<uint32_t>(detailInfo.totalBounding);
                 auto * extra     = new char[extraInfoSize];
-                if (!fread(extra, static_cast<size_t>(extraInfoSize), 1, fp))
+                if (!util::le_io::readBytes(fp, extra, static_cast<size_t>(extraInfoSize)))
                 {
                     delete [] extra;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read old and deprected extra info [%s]", fileNamePath);
+                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read old and deprected extra info [%s]", fileNamePath);
                 }
                 delete [] extra;
             }
         }
 
         if (!util::readDetailMeshV8(fp, detailInfo))
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
+            return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
         if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
         {
             if (detailInfo.type != 'H')
-                return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'H' at DETAIL_MESH [%s]", fileNamePath);
+                return log_util::onFailed(nullptr,__FILE__, __LINE__, "expected 'H' at DETAIL_MESH [%s]", fileNamePath);
         }
         else
         {
             if (detailInfo.type != 'P')
-                return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
+                return log_util::onFailed(nullptr,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
         }
         for (int i = 0; i < detailInfo.totalBounding; )
         {
             util::DETAIL_MESH detail;
             if (!util::readDetailMeshV8(fp, detail))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
+                return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
             switch (detail.type)
             {
                 case MBM_DETAIL_TYPE_CUBE:
@@ -260,7 +260,7 @@ namespace
                         auto cube = new mbm::CUBE();
                         infoPhysics.lsCube.push_back(cube);
                         if (!util::readCubeV8(fp, *cube))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                            return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                     }
                     i += detail.totalBounding;
                 }
@@ -272,7 +272,7 @@ namespace
                         auto base = new mbm::SPHERE();
                         infoPhysics.lsSphere.push_back(base);
                         if (!util::readSphereV8(fp, *base))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                            return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                     }
                     i += detail.totalBounding;
                 }
@@ -284,7 +284,7 @@ namespace
                         auto complex = new mbm::CUBE_COMPLEX();
                         infoPhysics.lsCubeComplex.push_back(complex);
                         if (!util::readCubeComplexV8(fp, *complex))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                            return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                     }
                     i += detail.totalBounding;
                 }
@@ -303,7 +303,7 @@ namespace
                 // mesh_deprecated.
                 default:
                 {
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "unknown type bounding box [%d] [%s]", detail.type, fileNamePath);
+                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "unknown type bounding box [%d] [%s]", detail.type, fileNamePath);
                 }
             }
         }
@@ -388,31 +388,24 @@ namespace
         }
     }
 
-    // Bridges an in-memory v11 section payload (as returned by util::readSectionV11) to a FILE*, so
-    // loadV11 can reuse the project's existing FILE*-based readers (util::readXxxV11, and - for
-    // SECTION_DETAIL_PHYSICS - the real read_detail_mesh_section template) without duplicating any
-    // parsing logic. tmpfile() is standard C (unlike fmemopen, which is POSIX-only and this project
-    // also builds for Windows/DirectX9) and is automatically cleaned up by the OS when closed.
-    FILE *stage_payload_as_tmpfile(const std::vector<uint8_t> &payload)
+    // Wraps an in-memory v11 section payload (as returned by util::readSectionV11) in a
+    // MEM_CURSOR_V11, so loadV11 can reuse the project's existing payload-level readers
+    // (util::readXxxV11, and - for SECTION_DETAIL_PHYSICS - the real read_detail_mesh_section
+    // template) without duplicating any parsing logic, and without copying the payload through a
+    // real OS temp file first (superseded an earlier tmpfile()-per-section design - see
+    // docs/mesh-v11-plan.md milestone 15: that had a real per-section syscall cost and a Windows
+    // risk, since MSVC's tmpfile() defaults to a root directory non-admin users can't write to).
+    util::MEM_CURSOR_V11 stage_payload_as_cursor(const std::vector<uint8_t> &payload)
     {
-        FILE *tmp = std::tmpfile();
-        if (!tmp)
-            return nullptr;
-        if (!payload.empty() && std::fwrite(payload.data(), payload.size(), 1, tmp) != 1)
-        {
-            std::fclose(tmp);
-            return nullptr;
-        }
-        std::fseek(tmp, 0, SEEK_SET);
-        return tmp;
+        return util::MEM_CURSOR_V11{payload.data(), payload.size(), 0};
     }
 
-    // Parses one SECTION_ANIMATION payload (already staged as `tmp`, an open FILE* positioned at its
+    // Parses one SECTION_ANIMATION payload (already staged as `tmp`, a cursor positioned at its
     // start) into a freshly allocated INFO_HEADER_ANIM, shared by MESH_MBM_DEBUG::loadV11 and
     // parse_v11_intermediate (worker-thread-safe - no impl-> access) so the two don't duplicate this
-    // construction logic. Always closes `tmp`. Returns nullptr on any read failure; callers format
-    // their own error message/context.
-    util::INFO_ANIMATION::INFO_HEADER_ANIM *parse_animation_section_v11(FILE *tmp)
+    // construction logic. Returns nullptr on any read failure; callers format their own error
+    // message/context.
+    util::INFO_ANIMATION::INFO_HEADER_ANIM *parse_animation_section_v11(util::MEM_CURSOR_V11 &tmp)
     {
         util::ANIMATION_HEADER_V11 v11Anim;
         bool ok = util::readAnimationHeaderV11(tmp, v11Anim);
@@ -435,7 +428,6 @@ namespace
                     ok = util::readShaderVarV11(tmp, vsVars[v]);
             }
         }
-        fclose(tmp);
         if (!ok)
             return nullptr;
 
@@ -487,9 +479,9 @@ namespace
     }
 
     // Parses one SECTION_DETAIL_PARTICLE payload (already staged as `tmp`) into a freshly allocated
-    // vector of STAGE_PARTICLE*, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate. Always
-    // closes `tmp`. Returns nullptr on any read failure.
-    std::vector<util::STAGE_PARTICLE*> *parse_particle_detail_section_v11(FILE *tmp)
+    // vector of STAGE_PARTICLE*, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate.
+    // Returns nullptr on any read failure.
+    std::vector<util::STAGE_PARTICLE*> *parse_particle_detail_section_v11(util::MEM_CURSOR_V11 &tmp)
     {
         uint16_t stageCount = 0;
         bool ok = util::le_io::readU16LE(tmp, stageCount);
@@ -501,7 +493,6 @@ namespace
             lsStage->push_back(stage);
             ok = util::readStageParticleV11(tmp, *stage);
         }
-        fclose(tmp);
         if (!ok)
         {
             for (auto *stage : *lsStage)
@@ -513,9 +504,9 @@ namespace
     }
 
     // Parses one SECTION_DETAIL_FONT payload (already staged as `tmp`) into a freshly allocated
-    // INFO_BOUND_FONT, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate. Always closes
-    // `tmp`. Returns nullptr on any read failure.
-    mbm::INFO_BOUND_FONT *parse_font_detail_section_v11(FILE *tmp)
+    // INFO_BOUND_FONT, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate. Returns
+    // nullptr on any read failure.
+    mbm::INFO_BOUND_FONT *parse_font_detail_section_v11(util::MEM_CURSOR_V11 &tmp)
     {
         util::FONT_DETAIL_HEADER_V11 v11Font;
         bool ok = util::readFontDetailHeaderV11(tmp, v11Font);
@@ -535,7 +526,6 @@ namespace
             if (ok && letterEntry.letter < 255)
                 font->letter[letterEntry.letter].detail = new util::DETAIL_LETTER(letterEntry);
         }
-        fclose(tmp);
         if (!ok)
         {
             delete font;
@@ -545,19 +535,16 @@ namespace
     }
 
     // Parses one SECTION_DETAIL_TILE payload (already staged as `tmp`) into a freshly allocated
-    // util::BTILE_INFO, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate. Always closes
-    // `tmp`. Returns nullptr on any read failure - ~BTILE_INFO() already deep-cleans whatever was
-    // partially built (layers/lsIndexTiles/infoBrickEditor/lsObj/lsProperty), so a single `delete` on
-    // the in-progress object is enough at every failure point.
-    util::BTILE_INFO *parse_tile_detail_section_v11(FILE *tmp)
+    // util::BTILE_INFO, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate. Returns
+    // nullptr on any read failure - ~BTILE_INFO() already deep-cleans whatever was partially built
+    // (layers/lsIndexTiles/infoBrickEditor/lsObj/lsProperty), so a single `delete` on the
+    // in-progress object is enough at every failure point.
+    util::BTILE_INFO *parse_tile_detail_section_v11(util::MEM_CURSOR_V11 &tmp)
     {
         util::TILE_HEADER_MAP_V11 v11Header;
         bool ok = util::readTileHeaderMapV11(tmp, v11Header);
         if (!ok)
-        {
-            fclose(tmp);
             return nullptr;
-        }
 
         auto *tileInfo = new util::BTILE_INFO();
         tileInfo->map.count_width_tile  = v11Header.count_width_tile;
@@ -627,7 +614,6 @@ namespace
             tileInfo->lsProperty.push_back(prop);
         }
 
-        fclose(tmp);
         if (!ok)
         {
             delete tileInfo;
@@ -639,7 +625,7 @@ namespace
     // Worker-thread-safe equivalent of MESH_MBM::readTriangleDetailCompat/
     // MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic, takes INFO_PHYSICS directly
     // instead of going through `this->impl` (parse_v11_intermediate has no MESH_MBM instance).
-    bool read_triangle_detail_v11(FILE *fp, const char *fileNamePath, const int totalBounding,
+    bool read_triangle_detail_v11(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding,
                                   const int fileVersion, mbm::INFO_PHYSICS &infoPhysics)
     {
         for (int j = 0; j < totalBounding; j++)
@@ -649,7 +635,7 @@ namespace
             const bool ok = (fileVersion >= MODE_DRAW_VERSION_MBM_HEADER) ? util::readTriangleV8(fp, *triangle)
                                                                           : util::readTriangleLegacyNoPosV8(fp, *triangle);
             if (!ok)
-                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
         }
         return true;
     }
@@ -658,14 +644,14 @@ namespace
     // per-subset TEXTURE_MANAGER::load + BUFFER_GL upload moves to finishLoadFromIntermediate,
     // main-thread only). frame0Uv/frame0UvCount let later SHARED_WITH_FRAME_0 frames copy frame 0's
     // already-parsed uv array, mirroring readFrameStaticV11Payload's impl->coordTexFrame_0 cache.
-    bool parse_v11_frame_intermediate(FILE *fp, const char *fileNamePath, mbm::IntermediateFrameV11 &outFrame,
+    bool parse_v11_frame_intermediate(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, mbm::IntermediateFrameV11 &outFrame,
                                       const mbm::VEC2 *frame0Uv, const int frame0UvCount)
     {
         util::FRAME_HEADER_V11 frameHeader;
         if (!util::readFrameHeaderV11(fp, frameHeader))
-            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read FRAME_HEADER_V11 [%s]", fileNamePath);
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read FRAME_HEADER_V11 [%s]", fileNamePath);
         if (frameHeader.indexWidth != 16)
-            return log_util::onFailed(fp, __FILE__, __LINE__,
+            return log_util::onFailed(nullptr, __FILE__, __LINE__,
                                       "loadV11 only supports 16-bit indices (milestone 4 core slice) [%s]", fileNamePath);
 
         outFrame.vertexCount = frameHeader.vertexCount;
@@ -680,7 +666,7 @@ namespace
         {
             if (!util::le_io::readF32LE(fp, outFrame.position[i].x) || !util::le_io::readF32LE(fp, outFrame.position[i].y) ||
                 !util::le_io::readF32LE(fp, outFrame.position[i].z))
-                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame position [%s]", fileNamePath);
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read frame position [%s]", fileNamePath);
         }
 
         if (outFrame.hasNormal)
@@ -689,7 +675,7 @@ namespace
             {
                 if (!util::le_io::readF32LE(fp, outFrame.normal[i].x) || !util::le_io::readF32LE(fp, outFrame.normal[i].y) ||
                     !util::le_io::readF32LE(fp, outFrame.normal[i].z))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame normal [%s]", fileNamePath);
+                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read frame normal [%s]", fileNamePath);
             }
         }
 
@@ -700,7 +686,7 @@ namespace
                 for (uint32_t i = 0; i < frameHeader.vertexCount; ++i)
                 {
                     if (!util::le_io::readF32LE(fp, outFrame.uv[i].x) || !util::le_io::readF32LE(fp, outFrame.uv[i].y))
-                        return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame uv [%s]", fileNamePath);
+                        return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read frame uv [%s]", fileNamePath);
                 }
             }
             else if (frame0Uv) // SHARED_WITH_FRAME_0
@@ -717,7 +703,7 @@ namespace
             for (uint32_t i = 0; i < frameHeader.indexCount; ++i)
             {
                 if (!util::le_io::readU16LE(fp, outFrame.index[i]))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read frame index [%s]", fileNamePath);
+                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read frame index [%s]", fileNamePath);
             }
         }
 
@@ -726,7 +712,7 @@ namespace
         {
             util::SUBSET_DESC_V11 subsetDesc;
             if (!util::readSubsetDescV11(fp, subsetDesc))
-                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read SUBSET_DESC_V11 [%s]", fileNamePath);
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read SUBSET_DESC_V11 [%s]", fileNamePath);
 
             mbm::IntermediateSubsetV11 &subset = outFrame.subsets[s];
             subset.vertexStart        = subsetDesc.vertexStart;
@@ -740,7 +726,7 @@ namespace
             {
                 util::SUBSET_EXTRA_SLOT_V11 extraSlot;
                 if (!util::readSubsetExtraSlotV11(fp, extraSlot))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read SUBSET_EXTRA_SLOT_V11 [%s]", fileNamePath);
+                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read SUBSET_EXTRA_SLOT_V11 [%s]", fileNamePath);
                 uint16_t legacyType = 0;
                 if (textureRoleToLegacyMaterialSlotType(static_cast<mbm::TEXTURE_ROLE>(extraSlot.role), legacyType))
                 {
@@ -780,7 +766,7 @@ namespace
 
         out.typeMe = static_cast<util::TYPE_MESH>(fileHeader.typeMesh);
         util::HEADER headerMain;
-        headerMain.version = CURRENT_VERSION_MBM_HEADER;
+        headerMain.version = LEGACY_HEADER_VERSION;
 
         struct StagedSection
         {
@@ -807,19 +793,12 @@ namespace
 
         for (const auto &staged : sections)
         {
-            FILE *tmp = stage_payload_as_tmpfile(staged.payload);
-            if (!tmp)
-            {
-                errorOut = "failed to stage section";
-                return false;
-            }
+            util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
 
             if (staged.header.type == util::SECTION_MATERIAL_TRANSFORM)
             {
                 util::MATERIAL_TRANSFORM_V11 materialTransform;
-                const bool                   ok = util::readMaterialTransformV11(tmp, materialTransform);
-                fclose(tmp);
-                if (!ok)
+                if (!util::readMaterialTransformV11(tmp, materialTransform))
                 {
                     errorOut = "failed to parse SECTION_MATERIAL_TRANSFORM";
                     return false;
@@ -842,7 +821,6 @@ namespace
                     if (ok)
                         out.extraPaths.push_back(path);
                 }
-                fclose(tmp);
                 if (!ok)
                 {
                     errorOut = "failed to parse SECTION_EXTRA_PATHS";
@@ -852,11 +830,10 @@ namespace
             else if (staged.header.type == util::SECTION_DETAIL_PHYSICS)
             {
                 const bool ok = read_detail_mesh_section(tmp, fileNamePath, headerMain, out.infoPhysics,
-                                                         [&out](FILE *f, const char *n, const int tb, const int fv)
+                                                         [&out](util::MEM_CURSOR_V11 &f, const char *n, const int tb, const int fv)
                                                          {
                                                              return read_triangle_detail_v11(f, n, tb, fv, out.infoPhysics);
                                                          });
-                fclose(tmp);
                 if (!ok)
                 {
                     errorOut = "failed to parse SECTION_DETAIL_PHYSICS";
@@ -907,7 +884,6 @@ namespace
             {
                 mbm::IntermediateFrameV11 frame;
                 const bool                 ok = parse_v11_frame_intermediate(tmp, fileNamePath, frame, frame0Uv, frame0UvCount);
-                fclose(tmp);
                 if (!ok)
                 {
                     errorOut = "failed to parse SECTION_FRAME_STATIC";
@@ -922,7 +898,6 @@ namespace
             }
             else
             {
-                fclose(tmp);
                 errorOut = "loadV11 does not support this section type yet (milestone 4 core slice)";
                 return false;
             }
@@ -1031,7 +1006,7 @@ namespace mbm
     // MBM_ENABLE_MESH_LEGACY_V7-gated v1-v7 path, but these two functions were always-compiled and
     // still needed: they're read_detail_mesh_section's TriangleReader callback for both
     // MESH_MBM_DEBUG::loadV11 and MESH_MBM::loadV11.
-    bool MESH_MBM_DEBUG::readDebugTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion)
+    bool MESH_MBM_DEBUG::readDebugTriangleDetailCompat(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding, const int fileVersion)
     {
         if (fileVersion >= MODE_DRAW_VERSION_MBM_HEADER)
         {
@@ -1040,7 +1015,7 @@ namespace mbm
                 auto triangle = new TRIANGLE();
                 this->impl->infoPhysics.lsTriangle.push_back(triangle);
                 if (!util::readTriangleV8(fp, *triangle))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
             }
         }
         else
@@ -1050,13 +1025,13 @@ namespace mbm
                 auto triangle = new TRIANGLE();
                 this->impl->infoPhysics.lsTriangle.push_back(triangle);
                 if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
             }
         }
         return true;
     }
 
-    bool MESH_MBM::readTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion)
+    bool MESH_MBM::readTriangleDetailCompat(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding, const int fileVersion)
     {
         if (fileVersion >= MODE_DRAW_VERSION_MBM_HEADER)
         {
@@ -1065,7 +1040,7 @@ namespace mbm
                 auto triangle = new TRIANGLE();
                 this->impl->infoPhysics.lsTriangle.push_back(triangle);
                 if (!util::readTriangleV8(fp, *triangle))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
             }
         }
         else
@@ -1075,7 +1050,7 @@ namespace mbm
                 auto triangle = new TRIANGLE();
                 this->impl->infoPhysics.lsTriangle.push_back(triangle);
                 if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
             }
         }
         return true;
@@ -1342,24 +1317,20 @@ namespace mbm
                 break;
             if (sectionHeader.type == util::SECTION_MATERIAL_TRANSFORM)
             {
-                FILE *tmpFp = stage_payload_as_tmpfile(payload);
-                if (tmpFp)
+                util::MEM_CURSOR_V11 tmpFp = stage_payload_as_cursor(payload);
+                util::MATERIAL_TRANSFORM_V11 materialTransform;
+                if (util::readMaterialTransformV11(tmpFp, materialTransform))
                 {
-                    util::MATERIAL_TRANSFORM_V11 materialTransform;
-                    if (util::readMaterialTransformV11(tmpFp, materialTransform))
-                    {
-                        headerMeshMbmOut.material = materialTransform.material;
-                        headerMeshMbmOut.angleX   = materialTransform.angleX;
-                        headerMeshMbmOut.angleY   = materialTransform.angleY;
-                        headerMeshMbmOut.angleZ   = materialTransform.angleZ;
-                        headerMeshMbmOut.posX     = materialTransform.posX;
-                        headerMeshMbmOut.posY     = materialTransform.posY;
-                        headerMeshMbmOut.posZ     = materialTransform.posZ;
-                        info_mode.mode_draw                 = materialTransform.mode_draw;
-                        info_mode.mode_cull_face            = materialTransform.mode_cull_face;
-                        info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
-                    }
-                    fclose(tmpFp);
+                    headerMeshMbmOut.material = materialTransform.material;
+                    headerMeshMbmOut.angleX   = materialTransform.angleX;
+                    headerMeshMbmOut.angleY   = materialTransform.angleY;
+                    headerMeshMbmOut.angleZ   = materialTransform.angleZ;
+                    headerMeshMbmOut.posX     = materialTransform.posX;
+                    headerMeshMbmOut.posY     = materialTransform.posY;
+                    headerMeshMbmOut.posZ     = materialTransform.posZ;
+                    info_mode.mode_draw                 = materialTransform.mode_draw;
+                    info_mode.mode_cull_face            = materialTransform.mode_cull_face;
+                    info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
                 }
             }
             else if (sectionHeader.type == util::SECTION_ANIMATION)
@@ -2550,7 +2521,7 @@ namespace mbm
         return true;
     }
 
-    bool MESH_MBM_DEBUG::readFrameStaticV11Payload(FILE *fp, const util::BUFFER_MESH_DEBUG *frame0, util::BUFFER_MESH_DEBUG *&out,
+    bool MESH_MBM_DEBUG::readFrameStaticV11Payload(util::MEM_CURSOR_V11 &fp, const util::BUFFER_MESH_DEBUG *frame0, util::BUFFER_MESH_DEBUG *&out,
                                                    util::FRAME_HEADER_V11 &outFrameHeader)
     {
         out = nullptr;
@@ -2699,7 +2670,7 @@ namespace mbm
             return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read v11 file header [%s]", fileNamePath);
 
         impl->typeMe                      = static_cast<util::TYPE_MESH>(fileHeader.typeMesh);
-        impl->headerMain.version          = CURRENT_VERSION_MBM_HEADER;
+        impl->headerMain.version          = LEGACY_HEADER_VERSION;
         impl->headerMain.backBufferWidth  = fileHeader.backBufferWidth;
         impl->headerMain.backBufferHeight = fileHeader.backBufferHeight;
         strncpy(impl->headerMain.name, MBM_HEADER_NAME_MBM, sizeof(impl->headerMain.name) - 1);
@@ -2721,13 +2692,9 @@ namespace mbm
 
             if (sectionHeader.type == util::SECTION_MATERIAL_TRANSFORM)
             {
-                FILE *tmp = stage_payload_as_tmpfile(payload);
-                if (!tmp)
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_MATERIAL_TRANSFORM [%s]", fileNamePath);
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 util::MATERIAL_TRANSFORM_V11 materialTransform;
-                const bool ok = util::readMaterialTransformV11(tmp, materialTransform);
-                fclose(tmp);
-                if (!ok)
+                if (!util::readMaterialTransformV11(tmp, materialTransform))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_MATERIAL_TRANSFORM [%s]", fileNamePath);
 
                 impl->headerMesh.material = materialTransform.material;
@@ -2748,9 +2715,7 @@ namespace mbm
             }
             else if (sectionHeader.type == util::SECTION_EXTRA_PATHS)
             {
-                FILE *tmp = stage_payload_as_tmpfile(payload);
-                if (!tmp)
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_EXTRA_PATHS [%s]", fileNamePath);
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 uint32_t count = 0;
                 bool ok = util::le_io::readU32LE(tmp, count);
                 for (uint32_t p = 0; ok && p < count; ++p)
@@ -2764,29 +2729,23 @@ namespace mbm
 #endif
                     }
                 }
-                fclose(tmp);
                 if (!ok)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_EXTRA_PATHS [%s]", fileNamePath);
             }
             else if (sectionHeader.type == util::SECTION_DETAIL_PHYSICS)
             {
-                FILE *tmp = stage_payload_as_tmpfile(payload);
-                if (!tmp)
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_PHYSICS [%s]", fileNamePath);
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 const bool ok = read_detail_mesh_section(tmp, fileNamePath, impl->headerMain, this->impl->infoPhysics,
-                                                         [this](FILE *f, const char *n, const int tb, const int fv)
+                                                         [this](util::MEM_CURSOR_V11 &f, const char *n, const int tb, const int fv)
                                                          {
                                                              return this->readDebugTriangleDetailCompat(f, n, tb, fv);
                                                          });
-                fclose(tmp);
                 if (!ok)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_PHYSICS [%s]", fileNamePath);
             }
             else if (sectionHeader.type == util::SECTION_ANIMATION)
             {
-                FILE *tmp = stage_payload_as_tmpfile(payload);
-                if (!tmp)
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_ANIMATION [%s]", fileNamePath);
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = parse_animation_section_v11(tmp);
                 if (!infoHead)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ANIMATION [%s]", fileNamePath);
@@ -2794,9 +2753,7 @@ namespace mbm
             }
             else if (sectionHeader.type == util::SECTION_DETAIL_PARTICLE)
             {
-                FILE *tmp = stage_payload_as_tmpfile(payload);
-                if (!tmp)
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_PARTICLE [%s]", fileNamePath);
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 std::vector<util::STAGE_PARTICLE*> *lsStage = parse_particle_detail_section_v11(tmp);
                 if (!lsStage)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_PARTICLE [%s]", fileNamePath);
@@ -2804,9 +2761,7 @@ namespace mbm
             }
             else if (sectionHeader.type == util::SECTION_DETAIL_FONT)
             {
-                FILE *tmp = stage_payload_as_tmpfile(payload);
-                if (!tmp)
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_FONT [%s]", fileNamePath);
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 INFO_BOUND_FONT *font = parse_font_detail_section_v11(tmp);
                 if (!font)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_FONT [%s]", fileNamePath);
@@ -2814,9 +2769,7 @@ namespace mbm
             }
             else if (sectionHeader.type == util::SECTION_DETAIL_TILE)
             {
-                FILE *tmp = stage_payload_as_tmpfile(payload);
-                if (!tmp)
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_TILE [%s]", fileNamePath);
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 util::BTILE_INFO *tileInfo = parse_tile_detail_section_v11(tmp);
                 if (!tileInfo)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_TILE [%s]", fileNamePath);
@@ -2824,13 +2777,10 @@ namespace mbm
             }
             else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
             {
-                FILE *tmp = stage_payload_as_tmpfile(payload);
-                if (!tmp)
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_FRAME_STATIC [%s]", fileNamePath);
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 util::BUFFER_MESH_DEBUG *pBuffer = nullptr;
                 util::FRAME_HEADER_V11 v11FrameHeader;
                 const bool ok = this->readFrameStaticV11Payload(tmp, frame0, pBuffer, v11FrameHeader);
-                fclose(tmp);
                 if (!ok)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_FRAME_STATIC [%s]", fileNamePath);
 
@@ -4820,7 +4770,7 @@ namespace mbm
                 break;
         }
         strncpy(impl->headerMain.name, MBM_HEADER_NAME_MBM, sizeof(impl->headerMain.name) - 1);
-        impl->headerMain.version = CURRENT_VERSION_MBM_HEADER;
+        impl->headerMain.version = LEGACY_HEADER_VERSION;
         impl->headerMain.magic = 0x010203ff;
         impl->typeMe = meshMemory->getTypeMesh();
         // step 2: --------------------------------------------------------------------------------------------------

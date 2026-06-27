@@ -570,6 +570,52 @@ concrete use case shows up.
   `loadV11` need to handle is implemented. Only milestone 9 (skinned-frame block + GPU skinning)
   remains explicitly reserved/not-implemented by design, picked up only if real demand shows up.
 
+- **Milestone 14 (closed 2026-06-27): renamed `CURRENT_VERSION_MBM_HEADER` →
+  `LEGACY_HEADER_VERSION`.** Pure cleanup, no behavior change. The old name made it look like a v11
+  versioning bug; it's actually the legacy in-memory `util::HEADER::version` field for the v1-v10
+  on-disk format, unrelated to the real v11 file version (`FILE_HEADER_V11::formatVersion =
+  MBM_V11_FORMAT_VERSION = 11`, correct everywhere it's written). Updated `header-mesh.h`'s
+  `#define` + comment and the 4 call sites in `header-mesh.cpp`/`mesh-manager.cpp`. Confirmed no
+  other references anywhere in the tree; full project build passes.
+
+- **Milestone 15 (closed 2026-06-27): removed the per-section `tmpfile()` staging.**
+  `stage_payload_as_tmpfile` called `tmpfile()` once per v11 *section* (~10 call sites - one per
+  frame/animation/detail block, so 50+ times for a typical mesh), each doing a full
+  write+rewind+read round-trip through the OS filesystem instead of reading the in-memory
+  `payload` byte vector already held. Real cost beyond raw overhead: MSVC's `tmpfile()` defaults
+  to creating the file in the root of the current drive, which fails for non-admin Windows users.
+  Replaced with `MEM_CURSOR_V11` (`include/core_mbm/header-mesh.h` - a non-owning `{data, size,
+  pos}` view, declared there rather than the internal `mesh-io-primitives.h` because
+  `MESH_MBM_DEBUG`'s class declaration in the public `mesh-manager.h` needs the type visible).
+  Added `MEM_CURSOR_V11` overloads of the six low-level primitives (`readBytes`/`readI16LE`/
+  `readU16LE`/`readI32LE`/`readU32LE`/`readF32LE`) in `mesh-io-primitives.h` alongside the existing
+  `FILE*` ones. Confirmed by direct research (not guesswork) that every payload-level reader in
+  `mesh-v11-io.h`/`mesh-v8-io.h` (the latter is SECTION_DETAIL_PHYSICS's v8-layout reuse) does pure
+  sequential forward reads only - no seeking - and is *only ever* called against a staged section
+  buffer, never the real on-disk file (the envelope readers - `readFileHeaderV11`/
+  `readSectionHeaderV11`/`readSectionV11`/`skipSectionPayloadV11` - are the only ones touching the
+  real `FILE*`, and stayed unchanged). This meant every payload-level read function could have its
+  signature swapped directly from `FILE*` to `MEM_CURSOR_V11&` with no template/dual-mode needed -
+  simpler than the originally-scoped plan. `stage_payload_as_tmpfile` became
+  `stage_payload_as_cursor`, just wrapping the already-owned payload vector (`{payload.data(),
+  payload.size(), 0}`) - no allocation, no syscall. This also deleted a real latent bug: every one
+  of the ~10 call sites unconditionally called `fclose(tmp)` *after* the parse helper returned, but
+  several of those helpers could already fail partway through and call `log_util::onFailed(tmp,
+  ...)` internally, which itself calls `fclose` on a non-null handle - a double-close on the error
+  path. Removing the FILE* entirely removes the whole hazard class, not just the syscall cost.
+  Found one piece of genuinely dead code along the way: `MESH_MBM::readTriangleDetailCompat` has
+  zero callers anywhere in the codebase (its sibling `MESH_MBM_DEBUG::readDebugTriangleDetailCompat`
+  is the one actually used) - left in place (just signature-converted so it still compiles) rather
+  than deleted, since removing dead code wasn't this milestone's scope; worth a follow-up cleanup.
+  Verified: full project build clean (no warnings); converted real legacy fixtures for all 5 mesh
+  types (`.msh`, `.spt`, `.ptl`, `.fnt`, `.tile` - pulled from `tower-defense`'s git history since
+  the live copies had already been migrated to v11 by earlier milestones) through
+  `mesh_legacy_converter`; then loaded all 5 converted v11 files through the real runtime classes
+  (`mbm::MESH`/`mbm::SPRITE`/`mbm::PARTICLE`/`mbm::TILE`/`mbm::FONT_DRAW`, all via
+  `MESH_MANAGER::load` → `parse_v11_intermediate`/`finishLoadFromIntermediate`, the
+  `MEM_CURSOR_V11`-based path) via a temporary `testLib`/`DISPLAY=:1` dynamic test - all 5 reported
+  `OK`. Temporary test code and `/tmp` fixtures removed afterward.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items

@@ -707,7 +707,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         case MenuObjectType::MESH:
         {
             mesh = new mbm::MESH(this, is3d, is2dS);
-            if (mesh->load("Barrel_NoTop.msh"))
+            if (mesh->load("Crate.msh"))
             {
                 mesh->setScale(mbm::VEC3(3.5f, 3.5f, 3.5f));
                 INFO_LOG("MESH loaded (%s)", modeToStr(mode));

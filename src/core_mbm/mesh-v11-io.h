@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include "mesh-io-primitives.h" // util::MEM_CURSOR_V11
 
 namespace util
 {
@@ -21,8 +22,11 @@ namespace util
     bool writeSectionHeaderV11(FILE *fp, const util::SECTION_HEADER_V11 &in);
 
     // Length-prefixed UTF-8 string: uint16 length, then `length` bytes, no null terminator
-    // (format doc Sec. 5 - replaces fixed char[] name/path buffers).
-    bool readStringV11(FILE *fp, std::string &out);
+    // (format doc Sec. 5 - replaces fixed char[] name/path buffers). The read side only ever runs
+    // against an already-decompressed section payload (see MEM_CURSOR_V11 in
+    // mesh-io-primitives.h, milestone 15) - the write side still streams straight into the real
+    // on-disk FILE*.
+    bool readStringV11(util::MEM_CURSOR_V11 &fp, std::string &out);
     bool writeStringV11(FILE *fp, const std::string &in);
 
     // Writes one section: compresses `payload` if header.compression requests it (falls back to
@@ -64,13 +68,15 @@ namespace util
     bool writeSubsetExtraSlotV11(FILE *fp, const util::SUBSET_EXTRA_SLOT_V11 &in);
     bool writeMaterialTransformV11(FILE *fp, const util::MATERIAL_TRANSFORM_V11 &in);
 
-    // Milestone 4: the read-side mirror of the serializers above, same FILE*-based style.
-    bool readFrameHeaderV11(FILE *fp, util::FRAME_HEADER_V11 &out);
+    // Milestone 4: the read-side mirror of the serializers above. Read against an in-memory
+    // section payload (MEM_CURSOR_V11) rather than FILE* - see readStringV11's comment above
+    // (milestone 15); the write side stays FILE*-based.
+    bool readFrameHeaderV11(util::MEM_CURSOR_V11 &fp, util::FRAME_HEADER_V11 &out);
     // Fails (returns false) on TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED - reserved, unread this milestone.
-    bool readTextureRefV11(FILE *fp, util::TEXTURE_REF_V11 &out);
-    bool readSubsetDescV11(FILE *fp, util::SUBSET_DESC_V11 &out);
-    bool readSubsetExtraSlotV11(FILE *fp, util::SUBSET_EXTRA_SLOT_V11 &out);
-    bool readMaterialTransformV11(FILE *fp, util::MATERIAL_TRANSFORM_V11 &out);
+    bool readTextureRefV11(util::MEM_CURSOR_V11 &fp, util::TEXTURE_REF_V11 &out);
+    bool readSubsetDescV11(util::MEM_CURSOR_V11 &fp, util::SUBSET_DESC_V11 &out);
+    bool readSubsetExtraSlotV11(util::MEM_CURSOR_V11 &fp, util::SUBSET_EXTRA_SLOT_V11 &out);
+    bool readMaterialTransformV11(util::MEM_CURSOR_V11 &fp, util::MATERIAL_TRANSFORM_V11 &out);
 
     // SECTION_ANIMATION payload serializers (docs/mesh-v11-format.md Sec. 6b).
     bool writeShaderVarV11(FILE *fp, const util::SHADER_VAR_V11 &in);
@@ -78,39 +84,39 @@ namespace util
     bool writeFxHeaderV11(FILE *fp, const util::FX_HEADER_V11 &in);
     bool writeAnimationHeaderV11(FILE *fp, const util::ANIMATION_HEADER_V11 &in);
 
-    bool readShaderVarV11(FILE *fp, util::SHADER_VAR_V11 &out);
-    bool readShaderStepV11(FILE *fp, util::SHADER_STEP_V11 &out);
-    bool readFxHeaderV11(FILE *fp, util::FX_HEADER_V11 &out);
-    bool readAnimationHeaderV11(FILE *fp, util::ANIMATION_HEADER_V11 &out);
+    bool readShaderVarV11(util::MEM_CURSOR_V11 &fp, util::SHADER_VAR_V11 &out);
+    bool readShaderStepV11(util::MEM_CURSOR_V11 &fp, util::SHADER_STEP_V11 &out);
+    bool readFxHeaderV11(util::MEM_CURSOR_V11 &fp, util::FX_HEADER_V11 &out);
+    bool readAnimationHeaderV11(util::MEM_CURSOR_V11 &fp, util::ANIMATION_HEADER_V11 &out);
 
     // SECTION_DETAIL_PARTICLE / SECTION_DETAIL_FONT payload serializers.
     bool writeStageParticleV11(FILE *fp, const util::STAGE_PARTICLE &in);
-    bool readStageParticleV11(FILE *fp, util::STAGE_PARTICLE &out);
+    bool readStageParticleV11(util::MEM_CURSOR_V11 &fp, util::STAGE_PARTICLE &out);
 
     bool writeFontDetailHeaderV11(FILE *fp, const util::FONT_DETAIL_HEADER_V11 &in);
-    bool readFontDetailHeaderV11(FILE *fp, util::FONT_DETAIL_HEADER_V11 &out);
+    bool readFontDetailHeaderV11(util::MEM_CURSOR_V11 &fp, util::FONT_DETAIL_HEADER_V11 &out);
 
     bool writeDetailLetterV11(FILE *fp, const util::DETAIL_LETTER &in);
-    bool readDetailLetterV11(FILE *fp, util::DETAIL_LETTER &out);
+    bool readDetailLetterV11(util::MEM_CURSOR_V11 &fp, util::DETAIL_LETTER &out);
 
     // SECTION_DETAIL_TILE payload serializers.
     bool writeBtileIndexTileV11(FILE *fp, const util::BTILE_INDEX_TILE &in);
-    bool readBtileIndexTileV11(FILE *fp, util::BTILE_INDEX_TILE &out);
+    bool readBtileIndexTileV11(util::MEM_CURSOR_V11 &fp, util::BTILE_INDEX_TILE &out);
 
     bool writeBtileBrickInfoV11(FILE *fp, const util::BTILE_BRICK_INFO &in);
-    bool readBtileBrickInfoV11(FILE *fp, util::BTILE_BRICK_INFO &out);
+    bool readBtileBrickInfoV11(util::MEM_CURSOR_V11 &fp, util::BTILE_BRICK_INFO &out);
 
     bool writeTileHeaderMapV11(FILE *fp, const util::TILE_HEADER_MAP_V11 &in);
-    bool readTileHeaderMapV11(FILE *fp, util::TILE_HEADER_MAP_V11 &out);
+    bool readTileHeaderMapV11(util::MEM_CURSOR_V11 &fp, util::TILE_HEADER_MAP_V11 &out);
 
     bool writeTileLayerHeaderV11(FILE *fp, const util::TILE_LAYER_HEADER_V11 &in);
-    bool readTileLayerHeaderV11(FILE *fp, util::TILE_LAYER_HEADER_V11 &out);
+    bool readTileLayerHeaderV11(util::MEM_CURSOR_V11 &fp, util::TILE_LAYER_HEADER_V11 &out);
 
     bool writeTileObjHeaderV11(FILE *fp, const util::TILE_OBJ_HEADER_V11 &in);
-    bool readTileObjHeaderV11(FILE *fp, util::TILE_OBJ_HEADER_V11 &out);
+    bool readTileObjHeaderV11(util::MEM_CURSOR_V11 &fp, util::TILE_OBJ_HEADER_V11 &out);
 
     bool writeTilePropertyV11(FILE *fp, const util::TILE_PROPERTY_V11 &in);
-    bool readTilePropertyV11(FILE *fp, util::TILE_PROPERTY_V11 &out);
+    bool readTilePropertyV11(util::MEM_CURSOR_V11 &fp, util::TILE_PROPERTY_V11 &out);
 }
 
 #endif

@@ -117,7 +117,7 @@ namespace util
                writeU32LE(fp, in.crc32Value);
     }
 
-    bool readStringV11(FILE *fp, std::string &out)
+    bool readStringV11(util::MEM_CURSOR_V11 &fp, std::string &out)
     {
         uint16_t length = 0;
         if (!readU16LE(fp, length))
@@ -296,7 +296,7 @@ namespace util
                writeU32LE(fp, in.mode_front_face_direction);
     }
 
-    bool readFrameHeaderV11(FILE *fp, util::FRAME_HEADER_V11 &out)
+    bool readFrameHeaderV11(util::MEM_CURSOR_V11 &fp, util::FRAME_HEADER_V11 &out)
     {
         return readU32LE(fp, out.totalSubset) &&
                readU32LE(fp, out.vertexCount) &&
@@ -307,7 +307,7 @@ namespace util
                readU32LE(fp, out.indexCount);
     }
 
-    bool readTextureRefV11(FILE *fp, util::TEXTURE_REF_V11 &out)
+    bool readTextureRefV11(util::MEM_CURSOR_V11 &fp, util::TEXTURE_REF_V11 &out)
     {
         if (!readBytes(fp, &out.storage, sizeof(out.storage)))
             return false;
@@ -316,7 +316,7 @@ namespace util
         return false; // EMBEDDED_COMPRESSED is reserved, not implemented (milestone 4 scope)
     }
 
-    bool readSubsetDescV11(FILE *fp, util::SUBSET_DESC_V11 &out)
+    bool readSubsetDescV11(util::MEM_CURSOR_V11 &fp, util::SUBSET_DESC_V11 &out)
     {
         return readTextureRefV11(fp, out.primaryTexture) &&
                readI32LE(fp, out.vertexCount) &&
@@ -327,15 +327,15 @@ namespace util
                readU16LE(fp, out.extraSlotCount);
     }
 
-    bool readSubsetExtraSlotV11(FILE *fp, util::SUBSET_EXTRA_SLOT_V11 &out)
+    bool readSubsetExtraSlotV11(util::MEM_CURSOR_V11 &fp, util::SUBSET_EXTRA_SLOT_V11 &out)
     {
         return readBytes(fp, &out.role, sizeof(out.role)) &&
                readTextureRefV11(fp, out.texture);
     }
 
-    bool readMaterialTransformV11(FILE *fp, util::MATERIAL_TRANSFORM_V11 &out)
+    bool readMaterialTransformV11(util::MEM_CURSOR_V11 &fp, util::MATERIAL_TRANSFORM_V11 &out)
     {
-        const auto readColor = [fp](mbm::COLOR &c) noexcept
+        const auto readColor = [&fp](mbm::COLOR &c) noexcept
         {
             return readF32LE(fp, c.r) && readF32LE(fp, c.g) && readF32LE(fp, c.b) && readF32LE(fp, c.a);
         };
@@ -403,7 +403,7 @@ namespace util
                writeBytes(fp, &in.hasFx, sizeof(in.hasFx));
     }
 
-    bool readShaderVarV11(FILE *fp, util::SHADER_VAR_V11 &out)
+    bool readShaderVarV11(util::MEM_CURSOR_V11 &fp, util::SHADER_VAR_V11 &out)
     {
         return readBytes(fp, &out.typeVar, sizeof(out.typeVar)) &&
                readF32LE(fp, out.min[0]) && readF32LE(fp, out.min[1]) &&
@@ -412,7 +412,7 @@ namespace util
                readF32LE(fp, out.max[2]) && readF32LE(fp, out.max[3]);
     }
 
-    bool readShaderStepV11(FILE *fp, util::SHADER_STEP_V11 &out)
+    bool readShaderStepV11(util::MEM_CURSOR_V11 &fp, util::SHADER_STEP_V11 &out)
     {
         return readStringV11(fp, out.name) &&
                readF32LE(fp, out.timeAnimation) &&
@@ -420,7 +420,7 @@ namespace util
                readU16LE(fp, out.varCount);
     }
 
-    bool readFxHeaderV11(FILE *fp, util::FX_HEADER_V11 &out)
+    bool readFxHeaderV11(util::MEM_CURSOR_V11 &fp, util::FX_HEADER_V11 &out)
     {
         if (!readI32LE(fp, out.blendOperation) ||
             !readBytes(fp, &out.hasFxTexture, sizeof(out.hasFxTexture)))
@@ -440,7 +440,7 @@ namespace util
         return true;
     }
 
-    bool readAnimationHeaderV11(FILE *fp, util::ANIMATION_HEADER_V11 &out)
+    bool readAnimationHeaderV11(util::MEM_CURSOR_V11 &fp, util::ANIMATION_HEADER_V11 &out)
     {
         return readStringV11(fp, out.name) &&
                readI32LE(fp, out.initialFrame) &&
@@ -480,7 +480,7 @@ namespace util
                writeBytes(fp, &in.invert_alpha, sizeof(in.invert_alpha));
     }
 
-    bool readStageParticleV11(FILE *fp, util::STAGE_PARTICLE &out)
+    bool readStageParticleV11(util::MEM_CURSOR_V11 &fp, util::STAGE_PARTICLE &out)
     {
         return readF32LE(fp, out.minOffsetPosition.x) && readF32LE(fp, out.minOffsetPosition.y) &&
                readF32LE(fp, out.minOffsetPosition.z) &&
@@ -518,7 +518,7 @@ namespace util
                writeU16LE(fp, in.letterCount);
     }
 
-    bool readFontDetailHeaderV11(FILE *fp, util::FONT_DETAIL_HEADER_V11 &out)
+    bool readFontDetailHeaderV11(util::MEM_CURSOR_V11 &fp, util::FONT_DETAIL_HEADER_V11 &out)
     {
         return readStringV11(fp, out.name) &&
                readI16LE(fp, out.spaceXCharacter) &&
@@ -535,7 +535,7 @@ namespace util
                writeU16LE(fp, in.heightLetter);
     }
 
-    bool readDetailLetterV11(FILE *fp, util::DETAIL_LETTER &out)
+    bool readDetailLetterV11(util::MEM_CURSOR_V11 &fp, util::DETAIL_LETTER &out)
     {
         return readBytes(fp, &out.letter, sizeof(out.letter)) &&
                readBytes(fp, &out.indexFrame, sizeof(out.indexFrame)) &&
@@ -548,7 +548,7 @@ namespace util
         return writeU32LE(fp, in.index) && writeF32LE(fp, in.x) && writeF32LE(fp, in.y);
     }
 
-    bool readBtileIndexTileV11(FILE *fp, util::BTILE_INDEX_TILE &out)
+    bool readBtileIndexTileV11(util::MEM_CURSOR_V11 &fp, util::BTILE_INDEX_TILE &out)
     {
         return readU32LE(fp, out.index) && readF32LE(fp, out.x) && readF32LE(fp, out.y);
     }
@@ -559,7 +559,7 @@ namespace util
                writeU16LE(fp, in.rotation) && writeU16LE(fp, in.flipped);
     }
 
-    bool readBtileBrickInfoV11(FILE *fp, util::BTILE_BRICK_INFO &out)
+    bool readBtileBrickInfoV11(util::MEM_CURSOR_V11 &fp, util::BTILE_BRICK_INFO &out)
     {
         return readU16LE(fp, out.index) && readU16LE(fp, out.original_index) &&
                readU16LE(fp, out.rotation) && readU16LE(fp, out.flipped);
@@ -582,7 +582,7 @@ namespace util
                writeBytes(fp, &in.renderDirectionTopToDown, sizeof(in.renderDirectionTopToDown));
     }
 
-    bool readTileHeaderMapV11(FILE *fp, util::TILE_HEADER_MAP_V11 &out)
+    bool readTileHeaderMapV11(util::MEM_CURSOR_V11 &fp, util::TILE_HEADER_MAP_V11 &out)
     {
         return readU32LE(fp, out.count_width_tile) &&
                readU32LE(fp, out.count_height_tile) &&
@@ -604,7 +604,7 @@ namespace util
         return writeF32LE(fp, in.offsetX) && writeF32LE(fp, in.offsetY) && writeF32LE(fp, in.offsetZ);
     }
 
-    bool readTileLayerHeaderV11(FILE *fp, util::TILE_LAYER_HEADER_V11 &out)
+    bool readTileLayerHeaderV11(util::MEM_CURSOR_V11 &fp, util::TILE_LAYER_HEADER_V11 &out)
     {
         return readF32LE(fp, out.offsetX) && readF32LE(fp, out.offsetY) && readF32LE(fp, out.offsetZ);
     }
@@ -614,7 +614,7 @@ namespace util
         return writeStringV11(fp, in.name) && writeU16LE(fp, in.type) && writeU16LE(fp, in.pointCount);
     }
 
-    bool readTileObjHeaderV11(FILE *fp, util::TILE_OBJ_HEADER_V11 &out)
+    bool readTileObjHeaderV11(util::MEM_CURSOR_V11 &fp, util::TILE_OBJ_HEADER_V11 &out)
     {
         return readStringV11(fp, out.name) && readU16LE(fp, out.type) && readU16LE(fp, out.pointCount);
     }
@@ -625,7 +625,7 @@ namespace util
                writeStringV11(fp, in.value) && writeU16LE(fp, in.type);
     }
 
-    bool readTilePropertyV11(FILE *fp, util::TILE_PROPERTY_V11 &out)
+    bool readTilePropertyV11(util::MEM_CURSOR_V11 &fp, util::TILE_PROPERTY_V11 &out)
     {
         return readStringV11(fp, out.owner) && readStringV11(fp, out.name) &&
                readStringV11(fp, out.value) && readU16LE(fp, out.type);

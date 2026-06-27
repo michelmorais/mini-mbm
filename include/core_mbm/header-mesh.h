@@ -117,7 +117,11 @@ namespace util
     #define MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER 9 // v9: per-subset typed material texture slots
     #define TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER 10 // v10: TextureAnimationEffect stored once per animation FX block
 
-    #define CURRENT_VERSION_MBM_HEADER     TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER
+    // Legacy in-memory header version (util::HEADER::version) for the old v1-v10 on-disk format.
+    // Unrelated to the v11 file format's own version field (FILE_HEADER_V11::formatVersion,
+    // see MBM_V11_FORMAT_VERSION below) - this constant stops advancing once v11 is the only
+    // format being written.
+    #define LEGACY_HEADER_VERSION     TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER
 
     /* hasNorText[0] (normals) */
     #define HAS_NOR_NO           0  /* no normals */
@@ -162,7 +166,7 @@ namespace util
     {
         char name[16];          // must be "mbm"
         char typeApp[16];       // "Mesh 3d mbm", "User mbm", "Font", "Particle", "Sprite mbm", "Tile mbm"
-        int32_t version;            // current CURRENT_VERSION_MBM_HEADER
+        int32_t version;            // legacy v1-v10 header version, see LEGACY_HEADER_VERSION
         uint32_t magic;             // must be 0x010203ff.
         int32_t reserved;           // reserved (Must be 0)
         int32_t backBufferWidth;    // Indica o tamanho da largura do back buffer em que o objeto foi criado
@@ -645,6 +649,21 @@ namespace util
                                       // mz_crc32 for zlib-API compat, which mangles a field literally
                                       // named crc32 in any TU that includes both headers.
         SECTION_HEADER_V11() noexcept;
+    };
+
+    // Non-owning cursor over an already-in-memory byte buffer - typically a v11 section's
+    // decompressed payload. Lets the v11/v8 payload-level readers (mesh-v11-io.h/mesh-v8-io.h)
+    // consume bytes without staging them through a real OS temp file first (milestone 15;
+    // superseded an earlier tmpfile()-per-section design - see docs/mesh-v11-plan.md). Declared
+    // here (not in the internal mesh-io-primitives.h where its read primitives live) because
+    // MESH_MBM_DEBUG's class declaration (mesh-manager.h, a public header) needs the type visible.
+    // Read-only: nothing ever serializes a payload back out of memory through this type, only into
+    // a real FILE* via writeSectionV11Streamed.
+    struct MEM_CURSOR_V11
+    {
+        const uint8_t *data;
+        size_t         size;
+        size_t         pos;
     };
 
     // -----------------------------------------------------------------------------------------

@@ -48,7 +48,7 @@ namespace util
     {
         strncpy(name, "mbm",sizeof(name)-1);
         strncpy(typeApp, "unknown",sizeof(typeApp)-1);
-        version          = CURRENT_VERSION_MBM_HEADER;
+        version          = LEGACY_HEADER_VERSION;
         reserved         = 0;
         extraHeader      = 0;
         magic            = 0x010203ff;
