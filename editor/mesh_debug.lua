@@ -4667,18 +4667,9 @@ function showMeshOptions(tEntry, index)
             if okS and nS then totalSubsets = nS end
         end
 
-        -- Frame / subset selectors (0 = all, consistent with Transform node)
+        -- Stage selector first: frame/subset/role only make sense for stage 0 (FX is one shared
+        -- texture per animation, not addressable by frame/subset - see the Animations node note).
         tImGui.Separator()
-        tImGui.Text(tLang.L("target_frame_label"))
-        local _, nf = tImGui.InputInt('##txFrame-' .. index, tx.frame, 1, 1, 0)
-        if nf ~= nil then tx.frame = math.max(0, math.min(nf, totalFrames)) end
-
-        tImGui.Text(tLang.L("target_subset_label"))
-        local _, ns = tImGui.InputInt('##txSubset-' .. index, tx.subset, 1, 1, 0)
-        if ns ~= nil then tx.subset = math.max(0, math.min(ns, totalSubsets)) end
-
-        -- Stage selector
-        tImGui.Spacing()
         tImGui.Text(tLang.L("tex_stage_label"))
         local stageOpts = {'0 - Primary', '1 - FX (per anim step)'}
         local stageRet, newStageIdx = tImGui.Combo('##txStage-' .. index, tx.stage + 1, stageOpts, -1)
@@ -4688,6 +4679,15 @@ function showMeshOptions(tEntry, index)
         if tx.stage == 1 then
             tImGui.TextWrapped(tLang.L("tex_stage1_note"))
         else
+            -- Frame / subset selectors (0 = all, consistent with Transform node)
+            tImGui.Text(tLang.L("target_frame_label"))
+            local _, nf = tImGui.InputInt('##txFrame-' .. index, tx.frame, 1, 1, 0)
+            if nf ~= nil then tx.frame = math.max(0, math.min(nf, totalFrames)) end
+
+            tImGui.Text(tLang.L("target_subset_label"))
+            local _, ns = tImGui.InputInt('##txSubset-' .. index, tx.subset, 1, 1, 0)
+            if ns ~= nil then tx.subset = math.max(0, math.min(ns, totalSubsets)) end
+            tImGui.Spacing()
             local roleOpts = {
                 tLang.L("tex_role_primary"),
                 tLang.L("tex_role_normal"),
@@ -5944,12 +5944,8 @@ function showApplyAllWindow()
 
             if tImGui.TreeNodeEx(tLang.L('texture_node') .. '##applyAllTexture', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
                 local tx = win.texture
-                tImGui.Text(tLang.L('target_frame_label'))
-                local _, nf = tImGui.InputInt('##applyAllTxFrame', tx.frame, 1, 1, 0)
-                if nf ~= nil then tx.frame = math.max(0, nf) end
-                tImGui.Text(tLang.L('target_subset_label'))
-                local _, ns = tImGui.InputInt('##applyAllTxSubset', tx.subset, 1, 1, 0)
-                if ns ~= nil then tx.subset = math.max(0, ns) end
+                -- Stage selector first: frame/subset only make sense for stage 0 (FX is one
+                -- shared texture per animation, not addressable by frame/subset).
                 tImGui.Text(tLang.L('tex_stage_label'))
                 local stageOpts = {'0 - Primary', '1 - FX (per anim step)'}
                 local rStage, newStageIdx = tImGui.Combo('##applyAllTxStage', tx.stage + 1, stageOpts, -1)
@@ -5957,6 +5953,12 @@ function showApplyAllWindow()
                 if tx.stage == 1 then
                     tImGui.TextWrapped(tLang.L('tex_stage1_note'))
                 else
+                    tImGui.Text(tLang.L('target_frame_label'))
+                    local _, nf = tImGui.InputInt('##applyAllTxFrame', tx.frame, 1, 1, 0)
+                    if nf ~= nil then tx.frame = math.max(0, nf) end
+                    tImGui.Text(tLang.L('target_subset_label'))
+                    local _, ns = tImGui.InputInt('##applyAllTxSubset', tx.subset, 1, 1, 0)
+                    if ns ~= nil then tx.subset = math.max(0, ns) end
                     local changedFile, newFile = tImGui.InputText('##applyAllTxFile', tx.filename or '', 512, 0)
                     if changedFile and newFile ~= nil then tx.filename = newFile end
                     tImGui.SameLine()
