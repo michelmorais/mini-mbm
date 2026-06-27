@@ -120,8 +120,28 @@ namespace mbm
         util::INFO_ANIMATION     infoAnimation;
         std::vector<std::string> extraPaths;
         std::vector<IntermediateFrameV11> frames;
+        // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
+        // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
+        // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
+        // needs explicit cleanup here if a load is abandoned before finishLoadFromIntermediate moves
+        // it out, otherwise it leaks.
+        void *extraInfo = nullptr;
 
         MESH_LOAD_INTERMEDIATE_V11() = default;
+        ~MESH_LOAD_INTERMEDIATE_V11()
+        {
+            if (!extraInfo)
+                return;
+            if (typeMe == util::TYPE_MESH_FONT)
+                delete static_cast<INFO_BOUND_FONT*>(extraInfo);
+            else if (typeMe == util::TYPE_MESH_PARTICLE)
+            {
+                auto *lsStage = static_cast<std::vector<util::STAGE_PARTICLE*>*>(extraInfo);
+                for (auto *stage : *lsStage)
+                    delete stage;
+                delete lsStage;
+            }
+        }
         // mbm::INFO_PHYSICS/util::INFO_ANIMATION both have user-declared destructors, so neither has
         // an implicit move ctor/assignment (only the implicit copy ops, which would shallow-copy
         // their owning raw-pointer vectors and double-free on destruction) - move their vectors
@@ -139,6 +159,8 @@ namespace mbm
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
             infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
             infoAnimation.lsHeaderAnim = std::move(other.infoAnimation.lsHeaderAnim);
+            extraInfo       = other.extraInfo;
+            other.extraInfo = nullptr;
         }
         MESH_LOAD_INTERMEDIATE_V11 &operator=(MESH_LOAD_INTERMEDIATE_V11 &&other) noexcept
         {
@@ -156,6 +178,8 @@ namespace mbm
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
             infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
             infoAnimation.lsHeaderAnim = std::move(other.infoAnimation.lsHeaderAnim);
+            extraInfo       = other.extraInfo;
+            other.extraInfo = nullptr;
             return *this;
         }
         MESH_LOAD_INTERMEDIATE_V11(const MESH_LOAD_INTERMEDIATE_V11 &)            = delete;
@@ -460,6 +484,64 @@ namespace
         return infoHead;
     }
 
+    // Parses one SECTION_DETAIL_PARTICLE payload (already staged as `tmp`) into a freshly allocated
+    // vector of STAGE_PARTICLE*, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate. Always
+    // closes `tmp`. Returns nullptr on any read failure.
+    std::vector<util::STAGE_PARTICLE*> *parse_particle_detail_section_v11(FILE *tmp)
+    {
+        uint16_t stageCount = 0;
+        bool ok = util::le_io::readU16LE(tmp, stageCount);
+        auto *lsStage = new std::vector<util::STAGE_PARTICLE*>();
+        lsStage->reserve(stageCount);
+        for (uint16_t i = 0; ok && i < stageCount; ++i)
+        {
+            auto *stage = new util::STAGE_PARTICLE();
+            lsStage->push_back(stage);
+            ok = util::readStageParticleV11(tmp, *stage);
+        }
+        fclose(tmp);
+        if (!ok)
+        {
+            for (auto *stage : *lsStage)
+                delete stage;
+            delete lsStage;
+            return nullptr;
+        }
+        return lsStage;
+    }
+
+    // Parses one SECTION_DETAIL_FONT payload (already staged as `tmp`) into a freshly allocated
+    // INFO_BOUND_FONT, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate. Always closes
+    // `tmp`. Returns nullptr on any read failure.
+    mbm::INFO_BOUND_FONT *parse_font_detail_section_v11(FILE *tmp)
+    {
+        util::FONT_DETAIL_HEADER_V11 v11Font;
+        bool ok = util::readFontDetailHeaderV11(tmp, v11Font);
+
+        auto *font = new mbm::INFO_BOUND_FONT();
+        if (ok)
+        {
+            font->fontName        = v11Font.name;
+            font->spaceXCharacter = v11Font.spaceXCharacter;
+            font->spaceYCharacter = v11Font.spaceYCharacter;
+            font->heightLetter    = v11Font.heightLetter;
+        }
+        for (uint16_t i = 0; ok && i < v11Font.letterCount; ++i)
+        {
+            util::DETAIL_LETTER letterEntry;
+            ok = util::readDetailLetterV11(tmp, letterEntry);
+            if (ok && letterEntry.letter < 255)
+                font->letter[letterEntry.letter].detail = new util::DETAIL_LETTER(letterEntry);
+        }
+        fclose(tmp);
+        if (!ok)
+        {
+            delete font;
+            return nullptr;
+        }
+        return font;
+    }
+
     // Worker-thread-safe equivalent of MESH_MBM::readTriangleDetailCompat/
     // MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic, takes INFO_PHYSICS directly
     // instead of going through `this->impl` (parse_v11_intermediate has no MESH_MBM instance).
@@ -696,6 +778,26 @@ namespace
                     return false;
                 }
                 out.infoAnimation.lsHeaderAnim.push_back(infoHead);
+            }
+            else if (staged.header.type == util::SECTION_DETAIL_PARTICLE)
+            {
+                std::vector<util::STAGE_PARTICLE*> *lsStage = parse_particle_detail_section_v11(tmp);
+                if (!lsStage)
+                {
+                    errorOut = "failed to parse SECTION_DETAIL_PARTICLE";
+                    return false;
+                }
+                out.extraInfo = lsStage;
+            }
+            else if (staged.header.type == util::SECTION_DETAIL_FONT)
+            {
+                mbm::INFO_BOUND_FONT *font = parse_font_detail_section_v11(tmp);
+                if (!font)
+                {
+                    errorOut = "failed to parse SECTION_DETAIL_FONT";
+                    return false;
+                }
+                out.extraInfo = font;
             }
             else if (staged.header.type == util::SECTION_FRAME_STATIC)
             {
@@ -1799,11 +1901,9 @@ namespace mbm
         if (this->impl->buffer.size() == 0)
             return false;
 
-        if (impl->typeMe == util::TYPE_MESH_FONT ||
-            impl->typeMe == util::TYPE_MESH_PARTICLE ||
-            impl->typeMe == util::TYPE_MESH_TILE_MAP)
+        if (impl->typeMe == util::TYPE_MESH_TILE_MAP)
         {
-            const char *message = "saveV11 does not support FONT/PARTICLE/TILE_MAP meshes yet (milestone 3 core slice)";
+            const char *message = "saveV11 does not support TILE_MAP meshes yet";
             if (errorOut && lenErrorOut > 0)
                 snprintf(errorOut, static_cast<size_t>(lenErrorOut), "%s", message);
             return log_util::onFailed(nullptr, __FILE__, __LINE__, message);
@@ -1863,7 +1963,9 @@ namespace mbm
         fileHeader.backBufferHeight = impl->headerMain.backBufferHeight;
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
-                                     + this->getTotalAnimationHeaders();
+                                     + this->getTotalAnimationHeaders()
+                                     + ((impl->typeMe == util::TYPE_MESH_PARTICLE) ? 1u : 0u)
+                                     + ((impl->typeMe == util::TYPE_MESH_FONT) ? 1u : 0u);
         if (!util::writeFileHeaderV11(file, fileHeader))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to write v11 file header [%s]", fileOut);
 
@@ -2066,6 +2168,65 @@ namespace mbm
             if (!ok)
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_ANIMATION for animation [%s] [%s]",
                                           headerAnim->nameAnimation, fileOut);
+        }
+
+        // SECTION_DETAIL_PARTICLE, all stages bundled into one section ---------------------------------------
+        if (impl->typeMe == util::TYPE_MESH_PARTICLE)
+        {
+            const auto *lsStage = static_cast<const std::vector<util::STAGE_PARTICLE*>*>(this->getDetailInfo());
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_DETAIL_PARTICLE;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [&](FILE *fp) -> bool
+            {
+                const uint16_t stageCount = lsStage ? static_cast<uint16_t>(lsStage->size()) : 0;
+                if (!util::le_io::writeU16LE(fp, stageCount))
+                    return false;
+                if (lsStage)
+                    for (const auto *stage : *lsStage)
+                        if (!util::writeStageParticleV11(fp, *stage))
+                            return false;
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_DETAIL_PARTICLE [%s]", fileOut);
+        }
+
+        // SECTION_DETAIL_FONT, one section bundling the name/spacing header + all letter entries ------------
+        if (impl->typeMe == util::TYPE_MESH_FONT)
+        {
+            const auto *font = static_cast<const INFO_BOUND_FONT*>(this->getDetailInfo());
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_DETAIL_FONT;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [&](FILE *fp) -> bool
+            {
+                util::FONT_DETAIL_HEADER_V11 v11Font;
+                v11Font.name            = font ? font->fontName : "";
+                v11Font.spaceXCharacter = font ? font->spaceXCharacter : 0;
+                v11Font.spaceYCharacter = font ? font->spaceYCharacter : 0;
+                v11Font.heightLetter    = font ? font->heightLetter : 0;
+                v11Font.letterCount     = 0;
+                if (font)
+                    for (const auto &l : font->letter)
+                        if (l.detail)
+                            ++v11Font.letterCount;
+                if (!util::writeFontDetailHeaderV11(fp, v11Font))
+                    return false;
+                if (!font)
+                    return true;
+                for (int asciiCode = 0; asciiCode < 255; ++asciiCode)
+                {
+                    const util::DETAIL_LETTER *detail = font->letter[asciiCode].detail;
+                    if (!detail)
+                        continue;
+                    if (!util::writeDetailLetterV11(fp, *detail))
+                        return false;
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_DETAIL_FONT [%s]", fileOut);
         }
 
         // SECTION_FRAME_STATIC, one per frame --------------------------------------------------------------
@@ -2457,6 +2618,26 @@ namespace mbm
                 if (!infoHead)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ANIMATION [%s]", fileNamePath);
                 this->appendAnimationHeader(infoHead);
+            }
+            else if (sectionHeader.type == util::SECTION_DETAIL_PARTICLE)
+            {
+                FILE *tmp = stage_payload_as_tmpfile(payload);
+                if (!tmp)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_PARTICLE [%s]", fileNamePath);
+                std::vector<util::STAGE_PARTICLE*> *lsStage = parse_particle_detail_section_v11(tmp);
+                if (!lsStage)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_PARTICLE [%s]", fileNamePath);
+                this->replaceDetailInfo(lsStage);
+            }
+            else if (sectionHeader.type == util::SECTION_DETAIL_FONT)
+            {
+                FILE *tmp = stage_payload_as_tmpfile(payload);
+                if (!tmp)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_FONT [%s]", fileNamePath);
+                INFO_BOUND_FONT *font = parse_font_detail_section_v11(tmp);
+                if (!font)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_FONT [%s]", fileNamePath);
+                this->replaceDetailInfo(font);
             }
             else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
             {
@@ -3717,6 +3898,8 @@ namespace mbm
         impl->infoPhysics.lsSphere      = std::move(in.infoPhysics.lsSphere);
         impl->infoPhysics.lsTriangle    = std::move(in.infoPhysics.lsTriangle);
         impl->infoAnimation.lsHeaderAnim = std::move(in.infoAnimation.lsHeaderAnim);
+        impl->extraInfo = in.extraInfo;
+        in.extraInfo    = nullptr;
 
         if (impl->typeMe == util::TYPE_MESH_TILE_MAP)
             mbm::TEXTURE::EnablePixelPerfectTexture(true);

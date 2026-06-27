@@ -450,4 +450,96 @@ namespace util
                readU16LE(fp, out.blendState) &&
                readBytes(fp, &out.hasFx, sizeof(out.hasFx));
     }
+
+    bool writeStageParticleV11(FILE *fp, const util::STAGE_PARTICLE &in)
+    {
+        return writeF32LE(fp, in.minOffsetPosition.x) && writeF32LE(fp, in.minOffsetPosition.y) &&
+               writeF32LE(fp, in.minOffsetPosition.z) &&
+               writeF32LE(fp, in.maxOffsetPosition.x) && writeF32LE(fp, in.maxOffsetPosition.y) &&
+               writeF32LE(fp, in.maxOffsetPosition.z) &&
+               writeF32LE(fp, in.minDirection.x) && writeF32LE(fp, in.minDirection.y) &&
+               writeF32LE(fp, in.minDirection.z) &&
+               writeF32LE(fp, in.maxDirection.x) && writeF32LE(fp, in.maxDirection.y) &&
+               writeF32LE(fp, in.maxDirection.z) &&
+               writeF32LE(fp, in.minColor.x) && writeF32LE(fp, in.minColor.y) &&
+               writeF32LE(fp, in.minColor.z) &&
+               writeF32LE(fp, in.maxColor.x) && writeF32LE(fp, in.maxColor.y) &&
+               writeF32LE(fp, in.maxColor.z) &&
+               writeF32LE(fp, in.minSpeed) && writeF32LE(fp, in.maxSpeed) &&
+               writeF32LE(fp, in.minTimeLife) && writeF32LE(fp, in.maxTimeLife) &&
+               writeF32LE(fp, in.minSizeParticle) && writeF32LE(fp, in.maxSizeParticle) &&
+               writeF32LE(fp, in.ariseTime) && writeF32LE(fp, in.stageTime) &&
+               writeU32LE(fp, in.totalParticle) &&
+               writeBytes(fp, &in.segmented, sizeof(in.segmented)) &&
+               writeBytes(fp, &in.sizeMin2Max, sizeof(in.sizeMin2Max)) &&
+               writeBytes(fp, &in.revive, sizeof(in.revive)) &&
+               writeBytes(fp, &in._operator, sizeof(in._operator)) &&
+               writeBytes(fp, &in.invert_red, sizeof(in.invert_red)) &&
+               writeBytes(fp, &in.invert_green, sizeof(in.invert_green)) &&
+               writeBytes(fp, &in.invert_blue, sizeof(in.invert_blue)) &&
+               writeBytes(fp, &in.invert_alpha, sizeof(in.invert_alpha));
+    }
+
+    bool readStageParticleV11(FILE *fp, util::STAGE_PARTICLE &out)
+    {
+        return readF32LE(fp, out.minOffsetPosition.x) && readF32LE(fp, out.minOffsetPosition.y) &&
+               readF32LE(fp, out.minOffsetPosition.z) &&
+               readF32LE(fp, out.maxOffsetPosition.x) && readF32LE(fp, out.maxOffsetPosition.y) &&
+               readF32LE(fp, out.maxOffsetPosition.z) &&
+               readF32LE(fp, out.minDirection.x) && readF32LE(fp, out.minDirection.y) &&
+               readF32LE(fp, out.minDirection.z) &&
+               readF32LE(fp, out.maxDirection.x) && readF32LE(fp, out.maxDirection.y) &&
+               readF32LE(fp, out.maxDirection.z) &&
+               readF32LE(fp, out.minColor.x) && readF32LE(fp, out.minColor.y) &&
+               readF32LE(fp, out.minColor.z) &&
+               readF32LE(fp, out.maxColor.x) && readF32LE(fp, out.maxColor.y) &&
+               readF32LE(fp, out.maxColor.z) &&
+               readF32LE(fp, out.minSpeed) && readF32LE(fp, out.maxSpeed) &&
+               readF32LE(fp, out.minTimeLife) && readF32LE(fp, out.maxTimeLife) &&
+               readF32LE(fp, out.minSizeParticle) && readF32LE(fp, out.maxSizeParticle) &&
+               readF32LE(fp, out.ariseTime) && readF32LE(fp, out.stageTime) &&
+               readU32LE(fp, out.totalParticle) &&
+               readBytes(fp, &out.segmented, sizeof(out.segmented)) &&
+               readBytes(fp, &out.sizeMin2Max, sizeof(out.sizeMin2Max)) &&
+               readBytes(fp, &out.revive, sizeof(out.revive)) &&
+               readBytes(fp, &out._operator, sizeof(out._operator)) &&
+               readBytes(fp, &out.invert_red, sizeof(out.invert_red)) &&
+               readBytes(fp, &out.invert_green, sizeof(out.invert_green)) &&
+               readBytes(fp, &out.invert_blue, sizeof(out.invert_blue)) &&
+               readBytes(fp, &out.invert_alpha, sizeof(out.invert_alpha));
+    }
+
+    bool writeFontDetailHeaderV11(FILE *fp, const util::FONT_DETAIL_HEADER_V11 &in)
+    {
+        return writeStringV11(fp, in.name) &&
+               writeI16LE(fp, in.spaceXCharacter) &&
+               writeI16LE(fp, in.spaceYCharacter) &&
+               writeU16LE(fp, in.heightLetter) &&
+               writeU16LE(fp, in.letterCount);
+    }
+
+    bool readFontDetailHeaderV11(FILE *fp, util::FONT_DETAIL_HEADER_V11 &out)
+    {
+        return readStringV11(fp, out.name) &&
+               readI16LE(fp, out.spaceXCharacter) &&
+               readI16LE(fp, out.spaceYCharacter) &&
+               readU16LE(fp, out.heightLetter) &&
+               readU16LE(fp, out.letterCount);
+    }
+
+    bool writeDetailLetterV11(FILE *fp, const util::DETAIL_LETTER &in)
+    {
+        return writeBytes(fp, &in.letter, sizeof(in.letter)) &&
+               writeBytes(fp, &in.indexFrame, sizeof(in.indexFrame)) &&
+               writeU16LE(fp, in.widthLetter) &&
+               writeU16LE(fp, in.heightLetter);
+    }
+
+    bool readDetailLetterV11(FILE *fp, util::DETAIL_LETTER &out)
+    {
+        return readBytes(fp, &out.letter, sizeof(out.letter)) &&
+               readBytes(fp, &out.indexFrame, sizeof(out.indexFrame)) &&
+               readU16LE(fp, out.widthLetter) &&
+               readU16LE(fp, out.heightLetter);
+    }
 }

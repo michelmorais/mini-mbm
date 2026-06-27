@@ -13,14 +13,15 @@
 #include <string>
 #include <vector>
 
-// Phase B2 + milestone 10 (docs/mesh-v11-plan.md): converts a legacy v8-v10 mesh file into v11 by
+// Phase B2 + milestones 10-12 (docs/mesh-v11-plan.md): converts a legacy v8-v10 mesh file into v11 by
 // parsing the old bytes directly into a mbm::MESH_MBM_DEBUG via its PUBLIC API (this library has no
 // access to core_mbm's private impl-> members), then calling MESH_MBM_DEBUG::saveV11. Scoped to
-// exactly what saveV11 can persist today: 3D/SPRITE/USER/TEXTURE/SHAPE meshes with path-referenced
-// textures and animations (frame ranges plus an optional named-shader-effect FX block) - FONT/
-// PARTICLE/TILE_MAP, embedded/solid-color textures, a shader step's secondary texture stage, and
-// pre-v8 files are all out of scope and rejected with a clear message rather than silently
-// mishandled. See the mesh-v11-migration-status memory / docs/mesh-v11-plan.md for the full rationale.
+// exactly what saveV11 can persist today: 3D/SPRITE/USER/TEXTURE/SHAPE/FONT/PARTICLE meshes with
+// path-referenced textures, animations (frame ranges plus an optional named-shader-effect FX block),
+// and FONT/PARTICLE detail data - TILE_MAP, embedded/solid-color textures, a shader step's secondary
+// texture stage, and pre-v8 files are all out of scope and rejected with a clear message rather than
+// silently mishandled. See the mesh-v11-migration-status memory / docs/mesh-v11-plan.md for the full
+// rationale.
 namespace
 {
     using mbm::VEC2;
@@ -53,12 +54,18 @@ namespace
 
     // Mirrors loadDebugImpl's v3+ physics-detail loop (mesh-manager.cpp, deleted in milestone 5) -
     // a DETAIL_MESH 'P' header whose totalBounding is a running total consumed by nested,
-    // type-grouped sub-headers (one CUBE/SPHERE/CUBE_COMPLEX/TRIANGLE group at a time). Shapes are
-    // pushed straight into INFO_PHYSICS's public owning vectors - the same access pattern used
-    // everywhere else this struct is touched from outside core_mbm.
-    bool readPhysicsDetail(FILE *fp, const char *legacyPath, mbm::INFO_PHYSICS &infoPhysics, char *errorOut,
+    // type-grouped sub-headers (one CUBE/SPHERE/CUBE_COMPLEX/TRIANGLE/FONT/PARTICLE group at a
+    // time, MBM_DETAIL_TYPE_* in header-mesh.h). Physics shapes are pushed straight into
+    // INFO_PHYSICS's public owning vectors; a FONT/PARTICLE group instead builds the whole
+    // INFO_BOUND_FONT/std::vector<STAGE_PARTICLE*> and installs it via meshDebug.replaceDetailInfo -
+    // the same generic mutation API tile_editor.cpp already uses for TILE_MAP. Caller must have
+    // already called meshDebug.setMeshType(...) - replaceDetailInfo itself is type-agnostic, but a
+    // later deleteExtraInfo() (e.g. if meshDebug is destroyed before saveV11 due to an unrelated
+    // failure further down) dispatches on whatever typeMe is set at that time.
+    bool readPhysicsDetail(FILE *fp, const char *legacyPath, mbm::MESH_MBM_DEBUG &meshDebug, char *errorOut,
                             int lenErrorOut)
     {
+        mbm::INFO_PHYSICS &infoPhysics = meshDebug.getPhysicsInfo();
         util::DETAIL_MESH outer;
         if (!util::readDetailMeshV8(fp, outer))
             return failf(errorOut, lenErrorOut, "failed to read physics detail header [%s]", legacyPath);
@@ -111,10 +118,62 @@ namespace
                             return failf(errorOut, lenErrorOut, "failed to read TRIANGLE [%s]", legacyPath);
                     }
                     break;
+                case MBM_DETAIL_TYPE_FONT:
+                    for (int32_t j = 0; j < detail.totalBounding; ++j)
+                    {
+                        util::DETAIL_HEADER_FONT fontHeader;
+                        if (!util::readDetailHeaderFontV8(fp, fontHeader))
+                            return failf(errorOut, lenErrorOut, "failed to read font detail header [%s]", legacyPath);
+
+                        auto *font = new mbm::INFO_BOUND_FONT();
+                        font->spaceXCharacter = fontHeader.spaceXCharacter;
+                        font->spaceYCharacter = fontHeader.spaceYCharacter;
+                        font->heightLetter    = fontHeader.heightLetter;
+                        if (fontHeader.sizeNameFonte > 0)
+                        {
+                            std::vector<char> name(static_cast<size_t>(fontHeader.sizeNameFonte));
+                            if (!fread(name.data(), static_cast<size_t>(fontHeader.sizeNameFonte), 1, fp))
+                            {
+                                delete font;
+                                return failf(errorOut, lenErrorOut, "failed to read font name [%s]", legacyPath);
+                            }
+                            font->fontName = name.data();
+                        }
+                        for (uint16_t l = 0; l < fontHeader.totalDetailFont; ++l)
+                        {
+                            util::DETAIL_LETTER letter;
+                            if (!util::readDetailLetterV8(fp, letter))
+                            {
+                                delete font;
+                                return failf(errorOut, lenErrorOut, "failed to read font letter [%s]", legacyPath);
+                            }
+                            font->letter[letter.letter].detail = new util::DETAIL_LETTER(letter);
+                        }
+                        meshDebug.replaceDetailInfo(font);
+                    }
+                    break;
+                case MBM_DETAIL_TYPE_PARTICLE:
+                {
+                    auto *lsStage = new std::vector<util::STAGE_PARTICLE*>();
+                    lsStage->reserve(static_cast<size_t>(detail.totalBounding));
+                    for (int32_t j = 0; j < detail.totalBounding; ++j)
+                    {
+                        auto *stage = new util::STAGE_PARTICLE();
+                        lsStage->push_back(stage);
+                        if (!util::readStageParticleV8(fp, *stage))
+                        {
+                            for (auto *s : *lsStage) delete s;
+                            delete lsStage;
+                            return failf(errorOut, lenErrorOut, "failed to read particle stage [%s]", legacyPath);
+                        }
+                    }
+                    meshDebug.replaceDetailInfo(lsStage);
+                    break;
+                }
                 default:
                     return failf(errorOut, lenErrorOut,
-                                "unsupported physics detail type [%d] [%s] - only static 3D/SPRITE/USER meshes "
-                                "are supported",
+                                "unsupported physics detail type [%d] [%s] - only static 3D/SPRITE/USER/FONT/"
+                                "PARTICLE meshes are supported",
                                 detail.type, legacyPath);
             }
             i += detail.totalBounding;
@@ -324,11 +383,10 @@ namespace mesh_deprecated
         }
 
         const util::TYPE_MESH typeMe = typeMeshFromTypeApp(header.typeApp);
-        if (typeMe == util::TYPE_MESH_FONT || typeMe == util::TYPE_MESH_PARTICLE || typeMe == util::TYPE_MESH_TILE_MAP)
+        if (typeMe == util::TYPE_MESH_TILE_MAP)
         {
             cleanup();
-            return failf(errorOut, lenErrorOut, "FONT/PARTICLE/TILE_MAP meshes are not supported yet [%s]",
-                        legacyPath);
+            return failf(errorOut, lenErrorOut, "TILE_MAP meshes are not supported yet [%s]", legacyPath);
         }
         if (typeMe == util::TYPE_MESH_UNKNOWN)
         {
@@ -367,7 +425,12 @@ namespace mesh_deprecated
         }
 
         mbm::MESH_MBM_DEBUG meshDebug;
-        if (!readPhysicsDetail(fp, legacyPath, meshDebug.getPhysicsInfo(), errorOut, lenErrorOut))
+        // Set before readPhysicsDetail (which may install FONT/PARTICLE detail data via
+        // replaceDetailInfo) so meshDebug's typeMe is already correct if an early return below
+        // destroys meshDebug while that detail data is set - otherwise deleteExtraInfo() would
+        // dispatch on the wrong (still-default) type and misinterpret the pointer.
+        meshDebug.setMeshType(typeMe);
+        if (!readPhysicsDetail(fp, legacyPath, meshDebug, errorOut, lenErrorOut))
         {
             cleanup();
             return false;
@@ -477,7 +540,6 @@ namespace mesh_deprecated
             meshDebug.appendAnimationHeader(infoHead);
         }
 
-        meshDebug.setMeshType(typeMe);
         meshDebug.getMaterial() = headerMesh.material;
         meshDebug.setAngleDefault(VEC3(headerMesh.angleX, headerMesh.angleY, headerMesh.angleZ));
         meshDebug.setPositionOffset(VEC3(headerMesh.posX, headerMesh.posY, headerMesh.posZ));

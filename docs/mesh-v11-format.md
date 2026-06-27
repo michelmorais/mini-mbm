@@ -214,6 +214,45 @@ A second texture slot per shader step (legacy `lenTextureStage2`) is not modeled
 file has ever been observed using it, and the v11.0 writer/reader reject it with a clear error rather
 than silently dropping it if a future file ever does.
 
+## 6c. `SECTION_DETAIL_PARTICLE` / `SECTION_DETAIL_FONT` payloads
+
+One section of each, present only when the file's `typeMesh` matches (a particle mesh has exactly one
+`SECTION_DETAIL_PARTICLE`, a font mesh exactly one `SECTION_DETAIL_FONT`) - unlike `SECTION_ANIMATION`,
+these are not repeated per-item; all stages/letters are bundled into the single section, the same way
+`SECTION_DETAIL_PHYSICS` already bundles multiple bounding shapes. Both keep today's v8 field layout
+verbatim (per §8 below) aside from the name string, which uses the standard length-prefixed encoding
+(§5) instead of the old fixed/length-prefixed-byte-buffer scheme.
+
+```cpp
+// SECTION_DETAIL_PARTICLE payload
+struct
+{
+    uint16_t stageCount;
+    // followed by stageCount STAGE_PARTICLE entries (util::STAGE_PARTICLE, header-mesh.h):
+    //   minOffsetPosition, maxOffsetPosition, minDirection, maxDirection, minColor, maxColor (VEC3 each),
+    //   minSpeed, maxSpeed, minTimeLife, maxTimeLife, minSizeParticle, maxSizeParticle, ariseTime,
+    //   stageTime (float each), totalParticle (uint32_t), segmented, sizeMin2Max, revive, _operator,
+    //   invert_red, invert_green, invert_blue, invert_alpha (uint8_t each) - same field order as
+    //   today's writeStageParticleV8/readStageParticleV8.
+};
+
+// SECTION_DETAIL_FONT payload
+struct FONT_DETAIL_HEADER_V11
+{
+    // name: length-prefixed string (§5) - replaces today's sizeNameFonte-prefixed buffer
+    int16_t  spaceXCharacter;
+    int16_t  spaceYCharacter;
+    uint16_t heightLetter;
+    uint16_t letterCount;    // followed by letterCount DETAIL_LETTER entries
+};
+// each DETAIL_LETTER entry (util::DETAIL_LETTER, header-mesh.h): letter (uint8_t, ascii code),
+// indexFrame (uint8_t, frame index in SECTION_FRAME_STATIC), widthLetter, heightLetter (uint16_t
+// each) - same field order as today's writeDetailLetterV8/readDetailLetterV8. Glyph *geometry* is
+// not part of this payload - it already lives as ordinary frames in SECTION_FRAME_STATIC, indexed by
+// indexFrame. `letterDiffX`/`letterDiffY` (runtime-only fields on INFO_BOUND_FONT) are never part of
+// any on-disk format and are not written here either.
+```
+
 ## 7. Index width (§6 `indexWidth`)
 
 Per-frame, not per-file: `16` is the default a writer should choose unless the frame's vertex count

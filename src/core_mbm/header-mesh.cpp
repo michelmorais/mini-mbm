@@ -704,4 +704,12 @@ namespace util
         hasFx            = 0;
     }
 
+    FONT_DETAIL_HEADER_V11::FONT_DETAIL_HEADER_V11() noexcept
+    {
+        spaceXCharacter = 0;
+        spaceYCharacter = 0;
+        heightLetter    = 0;
+        letterCount     = 0;
+    }
+
 }

@@ -751,6 +751,16 @@ namespace util
         ANIMATION_HEADER_V11() noexcept;
     };
 
+    struct API_IMPL FONT_DETAIL_HEADER_V11 // payload header for SECTION_DETAIL_FONT
+    {
+        std::string name;            // replaces today's sizeNameFonte-prefixed buffer
+        int16_t     spaceXCharacter;
+        int16_t     spaceYCharacter;
+        uint16_t    heightLetter;
+        uint16_t    letterCount;     // count of DETAIL_LETTER-shaped entries that follow
+        FONT_DETAIL_HEADER_V11() noexcept;
+    };
+
 }
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))

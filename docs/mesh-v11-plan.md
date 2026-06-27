@@ -487,6 +487,49 @@ concrete use case shows up.
     reports `totalFrames=12 totalAnimation=4`, matching its real content (4 named animations:
     `stand-right`/`attack-right`/`stand-left`/`attack-left`). Temporary diagnostic removed afterward.
 
+- **Milestone 12 (closed 2026-06-27): real `SECTION_DETAIL_FONT`/`SECTION_DETAIL_PARTICLE` support.**
+  `saveV11`/`mesh_legacy_converter` rejected any FONT or PARTICLE mesh outright (same deferred-gap
+  shape `SECTION_ANIMATION` had before milestone 10) - hit converting a real production particle file
+  (`star-explode.ptl`). Scoped to FONT+PARTICLE only (both small: `STAGE_PARTICLE` is a flat 70-byte
+  struct with no strings; FONT's detail block is just name/spacing/letter metadata - glyph geometry
+  already lives in ordinary `SECTION_FRAME_STATIC` frames). TILE_MAP stays deferred (explicit user
+  decision) - a much bigger structure (full 2D tile grid per layer, object/property lists), its own
+  future milestone. Format: `SECTION_DETAIL_PARTICLE` bundles all stages into one section
+  (`uint16_t stageCount` + that many `STAGE_PARTICLE` blobs, same field order as the existing
+  `writeStageParticleV8`/`readStageParticleV8`); `SECTION_DETAIL_FONT` bundles a header
+  (name/spaceX/spaceY/heightLetter/letterCount) + that many `DETAIL_LETTER`-shaped entries, one
+  section per file (not "repeated, one per item" like `SECTION_ANIMATION` - these have no per-item
+  optional sub-blocks, so bundling like `SECTION_DETAIL_PHYSICS` already does is simpler). Applied the
+  lesson from the `SECTION_ANIMATION` split (milestones 10/11 - splitting "debug class" from "runtime
+  class" into two passes caused a real user-visible gap in between, found and fixed same-day as a
+  follow-up to milestone 11): both `MESH_MBM_DEBUG` (saveV11/loadV11) and the real runtime class
+  (`MESH_MBM` via `parse_v11_intermediate`/`finishLoadFromIntermediate`) were wired together in this
+  one milestone, no separate follow-up needed. New shared parsing helpers
+  `parse_particle_detail_section_v11`/`parse_font_detail_section_v11` (mesh-manager.cpp, alongside the
+  existing `parse_animation_section_v11`) are called from both `MESH_MBM_DEBUG::loadV11` and
+  `parse_v11_intermediate`, matching that precedent exactly. `MESH_LOAD_INTERMEDIATE_V11` gained a
+  `void *extraInfo` field (trivially movable, unlike `infoPhysics`/`infoAnimation` - but still needs
+  explicit cleanup in the intermediate's destructor, guarded by `typeMe`, so an abandoned/failed load
+  doesn't leak). On the `mesh_deprecated` importer side, FONT/PARTICLE detail blocks turned out to live
+  at the exact same legacy stream position as physics shapes - `readPhysicsDetail`'s inner
+  `DETAIL_MESH.type` dispatch (1-4 = CUBE/SPHERE/CUBE_COMPLEX/TRIANGLE) gained `case 5` (FONT, via the
+  already-present-but-previously-unused `readDetailHeaderFontV8`/`readDetailLetterV8`) and `case 6`
+  (PARTICLE, via the already-present `readStageParticleV8`), both installing their result via
+  `MESH_MBM_DEBUG::replaceDetailInfo` - the same generic mutation API `tile_editor.cpp` already uses
+  for TILE_MAP. Found and fixed one real ordering hazard along the way: `meshDebug.setMeshType(typeMe)`
+  was being called *after* `readPhysicsDetail` in the original code - moved it earlier so a FONT/
+  PARTICLE detail pointer installed via `replaceDetailInfo` is never momentarily paired with the wrong
+  (still-default) `typeMe`, which would have made `deleteExtraInfo()` misinterpret the pointer if an
+  unrelated failure further down destroyed `meshDebug` first. Verified: clean build; converted the
+  real `star-explode.ptl` (PARTICLE) and a real `Calistoga-Regular-50.fnt` (FONT, from
+  `tower-defense/sprite/`) end-to-end through `mesh_legacy_converter`, confirmed via a temporary
+  diagnostic (`MESH_MBM_DEBUG::loadV11` + `getDetailInfo()`) that all stage/letter data round-tripped
+  correctly (1 particle stage with real field values; 225 font letters with correct widths/heights/
+  frame indices); then confirmed both load correctly through the real runtime path too (`mbm::PARTICLE
+  ::load`/`mbm::FONT_DRAW::loadFont`, which both internally call `MESH_MANAGER::load` →
+  `getInfoParticle()`/`getInfoFont()`) via a temporary `testLib`/`DISPLAY=:1` dynamic test. All
+  temporary diagnostics/test code removed afterward.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items

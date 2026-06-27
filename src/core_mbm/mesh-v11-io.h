@@ -82,6 +82,16 @@ namespace util
     bool readShaderStepV11(FILE *fp, util::SHADER_STEP_V11 &out);
     bool readFxHeaderV11(FILE *fp, util::FX_HEADER_V11 &out);
     bool readAnimationHeaderV11(FILE *fp, util::ANIMATION_HEADER_V11 &out);
+
+    // SECTION_DETAIL_PARTICLE / SECTION_DETAIL_FONT payload serializers.
+    bool writeStageParticleV11(FILE *fp, const util::STAGE_PARTICLE &in);
+    bool readStageParticleV11(FILE *fp, util::STAGE_PARTICLE &out);
+
+    bool writeFontDetailHeaderV11(FILE *fp, const util::FONT_DETAIL_HEADER_V11 &in);
+    bool readFontDetailHeaderV11(FILE *fp, util::FONT_DETAIL_HEADER_V11 &out);
+
+    bool writeDetailLetterV11(FILE *fp, const util::DETAIL_LETTER &in);
+    bool readDetailLetterV11(FILE *fp, util::DETAIL_LETTER &out);
 }
 
 #endif
