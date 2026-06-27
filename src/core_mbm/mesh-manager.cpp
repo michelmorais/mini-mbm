@@ -141,6 +141,8 @@ namespace mbm
                     delete stage;
                 delete lsStage;
             }
+            else if (typeMe == util::TYPE_MESH_TILE_MAP)
+                delete static_cast<util::BTILE_INFO*>(extraInfo);
         }
         // mbm::INFO_PHYSICS/util::INFO_ANIMATION both have user-declared destructors, so neither has
         // an implicit move ctor/assignment (only the implicit copy ops, which would shallow-copy
@@ -542,6 +544,98 @@ namespace
         return font;
     }
 
+    // Parses one SECTION_DETAIL_TILE payload (already staged as `tmp`) into a freshly allocated
+    // util::BTILE_INFO, shared by MESH_MBM_DEBUG::loadV11 and parse_v11_intermediate. Always closes
+    // `tmp`. Returns nullptr on any read failure - ~BTILE_INFO() already deep-cleans whatever was
+    // partially built (layers/lsIndexTiles/infoBrickEditor/lsObj/lsProperty), so a single `delete` on
+    // the in-progress object is enough at every failure point.
+    util::BTILE_INFO *parse_tile_detail_section_v11(FILE *tmp)
+    {
+        util::TILE_HEADER_MAP_V11 v11Header;
+        bool ok = util::readTileHeaderMapV11(tmp, v11Header);
+        if (!ok)
+        {
+            fclose(tmp);
+            return nullptr;
+        }
+
+        auto *tileInfo = new util::BTILE_INFO();
+        tileInfo->map.count_width_tile  = v11Header.count_width_tile;
+        tileInfo->map.count_height_tile = v11Header.count_height_tile;
+        tileInfo->map.size_width_tile   = v11Header.size_width_tile;
+        tileInfo->map.size_height_tile  = v11Header.size_height_tile;
+        tileInfo->map.layerCount        = v11Header.layerCount;
+        tileInfo->map.countRawTiles     = v11Header.countRawTiles;
+        tileInfo->map.objectCount       = v11Header.objectCount;
+        tileInfo->map.propertyCount     = v11Header.propertyCount;
+        tileInfo->map.typeMap           = static_cast<util::BTILE_TYPE_MAP>(v11Header.typeMap);
+        tileInfo->map.background        = v11Header.background;
+        strncpy(tileInfo->map.background_texture, v11Header.backgroundTexture.c_str(),
+                sizeof(tileInfo->map.background_texture) - 1);
+        tileInfo->map.background_texture[sizeof(tileInfo->map.background_texture) - 1] = '\0';
+        tileInfo->map.renderDirection[0] = static_cast<char>(v11Header.renderDirectionLeftToRight);
+        tileInfo->map.renderDirection[1] = static_cast<char>(v11Header.renderDirectionTopToDown);
+
+        tileInfo->infoBrickEditor = new util::BTILE_BRICK_INFO[v11Header.countRawTiles];
+        for (uint32_t i = 0; ok && i < v11Header.countRawTiles; ++i)
+            ok = util::readBtileBrickInfoV11(tmp, tileInfo->infoBrickEditor[i]);
+
+        if (ok)
+            tileInfo->layers = new util::BTILE_LAYER[v11Header.layerCount];
+        const uint32_t cellsPerLayer = v11Header.count_width_tile * v11Header.count_height_tile;
+        for (uint32_t l = 0; ok && l < v11Header.layerCount; ++l)
+        {
+            util::TILE_LAYER_HEADER_V11 v11Layer;
+            ok = util::readTileLayerHeaderV11(tmp, v11Layer);
+            if (!ok)
+                break;
+            tileInfo->layers[l].offset[0] = v11Layer.offsetX;
+            tileInfo->layers[l].offset[1] = v11Layer.offsetY;
+            tileInfo->layers[l].offset[2] = v11Layer.offsetZ;
+            tileInfo->layers[l].lsIndexTiles = new util::BTILE_INDEX_TILE[cellsPerLayer];
+            for (uint32_t c = 0; ok && c < cellsPerLayer; ++c)
+                ok = util::readBtileIndexTileV11(tmp, tileInfo->layers[l].lsIndexTiles[c]);
+        }
+
+        for (uint32_t o = 0; ok && o < v11Header.objectCount; ++o)
+        {
+            util::TILE_OBJ_HEADER_V11 v11Obj;
+            ok = util::readTileObjHeaderV11(tmp, v11Obj);
+            if (!ok)
+                break;
+            auto *obj = new util::BTILE_OBJ(static_cast<util::BTILE_OBJ_TYPE>(v11Obj.type), v11Obj.name);
+            tileInfo->lsObj.push_back(obj);
+            for (uint16_t p = 0; ok && p < v11Obj.pointCount; ++p)
+            {
+                float x = 0, y = 0;
+                ok = util::le_io::readF32LE(tmp, x) && util::le_io::readF32LE(tmp, y);
+                if (ok)
+                    obj->lsPoints.push_back(new mbm::VEC2(x, y));
+            }
+        }
+
+        for (uint32_t p = 0; ok && p < v11Header.propertyCount; ++p)
+        {
+            util::TILE_PROPERTY_V11 v11Prop;
+            ok = util::readTilePropertyV11(tmp, v11Prop);
+            if (!ok)
+                break;
+            auto *prop = new util::BTILE_PROPERTY(static_cast<util::BTILE_PROPERTY_TYPE>(v11Prop.type));
+            prop->owner = v11Prop.owner;
+            prop->name  = v11Prop.name;
+            prop->value = v11Prop.value;
+            tileInfo->lsProperty.push_back(prop);
+        }
+
+        fclose(tmp);
+        if (!ok)
+        {
+            delete tileInfo;
+            return nullptr;
+        }
+        return tileInfo;
+    }
+
     // Worker-thread-safe equivalent of MESH_MBM::readTriangleDetailCompat/
     // MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic, takes INFO_PHYSICS directly
     // instead of going through `this->impl` (parse_v11_intermediate has no MESH_MBM instance).
@@ -798,6 +892,16 @@ namespace
                     return false;
                 }
                 out.extraInfo = font;
+            }
+            else if (staged.header.type == util::SECTION_DETAIL_TILE)
+            {
+                util::BTILE_INFO *tileInfo = parse_tile_detail_section_v11(tmp);
+                if (!tileInfo)
+                {
+                    errorOut = "failed to parse SECTION_DETAIL_TILE";
+                    return false;
+                }
+                out.extraInfo = tileInfo;
             }
             else if (staged.header.type == util::SECTION_FRAME_STATIC)
             {
@@ -1901,14 +2005,6 @@ namespace mbm
         if (this->impl->buffer.size() == 0)
             return false;
 
-        if (impl->typeMe == util::TYPE_MESH_TILE_MAP)
-        {
-            const char *message = "saveV11 does not support TILE_MAP meshes yet";
-            if (errorOut && lenErrorOut > 0)
-                snprintf(errorOut, static_cast<size_t>(lenErrorOut), "%s", message);
-            return log_util::onFailed(nullptr, __FILE__, __LINE__, message);
-        }
-
         FILE *file = nullptr;
         impl->headerMesh.totalFrames = static_cast<int>(this->impl->buffer.size());
 
@@ -1965,7 +2061,8 @@ namespace mbm
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
                                      + this->getTotalAnimationHeaders()
                                      + ((impl->typeMe == util::TYPE_MESH_PARTICLE) ? 1u : 0u)
-                                     + ((impl->typeMe == util::TYPE_MESH_FONT) ? 1u : 0u);
+                                     + ((impl->typeMe == util::TYPE_MESH_FONT) ? 1u : 0u)
+                                     + ((impl->typeMe == util::TYPE_MESH_TILE_MAP) ? 1u : 0u);
         if (!util::writeFileHeaderV11(file, fileHeader))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to write v11 file header [%s]", fileOut);
 
@@ -2227,6 +2324,82 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_DETAIL_FONT [%s]", fileOut);
+        }
+
+        // SECTION_DETAIL_TILE, one section bundling map header + bricks + layers + objects + properties ----
+        if (impl->typeMe == util::TYPE_MESH_TILE_MAP)
+        {
+            const auto *tileInfo = static_cast<const util::BTILE_INFO*>(this->getDetailInfo());
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_DETAIL_TILE;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [&](FILE *fp) -> bool
+            {
+                util::TILE_HEADER_MAP_V11 v11Header;
+                if (!tileInfo)
+                    return util::writeTileHeaderMapV11(fp, v11Header);
+
+                v11Header.count_width_tile           = tileInfo->map.count_width_tile;
+                v11Header.count_height_tile          = tileInfo->map.count_height_tile;
+                v11Header.size_width_tile            = tileInfo->map.size_width_tile;
+                v11Header.size_height_tile           = tileInfo->map.size_height_tile;
+                v11Header.layerCount                 = tileInfo->map.layerCount;
+                v11Header.countRawTiles              = tileInfo->map.countRawTiles;
+                v11Header.objectCount                = static_cast<uint32_t>(tileInfo->lsObj.size());
+                v11Header.propertyCount              = static_cast<uint32_t>(tileInfo->lsProperty.size());
+                v11Header.typeMap                    = static_cast<uint32_t>(tileInfo->map.typeMap);
+                v11Header.background                 = tileInfo->map.background;
+                v11Header.backgroundTexture           = tileInfo->map.background_texture;
+                v11Header.renderDirectionLeftToRight = static_cast<uint8_t>(tileInfo->map.renderDirection[0]);
+                v11Header.renderDirectionTopToDown   = static_cast<uint8_t>(tileInfo->map.renderDirection[1]);
+                if (!util::writeTileHeaderMapV11(fp, v11Header))
+                    return false;
+
+                for (uint32_t i = 0; i < v11Header.countRawTiles; ++i)
+                    if (!util::writeBtileBrickInfoV11(fp, tileInfo->infoBrickEditor[i]))
+                        return false;
+
+                const uint32_t cellsPerLayer = v11Header.count_width_tile * v11Header.count_height_tile;
+                for (uint32_t l = 0; l < v11Header.layerCount; ++l)
+                {
+                    util::TILE_LAYER_HEADER_V11 v11Layer;
+                    v11Layer.offsetX = tileInfo->layers[l].offset[0];
+                    v11Layer.offsetY = tileInfo->layers[l].offset[1];
+                    v11Layer.offsetZ = tileInfo->layers[l].offset[2];
+                    if (!util::writeTileLayerHeaderV11(fp, v11Layer))
+                        return false;
+                    for (uint32_t c = 0; c < cellsPerLayer; ++c)
+                        if (!util::writeBtileIndexTileV11(fp, tileInfo->layers[l].lsIndexTiles[c]))
+                            return false;
+                }
+
+                for (const auto *obj : tileInfo->lsObj)
+                {
+                    util::TILE_OBJ_HEADER_V11 v11Obj;
+                    v11Obj.name       = obj->name;
+                    v11Obj.type       = static_cast<uint16_t>(obj->type);
+                    v11Obj.pointCount = static_cast<uint16_t>(obj->lsPoints.size());
+                    if (!util::writeTileObjHeaderV11(fp, v11Obj))
+                        return false;
+                    for (const auto *point : obj->lsPoints)
+                        if (!util::le_io::writeF32LE(fp, point->x) || !util::le_io::writeF32LE(fp, point->y))
+                            return false;
+                }
+
+                for (const auto *prop : tileInfo->lsProperty)
+                {
+                    util::TILE_PROPERTY_V11 v11Prop;
+                    v11Prop.owner = prop->owner;
+                    v11Prop.name  = prop->name;
+                    v11Prop.value = prop->value;
+                    v11Prop.type  = static_cast<uint16_t>(prop->type);
+                    if (!util::writeTilePropertyV11(fp, v11Prop))
+                        return false;
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_DETAIL_TILE [%s]", fileOut);
         }
 
         // SECTION_FRAME_STATIC, one per frame --------------------------------------------------------------
@@ -2638,6 +2811,16 @@ namespace mbm
                 if (!font)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_FONT [%s]", fileNamePath);
                 this->replaceDetailInfo(font);
+            }
+            else if (sectionHeader.type == util::SECTION_DETAIL_TILE)
+            {
+                FILE *tmp = stage_payload_as_tmpfile(payload);
+                if (!tmp)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to stage SECTION_DETAIL_TILE [%s]", fileNamePath);
+                util::BTILE_INFO *tileInfo = parse_tile_detail_section_v11(tmp);
+                if (!tileInfo)
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_TILE [%s]", fileNamePath);
+                this->replaceDetailInfo(tileInfo);
             }
             else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
             {

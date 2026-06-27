@@ -761,6 +761,49 @@ namespace util
         FONT_DETAIL_HEADER_V11() noexcept;
     };
 
+    struct API_IMPL TILE_HEADER_MAP_V11 // payload header for SECTION_DETAIL_TILE
+    {
+        uint32_t    count_width_tile;
+        uint32_t    count_height_tile;
+        uint32_t    size_width_tile;
+        uint32_t    size_height_tile;
+        uint32_t    layerCount;
+        uint32_t    countRawTiles;     // count of BTILE_BRICK_INFO-shaped entries that follow
+        uint32_t    objectCount;       // count of TILE_OBJ_HEADER_V11 entries (after all layers)
+        uint32_t    propertyCount;     // count of TILE_PROPERTY_V11 entries (after all objects)
+        uint32_t    typeMap;           // util::BTILE_TYPE_MAP
+        uint32_t    background;
+        std::string backgroundTexture; // replaces today's fixed background_texture[62]
+        uint8_t     renderDirectionLeftToRight;
+        uint8_t     renderDirectionTopToDown;
+        TILE_HEADER_MAP_V11() noexcept;
+    };
+
+    struct API_IMPL TILE_LAYER_HEADER_V11 // one per layer, followed by its BTILE_INDEX_TILE array
+    {
+        float offsetX;
+        float offsetY;
+        float offsetZ;
+        TILE_LAYER_HEADER_V11() noexcept;
+    };
+
+    struct API_IMPL TILE_OBJ_HEADER_V11 // one per BTILE_OBJ, followed by pointCount (x,y) float pairs
+    {
+        std::string name;
+        uint16_t    type;       // util::BTILE_OBJ_TYPE
+        uint16_t    pointCount;
+        TILE_OBJ_HEADER_V11() noexcept;
+    };
+
+    struct API_IMPL TILE_PROPERTY_V11 // one per BTILE_PROPERTY
+    {
+        std::string owner;
+        std::string name;
+        std::string value;
+        uint16_t    type;       // util::BTILE_PROPERTY_TYPE
+        TILE_PROPERTY_V11() noexcept;
+    };
+
 }
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))

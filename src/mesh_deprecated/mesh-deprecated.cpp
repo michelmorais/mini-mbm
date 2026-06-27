@@ -13,14 +13,15 @@
 #include <string>
 #include <vector>
 
-// Phase B2 + milestones 10-12 (docs/mesh-v11-plan.md): converts a legacy v8-v10 mesh file into v11 by
+// Phase B2 + milestones 10-13 (docs/mesh-v11-plan.md): converts a legacy v8-v10 mesh file into v11 by
 // parsing the old bytes directly into a mbm::MESH_MBM_DEBUG via its PUBLIC API (this library has no
 // access to core_mbm's private impl-> members), then calling MESH_MBM_DEBUG::saveV11. Scoped to
-// exactly what saveV11 can persist today: 3D/SPRITE/USER/TEXTURE/SHAPE/FONT/PARTICLE meshes with
-// path-referenced textures, animations (frame ranges plus an optional named-shader-effect FX block),
-// and FONT/PARTICLE detail data - TILE_MAP, embedded/solid-color textures, a shader step's secondary
-// texture stage, and pre-v8 files are all out of scope and rejected with a clear message rather than
-// silently mishandled. See the mesh-v11-migration-status memory / docs/mesh-v11-plan.md for the full
+// exactly what saveV11 can persist today: 3D/SPRITE/USER/TEXTURE/SHAPE/FONT/PARTICLE/TILE_MAP meshes
+// with path-referenced textures, animations (frame ranges plus an optional named-shader-effect FX
+// block), and FONT/PARTICLE/TILE_MAP detail data - embedded/solid-color textures, a shader step's
+// secondary texture stage, and pre-v8 files are all out of scope and rejected with a clear message
+// rather than silently mishandled. See the mesh-v11-migration-status memory / docs/mesh-v11-plan.md
+// for the full
 // rationale.
 namespace
 {
@@ -77,6 +78,15 @@ namespace
             util::DETAIL_MESH detail;
             if (!util::readDetailMeshV8(fp, detail))
                 return failf(errorOut, lenErrorOut, "failed to read DETAIL_MESH [%s]", legacyPath);
+            // Cases 1-4 (physics shapes): detail.totalBounding really is "how many shapes of this
+            // type follow," and the outer counter advances by that same amount. Cases 5-7
+            // (FONT/PARTICLE/TILE) are each exactly one semantic "thing" per DETAIL_MESH group -
+            // detail.totalBounding is repurposed per-type (font: unused, the real letter count
+            // follows inside DETAIL_HEADER_FONT; particle: stage count *within* this one group;
+            // tile: piggy-backs layerCount as a sanity check) - so the outer counter must advance
+            // by exactly 1 for these, confirmed via the pre-milestone-5 deleted core_mbm loader
+            // (recovered from git history) which used `i += 1` explicitly for all three.
+            int32_t consumed = detail.totalBounding;
             switch (detail.type)
             {
                 case 1:
@@ -119,7 +129,6 @@ namespace
                     }
                     break;
                 case MBM_DETAIL_TYPE_FONT:
-                    for (int32_t j = 0; j < detail.totalBounding; ++j)
                     {
                         util::DETAIL_HEADER_FONT fontHeader;
                         if (!util::readDetailHeaderFontV8(fp, fontHeader))
@@ -150,6 +159,7 @@ namespace
                             font->letter[letter.letter].detail = new util::DETAIL_LETTER(letter);
                         }
                         meshDebug.replaceDetailInfo(font);
+                        consumed = 1;
                     }
                     break;
                 case MBM_DETAIL_TYPE_PARTICLE:
@@ -168,15 +178,102 @@ namespace
                         }
                     }
                     meshDebug.replaceDetailInfo(lsStage);
+                    consumed = 1;
                     break;
                 }
+                case MBM_DETAIL_TYPE_TILE:
+                    {
+                        auto *tileInfo = new util::BTILE_INFO();
+                        const auto failTile = [&](const char *what) -> bool
+                        {
+                            delete tileInfo;
+                            return failf(errorOut, lenErrorOut, "failed to read tile map %s [%s]", what, legacyPath);
+                        };
+
+                        if (!util::readBtileHeaderMapV8(fp, tileInfo->map))
+                            return failTile("header");
+                        // detail.totalBounding piggy-backs layerCount here (confirmed via the
+                        // pre-milestone-5 deleted loader) - a sanity check only, not a loop driver.
+                        if (tileInfo->map.layerCount != static_cast<uint32_t>(detail.totalBounding))
+                            return failTile("layerCount/totalBounding mismatch");
+
+                        tileInfo->infoBrickEditor = new util::BTILE_BRICK_INFO[tileInfo->map.countRawTiles];
+                        if (!util::readBtileBrickInfoArrayV8(fp, tileInfo->infoBrickEditor, tileInfo->map.countRawTiles))
+                            return failTile("brick array");
+
+                        const uint32_t cellsPerLayer = tileInfo->map.count_width_tile * tileInfo->map.count_height_tile;
+                        tileInfo->layers = new util::BTILE_LAYER[tileInfo->map.layerCount];
+                        for (uint32_t l = 0; l < tileInfo->map.layerCount; ++l)
+                        {
+                            if (!util::readFloat3ArrayV8(fp, tileInfo->layers[l].offset))
+                                return failTile("layer offset");
+                            tileInfo->layers[l].lsIndexTiles = new util::BTILE_INDEX_TILE[cellsPerLayer];
+                            if (!util::readBtileIndexTileArrayV8(fp, tileInfo->layers[l].lsIndexTiles, cellsPerLayer))
+                                return failTile("layer index array");
+                        }
+
+                        util::BTILE_DETAIL_HEADER detailHeader;
+                        if (!util::readBtileDetailHeaderV8(fp, detailHeader))
+                            return failTile("object/property header");
+
+                        for (uint32_t o = 0; o < detailHeader.totalObj; ++o)
+                        {
+                            util::BTILE_OBJ_HEADER objHeader;
+                            if (!util::readBtileObjHeaderV8(fp, objHeader))
+                                return failTile("object header");
+                            std::string name;
+                            if (objHeader.sizeName > 0)
+                            {
+                                std::vector<char> nameBuf(static_cast<size_t>(objHeader.sizeName));
+                                if (!fread(nameBuf.data(), static_cast<size_t>(objHeader.sizeName), 1, fp))
+                                    return failTile("object name");
+                                name = nameBuf.data();
+                            }
+                            auto *obj = new util::BTILE_OBJ(static_cast<util::BTILE_OBJ_TYPE>(objHeader.type), name);
+                            tileInfo->lsObj.push_back(obj);
+                            for (uint16_t p = 0; p < objHeader.sizePoints; ++p)
+                            {
+                                mbm::VEC2 point;
+                                if (!util::readVec2V8(fp, point))
+                                    return failTile("object point");
+                                obj->lsPoints.push_back(new mbm::VEC2(point));
+                            }
+                        }
+
+                        for (uint32_t p = 0; p < detailHeader.totalProperties; ++p)
+                        {
+                            util::BTILE_PROPERTY_HEADER propHeader;
+                            if (!util::readBtilePropertyHeaderV8(fp, propHeader))
+                                return failTile("property header");
+                            const auto readPropString = [&](const uint16_t len, std::string &out) -> bool
+                            {
+                                if (len == 0)
+                                    return true;
+                                std::vector<char> buf(static_cast<size_t>(len));
+                                if (!fread(buf.data(), static_cast<size_t>(len), 1, fp))
+                                    return false;
+                                out = buf.data();
+                                return true;
+                            };
+                            auto *prop = new util::BTILE_PROPERTY(static_cast<util::BTILE_PROPERTY_TYPE>(propHeader.type));
+                            tileInfo->lsProperty.push_back(prop);
+                            if (!readPropString(propHeader.nameLength, prop->name) ||
+                                !readPropString(propHeader.valueLength, prop->value) ||
+                                !readPropString(propHeader.ownerLength, prop->owner))
+                                return failTile("property strings");
+                        }
+
+                        meshDebug.replaceDetailInfo(tileInfo);
+                        consumed = 1;
+                    }
+                    break;
                 default:
                     return failf(errorOut, lenErrorOut,
                                 "unsupported physics detail type [%d] [%s] - only static 3D/SPRITE/USER/FONT/"
-                                "PARTICLE meshes are supported",
+                                "PARTICLE/TILE meshes are supported",
                                 detail.type, legacyPath);
             }
-            i += detail.totalBounding;
+            i += consumed;
         }
         return true;
     }
@@ -383,11 +480,6 @@ namespace mesh_deprecated
         }
 
         const util::TYPE_MESH typeMe = typeMeshFromTypeApp(header.typeApp);
-        if (typeMe == util::TYPE_MESH_TILE_MAP)
-        {
-            cleanup();
-            return failf(errorOut, lenErrorOut, "TILE_MAP meshes are not supported yet [%s]", legacyPath);
-        }
         if (typeMe == util::TYPE_MESH_UNKNOWN)
         {
             cleanup();

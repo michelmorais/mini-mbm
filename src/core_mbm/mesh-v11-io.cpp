@@ -542,4 +542,92 @@ namespace util
                readU16LE(fp, out.widthLetter) &&
                readU16LE(fp, out.heightLetter);
     }
+
+    bool writeBtileIndexTileV11(FILE *fp, const util::BTILE_INDEX_TILE &in)
+    {
+        return writeU32LE(fp, in.index) && writeF32LE(fp, in.x) && writeF32LE(fp, in.y);
+    }
+
+    bool readBtileIndexTileV11(FILE *fp, util::BTILE_INDEX_TILE &out)
+    {
+        return readU32LE(fp, out.index) && readF32LE(fp, out.x) && readF32LE(fp, out.y);
+    }
+
+    bool writeBtileBrickInfoV11(FILE *fp, const util::BTILE_BRICK_INFO &in)
+    {
+        return writeU16LE(fp, in.index) && writeU16LE(fp, in.original_index) &&
+               writeU16LE(fp, in.rotation) && writeU16LE(fp, in.flipped);
+    }
+
+    bool readBtileBrickInfoV11(FILE *fp, util::BTILE_BRICK_INFO &out)
+    {
+        return readU16LE(fp, out.index) && readU16LE(fp, out.original_index) &&
+               readU16LE(fp, out.rotation) && readU16LE(fp, out.flipped);
+    }
+
+    bool writeTileHeaderMapV11(FILE *fp, const util::TILE_HEADER_MAP_V11 &in)
+    {
+        return writeU32LE(fp, in.count_width_tile) &&
+               writeU32LE(fp, in.count_height_tile) &&
+               writeU32LE(fp, in.size_width_tile) &&
+               writeU32LE(fp, in.size_height_tile) &&
+               writeU32LE(fp, in.layerCount) &&
+               writeU32LE(fp, in.countRawTiles) &&
+               writeU32LE(fp, in.objectCount) &&
+               writeU32LE(fp, in.propertyCount) &&
+               writeU32LE(fp, in.typeMap) &&
+               writeU32LE(fp, in.background) &&
+               writeStringV11(fp, in.backgroundTexture) &&
+               writeBytes(fp, &in.renderDirectionLeftToRight, sizeof(in.renderDirectionLeftToRight)) &&
+               writeBytes(fp, &in.renderDirectionTopToDown, sizeof(in.renderDirectionTopToDown));
+    }
+
+    bool readTileHeaderMapV11(FILE *fp, util::TILE_HEADER_MAP_V11 &out)
+    {
+        return readU32LE(fp, out.count_width_tile) &&
+               readU32LE(fp, out.count_height_tile) &&
+               readU32LE(fp, out.size_width_tile) &&
+               readU32LE(fp, out.size_height_tile) &&
+               readU32LE(fp, out.layerCount) &&
+               readU32LE(fp, out.countRawTiles) &&
+               readU32LE(fp, out.objectCount) &&
+               readU32LE(fp, out.propertyCount) &&
+               readU32LE(fp, out.typeMap) &&
+               readU32LE(fp, out.background) &&
+               readStringV11(fp, out.backgroundTexture) &&
+               readBytes(fp, &out.renderDirectionLeftToRight, sizeof(out.renderDirectionLeftToRight)) &&
+               readBytes(fp, &out.renderDirectionTopToDown, sizeof(out.renderDirectionTopToDown));
+    }
+
+    bool writeTileLayerHeaderV11(FILE *fp, const util::TILE_LAYER_HEADER_V11 &in)
+    {
+        return writeF32LE(fp, in.offsetX) && writeF32LE(fp, in.offsetY) && writeF32LE(fp, in.offsetZ);
+    }
+
+    bool readTileLayerHeaderV11(FILE *fp, util::TILE_LAYER_HEADER_V11 &out)
+    {
+        return readF32LE(fp, out.offsetX) && readF32LE(fp, out.offsetY) && readF32LE(fp, out.offsetZ);
+    }
+
+    bool writeTileObjHeaderV11(FILE *fp, const util::TILE_OBJ_HEADER_V11 &in)
+    {
+        return writeStringV11(fp, in.name) && writeU16LE(fp, in.type) && writeU16LE(fp, in.pointCount);
+    }
+
+    bool readTileObjHeaderV11(FILE *fp, util::TILE_OBJ_HEADER_V11 &out)
+    {
+        return readStringV11(fp, out.name) && readU16LE(fp, out.type) && readU16LE(fp, out.pointCount);
+    }
+
+    bool writeTilePropertyV11(FILE *fp, const util::TILE_PROPERTY_V11 &in)
+    {
+        return writeStringV11(fp, in.owner) && writeStringV11(fp, in.name) &&
+               writeStringV11(fp, in.value) && writeU16LE(fp, in.type);
+    }
+
+    bool readTilePropertyV11(FILE *fp, util::TILE_PROPERTY_V11 &out)
+    {
+        return readStringV11(fp, out.owner) && readStringV11(fp, out.name) &&
+               readStringV11(fp, out.value) && readU16LE(fp, out.type);
+    }
 }

@@ -712,4 +712,38 @@ namespace util
         letterCount     = 0;
     }
 
+    TILE_HEADER_MAP_V11::TILE_HEADER_MAP_V11() noexcept
+    {
+        count_width_tile           = 0;
+        count_height_tile          = 0;
+        size_width_tile            = 0;
+        size_height_tile           = 0;
+        layerCount                 = 0;
+        countRawTiles              = 0;
+        objectCount                = 0;
+        propertyCount              = 0;
+        typeMap                    = 0;
+        background                 = 0;
+        renderDirectionLeftToRight = 0;
+        renderDirectionTopToDown   = 0;
+    }
+
+    TILE_LAYER_HEADER_V11::TILE_LAYER_HEADER_V11() noexcept
+    {
+        offsetX = 0;
+        offsetY = 0;
+        offsetZ = 0;
+    }
+
+    TILE_OBJ_HEADER_V11::TILE_OBJ_HEADER_V11() noexcept
+    {
+        type       = 0;
+        pointCount = 0;
+    }
+
+    TILE_PROPERTY_V11::TILE_PROPERTY_V11() noexcept
+    {
+        type = 0;
+    }
+
 }

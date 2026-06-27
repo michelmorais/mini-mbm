@@ -92,6 +92,25 @@ namespace util
 
     bool writeDetailLetterV11(FILE *fp, const util::DETAIL_LETTER &in);
     bool readDetailLetterV11(FILE *fp, util::DETAIL_LETTER &out);
+
+    // SECTION_DETAIL_TILE payload serializers.
+    bool writeBtileIndexTileV11(FILE *fp, const util::BTILE_INDEX_TILE &in);
+    bool readBtileIndexTileV11(FILE *fp, util::BTILE_INDEX_TILE &out);
+
+    bool writeBtileBrickInfoV11(FILE *fp, const util::BTILE_BRICK_INFO &in);
+    bool readBtileBrickInfoV11(FILE *fp, util::BTILE_BRICK_INFO &out);
+
+    bool writeTileHeaderMapV11(FILE *fp, const util::TILE_HEADER_MAP_V11 &in);
+    bool readTileHeaderMapV11(FILE *fp, util::TILE_HEADER_MAP_V11 &out);
+
+    bool writeTileLayerHeaderV11(FILE *fp, const util::TILE_LAYER_HEADER_V11 &in);
+    bool readTileLayerHeaderV11(FILE *fp, util::TILE_LAYER_HEADER_V11 &out);
+
+    bool writeTileObjHeaderV11(FILE *fp, const util::TILE_OBJ_HEADER_V11 &in);
+    bool readTileObjHeaderV11(FILE *fp, util::TILE_OBJ_HEADER_V11 &out);
+
+    bool writeTilePropertyV11(FILE *fp, const util::TILE_PROPERTY_V11 &in);
+    bool readTilePropertyV11(FILE *fp, util::TILE_PROPERTY_V11 &out);
 }
 
 #endif

@@ -530,6 +530,46 @@ concrete use case shows up.
   `getInfoParticle()`/`getInfoFont()`) via a temporary `testLib`/`DISPLAY=:1` dynamic test. All
   temporary diagnostics/test code removed afterward.
 
+- **Milestone 13 (closed 2026-06-27): real `SECTION_DETAIL_TILE` support (TILE_MAP).** Last deferred
+  mesh type - closes out the mesh-v11 migration's full type coverage. `util::BTILE_INFO` (header-
+  mesh.h) bundles a `BTILE_HEADER_MAP` (grid/background metadata), a `BTILE_LAYER*` array (each with
+  its own `BTILE_INDEX_TILE*` grid + a `float offset[3]`), a `BTILE_BRICK_INFO*` array (one per
+  distinct brick - rotation/flip/original-index; brick *geometry* is ordinary `SECTION_FRAME_STATIC`
+  frames, same relationship FONT glyphs have to their frames), and `std::vector<BTILE_OBJ*>`/
+  `std::vector<BTILE_PROPERTY*>` (Tiled-style collision shapes and key/value metadata).
+  `SECTION_DETAIL_TILE` bundles all of it into one section (header → bricks → per-layer
+  header+grid → objects → properties), same convention as `SECTION_DETAIL_PARTICLE`/`FONT`, reusing
+  every existing v8 struct's field layout verbatim (only `background_texture[62]` became a
+  length-prefixed string, matching every other v11 string field). Wired `MESH_MBM_DEBUG` and the real
+  runtime class `MESH_MBM` together in this one pass (the milestone-10/11 lesson, applied again for
+  milestone 12 and now this one).
+  **Found and fixed a real bug via recovered pre-deletion history, not guesswork**: initially assumed
+  (wrongly, by analogy with FONT/PARTICLE) that `mesh_deprecated`'s `readPhysicsDetail` should wrap the
+  whole TILE read in `for (j < detail.totalBounding)`. Real files broke immediately (garbage object/
+  property data) because `detail.totalBounding` for TILE actually piggy-backs `layerCount` as a sanity
+  check, not a repeat count - confirmed by recovering the actual pre-milestone-5 deleted core_mbm
+  loader via `git log --all -p` (it read the whole tile block exactly once, validated
+  `layerCount == detail.totalBounding`, and advanced the outer dispatch counter by a hardcoded `+= 1`
+  - same hardcoded `+=1`, it turns out, for FONT and PARTICLE too, which my existing milestone-12 code
+  had been getting away with only because `detail.totalBounding` happened to equal 1 in every file
+  tested so far). Fixed by introducing a `consumed` variable (defaults to `detail.totalBounding` for
+  the physics-shape cases 1-4, explicitly set to `1` for FONT/PARTICLE/TILE) and replacing the loop's
+  blanket `i += detail.totalBounding` with `i += consumed`. The same history recovery also revealed
+  `BTILE_LAYER::offset[3]` *is* read from legacy files after all (via the generic `readFloat3ArrayV8`,
+  missed by an earlier grep scoped to "Tile/BTile/Brick" names only) - so the importer now reads it
+  for real instead of defaulting to zero. Verified: clean build; converted the real legacy fixture
+  `src/test-lib/tile-map-test.tile` (10x6 grid, 2 layers, 27 distinct bricks) end-to-end through
+  `mesh_legacy_converter`, confirmed via a temporary diagnostic that map/brick/layer/cell data
+  round-tripped correctly; a separate synthetic round-trip (`saveV11`→`loadV11`, since the real fixture
+  had no Tiled objects/properties to exercise that path) confirmed objects (name/type/points) and
+  properties (owner/name/value/type) and the per-layer `offset` all round-trip exactly; then confirmed
+  the real runtime path too (`mbm::TILE::load`, which internally calls `MESH_MANAGER::load` →
+  `parse_v11_intermediate`/`finishLoadFromIntermediate`) via a temporary `testLib`/`DISPLAY=:1` dynamic
+  test. All temporary diagnostics/test code removed afterward.
+- **Mesh-v11 migration now has full mesh-type coverage** - every `util::TYPE_MESH_*` value `saveV11`/
+  `loadV11` need to handle is implemented. Only milestone 9 (skinned-frame block + GPU skinning)
+  remains explicitly reserved/not-implemented by design, picked up only if real demand shows up.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items

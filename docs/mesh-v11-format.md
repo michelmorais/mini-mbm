@@ -253,6 +253,65 @@ struct FONT_DETAIL_HEADER_V11
 // any on-disk format and are not written here either.
 ```
 
+## 6d. `SECTION_DETAIL_TILE` payload
+
+One section, present only for a `TYPE_MESH_TILE_MAP` file - same bundling convention as §6c. Reuses
+today's v8 field layout for every struct that already had one (`BTILE_HEADER_MAP`, `BTILE_BRICK_INFO`,
+`BTILE_INDEX_TILE`, `BTILE_OBJ`/`BTILE_PROPERTY` headers), with two deliberate deviations: the fixed
+`background_texture[62]` buffer becomes a length-prefixed string (§5, same treatment every other v11
+string field already got), and each layer gains a `float offset[3]` header that **the legacy v8
+format never persisted at all** - confirmed by reading every legacy BTILE read/write function; the
+editor (`tile_editor.cpp`) already populates and consumes this field at runtime and already has a
+fallback for files where it's missing (`offset[2]` defaulting to an index-based stacking order), so a
+fresh v11 writer/reader should persist it properly rather than carry the gap forward. Brick
+*geometry* is not part of this payload either - each distinct brick is already one ordinary frame in
+SECTION_FRAME_STATIC (`BTILE_HEADER_MAP.countRawTiles == ` total frame count), same relationship
+font glyphs have to their frames.
+
+```cpp
+struct TILE_HEADER_MAP_V11
+{
+    uint32_t count_width_tile, count_height_tile;   // grid dimensions, in tiles
+    uint32_t size_width_tile, size_height_tile;      // pixel size per tile
+    uint32_t layerCount;
+    uint32_t countRawTiles;     // followed by countRawTiles BTILE_BRICK_INFO entries
+    uint32_t objectCount;       // derived from lsObj.size() at write time, not trusted from memory
+    uint32_t propertyCount;     // derived from lsProperty.size() at write time
+    uint32_t typeMap;           // util::BTILE_TYPE_MAP (orthogonal/isometric/staggered/hexagonal)
+    uint32_t background;        // color, or 0
+    // backgroundTexture: length-prefixed string (§5) - replaces today's background_texture[62]
+    uint8_t  renderDirectionLeftToRight;
+    uint8_t  renderDirectionTopToDown;
+};
+// followed by countRawTiles BTILE_BRICK_INFO entries (util::BTILE_BRICK_INFO, header-mesh.h):
+//   index, original_index, rotation, flipped (uint16_t each) - same field order as today's
+//   writeBtileBrickInfoV8/readBtileBrickInfoV8.
+
+// then, for each of layerCount layers:
+struct TILE_LAYER_HEADER_V11
+{
+    float offsetX, offsetY, offsetZ;   // see deviation note above - not in any legacy format
+};
+// followed by (count_width_tile * count_height_tile) BTILE_INDEX_TILE entries (util::BTILE_INDEX_TILE):
+//   index (uint32_t, brick id for this cell), x, y (float, world position) - same field order as
+//   today's writeBtileIndexTileV8/readBtileIndexTileV8.
+
+// then, objectCount entries:
+struct TILE_OBJ_HEADER_V11
+{
+    // name: length-prefixed string (§5)
+    uint16_t type;        // util::BTILE_OBJ_TYPE (rect/circle/triangle/point/polyline)
+    uint16_t pointCount;  // followed by pointCount raw (float x, float y) pairs
+};
+
+// then, propertyCount entries:
+struct TILE_PROPERTY_V11
+{
+    // owner, name, value: length-prefixed strings (§5)
+    uint16_t type;   // util::BTILE_PROPERTY_TYPE (bool/color/float/file/int/string)
+};
+```
+
 ## 7. Index width (§6 `indexWidth`)
 
 Per-frame, not per-file: `16` is the default a writer should choose unless the frame's vertex count
