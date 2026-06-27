@@ -666,6 +666,44 @@ concrete use case shows up.
   loaded OK, animation set OK, no errors during the render loop. Temporary test code and `/tmp`
   fixtures removed afterward.
 
+- **Milestone 17 follow-up (closed 2026-06-27): deleted the dead `textureOverrideStage2` union
+  alias.** While reviewing `shader-fx.h` post-milestone-17, found `FX::textureAnimationEffect`/
+  `FX::textureOverrideStage2` declared as a union of two identically-typed `TEXTURE*` members, the
+  second commented "Legacy alias kept for compatibility." Grepped the whole codebase - zero callers
+  of `textureOverrideStage2` anywhere. Since v11 already breaks backward compatibility on purpose,
+  keeping a compatibility shim nothing references serves no one; collapsed the union to a single
+  plain `TEXTURE *textureAnimationEffect;` member. Verified: clean build, zero warnings.
+
+- **Milestone 18 (new, scoped not started): build real FX/shader-effect editing in the editor.**
+  While fixing milestone 17's editor note, found it pointed users to "the Animations node" for
+  setting the FX texture - that node (`mesh_debug.lua:4900-5033`) has no such option, never did.
+  Wider check found **zero editor UI for the FX/shader-effect system at all**: no shader picker, no
+  texture picker, no shader-vars editor, nothing (`grep` for `loadNewShader`/`shader_effect`/
+  `effectShader` in `mesh_debug.lua` returns nothing). Today `FX`/`EFFECT_SHADER` (`shader-fx.h`,
+  `animation.h`) can only be configured from C++ game code at runtime (`anim->getFx().loadNewShader(...)`,
+  direct `textureAnimationEffect = tex` assignment - confirmed call sites in `animation.cpp`,
+  `particle.cpp`, `font.cpp`, `steered_particle.cpp`). The editor's Lua binding layer
+  (`mesh-debug-lua.cpp`) only *reads* `FX` data to round-trip it on save (`fillEffect`,
+  `appendAnimationHeader`) - there's no `setFx`/`loadEffect`/`setAnimEffectTexture` entry in the
+  `MESH_MBM_DEBUG` method table (`mesh-debug-lua.cpp:1850-1915`) at all. So a real fix needs two
+  layers, not just a UI:
+  1. **New Lua bindings** in `mesh-debug-lua.cpp`, following the existing `onSetMaterialTextureNameMeshDebugLua`-
+     style pattern (plain `luaL_Reg` C functions), to expose at minimum: load a shader effect
+     (`EFFECT_SHADER::loadEffect`, needs shader file + code + `TYPE_ANIMATION` + time), set/get the
+     FX texture (`FX::textureAnimationEffect`), set/get shader vars (`VAR_SHADER` min/max table,
+     `FX::setVarPShader`/`setMaxVarPShader`/etc.), set blend op (`FX::setBlendOp`/`setBlendDefaultOp`),
+     and disable/clear an effect (`ANIMATION::getFx()`-equivalent debug-side access doesn't exist
+     yet either - check whether `MESH_MBM_DEBUG` even holds a per-animation `FX` today or whether
+     this also needs a debug-side `ANIMATION`/`FX` storage addition).
+  2. **New UI** inside the Animations node's per-animation `TreeNodeEx` block
+     (`mesh_debug.lua:4965-5010`, alongside name/frames/time/type): shader file picker (ps/vs),
+     texture picker for `textureAnimationEffect` (reuse the same browse-button pattern as the
+     Texture node), a vars table editor, and a blend-op combo.
+  Real feature-sized work (new Lua API surface + new UI), not a cleanup - scoped here as its own
+  milestone rather than folded into 17 or attempted ad hoc, per `AskUserQuestion` with the user:
+  chose "dead alias now + scope a real milestone" over a quick note-only fix. Pick up as its own
+  pass with its own plan/review when prioritized.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items
