@@ -616,6 +616,56 @@ concrete use case shows up.
   `MEM_CURSOR_V11`-based path) via a temporary `testLib`/`DISPLAY=:1` dynamic test - all 5 reported
   `OK`. Temporary test code and `/tmp` fixtures removed afterward.
 
+- **Milestone 16 (real 32-bit index support): deferred, parked in backlog.** Scoping work
+  revealed the real surface area is much bigger than the original plan assumed. The plan only
+  accounted for load/save (`mesh-manager.cpp`'s `FRAME_HEADER_V11` read/write) and the GPU
+  upload/draw layer (~25-35 call sites across `shader-opengl_es.cpp`/`shader-directx9.cpp`,
+  hardcoded `uint16_t`/`GL_UNSIGNED_SHORT`/`D3DFMT_INDEX16`). What it missed:
+  `BUFFER_MESH_DEBUG::indexBuffer` (`uint16_t*`) is also the backbone of the entire in-memory
+  mesh-*editing* API used by `mesh_debug.lua`/`sprite_maker.lua` - `addVertex`/`addIndex`/
+  `insertSubset`/`removeSubset`/`mergeBuffer` and index-rebasing-on-merge, ~30 call sites in
+  `mesh-manager.cpp`, several with `uint16_t`-wraparound-sensitive casts (e.g.
+  `static_cast<uint16_t>(vertexStart)` when rebasing indices after a merge) that would silently
+  corrupt data above 65535 vertices - exactly the case 32-bit indices exist to support. Doing this
+  properly means retrofitting all of that editing logic too, not just load/save/render - a
+  milestone-sized effort on its own, not a few-hour pass. User chose to defer rather than narrow
+  the scope or commit to the bigger effort right now - revisit as its own properly-scoped milestone
+  if real demand shows up. The research above (storage/GPU-upload/draw-call findings) stays valid
+  for whenever this gets picked back up.
+
+- **Milestone 17 (closed 2026-06-27): decoupled the animation-effect (FX) texture from per-subset
+  role dispatch.** Real investigation (not the plan's original guess) found the issue was smaller
+  and more localized than scoped: the *write* side (`mbm::bindTextureAnimationEffect`/
+  `FX::bindTextureAnimationEffect`, `shader-fx.cpp`) already stores the FX texture exactly once
+  per mesh buffer (`setTextureByStage(tex, fxSlot, /*subset=*/0)`), called once per frame-buffer
+  from each render type's update logic (`sprite.cpp`/`mesh.cpp`/`tile.cpp`/etc.) - never per-subset.
+  DirectX9's draw functions (`shader-directx9.cpp`) already bound it correctly too -
+  `bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT)` called once, before
+  each per-subset loop, at all 4 draw sites. The actual problem was narrower: **OpenGL ES**
+  (`shader-opengl_es.cpp`) called the equivalent `bindTextureRoleOpenGlEs(pBufferId, i,
+  TEXTURE_ROLE_ANIMATION_EFFECT, ...)` *inside* all 4 per-subset loops (redundantly rebinding the
+  identical texture to the same sampler once per subset - wasteful, not incorrect), and both
+  backends' generic per-role GET helpers (`getBoundTextureForRoleOpenGlEs`/`getBoundTextureForRoleD3D`)
+  carried a `role == TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex` override that duplicated the
+  same "force subset 0" logic the call sites already handle explicitly. Fixed by moving the 4
+  OpenGL ES bind calls to once-before-each-loop (matching the DirectX9 pattern that already
+  existed), and removing the now-redundant ternary from both backends' GET helpers (callers always
+  pass subset 0 for FX already, so the override added nothing). Left `BUFFER_GL::getTextureByStage`'s
+  own internal "stage>0, missing per-subset entry, fall back to subset 0" logic untouched - it's
+  unreachable for FX now (every FX lookup already passes subset 0 directly, so the fallback branch
+  is never reached) but may still be load-bearing for NORMAL/SPECULAR/EMISSIVE/MASK roles when a
+  specific subset lacks an entry for that role, which is out of this milestone's scope to verify or
+  change. This was a code-quality/structural-clarity fix, not a rendering bug fix - the explicit
+  `subsetIndex=0` already in place everywhere made the *result* correct before this milestone, just
+  via duplicated logic in 3 places instead of one. **User explicitly chose to skip milestone 16 and
+  prioritize this one** (raised via `AskUserQuestion` after milestone 16's scope ballooned).
+  Verified: clean build (zero warnings); a real FX-equipped sprite (`blast.spt`, pulled from
+  `tower-defense`'s git history, 1 animation with a real `transparent.ps` shader effect) converted
+  through `mesh_legacy_converter` and loaded through the real runtime path
+  (`mbm::SPRITE::load`/`setAnimationByIndex`) via a temporary `testLib`/`DISPLAY=:1` dynamic test -
+  loaded OK, animation set OK, no errors during the render loop. Temporary test code and `/tmp`
+  fixtures removed afterward.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items

@@ -287,8 +287,10 @@ namespace mbm
         if (pBufferId == nullptr)
             return nullptr;
         const uint32_t stageIndex = static_cast<uint32_t>(getTextureRoleBackendSlot(role));
-        const uint32_t textureSubset = role == TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
-        TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+        // Callers always pass subsetIndex=0 for TEXTURE_ROLE_ANIMATION_EFFECT (it's one shared
+        // texture per animation, not per-subset - see the per-draw-call bind sites), so no
+        // role-specific override is needed here.
+        TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, subsetIndex);
         if (texture)
             return texture;
         return TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
