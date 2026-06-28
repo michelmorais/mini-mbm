@@ -1201,6 +1201,13 @@ namespace mbm
             case TEXTURE_ROLE_NORMAL:
                 fallbackName = "#FF8080FF";
             break;
+            case TEXTURE_ROLE_SPECULAR:
+            case TEXTURE_ROLE_EMISSIVE:
+                fallbackName = "#FF000000";
+            break;
+            case TEXTURE_ROLE_MASK:
+                fallbackName = "#FFFFFFFF";
+            break;
             default:
                 return nullptr;
         }

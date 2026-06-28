@@ -788,6 +788,88 @@ concrete use case shows up.
     binding now does, read it back - confirmed it persists (whereas before the fix, the equivalent
     `setTextureByStage`-based write would have been invisible to any subsequent draw call).
 
+- **Milestone 20 (closed 2026-06-28): wired up SPECULAR/EMISSIVE/MASK runtime texture binding
+  across all 4 render backends, and removed legacy `sample0`/`sample1`/`sample2` shader-naming
+  support from the live engine entirely.** Triggered by a user question ("if a custom shader uses
+  sample0/sample1, will it work?") that surfaced two gaps: (1) `TEXTURE_ROLE_SPECULAR`/`EMISSIVE`/
+  `MASK` could be stored via milestone 19's `setMaterialTexture` but no backend actually bound them
+  to a GPU sampler - all 4 backends explicitly *rejected* shader compilation if a semantic-named
+  shader declared any of these 3 samplers; (2) legacy `sample0/1/2` naming was a fully-supported
+  live convention, which the user wants gone per this whole migration's "v11 breaks compatibility
+  on purpose, leave the code better" philosophy. Scoped via `AskUserQuestion`: delete the enum
+  value completely (not just make it unreachable); bundle the SPECULAR/EMISSIVE/MASK fix into the
+  same pass since both touch the same per-backend code; and - after the user corrected an initial
+  wrong assumption that `mesh_deprecated` should gain shader-source-rewriting capability - confirmed
+  legacy meshes only ever store a shader's *filename*, never its source text, so **no
+  `mesh_deprecated` changes were needed or made**; that tool is untouched.
+  - **Wiring SPECULAR/EMISSIVE/MASK** (`shader-opengl_es.cpp`, `shader-directx9.cpp`,
+    `shader-metal.mm`): each backend's existing DIFFUSE/NORMAL resolve-and-bind pattern was
+    extended to the 3 new roles, but only at the draw sites that already bind NORMAL (not every
+    DIFFUSE site - NORMAL is never bound at particle draw sites in any backend, so SPECULAR/
+    EMISSIVE/MASK follow that same footprint, not a broader one):
+    - GLES: added `samplerHandle3/4/5` next to the existing 0/1/2, resolved at compile time the
+      same way; bind calls added at `render()`'s 2 per-subset branches + `renderDynamic()`'s 2 -
+      4 sites total.
+    - DirectX9: **no new handle fields needed** - investigation found `samplerHandle0/1/2` are
+      resolved at compile time but never actually consumed by `bindTextureRoleD3D` (HLSL's static
+      `register(sN)` binding model needs no existence check, unlike GLSL's uniform-location
+      lookup) - they're vestigial, pre-existing dead storage, left as-is (out of scope to clean up
+      now). Just added `bindTextureRoleD3D(..., TEXTURE_ROLE_SPECULAR/EMISSIVE/MASK)` calls.
+      Site count corrected during implementation from an initial (wrong) plan estimate of 2: D3D9
+      actually binds NORMAL at **4** sites - `render()`'s 2 branches AND both `renderParticle`
+      overloads (`renderDynamic` itself has no bind loop of its own; it delegates via `return
+      render(...)` and inherits the fix for free) - so SPECULAR/EMISSIVE/MASK went to all 4.
+    - Metal: has no resolve-then-bind handle concept at all - hardcodes fixed `atIndex:` values
+      per role with no shader-declares-this-role gating. Added 3 more unconditional
+      `setFragmentTexture:...atIndex:3/4/5` calls at the same 4 sites GLES uses. Also fixed a
+      leftover redundant `role == ANIMATION_EFFECT ? 0 : subsetIndex` ternary in
+      `getBoundTextureForRoleMetal` (dead - the FX call site already explicitly passes
+      `subsetIndex=0`) - the same pattern milestone 17 cleaned up in GLES/D3D9, just missed there
+      since Metal wasn't in that milestone's research scope.
+    - Dummy backend: no real per-subset binding exists for *any* role (its render functions are
+      all no-op stubs) - nothing to add beyond removing its rejection guard.
+  - **Removed the now-obsolete rejection guards** in all 4 backends ("...declares a reserved
+    semantic texture role without runtime binding support") - the gap they guarded against no
+    longer exists.
+  - **Extended `TEXTURE_MANAGER::getFallbackTexture`** (`texture-manager.cpp`) to cover SPECULAR/
+    EMISSIVE/MASK (previously `nullptr` for these 3 - only DIFFUSE/ANIMATION_EFFECT/NORMAL had
+    fallbacks). Found during plan review: without this, a subset whose shader declares e.g.
+    `TextureSpecular` but has no specular texture actually assigned (a normal, expected case) would
+    pass `nullptr` into Metal's `setFragmentTexture:nil atIndex:N` for a slot the shader actively
+    samples from - a real API validation risk in debug builds, not just a visual quirk (GLES/D3D9
+    null-guard gracefully, Metal doesn't). Added black fallbacks for specular/emissive, opaque
+    white for mask, via the engine's existing `"#AARRGGBB"` synthetic-color-texture convention.
+  - **Removed `SHADER_TEXTURE_NAMING_LEGACY_SAMPLE` from the enum** (`shader.h`) and all its case
+    sites in `shader.cpp` (`getTextureRoleShaderName`, `parseShaderTextureNaming`,
+    `getShaderTextureNamingName`, `detectShaderTextureNamingProfile`). Confirmed via grep these
+    were the *only* 2 files referencing the enum value by name - no backend or `shader-cfg.cpp`
+    referenced it directly, they all go through the naming-detection/lookup functions generically,
+    so deleting it from one place cut off legacy support engine-wide. A shader using only
+    `sample0`/`sample1`/`sample2` now detects as `SHADER_TEXTURE_NAMING_NONE` (no role resolved/
+    bound, not an error) rather than a recognized-but-deprecated convention.
+  - **Found and removed additional now-dead code while implementing** (not in the original plan,
+    surfaced once `detectShaderTextureNamingProfile` could no longer return `MIXED_INVALID` at
+    all): the `MIXED_INVALID` rejection branch in `BASE_SHADER::loadShader` (`shader.cpp`), in
+    `SHADER_CFG::validateTextureNamingProfile` (`shader-cfg.cpp`), and in all 4 backends'
+    `compileShader` - all 6 were fed directly by `detectShaderTextureNamingProfile`'s return value,
+    which can now only ever be `NONE` or `SEMANTIC_ROLE`, making these checks unreachable rather
+    than merely "misleadingly worded" as initially assumed. Deleted rather than reworded. Also
+    deleted `mergeShaderTextureNamingProfiles` (`shader.cpp`/`shader.h`) - confirmed zero callers
+    anywhere in the codebase, genuinely dead. `MIXED_INVALID` itself stays in the enum - still
+    reachable via `parseShaderTextureNaming`'s fallthrough for an unrecognized CFG `textureNaming`
+    string, whose existing error message was already naming-neutral (never said "legacy"), so no
+    rewording was needed there. In the Dummy backend specifically, removing the naming check also
+    orphaned its entire surrounding default-shader-source setup block (computed only to feed that
+    check) - removed that too, down to the bare `pShader`/`vShader` assignment + `REMINDER_TODO`.
+  - Verified: clean build (zero warnings) of every backend this Linux dev environment compiles
+    (GLES, DirectX9 - via its stub path, Dummy; Metal's `.mm` is Apple-gated out of this build,
+    verified by careful code review/context-matching instead of compilation). Real `testLib`/
+    `DISPLAY=:1` test (temporary, reverted after): a `SHAPE_MESH` quad with a custom shader
+    declaring `TextureSpecular`/`TextureEmissive`/`TextureMask` samplers compiled successfully (no
+    longer rejected); `setMaterialTexture`/`getMaterialTexture` round-tripped for all 3 roles;
+    `detectShaderTextureNamingProfile` on legacy-only (`sample0`) source returned `NONE`, not an
+    error; `getFallbackTexture` returned non-null for all 3 roles.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items
@@ -812,3 +894,10 @@ below belong to later milestones.)
   `setFxTexture`/`getFxTexture` calls go straight to `MESH_MBM_DEBUG`, not through this conversion
   routine), so it's not a regression from this milestone - flagged here in case some other,
   not-yet-found Lua entry point reaches it.
+- Milestone 20 removed legacy `sample0`/`sample1`/`sample2` shader-naming support from the live
+  engine with no migration tooling - by design (the user explicitly chose this; `mesh_deprecated`
+  only ever carries a referenced shader's filename, never its source text, so there was nothing to
+  build a translator on top of). The handful of real legacy-named shader files known to exist (a
+  personal library outside any repo, not the shipped game) are now unsupported until manually
+  hand-edited to semantic naming - a few lines of work if/when actually needed, intentionally not
+  automated.

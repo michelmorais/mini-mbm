@@ -817,6 +817,9 @@ namespace mbm
           samplerHandle0(-1),
           samplerHandle1(-1),
           samplerHandle2(-1),
+          samplerHandle3(-1),
+          samplerHandle4(-1),
+          samplerHandle5(-1),
           programObject(0)
     {
 	}
@@ -836,6 +839,9 @@ namespace mbm
         samplerHandle0  = -1;
         samplerHandle1  = -1;
         samplerHandle2  = -1;
+        samplerHandle3  = -1;
+        samplerHandle4  = -1;
+        samplerHandle5  = -1;
         if (programObject)
         {
             GLDeleteProgram(programObject);
@@ -1121,19 +1127,6 @@ namespace mbm
         const std::string bothShaderCode(pixelShaderCode + vertexShaderCode);
         const SHADER_TEXTURE_NAMING textureNaming =
             detectShaderTextureNamingProfile(bothShaderCode.c_str());
-        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
-        {
-            ERROR_LOG("OpenGL ES shader mixes legacy texture names with semantic texture roles");
-            return false;
-        }
-        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
-            (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
-             shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
-             shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
-        {
-            ERROR_LOG("OpenGL ES shader declares a reserved semantic texture role without runtime binding support");
-            return false;
-        }
 
         if (bothShaderCode.find("aPosition") != std::string::npos)
         {
@@ -1181,7 +1174,25 @@ namespace mbm
                 gles_shaderSpecific->programObject,
                 getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, textureNaming));
         }
-        
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming))
+        {
+            gles_shaderSpecific->samplerHandle3 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_SPECULAR, textureNaming));
+        }
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming))
+        {
+            gles_shaderSpecific->samplerHandle4 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_EMISSIVE, textureNaming));
+        }
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming))
+        {
+            gles_shaderSpecific->samplerHandle5 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_MASK, textureNaming));
+        }
+
         return true;
     }
 
@@ -1242,6 +1253,9 @@ namespace mbm
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_SPECULAR, gles_shaderSpecific->samplerHandle3);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_EMISSIVE, gles_shaderSpecific->samplerHandle4);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
@@ -1287,6 +1301,9 @@ namespace mbm
                 //  glEnable(GL_BLEND);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_SPECULAR, gles_shaderSpecific->samplerHandle3);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_EMISSIVE, gles_shaderSpecific->samplerHandle4);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1)
                     && backendBuffer->vboNormalSubsetVB && backendBuffer->vboNormalSubsetVB[i] != 0;
@@ -1350,6 +1367,9 @@ namespace mbm
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_SPECULAR, gles_shaderSpecific->samplerHandle3);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_EMISSIVE, gles_shaderSpecific->samplerHandle4);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
@@ -1390,6 +1410,9 @@ namespace mbm
                 //-----------------------------------------------------------------------------------------------------------
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_SPECULAR, gles_shaderSpecific->samplerHandle3);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_EMISSIVE, gles_shaderSpecific->samplerHandle4);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1) && (normal != nullptr);
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1) && (uv != nullptr);

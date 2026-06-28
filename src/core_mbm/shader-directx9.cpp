@@ -1200,19 +1200,6 @@ namespace mbm
         const std::string combinedShaderCode = std::string(codePS) + codeVS;
         const SHADER_TEXTURE_NAMING textureNaming =
             detectShaderTextureNamingProfile(combinedShaderCode.c_str());
-        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
-        {
-            ERROR_LOG("DirectX9 shader mixes legacy texture names with semantic texture roles");
-            return false;
-        }
-        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
-            (shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
-             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
-             shaderCodeDeclaresTextureRole(combinedShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
-        {
-            ERROR_LOG("DirectX9 shader declares a reserved semantic texture role without runtime binding support");
-            return false;
-        }
 #if defined _DEBUG
         constexpr DWORD flag = D3DXSHADER_DEBUG;
 #else
@@ -1456,6 +1443,9 @@ namespace mbm
             {
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_SPECULAR);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_EMISSIVE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_MASK);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
@@ -1547,6 +1537,9 @@ namespace mbm
             {
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_SPECULAR);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_EMISSIVE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_MASK);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTablePS, pBufferId, i);
                 uploadReservedLightConstantsD3D(pd3dDevice, d3dPsVs->constantTableVS, pBufferId, i);
 
@@ -1767,6 +1760,9 @@ namespace mbm
             {
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_SPECULAR);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_EMISSIVE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_MASK);
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
@@ -2038,6 +2034,9 @@ namespace mbm
             {
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_SPECULAR);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_EMISSIVE);
+                bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_MASK);
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
