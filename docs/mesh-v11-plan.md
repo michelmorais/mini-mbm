@@ -764,6 +764,29 @@ concrete use case shows up.
     `addAnimation`, `setAnimationEffectTexture`, `saveV11`, reload into a fresh instance,
     `getAnimationEffectTexture` confirmed the texture path survived the round-trip, then
     `setAnimationEffectTexture(idx, "")` confirmed clearing works - all via `testLib`/`DISPLAY=:1`.
+  - **Post-close fix (2026-06-28): the runtime `setMaterialTexture('fx', ...)` path (used by
+    `shader_editor.lua`'s new Material Textures panel) didn't actually work** - user-reported via
+    "I set one image for FX texture however I do not see updated in the editor". Root cause: FX is
+    refreshed into `BUFFER_GL`'s per-stage texture map from `mbm::FX::textureAnimationEffect` on
+    *every draw call* (`FX::bindTextureAnimationEffect`, `shader-fx.cpp`, called from ~12 per-draw
+    sites - this is the exact mechanism milestone 17 made correct and explicit). The original
+    `MESH_MBM::setMaterialTexture` wrote straight to `BUFFER_GL::setTextureByStage` for every role
+    including FX - for the 4 real per-subset material roles that's correct and persists, but for
+    FX it got silently overwritten back to whatever `textureAnimationEffect` already was (still
+    null) on the very next render call, so the UI's "set" appeared to do nothing. This was the
+    same risk the milestone 19 planning notes had already identified in `ANIMATION_MANAGER::
+    setTexture`'s existing FX branch (`anim->getFx().textureAnimationEffect = newTex`, bypassing
+    `setTextureByStage` entirely) and consciously decided not to reuse for being "not generic
+    enough" - that decision was right for the 4 material roles but wrong to extend to FX without
+    a special case. Fixed in `animation-lua.cpp`'s `onSetMaterialTextureAnimationLua`/
+    `onGetMaterialTextureAnimationLua`: when `role == TEXTURE_ROLE_ANIMATION_EFFECT`, assign/read
+    `anim->getFx().textureAnimationEffect` directly instead of going through `MESH_MBM::
+    setMaterialTexture`/`getMaterialTexture` - mirrors `ANIMATION_MANAGER::setTexture`'s
+    already-proven FX-branch pattern. The 4 real per-subset roles (normal/specular/emissive/mask)
+    and diffuse are unaffected, still routed through `setTextureByStage` as before. Verified via a
+    temporary `testLib` test: set `anim->getFx().textureAnimationEffect` the same way the fixed Lua
+    binding now does, read it back - confirmed it persists (whereas before the fix, the equivalent
+    `setTextureByStage`-based write would have been invisible to any subsequent draw call).
 
 ## Open Questions
 
