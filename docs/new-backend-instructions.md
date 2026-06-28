@@ -622,13 +622,6 @@ The engine never passes these names to `glGetUniformLocation` / equivalent at dr
 time; they are only searched once during `compileShader` to cache handles.  In a Metal
 backend they map to fixed buffer/texture slots that the render() methods hard-code.
 
-**Legacy `sample0`/`sample1`/`sample2` naming no longer exists.** The engine used to also
-recognize these as aliases for `TextureDiffuse`/`TextureAnimationEffect`/`TextureNormal`
-(`SHADER_TEXTURE_NAMING_LEGACY_SAMPLE`), but that compatibility profile was removed from
-the live engine entirely - a shader using only `sample0`/`sample1`/`sample2` now compiles
-but resolves no texture role at all (silently unbound, not rejected). New backends only
-ever need to support the semantic names above.
-
 ---
 
 ### GLSL → MSL translation rules
