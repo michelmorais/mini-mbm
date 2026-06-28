@@ -871,7 +871,7 @@ function showShaderOptions()
                             tMesh:setMaterialTexture(role.key, tSelectedTextures[1].file_name, true)
                         end
                     end
-                    tImGui.SameLine()
+                    
                     if tImGui.Button(tLang.L('tex_clear') .. '##matTexClear-' .. role.key) then
                         tMesh:setMaterialTexture(role.key, '', true)
                     end
