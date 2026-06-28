@@ -42,7 +42,10 @@ editor support, Lua APIs, and scene serialization.
 - Light was intentionally removed from `TYPE_CLASS`; new engine lights are scene state, not
   `RENDERIZABLE` objects.
 - Shader code already uses engine-reserved names such as `aPosition`, `aNormal`, `aTextCoord`,
-  `mvpMatrix`, `mvMatrix`, `sample0`, and `sample1`.
+  `mvpMatrix`, `mvMatrix`, `TextureDiffuse`, and `TextureAnimationEffect`. (Originally written as
+  `sample0`/`sample1` - renamed to semantic naming by the mesh-v11 migration's milestone 7, and the
+  legacy `sample0`/`sample1`/`sample2` aliases this doc later discusses keeping were removed from
+  the live engine entirely by milestone 20 - see `docs/mesh-v11-plan.md`.)
 
 ### What is missing
 
@@ -65,7 +68,7 @@ Lighting must not steal stage 1. The first lighting milestone should use only un
 Before adding more rendering state, audit texture-stage behavior:
 
 - DirectX 9 binds stage 1 from `getTextureByStage(1, 0)`.
-- Metal binds `sample1` from `getTextureByStage(1, 0)`.
+- Metal binds `TextureAnimationEffect` from `getTextureByStage(1, 0)`.
 - OpenGL ES index-buffer rendering binds stage 1 from `getTextureByStage(1, 0)`.
 - OpenGL ES vertex-buffer rendering appears to bind stage 1 from `getTextureByStage(0, i)`,
   which should be reviewed and likely corrected.
@@ -112,14 +115,15 @@ not only its concrete class.
 
 Recommended: yes.
 
-Stage 1 already means `sample1` for existing shader FX. The lighting contract should use
-engine-owned uniforms. If normal maps are added later, introduce explicit material texture slots
-or a deliberate stage-extension design instead of overloading the existing stage-1 convention.
+Stage 1 already means `TextureAnimationEffect` for existing shader FX. The lighting contract should
+use engine-owned uniforms. If normal maps are added later, introduce explicit material texture
+slots or a deliberate stage-extension design instead of overloading the existing stage-1
+convention.
 
 Current structural constraints:
 
 - MBM v8 stores only one primary texture name per subset in `HEADER_DESC_SUBSET::nameTexture`.
-- Legacy animation shader steps can store one stage-1/`sample1` texture through
+- Legacy animation shader steps can store one stage-1/`TextureAnimationEffect` texture through
   `HEADER_INFO_SHADER_STEP::lenTextureStage2`; mesh `v10` stores
   `TextureAnimationEffect` once at the animation FX level.
 - `BUFFER_GL` currently has per-subset stage 0 and one shared stage 1 pointer; it does not model
@@ -197,8 +201,8 @@ Keep existing names unchanged:
 - `aTextCoord`
 - `mvpMatrix`
 - `mvMatrix`
-- `sample0`
-- `sample1`
+- `TextureDiffuse`
+- `TextureAnimationEffect`
 
 ### 5. Keep lighting opt-in
 
@@ -393,13 +397,13 @@ Default vertex shader with normals should:
 
 Default pixel shader should:
 
-- sample `sample0` when UV exists
+- sample `TextureDiffuse` when UV exists
 - multiply sampled RGB by `MaterialDiffuse.rgb`
 - preserve final alpha as sampled alpha multiplied by `MaterialDiffuse.a`
 - compute `diffuse = max(dot(normalView, -LightDirectionView), 0.0)`
 - compute ambient contribution as `AmbientColor.rgb * MaterialAmbient.rgb`
 - use the first-pass classic Lambert formula:
-  `base = sample0.rgb * MaterialDiffuse.rgb`;
+  `base = TextureDiffuse.rgb * MaterialDiffuse.rgb`;
   `lit = base * (AmbientColor.rgb * MaterialAmbient.rgb + LightColor.rgb * diffuse)`
 - clamp/saturate final RGB to `0.0..1.0`
 - do not apply lighting to alpha
@@ -412,8 +416,8 @@ Default HLSL should mirror OpenGL ES:
 - input semantic `NORMAL`
 - output normal to pixel shader
 - constants for light state
-- texture `sample0 : register(s0)`
-- preserve `sample1 : register(s1)` behavior for existing FX shaders
+- texture `TextureDiffuse : register(s0)`
+- preserve `TextureAnimationEffect : register(s1)` behavior for existing FX shaders
 
 Do not enable `D3DRS_LIGHTING` for this feature.
 
@@ -433,8 +437,8 @@ Default MSL generation should:
 - Confirm stage-0 and stage-1 behavior in `shader-opengl_es.cpp`, `shader-directx9.cpp`, and
   `shader-metal.mm`.
 - Fix the OpenGL ES vertex-buffer stage-1 path if confirmed incorrect.
-- Add a tiny regression scene or smoke script that uses `sample1` on a vertex-buffer object and
-  an index-buffer object.
+- Add a tiny regression scene or smoke script that uses `TextureAnimationEffect` on a
+  vertex-buffer object and an index-buffer object.
 - Reconfirm DX9 render-to-texture sampler unbinding remains before `SetRenderTarget()`.
 - Remove the `DEBUG_SHADER_D3D_MINIMIZE_ERROR` guarded update path from DirectX 9 shader rendering
   as part of making shader constant updates deterministic.
@@ -582,25 +586,36 @@ Default MSL generation should:
 - Decide whether the material-texture-slot path requires a new MBM header version after
   `CURRENT_VERSION_MBM_HEADER`.
 - Extend `BUFFER_GL` texture storage beyond stage 0 plus shared stage 1 before using normal maps.
-- Do not overload existing stage 1 / `sample1` FX texture with normal maps.
+- Do not overload existing stage 1 / `TextureAnimationEffect` FX texture with normal maps.
 - Runtime now binds the first per-subset normal-map slot through stage / sampler `2`
-  (`sample2`) so stage `1` / `sample1` remains reserved for the existing FX path.
+  (`TextureNormal`) so stage `1` / `TextureAnimationEffect` remains reserved for the existing FX
+  path.
 - First runtime implementation now ships as one engine-managed `2dw` point/radius light with
-  per-object shading, optional per-subset normal map from `sample2`, and flat-normal fallback
-  `(0, 0, 1)` when no normal map exists. Expand that path first with validated multi-light
+  per-object shading, optional per-subset normal map from `TextureNormal`, and flat-normal
+  fallback `(0, 0, 1)` when no normal map exists. Expand that path first with validated multi-light
   selection before considering broader screen-space/light-buffer composition.
 - Current `2dw` shading does not consume stored mesh/vertex normals. It uses the per-subset
-  normal-map texture from `sample2` when present; otherwise it falls back to the flat normal
+  normal-map texture from `TextureNormal` when present; otherwise it falls back to the flat normal
   `(0, 0, 1)`.
 - Validated `2dw` behavior matrix:
-  - normal map + mesh normals -> use `sample2` normal map
-  - normal map + no mesh normals -> use `sample2` normal map
+  - normal map + mesh normals -> use `TextureNormal` normal map
+  - normal map + no mesh normals -> use `TextureNormal` normal map
   - no normal map + mesh normals -> use flat fallback normal `(0, 0, 1)`
   - no normal map + no mesh normals -> use flat fallback normal `(0, 0, 1)`
 - Mesh/vertex normals remain useful for `3d` lighting and asset/tooling, but they are currently
   informational only for the shipped `2dw` lighting path.
 
 ### Milestone 8.5: Texture role and shader naming cleanup
+
+**Status update (2026-06-28): closed/superseded by `docs/mesh-v11-plan.md`'s Milestone 20.**
+`TextureSpecular`/`TextureEmissive`/`TextureMask` now have real runtime binding in all 4 render
+backends (previously: known/reserved but compile-rejected if a shader declared them - see the
+bullet below). The "keep legacy `sample0`/`sample1`/`sample2` as a compatibility profile" decision
+below was reversed: legacy naming was removed from the live engine entirely, per the mesh-v11
+migration's "v11 breaks compatibility on purpose" stance - a shader using only legacy names now
+compiles but resolves no texture role (silently unbound), it is not rejected and there is no
+compatibility profile anymore. The rest of this section is kept as a historical record of the
+original plan.
 
 - Introduce semantic engine texture roles before multi-light work expands shader/backend binding
   state.
@@ -740,7 +755,7 @@ Ask and resolve these before implementation:
    Resolved: per-subset where subset material data exists. Use fallback classic material defaults
    when material data is missing: diffuse/ambient white, specular/emissive black, power `0`.
 
-8a.2. How should `MaterialDiffuse` interact with `sample0`?
+8a.2. How should `MaterialDiffuse` interact with `TextureDiffuse`?
    Resolved: multiply sampled RGB by `MaterialDiffuse.rgb`, and compute final alpha as sampled
    alpha multiplied by `MaterialDiffuse.a`. White diffuse preserves old texture color.
 
@@ -749,7 +764,7 @@ Ask and resolve these before implementation:
 
 8a.4. What is the first-pass RGB lighting formula?
    Resolved: use classic Lambert-style modulation:
-   `base = sample0.rgb * MaterialDiffuse.rgb`;
+   `base = TextureDiffuse.rgb * MaterialDiffuse.rgb`;
    `lit = base * (AmbientColor.rgb * MaterialAmbient.rgb + LightColor.rgb * NdotL)`.
 
 8a.5. Should the first-pass lit RGB be clamped?
@@ -881,18 +896,28 @@ Ask and resolve these before implementation:
    slots and may require a new MBM header version.
 
 10a. Should the legacy FX texture become a material texture slot?
-   Resolved: no. The old stage-1/`sample1` texture is per-animation shader-effect state, not
-   per-subset material state. Name the semantic role `TextureAnimationEffect` and keep material
-   slots for surface data such as diffuse, normal, specular, emissive, and mask.
+   Resolved: no. The old stage-1/`TextureAnimationEffect` texture is per-animation shader-effect
+   state, not per-subset material state. Name the semantic role `TextureAnimationEffect` and keep
+   material slots for surface data such as diffuse, normal, specular, emissive, and mask.
 
 10b. Should new shaders keep public names such as `sample0`, `sample1`, and `sample2`?
-   Resolved: no for new engine-generated and built-in shaders. Use semantic names such as
-   `TextureDiffuse`, `TextureAnimationEffect`, and `TextureNormal`. Keep `sample0`/`sample1`/
+   Resolved (2026-06-26): no for new engine-generated and built-in shaders. Use semantic names such
+   as `TextureDiffuse`, `TextureAnimationEffect`, and `TextureNormal`. Keep `sample0`/`sample1`/
    `sample2` as a legacy compatibility profile for existing custom shaders.
+   **Superseded (2026-06-28, mesh-v11-plan.md Milestone 20)**: the legacy compatibility profile was
+   removed from the live engine entirely, not kept - `sample0`/`sample1`/`sample2` are no longer a
+   recognized naming convention anywhere in the runtime. Existing custom shaders using those names
+   still compile but no longer resolve any texture role (silently unbound, not an error).
 
 10c. Can a shader mix legacy sample names and semantic texture role names?
    Resolved: no. Detect mixed naming in the same shader source and fail with a clear error. A shader
    must use one texture naming profile only.
+   **Superseded (2026-06-28, Milestone 20)**: since legacy naming is no longer detected at all, this
+   specific "mixed legacy+semantic" failure mode can no longer occur via that mechanism - a shader
+   with both `sample0` and `TextureDiffuse` text now just detects as semantic (the legacy substring
+   is inert, unrecognized text). `MIXED_INVALID` is still a real, checked state, just reachable a
+   different way now (an unrecognized/typo'd CFG `textureNaming` declaration, not source-text
+   mixing).
 
 10d. Should the first role-based implementation change physical backend slots?
    Resolved: no. Keep the first mapping compatible while centralizing it behind semantic roles:
@@ -903,6 +928,9 @@ Ask and resolve these before implementation:
    Resolved: auto-detect from shader source first. Add an optional CFG declaration such as
    `[shader.ps][textureNaming] = semantic|legacy|none` as a validation contract. If declaration and
    source disagree, fail clearly.
+   **Superseded (2026-06-28, Milestone 20)**: `legacy` is no longer a recognized
+   `textureNaming` CFG value - only `semantic`/`none` remain. A CFG declaring `legacy` now fails
+   the same "invalid textureNaming" validation as any other unrecognized string.
 
 10f. Should arbitrary custom semantic texture roles be allowed?
    Resolved: no. Accept only known engine roles until the engine has ownership, binding, editor, and
@@ -1086,6 +1114,7 @@ Ask and resolve these before implementation:
 - Existing unlit sprite/mesh scenes look unchanged when lighting is disabled.
 - Mesh with normals visibly responds to directional light when lighting is enabled.
 - Mesh without normals still renders.
-- `sample1` FX shaders still work.
+- `TextureAnimationEffect` FX shaders still work. (Legacy `sample1`-named FX shaders no longer
+  work as of Milestone 20 - by design, not a regression to test for.)
 - DirectX 9 render-to-texture preview remains stable.
 - No unexpected noisy `aNormal optimized out` warning for lit default shaders.

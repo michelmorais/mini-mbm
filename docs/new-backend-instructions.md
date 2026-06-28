@@ -610,13 +610,24 @@ these exact strings to decide which uniform/attribute handles to look up.  Your 
 | `aTextCoord` | vertex attribute | `attribute vec2 aTextCoord` | `[[attribute(1)]]` or `[[attribute(2)]]` if normal present |
 | `mvpMatrix` | uniform | `uniform mat4 mvpMatrix` | `Uniforms.mvp` at `[[buffer(1)]]` |
 | `mvMatrix` | uniform | `uniform mat4 mvMatrix` | `Uniforms.mv` at `[[buffer(1)]]` |
-| `sample0` | sampler | `uniform sampler2D sample0` | `[[texture(0)]]` + `[[sampler(0)]]` |
-| `sample1` | sampler | `uniform sampler2D sample1` | `[[texture(1)]]` + `[[sampler(0)]]` |
+| `TextureDiffuse` | sampler | `uniform sampler2D TextureDiffuse` | `[[texture(0)]]` + `[[sampler(0)]]` |
+| `TextureAnimationEffect` | sampler | `uniform sampler2D TextureAnimationEffect` | `[[texture(1)]]` + `[[sampler(0)]]` |
+| `TextureNormal` | sampler | `uniform sampler2D TextureNormal` | `[[texture(2)]]` + `[[sampler(0)]]` |
+| `TextureSpecular` | sampler | `uniform sampler2D TextureSpecular` | `[[texture(3)]]` + `[[sampler(0)]]` |
+| `TextureEmissive` | sampler | `uniform sampler2D TextureEmissive` | `[[texture(4)]]` + `[[sampler(0)]]` |
+| `TextureMask` | sampler | `uniform sampler2D TextureMask` | `[[texture(5)]]` + `[[sampler(0)]]` |
 | `color` | uniform (optional) | `uniform vec4 color` | custom uniforms struct / `VAR_SHADER` |
 
 The engine never passes these names to `glGetUniformLocation` / equivalent at draw
 time; they are only searched once during `compileShader` to cache handles.  In a Metal
 backend they map to fixed buffer/texture slots that the render() methods hard-code.
+
+**Legacy `sample0`/`sample1`/`sample2` naming no longer exists.** The engine used to also
+recognize these as aliases for `TextureDiffuse`/`TextureAnimationEffect`/`TextureNormal`
+(`SHADER_TEXTURE_NAMING_LEGACY_SAMPLE`), but that compatibility profile was removed from
+the live engine entirely - a shader using only `sample0`/`sample1`/`sample2` now compiles
+but resolves no texture role at all (silently unbound, not rejected). New backends only
+ever need to support the semantic names above.
 
 ---
 
@@ -627,8 +638,8 @@ When translating the built-in catalogue to MSL:
 | GLSL | MSL |
 |---|---|
 | `precision mediump float;` | *omit* (Metal has no precision qualifiers) |
-| `uniform sampler2D sample0` | `texture2d<float> sample0 [[texture(0)]]` + `sampler samp [[sampler(0)]]` |
-| `texture2D(sample0, uv)` | `sample0.sample(samp, uv)` |
+| `uniform sampler2D TextureDiffuse` | `texture2d<float> TextureDiffuse [[texture(0)]]` + `sampler samp [[sampler(0)]]` |
+| `texture2D(TextureDiffuse, uv)` | `TextureDiffuse.sample(samp, uv)` |
 | `varying vec2 vTexCoord` | pass-through in vertex-out struct: `float2 uv;` |
 | `gl_FragColor = c` | `return c;` (fragment function returns `float4`) |
 | `gl_Position = ...` | `out.pos = ...; return out;` |
@@ -669,13 +680,13 @@ are stored as complete MSL programs with a hardcoded `struct VIn` that maps
 block with the FVF-correct attribute indices.  OpenGL ES is immune because it uses
 separate VBOs per stream and binds `aTextCoord` by name.
 
-**`blend.ps` requires two textures:** `blend.ps` always samples both `sample0` and
-`sample1`.  When only one texture is bound (common for single-texture sprites) the
-behaviour of the unbound sampler is implementation-defined and can produce a
-degenerate alpha value, making the object invisible.  When using `blend.ps` ensure
-a second texture is always bound, even if it is a 1×1 white placeholder.  This is
-a `blend.ps`-specific constraint; pixel shaders that use only `sample0` (e.g.
-`bands.ps`, `font.ps`) are unaffected.
+**`blend.ps` requires two textures:** `blend.ps` always samples both `TextureDiffuse`
+and `TextureAnimationEffect`.  When only one texture is bound (common for
+single-texture sprites) the behaviour of the unbound sampler is implementation-defined
+and can produce a degenerate alpha value, making the object invisible.  When using
+`blend.ps` ensure a second texture is always bound, even if it is a 1×1 white
+placeholder.  This is a `blend.ps`-specific constraint; pixel shaders that use only
+`TextureDiffuse` (e.g. `bands.ps`, `font.ps`) are unaffected.
 
 ---
 
@@ -1126,7 +1137,7 @@ check in `render()`.
 **M8 additional notes (Metal):**
 - `VAR_SHADER` fields must appear **in CFG declaration order** so byte-offset handles computed by `VAR_SHADER::ptrHandleVar` are correct.
 - Prewritten VS programs (`scale.vs`, `simple texture.vs`) hardcode `uv [[attribute(1)]]`. For `FVF_POS_NOR_UV` meshes the normal sits at slot 1 and UV at slot 2 — call `patchVInStruct(vsStr, fvf)` in `compileShader` to rewrite the `struct VIn` block.
-- **Known issue — `blend.ps + scale.vs` invisible when scale > 0.5** (seen on both OpenGL ES and Metal): `blend.ps` always samples `sample1`; if only one texture is bound the blend formula collapses to transparent. Always bind a 1×1 white placeholder when using `blend.ps` with a single-texture object.
+- **Known issue — `blend.ps + scale.vs` invisible when scale > 0.5** (seen on both OpenGL ES and Metal): `blend.ps` always samples `TextureAnimationEffect`; if only one texture is bound the blend formula collapses to transparent. Always bind a 1×1 white placeholder when using `blend.ps` with a single-texture object.
 
 ---
 
