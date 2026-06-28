@@ -839,25 +839,43 @@ function showShaderOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode(tLang.L("texture_stage_2")) then
-                local tTextureS2    = tShader:getTextureStage2()
-                if tTextureS2 then
-                    tImGui.TextDisabled(tUtil.getShortName(tTextureS2))
-                else
-                    tImGui.TextDisabled('No Texture')
-                end
-                local tSizeBtnTex = {x = tSizeBtn.x - 50, y = tSizeBtn.y}
-                if tImGui.Button(tLang.L("set_texture_stage_2"), tSizeBtnTex) then
-                    local tSelectedTextures = getSelectedTexturesFromImageSelector(tTexturesToEditor)
-                    if #tSelectedTextures == 0 then
-                        bTextureViewOpened = true
-                        tUtil.showMessageWarn(tLang.L("please_select_texture"))
-                    elseif #tSelectedTextures > 1 then
-                        bTextureViewOpened = true
-                        tUtil.showMessageWarn(tLang.L("more_than_one_texture_selected"))
+            if tImGui.TreeNode(tLang.L("material_textures_node")) then
+                local tMaterialRoles = {
+                    {key = 'diffuse',  label = tLang.L('tex_role_primary')},
+                    {key = 'normal',   label = tLang.L('tex_role_normal')},
+                    {key = 'specular', label = tLang.L('tex_role_specular')},
+                    {key = 'emissive', label = tLang.L('tex_role_emissive')},
+                    {key = 'mask',     label = tLang.L('tex_role_mask')},
+                    {key = 'fx',       label = tLang.L('fx_texture_label')},
+                }
+                for r = 1, #tMaterialRoles do
+                    local role      = tMaterialRoles[r]
+                    local curTex    = tMesh:getMaterialTexture(role.key)
+                    tImGui.Text(role.label)
+                    tImGui.SameLine()
+                    if curTex then
+                        tImGui.TextDisabled(tUtil.getShortName(curTex))
                     else
-                        tMesh:setTexture(tSelectedTextures[1].file_name,true,2)
+                        tImGui.TextDisabled('No Texture')
                     end
+                    local tSizeBtnTex = {x = tSizeBtn.x - 50, y = tSizeBtn.y}
+                    if tImGui.Button(tLang.L('tex_set') .. '##matTexSet-' .. role.key, tSizeBtnTex) then
+                        local tSelectedTextures = getSelectedTexturesFromImageSelector(tTexturesToEditor)
+                        if #tSelectedTextures == 0 then
+                            bTextureViewOpened = true
+                            tUtil.showMessageWarn(tLang.L("please_select_texture"))
+                        elseif #tSelectedTextures > 1 then
+                            bTextureViewOpened = true
+                            tUtil.showMessageWarn(tLang.L("more_than_one_texture_selected"))
+                        else
+                            tMesh:setMaterialTexture(role.key, tSelectedTextures[1].file_name, true)
+                        end
+                    end
+                    tImGui.SameLine()
+                    if tImGui.Button(tLang.L('tex_clear') .. '##matTexClear-' .. role.key) then
+                        tMesh:setMaterialTexture(role.key, '', true)
+                    end
+                    tImGui.Separator()
                 end
                 tImGui.TreePop()
             end

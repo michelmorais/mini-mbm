@@ -704,6 +704,67 @@ concrete use case shows up.
   chose "dead alias now + scope a real milestone" over a quick note-only fix. Pick up as its own
   pass with its own plan/review when prioritized.
 
+- **Milestone 19 (closed 2026-06-28): FX-texture editing in both editor entry points, plus
+  `shader_editor.lua` full 6-role texture coverage.** Narrower than milestone 18's broader
+  shader-code/vars/blend-op scope (which stays separately backlogged) - this milestone only closes
+  the FX *texture* gap, in both places the user wanted it: the Animations node and the Texture
+  node's stage-1 branch (which previously dead-ended with a note pointing at a feature that didn't
+  exist). Also closed a parallel gap in the separate live shader-preview tool, `shader_editor.lua`,
+  which could only ever set one texture role (FX/"stage 2") on its preview mesh.
+  - **Debug-class storage** (`mesh-manager.h`/`.cpp`): added `MESH_MBM_DEBUG::getAnimationEffectTexture`/
+    `setAnimationEffectTexture(animIndex, fileName)`. Storage already existed
+    (`util::INFO_ANIMATION::INFO_HEADER_ANIM::effectShader`, lazily null) and save/load already
+    round-tripped it whenever present - this milestone added the first read/write path to it.
+    Clearing (`fileName=""`) blanks just the texture field via
+    `INFO_FX::setTextureAnimationEffectFileName(nullptr)`, only freeing the whole `effectShader`
+    object if no PS/VS shader data is set either - so clearing the FX texture never silently
+    destroys a configured shader effect sharing the same slot.
+  - **Lua bindings** (`mesh-debug-lua.cpp`): added `getFxTexture`/`setFxTexture(animIndex, fileName)`
+    on `MESH_MBM_DEBUG`, same style as the existing `getMaterialTexture`/`setMaterialTexture`.
+  - **`mesh_debug.lua` UI**: Animations node now has an FX-texture row (current value, Browse,
+    Set, Clear) per animation. The Texture node's stage-1 branch (both the per-mesh copy and the
+    "apply to all" copy) now shows a real animation selector + filename/Browse/Set/Clear instead
+    of a dead-end note, calling the same `setFxTexture`/`getFxTexture` API - one mechanism, two
+    UI entry points, no duplicated logic. The "apply to all" variant uses a plain numeric
+    animation-index input (consistent with that panel's existing frame/subset numeric-input style)
+    rather than a name combo, since animation names/counts can differ across the multiple meshes
+    an "apply to all" operation targets.
+  - **Runtime API** (`mesh-manager.h`/`.cpp`, `animation-lua.cpp`, `common-methods-lua.cpp`): added
+    `MESH_MBM::getMaterialTexture`/`setMaterialTexture(frame, subset, role, fileName, hasAlpha)` -
+    a generic per-(frame,subset,role) runtime setter using `BUFFER_GL::setTextureByStage`/
+    `getTextureByStage` directly (NOT built on `ANIMATION_MANAGER::setTexture`, which turned out
+    not to be a generic-enough building block - it special-cases stage 0 as "whole animation" and
+    any other stage as "just the FX texture field", never calling `setTextureByStage` for
+    non-diffuse roles). Clearing (`fileName=""`) now correctly calls `setTextureByStage(nullptr,
+    stage, subset)` instead of silently no-op'ing (the pre-existing sibling `MESH_MBM::setTexture`
+    has this same silent-no-op gap on empty filename, left as-is since fixing it was out of scope).
+    Exposed to Lua as `setMaterialTexture(role, filename[, alpha=true[, subset=0[, frame=current]]])`
+    / `getMaterialTexture(role[, subset=0[, frame=current]])` on the runtime renderizable wrapper
+    (registered in `regAnimationsMethods`, `common-methods-lua.cpp`), with `role` accepting a
+    string ("diffuse"/"normal"/"specular"/"emissive"/"mask"/"fx") or numeric `TEXTURE_ROLE` via a
+    small new parser - deliberately NOT reusing the debug-side `parseMaterialTextureSlotType`,
+    which parses into a different legacy enum (`util::MATERIAL_TEXTURE_SLOT_TYPE`) with different
+    numeric values than `mbm::TEXTURE_ROLE`. The existing numeric `setTexture(filename, alpha,
+    stage)` stays untouched for back-compat.
+  - **`shader_editor.lua` UI**: replaced the old single-role "Texture Stage 2" panel with a
+    "Material Textures" panel covering all 6 roles (diffuse, normal, specular, emissive, mask, fx),
+    each with current-texture display + asset-list Set + Clear, all calling the new
+    `setMaterialTexture`/`getMaterialTexture` - including migrating the FX row onto the new API
+    too (replacing the old asymmetric get-via-`shader:getTextureStage2()`/set-via-
+    `mesh:setTexture(file,true,2)` pair) for one consistent call pattern across all 6 roles.
+  - **Role-design conclusion** (the user's "revisit the role design" ask): no redesign was made.
+    `TEXTURE_ROLE`'s 6 fixed values were confirmed sufficient - the original human+weapon
+    per-subset-texturing concern that kicked off this whole design review (session start) is
+    already correctly served by the existing per-subset DIFFUSE + material-texture-slot system;
+    the only real conflation was FX-via-per-subset-dispatch, already fixed in milestone 17. See
+    Open Questions below for the one related gap intentionally left unfixed (dormant
+    `SUBSET_EXTRA_SLOT_V11` extensibility).
+  - Verified: clean build (zero warnings); Lua syntax-checked all 3 edited `.lua` files; a direct
+    C++ round-trip test (temporary, reverted after) via `MESH_MBM_DEBUG` - load a real v11 `.msh`,
+    `addAnimation`, `setAnimationEffectTexture`, `saveV11`, reload into a fresh instance,
+    `getAnimationEffectTexture` confirmed the texture path survived the round-trip, then
+    `setAnimationEffectTexture(idx, "")` confirmed clearing works - all via `testLib`/`DISPLAY=:1`.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items
@@ -715,3 +776,16 @@ below belong to later milestones.)
   system today?
 - Should `MESH_MBM`/`MESH_MBM_DEBUG` class names change along with the format, or stay as-is since
   `.msh`/`.spt`/`.fnt`/`.ptl`/`.tile` already carry the type distinction at the extension level?
+- `SUBSET_EXTRA_SLOT_V11` already stores an arbitrary role byte per subset, fully wired through
+  v11 save/load - but `getTextureRoleShaderName`/`getTextureRoleBackendSlot` (`shader.cpp`) are
+  hardcoded switches over the 6 known `TEXTURE_ROLE` values, so that storage-level extensibility
+  is dormant: nothing can actually consume a 7th role at runtime today. No concrete need for one
+  has come up (milestone 19's role-design review confirmed the 6 existing roles are sufficient) -
+  backlog only; generalize the dispatch if/when a real 7th-role need shows up.
+- A pre-existing, unrelated live-mesh-to-debug-class conversion path (`mesh-manager.cpp:~1721-1766`)
+  unconditionally rebuilds `effectShader` gated only on `getCurrentShader()` being set, which would
+  drop a texture-only FX (no shader code) if that conversion ever ran after milestone 19's new
+  FX-texture setter populated one. Confirmed milestone 19's own UI never reaches this path (its
+  `setFxTexture`/`getFxTexture` calls go straight to `MESH_MBM_DEBUG`, not through this conversion
+  routine), so it's not a regression from this milestone - flagged here in case some other,
+  not-yet-found Lua entry point reaches it.

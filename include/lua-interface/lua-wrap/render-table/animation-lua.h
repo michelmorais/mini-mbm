@@ -38,6 +38,8 @@ namespace mbm
     int setCallBackEndAnimationsManagerLua(lua_State *lua);
     int setCallBackEndEffectLua(lua_State *lua);
     int onSetTextureAnimationLua(lua_State *lua);
+    int onSetMaterialTextureAnimationLua(lua_State *lua);
+    int onGetMaterialTextureAnimationLua(lua_State *lua);
     int onSetAnimationTypeLua(lua_State *lua);
     const char *getNextNameAnim();
     int onAddAnimationsManagerLua(lua_State *lua);

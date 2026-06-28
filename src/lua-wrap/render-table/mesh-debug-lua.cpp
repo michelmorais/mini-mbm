@@ -1409,6 +1409,32 @@ namespace mbm
                    static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
     }
 
+    int onGetFxTextureMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const auto      indexAnim = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *    fileName  = meshDebug->mesh.getAnimationEffectTexture(indexAnim);
+        if (fileName && fileName[0])
+            lua_pushstring(lua, fileName);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
+    int onSetFxTextureMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const auto      indexAnim = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *    fileName  = lua_type(lua, 3) == LUA_TSTRING ? luaL_checkstring(lua, 3) : nullptr;
+        const bool      ret       = meshDebug->mesh.setAnimationEffectTexture(indexAnim, fileName);
+        if (ret && fileName && strlen(fileName))
+            util::addPath(fileName);
+        if (!ret)
+            return lua_error_debug(lua, "invalid animation index [%u]", indexAnim + 1);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     int onAddFrameDebugLua(lua_State *lua)
     {
         const int          top       = lua_gettop(lua);
@@ -1888,6 +1914,8 @@ namespace mbm
                                           {"setTexture", onSetTextureNameMeshDebugLua},
                                           {"getMaterialTexture", onGetMaterialTextureNameMeshDebugLua},
                                           {"setMaterialTexture", onSetMaterialTextureNameMeshDebugLua},
+                                          {"getFxTexture", onGetFxTextureMeshDebugLua},
+                                          {"setFxTexture", onSetFxTextureMeshDebugLua},
                                           {"addFrame", onAddFrameDebugLua},
                                           {"removeFrame", onRemoveFrameDebugLua},
                                           {"addSubSet", onAddSubsetDebugLua},

@@ -3534,6 +3534,42 @@ namespace mbm
         return nullptr;
     }
 
+    const char *MESH_MBM_DEBUG::getAnimationEffectTexture(const uint32_t index) const noexcept
+    {
+        if (index >= this->impl->infoAnimation.lsHeaderAnim.size())
+            return nullptr;
+        const auto *infoHead = this->impl->infoAnimation.lsHeaderAnim[index];
+        if (infoHead == nullptr || infoHead->effectShader == nullptr)
+            return nullptr;
+        return infoHead->effectShader->getTextureAnimationEffectFileName();
+    }
+
+    bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept
+    {
+        if (index >= this->impl->infoAnimation.lsHeaderAnim.size())
+            return false;
+        auto *infoHead = this->impl->infoAnimation.lsHeaderAnim[index];
+        if (infoHead == nullptr)
+            return false;
+        const bool hasFileName = fileName != nullptr && fileName[0] != 0;
+        if (hasFileName)
+        {
+            if (infoHead->effectShader == nullptr)
+                infoHead->effectShader = new util::INFO_FX();
+            infoHead->effectShader->setTextureAnimationEffectFileName(fileName);
+            return true;
+        }
+        if (infoHead->effectShader == nullptr)
+            return true;
+        infoHead->effectShader->setTextureAnimationEffectFileName(nullptr);
+        if (infoHead->effectShader->dataPS == nullptr && infoHead->effectShader->dataVS == nullptr)
+        {
+            delete infoHead->effectShader;
+            infoHead->effectShader = nullptr;
+        }
+        return true;
+    }
+
     void MESH_MBM_DEBUG::deleteExtraInfo()
     {
         switch(impl->typeMe)
@@ -3752,6 +3788,45 @@ namespace mbm
         return false;
     }
     
+    TEXTURE * MESH_MBM::getMaterialTexture(const uint32_t indexFrame, const uint32_t indexSubset, const TEXTURE_ROLE role) const noexcept
+    {
+        if (indexFrame < impl->totalFramesMesh && impl->buffer)
+        {
+            BUFFER_GL *renderBuffer = impl->buffer[indexFrame].pBufferGL;
+            if (renderBuffer)
+                return renderBuffer->getTextureByStage(static_cast<uint32_t>(getTextureRoleBackendSlot(role)), indexSubset);
+        }
+        return nullptr;
+    }
+
+    bool MESH_MBM::setMaterialTexture(const uint32_t indexFrame, const uint32_t indexSubset, const TEXTURE_ROLE role,
+                           const char *fileNameTexture, const bool hasAlpha) const
+    {
+        if (indexFrame < impl->totalFramesMesh && impl->buffer)
+        {
+            if (indexSubset < impl->buffer[indexFrame].totalSubset)
+            {
+                BUFFER_GL *renderBuffer = impl->buffer[indexFrame].pBufferGL;
+                if (renderBuffer)
+                {
+                    const uint32_t stage = static_cast<uint32_t>(getTextureRoleBackendSlot(role));
+                    if (fileNameTexture == nullptr || fileNameTexture[0] == 0)
+                    {
+                        renderBuffer->setTextureByStage(nullptr, stage, indexSubset);
+                        return true;
+                    }
+                    TEXTURE *newTex = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, hasAlpha);
+                    if (newTex)
+                    {
+                        renderBuffer->setTextureByStage(newTex, stage, indexSubset);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     const char * MESH_MBM::getFilenameMesh() const
     {
         return impl->fileName.c_str();

@@ -24,6 +24,7 @@
 #include "primitives.h"
 #include "header-mesh.h"
 #include "physics.h"
+#include "texture-role.h"
 #include <map>
 #include <memory>
 #include <functional>
@@ -153,6 +154,8 @@ namespace mbm
         API_IMPL bool updateAnimation(const uint32_t index, const char *nameAnimation, const int initialFrame, const int finalFrame,
                                const float timeBetweenFrame, const int typeAnimation, char *errorOut,const int lenError);
         API_IMPL const util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnim(const uint32_t index)const;
+        API_IMPL const char *getAnimationEffectTexture(const uint32_t index) const noexcept;
+        API_IMPL bool setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept;
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
@@ -186,6 +189,9 @@ namespace mbm
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
         API_IMPL bool setTexture(const uint32_t indexFrame, const uint32_t indexSubset, const char *fileNameTexture,
                                const bool hasAlpha);
+        API_IMPL TEXTURE *getMaterialTexture(const uint32_t indexFrame, const uint32_t indexSubset, const TEXTURE_ROLE role) const noexcept;
+        API_IMPL bool setMaterialTexture(const uint32_t indexFrame, const uint32_t indexSubset, const TEXTURE_ROLE role,
+                               const char *fileNameTexture, const bool hasAlpha) const;
         API_IMPL const char *getFilenameMesh() const;
         API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
         API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;

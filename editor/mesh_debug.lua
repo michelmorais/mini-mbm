@@ -4678,6 +4678,61 @@ function showMeshOptions(tEntry, index)
         tImGui.Spacing()
         if tx.stage == 1 then
             tImGui.TextWrapped(tLang.L("tex_stage1_note"))
+            local nAnimTx = info.animation or 0
+            if nAnimTx > 0 then
+                local tAnimNamesTx = {}
+                for a = 1, nAnimTx do
+                    local okN, aName = dpCall(function() return meshD:getAnim(a) end)
+                    tAnimNamesTx[a] = (okN and aName and aName ~= '') and aName or ('Anim ' .. a)
+                end
+                tx.fxAnimIndex = math.max(1, math.min(tx.fxAnimIndex or 1, nAnimTx))
+                local changedFxAnim, newFxAnimIdx = tImGui.Combo(tLang.L("animation") .. '##txFxAnim-' .. index, tx.fxAnimIndex, tAnimNamesTx, -1)
+                if changedFxAnim and newFxAnimIdx then tx.fxAnimIndex = newFxAnimIdx end
+
+                local okFxTx, curFxTexTx = dpCall(function() return meshD:getFxTexture(tx.fxAnimIndex) end)
+                tImGui.Text(tLang.L("tex_current_label"))
+                tImGui.SameLine()
+                if okFxTx and curFxTexTx and curFxTexTx ~= '' then
+                    tImGui.TextDisabled(tUtil.getShortName(curFxTexTx))
+                else
+                    tImGui.TextDisabled('(none)')
+                end
+
+                tx.fxFilename = tx.fxFilename or ''
+                local modFxTx, newFxTx = tImGui.InputText('##txFxFile-' .. index, tx.fxFilename, 512, 0)
+                if modFxTx and newFxTx ~= nil then tx.fxFilename = newFxTx end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L("tex_browse") .. '##txFxBrowse-' .. index) then
+                    local picked = mbm.openFile(sLastMeshPath,
+                        table.unpack(tUtil.supported_images or {'png', 'jpg', 'bmp', 'tga'}))
+                    if picked then
+                        if type(picked) == 'table' then picked = picked[1] end
+                        tx.fxFilename = picked
+                    end
+                end
+                if tImGui.Button(tLang.L("tex_set") .. '##txFxSet-' .. index) then
+                    if tx.fxFilename == '' then
+                        tUtil.showMessageWarn('No filename specified')
+                    else
+                        local okSetTx = dpCall(function() return meshD:setFxTexture(tx.fxAnimIndex, tx.fxFilename) end)
+                        if okSetTx then
+                            onEdit()
+                            tUtil.showMessage(string.format(tLang.L('tex_set_ok_fmt'), 'anim ' .. tx.fxAnimIndex, tUtil.getShortName(tx.fxFilename)))
+                        end
+                    end
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L("tex_clear") .. '##txFxClear-' .. index) then
+                    local okClrTx = dpCall(function() return meshD:setFxTexture(tx.fxAnimIndex, '') end)
+                    if okClrTx then
+                        tx.fxFilename = ''
+                        onEdit()
+                        tUtil.showMessage(string.format(tLang.L('tex_clear_ok_fmt'), 'anim ' .. tx.fxAnimIndex))
+                    end
+                end
+            else
+                tImGui.TextDisabled('No animations')
+            end
         else
             -- Frame / subset selectors (0 = all, consistent with Transform node)
             tImGui.Text(tLang.L("target_frame_label"))
@@ -4991,6 +5046,54 @@ function showMeshOptions(tEntry, index)
                                     tEntry.iSelectedAnim = i
                                     onEdit()
                                 end
+                            end
+                        end
+                        tImGui.Separator()
+                        tImGui.Text(tLang.L('fx_texture_label'))
+                        local okFx, curFxTex = dpCall(function() return meshD:getFxTexture(i) end)
+                        tImGui.SameLine()
+                        if okFx and curFxTex and curFxTex ~= '' then
+                            tImGui.TextDisabled(tUtil.getShortName(curFxTex))
+                            if tImGui.IsItemHovered(0) then
+                                tImGui.BeginTooltip()
+                                tImGui.Text(curFxTex)
+                                tImGui.EndTooltip()
+                            end
+                        else
+                            tImGui.TextDisabled('(none)')
+                        end
+                        tEntry.tFxFilenames = tEntry.tFxFilenames or {}
+                        local fxFn = tEntry.tFxFilenames[i] or ''
+                        local modFxF, newFxF = tImGui.InputText('##animFxFile-' .. index .. '-' .. i, fxFn, 512, 0)
+                        if modFxF and newFxF ~= nil then tEntry.tFxFilenames[i] = newFxF end
+                        tImGui.SameLine()
+                        if tImGui.Button(tLang.L('tex_browse') .. '##animFxBrowse-' .. index .. '-' .. i) then
+                            local picked = mbm.openFile(sLastMeshPath,
+                                table.unpack(tUtil.supported_images or {'png', 'jpg', 'bmp', 'tga'}))
+                            if picked then
+                                if type(picked) == 'table' then picked = picked[1] end
+                                tEntry.tFxFilenames[i] = picked
+                            end
+                        end
+                        if tImGui.Button(tLang.L('tex_set') .. '##animFxSet-' .. index .. '-' .. i) then
+                            local fn = tEntry.tFxFilenames[i] or ''
+                            if fn == '' then
+                                tUtil.showMessageWarn('No filename specified')
+                            else
+                                local okSet = dpCall(function() return meshD:setFxTexture(i, fn) end)
+                                if okSet then
+                                    onEdit()
+                                    tUtil.showMessage(string.format(tLang.L('tex_set_ok_fmt'), 'anim ' .. i, tUtil.getShortName(fn)))
+                                end
+                            end
+                        end
+                        tImGui.SameLine()
+                        if tImGui.Button(tLang.L('tex_clear') .. '##animFxClear-' .. index .. '-' .. i) then
+                            local okClr = dpCall(function() return meshD:setFxTexture(i, '') end)
+                            if okClr then
+                                tEntry.tFxFilenames[i] = ''
+                                onEdit()
+                                tUtil.showMessage(string.format(tLang.L('tex_clear_ok_fmt'), 'anim ' .. i))
                             end
                         end
                         tImGui.Separator()
@@ -5689,6 +5792,17 @@ local function applyAllTexture(sType, bClear)
     local sOperation = bClear and tLang.L('tex_clear') or tLang.L('tex_set')
     return runApplyAllOperation(sType, sOperation, function(tEntry)
         local meshD = tEntry.meshDebug
+        if tx.stage == 1 then
+            local animIndex = math.max(1, tx.animIndex or 1)
+            local ok = dpCall(function()
+                return meshD:setFxTexture(animIndex, bClear and '' or tx.filename)
+            end)
+            if ok then
+                tEntry.modified = true
+                return 'success'
+            end
+            return 'skipped', tLang.L('apply_all_no_matching_targets')
+        end
         local info = tEntry.info or {}
         local totalFrames = info.totalFrames or 0
         local count = 0
@@ -5952,6 +6066,31 @@ function showApplyAllWindow()
                 if rStage and newStageIdx then tx.stage = newStageIdx - 1 end
                 if tx.stage == 1 then
                     tImGui.TextWrapped(tLang.L('tex_stage1_note'))
+                    tImGui.Text(tLang.L('target_animation_label'))
+                    local _, nAnimIdx = tImGui.InputInt('##applyAllTxAnim', tx.animIndex or 1, 1, 1, 0)
+                    if nAnimIdx ~= nil then tx.animIndex = math.max(1, nAnimIdx) end
+                    local changedFxFile, newFxFile = tImGui.InputText('##applyAllTxFxFile', tx.filename or '', 512, 0)
+                    if changedFxFile and newFxFile ~= nil then tx.filename = newFxFile end
+                    tImGui.SameLine()
+                    if tImGui.Button(tLang.L('tex_browse') .. '##applyAllTxFxBrowse') then
+                        local picked = mbm.openFile(sLastMeshPath,
+                            table.unpack(tUtil.supported_images or {'png', 'jpg', 'bmp', 'tga'}))
+                        if picked then
+                            if type(picked) == 'table' then picked = picked[1] end
+                            tx.filename = picked
+                        end
+                    end
+                    if tImGui.Button(tLang.L('tex_set') .. '##applyAllTxFxSet') then
+                        if not tx.filename or tx.filename == '' then
+                            tUtil.showMessageWarn('No filename specified')
+                        else
+                            applyAllTexture(win.selectedType, false)
+                        end
+                    end
+                    tImGui.SameLine()
+                    if tImGui.Button(tLang.L('tex_clear') .. '##applyAllTxFxClear') then
+                        applyAllTexture(win.selectedType, true)
+                    end
                 else
                     tImGui.Text(tLang.L('target_frame_label'))
                     local _, nf = tImGui.InputInt('##applyAllTxFrame', tx.frame, 1, 1, 0)
