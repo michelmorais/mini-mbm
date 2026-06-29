@@ -1,8 +1,43 @@
 #!/usr/bin/env bash
 set -u
 
-CONVERTER="/home/michel/mini-mbm/bin/debug/linux_x86/mesh_legacy_converter"
 VALID_EXTENSIONS="spt msh tile fnt ptl"
+
+# Allow an override via env var `MESH_LEGACY_CONVERTER`.
+# Otherwise search common build locations (relative to this script) and PATH.
+if [ -n "${MESH_LEGACY_CONVERTER-}" ]; then
+  CONVERTER="$MESH_LEGACY_CONVERTER"
+else
+  script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  repo_root=$(cd "$script_dir/../.." && pwd)
+
+  candidates=(
+    "$repo_root/bin/debug/linux_x86/mesh_legacy_converter"
+    "$repo_root/bin/debug/arm64/mesh_legacy_converter"
+    "$repo_root/bin/debug/macos_x86/mesh_legacy_converter"
+    "$repo_root/bin/debug/macos_arm64/mesh_legacy_converter"
+    "$repo_root/bin/debug/mesh_legacy_converter"
+    "$repo_root/bin/release/mesh_legacy_converter"
+    "/opt/homebrew/bin/mesh_legacy_converter"
+    "/usr/local/bin/mesh_legacy_converter"
+  )
+
+  CONVERTER=""
+  for c in "${candidates[@]}"; do
+    if [ -x "$c" ]; then
+      CONVERTER="$c"
+      break
+    fi
+  done
+
+  if [ -z "$CONVERTER" ]; then
+    # Try PATH
+    path_cmd=$(command -v mesh_legacy_converter || true)
+    if [ -n "$path_cmd" ]; then
+      CONVERTER="$path_cmd"
+    fi
+  fi
+fi
 
 usage() {
   printf 'Usage: %s [-spt] [-msh] [-tile] [-fnt] [-ptl] <folder>\n' "$0" >&2
@@ -46,40 +81,39 @@ if [ ! -d "$folder" ]; then
   exit 2
 fi
 
-if [ ! -x "$CONVERTER" ]; then
-  printf 'Error: converter is not executable: %s\n' "$CONVERTER" >&2
+if [ -z "${CONVERTER-}" ] || [ ! -x "$CONVERTER" ]; then
+  printf 'Error: mesh_legacy_converter executable not found.\n' >&2
+  printf 'Searched common build locations and PATH, or set MESH_LEGACY_CONVERTER env var.\n' >&2
   exit 2
 fi
 
-while IFS= read -r -d '' input_file; do
-  tmp_file=$(mktemp "/tmp/mesh_legacy_converter.XXXXXX") || exit 1
-
-  printf 'Converting: %s\n' "$input_file"
-
-  if "$CONVERTER" "$input_file" "$tmp_file"; then
-    if cp "$tmp_file" "$input_file"; then
-      rm -f "$tmp_file"
-    else
-      status=$?
-      rm -f "$tmp_file"
-      printf 'Error: failed to replace original file: %s\n' "$input_file" >&2
-      exit "$status"
-    fi
-  else
-    status=$?
-    rm -f "$tmp_file"
-    printf 'Error: converter failed for: %s\n' "$input_file" >&2
-    exit "$status"
-  fi
-done < <(
-  find "$folder" -type f -print0 | while IFS= read -r -d '' found_file; do
-    for extension in $extensions; do
-      case "$found_file" in
+find "$folder" -type f -print0 | while IFS= read -r -d '' input_file; do
+  for extension in $extensions; do
+      case "$input_file" in
         *."$extension")
-          printf '%s\0' "$found_file"
+          # matched extension: perform conversion for this file
+          tmp_file=$(mktemp "/tmp/mesh_legacy_converter.XXXXXX") || exit 1
+
+          printf 'Converting: %s\n' "$input_file"
+
+          if "$CONVERTER" "$input_file" "$tmp_file"; then
+            if cp "$tmp_file" "$input_file"; then
+              rm -f "$tmp_file"
+            else
+              status=$?
+              rm -f "$tmp_file"
+              printf 'Error: failed to replace original file: %s\n' "$input_file" >&2
+              exit "$status"
+            fi
+          else
+            status=$?
+            rm -f "$tmp_file"
+            printf 'Error: converter failed for: %s\n' "$input_file" >&2
+            exit "$status"
+          fi
+
           break
           ;;
       esac
     done
-  done
-)
+done
