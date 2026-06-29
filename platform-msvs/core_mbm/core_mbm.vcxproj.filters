@@ -135,9 +135,6 @@
     <ClInclude Include="..\..\include\core_mbm\core-manager.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\deprecated.h">
-      <Filter>Header Files\core_mbm</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\device.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
@@ -333,9 +330,6 @@
     <ClInclude Include="..\..\include\core_mbm\strings-pt-br.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\core_mbm\mesh-manager-legacy-internal.h">
-      <Filter>Header Files\core_mbm</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\mesh-v8-io.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
@@ -504,9 +498,6 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\deprecated.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\device-common.cpp">
@@ -708,9 +699,6 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\parse-launcher-args.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\mesh-manager-legacy.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\mesh-v8-io.cpp">

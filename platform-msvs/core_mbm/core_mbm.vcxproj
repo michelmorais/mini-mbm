@@ -200,7 +200,6 @@
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
     <ClInclude Include="..\..\include\core_mbm\light.h" />
     <ClInclude Include="..\..\src\core_mbm\private\d3dx9-mingw.h" />
-    <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
     <ClInclude Include="..\..\include\core_mbm\dialog-util.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
@@ -282,7 +281,6 @@
     <ClInclude Include="..\..\include\render\tile.h" />
     <ClInclude Include="..\..\include\static-resource\resource-particle.h" />
     <ClInclude Include="..\..\include\version\version.h" />
-    <ClInclude Include="..\..\src\core_mbm\mesh-manager-legacy-internal.h" />
     <ClInclude Include="..\..\src\core_mbm\mesh-v8-io.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
@@ -312,7 +310,6 @@
     <ClCompile Include="..\..\src\core_mbm\device-win32.cpp" />
     <ClCompile Include="..\..\src\core_mbm\dialog-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\mesh-manager-legacy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-v8-io.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
@@ -322,7 +319,6 @@
     <ClCompile Include="..\..\src\core_mbm\camera.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-common.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\deprecated.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-common.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp" />

@@ -26,8 +26,9 @@
 #include <core_mbm/blend.h>
 #include <core_mbm/scene.h>
 #include <core_mbm/texture-manager.h>
+#include <platform/mismatch-platform.h>
 
-extern "C" 
+extern "C"
 {
     #include <lua.h>
     #include <lauxlib.h>

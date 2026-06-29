@@ -28,7 +28,7 @@
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     #pragma warning(disable : 4201) //nonstandard extension used : nameless struct/union
-#endif 
+#endif
 
 namespace mbm
 {
@@ -690,14 +690,18 @@ namespace util
         TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED = 1, // reserved - no milestone-3 writer emits this
     };
 
-    struct API_IMPL TEXTURE_REF_V11
+    // Not struct-level API_IMPL: a std::string member (directly or via a nested V11 struct) would
+    // need its own dll-interface (MSVC C4251) to be exported wholesale. These are plain in-process
+    // data carriers - only the constructor symbol needs to cross the DLL boundary, like
+    // MATERIAL_TEXTURE_SLOT_DEBUG above.
+    struct TEXTURE_REF_V11
     {
         uint8_t     storage; // TEXTURE_REF_STORAGE_V11
         std::string path;    // meaningful only when storage == TEXTURE_REF_STORAGE_PATH
-        TEXTURE_REF_V11() noexcept;
+        API_IMPL TEXTURE_REF_V11() noexcept;
     };
 
-    struct API_IMPL SUBSET_DESC_V11
+    struct SUBSET_DESC_V11
     {
         TEXTURE_REF_V11 primaryTexture; // implicit role TEXTURE_ROLE_DIFFUSE, always present
         int32_t  vertexCount;
@@ -707,14 +711,14 @@ namespace util
         uint8_t  alphaColor[4];
         uint16_t extraSlotCount; // caller must set before writing; followed on disk by
                                   // extraSlotCount * SUBSET_EXTRA_SLOT_V11
-        SUBSET_DESC_V11() noexcept;
+        API_IMPL SUBSET_DESC_V11() noexcept;
     };
 
-    struct API_IMPL SUBSET_EXTRA_SLOT_V11
+    struct SUBSET_EXTRA_SLOT_V11
     {
         uint8_t         role; // an mbm::TEXTURE_ROLE value (NORMAL/SPECULAR/EMISSIVE/MASK only)
         TEXTURE_REF_V11 texture;
-        SUBSET_EXTRA_SLOT_V11() noexcept;
+        API_IMPL SUBSET_EXTRA_SLOT_V11() noexcept;
     };
 
     struct API_IMPL MATERIAL_TRANSFORM_V11 // payload for SECTION_MATERIAL_TRANSFORM
@@ -736,17 +740,17 @@ namespace util
         SHADER_VAR_V11() noexcept;
     };
 
-    struct API_IMPL SHADER_STEP_V11
+    struct SHADER_STEP_V11
     {
         std::string name;          // shader name reference (built-in or custom), e.g. "transparent.ps"
         float       timeAnimation;
         int32_t     typeAnimation; // 0-6, shader-level playback type
         uint16_t    varCount;      // caller must set before writing; followed on disk by
                                      // varCount * SHADER_VAR_V11
-        SHADER_STEP_V11() noexcept;
+        API_IMPL SHADER_STEP_V11() noexcept;
     };
 
-    struct API_IMPL FX_HEADER_V11 // payload for ANIMATION_HEADER_V11.hasFx == 1
+    struct FX_HEADER_V11 // payload for ANIMATION_HEADER_V11.hasFx == 1
     {
         int32_t         blendOperation;
         uint8_t         hasFxTexture; // bool
@@ -755,10 +759,10 @@ namespace util
         SHADER_STEP_V11 ps;           // meaningful only if hasPS
         uint8_t         hasVS;        // bool
         SHADER_STEP_V11 vs;           // meaningful only if hasVS
-        FX_HEADER_V11() noexcept;
+        API_IMPL FX_HEADER_V11() noexcept;
     };
 
-    struct API_IMPL ANIMATION_HEADER_V11 // payload for SECTION_ANIMATION
+    struct ANIMATION_HEADER_V11 // payload for SECTION_ANIMATION
     {
         std::string name;            // replaces today's nameAnimation[32]
         int32_t     initialFrame;
@@ -767,20 +771,20 @@ namespace util
         int32_t     typeAnimation;
         uint16_t    blendState;
         uint8_t     hasFx;           // bool - if 1, an FX_HEADER_V11 follows
-        ANIMATION_HEADER_V11() noexcept;
+        API_IMPL ANIMATION_HEADER_V11() noexcept;
     };
 
-    struct API_IMPL FONT_DETAIL_HEADER_V11 // payload header for SECTION_DETAIL_FONT
+    struct FONT_DETAIL_HEADER_V11 // payload header for SECTION_DETAIL_FONT
     {
         std::string name;            // replaces today's sizeNameFonte-prefixed buffer
         int16_t     spaceXCharacter;
         int16_t     spaceYCharacter;
         uint16_t    heightLetter;
         uint16_t    letterCount;     // count of DETAIL_LETTER-shaped entries that follow
-        FONT_DETAIL_HEADER_V11() noexcept;
+        API_IMPL FONT_DETAIL_HEADER_V11() noexcept;
     };
 
-    struct API_IMPL TILE_HEADER_MAP_V11 // payload header for SECTION_DETAIL_TILE
+    struct TILE_HEADER_MAP_V11 // payload header for SECTION_DETAIL_TILE
     {
         uint32_t    count_width_tile;
         uint32_t    count_height_tile;
@@ -795,7 +799,7 @@ namespace util
         std::string backgroundTexture; // replaces today's fixed background_texture[62]
         uint8_t     renderDirectionLeftToRight;
         uint8_t     renderDirectionTopToDown;
-        TILE_HEADER_MAP_V11() noexcept;
+        API_IMPL TILE_HEADER_MAP_V11() noexcept;
     };
 
     struct API_IMPL TILE_LAYER_HEADER_V11 // one per layer, followed by its BTILE_INDEX_TILE array
@@ -806,27 +810,27 @@ namespace util
         TILE_LAYER_HEADER_V11() noexcept;
     };
 
-    struct API_IMPL TILE_OBJ_HEADER_V11 // one per BTILE_OBJ, followed by pointCount (x,y) float pairs
+    struct TILE_OBJ_HEADER_V11 // one per BTILE_OBJ, followed by pointCount (x,y) float pairs
     {
         std::string name;
         uint16_t    type;       // util::BTILE_OBJ_TYPE
         uint16_t    pointCount;
-        TILE_OBJ_HEADER_V11() noexcept;
+        API_IMPL TILE_OBJ_HEADER_V11() noexcept;
     };
 
-    struct API_IMPL TILE_PROPERTY_V11 // one per BTILE_PROPERTY
+    struct TILE_PROPERTY_V11 // one per BTILE_PROPERTY
     {
         std::string owner;
         std::string name;
         std::string value;
         uint16_t    type;       // util::BTILE_PROPERTY_TYPE
-        TILE_PROPERTY_V11() noexcept;
+        API_IMPL TILE_PROPERTY_V11() noexcept;
     };
 
 }
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     #pragma warning(default : 4201) //nonstandard extension used : nameless struct/union
-#endif 
+#endif
 
 #endif
