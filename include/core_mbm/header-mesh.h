@@ -106,23 +106,6 @@ namespace util
 
     using MATERIAL_GLES = MATERIAL;
 
-    #define INITIAL_VERSION_MBM_HEADER     1
-    #define SPRITE_INFO_VERSION_MBM_HEADER 2
-    #define DETAIL_MESH_VERSION_MBM_HEADER 3
-    #define SPACE_SHIP_VERSION_MBM_HEADER  4
-    #define MODE_DRAW_VERSION_MBM_HEADER   5
-    #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
-    #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
-    #define STRONG_TYPES_VERSION_MBM_HEADER 8     // v8: new baseline for current mesh generation
-    #define MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER 9 // v9: per-subset typed material texture slots
-    #define TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER 10 // v10: TextureAnimationEffect stored once per animation FX block
-
-    // Legacy in-memory header version (util::HEADER::version) for the old v1-v10 on-disk format.
-    // Unrelated to the v11 file format's own version field (FILE_HEADER_V11::formatVersion,
-    // see MBM_V11_FORMAT_VERSION below) - this constant stops advancing once v11 is the only
-    // format being written.
-    #define LEGACY_HEADER_VERSION     TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER
-
     /* hasNorText[0] (normals) */
     #define HAS_NOR_NO           0  /* no normals */
     #define HAS_NOR_IN_FILE      1  /* normals stored in file */
@@ -134,20 +117,6 @@ namespace util
     #define HAS_TEX_FIRST_FRAME  2  /* texture only in first frame, others copy */
 
     #define MBM_ERROR_DESCRIPTION_BUFFER_SIZE 255
-    #define MBM_HEADER_NAME_COMPARE_LENGTH 3
-    #define MBM_HEADER_TYPE_APP_COMPARE_LENGTH 15
-    #define MBM_HEADER_NAME_MBM "mbm"
-    #define MBM_TYPE_APP_MESH_3D "Mesh 3d mbm"
-    #define MBM_TYPE_APP_USER "User mbm"
-    #define MBM_TYPE_APP_FONT "Font mbm"
-    #define MBM_TYPE_APP_SPRITE "Sprite mbm"
-    #define MBM_TYPE_APP_TILE "Tile mbm"
-    #define MBM_TYPE_APP_SHAPE "Shape mbm"
-    #define MBM_TYPE_APP_PARTICLE "Particle mbm"
-    #define MBM_TYPE_APP_TEXTURE "Texture mbm"
-    #define MBM_EXTRA_HEADER_TYPE_PATHS 1
-    #define MBM_DEPRECATED_DETAIL_TYPE_SCRIPT 100
-    #define MBM_DEPRECATED_DETAIL_TYPE_SHADER 101
     #define MBM_DETAIL_TYPE_CUBE 1
     #define MBM_DETAIL_TYPE_SPHERE 2
     #define MBM_DETAIL_TYPE_CUBE_COMPLEX 3
@@ -157,31 +126,11 @@ namespace util
     #define MBM_DETAIL_TYPE_TILE 7
 
     // Legacy v1-v10 on-disk reference structs (HEADER_DISK_V8, HEADER_MESH_DISK_V8, ...,
-    // STAGE_PARTICLE_DISK_V8) moved to header-mesh-legacy-disk.h - they document old byte layouts
-    // for the future mesh_deprecated importer (docs/mesh-v11-plan.md milestone 5) but nothing in
-    // core_mbm reads/writes them, so this header no longer needs to carry them.
-
-    // step 1:
-    struct API_IMPL HEADER
-    {
-        char name[16];          // must be "mbm"
-        char typeApp[16];       // "Mesh 3d mbm", "User mbm", "Font", "Particle", "Sprite mbm", "Tile mbm"
-        int32_t version;            // legacy v1-v10 header version, see LEGACY_HEADER_VERSION
-        uint32_t magic;             // must be 0x010203ff.
-        int32_t reserved;           // reserved (Must be 0)
-        int32_t backBufferWidth;    // Indica o tamanho da largura do back buffer em que o objeto foi criado
-        int32_t backBufferHeight;   // Indica o tamanho da altura do back buffer em que o objeto foi criado
-        int32_t extraHeader;        // Quando indica quantidade de estrutura EXTRA_HEADER logo apos este frame
-        HEADER() noexcept;
-        HEADER(const char *nameApp, const int32_t versionNumber = 3)noexcept;
-    };
-
-    struct API_IMPL EXTRA_HEADER //added since version 6
-    {
-        char type;           // 0 None, 1 = Paths
-        int32_t sizeExtraHeader; // Tamanho extra (em bytes) logo apos este frame
-        EXTRA_HEADER() noexcept;
-    };
+    // STAGE_PARTICLE_DISK_V8) moved to header-mesh-legacy-disk.h, and (milestone 21) the legacy
+    // in-memory util::HEADER/EXTRA_HEADER structs plus the old *_VERSION_MBM_HEADER version
+    // constants moved to src/mesh_deprecated/mesh-v8-io-legacy.h - they document/back the old v1-v10
+    // format for the offline mesh_deprecated importer, but nothing in core_mbm reads/writes them
+    // anymore (core_mbm's only load/save path is v11), so this header no longer needs to carry them.
 
     struct API_IMPL INFO_DRAW_MODE //added since version 5
     {

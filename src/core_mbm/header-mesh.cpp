@@ -44,39 +44,6 @@ namespace util
         return x;
     }
 
-    HEADER::HEADER() noexcept
-    {
-        strncpy(name, "mbm",sizeof(name)-1);
-        strncpy(typeApp, "unknown",sizeof(typeApp)-1);
-        version          = LEGACY_HEADER_VERSION;
-        reserved         = 0;
-        extraHeader      = 0;
-        magic            = 0x010203ff;
-        backBufferWidth  = 0;
-        backBufferHeight = 0;
-    }
-    
-    HEADER::HEADER(const char *nameApp, const int32_t versionNumber)noexcept
-    {
-        strncpy(name, "mbm",sizeof(name)-1);
-        if (nameApp)
-            strncpy(typeApp, nameApp,sizeof(typeApp)-1);
-        else
-            strncpy(typeApp, "unknown",sizeof(typeApp)-1);
-        version          = versionNumber;
-        reserved         = 0;
-        extraHeader      = 0;
-        magic            = 0x010203ff;
-        backBufferWidth  = 0;
-        backBufferHeight = 0;
-    }
-
-    EXTRA_HEADER::EXTRA_HEADER() noexcept
-    {
-        type = 0; // 0 = None
-        sizeExtraHeader = 0; // Tamanho do header extra (em bytes) logo apos este frame
-	}
-
 	INFO_DRAW_MODE::INFO_DRAW_MODE()noexcept:
             mode_draw(util::MODE_DRAW_TRIANGLES),
             mode_cull_face(util::CULL_BACK),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK

@@ -44,6 +44,24 @@ namespace
 
 namespace util
 {
+    HEADER::HEADER() noexcept
+    {
+        strncpy(name, "mbm",sizeof(name)-1);
+        strncpy(typeApp, "unknown",sizeof(typeApp)-1);
+        version          = LEGACY_HEADER_VERSION;
+        reserved         = 0;
+        extraHeader      = 0;
+        magic            = 0x010203ff;
+        backBufferWidth  = 0;
+        backBufferHeight = 0;
+    }
+
+    EXTRA_HEADER::EXTRA_HEADER() noexcept
+    {
+        type = 0; // 0 = None
+        sizeExtraHeader = 0; // Tamanho do header extra (em bytes) logo apos este frame
+    }
+
     bool readHeaderV8(FILE *fp, util::HEADER &out)
     {
         int32_t version = 0;

@@ -870,6 +870,65 @@ concrete use case shows up.
     `detectShaderTextureNamingProfile` on legacy-only (`sample0`) source returned `NONE`, not an
     error; `getFallbackTexture` returned non-null for all 3 roles.
 
+- **Milestone 21 (closed 2026-06-29): removed dead legacy-version branches from the live v11
+  engine; relocated `util::HEADER`/`EXTRA_HEADER` and the old `*_VERSION_MBM_HEADER` constants to
+  `mesh_deprecated`.** Triggered by the user reviewing `MESH_MBM_DEBUG::loadV11` and noticing it
+  still threaded a `util::HEADER headerMain` (the old v1-v10 in-memory header) alongside the real
+  `util::FILE_HEADER_V11`, and still branched on old version constants
+  (`DETAIL_MESH_VERSION_MBM_HEADER`, `MODE_DRAW_VERSION_MBM_HEADER`,
+  `MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER`). Investigation confirmed `core_mbm`'s only load path
+  (`loadV11`/`parse_v11_intermediate`) never reads a real `util::HEADER` from disk - both
+  synthesized a fake one hardcoded to `LEGACY_HEADER_VERSION` (10, the old max), making every
+  comparison against it a compile-time-constant in practice: `headerMain.version ==
+  DETAIL_MESH_VERSION_MBM_HEADER` (10==3) always false, `fileVersion >= MODE_DRAW_VERSION_MBM_HEADER`
+  (10>=5) always true, `impl->headerMain.version >= MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER`
+  (10>=9) always true. Verified the one loose thread (whether `release()`'s memset-to-0 of
+  `headerMain` could ever reach a `saveV11` while still zeroed) - every `release()` call site is
+  immediately followed, same function, by either destruction or the version being re-set; no live
+  path leaves it stale.
+  - **Collapsed the dead branches** in `mesh-manager.cpp`: `read_detail_mesh_section`'s
+    `DETAIL_MESH_VERSION_MBM_HEADER`-gated preamble-skip and `'H'`-type check (both unreachable -
+    dropped the now-unused `headerMain` parameter too); the `else`/`readTriangleLegacyNoPosV8`
+    branch in `MESH_MBM_DEBUG::readDebugTriangleDetailCompat`, the free-function equivalent
+    `read_triangle_detail_v11`, and `MESH_MBM::readTriangleDetailCompat` (the last of which turned
+    out to already have **zero callers** - `MESH_MBM::loadV11` fully delegates to
+    `parse_v11_intermediate`/`finishLoadFromIntermediate`, which use the free-function path instead
+    - deleted outright as a pre-existing, unrelated dead-code find); the
+    `MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER` save-path gate around populating a subset's
+    `extraSlots` (now unconditional, since v11 always supports material texture slots).
+  - **Replaced `impl->headerMain` (a full `util::HEADER`)** in `MESH_MBM_DEBUG::Impl`
+    (`mesh-manager-impl.h`) with just the 2 fields it ever read (`backBufferWidth`,
+    `backBufferHeight`) plus a new `formatVersion` field. Found in the process: `.name`/`.typeApp`/
+    `.magic`/`.reserved`/`.extraHeader` were write-only everywhere in `core_mbm` - never read back -
+    pure historical cruft; their only producers (`get_type_app_from_mesh_type`,
+    `MBM_HEADER_NAME_MBM` writes) were deleted too once orphaned.
+  - **Fixed a real (small) bug**: `MESH_MBM_DEBUG::getFileVersion()` (shown in the editor as the
+    "Loaded version" row, `mesh_debug.lua`) used to always return the hardcoded `10` for every v11
+    mesh, never the real file's format version. Per the user's direction, it now returns
+    `impl->formatVersion`, populated from the real `FILE_HEADER_V11::formatVersion` on `loadV11`
+    and defaulting to `MBM_V11_FORMAT_VERSION` (already `11`, no new constant needed) for
+    not-yet-saved/in-memory meshes (`loadDebugFromMemory`, fresh construction, `release()`) - "the
+    latest version while creating/editing it via mesh_debug," per the user.
+  - **Relocated `util::HEADER`, `EXTRA_HEADER`, the 10 `*_VERSION_MBM_HEADER` defines,
+    `LEGACY_HEADER_VERSION`, `MBM_DEPRECATED_DETAIL_TYPE_SCRIPT`/`_SHADER`, and
+    `MBM_HEADER_NAME_MBM`/`MBM_TYPE_APP_*`/the two compare-length defines** from the shared
+    `include/core_mbm/header-mesh.h` into `src/mesh_deprecated/mesh-v8-io-legacy.h`/`.cpp` -
+    confirmed via grep these had zero remaining `core_mbm` references after the above, and are
+    genuinely still needed by `mesh_deprecated`, which reads a *real* `util::HEADER` off disk and
+    branches on real, varying v8-v10 file versions (legitimate, untouched logic). Dropped `API_IMPL`
+    from `HEADER`/`EXTRA_HEADER` (matching this header's existing no-export convention - the whole
+    module is internal-only) and the dead, zero-caller `HEADER(const char*, int32_t)` overload
+    found along the way. Same precedent this header already documents for
+    `header-mesh-legacy-disk.h`'s structs (other legacy on-disk types relocated for the same
+    reason, milestone 5).
+  - Verified: clean build of `core_mbm`, `mesh_deprecated`, `mesh_legacy_converter`, and the full
+    project (zero warnings). Real `testLib` test (temporary, reverted after): a fresh
+    `MESH_MBM_DEBUG` reports `getFileVersion() == 11`; loading the real v11 fixture `Crate.msh`
+    (inspected its raw bytes directly - `formatVersion` byte is `0x0b` = 11) also reports `11`.
+    Ran `mesh_legacy_converter` on the real legacy fixture `Crate_old.msh` end-to-end - converted
+    successfully to a valid v11 file, confirming the relocated `mesh_deprecated` code path still
+    works.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items

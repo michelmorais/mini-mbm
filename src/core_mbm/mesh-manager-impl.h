@@ -38,7 +38,9 @@ namespace mbm
 
     struct MESH_MBM_DEBUG::Impl
     {
-        util::HEADER headerMain;
+        int32_t  backBufferWidth  = 0;
+        int32_t  backBufferHeight = 0;
+        uint16_t formatVersion    = MBM_V11_FORMAT_VERSION; // default for not-yet-saved/in-memory meshes
         util::HEADER_MESH headerMesh;
         INFO_PHYSICS infoPhysics;
         util::INFO_ANIMATION infoAnimation;

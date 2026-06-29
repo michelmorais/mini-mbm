@@ -191,61 +191,18 @@ namespace mbm
 
 namespace
 {
-    const char* get_type_app_from_mesh_type(const util::TYPE_MESH type) noexcept
-    {
-        switch (type)
-        {
-            case util::TYPE_MESH_3D:       return MBM_TYPE_APP_MESH_3D;
-            case util::TYPE_MESH_USER:     return MBM_TYPE_APP_USER;
-            case util::TYPE_MESH_SPRITE:   return MBM_TYPE_APP_SPRITE;
-            case util::TYPE_MESH_FONT:     return MBM_TYPE_APP_FONT;
-            case util::TYPE_MESH_TEXTURE:  return MBM_TYPE_APP_TEXTURE;
-            case util::TYPE_MESH_SHAPE:    return MBM_TYPE_APP_SHAPE;
-            case util::TYPE_MESH_PARTICLE: return MBM_TYPE_APP_PARTICLE;
-            case util::TYPE_MESH_TILE_MAP: return MBM_TYPE_APP_TILE;
-            default:                       return nullptr;
-        }
-    }
 
     template <typename TriangleReader>
     bool read_detail_mesh_section(util::MEM_CURSOR_V11 &fp,
                                   const char *fileNamePath,
-                                  const util::HEADER &headerMain,
                                   mbm::INFO_PHYSICS &infoPhysics,
                                   TriangleReader readTriangleDetail)
     {
         util::DETAIL_MESH detailInfo;
-        if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
-        {
-            if (!util::readDetailMeshV8(fp, detailInfo))
-                return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-            if (detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SCRIPT && detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SHADER)
-                return log_util::onFailed(nullptr,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
-            if (detailInfo.totalBounding)
-            {
-                const auto extraInfoSize = static_cast<uint32_t>(detailInfo.totalBounding);
-                auto * extra     = new char[extraInfoSize];
-                if (!util::le_io::readBytes(fp, extra, static_cast<size_t>(extraInfoSize)))
-                {
-                    delete [] extra;
-                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read old and deprected extra info [%s]", fileNamePath);
-                }
-                delete [] extra;
-            }
-        }
-
         if (!util::readDetailMeshV8(fp, detailInfo))
             return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-        if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
-        {
-            if (detailInfo.type != 'H')
-                return log_util::onFailed(nullptr,__FILE__, __LINE__, "expected 'H' at DETAIL_MESH [%s]", fileNamePath);
-        }
-        else
-        {
-            if (detailInfo.type != 'P')
-                return log_util::onFailed(nullptr,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
-        }
+        if (detailInfo.type != 'P')
+            return log_util::onFailed(nullptr,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
         for (int i = 0; i < detailInfo.totalBounding; )
         {
             util::DETAIL_MESH detail;
@@ -291,7 +248,7 @@ namespace
                 break;
                 case MBM_DETAIL_TYPE_TRIANGLE:
                 {
-                    if (!readTriangleDetail(fp, fileNamePath, detail.totalBounding, headerMain.version))
+                    if (!readTriangleDetail(fp, fileNamePath, detail.totalBounding))
                         return false;
                     i += detail.totalBounding;
                 }
@@ -622,19 +579,17 @@ namespace
         return tileInfo;
     }
 
-    // Worker-thread-safe equivalent of MESH_MBM::readTriangleDetailCompat/
-    // MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic, takes INFO_PHYSICS directly
-    // instead of going through `this->impl` (parse_v11_intermediate has no MESH_MBM instance).
+    // Worker-thread-safe equivalent of MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic,
+    // takes INFO_PHYSICS directly instead of going through `this->impl` (parse_v11_intermediate has
+    // no MESH_MBM_DEBUG instance).
     bool read_triangle_detail_v11(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding,
-                                  const int fileVersion, mbm::INFO_PHYSICS &infoPhysics)
+                                  mbm::INFO_PHYSICS &infoPhysics)
     {
         for (int j = 0; j < totalBounding; j++)
         {
             auto triangle = new mbm::TRIANGLE();
             infoPhysics.lsTriangle.push_back(triangle);
-            const bool ok = (fileVersion >= MODE_DRAW_VERSION_MBM_HEADER) ? util::readTriangleV8(fp, *triangle)
-                                                                          : util::readTriangleLegacyNoPosV8(fp, *triangle);
-            if (!ok)
+            if (!util::readTriangleV8(fp, *triangle))
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
         }
         return true;
@@ -765,8 +720,6 @@ namespace
         }
 
         out.typeMe = static_cast<util::TYPE_MESH>(fileHeader.typeMesh);
-        util::HEADER headerMain;
-        headerMain.version = LEGACY_HEADER_VERSION;
 
         struct StagedSection
         {
@@ -829,10 +782,10 @@ namespace
             }
             else if (staged.header.type == util::SECTION_DETAIL_PHYSICS)
             {
-                const bool ok = read_detail_mesh_section(tmp, fileNamePath, headerMain, out.infoPhysics,
-                                                         [&out](util::MEM_CURSOR_V11 &f, const char *n, const int tb, const int fv)
+                const bool ok = read_detail_mesh_section(tmp, fileNamePath, out.infoPhysics,
+                                                         [&out](util::MEM_CURSOR_V11 &f, const char *n, const int tb)
                                                          {
-                                                             return read_triangle_detail_v11(f, n, tb, fv, out.infoPhysics);
+                                                             return read_triangle_detail_v11(f, n, tb, out.infoPhysics);
                                                          });
                 if (!ok)
                 {
@@ -1003,58 +956,24 @@ namespace mbm
     }
 
     // Relocated from mesh-manager-legacy.cpp in milestone 5 (that file is gone - it held the
-    // MBM_ENABLE_MESH_LEGACY_V7-gated v1-v7 path, but these two functions were always-compiled and
-    // still needed: they're read_detail_mesh_section's TriangleReader callback for both
-    // MESH_MBM_DEBUG::loadV11 and MESH_MBM::loadV11.
-    bool MESH_MBM_DEBUG::readDebugTriangleDetailCompat(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding, const int fileVersion)
+    // MBM_ENABLE_MESH_LEGACY_V7-gated v1-v7 path, but this function was always-compiled and still
+    // needed: it's read_detail_mesh_section's TriangleReader callback for MESH_MBM_DEBUG::loadV11.
+    // (MESH_MBM::loadV11 delegates entirely to parse_v11_intermediate/finishLoadFromIntermediate,
+    // which use the free-function equivalent read_triangle_detail_v11 above instead - milestone 21
+    // deleted MESH_MBM::readTriangleDetailCompat, which had been dead/uncalled since that delegation
+    // was introduced.)
+    bool MESH_MBM_DEBUG::readDebugTriangleDetailCompat(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding)
     {
-        if (fileVersion >= MODE_DRAW_VERSION_MBM_HEADER)
+        for (int j = 0; j < totalBounding; j++)
         {
-            for (int j = 0; j < totalBounding; j++)
-            {
-                auto triangle = new TRIANGLE();
-                this->impl->infoPhysics.lsTriangle.push_back(triangle);
-                if (!util::readTriangleV8(fp, *triangle))
-                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-            }
-        }
-        else
-        {
-            for (int j = 0; j < totalBounding; j++)
-            {
-                auto triangle = new TRIANGLE();
-                this->impl->infoPhysics.lsTriangle.push_back(triangle);
-                if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
-                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-            }
+            auto triangle = new TRIANGLE();
+            this->impl->infoPhysics.lsTriangle.push_back(triangle);
+            if (!util::readTriangleV8(fp, *triangle))
+                return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
         }
         return true;
     }
 
-    bool MESH_MBM::readTriangleDetailCompat(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding, const int fileVersion)
-    {
-        if (fileVersion >= MODE_DRAW_VERSION_MBM_HEADER)
-        {
-            for (int j = 0; j < totalBounding; j++)
-            {
-                auto triangle = new TRIANGLE();
-                this->impl->infoPhysics.lsTriangle.push_back(triangle);
-                if (!util::readTriangleV8(fp, *triangle))
-                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-            }
-        }
-        else
-        {
-            for (int j = 0; j < totalBounding; j++)
-            {
-                auto triangle = new TRIANGLE();
-                this->impl->infoPhysics.lsTriangle.push_back(triangle);
-                if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
-                    return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-            }
-        }
-        return true;
-    }
 
     constexpr BUFFER_MESH::BUFFER_MESH() noexcept : pBufferGL(nullptr), subset(nullptr), totalSubset(0)
     {
@@ -1392,7 +1311,7 @@ namespace mbm
 
     int MESH_MBM_DEBUG::getFileVersion() const noexcept
     {
-        return impl->headerMain.version;
+        return impl->formatVersion;
     }
 
     util::MATERIAL & MESH_MBM_DEBUG::getMaterial() noexcept
@@ -2026,8 +1945,8 @@ namespace mbm
         std::memcpy(fileHeader.magic, MBM_V11_MAGIC, sizeof(fileHeader.magic));
         fileHeader.formatVersion    = MBM_V11_FORMAT_VERSION;
         fileHeader.typeMesh         = static_cast<uint8_t>(impl->typeMe);
-        fileHeader.backBufferWidth  = impl->headerMain.backBufferWidth;
-        fileHeader.backBufferHeight = impl->headerMain.backBufferHeight;
+        fileHeader.backBufferWidth  = impl->backBufferWidth;
+        fileHeader.backBufferHeight = impl->backBufferHeight;
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
                                      + this->getTotalAnimationHeaders()
@@ -2483,21 +2402,18 @@ namespace mbm
                     subsetDesc.alphaColor[1] = subsetDesc.alphaColor[2] = subsetDesc.alphaColor[3] = 0;
 
                     std::vector<util::SUBSET_EXTRA_SLOT_V11> extraSlots;
-                    if (this->impl->headerMain.version >= MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER)
+                    for (const auto &slot : pSubset->materialTextureSlots)
                     {
-                        for (const auto &slot : pSubset->materialTextureSlots)
-                        {
-                            if (slot.texture.empty())
-                                continue;
-                            util::SUBSET_EXTRA_SLOT_V11 extraSlot;
-                            extraSlot.role = static_cast<uint8_t>(legacyMaterialSlotTypeToTextureRole(slot.type));
-                            char slotNameTexture[64];
-                            if (!fillTextureReferenceForHeader(fp, slot.texture, impl->typeMe, slotNameTexture))
-                                return false;
-                            extraSlot.texture.storage = util::TEXTURE_REF_STORAGE_PATH;
-                            extraSlot.texture.path    = slotNameTexture;
-                            extraSlots.push_back(extraSlot);
-                        }
+                        if (slot.texture.empty())
+                            continue;
+                        util::SUBSET_EXTRA_SLOT_V11 extraSlot;
+                        extraSlot.role = static_cast<uint8_t>(legacyMaterialSlotTypeToTextureRole(slot.type));
+                        char slotNameTexture[64];
+                        if (!fillTextureReferenceForHeader(fp, slot.texture, impl->typeMe, slotNameTexture))
+                            return false;
+                        extraSlot.texture.storage = util::TEXTURE_REF_STORAGE_PATH;
+                        extraSlot.texture.path    = slotNameTexture;
+                        extraSlots.push_back(extraSlot);
                     }
                     subsetDesc.extraSlotCount = static_cast<uint16_t>(extraSlots.size());
 
@@ -2669,14 +2585,10 @@ namespace mbm
         if (!util::readFileHeaderV11(fp, fileHeader))
             return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read v11 file header [%s]", fileNamePath);
 
-        impl->typeMe                      = static_cast<util::TYPE_MESH>(fileHeader.typeMesh);
-        impl->headerMain.version          = LEGACY_HEADER_VERSION;
-        impl->headerMain.backBufferWidth  = fileHeader.backBufferWidth;
-        impl->headerMain.backBufferHeight = fileHeader.backBufferHeight;
-        strncpy(impl->headerMain.name, MBM_HEADER_NAME_MBM, sizeof(impl->headerMain.name) - 1);
-        const char *typeApp = get_type_app_from_mesh_type(impl->typeMe);
-        if (typeApp)
-            strncpy(impl->headerMain.typeApp, typeApp, sizeof(impl->headerMain.typeApp) - 1);
+        impl->typeMe              = static_cast<util::TYPE_MESH>(fileHeader.typeMesh);
+        impl->backBufferWidth     = fileHeader.backBufferWidth;
+        impl->backBufferHeight    = fileHeader.backBufferHeight;
+        impl->formatVersion       = fileHeader.formatVersion;
 
         int16_t hasNormalFlag  = HAS_NOR_NO;
         int16_t hasTextureFlag = HAS_TEX_NO;
@@ -2735,10 +2647,10 @@ namespace mbm
             else if (sectionHeader.type == util::SECTION_DETAIL_PHYSICS)
             {
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                const bool ok = read_detail_mesh_section(tmp, fileNamePath, impl->headerMain, this->impl->infoPhysics,
-                                                         [this](util::MEM_CURSOR_V11 &f, const char *n, const int tb, const int fv)
+                const bool ok = read_detail_mesh_section(tmp, fileNamePath, this->impl->infoPhysics,
+                                                         [this](util::MEM_CURSOR_V11 &f, const char *n, const int tb)
                                                          {
-                                                             return this->readDebugTriangleDetailCompat(f, n, tb, fv);
+                                                             return this->readDebugTriangleDetailCompat(f, n, tb);
                                                          });
                 if (!ok)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_DETAIL_PHYSICS [%s]", fileNamePath);
@@ -3648,7 +3560,9 @@ namespace mbm
         impl->positionOffset      = VEC3(0, 0, 0);
         impl->sizeCoordTexFrame_0 = 0;
         impl->typeMe              = util::TYPE_MESH_UNKNOWN;
-        memset(static_cast<void*>(&this->impl->headerMain), 0, sizeof(this->impl->headerMain));
+        impl->backBufferWidth     = 0;
+        impl->backBufferHeight    = 0;
+        impl->formatVersion       = MBM_V11_FORMAT_VERSION;
         memset(static_cast<void*>(&this->impl->headerMesh), 0, sizeof(this->impl->headerMesh));
         impl->zoomEditorSprite.x = 1.0f;
         impl->zoomEditorSprite.y = 1.0f;
@@ -4838,15 +4752,11 @@ namespace mbm
             case util::TYPE_MESH_TILE_MAP:
             case util::TYPE_MESH_FONT:
             case util::TYPE_MESH_PARTICLE:
-                strncpy(impl->headerMain.typeApp, get_type_app_from_mesh_type(meshMemory->getTypeMesh()), sizeof(impl->headerMain.typeApp) - 1);
                 break;
             default:
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh invalid type");
                 break;
         }
-        strncpy(impl->headerMain.name, MBM_HEADER_NAME_MBM, sizeof(impl->headerMain.name) - 1);
-        impl->headerMain.version = LEGACY_HEADER_VERSION;
-        impl->headerMain.magic = 0x010203ff;
         impl->typeMe = meshMemory->getTypeMesh();
         // step 2: --------------------------------------------------------------------------------------------------
         const INFO_PHYSICS &meshPhysics = meshMemory->getPhysicsInfo();
@@ -4882,7 +4792,7 @@ namespace mbm
         if (meshMemory->getInfoFont() != nullptr)
         {
             const INFO_BOUND_FONT* pMemoryInfoFont = meshMemory->getInfoFont();
-            impl->headerMain.backBufferHeight = pMemoryInfoFont->heightLetter;
+            impl->backBufferHeight = pMemoryInfoFont->heightLetter;
             this->impl->extraInfo = new INFO_BOUND_FONT();
             auto* infoFont = static_cast<INFO_BOUND_FONT*>(this->impl->extraInfo);
             util::DETAIL_HEADER_FONT headerFont;

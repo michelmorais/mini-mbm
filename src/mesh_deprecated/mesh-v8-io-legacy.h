@@ -5,8 +5,64 @@
 #include <header-mesh.h>
 #include <shapes.h>
 
+// Legacy in-memory header (util::HEADER/EXTRA_HEADER) and the old per-field *_VERSION_MBM_HEADER
+// version constants for the v1-v10 on-disk format (milestone 21 - relocated out of the shared
+// core_mbm header-mesh.h once core_mbm's v11-only load/save path stopped needing them; only this
+// offline mesh_deprecated importer still reads real v1-v10 files and branches on their version).
 namespace util
 {
+    #define INITIAL_VERSION_MBM_HEADER     1
+    #define SPRITE_INFO_VERSION_MBM_HEADER 2
+    #define DETAIL_MESH_VERSION_MBM_HEADER 3
+    #define SPACE_SHIP_VERSION_MBM_HEADER  4
+    #define MODE_DRAW_VERSION_MBM_HEADER   5
+    #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
+    #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
+    #define STRONG_TYPES_VERSION_MBM_HEADER 8     // v8: new baseline for current mesh generation
+    #define MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER 9 // v9: per-subset typed material texture slots
+    #define TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER 10 // v10: TextureAnimationEffect stored once per animation FX block
+
+    // Legacy in-memory header version (util::HEADER::version) for the old v1-v10 on-disk format.
+    // Unrelated to the v11 file format's own version field (FILE_HEADER_V11::formatVersion /
+    // MBM_V11_FORMAT_VERSION, header-mesh.h) - this constant stopped advancing once v11 became the
+    // only format being written.
+    #define LEGACY_HEADER_VERSION     TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER
+
+    #define MBM_HEADER_NAME_COMPARE_LENGTH 3
+    #define MBM_HEADER_TYPE_APP_COMPARE_LENGTH 15
+    #define MBM_HEADER_NAME_MBM "mbm"
+    #define MBM_TYPE_APP_MESH_3D "Mesh 3d mbm"
+    #define MBM_TYPE_APP_USER "User mbm"
+    #define MBM_TYPE_APP_FONT "Font mbm"
+    #define MBM_TYPE_APP_SPRITE "Sprite mbm"
+    #define MBM_TYPE_APP_TILE "Tile mbm"
+    #define MBM_TYPE_APP_SHAPE "Shape mbm"
+    #define MBM_TYPE_APP_PARTICLE "Particle mbm"
+    #define MBM_TYPE_APP_TEXTURE "Texture mbm"
+    #define MBM_EXTRA_HEADER_TYPE_PATHS 1
+    #define MBM_DEPRECATED_DETAIL_TYPE_SCRIPT 100
+    #define MBM_DEPRECATED_DETAIL_TYPE_SHADER 101
+
+    struct HEADER
+    {
+        char name[16];          // must be "mbm"
+        char typeApp[16];       // "Mesh 3d mbm", "User mbm", "Font", "Particle", "Sprite mbm", "Tile mbm"
+        int32_t version;            // legacy v1-v10 header version, see LEGACY_HEADER_VERSION
+        uint32_t magic;             // must be 0x010203ff.
+        int32_t reserved;           // reserved (Must be 0)
+        int32_t backBufferWidth;    // Indica o tamanho da largura do back buffer em que o objeto foi criado
+        int32_t backBufferHeight;   // Indica o tamanho da altura do back buffer em que o objeto foi criado
+        int32_t extraHeader;        // Quando indica quantidade de estrutura EXTRA_HEADER logo apos este frame
+        HEADER() noexcept;
+    };
+
+    struct EXTRA_HEADER //added since version 6
+    {
+        char type;           // 0 None, 1 = Paths
+        int32_t sizeExtraHeader; // Tamanho extra (em bytes) logo apos este frame
+        EXTRA_HEADER() noexcept;
+    };
+
     bool readHeaderV8(FILE *fp, util::HEADER &out);
     bool writeHeaderV8(FILE *fp, const util::HEADER &in);
 
