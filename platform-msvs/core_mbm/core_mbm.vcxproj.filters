@@ -734,6 +734,15 @@
     <ClCompile Include="..\..\third-party\portaudio\src\pa-wave.cpp">
       <Filter>Source Files\audio\port-audio</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\mesh-v11-io.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-opensl-android.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\core-manager-android.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\copy-dlls.bat">
@@ -741,8 +750,5 @@
     </None>
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />
-    <None Include="..\..\docs\new-backend-instructions.md">
-      <Filter>Source Files\core_mbm</Filter>
-    </None>
   </ItemGroup>
 </Project>

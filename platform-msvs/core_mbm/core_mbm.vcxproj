@@ -302,14 +302,17 @@
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-none.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-opensl-android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp" />
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\core-manager-android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-windows.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-x11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es_android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-win32.cpp" />
     <ClCompile Include="..\..\src\core_mbm\dialog-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-v11-io.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-v8-io.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
@@ -406,7 +409,6 @@
     <ClCompile Include="core-mbm-Windows-dll-entry.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\docs\new-backend-instructions.md" />
     <None Include="..\copy-dlls.bat" />
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />
