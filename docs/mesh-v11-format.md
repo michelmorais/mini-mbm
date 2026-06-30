@@ -364,10 +364,17 @@ Backlogged items that do not change the on-disk layout:
   (`MESH_MBM_DEBUG::addVertex`/`addIndex`/`mergeBuffer`, ~30 sites in `mesh-manager.cpp`). All three
   layers must change together; the editing layer is the bulk of the work.
 
-- **Shader-effect editor** (`FX`/`EFFECT_SHADER` via the Animations node): new Lua bindings in
-  `mesh-debug-lua.cpp` (expose `EFFECT_SHADER::loadEffect`, FX texture, shader vars, blend-op, and
-  per-animation `FX` read/write) + new UI in `mesh_debug.lua`'s Animations node. Today these can
-  only be configured from C++ game code at runtime.
+- **Shader-effect editor** (partially done): FX *texture* get/set is fully wired —
+  `MESH_MBM_DEBUG::getAnimationEffectTexture`/`setAnimationEffectTexture`, Lua bindings
+  `getFxTexture`/`setFxTexture` in `mesh-debug-lua.cpp`, and UI rows in both the Animations node
+  and the Texture node's stage-1 branch in `mesh_debug.lua` (milestone 19).
+  Still missing in the editor (no C++ methods on `MESH_MBM_DEBUG`, no Lua bindings, no UI):
+  - PS/VS shader name (`INFO_FX::dataPS/dataVS->fileNameShader`, e.g. `"transparent.ps"`)
+  - PS/VS animation type and time (`dataPS->typeAnimation`, `dataPS->timeAnimation`)
+  - Blend operation (`INFO_FX::blendOperation`)
+  - Shader vars (min/max per variable): var names are **not** stored in `INFO_SHADER_DATA` — only
+    the runtime compiled `BASE_SHADER` knows them — so editing vars requires a "set shader name →
+    compile → read uniform names → show named rows" workflow, making it the most complex piece.
 
 - **Milestone 22 dynamic-test gap**: `renderizable:loadAsync()` Lua bindings were never exercised
   against a live engine — the implementing session's Xvfb/GL environment hung before any frame ran
