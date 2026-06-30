@@ -76,25 +76,15 @@ namespace mbm
         this->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
         if (this->mesh)
         {
-            const util::TYPE_MESH type = this->mesh->getTypeMesh();
-            if (type != util::TYPE_MESH_TILE_MAP)
+            const util::TYPE_MESH expectedType = util::TYPE_MESH_TILE_MAP;
+            const MeshLoadFinishResult result = this->finishMeshLoadCommon(this->mesh, &expectedType, "tile");
+            if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {
-                this->mesh->release();
-                ERROR_LOG( "type of file is not tile!\ntype: %s",MESH_MANAGER::typeClassName(type));
+                this->release();
                 return false;
             }
-            const uint32_t totalAnimations = this->mesh->getTotalAnimations();
-            for (uint32_t i = 0; i < totalAnimations; ++i)
-            {
-                util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->getAnimationHeader(i);
-                if (!this->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
-                {
-                    this->release();
-                    ERROR_AT(__LINE__,__FILE__, "error on add animation!!");
-                    return false;
-                }
-            }
-            this->populateTextureAnimationEffectFromMesh(this->mesh);
+            else if (result != MeshLoadFinishResult::OK)
+                return false;
             this->setInternalFileName(fileName);
             this->restartAnimation();
             const auto * ptr_TileInfo = this->mesh->getInfoTile();
@@ -154,6 +144,104 @@ namespace mbm
             return true;
         }
         return false;
+    }
+
+    void TILE::loadAsync(const char *fileName, std::function<void(bool success)> callback)
+    {
+        if (this->mesh != nullptr)
+        {
+            if (callback)
+                callback(true);
+            return;
+        }
+        const std::string fileNameCopy(fileName);
+        MESH_MANAGER::getInstance()->loadAsync(fileName, [this, fileNameCopy, callback](MESH_MBM *mesh, bool ok)
+        {
+            if (!ok || !mesh)
+            {
+                if (callback)
+                    callback(false);
+                return;
+            }
+            this->mesh = mesh;
+            this->getPosition() += mesh->getPositionOffset();
+            this->setAngle(mesh->getAngleDefault());
+            const util::TYPE_MESH expectedType = util::TYPE_MESH_TILE_MAP;
+            const MeshLoadFinishResult result = this->finishMeshLoadCommon(this->mesh, &expectedType, "tile");
+            if (result == MeshLoadFinishResult::ANIMATION_FAILED)
+            {
+                this->release();
+                if (callback)
+                    callback(false);
+                return;
+            }
+            else if (result != MeshLoadFinishResult::OK)
+            {
+                if (callback)
+                    callback(false);
+                return;
+            }
+            this->setInternalFileName(fileNameCopy.c_str());
+            this->restartAnimation();
+            const auto * ptr_TileInfo = this->mesh->getInfoTile();
+            if (ptr_TileInfo)
+            {
+                INFO_PHYSICS &physicsInfo = this->mesh->getPhysicsInfo();
+                CUBE * cube               = nullptr;
+                const VEC3 &scale         = this->getScale();
+                const float width_tile    = static_cast<float>(ptr_TileInfo->map.size_width_tile  * scale.x);
+                const float height_tile   = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y);
+                const float width_map     = static_cast<float>(width_tile  * ptr_TileInfo->map.count_width_tile);
+                const float height_map    = static_cast<float>(height_tile * ptr_TileInfo->map.count_height_tile);
+
+                if(physicsInfo.lsCube.size() > 0 )
+                {
+                    cube = physicsInfo.lsCube[0];
+                    cube->halfDim.x = width_map  * 0.5f;
+                    cube->halfDim.y = height_map * 0.5f;
+                    cube->halfDim.z = 0;
+                }
+                else
+                {
+                    cube = new CUBE(width_map,height_map,0);
+                    physicsInfo.lsCube.push_back(cube);
+                }
+                if(ptr_TileInfo->map.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
+                {
+                    cube->halfDim.y   += height_tile * 0.5f;
+                    cube->absCenter.x  = width_tile  * 0.5f;
+                }
+                if(ptr_TileInfo->map.background_texture[0])
+                {
+                    backgroundTextureMap = TEXTURE_MANAGER::getInstance()->load(ptr_TileInfo->map.background_texture,true);
+                }
+                else if(ptr_TileInfo->map.background > 0)
+                {
+                    char whatColor[20] = "";
+                    COLOR::getStringHexColorFromColor(ptr_TileInfo->map.background,whatColor,sizeof(whatColor));
+                    mbm::TEXTURE::EnablePixelPerfectTexture(true);
+                    backgroundTextureMap  = TEXTURE_MANAGER::getInstance()->load(whatColor,true);
+                    mbm::TEXTURE::EnablePixelPerfectTexture(false);
+                }
+                if(backgroundTextureMap)
+                {
+                    loadBufferBackGroundTexture();
+                }
+                lsVisible.resize(ptr_TileInfo->map.layerCount, true);
+                for (uint32_t i = 0; i < ptr_TileInfo->map.layerCount; ++i)
+                    lsLayerRenderizables.push_back(new TILE_LAYER(this, i));
+            }
+            else
+            {
+                PRINT_IF_DEBUG( "error on get ptr_TileInfo!!");
+                if (callback)
+                    callback(false);
+                return;
+            }
+            this->updateAABB();
+            if (callback)
+                callback(true);
+        });
     }
 
     bool TILE::loadBufferBackGroundTexture()

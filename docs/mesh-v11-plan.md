@@ -929,6 +929,82 @@ concrete use case shows up.
     successfully to a valid v11 file, confirming the relocated `mesh_deprecated` code path still
     works.
 
+- **Milestone 22 (closed 2026-06-30): Lua-exposed async loading - `renderizable:loadAsync(...,
+  callback)` - for all 5 renderizable types that load through `MESH_MANAGER`.** Triggered by the
+  user noticing `MESH_MANAGER::loadAsync`/`pumpAsyncLoads` (milestone 6) had real background-
+  loading C++ infrastructure with zero Lua bindings - every Lua-exposed load method only ever
+  called the synchronous, blocking path. Design settled via discussion: `renderizable:loadAsync(...,
+  function(tmesh, success) ... end)` as a sibling method to the existing `:load(...)` (not a new
+  `mbm.loadAsync(obj, ...)` free function - no precedent anywhere in this engine for an
+  object-as-first-arg free function; every Lua-exposed operation is `obj:method(...)`).
+  - **Scope correction made mid-implementation**: the initial plan assumed all 5 types share
+    `load(fileName)`'s simple shape. Direct reading found that's only true for `MESH`/`SPRITE`/
+    `TILE`; `PARTICLE` (`load(fileNameTextureOrMesh, operatorShader, newCodeLine, sizeOfParticle,
+    initializeParticleData)`) and `BACKGROUND` (`load(fileName, hasAlpha, majorScale)`, which
+    itself branches between a mesh-file path and a texture-only path) are materially different.
+    The user chose to do the extra design work for all 5 in this same pass rather than defer
+    `PARTICLE`/`BACKGROUND`, and separately confirmed: where those two have a texture-only loading
+    sub-path with no async primitive anywhere in the engine (`TEXTURE_MANAGER` has no `loadAsync`),
+    that sub-path stays synchronous-but-still-callback-shaped - a documented limitation, not a
+    silently-papered-over gap, rather than building a whole new texture-async subsystem.
+  - **Shared helper** (`ANIMATION_MANAGER::finishMeshLoadCommon`, `animation.h`/`.cpp`): extracted
+    the truly-identical part of `MESH`/`SPRITE`/`TILE`'s `load()` bodies (optional type validation -
+    `MESH` has none, matched via a nullable `expectedType` param - + the animation-population loop
+    + texture-effect population) into one method, used by both the refactored sync `load()`s and
+    the new `loadAsync()`s. Returns a 3-way `MeshLoadFinishResult` (`OK`/`TYPE_MISMATCH`/
+    `ANIMATION_FAILED`) rather than calling `release()` itself, since releasing a renderizable on
+    animation failure needs that type's own `release()` override - `RENDERIZABLE` has no shared
+    virtual `release()` hook to call polymorphically (confirmed by reading `renderizable.h`: each
+    concrete type declares its own, separately).
+  - **PARTICLE**: also extracted a `finalizeParticleLoad` helper (the texture-resolve + buffer/stage
+    setup tail, identical regardless of `.ptl`-vs-texture origin) used by sync `load()` and both
+    branches of the new `loadAsync`. Only the `.ptl` (mesh-based particle) branch's
+    `MESH_MANAGER::load` call becomes `loadAsync` (continuing the stage/animation/blend setup that
+    depends on the loaded mesh inside the completion lambda); the texture-only branch runs
+    unchanged, synchronously, then calls back immediately.
+  - **BACKGROUND**: same shape - the `.mbm`/`.spt`/`.msh` branch's `MESH_MANAGER::load` call becomes
+    `loadAsync` (continuing scale/animation/AABB setup in the completion lambda); the texture branch
+    runs unchanged, synchronously. **Not refactored to share `finishMeshLoadCommon`** despite looking
+    similar - found a real discrepancy first: `BACKGROUND` logs an animation-population failure via
+    `PRINT_IF_DEBUG`, not `ERROR_AT` like `MESH`/`SPRITE`/`TILE` do - reusing the shared helper would
+    have silently upgraded that to a full error log, an unintended behavior change. Left as its own
+    inline logic, preserving the exact existing quirk.
+  - **Bonus find while reading `MESH::load`**: it has no type-validation step at all (any mesh type
+    loads via `MESH::load`/`MESH::loadAsync`) - confirmed intentional/pre-existing, not something
+    this milestone needed to fix, just had to mirror correctly in the shared helper's nullable
+    `expectedType` design.
+  - **Lua bindings** (all 5 `src/lua-wrap/render-table/*-lua.cpp`): reused this codebase's existing
+    `luaL_ref`/`luaL_unref`-against-`LUA_REGISTRYINDEX` callback-storage idiom (same mechanism
+    `timer-lua.cpp`'s `TIMER_CALL_BACK` and `animation-lua.cpp`'s
+    `onEndAnimationCallBackAnimationsLua` already use) rather than inventing anything new. Each
+    `onLoadAsyncXxxLua` refs both the callback function and `self` (the renderizable's own Lua
+    table) into a small heap-allocated per-call context struct, freed after the callback fires.
+    **Critically, refing `self` is not just for passing it back as the callback's first
+    argument** - holding a registry ref prevents the userdata's `__gc` metamethod from firing
+    (confirmed: `__gc` does an unconditional, synchronous `delete` for these userdata types, with no
+    existing weak-reference/generation-counter guard anywhere in the codebase) for as long as the
+    ref is held, which is exactly how `timer-lua.cpp`'s `ref_MeAsTableTimer` already keeps a pending
+    timer callback's target alive across frames - this directly solves the real risk of a script
+    dropping every reference to the loading object before the async load completes, using an
+    existing, proven mechanism rather than a new one. For `PARTICLE`/`BACKGROUND` (which have
+    optional middle arguments in their Lua-level `load` signatures), the callback is always the
+    *last* stack argument regardless of how many optional args precede it - parsed via an
+    `effectiveTop = lua_gettop(lua) - 1` trick so the same positional-optional logic the existing
+    sync bindings use still works unchanged.
+  - **Verified**: clean build of every target (`core_mbm`, full project, zero warnings); Lua syntax
+    of a hand-written exercising script confirmed valid via the bundled interpreter. **Could not get
+    a full dynamic (running-engine) test in this session**: both `mini-mbm` and `testLib` hang in a
+    GL buffer-swap wait under this sandbox's X server before ever reaching a single `onLoop()` frame
+    - confirmed via direct process-state inspection (`wchan: do_sys_polldone`/blocked in `poll()`)
+    and confirmed this reproduces identically on completely unmodified code (the stock
+    `game-template/main.lua`, and `testLib` before any of this milestone's test code ran) - a
+    pre-existing environment/Xvfb limitation in this specific sandbox session, not a regression from
+    this milestone's changes. Per the user's explicit decision, shipped on code-review-level
+    confidence (careful manual line-by-line preservation of every branch's existing behavior during
+    the splits, cross-checked against the original synchronous bodies) rather than blocking further
+    on environment debugging - flagged as an Open Question below for whoever next has a working
+    dynamic-test environment to close out.
+
 ## Open Questions
 
 (Resolved for milestone 0: `TEXTURE_ROLE` header location — see Scope Decision 4. Remaining items
@@ -960,3 +1036,15 @@ below belong to later milestones.)
   personal library outside any repo, not the shipped game) are now unsupported until manually
   hand-edited to semantic naming - a few lines of work if/when actually needed, intentionally not
   automated.
+- Milestone 22's 5 new `loadAsync` Lua bindings were never exercised against a real running engine
+  in the implementing session - `mini-mbm`/`testLib` both hung in a GL buffer-swap wait under that
+  session's sandbox X server (confirmed pre-existing/environment, not caused by the milestone's
+  changes - reproduced identically on unmodified `game-template`). Whoever next has a working
+  dynamic-test environment should run the exercising pattern documented in that milestone's
+  write-up (one genuinely-async case per type, the GC-safety drop-reference-then-collectgarbage
+  case, and a failure-path case) and close this out.
+- `TEXTURE_MANAGER` has no async loading primitive (`MESH_MANAGER::loadAsync`'s equivalent does not
+  exist for plain textures) - milestone 22's `PARTICLE`/`BACKGROUND` `loadAsync` texture-only
+  sub-paths stay synchronous within their callback-shaped API as a result, by explicit user
+  decision. Building a real `TEXTURE_MANAGER::loadAsync` (worker-thread decode + main-thread GPU
+  upload, mirroring `MESH_MANAGER`'s design) would close that gap - backlog only, not started.

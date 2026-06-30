@@ -107,6 +107,56 @@ namespace mbm
         return 1;
     }
 
+    // Background-thread-friendly equivalent of "load" (mesh-v11-plan.md milestone 22):
+    // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
+    // `self`) are held in the registry for the pending load's duration - this both lets the callback
+    // receive `self` back and keeps the Lua object (and therefore the underlying C++ object, since
+    // its __gc won't fire while referenced) alive even if the script drops every other reference to
+    // it before the load completes.
+    namespace
+    {
+        struct AsyncLoadCtxMesh
+        {
+            lua_State *lua;
+            int        refCallback;
+            int        refSelf;
+        };
+    }
+
+    int onLoadAsyncMeshLua(lua_State *lua)
+    {
+        MESH *      mesh     = getMeshFromRawTable(lua, 1, 1);
+        const char *fileName = luaL_checkstring(lua, 2);
+        if (lua_type(lua, 3) != LUA_TFUNCTION)
+            return lua_error_debug(lua, "expected [function] as callback for loadAsync");
+        auto *ctx        = new AsyncLoadCtxMesh();
+        ctx->lua         = lua;
+        lua_pushvalue(lua, 3);
+        ctx->refCallback = luaL_ref(lua, LUA_REGISTRYINDEX);
+        lua_pushvalue(lua, 1);
+        ctx->refSelf     = luaL_ref(lua, LUA_REGISTRYINDEX);
+        mesh->loadAsync(fileName, [ctx](bool success)
+        {
+            lua_State *lua = ctx->lua;
+            lua_rawgeti(lua, LUA_REGISTRYINDEX, ctx->refCallback);
+            if (lua_isfunction(lua, -1))
+            {
+                lua_rawgeti(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+                lua_pushboolean(lua, success);
+                if (lua_pcall(lua, 2, 0, 0))
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+            }
+            else
+            {
+                lua_pop(lua, 1);
+            }
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refCallback);
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+            delete ctx;
+        });
+        return 0;
+    }
+
 	int onNewMeshNoGcLua(lua_State *lua,RENDERIZABLE * renderizable)
 	{
 		lua_settop(lua,0);
@@ -114,7 +164,7 @@ namespace mbm
 			return false;
 		
 		//table
-		luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {nullptr, nullptr}};
+		luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {"loadAsync", onLoadAsyncMeshLua}, {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();
@@ -155,7 +205,7 @@ namespace mbm
     int onNewMeshLua(lua_State *lua)
     {
         const int                    top              = lua_gettop(lua);
-        luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {nullptr, nullptr}};
+        luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {"loadAsync", onLoadAsyncMeshLua}, {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();
 

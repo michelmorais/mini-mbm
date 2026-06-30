@@ -303,6 +303,122 @@ namespace mbm
             return true;
         }
     }
+
+    void BACKGROUND::loadAsync(const char *fileName, const bool hasAlpha, const bool majorScale, std::function<void(bool success)> callback)
+    {
+        if (this->impl->mesh || this->impl->texture)
+        {
+            if (callback)
+                callback(true);
+            return;
+        }
+        if (fileName == nullptr)
+        {
+            if (callback)
+                callback(false);
+            return;
+        }
+        std::vector<std::string> lsresult;
+        util::split(lsresult, fileName, '.');
+        if (lsresult.size() == 0)
+        {
+            if (callback)
+                callback(false);
+            return;
+        }
+        if ((lsresult[lsresult.size() - 1].compare("mbm") == 0) ||
+            (lsresult[lsresult.size() - 1].compare("spt") == 0) ||
+            (lsresult[lsresult.size() - 1].compare("msh") == 0))
+        {
+            const std::string fileNameCopy(fileName);
+            MESH_MANAGER::getInstance()->loadAsync(fileName, [this, fileNameCopy, majorScale, callback](MESH_MBM *mesh, bool ok)
+            {
+                if (!ok || !mesh)
+                {
+                    if (callback)
+                        callback(false);
+                    return;
+                }
+                this->impl->mesh = mesh;
+                this->getPosition() += mesh->getPositionOffset();
+                this->setAngle(mesh->getAngleDefault());
+                this->impl->type = this->impl->mesh->getTypeMesh();
+                if (!this->setScale(majorScale))
+                {
+                    if (callback)
+                        callback(false);
+                    return;
+                }
+                const uint32_t totalAnimations = this->impl->mesh->getTotalAnimations();
+                for (uint32_t i = 0; i < totalAnimations; ++i)
+                {
+                    util::INFO_ANIMATION::INFO_HEADER_ANIM* header = this->impl->mesh->getAnimationHeader(i);
+                    if (!this->populateAnimationFromHeader(this->impl->mesh, header->headerAnim, i))
+                    {
+                        this->release();
+                        PRINT_IF_DEBUG("error on add animation!!");
+                        if (callback)
+                            callback(false);
+                        return;
+                    }
+                }
+                this->populateTextureAnimationEffectFromMesh(this->impl->mesh);
+                this->restartAnimation();
+                std::string restoreFileName = "load|";
+                restoreFileName += fileNameCopy;
+                this->setInternalFileName(restoreFileName);
+                this->updateAABB();
+                if (callback)
+                    callback(true);
+            });
+            return;
+        }
+        // Texture path: no async loading primitive exists for TEXTURE_MANAGER anywhere in the
+        // engine, so this branch stays synchronous - same work as load(), just reached through this
+        // callback-shaped API for a uniform call site.
+        if (this->impl->buffer)
+            delete this->impl->buffer;
+        this->impl->buffer            = nullptr;
+        int                indexStart = 0;
+        int                indexCount = 6;
+        VEC3            _position[4];
+        VEC2            uv[4];
+        unsigned short int index[6] = {0, 1, 2, 2, 1, 3};
+        this->impl->texture         = TEXTURE_MANAGER::getInstance()->load(fileName, hasAlpha);
+        if (this->impl->texture == nullptr)
+        {
+            if (callback)
+                callback(false);
+            return;
+        }
+        this->impl->buffer = new BUFFER_GL();
+        mbm::fillVertexQuadTexture(_position, uv, static_cast<float>(this->impl->texture->getWidth()),
+                                 static_cast<float>(this->impl->texture->getHeight()));
+        this->bound.halfDim.x = static_cast<float>(this->impl->texture->getWidth()) * 0.5f;
+        this->bound.halfDim.y = static_cast<float>(this->impl->texture->getHeight()) * 0.5f;
+        const bool ret = this->impl->buffer->loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+        if (ret == false)
+        {
+            if (callback)
+                callback(false);
+            return;
+        }
+        this->addAnimation();
+        this->impl->buffer->setTextureByStage(this->impl->texture, 0, 0);
+        bool useAlpha  = this->impl->texture ? (this->impl->texture->hasAlphaChannel() ? 1 : 0) : 0;
+        this->impl->type = util::TYPE_MESH_TEXTURE;
+        std::string restoreFileName = "loadTexture|";
+        restoreFileName += fileName;
+        if (useAlpha)
+            restoreFileName += "|1";
+        else
+            restoreFileName += "|0";
+        this->setInternalFileName(restoreFileName);
+
+        this->restartAnimation();
+        if (callback)
+            callback(true);
+    }
     
     bool BACKGROUND::setTexture(const MESH_MBM *_mesh,const char *fileNametexture, const unsigned int stage, const bool hasAlpha)
     {
