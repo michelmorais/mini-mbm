@@ -144,6 +144,7 @@ namespace mbm
         mbm::TEXTURE *            backgroundTextureMap;
         BUFFER_GL                 backGroundMap;
         bool                      loadBufferBackGroundTexture();
+        bool                      finalizeTileLoad(const char *fileName);
     };
 }
 

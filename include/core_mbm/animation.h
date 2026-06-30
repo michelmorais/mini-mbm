@@ -136,7 +136,7 @@ namespace mbm
         void clearBackup() noexcept;
     };
 
-    // Result of ANIMATION_MANAGER::finishMeshLoadCommon - the caller (a concrete renderizable type's
+    // Result of ANIMATION_MANAGER::populateAnimationsFromMesh - the caller (a concrete renderizable type's
     // own load()/loadAsync()) decides what to do on failure, since releasing the renderizable itself
     // on an animation failure requires calling that type's own release() override, which
     // ANIMATION_MANAGER/RENDERIZABLE have no shared virtual hook for.
@@ -161,7 +161,7 @@ namespace mbm
         // animation header + the legacy TextureAnimationEffect population. Deliberately excludes
         // setInternalFileName/restartAnimation/updateAABB/positioning - callers run those themselves,
         // exactly where they already do today.
-        API_IMPL MeshLoadFinishResult finishMeshLoadCommon(MESH_MBM *mesh, const util::TYPE_MESH *expectedType, const char *typeNameForError);
+        API_IMPL MeshLoadFinishResult populateAnimationsFromMesh(MESH_MBM *mesh, const util::TYPE_MESH *expectedType, const char *typeNameForError);
         API_IMPL ANIMATION *getAnimation() const;
         API_IMPL ANIMATION *getAnimation(const uint32_t index) const;
         API_IMPL uint32_t getTotalAnimation() const;

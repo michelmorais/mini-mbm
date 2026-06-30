@@ -59,7 +59,7 @@ namespace mbm
         this->mesh               = mehManager->load(fileName, this);
         if (this->mesh)
         {
-            const MeshLoadFinishResult result = this->finishMeshLoadCommon(this->mesh, nullptr, "mesh");
+            const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {
                 this->release();
@@ -96,7 +96,7 @@ namespace mbm
             this->mesh = mesh;
             this->getPosition() += mesh->getPositionOffset();
             this->setAngle(mesh->getAngleDefault());
-            const MeshLoadFinishResult result = this->finishMeshLoadCommon(this->mesh, nullptr, "mesh");
+            const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {
                 this->release();

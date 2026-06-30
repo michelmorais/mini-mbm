@@ -1201,7 +1201,7 @@ namespace mbm
         return true;
     }
 
-    MeshLoadFinishResult ANIMATION_MANAGER::finishMeshLoadCommon(MESH_MBM *mesh, const util::TYPE_MESH *expectedType, const char *typeNameForError)
+    MeshLoadFinishResult ANIMATION_MANAGER::populateAnimationsFromMesh(MESH_MBM *mesh, const util::TYPE_MESH *expectedType, const char *typeNameForError)
     {
         if (expectedType)
         {
