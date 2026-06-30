@@ -1,9 +1,8 @@
-# Mesh v11 Binary Format — v1 (Milestone 0 closed 2026-06-25)
+# Mesh v11 Binary Format
 
-Companion to `docs/mesh-v11-plan.md`, Milestone 0. This layout is locked: the four open questions
-below are resolved, so field names/sizes here are final for the v11.0 implementation (milestones
-1-5). Anything still genuinely open (per-blob compression default, thread pool ownership, class
-naming) lives in `mesh-v11-plan.md`'s Open Questions and belongs to later milestones, not this one.
+Reference for the v11 mesh binary layout used by `core_mbm`. The format is fully implemented and
+locked. §8 lists what is deliberately out of scope for v11.0; `## Future Work` below covers
+backlogged items that do not change the on-disk layout.
 
 Serialization style follows the existing `mesh-v8-io.cpp` convention: every multi-byte field is
 read/written field-by-field through explicit little-endian helpers, never struct-blitted. That
@@ -147,7 +146,7 @@ struct SUBSET_DESC_V11
     uint16_t extraSlotCount;
     // followed by extraSlotCount * { uint8_t role; TEXTURE_REF_V11 texture; }
     // `role` is an mbm::TEXTURE_ROLE value (shader.h), restricted here to
-    // TEXTURE_ROLE_NORMAL / _SPECULAR / _EMISSIVE / _MASK — see docs/mesh-v11-plan.md §2.
+    // TEXTURE_ROLE_NORMAL / _SPECULAR / _EMISSIVE / _MASK.
     // TEXTURE_ROLE_ANIMATION_EFFECT never appears here; it belongs to SECTION_ANIMATION's FX block.
 };
 
@@ -161,9 +160,8 @@ struct TEXTURE_REF_V11
 };
 ```
 
-`mbm::TEXTURE_ROLE` is reused by value, not re-encoded — see `docs/mesh-v11-plan.md`, "Scope Decision
-2." This is the one piece of this proposal that reaches outside `header-mesh.h` into `shader.h`, on
-purpose: one enum, one definition.
+`mbm::TEXTURE_ROLE` is reused by value, not re-encoded. This is the one piece of this format that
+reaches into the runtime's `shader.h` — one enum, one definition, no parallel per-format copy.
 
 ## 6b. `SECTION_ANIMATION` payload
 
@@ -321,10 +319,9 @@ where actually needed, keeping the common case small.
 
 ## 8. What stays out of this proposal on purpose
 
-- `SECTION_FRAME_SKINNED` payload layout — not designed yet, only the type id is reserved
-  (`docs/mesh-v11-plan.md` milestone 9).
-- Vertex quantization (compact normal/UV encodings) — listed as a future optimization in
-  `mesh-v11-plan.md`, not part of the v11.0 layout lock.
+- `SECTION_FRAME_SKINNED` payload layout — not designed yet, only the type id is reserved.
+- Vertex quantization (compact normal/UV encodings) — future optimization, not part of the v11.0
+  layout lock.
 - `SECTION_DETAIL_*` payload bytes are intentionally not redesigned here — they can keep today's
   v8 field layout (`DETAIL_HEADER_FONT_DISK_V8`, `STAGE_PARTICLE_DISK_V8`, `BTILE_*_DISK_V8`, the
   physics shape structs), just moved inside the new TLV envelope instead of the old inline
@@ -354,6 +351,32 @@ where actually needed, keeping the common case small.
    (e.g. a compression-policy flag) into padding now risks locking in the wrong shape before there's a
    real requirement driving it.
 
-These four, plus the `TEXTURE_ROLE`-mapping location decided in `docs/mesh-v11-plan.md` (Scope
-Decision 4), close Milestone 0. Implementation (`mesh-v11-io.cpp`, milestone 1) can proceed against
+These four close Milestone 0. Implementation (`mesh-v11-io.cpp`, milestone 1) can proceed against
 this layout as written.
+
+## Future Work
+
+Backlogged items that do not change the on-disk layout:
+
+- **32-bit index support** (`indexWidth == 32` in `FRAME_HEADER_V11` §6): the format field is
+  already defined and read/written correctly. The C++ implementation is all `uint16_t` throughout —
+  GPU upload/draw (`GL_UNSIGNED_SHORT`/`D3DFMT_INDEX16`) and the entire in-memory editing API
+  (`MESH_MBM_DEBUG::addVertex`/`addIndex`/`mergeBuffer`, ~30 sites in `mesh-manager.cpp`). All three
+  layers must change together; the editing layer is the bulk of the work.
+
+- **Shader-effect editor** (`FX`/`EFFECT_SHADER` via the Animations node): new Lua bindings in
+  `mesh-debug-lua.cpp` (expose `EFFECT_SHADER::loadEffect`, FX texture, shader vars, blend-op, and
+  per-animation `FX` read/write) + new UI in `mesh_debug.lua`'s Animations node. Today these can
+  only be configured from C++ game code at runtime.
+
+- **Milestone 22 dynamic-test gap**: `renderizable:loadAsync()` Lua bindings were never exercised
+  against a live engine — the implementing session's Xvfb/GL environment hung before any frame ran
+  (confirmed pre-existing, not caused by those changes). With a working `DISPLAY=:1` setup, run:
+  one genuinely-async case per renderizable type, a GC-safety test (drop all Lua refs +
+  `collectgarbage()` before load completes), and a failure-path case (missing/wrong-type file). See
+  `src/lua-wrap/render-table/*-lua.cpp` and `src/render/*.h`/`.cpp`.
+
+- **`TEXTURE_MANAGER::loadAsync`**: no async primitive for plain texture loading. `PARTICLE`/
+  `BACKGROUND`'s texture-only `loadAsync` sub-paths stay synchronous-but-callback-shaped by design.
+  A real implementation would mirror `MESH_MANAGER::loadAsync`'s worker-thread decode + main-thread
+  GPU-finish design.
