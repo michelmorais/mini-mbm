@@ -14,6 +14,11 @@ namespace util
 {
 namespace le_io
 {
+    /*
+    Endianness: 
+    genuine runtime byte-swapping (hostLittleEndian() + bswap32-style helpers in mesh-io-primitives.h).
+    Practically irrelevant on today's hardware (everything's little-endian) but costs nothing to keep.
+    */
     inline bool hostLittleEndian() noexcept
     {
         const uint16_t one = 1;
