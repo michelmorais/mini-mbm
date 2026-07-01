@@ -150,8 +150,35 @@ Default values:
 - `ambientColor = (0.2, 0.2, 0.2, 1.0)`
 - `directionalColor = (1.0, 1.0, 1.0, 1.0)`
 - `directionalDirection = normalized (0.0, -0.707, -0.707)`
+- point-light list (see below) starts empty for both targets
+- `requestedMaxLights` starts at the compiled supported cap
+- `lightSelectionMode` starts at `per_object_nearest`
 
-Color channels are clamped to `0..1`. Directional light directions are normalized by the engine.
+Color channels are clamped to `0..1`. Directional light directions are normalized by the engine. A
+degenerate (near-zero-length) directional light direction is not an error: it silently falls back to
+the default direction instead.
+
+`mbm.resetLight(target)` resets *all* of the above for that target in one call: it disables
+lighting, restores the default ambient/directional state, restores `requestedMaxLights` and
+`lightSelectionMode` to their defaults, and clears the point-light list. There is also a C++-only
+`resetAllLights()` that resets both targets at once; it is not currently exposed to Lua.
+
+### Two Point-Light Storages
+
+There are two independent point-light storages per target, and the naming is easy to misread:
+
+- A single legacy point-light slot (`pointPosition`, `pointRadius`, `pointColor` in `LIGHT_STATE`).
+  `mbm.setPointLight`, `mbm.setPointLightPosition`, `mbm.setPointLightRadius`, and
+  `mbm.setPointLightColor` all mutate this one slot.
+- A growable point-light list (`pointLights3D` / `pointLights2DW`). `mbm.addPointLight(...)` appends
+  to this list (`push_back`, no cap enforced at registration time, no index returned). The only way
+  to remove entries is `mbm.clearPointLights(target)`, which empties the whole list; there is no
+  per-index remove or update.
+
+`mbm.getSelectedPointLights(target, ...)` (see below) reads from the **list** when it is non-empty.
+If the list is empty, it falls back to treating the legacy single slot as one synthetic candidate
+light. So the legacy slot only matters for selection on targets where `addPointLight` was never
+called.
 
 ## Current Implementation Scope
 
@@ -160,8 +187,10 @@ The current shipped lighting implementation covers:
 - `3d` lighting
 - `2dw` lighting
 - target-specific ambient and directional light state
-- per-target point-light lists
-- per-object nearest-light selection for `2dw`
+- per-target point-light lists (`mbm.addPointLight` / `mbm.clearPointLights`), independent from the
+  legacy single point-light slot (`mbm.setPointLight` and friends) — see "Two Point-Light Storages"
+  above
+- per-object nearest-light selection, available on both `3d` and `2dw` targets
 - typed per-subset material texture slots, with the normal-map slot consumed at runtime
 - default lit/unlit shader classification for engine-generated shaders
 - built-in lit pixel shaders
@@ -235,15 +264,21 @@ The current implementation slice also exposes backend-cap validation:
 - `mbm.getSelectedPointLights(target, objectCenter, objectBoundingAABB)` returns the nearest
   validated point lights whose radius reaches that object
 
-For the first multi-light implementation, the compiled supported cap defaults to `4` lights on the
-active backend, but it is now a build-time engine setting:
+For the first multi-light implementation, the compiled supported cap defaults to `4` lights, but it
+is now a build-time engine setting:
 
 - CMake/Xcode generator builds can pass `-DSUPPORTED_MAX_LIGHTS=1..4`
 - the standalone Visual Studio solution can set `MbmSupportedMaxLights=1..4`
 - the default requested max also starts from that compiled supported cap
+- the value is enforced by a `static_assert` to stay within `1..4`
 
 So a game that knows it only needs `1`, `2`, or `3` supported lights may compile the engine with a
 smaller fixed cap.
+
+`getSupportedMaxLightsForActiveBackend()` currently has `#if`/backend scaffolding (DirectX 9, Metal,
+OpenGL ES, fallback) but every branch returns the same compiled `SUPPORTED_MAX_LIGHTS` constant today
+— there is no real per-backend cap differentiation yet, despite the function name suggesting
+backend-specific values. Backend-specific caps are a possible future change, not current behavior.
 
 The requested max light count is a per-target runtime selection limit, not a registration limit:
 
@@ -262,10 +297,25 @@ That matches `RENDERIZABLE::getBoundingAABB()`.
 The current nearest-light selection algorithm is:
 
 - derive an approximate object radius from the object AABB
-- scan the target point-light list
+- scan the target point-light list (or the legacy single slot as a fallback candidate when that list
+  is empty — see "Two Point-Light Storages" above)
 - discard lights whose `light.radius + objectRadius` does not reach the object center
-- sort remaining candidates by distance to the object center
+- sort remaining candidates by distance to the object center (ties broken by source index)
 - keep only the nearest validated `N` lights for that draw
+
+`mbm.getSelectedPointLights(target, objectCenter, objectBoundingAABB)` returns a 1-indexed Lua array.
+Each entry is a flattened table, not nested under a `pointLight` key:
+
+```lua
+{
+    sourceIndex = 1,             -- 1-based index into the point-light list (converted from the
+                                  -- internal 0-based index)
+    distanceToObjectCenter = 42.0,
+    position = { x = 0, y = 0, z = 0 },
+    radius = 300,
+    color = { r = 1, g = 0, b = 0, a = 1 },
+}
+```
 
 This means performance cost is primarily driven by:
 

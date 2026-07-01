@@ -636,6 +636,10 @@ namespace mbm
             const std::vector<LIGHT_POINT> &pointLights = DEVICE_LIGHT_ACCESS::getPointLights(device, target);
             if (pointLights.empty())
             {
+                // Fallback to the single legacy point-light slot (setPointLight/setPointLightPosition/
+                // setPointLightRadius/setPointLightColor) when addPointLight was never called for this target.
+                // Without this branch, a game that only ever used setPointLight would silently select zero
+                // lights here, since this function was originally list-only.
                 const LIGHT_STATE &lightState = DEVICE_LIGHT_ACCESS::getLightState(device, target);
                 LIGHT_POINT_SELECTION selection;
                 selection.pointLight.position = lightState.pointPosition;
