@@ -31,6 +31,7 @@
 namespace util
 {
     struct HEADER_ANIMATION;
+    enum TYPE_MESH : char;
 }
 
 namespace mbm
@@ -135,6 +136,18 @@ namespace mbm
         void clearBackup() noexcept;
     };
 
+    // Result of ANIMATION_MANAGER::populateAnimationsFromMesh - the caller (a concrete renderizable type's
+    // own load()/loadAsync()) decides what to do on failure, since releasing the renderizable itself
+    // on an animation failure requires calling that type's own release() override, which
+    // ANIMATION_MANAGER/RENDERIZABLE have no shared virtual hook for.
+    enum class MeshLoadFinishResult
+    {
+        OK,
+        TYPE_MISMATCH,    // mesh->release() already called internally; caller's own mesh pointer is
+                          // intentionally left as-is, matching this codebase's pre-existing behavior
+        ANIMATION_FAILED, // caller must call its own release()
+    };
+
     class ANIMATION_MANAGER
     {
       public:
@@ -143,6 +156,12 @@ namespace mbm
         API_IMPL void populateTextureAnimationEffectFromMesh(MESH_MBM *mesh);
         API_IMPL void populateTextureStage2FromMesh(MESH_MBM *mesh);
         API_IMPL bool populateAnimationFromHeader(MESH_MBM *mesh, util::HEADER_ANIMATION *header, const uint32_t index);
+        // Shared by MESH/SPRITE/TILE's load()/loadAsync(): optional type validation (skip by passing
+        // expectedType=nullptr, matching MESH's existing no-check behavior) + populating every
+        // animation header + the legacy TextureAnimationEffect population. Deliberately excludes
+        // setInternalFileName/restartAnimation/updateAABB/positioning - callers run those themselves,
+        // exactly where they already do today.
+        API_IMPL MeshLoadFinishResult populateAnimationsFromMesh(MESH_MBM *mesh, const util::TYPE_MESH *expectedType, const char *typeNameForError);
         API_IMPL ANIMATION *getAnimation() const;
         API_IMPL ANIMATION *getAnimation(const uint32_t index) const;
         API_IMPL uint32_t getTotalAnimation() const;

@@ -36,6 +36,7 @@ extern "C"
 #include <lua-wrap/render-table/texture-view-lua.h>
 #include <lua-wrap/render-table/particle-lua.h>
 #include <core_mbm/mesh-manager.h>
+#include <core_mbm/header-mesh-legacy-disk.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/shapes.h>
@@ -146,7 +147,7 @@ namespace mbm
 
         inline const char * getFileName()
         {
-            return this->mesh.fileName.c_str();
+            return this->mesh.getFilenameMesh();
         }
     };
 
@@ -173,7 +174,7 @@ namespace mbm
         else if(type == LUA_TSTRING)
         {
             const char *    fileName  = lua_tostring(lua, 2);
-            if (meshDebug->mesh.loadDebug(fileName))
+            if (meshDebug->mesh.loadV11(fileName))
                 lua_pushboolean(lua, 1);
             else
                 lua_pushboolean(lua, 0);
@@ -192,8 +193,9 @@ namespace mbm
         const char *    fileName      = luaL_checkstring(lua, 2);
         const bool      calNormal     = top > 2 ? (lua_toboolean(lua, 3) ? true : false) : false;
         const bool      calUV         = top > 3 ? (lua_toboolean(lua, 4) ? true : false) : false;
+        const bool      compress      = top > 4 ? (lua_toboolean(lua, 5) ? true : false) : false;
         char            strError[255] = "";
-        if (meshDebug->mesh.saveDebug(fileName, calNormal, calUV, strError,sizeof(strError)-1))
+        if (meshDebug->mesh.saveV11(fileName, calNormal, calUV, compress, strError,sizeof(strError)-1))
         {
             MESH_MANAGER::getInstance()->fakeRelease(fileName);
             lua_pushboolean(lua, 1);
@@ -382,7 +384,7 @@ namespace mbm
     int onSetPhysicsMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
-        return onSetPhysicsFromTableLuaToLineMesh(lua,&meshDebug->mesh.infoPhysics,nullptr);
+        return onSetPhysicsFromTableLuaToLineMesh(lua,&meshDebug->mesh.getPhysicsInfo(),nullptr);
     }
 
     int onGetPhysicsMeshDebugLua(lua_State *lua)
@@ -390,17 +392,17 @@ namespace mbm
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
         lua_settop(lua,0);
         lua_newtable(lua); // array
-        const unsigned int sCube = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsCube.size());
-        const unsigned int sTria = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsTriangle.size());
-        const unsigned int sSphe = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsSphere.size());
-        const unsigned int sComp = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsCubeComplex.size());
+        const unsigned int sCube = static_cast<unsigned int>(meshDebug->mesh.getPhysicsInfo().lsCube.size());
+        const unsigned int sTria = static_cast<unsigned int>(meshDebug->mesh.getPhysicsInfo().lsTriangle.size());
+        const unsigned int sSphe = static_cast<unsigned int>(meshDebug->mesh.getPhysicsInfo().lsSphere.size());
+        const unsigned int sComp = static_cast<unsigned int>(meshDebug->mesh.getPhysicsInfo().lsCubeComplex.size());
         int index_array = 1;
 
         if (sCube)
         {
             for (unsigned int i = 0; i < sCube; ++i)
             {
-                CUBE *base = meshDebug->mesh.infoPhysics.lsCube[i];
+                CUBE *base = meshDebug->mesh.getPhysicsInfo().lsCube[i];
                 lua_newtable(lua); // cube
                 lua_pushstring(lua, "cube");
                 lua_setfield(lua, -2, "type");
@@ -438,7 +440,7 @@ namespace mbm
                 lua_newtable(lua); // raw
                 lua_pushstring(lua, "triangle");
                 lua_setfield(lua, -2, "type");
-                TRIANGLE *triangle = meshDebug->mesh.infoPhysics.lsTriangle[i];
+                TRIANGLE *triangle = meshDebug->mesh.getPhysicsInfo().lsTriangle[i];
                 for (unsigned int j = 0; j < 3; ++j)
                 {
                     char c[2] = "a";
@@ -463,7 +465,7 @@ namespace mbm
         {
             for (unsigned int i = 0; i < sSphe; ++i)
             {
-                SPHERE *sphere = meshDebug->mesh.infoPhysics.lsSphere[i];
+                SPHERE *sphere = meshDebug->mesh.getPhysicsInfo().lsSphere[i];
                 lua_newtable(lua); // raw
                 lua_pushstring(lua, "sphere");
                 lua_setfield(lua, -2, "type");
@@ -492,7 +494,7 @@ namespace mbm
                 lua_newtable(lua); // raw
                 lua_pushstring(lua, "complex");
                 lua_setfield(lua, -2, "type");
-                CUBE_COMPLEX *complex = meshDebug->mesh.infoPhysics.lsCubeComplex[i];
+                CUBE_COMPLEX *complex = meshDebug->mesh.getPhysicsInfo().lsCubeComplex[i];
                 for (unsigned int j = 0; j < 8; ++j)
                 {
                     char c[2] = "a";
@@ -722,7 +724,7 @@ namespace mbm
     int onGetVersionMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        lua_pushinteger(lua, meshDebug->mesh.headerMain.version);
+        lua_pushinteger(lua, meshDebug->mesh.getFileVersion());
         return 1;
     }
 
@@ -777,7 +779,7 @@ namespace mbm
     int onGetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const util::MATERIAL &m = meshDebug->mesh.headerMesh.material;
+        const util::MATERIAL &m = meshDebug->mesh.getMaterial();
         lua_newtable(lua);
         lua_newtable(lua);
         lua_pushnumber(lua, m.Diffuse.r);
@@ -827,7 +829,7 @@ namespace mbm
     int onSetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        util::MATERIAL &m = meshDebug->mesh.headerMesh.material;
+        util::MATERIAL &m = meshDebug->mesh.getMaterial();
         luaL_checktype(lua, 2, LUA_TTABLE);
         auto getColor = [lua](const char *key, float *r, float *g, float *b, float *a) {
             *r = *g = *b = *a = 1.0f;
@@ -1407,6 +1409,32 @@ namespace mbm
                    static_cast<int>(meshDebug->mesh.getTotalFrames()), tSubset, indexFrame + 1, indexSubset + 1);
     }
 
+    int onGetFxTextureMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const auto      indexAnim = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *    fileName  = meshDebug->mesh.getAnimationEffectTexture(indexAnim);
+        if (fileName && fileName[0])
+            lua_pushstring(lua, fileName);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
+    int onSetFxTextureMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const auto      indexAnim = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *    fileName  = lua_type(lua, 3) == LUA_TSTRING ? luaL_checkstring(lua, 3) : nullptr;
+        const bool      ret       = meshDebug->mesh.setAnimationEffectTexture(indexAnim, fileName);
+        if (ret && fileName && strlen(fileName))
+            util::addPath(fileName);
+        if (!ret)
+            return lua_error_debug(lua, "invalid animation index [%u]", indexAnim + 1);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     int onAddFrameDebugLua(lua_State *lua)
     {
         const int          top       = lua_gettop(lua);
@@ -1565,7 +1593,7 @@ namespace mbm
     {
         MESH_DEBUG_LUA *meshDebug               = getMeshDebugFromRawTable(lua, 1, 1);
         const int       enable                  = lua_toboolean(lua, 2);
-        meshDebug->mesh.headerMesh.hasNorText[0] = enable ? HAS_NOR_IN_FILE : HAS_NOR_NO;
+        meshDebug->mesh.setHasNormal(enable ? HAS_NOR_IN_FILE : HAS_NOR_NO);
         return 0;
     }
 
@@ -1639,13 +1667,13 @@ namespace mbm
         if (enable)
         {
             if (enableFirstFrame)
-                meshDebug->mesh.headerMesh.hasNorText[1] = HAS_TEX_FIRST_FRAME;
+                meshDebug->mesh.setHasTexture(HAS_TEX_FIRST_FRAME);
             else
-                meshDebug->mesh.headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
+                meshDebug->mesh.setHasTexture(HAS_TEX_EACH_FRAME);
         }
         else
         {
-            meshDebug->mesh.headerMesh.hasNorText[1] = HAS_TEX_NO;
+            meshDebug->mesh.setHasTexture(HAS_TEX_NO);
         }
         return 0;
     }
@@ -1886,6 +1914,8 @@ namespace mbm
                                           {"setTexture", onSetTextureNameMeshDebugLua},
                                           {"getMaterialTexture", onGetMaterialTextureNameMeshDebugLua},
                                           {"setMaterialTexture", onSetMaterialTextureNameMeshDebugLua},
+                                          {"getFxTexture", onGetFxTextureMeshDebugLua},
+                                          {"setFxTexture", onSetFxTextureMeshDebugLua},
                                           {"addFrame", onAddFrameDebugLua},
                                           {"removeFrame", onRemoveFrameDebugLua},
                                           {"addSubSet", onAddSubsetDebugLua},

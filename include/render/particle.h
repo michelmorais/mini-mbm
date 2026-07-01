@@ -28,6 +28,7 @@
 #include <core_mbm/physics.h>
 #include <core_mbm/shader.h>
 #include <core_mbm/particle-control.h>
+#include <functional>
 
 namespace util
 {
@@ -44,6 +45,13 @@ namespace mbm
         API_IMPL void release();
         API_IMPL bool load(const char *fileNameTextureOrMesh, const char *operatorShader, const char *newCodeLine,
                   const uint32_t sizeOfParticle = 0, const bool initializeParticleData = true);
+        // Background-thread-friendly equivalent of load() (mesh-v11-plan.md milestone 22). Only the
+        // .ptl (mesh-based particle) path is genuinely deferred to a worker thread - a plain texture
+        // file has no async loading primitive anywhere in the engine, so that path still runs
+        // synchronously here, just within this same callback-shaped API (documented limitation, not
+        // a bug).
+        API_IMPL void loadAsync(const char *fileNameTextureOrMesh, const char *operatorShader, const char *newCodeLine,
+                  const uint32_t sizeOfParticle, const bool initializeParticleData, std::function<void(bool success)> callback);
         API_IMPL bool addParticle(const uint32_t numParticles,const bool forceNow);
         API_IMPL uint32_t getTotalParticleAlive() const;
         API_IMPL uint32_t getTotalParticle() const;
@@ -70,6 +78,11 @@ namespace mbm
         bool renderParticle(const util::STAGE_PARTICLE * sPart);
         bool loadParticleShader(const char *operatorShader, const char *newCodeLine);
         bool createAnimationAndShader2Particle(const char *operatorShader, const char *newCodeLine);
+        // Shared tail of load()/loadAsync() once `this->texture` is settled (either from a .ptl
+        // mesh's first subset texture, or resolved fresh here for a plain texture file): final
+        // texture fallback, buffer/stage initialization, internal filename bookkeeping.
+        bool finalizeParticleLoad(const char *fileNameTextureOrMesh, const char *operatorShader, const char *newCodeLine,
+                  const unsigned int totalParticleToLoad, const unsigned int sizeOfParticle, const bool initializeParticleData);
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;

@@ -761,11 +761,11 @@ mbm.addShader(tShader)
 
 | GLSL ES | HLSL |
 |---|---|
-| `uniform sampler2D sample0;` | `sampler2D sample0 : register(s0);` |
+| `uniform sampler2D TextureDiffuse;` | `sampler2D TextureDiffuse : register(s0);` |
 | `uniform float x;` | `float x;` (global) |
 | `uniform vec2 v;` | `float2 v;` (global) |
 | `varying vec2 vTexCoord` | `float2 vTexCoord : TEXCOORD0;` in `PS_INPUT` struct |
-| `texture2D(sample0, uv)` | `tex2D(sample0, uv)` |
+| `texture2D(TextureDiffuse, uv)` | `tex2D(TextureDiffuse, uv)` |
 | `gl_FragColor = color;` | `return color;` with `: COLOR0` return semantic |
 | `vec2`, `vec4` | `float2`, `float4` |
 | `void main()` | `float4 main(PS_INPUT input) : COLOR0` |
@@ -773,7 +773,7 @@ mbm.addShader(tShader)
 Full HLSL skeleton:
 
 ```hlsl
-sampler2D sample0 : register(s0);
+sampler2D TextureDiffuse : register(s0);
 float     myUniform;
 float2    myVec;
 
@@ -781,7 +781,7 @@ struct PS_INPUT { float2 vTexCoord : TEXCOORD0; };
 
 float4 main(PS_INPUT input) : COLOR0
 {
-    float4 color = tex2D(sample0, input.vTexCoord);
+    float4 color = tex2D(TextureDiffuse, input.vTexCoord);
     // ... logic ...
     return color;
 }
@@ -835,17 +835,17 @@ Example — `var = {ray={0.1}, center={0,0}, size_screen={w,h}}` is sorted as:
 #### Texture sampling
 
 ```metal
-texture2d<float> sample0 [[texture(0)]],
+texture2d<float> TextureDiffuse [[texture(0)]],
 sampler          samp    [[sampler(0)]]
 // usage:
-float4 color = sample0.sample(samp, in.uv);
+float4 color = TextureDiffuse.sample(samp, in.uv);
 ```
 
 #### Full MSL skeleton (fragment function only)
 
 ```metal
 fragment float4 frag_main(VOut in [[stage_in]],
-    texture2d<float> sample0 [[texture(0)]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
@@ -855,7 +855,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
     // float  ray         = f[2];
     // float2 size_screen = float2(f[3], f[4]);
 
-    float4 color = sample0.sample(samp, vTexCoord);
+    float4 color = TextureDiffuse.sample(samp, vTexCoord);
     // ... logic ...
     return color;
 }

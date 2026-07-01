@@ -121,6 +121,113 @@ namespace mbm
             ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
             return false;
         }
+        return this->finalizeParticleLoad(fileNameTextureOrMesh, operatorShader, newCodeLine, totalParticleToLoad, sizeOfParticle, initializeParticleData);
+    }
+
+    void PARTICLE::loadAsync(const char* fileNameTextureOrMesh, const char* operatorShader, const char* newCodeLine,
+              const uint32_t sizeOfParticle, const bool initializeParticleData, std::function<void(bool success)> callback)
+    {
+        this->release();
+        const unsigned int totalParticleToLoad = sizeOfParticle ? sizeOfParticle : 1;
+        this->texture = nullptr;
+
+        if (bufferGl.loadParticleBuffer() == false)
+        {
+            if (callback)
+                callback(false);
+            return;
+        }
+        if (fileNameTextureOrMesh == nullptr)
+        {
+            this->texture = TEXTURE_MANAGER::getInstance()->load(&resource_particle);
+            if (this->texture)
+            {
+                fileNameTextureOrMesh = nickNameImageFromResource_particle;
+            }
+            else
+            {
+                ERROR_LOG("Could not load [%s]!", nickNameImageFromResource_particle);
+                if (callback)
+                    callback(false);
+                return;
+            }
+        }
+        operatorShader = operatorShader ? operatorShader : "*";
+        const size_t lFile = strlen(fileNameTextureOrMesh);
+        if (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0)//is particle from mesh - the only genuinely backgroundable branch
+        {
+            const std::string fileNameCopy(fileNameTextureOrMesh);
+            const std::string operatorShaderCopy(operatorShader);
+            const std::string newCodeLineCopy(newCodeLine ? newCodeLine : "");
+            MESH_MANAGER::getInstance()->loadAsync(fileNameTextureOrMesh, [this, fileNameCopy, operatorShaderCopy, newCodeLineCopy,
+                      totalParticleToLoad, sizeOfParticle, initializeParticleData, callback](MESH_MBM *mesh, bool ok)
+            {
+                if (!ok || mesh == nullptr)
+                {
+                    if (callback)
+                        callback(false);
+                    return;
+                }
+                this->texture = mesh->getTexture(0, 0);
+                const auto lsParticleInfo = mesh->getInfoParticle();
+                if (lsParticleInfo == nullptr)
+                {
+                    ERROR_LOG("type of file is not particle!\ntype: %s", MESH_MANAGER::typeClassName(mesh->getTypeMesh()));
+                    if (callback)
+                        callback(false);
+                    return;
+                }
+                char newOperator[2] = { '*',0 };
+                for (auto& i : *lsParticleInfo)
+                {
+                    if (control.addStageFromOther(i) == 1) // first
+                    {
+                        newOperator[0] = i->_operator;
+                    }
+                }
+                if (!this->createAnimationAndShader2Particle(newOperator, newCodeLineCopy.c_str()))
+                {
+                    ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
+                    if (callback)
+                        callback(false);
+                    return;
+                }
+                ANIMATION* anim = this->getAnimation();
+                const util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->getAnimationHeader(0);
+                if (anim && mesh->getTotalAnimations() && infoHead && infoHead->headerAnim)
+                {
+                    anim->setBlendState(static_cast<BLEND_STATE>(infoHead->headerAnim->blendState));
+                    if (infoHead->effectShader)
+                    {
+                        FX &fx = anim->getFx();
+                        fx.blendOperation = infoHead->effectShader->blendOperation;
+                    }
+                }
+                const bool ok2 = this->finalizeParticleLoad(fileNameCopy.c_str(), operatorShaderCopy.c_str(), newCodeLineCopy.c_str(),
+                          totalParticleToLoad, sizeOfParticle, initializeParticleData);
+                if (callback)
+                    callback(ok2);
+            });
+            return;
+        }
+        // Plain texture file: no async loading primitive exists for TEXTURE_MANAGER anywhere in the
+        // engine, so this branch stays synchronous - same work as load(), just reached through this
+        // callback-shaped API for a uniform call site.
+        if (!this->createAnimationAndShader2Particle(operatorShader, newCodeLine))
+        {
+            ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
+            if (callback)
+                callback(false);
+            return;
+        }
+        const bool ok = this->finalizeParticleLoad(fileNameTextureOrMesh, operatorShader, newCodeLine, totalParticleToLoad, sizeOfParticle, initializeParticleData);
+        if (callback)
+            callback(ok);
+    }
+
+    bool PARTICLE::finalizeParticleLoad(const char *fileNameTextureOrMesh, const char *operatorShader, const char *newCodeLine,
+              const unsigned int totalParticleToLoad, const unsigned int sizeOfParticle, const bool initializeParticleData)
+    {
         if (this->texture == nullptr)
             this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTextureOrMesh, true);
         if (this->texture)
@@ -162,6 +269,7 @@ namespace mbm
             this->setEnableRender(true);
             this->setAlwaysRenderize(true);
             // Only start with 0 alive when loading texture (not .ptl) without particle count - particles arise over time
+            const size_t lFile = strlen(fileNameTextureOrMesh);
             const bool isPtlFile = (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0);
             if (sizeOfParticle == 0 && !isPtlFile)
                 this->control.setTotalAlive(0);

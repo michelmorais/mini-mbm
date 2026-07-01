@@ -25,8 +25,10 @@
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/blend.h>
 #include <core_mbm/scene.h>
+#include <core_mbm/texture-manager.h>
+#include <platform/mismatch-platform.h>
 
-extern "C" 
+extern "C"
 {
     #include <lua.h>
     #include <lauxlib.h>
@@ -278,6 +280,117 @@ namespace mbm
             "[red color (0-1)], [green color (0-1)], [blue color (0-1)], [alpha color (0-1)]\n"
             );
         }
+        return 1;
+    }
+
+    static bool parseTextureRole(lua_State *lua, const int indexArg, TEXTURE_ROLE &outRole)
+    {
+        if (lua_type(lua, indexArg) == LUA_TSTRING)
+        {
+            const char *roleName = lua_tostring(lua, indexArg);
+            if (strcasecmp(roleName, "diffuse") == 0 || strcasecmp(roleName, "primary") == 0)
+                outRole = TEXTURE_ROLE_DIFFUSE;
+            else if (strcasecmp(roleName, "fx") == 0 || strcasecmp(roleName, "animation_effect") == 0)
+                outRole = TEXTURE_ROLE_ANIMATION_EFFECT;
+            else if (strcasecmp(roleName, "normal") == 0)
+                outRole = TEXTURE_ROLE_NORMAL;
+            else if (strcasecmp(roleName, "specular") == 0)
+                outRole = TEXTURE_ROLE_SPECULAR;
+            else if (strcasecmp(roleName, "emissive") == 0)
+                outRole = TEXTURE_ROLE_EMISSIVE;
+            else if (strcasecmp(roleName, "mask") == 0)
+                outRole = TEXTURE_ROLE_MASK;
+            else
+                return false;
+            return true;
+        }
+        if (lua_type(lua, indexArg) == LUA_TNUMBER)
+        {
+            const int roleNumber = static_cast<int>(luaL_checkinteger(lua, indexArg));
+            if (roleNumber < TEXTURE_ROLE_DIFFUSE || roleNumber > TEXTURE_ROLE_MASK)
+                return false;
+            outRole = static_cast<TEXTURE_ROLE>(roleNumber);
+            return true;
+        }
+        return false;
+    }
+
+    int onSetMaterialTextureAnimationLua(lua_State *lua)
+    {
+        const int          top          = lua_gettop(lua);
+        RENDERIZABLE *     renderizable = nullptr;
+        ANIMATION_MANAGER *animations   = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
+        TEXTURE_ROLE       role         = TEXTURE_ROLE_DIFFUSE;
+        if (!parseTextureRole(lua, 2, role))
+            return lua_error_debug(lua, "Expected texture role [diffuse|normal|specular|emissive|mask|fx]");
+        const char *fileNameTexture = luaL_checkstring(lua, 3);
+        const bool     alpha        = top >= 4 ? (lua_toboolean(lua, 4) ? true : false) : true;
+        ANIMATION *anim             = animations->getAnimation(); //-V522
+        if (role == TEXTURE_ROLE_ANIMATION_EFFECT)
+        {
+            // FX is one shared texture per *animation* (mbm::FX::textureAnimationEffect), refreshed
+            // into BUFFER_GL's per-stage texture map every draw call (FX::bindTextureAnimationEffect) -
+            // writing straight to that map here would just get overwritten on the next frame.
+            if (anim == nullptr)
+            {
+                lua_pushboolean(lua, 0);
+                return 1;
+            }
+            if (fileNameTexture[0] == 0)
+            {
+                anim->getFx().textureAnimationEffect = nullptr;
+            }
+            else
+            {
+                TEXTURE *newTex = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, alpha);
+                if (newTex == nullptr)
+                {
+                    lua_pushboolean(lua, 0);
+                    return 1;
+                }
+                anim->getFx().textureAnimationEffect = newTex;
+            }
+            lua_pushboolean(lua, 1);
+            return 1;
+        }
+        const uint32_t subset = top >= 5 ? static_cast<uint32_t>(luaL_checkinteger(lua, 5) - 1) : 0;
+        const int      curFrame = anim ? anim->getIndexCurrentFrame() : 0;
+        const uint32_t frame    = top >= 6 ? static_cast<uint32_t>(luaL_checkinteger(lua, 6) - 1)
+                                           : static_cast<uint32_t>(curFrame < 0 ? 0 : curFrame);
+        const MESH_MBM *mesh        = renderizable->getMesh();
+        const bool      ret         = mesh && mesh->setMaterialTexture(frame, subset, role, fileNameTexture, alpha);
+        lua_pushboolean(lua, ret ? 1 : 0);
+        return 1;
+    }
+
+    int onGetMaterialTextureAnimationLua(lua_State *lua)
+    {
+        const int          top          = lua_gettop(lua);
+        RENDERIZABLE *     renderizable = nullptr;
+        ANIMATION_MANAGER *animations   = getAnimationManagerFromRawTable(lua, 1, 1, &renderizable);
+        TEXTURE_ROLE       role         = TEXTURE_ROLE_DIFFUSE;
+        if (!parseTextureRole(lua, 2, role))
+            return lua_error_debug(lua, "Expected texture role [diffuse|normal|specular|emissive|mask|fx]");
+        ANIMATION *anim = animations->getAnimation(); //-V522
+        if (role == TEXTURE_ROLE_ANIMATION_EFFECT)
+        {
+            const TEXTURE *tex = anim ? anim->getFx().textureAnimationEffect : nullptr;
+            if (tex)
+                lua_pushstring(lua, tex->getFileNameTexture());
+            else
+                lua_pushnil(lua);
+            return 1;
+        }
+        const uint32_t subset    = top >= 3 ? static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1) : 0;
+        const int      curFrame  = anim ? anim->getIndexCurrentFrame() : 0;
+        const uint32_t frame     = top >= 4 ? static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1)
+                                            : static_cast<uint32_t>(curFrame < 0 ? 0 : curFrame);
+        const MESH_MBM *mesh     = renderizable->getMesh();
+        const TEXTURE * tex      = mesh ? mesh->getMaterialTexture(frame, subset, role) : nullptr;
+        if (tex)
+            lua_pushstring(lua, tex->getFileNameTexture());
+        else
+            lua_pushnil(lua);
         return 1;
     }
 

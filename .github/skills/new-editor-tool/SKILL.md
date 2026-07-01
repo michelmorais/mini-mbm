@@ -624,11 +624,11 @@ local ok = mbm.addShader({
     name = "my_effect.ps",
     code = [[
         precision mediump float;
-        uniform sampler2D sample0;
+        uniform sampler2D TextureDiffuse;
         uniform float my_param;
         varying vec2 vTexCoord;
         void main() {
-            vec4 c = texture2D(sample0, vTexCoord);
+            vec4 c = texture2D(TextureDiffuse, vTexCoord);
             gl_FragColor = c * my_param;
         }
     ]],

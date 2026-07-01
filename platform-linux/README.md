@@ -45,7 +45,6 @@ mkdir -p build && cd build
 cmake .. \
     -DPLAT=Linux \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=portaudio \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
@@ -63,7 +62,6 @@ mkdir -p build/linux_release && cd build/linux_release
 cmake ../.. \
     -DPLAT=Linux \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=portaudio \
     -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
@@ -201,7 +199,6 @@ cmake ~/mini-mbm \
     -DPLAT=Linux \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=portaudio \
     -DCMAKE_BUILD_TYPE=Release \
     -DGAME_ASSETS_PASSWORD="HardP4sS33o0d" \

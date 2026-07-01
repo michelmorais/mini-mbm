@@ -210,7 +210,6 @@ mkdir -p build/ios && cd build/ios
 cmake ../.. \
     -DPLAT=iOS \
     -DUSE_LUA=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=avfoundation \
     -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
     -DGAME_NAME="My Game" \
@@ -223,7 +222,7 @@ make -j$(sysctl -n hw.logicalcpu)
 ```bash
 mkdir -p build/ios_xcode && cd build/ios_xcode
 cmake ../.. \
-    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DPLAT=iOS -DUSE_LUA=1 \
     -DAUDIO=avfoundation \
     -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
     -DGAME_NAME="My Game" \
@@ -817,8 +816,7 @@ cmake ../.. \
   -DANDROID_NATIVE_API_LEVEL=24 \
   -DCMAKE_BUILD_TYPE=Release \
   -DUSE_LUA=1 \
-  -DUSE_ALL=1 \
-  -DMBM_ENABLE_MESH_LEGACY_V7=1
+  -DUSE_ALL=1
 ```
 
 CMake prints the project location at the end of configure — open it in Android Studio or
@@ -848,7 +846,7 @@ Example for a separate game project:
 cmake ~/mini-mbm \
   -DPLAT=Android \
   -DANDROID_ABI=arm64-v8a -DANDROID_NATIVE_API_LEVEL=24 \
-  -DUSE_LUA=1 -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+  -DUSE_LUA=1 -DUSE_ALL=1 \
   -DGAME_PACKAGE=com.example.tower_defense \
   -DGAME_NAME="Tower Defense" \
   -DGAME_APP_DIR=~/tower-defense-android \
@@ -893,7 +891,7 @@ Run this once from the repo root:
 
 ```bash
 mkdir -p build && cd build
-cmake .. -DPLAT=iOS -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=avfoundation -DCMAKE_BUILD_TYPE=Debug  -G Xcode
+cmake .. -DPLAT=iOS -DUSE_ALL=1 -DAUDIO=avfoundation -DCMAKE_BUILD_TYPE=Debug  -G Xcode
 ```
 
 This writes the Xcode project to `build/<GAME_NAME>.xcodeproj` (or `build/mini-mbm.xcodeproj` if `-DGAME_NAME` is not set).
@@ -981,7 +979,6 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_STEAM=1` | `OFF` | Steamworks Lua plugin; requires `STEAMWORKS_SDK_PATH` and is not supported on Android/iOS |
 | `-DSTEAMWORKS_SDK_PATH=` | _(empty)_ | Path to a local Steamworks SDK when `USE_STEAM=1` |
 | `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux/Windows default), `opensl` (Android), or `none` |
-| `-DMBM_ENABLE_MESH_LEGACY_V7=1` | `OFF` | Compatibility for legacy mesh files (version ≤ 7) |
 | `-DGAME_NAME=` | `mini-mbm` | Per-game display/project name for generated delivery projects |
 | `-DGAME_ASSETS_DIR=` | _(empty)_ | Bundle/package assets for Android, iOS, Linux AppDir/AppImage, and Windows MinGW delivery builds |
 | `-DGAME_ICON_PNG=` | _(empty)_ | Optional per-game icon source for Android, iOS, Linux, and Windows delivery paths |

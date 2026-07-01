@@ -1391,14 +1391,6 @@ namespace mbm
             {
                 lua_pushboolean(lua,1);
             }
-            else if (strcasecmp(what, "MBM_ENABLE_MESH_LEGACY_V7") == 0 || strcasecmp(what, "USE_DEPRECATED_2_MINOR") == 0)
-            {
-                #ifdef MBM_ENABLE_MESH_LEGACY_V7
-                    lua_pushboolean(lua,1);
-                #else
-                    lua_pushboolean(lua,0);
-                #endif
-            }
             else if (strcasecmp(what, "USE_VR") == 0)
             {
                 #ifdef USE_VR

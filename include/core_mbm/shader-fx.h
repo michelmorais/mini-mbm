@@ -41,8 +41,8 @@ namespace mbm
 	    API_IMPL DEFAULT_SHADER_MODE getDefaultShaderModeForRenderizable(const RENDERIZABLE *renderizable) noexcept;
         API_IMPL void bindTextureAnimationEffect(BUFFER_GL *buffer, TEXTURE *textureAnimationEffect) noexcept;
 
-	    class FX
-	    {
+    class FX
+    {
       public:
         API_IMPL FX() noexcept;
         API_IMPL virtual ~FX();
@@ -72,21 +72,17 @@ namespace mbm
         API_IMPL bool setTimeVS(float time);
         API_IMPL float getTimePS();
         API_IMPL float getTimeVS();
+        API_IMPL void setBlendDefaultOp();
+        API_IMPL void setBlendOp();
+        API_IMPL void bindTextureAnimationEffect(BUFFER_GL *buffer) const noexcept;
 
         EFFECT_SHADER* fxPS;//pixel shader
         EFFECT_SHADER* fxVS;//vertex shader
         SHADER        shader;
-        union
-        {
-            TEXTURE *textureAnimationEffect;
-            TEXTURE *textureOverrideStage2; // Legacy alias kept for compatibility.
-        };
+        TEXTURE       *textureAnimationEffect;
         int           blendOperation;
-	        DEFAULT_SHADER_MODE defaultShaderMode;
-	        API_IMPL void setBlendDefaultOp();
-	        API_IMPL void setBlendOp();
-            API_IMPL void bindTextureAnimationEffect(BUFFER_GL *buffer) const noexcept;
-	    };
-	}
+	    DEFAULT_SHADER_MODE defaultShaderMode;
+    };
+}
 
 #endif

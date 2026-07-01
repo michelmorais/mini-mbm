@@ -44,39 +44,6 @@ namespace util
         return x;
     }
 
-    HEADER::HEADER() noexcept
-    {
-        strncpy(name, "mbm",sizeof(name)-1);
-        strncpy(typeApp, "unknown",sizeof(typeApp)-1);
-        version          = CURRENT_VERSION_MBM_HEADER;
-        reserved         = 0;
-        extraHeader      = 0;
-        magic            = 0x010203ff;
-        backBufferWidth  = 0;
-        backBufferHeight = 0;
-    }
-    
-    HEADER::HEADER(const char *nameApp, const int32_t versionNumber)noexcept
-    {
-        strncpy(name, "mbm",sizeof(name)-1);
-        if (nameApp)
-            strncpy(typeApp, nameApp,sizeof(typeApp)-1);
-        else
-            strncpy(typeApp, "unknown",sizeof(typeApp)-1);
-        version          = versionNumber;
-        reserved         = 0;
-        extraHeader      = 0;
-        magic            = 0x010203ff;
-        backBufferWidth  = 0;
-        backBufferHeight = 0;
-    }
-
-    EXTRA_HEADER::EXTRA_HEADER() noexcept
-    {
-        type = 0; // 0 = None
-        sizeExtraHeader = 0; // Tamanho do header extra (em bytes) logo apos este frame
-	}
-
 	INFO_DRAW_MODE::INFO_DRAW_MODE()noexcept:
             mode_draw(util::MODE_DRAW_TRIANGLES),
             mode_cull_face(util::CULL_BACK),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK
@@ -609,5 +576,141 @@ namespace util
         DYNAMIC_SHAPE::DYNAMIC_SHAPE(float * vertex,float * normal, float *uv, const unsigned int sv, const unsigned int sn, const unsigned int suv)noexcept:
           dynamicVertex(vertex),dynamicNormal(normal),dynamicUV(uv),size_vertex(sv),size_normal(sn),size_uv(suv)
         {}
+
+    FILE_HEADER_V11::FILE_HEADER_V11() noexcept
+    {
+        std::memcpy(magic, MBM_V11_MAGIC, sizeof(magic));
+        formatVersion    = MBM_V11_FORMAT_VERSION;
+        typeMesh         = 0;
+        reserved0        = 0;
+        backBufferWidth  = 0;
+        backBufferHeight = 0;
+        sectionCount     = 0;
+    }
+
+    SECTION_HEADER_V11::SECTION_HEADER_V11() noexcept
+    {
+        type               = 0;
+        sectionVersion     = 0;
+        compression        = SECTION_COMPRESSION_NONE;
+        reserved1[0] = reserved1[1] = reserved1[2] = 0;
+        uncompressedLength = 0;
+        compressedLength   = 0;
+        crc32Value         = 0;
+    }
+
+    FRAME_HEADER_V11::FRAME_HEADER_V11() noexcept
+    {
+        totalSubset = 0;
+        vertexCount = 0;
+        indexWidth  = 16;
+        hasNormal   = 0;
+        hasUv       = 0;
+        uvSource    = 0;
+        indexCount  = 0;
+    }
+
+    TEXTURE_REF_V11::TEXTURE_REF_V11() noexcept
+    {
+        storage = TEXTURE_REF_STORAGE_PATH;
+    }
+
+    SUBSET_DESC_V11::SUBSET_DESC_V11() noexcept
+    {
+        vertexCount = 0;
+        vertexStart = 0;
+        indexStart  = 0;
+        indexCount  = 0;
+        alphaColor[0] = alphaColor[1] = alphaColor[2] = alphaColor[3] = 0;
+        extraSlotCount = 0;
+    }
+
+    SUBSET_EXTRA_SLOT_V11::SUBSET_EXTRA_SLOT_V11() noexcept
+    {
+        role = 0;
+    }
+
+    MATERIAL_TRANSFORM_V11::MATERIAL_TRANSFORM_V11() noexcept
+    {
+        angleX = angleY = angleZ = 0.0f;
+        posX = posY = posZ = 0.0f;
+        mode_draw = 0;
+        mode_cull_face = 0;
+        mode_front_face_direction = 0;
+    }
+
+    SHADER_VAR_V11::SHADER_VAR_V11() noexcept
+    {
+        typeVar = 0;
+        min[0] = min[1] = min[2] = min[3] = 0.0f;
+        max[0] = max[1] = max[2] = max[3] = 0.0f;
+    }
+
+    SHADER_STEP_V11::SHADER_STEP_V11() noexcept
+    {
+        timeAnimation = 0.0f;
+        typeAnimation = 0;
+        varCount      = 0;
+    }
+
+    FX_HEADER_V11::FX_HEADER_V11() noexcept
+    {
+        blendOperation = 1;
+        hasFxTexture   = 0;
+        hasPS          = 0;
+        hasVS          = 0;
+    }
+
+    ANIMATION_HEADER_V11::ANIMATION_HEADER_V11() noexcept
+    {
+        initialFrame     = 0;
+        finalFrame       = 0;
+        timeBetweenFrame = 0.0f;
+        typeAnimation    = 0;
+        blendState       = 0;
+        hasFx            = 0;
+    }
+
+    FONT_DETAIL_HEADER_V11::FONT_DETAIL_HEADER_V11() noexcept
+    {
+        spaceXCharacter = 0;
+        spaceYCharacter = 0;
+        heightLetter    = 0;
+        letterCount     = 0;
+    }
+
+    TILE_HEADER_MAP_V11::TILE_HEADER_MAP_V11() noexcept
+    {
+        count_width_tile           = 0;
+        count_height_tile          = 0;
+        size_width_tile            = 0;
+        size_height_tile           = 0;
+        layerCount                 = 0;
+        countRawTiles              = 0;
+        objectCount                = 0;
+        propertyCount              = 0;
+        typeMap                    = 0;
+        background                 = 0;
+        renderDirectionLeftToRight = 0;
+        renderDirectionTopToDown   = 0;
+    }
+
+    TILE_LAYER_HEADER_V11::TILE_LAYER_HEADER_V11() noexcept
+    {
+        offsetX = 0;
+        offsetY = 0;
+        offsetZ = 0;
+    }
+
+    TILE_OBJ_HEADER_V11::TILE_OBJ_HEADER_V11() noexcept
+    {
+        type       = 0;
+        pointCount = 0;
+    }
+
+    TILE_PROPERTY_V11::TILE_PROPERTY_V11() noexcept
+    {
+        type = 0;
+    }
 
 }

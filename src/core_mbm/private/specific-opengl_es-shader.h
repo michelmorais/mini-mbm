@@ -34,6 +34,9 @@ namespace mbm
         GLint samplerHandle0;
         GLint samplerHandle1;
         GLint samplerHandle2;
+        GLint samplerHandle3;
+        GLint samplerHandle4;
+        GLint samplerHandle5;
 
         GLuint programObject;
 

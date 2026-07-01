@@ -18,9 +18,10 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#ifdef MBM_ENABLE_MESH_LEGACY_V7
+// Moved here verbatim from core_mbm in milestone 5 (was gated behind MBM_ENABLE_MESH_LEGACY_V7,
+// which no longer exists - mesh_deprecated is itself the dedicated legacy-format-support target).
 
-#include <deprecated.h>
+#include "deprecated.h"
 #include <renderizable.h>
 #include <header-mesh.h>
 #include <cstring>
@@ -955,4 +956,3 @@ namespace deprecated_mbm
         return true;
     }
 };
-#endif

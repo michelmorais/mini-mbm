@@ -1201,6 +1201,32 @@ namespace mbm
         return true;
     }
 
+    MeshLoadFinishResult ANIMATION_MANAGER::populateAnimationsFromMesh(MESH_MBM *mesh, const util::TYPE_MESH *expectedType, const char *typeNameForError)
+    {
+        if (expectedType)
+        {
+            const util::TYPE_MESH type = mesh->getTypeMesh();
+            if (type != *expectedType)
+            {
+                mesh->release();
+                ERROR_LOG( "type of file is not %s!\ntype: %s", typeNameForError, MESH_MANAGER::typeClassName(type));
+                return MeshLoadFinishResult::TYPE_MISMATCH;
+            }
+        }
+        const uint32_t totalAnimations = mesh->getTotalAnimations();
+        for (uint32_t i = 0; i < totalAnimations; ++i)
+        {
+            util::INFO_ANIMATION::INFO_HEADER_ANIM *header = mesh->getAnimationHeader(i);
+            if (!this->populateAnimationFromHeader(mesh, header->headerAnim, i))
+            {
+                ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
+                return MeshLoadFinishResult::ANIMATION_FAILED;
+            }
+        }
+        this->populateTextureAnimationEffectFromMesh(mesh);
+        return MeshLoadFinishResult::OK;
+    }
+
     ANIMATION * ANIMATION_MANAGER::getAnimation() const
     {
         const uint32_t indexAnimation = this->getIndexAnimation();

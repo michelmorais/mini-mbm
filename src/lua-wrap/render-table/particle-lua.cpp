@@ -421,6 +421,62 @@ namespace mbm
         return 1;
     }
 
+    // Background-thread-friendly equivalent of "load" (mesh-v11-plan.md milestone 22). Only a .ptl
+    // (mesh-based particle) fileName is genuinely deferred to a worker thread - a plain texture file
+    // has no async loading primitive anywhere in the engine, so that path still runs synchronously
+    // here, just within this same callback-shaped API. The callback is always the LAST argument,
+    // regardless of how many of the optional middle args (numParticle/operatorShader/newCodeLine)
+    // are also passed - same positional-optional parsing as onLoadParticleLua, just computed against
+    // (top-1) instead of top, since the trailing slot is always the callback here.
+    namespace
+    {
+        struct AsyncLoadCtxParticle
+        {
+            lua_State *lua;
+            int        refCallback;
+            int        refSelf;
+        };
+    }
+
+    int onLoadAsyncParticleLua(lua_State *lua)
+    {
+        const int top = lua_gettop(lua);
+        if (lua_type(lua, top) != LUA_TFUNCTION)
+            return lua_error_debug(lua, "expected [function] as the last argument (callback) for loadAsync");
+        const int          effectiveTop   = top - 1;
+        PARTICLE *         particle       = getParticleFromRawTable(lua, 1, 1);
+        const char *       fileName       = lua_type(lua, 2) == LUA_TNIL ? nullptr : luaL_checkstring(lua, 2);
+        const unsigned int numParticle    = effectiveTop >= 3 ? luaL_checkinteger(lua, 3) : 0;
+        const char *       operatorShader = effectiveTop >= 4 && lua_type(lua,4) == LUA_TSTRING ? lua_tostring(lua, 4) : "*";
+        const char *       newCodeLine    = effectiveTop >= 5 && lua_type(lua,5) == LUA_TSTRING ? lua_tostring(lua, 5) : nullptr;
+        auto *ctx        = new AsyncLoadCtxParticle();
+        ctx->lua         = lua;
+        lua_pushvalue(lua, top);
+        ctx->refCallback = luaL_ref(lua, LUA_REGISTRYINDEX);
+        lua_pushvalue(lua, 1);
+        ctx->refSelf     = luaL_ref(lua, LUA_REGISTRYINDEX);
+        particle->loadAsync(fileName, operatorShader, newCodeLine, numParticle, true, [ctx](bool success)
+        {
+            lua_State *lua = ctx->lua;
+            lua_rawgeti(lua, LUA_REGISTRYINDEX, ctx->refCallback);
+            if (lua_isfunction(lua, -1))
+            {
+                lua_rawgeti(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+                lua_pushboolean(lua, success);
+                if (lua_pcall(lua, 2, 0, 0))
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+            }
+            else
+            {
+                lua_pop(lua, 1);
+            }
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refCallback);
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+            delete ctx;
+        });
+        return 0;
+    }
+
     static bool setVec3ToMemberParticle(lua_State* lua,const int top, VEC3* member,VEC3* min_value,VEC3* max_value)
     {
         int index_table = 0;
@@ -1166,6 +1222,7 @@ namespace mbm
 		
 		//table
 		luaL_Reg  regParticleMethods[] = {{"load", onLoadParticleLua},
+                                         {"loadAsync", onLoadAsyncParticleLua},
                                          {"add", onAddParticleLua},
                                          {"setMinOffset", onSetMinOffsetParticle},
                                          {"setMaxOffset", onSetMaxOffsetParticle},
@@ -1252,6 +1309,7 @@ namespace mbm
     {
         const int top                  = lua_gettop(lua);
         luaL_Reg  regParticleMethods[] = {{"load", onLoadParticleLua},
+                                         {"loadAsync", onLoadAsyncParticleLua},
                                          {"add", onAddParticleLua},
                                          {"setMinOffset", onSetMinOffsetParticle},
                                          {"setMaxOffset", onSetMaxOffsetParticle},

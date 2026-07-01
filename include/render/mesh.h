@@ -28,6 +28,7 @@
 #include <core_mbm/renderizable.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
+#include <functional>
 
 namespace mbm
 {
@@ -39,6 +40,11 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL virtual ~MESH();
     API_IMPL void release();
     API_IMPL bool load(const char *fileName);
+    // Background-thread-friendly equivalent of load() (mesh-v11-plan.md milestone 22): does the
+    // file I/O + v11 parsing on a worker thread (MESH_MANAGER::loadAsync), runs the exact same
+    // finish logic load() runs, then invokes callback(success) - always from pumpAsyncLoads() on
+    // the main thread, never inline, matching MESH_MANAGER::loadAsync's own contract.
+    API_IMPL void loadAsync(const char *fileName, std::function<void(bool success)> callback);
     API_IMPL const char *getFileName() const;
     API_IMPL FX*  getFx() const override;
 	  API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;

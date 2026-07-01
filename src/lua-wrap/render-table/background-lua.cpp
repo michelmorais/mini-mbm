@@ -124,6 +124,59 @@ namespace mbm
         return 1;
     }
 
+    // Background-thread-friendly equivalent of the plain-load branch of "load" (mesh-v11-plan.md
+    // milestone 22) - does not cover the loadFont(...) variant (see header comment on
+    // BACKGROUND::loadAsync). Only the mesh-file path is genuinely deferred to a worker thread; the
+    // texture path stays synchronous within this same callback-shaped API (no TEXTURE_MANAGER async
+    // primitive exists anywhere in the engine). The callback is always the LAST argument, same
+    // effectiveTop trick as onLoadAsyncParticleLua, since the optional hasAlpha arg can be omitted.
+    namespace
+    {
+        struct AsyncLoadCtxBackGround
+        {
+            lua_State *lua;
+            int        refCallback;
+            int        refSelf;
+        };
+    }
+
+    int onLoadAsyncBackGroundLua(lua_State *lua)
+    {
+        const int top = lua_gettop(lua);
+        if (lua_type(lua, top) != LUA_TFUNCTION)
+            return lua_error_debug(lua, "expected [function] as the last argument (callback) for loadAsync");
+        const int    effectiveTop = top - 1;
+        BACKGROUND * backGround   = getBackGroundFromRawTable(lua, 1, 1);
+        const char * fileName     = luaL_checkstring(lua, 2);
+        const bool   hasAlpha     = effectiveTop >= 3 ? (lua_toboolean(lua, 3) ? true : false) : false;
+        auto *ctx        = new AsyncLoadCtxBackGround();
+        ctx->lua         = lua;
+        lua_pushvalue(lua, top);
+        ctx->refCallback = luaL_ref(lua, LUA_REGISTRYINDEX);
+        lua_pushvalue(lua, 1);
+        ctx->refSelf     = luaL_ref(lua, LUA_REGISTRYINDEX);
+        backGround->loadAsync(fileName, hasAlpha, true, [ctx](bool success)
+        {
+            lua_State *lua = ctx->lua;
+            lua_rawgeti(lua, LUA_REGISTRYINDEX, ctx->refCallback);
+            if (lua_isfunction(lua, -1))
+            {
+                lua_rawgeti(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+                lua_pushboolean(lua, success);
+                if (lua_pcall(lua, 2, 0, 0))
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+            }
+            else
+            {
+                lua_pop(lua, 1);
+            }
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refCallback);
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+            delete ctx;
+        });
+        return 0;
+    }
+
     int onSetFront3dGroundLua(lua_State *lua)
     {
         BACKGROUND *backGround = getBackGroundFromRawTable(lua, 1, 1);
@@ -158,6 +211,7 @@ namespace mbm
 		
 		//table
 		luaL_Reg                     regBackGroundMethods[] = {{"load", onLoadBackGroundLua},
+                                           {"loadAsync", onLoadAsyncBackGroundLua},
                                            {"setFront3d", onSetFront3dGroundLua},
                                            {"setFront", onSetFront2dGroundLua},
                                            {nullptr, nullptr}};
@@ -203,6 +257,7 @@ namespace mbm
     {
         const int top                    = lua_gettop(lua);
         luaL_Reg  regBackGroundMethods[] = {{"load", onLoadBackGroundLua},
+                                           {"loadAsync", onLoadAsyncBackGroundLua},
                                            {"setFront3d", onSetFront3dGroundLua},
                                            {"setFront", onSetFront2dGroundLua},
                                            {nullptr, nullptr}};

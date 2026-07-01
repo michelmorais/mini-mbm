@@ -18,9 +18,59 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <uber-image.h>
-#include <header-mesh.h>
 #include <util-interface.h>
-#include "mesh-v8-io.h"
+#include "mesh-io-primitives.h"
+
+namespace
+{
+    // UBER_IMG's own on-disk header - decoupled from the legacy mesh v8 util::HEADER/HEADER_IMG
+    // format (docs/mesh-v11-plan.md Scope Decision 5 / milestone 5.5). UBER_IMG is an unrelated
+    // compressed-texture-blob format (texture-manager*.cpp's ".uberimg" loader), not a mesh format,
+    // so it no longer needs to share a struct layout with mesh files just because it once reused the
+    // same read/write helpers. Private to this file - nothing else needs to know this layout.
+    constexpr char    kUberImgTag[4]  = {'U', 'B', 'I', 'M'};
+    constexpr uint16_t kUberImgVersion = 1;
+
+    struct UberImgHeaderV1
+    {
+        uint16_t version  = kUberImgVersion;
+        uint16_t depth    = 0; // 8, 4, or 3 bits per color channel
+        uint16_t channel  = 0; // 3 (RGB) or 4 (RGBA)
+        uint16_t hasAlpha = 0;
+        uint32_t width    = 0;
+        uint32_t height   = 0;
+        uint32_t lenght   = 0; // compressed payload size in bytes
+    };
+
+    bool readUberImgHeaderV1(FILE *fp, UberImgHeaderV1 &out)
+    {
+        char tag[4] = {0, 0, 0, 0};
+        using namespace util::le_io;
+        if (!readBytes(fp, tag, sizeof(tag)) || memcmp(tag, kUberImgTag, sizeof(tag)) != 0)
+            return false;
+        return readU16LE(fp, out.version) &&
+               out.version == kUberImgVersion &&
+               readU16LE(fp, out.depth) &&
+               readU16LE(fp, out.channel) &&
+               readU16LE(fp, out.hasAlpha) &&
+               readU32LE(fp, out.width) &&
+               readU32LE(fp, out.height) &&
+               readU32LE(fp, out.lenght);
+    }
+
+    bool writeUberImgHeaderV1(FILE *fp, const UberImgHeaderV1 &in)
+    {
+        using namespace util::le_io;
+        return writeBytes(fp, kUberImgTag, sizeof(kUberImgTag)) &&
+               writeU16LE(fp, in.version) &&
+               writeU16LE(fp, in.depth) &&
+               writeU16LE(fp, in.channel) &&
+               writeU16LE(fp, in.hasAlpha) &&
+               writeU32LE(fp, in.width) &&
+               writeU32LE(fp, in.height) &&
+               writeU32LE(fp, in.lenght);
+    }
+}
 
 inline float fRound(const float value) noexcept
 {
@@ -62,8 +112,7 @@ namespace mbm
     
     bool UBER_IMG::load(const char *fileName)
     {
-        util::HEADER header;
-        util::HEADER_IMG headerImage;
+        UberImgHeaderV1 headerImage;
         FILE *           fp = nullptr;
         if (fileName == nullptr)
             return onFail(fp, "file name is null!");
@@ -71,15 +120,8 @@ namespace mbm
         fp = util::openFile(fileName, "rb");
         if (!fp)
             return onFail(fp, "failed to open in file!");
-        if (!util::readHeaderV8(fp, header))
-            return onFail(fp, "failed to read in file!");
-        if (strncmp(header.name, "mbm", 3) || strncmp(header.typeApp, "img uberimg", 11) || header.magic != 0x010203ff ||
-            header.reserved != 0 || header.version != 1)
-        {
+        if (!readUberImgHeaderV1(fp, headerImage))
             return onFail(fp, "is not uberimg!");
-        }
-        if (!util::readHeaderImgV8(fp, headerImage))
-            return onFail(fp, "failed to read HEADER_IMG!");
         if (headerImage.width == 0 || headerImage.height == 0)
             return onFail(fp, "size of image unexpected ZERO!");
         if (headerImage.lenght == 0)
@@ -176,9 +218,9 @@ namespace mbm
     
     bool UBER_IMG::loadFromFileOpened(FILE *fp)
     {
-        util::HEADER_IMG headerImage;
+        UberImgHeaderV1 headerImage;
         this->release();
-        if (!util::readHeaderImgV8(fp, headerImage))
+        if (!readUberImgHeaderV1(fp, headerImage))
             return onFail(fp, "failed to read HEADER_IMG!");
         if (headerImage.width == 0 || headerImage.height == 0)
             return onFail(fp, "size of image unexpected ZERO!");
@@ -284,12 +326,8 @@ namespace mbm
             PRINT_IF_DEBUG("Not implemented channelDest != fromChannel");
             return false;
         }
-        util::HEADER header("img uberimg", 1);
-        util::HEADER_IMG headerImage;
-        headerImage.r        = 0;
-        headerImage.g        = 0;
-        headerImage.b        = 0;
-        headerImage.hasAlpha = channelDest == 4;
+        UberImgHeaderV1 headerImage;
+        headerImage.hasAlpha = channelDest == 4 ? 1 : 0;
         headerImage.depth    = depthBitsDest;
         headerImage.channel  = channelDest;
         headerImage.width    = widthImage;
@@ -621,12 +659,10 @@ namespace mbm
             FILE *fp = util::openFile(fileName, "wb");
             if (!fp)
                 return onFail(fp, "failed to open file de saida!", newData);
-            if (!util::writeHeaderV8(fp, header))
-                return onFail(fp, "failed to write to file!", newData);
             headerImage.lenght = miniz.getSizeDataStreamOut();
             if (!headerImage.lenght)
                 return onFail(fp, "size of compressed image is ZERO!", newData);
-            if (!util::writeHeaderImgV8(fp, headerImage))
+            if (!writeUberImgHeaderV1(fp, headerImage))
                 return onFail(fp, "failed to write to file!", newData);
             if (!fwrite(miniz.getDataStreamOut(), miniz.getSizeDataStreamOut(), 1, fp))
                 return onFail(fp, "Falha ao escrever a imagem no arquivo de saida!", newData);

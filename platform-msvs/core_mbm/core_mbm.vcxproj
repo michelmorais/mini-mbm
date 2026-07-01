@@ -100,7 +100,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>$(MbmCoreFeatureDefines);CORE_EXPORTS;AUDIO_ENGINE_PORT_AUDIO;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(MbmCoreFeatureDefines);CORE_EXPORTS;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -150,7 +150,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>$(MbmCoreFeatureDefines);CORE_EXPORTS;AUDIO_ENGINE_PORT_AUDIO;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(MbmCoreFeatureDefines);CORE_EXPORTS;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <SDLCheck>true</SDLCheck>
       <PrecompiledHeaderFile />
@@ -176,7 +176,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>$(MbmCoreFeatureDefines);CORE_EXPORTS;AUDIO_ENGINE_PORT_AUDIO;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(MbmCoreFeatureDefines);CORE_EXPORTS;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -200,7 +200,6 @@
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
     <ClInclude Include="..\..\include\core_mbm\light.h" />
     <ClInclude Include="..\..\src\core_mbm\private\d3dx9-mingw.h" />
-    <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
     <ClInclude Include="..\..\include\core_mbm\dialog-util.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
@@ -282,7 +281,6 @@
     <ClInclude Include="..\..\include\render\tile.h" />
     <ClInclude Include="..\..\include\static-resource\resource-particle.h" />
     <ClInclude Include="..\..\include\version\version.h" />
-    <ClInclude Include="..\..\src\core_mbm\mesh-manager-legacy-internal.h" />
     <ClInclude Include="..\..\src\core_mbm\mesh-v8-io.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
@@ -304,15 +302,17 @@
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-none.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-opensl-android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp" />
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\core-manager-android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-windows.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-x11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es_android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-win32.cpp" />
     <ClCompile Include="..\..\src\core_mbm\dialog-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\mesh-manager-legacy.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-v11-io.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-v8-io.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
@@ -322,7 +322,6 @@
     <ClCompile Include="..\..\src\core_mbm\camera.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-common.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\deprecated.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-common.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp" />
@@ -410,7 +409,6 @@
     <ClCompile Include="core-mbm-Windows-dll-entry.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\docs\new-backend-instructions.md" />
     <None Include="..\copy-dlls.bat" />
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />

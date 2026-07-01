@@ -252,10 +252,6 @@ if((PLAT_LOWER STREQUAL "ios" OR MAS_DELIVERY) AND CMAKE_GENERATOR STREQUAL "Xco
         XCODE_ATTRIBUTE_OTHER_LIBTOOLFLAGS "-no_warning_for_no_symbols")
 endif()
 
-if(MBM_ENABLE_MESH_LEGACY_V7)
-    target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
-endif()
-
 # Define CORE_EXPORTS so API_IMPL resolves to dllexport (not dllimport) on Windows
 target_compile_definitions(core_mbm PRIVATE CORE_EXPORTS)
 

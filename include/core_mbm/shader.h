@@ -23,6 +23,7 @@
 #include "core-exports.h"
 #include "primitives.h"
 #include "particle-control.h"
+#include "texture-role.h"
 #include <memory>
 #include <vector>
 #include <string>
@@ -71,22 +72,11 @@ namespace mbm
         FX_GROWING, FX_DECREASING, FX_END, FX_END_CALLBACK
     };
 
-    enum TEXTURE_ROLE : uint8_t
-    {
-        TEXTURE_ROLE_DIFFUSE = 0,
-        TEXTURE_ROLE_ANIMATION_EFFECT = 1,
-        TEXTURE_ROLE_NORMAL = 2,
-        TEXTURE_ROLE_SPECULAR = 3,
-        TEXTURE_ROLE_EMISSIVE = 4,
-        TEXTURE_ROLE_MASK = 5
-    };
-
     enum SHADER_TEXTURE_NAMING : uint8_t
     {
         SHADER_TEXTURE_NAMING_NONE = 0,
-        SHADER_TEXTURE_NAMING_LEGACY_SAMPLE = 1,
-        SHADER_TEXTURE_NAMING_SEMANTIC_ROLE = 2,
-        SHADER_TEXTURE_NAMING_MIXED_INVALID = 3
+        SHADER_TEXTURE_NAMING_SEMANTIC_ROLE = 1,
+        SHADER_TEXTURE_NAMING_MIXED_INVALID = 2
     };
 
     API_IMPL const char *getTextureRoleShaderName(TEXTURE_ROLE role, SHADER_TEXTURE_NAMING naming) noexcept;
@@ -94,8 +84,6 @@ namespace mbm
     API_IMPL SHADER_TEXTURE_NAMING parseShaderTextureNaming(const char *value) noexcept;
     API_IMPL const char *getShaderTextureNamingName(SHADER_TEXTURE_NAMING naming) noexcept;
     API_IMPL SHADER_TEXTURE_NAMING detectShaderTextureNamingProfile(const char *shaderCode) noexcept;
-    API_IMPL SHADER_TEXTURE_NAMING mergeShaderTextureNamingProfiles(SHADER_TEXTURE_NAMING a,
-                                                                    SHADER_TEXTURE_NAMING b) noexcept;
     API_IMPL bool shaderCodeDeclaresTextureRole(const char *shaderCode,
                                                 TEXTURE_ROLE role,
                                                 SHADER_TEXTURE_NAMING naming) noexcept;

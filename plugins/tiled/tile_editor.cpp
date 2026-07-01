@@ -2086,12 +2086,12 @@ namespace mbm
         {
             tileMap.release();
             mbm::MESH_MBM_DEBUG meshDebug;
-            if(meshDebug.loadDebug(fileName))
+            if(meshDebug.loadV11(fileName))
             {
-                if(meshDebug.typeMe != util::TYPE_MESH_TILE_MAP)
+                if(meshDebug.getMeshType() != util::TYPE_MESH_TILE_MAP)
                 {
                     const char * that_type = "UNKNOWN";
-                    switch (meshDebug.typeMe)
+                    switch (meshDebug.getMeshType())
                     {
                         case util::TYPE_MESH_3D         : that_type = "3D";       break;
                         case util::TYPE_MESH_USER       : that_type = "USER";     break;
@@ -2106,7 +2106,7 @@ namespace mbm
                     ERROR_LOG("Expected type TILE_MAP got[%s]",that_type);
                     return false;
                 }
-                auto tileInfo     = static_cast<const util::BTILE_INFO*>(meshDebug.extraInfo);
+                auto tileInfo     = static_cast<const util::BTILE_INFO*>(meshDebug.getDetailInfo());
                 if(tileInfo == nullptr)
                 {
                     ERROR_LOG("Mesh has no BTILE_INFO");
@@ -2118,9 +2118,9 @@ namespace mbm
                 tile_set->tile_height = tileInfo->map.size_height_tile;
                 this->tileMap.tile_sets.push_back(tile_set);
                 auto tex = mbm::TEXTURE_MANAGER::getInstance();
-                for(uint32_t i=0; i < meshDebug.buffer.size(); ++ i)
+                for(uint32_t i=0; i < meshDebug.getTotalFrames(); ++ i)
                 {
-                    auto * buffer  = meshDebug.buffer[i];
+                    auto * buffer  = meshDebug.getFrameBuffer(i);
                     if(buffer->headerFrame.sizeVertexBuffer != 4)
                     {
                         ERROR_AT(__LINE__,__FILE__,"Expected vertex buffer size [4] got [%d]",buffer->headerFrame.sizeVertexBuffer);
@@ -2524,7 +2524,7 @@ namespace mbm
             const unsigned short int indexBuffer []      = {0, 1, 2,   2, 1, 3};
             const int indexBufferCount = sizeof(indexBuffer) / sizeof(unsigned short int);
             util::BTILE_INFO* tileInfo	     = new util::BTILE_INFO();
-            meshDebug.extraInfo              = tileInfo;
+            meshDebug.replaceDetailInfo(tileInfo);
             tileInfo->infoBrickEditor        = new util::BTILE_BRICK_INFO[tileMap.bricks.size()];
             
             for(uint32_t i=0; i < tileMap.bricks.size(); ++i)
@@ -2544,7 +2544,7 @@ namespace mbm
                         const unsigned int indexSubset = nSubset - 1;
                         if(meshDebug.addVertex(indexFrame,indexSubset,4))
                         {
-                            util::BUFFER_MESH_DEBUG *bufferCurrent      = meshDebug.buffer[indexFrame];
+                            util::BUFFER_MESH_DEBUG *bufferCurrent      = meshDebug.getFrameBuffer(indexFrame);
                             bufferCurrent->subset[indexSubset]->texture = brick->texture ? brick->texture->getFileNameTexture() : "";
                             for(unsigned int k=0, n = 0, uv = 0; k< 4; ++k, n+=3, uv+=2)
                             {
@@ -2575,11 +2575,11 @@ namespace mbm
                     }
                 }
             }
-            meshDebug.typeMe                 = util::TYPE_MESH_TILE_MAP;
+            meshDebug.setMeshType(util::TYPE_MESH_TILE_MAP);
             tileInfo->map.count_width_tile	 = tileMap.count_width_tile;
             tileInfo->map.count_height_tile	 = tileMap.count_height_tile;
             tileInfo->map.layerCount	     = static_cast<const uint32_t>(tileMap.layers.size());
-            tileInfo->map.countRawTiles      = static_cast<const uint32_t>(meshDebug.buffer.size());
+            tileInfo->map.countRawTiles      = static_cast<const uint32_t>(meshDebug.getTotalFrames());
             tileInfo->map.size_width_tile	 = tileMap.size_width_tile;
             tileInfo->map.size_height_tile	 = tileMap.size_height_tile;
             tileInfo->map.background         = tileMap.background;
@@ -2858,7 +2858,7 @@ namespace mbm
             }
 
             char errorText[255] = "";
-            const bool ret = meshDebug.saveDebug(fileName,false,false,errorText,sizeof(errorText));
+            const bool ret = meshDebug.saveV11(fileName,false,false,false,errorText,sizeof(errorText));
             if(ret == false)
                 return log_util::fail(__LINE__, __FILE__, "Failed to save mesh\n[%s]",errorText);
             return true;

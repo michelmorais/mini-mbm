@@ -106,10 +106,56 @@ namespace mbm
         return 1;
     }
 
+    // Background-thread-friendly equivalent of "load" (mesh-v11-plan.md milestone 22) - see
+    // mesh-lua.cpp's onLoadAsyncMeshLua for the full rationale of the ref-holding mechanism.
+    namespace
+    {
+        struct AsyncLoadCtxSprite
+        {
+            lua_State *lua;
+            int        refCallback;
+            int        refSelf;
+        };
+    }
+
+    int onLoadAsyncSpriteLua(lua_State *lua)
+    {
+        SPRITE *    sprite   = getSpriteFromRawTable(lua, 1, 1);
+        const char *fileName = luaL_checkstring(lua, 2);
+        if (lua_type(lua, 3) != LUA_TFUNCTION)
+            return lua_error_debug(lua, "expected [function] as callback for loadAsync");
+        auto *ctx        = new AsyncLoadCtxSprite();
+        ctx->lua         = lua;
+        lua_pushvalue(lua, 3);
+        ctx->refCallback = luaL_ref(lua, LUA_REGISTRYINDEX);
+        lua_pushvalue(lua, 1);
+        ctx->refSelf     = luaL_ref(lua, LUA_REGISTRYINDEX);
+        sprite->loadAsync(fileName, [ctx](bool success)
+        {
+            lua_State *lua = ctx->lua;
+            lua_rawgeti(lua, LUA_REGISTRYINDEX, ctx->refCallback);
+            if (lua_isfunction(lua, -1))
+            {
+                lua_rawgeti(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+                lua_pushboolean(lua, success);
+                if (lua_pcall(lua, 2, 0, 0))
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+            }
+            else
+            {
+                lua_pop(lua, 1);
+            }
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refCallback);
+            luaL_unref(lua, LUA_REGISTRYINDEX, ctx->refSelf);
+            delete ctx;
+        });
+        return 0;
+    }
+
     int onNewSpriteLua(lua_State *lua)
     {
         const int top                = lua_gettop(lua);
-        luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {nullptr, nullptr}};
+        luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua}, {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regSpriteMethods);
         const luaL_Reg *             regMethods = selfMethods.get();
@@ -183,7 +229,7 @@ namespace mbm
 			return false;
 		
 		//table
-		luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {nullptr, nullptr}};
+		luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua}, {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regSpriteMethods);
         const luaL_Reg *             regMethods = selfMethods.get();

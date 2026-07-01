@@ -137,11 +137,6 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
         message("-DUSE_VR=0                 : Use VR class  (Current is DISABLED)")
     endif()
 
-    if(MBM_ENABLE_MESH_LEGACY_V7)
-        message("-DMBM_ENABLE_MESH_LEGACY_V7=1 : Compatibility for mesh loader and deprecated features (versions <= 7) (Current is ENABLED)")
-    else()
-        message("-DMBM_ENABLE_MESH_LEGACY_V7=0 : Compatibility for mesh loader and deprecated features (versions <= 7) (Current is DISABLED)")
-    endif()
     if(USE_BULLET3D)
         message("-DUSE_BULLET3D=1            : Build Bullet3D Lua plugin (Current is ENABLED)")
     else()
@@ -607,12 +602,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         set(USE_BOX2D_LIQUID_FUN 0)
     endif()
 
-    # Legacy/deprecated compatibility flag
-    # Default is OFF when not provided.
-    if(NOT DEFINED MBM_ENABLE_MESH_LEGACY_V7)
-        set(MBM_ENABLE_MESH_LEGACY_V7 0)
-    endif()
-
     #graphics backend
    
     if(USE_DUMMY_BACK_END_ENGINE)
@@ -816,9 +805,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             # (a cache variable that overrides the normal set() in this file),
             # and libc++_shared.so never gets copied/packaged into the APK.
             string(APPEND _GRADLE_CMAKE_ARGS ", \"-DANDROID_STL=c++_shared\"")
-        endif()
-        if(MBM_ENABLE_MESH_LEGACY_V7)
-            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DMBM_ENABLE_MESH_LEGACY_V7=1\"")
         endif()
         set(GRADLE_CMAKE_ARGS "${_GRADLE_CMAKE_ARGS}")
 
@@ -1104,6 +1090,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     # ─────────────────────────────────────────────────────────────────────────
 
     add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
+    add_subdirectory(src/mesh_deprecated            src/mesh_deprecated)
+    add_subdirectory(src/mesh_legacy_converter      src/mesh_legacy_converter)
     add_subdirectory(${MINI_MBM}                    ${MINI_MBM})
 
     if (USE_LUA)

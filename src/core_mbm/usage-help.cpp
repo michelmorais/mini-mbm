@@ -197,12 +197,6 @@ namespace usage
         {
             log_util::print_colored(COLOR_TERMINAL_RED, "    VULKAN.......................: NO\n");
         }
-#ifdef MBM_ENABLE_MESH_LEGACY_V7
-        log_util::print_colored(COLOR_TERMINAL_GREEN, "    LEGACY/DEPRECATED SUPPORT....: YES\n");
-#else
-        log_util::print_colored(COLOR_TERMINAL_RED, "    LEGACY/DEPRECATED SUPPORT....: NO\n");
-#endif
-
 #ifdef USE_VR
         log_util::print_colored(COLOR_TERMINAL_GREEN, "    CLASS VIRTUAL REALITY........: YES\n");
 #else

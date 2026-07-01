@@ -28,7 +28,7 @@
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     #pragma warning(disable : 4201) //nonstandard extension used : nameless struct/union
-#endif 
+#endif
 
 namespace mbm
 {
@@ -106,19 +106,6 @@ namespace util
 
     using MATERIAL_GLES = MATERIAL;
 
-    #define INITIAL_VERSION_MBM_HEADER     1
-    #define SPRITE_INFO_VERSION_MBM_HEADER 2
-    #define DETAIL_MESH_VERSION_MBM_HEADER 3
-    #define SPACE_SHIP_VERSION_MBM_HEADER  4
-    #define MODE_DRAW_VERSION_MBM_HEADER   5
-    #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
-    #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
-    #define STRONG_TYPES_VERSION_MBM_HEADER 8     // v8: new baseline for current mesh generation
-    #define MATERIAL_TEXTURE_SLOT_VERSION_MBM_HEADER 9 // v9: per-subset typed material texture slots
-    #define TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER 10 // v10: TextureAnimationEffect stored once per animation FX block
-
-    #define CURRENT_VERSION_MBM_HEADER     TEXTURE_ANIMATION_EFFECT_VERSION_MBM_HEADER
-
     /* hasNorText[0] (normals) */
     #define HAS_NOR_NO           0  /* no normals */
     #define HAS_NOR_IN_FILE      1  /* normals stored in file */
@@ -130,20 +117,6 @@ namespace util
     #define HAS_TEX_FIRST_FRAME  2  /* texture only in first frame, others copy */
 
     #define MBM_ERROR_DESCRIPTION_BUFFER_SIZE 255
-    #define MBM_HEADER_NAME_COMPARE_LENGTH 3
-    #define MBM_HEADER_TYPE_APP_COMPARE_LENGTH 15
-    #define MBM_HEADER_NAME_MBM "mbm"
-    #define MBM_TYPE_APP_MESH_3D "Mesh 3d mbm"
-    #define MBM_TYPE_APP_USER "User mbm"
-    #define MBM_TYPE_APP_FONT "Font mbm"
-    #define MBM_TYPE_APP_SPRITE "Sprite mbm"
-    #define MBM_TYPE_APP_TILE "Tile mbm"
-    #define MBM_TYPE_APP_SHAPE "Shape mbm"
-    #define MBM_TYPE_APP_PARTICLE "Particle mbm"
-    #define MBM_TYPE_APP_TEXTURE "Texture mbm"
-    #define MBM_EXTRA_HEADER_TYPE_PATHS 1
-    #define MBM_DEPRECATED_DETAIL_TYPE_SCRIPT 100
-    #define MBM_DEPRECATED_DETAIL_TYPE_SHADER 101
     #define MBM_DETAIL_TYPE_CUBE 1
     #define MBM_DETAIL_TYPE_SPHERE 2
     #define MBM_DETAIL_TYPE_CUBE_COMPLEX 3
@@ -152,250 +125,12 @@ namespace util
     #define MBM_DETAIL_TYPE_PARTICLE 6
     #define MBM_DETAIL_TYPE_TILE 7
 
-    struct API_IMPL HEADER_DISK_V8
-    {
-        char name[16];
-        char typeApp[16];
-        int32_t version;
-        uint32_t magic;
-        int32_t reserved;
-        int32_t backBufferWidth;
-        int32_t backBufferHeight;
-        int32_t extraHeader;
-    };
-
-    struct API_IMPL HEADER_MESH_DISK_V8
-    {
-        MATERIAL material;
-        int32_t totalAnimation;
-        int32_t totalFrames;
-        int32_t deprecated_typePhysics;
-        int16_t hasNorText[2];
-        float angleX, angleY, angleZ;
-        float posX, posY, posZ;
-    };
-
-    struct API_IMPL HEADER_ANIMATION_DISK_V8
-    {
-        char nameAnimation[32];
-        int32_t initialFrame;
-        int32_t finalFrame;
-        float timeBetweenFrame;
-        int32_t typeAnimation;
-        uint16_t hasShaderEffect;
-        uint16_t blendState;
-    };
-
-    struct API_IMPL HEADER_INFO_SHADER_STEP_DISK_V8
-    {
-        int16_t lenNameShader;
-        int16_t lenTextureStage2;
-        int16_t sizeArrayVarInBytes;
-        int16_t typeAnimation;
-        int32_t blendOperation;
-        float timeAnimation;
-    };
-
-    struct API_IMPL HEADER_INFO_SHADER_EFFECT_DISK_V10
-    {
-        int16_t lenTextureAnimationEffect;
-        int16_t reserved0;
-        int32_t reserved1;
-    };
-
-    struct API_IMPL HEADER_FRAME_DISK_V8
-    {
-        int32_t totalSubset;
-        int32_t sizeIndexBuffer;
-        int32_t sizeVertexBuffer;
-        int32_t stride;
-        char typeBuffer[4];
-    };
-
-    struct API_IMPL HEADER_DESC_SUBSET_DISK_V8
-    {
-        char nameTexture[64];
-        int32_t vertexCount;
-        int32_t vertexStart;
-        int32_t indexStart;
-        int32_t indexCount;
-        uint8_t alphaColor[4];
-    };
-
-    enum MATERIAL_TEXTURE_SLOT_TYPE : uint16_t
-    {
-        MATERIAL_TEXTURE_SLOT_NORMAL   = 1,
-        MATERIAL_TEXTURE_SLOT_SPECULAR = 2,
-        MATERIAL_TEXTURE_SLOT_EMISSIVE = 3,
-        MATERIAL_TEXTURE_SLOT_MASK     = 4,
-    };
-
-    struct API_IMPL HEADER_DESC_SUBSET_DISK_V9
-    {
-        char nameTexture[64];
-        int32_t vertexCount;
-        int32_t vertexStart;
-        int32_t indexStart;
-        int32_t indexCount;
-        uint8_t alphaColor[4];
-        uint16_t materialTextureSlotCount;
-        uint16_t reservedMaterialTextureSlots;
-    };
-
-    struct API_IMPL MATERIAL_TEXTURE_SLOT_HEADER_DISK_V9
-    {
-        uint16_t type;
-        uint16_t reserved;
-        uint32_t payloadSizeInBytes;
-        char nameTexture[64];
-    };
-
-    struct API_IMPL HEADER_IMG_DISK_V8
-    {
-        uint32_t width;
-        uint32_t height;
-        uint16_t depth;
-        uint16_t channel;
-        uint32_t lenght;
-        uint8_t alphaColor[4];
-    };
-
-    struct API_IMPL EXTRA_HEADER_DISK_V8
-    {
-        char type;
-        int32_t sizeExtraHeader;
-    };
-
-    struct API_IMPL INFO_DRAW_MODE_DISK_V8
-    {
-        uint32_t mode_draw;
-        uint32_t mode_cull_face;
-        uint32_t mode_front_face_direction;
-    };
-
-    struct API_IMPL DETAIL_MESH_DISK_V8
-    {
-        int32_t type;
-        int32_t totalBounding;
-    };
-
-    struct API_IMPL DETAIL_HEADER_FONT_DISK_V8
-    {
-        uint16_t sizeNameFonte;
-        uint16_t totalDetailFont;
-        int16_t spaceXCharacter;
-        int16_t spaceYCharacter;
-        uint16_t heightLetter;
-    };
-
-    struct API_IMPL DETAIL_LETTER_DISK_V8
-    {
-        uint8_t letter;
-        uint8_t indexFrame;
-        uint16_t widthLetter;
-        uint16_t heightLetter;
-    };
-
-    struct API_IMPL BTILE_BRICK_INFO_DISK_V8
-    {
-        uint16_t index;
-        uint16_t original_index;
-        uint16_t rotation;
-        uint16_t flipped;
-    };
-
-    struct API_IMPL BTILE_HEADER_MAP_DISK_V8
-    {
-        uint32_t count_width_tile;
-        uint32_t count_height_tile;
-        uint32_t size_width_tile;
-        uint32_t size_height_tile;
-        uint32_t layerCount;
-        uint32_t countRawTiles;
-        uint32_t objectCount;
-        uint32_t propertyCount;
-        uint32_t typeMap;
-        uint32_t background;
-        char background_texture[62];
-        char renderDirection[2];
-    };
-
-    struct API_IMPL BTILE_INDEX_TILE_DISK_V8
-    {
-        uint32_t index;
-        float x;
-        float y;
-    };
-
-    struct API_IMPL BTILE_DETAIL_HEADER_DISK_V8
-    {
-        uint32_t totalObj;
-        uint32_t totalProperties;
-    };
-
-    struct API_IMPL BTILE_OBJ_HEADER_DISK_V8
-    {
-        uint16_t sizeName;
-        uint16_t type;
-        uint16_t sizePoints;
-    };
-
-    struct API_IMPL BTILE_PROPERTY_HEADER_DISK_V8
-    {
-        uint16_t type;
-        uint16_t nameLength;
-        uint16_t valueLength;
-        uint16_t ownerLength;
-    };
-
-    struct API_IMPL STAGE_PARTICLE_DISK_V8
-    {
-        float minOffsetPosition[3];
-        float maxOffsetPosition[3];
-        float minDirection[3];
-        float maxDirection[3];
-        float minColor[3];
-        float maxColor[3];
-        float minSpeed;
-        float maxSpeed;
-        float minTimeLife;
-        float maxTimeLife;
-        float minSizeParticle;
-        float maxSizeParticle;
-        float ariseTime;
-        float stageTime;
-        uint32_t totalParticle;
-        uint8_t segmented;
-        uint8_t sizeMin2Max;
-        uint8_t revive;
-        uint8_t _operator;
-        uint8_t invert_red;
-        uint8_t invert_green;
-        uint8_t invert_blue;
-        uint8_t invert_alpha;
-    };
-
-    // step 1:
-    struct API_IMPL HEADER
-    {
-        char name[16];          // must be "mbm"
-        char typeApp[16];       // "Mesh 3d mbm", "User mbm", "Font", "Particle", "Sprite mbm", "Tile mbm"
-        int32_t version;            // current CURRENT_VERSION_MBM_HEADER
-        uint32_t magic;             // must be 0x010203ff.
-        int32_t reserved;           // reserved (Must be 0)
-        int32_t backBufferWidth;    // Indica o tamanho da largura do back buffer em que o objeto foi criado
-        int32_t backBufferHeight;   // Indica o tamanho da altura do back buffer em que o objeto foi criado
-        int32_t extraHeader;        // Quando indica quantidade de estrutura EXTRA_HEADER logo apos este frame
-        HEADER() noexcept;
-        HEADER(const char *nameApp, const int32_t versionNumber = 3)noexcept;
-    };
-
-    struct API_IMPL EXTRA_HEADER //added since version 6
-    {
-        char type;           // 0 None, 1 = Paths
-        int32_t sizeExtraHeader; // Tamanho extra (em bytes) logo apos este frame
-        EXTRA_HEADER() noexcept;
-    };
+    // Legacy v1-v10 on-disk reference structs (HEADER_DISK_V8, HEADER_MESH_DISK_V8, ...,
+    // STAGE_PARTICLE_DISK_V8) moved to header-mesh-legacy-disk.h, and (milestone 21) the legacy
+    // in-memory util::HEADER/EXTRA_HEADER structs plus the old *_VERSION_MBM_HEADER version
+    // constants moved to src/mesh_deprecated/mesh-v8-io-legacy.h - they document/back the old v1-v10
+    // format for the offline mesh_deprecated importer, but nothing in core_mbm reads/writes them
+    // anymore (core_mbm's only load/save path is v11), so this header no longer needs to carry them.
 
     struct API_IMPL INFO_DRAW_MODE //added since version 5
     {
@@ -810,10 +545,241 @@ namespace util
         ~DYNAMIC_SHAPE() noexcept = default;
     };
 
+    // -----------------------------------------------------------------------------------------
+    // Mesh v11 format (docs/mesh-v11-format.md) - section/TLV envelope. Layout locked, milestone 0
+    // closed 2026-06-25 (docs/mesh-v11-plan.md). Section payload structs (frame/subset/material...)
+    // are not defined yet - they land with the v11 writer/reader (milestones 3-4).
+    // -----------------------------------------------------------------------------------------
+
+    #define MBM_V11_MAGIC "MBM1"
+    #define MBM_V11_FORMAT_VERSION 11
+
+    enum SECTION_TYPE : uint16_t
+    {
+        SECTION_MATERIAL_TRANSFORM = 1,  // material + angle/pos + draw mode (replaces HEADER_MESH + INFO_DRAW_MODE)
+        SECTION_ANIMATION          = 2,  // repeated: one per animation, in order, including its FX block
+        SECTION_FRAME_STATIC       = 10, // repeated: one per frame, in order
+        SECTION_FRAME_SKINNED      = 11, // reserved id only - no v11.0 writer ever emits this
+        SECTION_DETAIL_PHYSICS     = 20,
+        SECTION_DETAIL_FONT        = 21,
+        SECTION_DETAIL_PARTICLE    = 22,
+        SECTION_DETAIL_TILE        = 23,
+        SECTION_EXTRA_PATHS        = 30, // replaces legacy EXTRA_HEADER type==1 path-registration hint
+    };
+
+    enum SECTION_COMPRESSION : uint8_t
+    {
+        SECTION_COMPRESSION_NONE    = 0,
+        SECTION_COMPRESSION_DEFLATE = 1,
+    };
+
+    struct API_IMPL FILE_HEADER_V11
+    {
+        char     magic[4];        // MBM_V11_MAGIC ("MBM1"), checked first, before anything else is trusted
+        uint16_t formatVersion;   // MBM_V11_FORMAT_VERSION, independent of `magic`
+        uint8_t  typeMesh;        // util::TYPE_MESH value directly
+        uint8_t  reserved0;       // must be 0
+        int32_t  backBufferWidth;
+        int32_t  backBufferHeight;
+        uint32_t sectionCount;    // number of SECTION_HEADER_V11 blocks that follow, back-to-back
+        FILE_HEADER_V11() noexcept;
+    };
+
+    struct API_IMPL SECTION_HEADER_V11
+    {
+        uint16_t type;               // SECTION_TYPE
+        uint16_t sectionVersion;     // per-section-type version
+        uint8_t  compression;        // SECTION_COMPRESSION
+        uint8_t  reserved1[3];       // must be 0
+        uint32_t uncompressedLength;
+        uint32_t compressedLength;   // == uncompressedLength when compression == SECTION_COMPRESSION_NONE
+        uint32_t crc32Value;         // mz_crc32() of the *uncompressed* payload, always written.
+                                      // Named crc32Value, not crc32: miniz.h #defines crc32 to
+                                      // mz_crc32 for zlib-API compat, which mangles a field literally
+                                      // named crc32 in any TU that includes both headers.
+        SECTION_HEADER_V11() noexcept;
+    };
+
+    // Non-owning cursor over an already-in-memory byte buffer - typically a v11 section's
+    // decompressed payload. Lets the v11/v8 payload-level readers (mesh-v11-io.h/mesh-v8-io.h)
+    // consume bytes without staging them through a real OS temp file first (milestone 15;
+    // superseded an earlier tmpfile()-per-section design - see docs/mesh-v11-plan.md). Declared
+    // here (not in the internal mesh-io-primitives.h where its read primitives live) because
+    // MESH_MBM_DEBUG's class declaration (mesh-manager.h, a public header) needs the type visible.
+    // Read-only: nothing ever serializes a payload back out of memory through this type, only into
+    // a real FILE* via writeSectionV11Streamed.
+    struct MEM_CURSOR_V11
+    {
+        const uint8_t *data;
+        size_t         size;
+        size_t         pos;
+    };
+
+    // -----------------------------------------------------------------------------------------
+    // Mesh v11 section payloads (docs/mesh-v11-format.md Sec. 6) - milestone 3 (core slice: material
+    // transform, static frames, physics detail, extra paths). Animation/FX and the font/particle/tile
+    // detail payloads are not covered here yet.
+    // -----------------------------------------------------------------------------------------
+
+    struct API_IMPL FRAME_HEADER_V11
+    {
+        uint32_t totalSubset;
+        uint32_t vertexCount;
+        uint8_t  indexWidth;   // 16 or 32 (only 16 emitted by the milestone-3 writer)
+        uint8_t  hasNormal;    // bool
+        uint8_t  hasUv;        // bool
+        uint8_t  uvSource;     // 0 = OWN, 1 = SHARED_WITH_FRAME_0
+        uint32_t indexCount;   // in indices, not bytes
+        FRAME_HEADER_V11() noexcept;
+    };
+
+    enum TEXTURE_REF_STORAGE_V11 : uint8_t
+    {
+        TEXTURE_REF_STORAGE_PATH               = 0,
+        TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED = 1, // reserved - no milestone-3 writer emits this
+    };
+
+    // Not struct-level API_IMPL: a std::string member (directly or via a nested V11 struct) would
+    // need its own dll-interface (MSVC C4251) to be exported wholesale. These are plain in-process
+    // data carriers - only the constructor symbol needs to cross the DLL boundary, like
+    // MATERIAL_TEXTURE_SLOT_DEBUG above.
+    struct TEXTURE_REF_V11
+    {
+        uint8_t     storage; // TEXTURE_REF_STORAGE_V11
+        std::string path;    // meaningful only when storage == TEXTURE_REF_STORAGE_PATH
+        API_IMPL TEXTURE_REF_V11() noexcept;
+    };
+
+    struct SUBSET_DESC_V11
+    {
+        TEXTURE_REF_V11 primaryTexture; // implicit role TEXTURE_ROLE_DIFFUSE, always present
+        int32_t  vertexCount;
+        int32_t  vertexStart;
+        int32_t  indexStart;
+        int32_t  indexCount;
+        uint8_t  alphaColor[4];
+        uint16_t extraSlotCount; // caller must set before writing; followed on disk by
+                                  // extraSlotCount * SUBSET_EXTRA_SLOT_V11
+        API_IMPL SUBSET_DESC_V11() noexcept;
+    };
+
+    struct SUBSET_EXTRA_SLOT_V11
+    {
+        uint8_t         role; // an mbm::TEXTURE_ROLE value (NORMAL/SPECULAR/EMISSIVE/MASK only)
+        TEXTURE_REF_V11 texture;
+        API_IMPL SUBSET_EXTRA_SLOT_V11() noexcept;
+    };
+
+    struct API_IMPL MATERIAL_TRANSFORM_V11 // payload for SECTION_MATERIAL_TRANSFORM
+    {
+        MATERIAL material;
+        float    angleX, angleY, angleZ;
+        float    posX, posY, posZ;
+        uint32_t mode_draw;
+        uint32_t mode_cull_face;
+        uint32_t mode_front_face_direction;
+        MATERIAL_TRANSFORM_V11() noexcept;
+    };
+
+    struct API_IMPL SHADER_VAR_V11
+    {
+        uint8_t typeVar; // mbm::TYPE_VAR_SHADER
+        float   min[4];
+        float   max[4];
+        SHADER_VAR_V11() noexcept;
+    };
+
+    struct SHADER_STEP_V11
+    {
+        std::string name;          // shader name reference (built-in or custom), e.g. "transparent.ps"
+        float       timeAnimation;
+        int32_t     typeAnimation; // 0-6, shader-level playback type
+        uint16_t    varCount;      // caller must set before writing; followed on disk by
+                                     // varCount * SHADER_VAR_V11
+        API_IMPL SHADER_STEP_V11() noexcept;
+    };
+
+    struct FX_HEADER_V11 // payload for ANIMATION_HEADER_V11.hasFx == 1
+    {
+        int32_t         blendOperation;
+        uint8_t         hasFxTexture; // bool
+        TEXTURE_REF_V11 fxTexture;    // meaningful only if hasFxTexture - role TEXTURE_ROLE_ANIMATION_EFFECT
+        uint8_t         hasPS;        // bool
+        SHADER_STEP_V11 ps;           // meaningful only if hasPS
+        uint8_t         hasVS;        // bool
+        SHADER_STEP_V11 vs;           // meaningful only if hasVS
+        API_IMPL FX_HEADER_V11() noexcept;
+    };
+
+    struct ANIMATION_HEADER_V11 // payload for SECTION_ANIMATION
+    {
+        std::string name;            // replaces today's nameAnimation[32]
+        int32_t     initialFrame;
+        int32_t     finalFrame;
+        float       timeBetweenFrame;
+        int32_t     typeAnimation;
+        uint16_t    blendState;
+        uint8_t     hasFx;           // bool - if 1, an FX_HEADER_V11 follows
+        API_IMPL ANIMATION_HEADER_V11() noexcept;
+    };
+
+    struct FONT_DETAIL_HEADER_V11 // payload header for SECTION_DETAIL_FONT
+    {
+        std::string name;            // replaces today's sizeNameFonte-prefixed buffer
+        int16_t     spaceXCharacter;
+        int16_t     spaceYCharacter;
+        uint16_t    heightLetter;
+        uint16_t    letterCount;     // count of DETAIL_LETTER-shaped entries that follow
+        API_IMPL FONT_DETAIL_HEADER_V11() noexcept;
+    };
+
+    struct TILE_HEADER_MAP_V11 // payload header for SECTION_DETAIL_TILE
+    {
+        uint32_t    count_width_tile;
+        uint32_t    count_height_tile;
+        uint32_t    size_width_tile;
+        uint32_t    size_height_tile;
+        uint32_t    layerCount;
+        uint32_t    countRawTiles;     // count of BTILE_BRICK_INFO-shaped entries that follow
+        uint32_t    objectCount;       // count of TILE_OBJ_HEADER_V11 entries (after all layers)
+        uint32_t    propertyCount;     // count of TILE_PROPERTY_V11 entries (after all objects)
+        uint32_t    typeMap;           // util::BTILE_TYPE_MAP
+        uint32_t    background;
+        std::string backgroundTexture; // replaces today's fixed background_texture[62]
+        uint8_t     renderDirectionLeftToRight;
+        uint8_t     renderDirectionTopToDown;
+        API_IMPL TILE_HEADER_MAP_V11() noexcept;
+    };
+
+    struct API_IMPL TILE_LAYER_HEADER_V11 // one per layer, followed by its BTILE_INDEX_TILE array
+    {
+        float offsetX;
+        float offsetY;
+        float offsetZ;
+        TILE_LAYER_HEADER_V11() noexcept;
+    };
+
+    struct TILE_OBJ_HEADER_V11 // one per BTILE_OBJ, followed by pointCount (x,y) float pairs
+    {
+        std::string name;
+        uint16_t    type;       // util::BTILE_OBJ_TYPE
+        uint16_t    pointCount;
+        API_IMPL TILE_OBJ_HEADER_V11() noexcept;
+    };
+
+    struct TILE_PROPERTY_V11 // one per BTILE_PROPERTY
+    {
+        std::string owner;
+        std::string name;
+        std::string value;
+        uint16_t    type;       // util::BTILE_PROPERTY_TYPE
+        API_IMPL TILE_PROPERTY_V11() noexcept;
+    };
+
 }
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     #pragma warning(default : 4201) //nonstandard extension used : nameless struct/union
-#endif 
+#endif
 
 #endif

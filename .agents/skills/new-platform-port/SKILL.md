@@ -234,7 +234,6 @@ For the full-featured build:
 cmake ../.. \
     -DPLAT=NewPlat \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=<backend> \
     -DCMAKE_BUILD_TYPE=Debug
 make -j$(nproc)

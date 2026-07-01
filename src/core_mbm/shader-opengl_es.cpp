@@ -311,8 +311,10 @@ namespace mbm
         if (pBufferId == nullptr)
             return nullptr;
         const uint32_t stageIndex = static_cast<uint32_t>(getTextureRoleBackendSlot(role));
-        const uint32_t textureSubset = role == TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
-        const TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+        // Callers always pass subsetIndex=0 for TEXTURE_ROLE_ANIMATION_EFFECT (it's one shared
+        // texture per animation, not per-subset - see the per-draw-call bind sites), so no
+        // role-specific override is needed here.
+        const TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, subsetIndex);
         if (texture)
             return texture;
         return TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
@@ -815,6 +817,9 @@ namespace mbm
           samplerHandle0(-1),
           samplerHandle1(-1),
           samplerHandle2(-1),
+          samplerHandle3(-1),
+          samplerHandle4(-1),
+          samplerHandle5(-1),
           programObject(0)
     {
 	}
@@ -834,6 +839,9 @@ namespace mbm
         samplerHandle0  = -1;
         samplerHandle1  = -1;
         samplerHandle2  = -1;
+        samplerHandle3  = -1;
+        samplerHandle4  = -1;
+        samplerHandle5  = -1;
         if (programObject)
         {
             GLDeleteProgram(programObject);
@@ -1119,19 +1127,6 @@ namespace mbm
         const std::string bothShaderCode(pixelShaderCode + vertexShaderCode);
         const SHADER_TEXTURE_NAMING textureNaming =
             detectShaderTextureNamingProfile(bothShaderCode.c_str());
-        if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
-        {
-            ERROR_LOG("OpenGL ES shader mixes legacy texture names with semantic texture roles");
-            return false;
-        }
-        if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
-            (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming) ||
-             shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming) ||
-             shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming)))
-        {
-            ERROR_LOG("OpenGL ES shader declares a reserved semantic texture role without runtime binding support");
-            return false;
-        }
 
         if (bothShaderCode.find("aPosition") != std::string::npos)
         {
@@ -1179,7 +1174,25 @@ namespace mbm
                 gles_shaderSpecific->programObject,
                 getTextureRoleShaderName(TEXTURE_ROLE_NORMAL, textureNaming));
         }
-        
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_SPECULAR, textureNaming))
+        {
+            gles_shaderSpecific->samplerHandle3 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_SPECULAR, textureNaming));
+        }
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_EMISSIVE, textureNaming))
+        {
+            gles_shaderSpecific->samplerHandle4 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_EMISSIVE, textureNaming));
+        }
+        if (shaderCodeDeclaresTextureRole(bothShaderCode.c_str(), TEXTURE_ROLE_MASK, textureNaming))
+        {
+            gles_shaderSpecific->samplerHandle5 = GLGetUniformLocation(
+                gles_shaderSpecific->programObject,
+                getTextureRoleShaderName(TEXTURE_ROLE_MASK, textureNaming));
+        }
+
         return true;
     }
 
@@ -1229,15 +1242,20 @@ namespace mbm
                 GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
             }
             //-----------------------------------------------------------------------------------------------------------
+            // TextureAnimationEffect is one shared texture per animation, not per-subset (see
+            // BUFFER_GL::setTextureByStage/getTextureByStage callers) - bind it once here, outside
+            // the per-subset loop, instead of redundantly rebinding the same texture every subset.
+            bindTextureRoleOpenGlEs(pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
-                bindTextureRoleOpenGlEs(
-                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_SPECULAR, gles_shaderSpecific->samplerHandle3);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_EMISSIVE, gles_shaderSpecific->samplerHandle4);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
@@ -1248,6 +1266,8 @@ namespace mbm
             if (!backendBuffer->vboVertexSubsetVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
+            // See the index-buffer branch above - shared, not per-subset.
+            bindTextureRoleOpenGlEs(pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
@@ -1280,9 +1300,10 @@ namespace mbm
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
-                bindTextureRoleOpenGlEs(
-                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_SPECULAR, gles_shaderSpecific->samplerHandle3);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_EMISSIVE, gles_shaderSpecific->samplerHandle4);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1)
                     && backendBuffer->vboNormalSubsetVB && backendBuffer->vboNormalSubsetVB[i] != 0;
@@ -1339,13 +1360,16 @@ namespace mbm
                 GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
             }
             //-----------------------------------------------------------------------------------------------------------
+            // TextureAnimationEffect is shared per-animation, not per-subset - bind once, outside the loop.
+            bindTextureRoleOpenGlEs(pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backendBuffer->vboIndexSubsetIB[i]);
-                bindTextureRoleOpenGlEs(
-                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_SPECULAR, gles_shaderSpecific->samplerHandle3);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_EMISSIVE, gles_shaderSpecific->samplerHandle4);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
                 uploadReservedLightUniformsOpenGlEs(gles_shaderSpecific->programObject, pBufferId, i);
                 disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
@@ -1356,6 +1380,8 @@ namespace mbm
             if (!pBufferId->vertexCountVB)
                 return false;
             GLUseProgram(gles_shaderSpecific->programObject);
+            // Shared per-animation, not per-subset - bind once, outside the loop.
+            bindTextureRoleOpenGlEs(pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
@@ -1383,9 +1409,10 @@ namespace mbm
                 }
                 //-----------------------------------------------------------------------------------------------------------
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
-                bindTextureRoleOpenGlEs(
-                    pBufferId, i, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_NORMAL, gles_shaderSpecific->samplerHandle2);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_SPECULAR, gles_shaderSpecific->samplerHandle3);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_EMISSIVE, gles_shaderSpecific->samplerHandle4);
+                bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_MASK, gles_shaderSpecific->samplerHandle5);
 
                 const bool useNormal = (gles_shaderSpecific->normalHandle != -1) && (normal != nullptr);
                 const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1) && (uv != nullptr);

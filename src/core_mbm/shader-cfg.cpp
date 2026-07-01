@@ -520,12 +520,6 @@ namespace mbm
     bool SHADER_CFG::validateTextureNamingProfile()
     {
         this->textureNamingProfile = detectShaderTextureNamingProfile(this->codeShader.c_str());
-        if (this->textureNamingProfile == SHADER_TEXTURE_NAMING_MIXED_INVALID)
-        {
-            ERROR_LOG("Shader [%s] mixes legacy texture names with semantic texture roles",
-                      this->fileName.c_str());
-            return false;
-        }
         if (this->textureNamingDeclaration != SHADER_TEXTURE_NAMING_NONE &&
             this->textureNamingProfile != SHADER_TEXTURE_NAMING_NONE &&
             this->textureNamingDeclaration != this->textureNamingProfile)

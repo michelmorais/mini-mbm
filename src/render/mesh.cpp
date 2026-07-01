@@ -59,20 +59,14 @@ namespace mbm
         this->mesh               = mehManager->load(fileName, this);
         if (this->mesh)
         {
-            // adicionamos as animações
-            const uint32_t totalAnimations = this->mesh->getTotalAnimations();
-            for (uint32_t i = 0; i < totalAnimations; ++i)
+            const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
+            if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {
-                util::INFO_ANIMATION::INFO_HEADER_ANIM *header = this->mesh->getAnimationHeader(i);
-                if (!this->populateAnimationFromHeader(this->mesh, header->headerAnim, i))
-                {
-                    this->release();
-                    ERROR_AT(__LINE__,__FILE__, "error on add animation!!");
-                    return false;
-                }
+                this->release();
+                return false;
             }
-            // carregamos a TextureAnimationEffect legacy associada a esta animacao
-            this->populateTextureAnimationEffectFromMesh(this->mesh);
+            else if (result != MeshLoadFinishResult::OK)
+                return false;
             this->setInternalFileName(fileName);
             this->restartAnimation();
             this->updateAABB();
@@ -81,7 +75,49 @@ namespace mbm
 
         return false;
     }
-    
+
+    void MESH::loadAsync(const char *fileName, std::function<void(bool success)> callback)
+    {
+        if (this->mesh)
+        {
+            if (callback)
+                callback(true);
+            return;
+        }
+        const std::string fileNameCopy(fileName);
+        MESH_MANAGER::getInstance()->loadAsync(fileName, [this, fileNameCopy, callback](MESH_MBM *mesh, bool ok)
+        {
+            if (!ok || !mesh)
+            {
+                if (callback)
+                    callback(false);
+                return;
+            }
+            this->mesh = mesh;
+            this->getPosition() += mesh->getPositionOffset();
+            this->setAngle(mesh->getAngleDefault());
+            const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
+            if (result == MeshLoadFinishResult::ANIMATION_FAILED)
+            {
+                this->release();
+                if (callback)
+                    callback(false);
+                return;
+            }
+            else if (result != MeshLoadFinishResult::OK)
+            {
+                if (callback)
+                    callback(false);
+                return;
+            }
+            this->setInternalFileName(fileNameCopy.c_str());
+            this->restartAnimation();
+            this->updateAABB();
+            if (callback)
+                callback(true);
+        });
+    }
+
     const char * MESH::getFileName() const
     {
         if (this->mesh)

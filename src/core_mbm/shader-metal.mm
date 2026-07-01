@@ -265,8 +265,7 @@ static const mbm::TEXTURE *getBoundTextureForRoleMetal(const mbm::BUFFER_GL *pBu
     if (pBufferId == nullptr)
         return nullptr;
     const uint32_t stageIndex = static_cast<uint32_t>(mbm::getTextureRoleBackendSlot(role));
-    const uint32_t textureSubset = role == mbm::TEXTURE_ROLE_ANIMATION_EFFECT ? 0u : subsetIndex;
-    const mbm::TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, textureSubset);
+    const mbm::TEXTURE *texture = pBufferId->getTextureByStage(stageIndex, subsetIndex);
     if (texture)
         return texture;
     return mbm::TEXTURE_MANAGER::getInstance()->getFallbackTexture(role);
@@ -1091,21 +1090,6 @@ namespace mbm
                 else
                     mslSrc = defaultMSLSource(fvf, this->shouldCompileReservedLightDefault());
             }
-            const char *mslSourceText = [mslSrc UTF8String];
-            const SHADER_TEXTURE_NAMING textureNaming = detectShaderTextureNamingProfile(mslSourceText);
-            if (textureNaming == SHADER_TEXTURE_NAMING_MIXED_INVALID)
-            {
-                ERROR_LOG("Metal shader mixes legacy texture names with semantic texture roles");
-                return false;
-            }
-            if (textureNaming == SHADER_TEXTURE_NAMING_SEMANTIC_ROLE &&
-                (shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_SPECULAR, textureNaming) ||
-                 shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_EMISSIVE, textureNaming) ||
-                 shaderCodeDeclaresTextureRole(mslSourceText, TEXTURE_ROLE_MASK, textureNaming)))
-            {
-                ERROR_LOG("Metal shader declares a reserved semantic texture role without runtime binding support");
-                return false;
-            }
             NSError* err = nil;
             id<MTLLibrary> lib = [ctx->mtlDevice newLibraryWithSource:mslSrc options:nil error:&err];
             if (!lib)
@@ -1229,6 +1213,12 @@ namespace mbm
                                     atIndex:0];
                     [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
                                     atIndex:2];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_SPECULAR)
+                                    atIndex:3];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_EMISSIVE)
+                                    atIndex:4];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_MASK)
+                                    atIndex:5];
                     uploadReservedLightBuffersMetal(enc, pBufferId, i);
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
@@ -1248,6 +1238,12 @@ namespace mbm
                                     atIndex:0];
                     [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
                                     atIndex:2];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_SPECULAR)
+                                    atIndex:3];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_EMISSIVE)
+                                    atIndex:4];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_MASK)
+                                    atIndex:5];
                     uploadReservedLightBuffersMetal(enc, pBufferId, i);
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
@@ -1363,6 +1359,12 @@ namespace mbm
                                     atIndex:0];
                     [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
                                     atIndex:2];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_SPECULAR)
+                                    atIndex:3];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_EMISSIVE)
+                                    atIndex:4];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_MASK)
+                                    atIndex:5];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->indexStartIB[i] * sizeof(uint16_t);
                     [enc drawIndexedPrimitives:prim
@@ -1380,6 +1382,12 @@ namespace mbm
                                     atIndex:0];
                     [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_NORMAL)
                                     atIndex:2];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_SPECULAR)
+                                    atIndex:3];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_EMISSIVE)
+                                    atIndex:4];
+                    [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_MASK)
+                                    atIndex:5];
                     const NSUInteger off =
                         (NSUInteger)pBufferId->vertexStartVB[i] * stride;
                     [enc setVertexBuffer:vbuf offset:off atIndex:0];

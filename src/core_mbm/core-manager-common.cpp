@@ -499,6 +499,10 @@ namespace mbm
                                       1.0f / camera.scale2d.y);
         this->adjustScaleScreen2d();
         this->logic();
+        // Milestone 6 (async mesh loading): finishes any background-parsed loadAsync() jobs on the
+        // main thread (GPU buffer/texture creation, which must happen on the thread owning the GL
+        // context) and dispatches their completion callbacks. No-op when nothing is in flight.
+        MESH_MANAGER::getInstance()->pumpAsyncLoads();
         this->updatePhysis();
         this->updateAudio();
         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
