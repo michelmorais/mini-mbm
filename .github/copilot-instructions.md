@@ -37,7 +37,6 @@ mingw32-make -j...        # Windows MinGW
 | `-DUSE_LUA=1` | Embed Lua 5.4 scripting |
 | `-DUSE_VR=1` | Enable VR class (default on Linux/Windows, off on Android) |
 | `-DAUDIO=portaudio\|avfoundation\|opensl\|none` | Audio backend. `portaudio` is the default for Linux/Windows; `avfoundation` for macOS/iOS; `opensl` for Android |
-| `-DMBM_ENABLE_MESH_LEGACY_V7=1` | Compatibility for mesh files ≤ v7 |
 | `-DUSE_BOX2D=1` | Box2D 2.4.1 physics plugin |
 | `-DUSE_BOX2D_LIQUID_FUN=1` | LiquidFun 2.3.1 fluid physics plugin |
 | `-DUSE_BULLET3D=1` | Bullet 2.84 3D physics plugin |

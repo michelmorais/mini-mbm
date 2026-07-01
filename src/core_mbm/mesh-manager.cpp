@@ -955,9 +955,6 @@ namespace mbm
         workerThreads.clear();
     }
 
-    // Relocated from mesh-manager-legacy.cpp in milestone 5 (that file is gone - it held the
-    // MBM_ENABLE_MESH_LEGACY_V7-gated v1-v7 path, but this function was always-compiled and still
-    // needed: it's read_detail_mesh_section's TriangleReader callback for MESH_MBM_DEBUG::loadV11.
     // (MESH_MBM::loadV11 delegates entirely to parse_v11_intermediate/finishLoadFromIntermediate,
     // which use the free-function equivalent read_triangle_detail_v11 above instead - milestone 21
     // deleted MESH_MBM::readTriangleDetailCompat, which had been dead/uncalled since that delegation

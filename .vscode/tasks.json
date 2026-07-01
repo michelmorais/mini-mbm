@@ -4,7 +4,7 @@
     {
       "label": "Build mini-mbm (Linux Debug)",
       "type": "shell",
-      "command": "mkdir -p build/linux_debug && cd build/linux_debug && cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)",
+      "command": "mkdir -p build/linux_debug && cd build/linux_debug && cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -18,7 +18,7 @@
     {
       "label": "Build mini-mbm (Linux Release)",
       "type": "shell",
-      "command": "mkdir -p build/linux_release && cd build/linux_release && cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Release && make -j$(nproc)",
+      "command": "mkdir -p build/linux_release && cd build/linux_release && cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Release && make -j$(nproc)",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -32,7 +32,7 @@
     {
       "label": "Build mini-mbm (macOS Debug)",
       "type": "shell",
-      "command": "mkdir -p build/macos_debug && cd build/macos_debug && cmake ../.. -DPLAT=MacOs -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DCMAKE_BUILD_TYPE=Debug && make -j$(sysctl -n hw.logicalcpu)",
+      "command": "mkdir -p build/macos_debug && cd build/macos_debug && cmake ../.. -DPLAT=MacOs -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug && make -j$(sysctl -n hw.logicalcpu)",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -46,7 +46,7 @@
     {
       "label": "Build mini-mbm (macOS Release)",
       "type": "shell",
-      "command": "mkdir -p build/macos_release && cd build/macos_release && cmake ../.. -DPLAT=MacOs -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DCMAKE_BUILD_TYPE=Release && make -j$(sysctl -n hw.logicalcpu)",
+      "command": "mkdir -p build/macos_release && cd build/macos_release && cmake ../.. -DPLAT=MacOs -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Release && make -j$(sysctl -n hw.logicalcpu)",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -60,7 +60,7 @@
     {
       "label": "Build mini-mbm (Windows MinGW Debug)",
       "type": "shell",
-      "command": "if not exist build\\mingw_debug mkdir build\\mingw_debug && cd build\\mingw_debug && cmake ../.. -G \"MinGW Makefiles\" -DPLAT=Windows -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug && mingw32-make -j%NUMBER_OF_PROCESSORS%",
+      "command": "if not exist build\\mingw_debug mkdir build\\mingw_debug && cd build\\mingw_debug && cmake ../.. -G \"MinGW Makefiles\" -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug && mingw32-make -j%NUMBER_OF_PROCESSORS%",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -74,7 +74,7 @@
     {
       "label": "Build mini-mbm (Windows MinGW Release)",
       "type": "shell",
-      "command": "if not exist build\\mingw_release mkdir build\\mingw_release && cd build\\mingw_release && cmake ../.. -G \"MinGW Makefiles\" -DPLAT=Windows -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Release && mingw32-make -j%NUMBER_OF_PROCESSORS%",
+      "command": "if not exist build\\mingw_release mkdir build\\mingw_release && cd build\\mingw_release && cmake ../.. -G \"MinGW Makefiles\" -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Release && mingw32-make -j%NUMBER_OF_PROCESSORS%",
       "options": {
         "cwd": "${workspaceFolder}"
       },

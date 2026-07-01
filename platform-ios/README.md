@@ -22,7 +22,7 @@ The **Xcode generator** is required whenever you want to:
 # Xcode project — generated once, rebuilt by Xcode thereafter
 mkdir -p build/ios_xcode && cd build/ios_xcode
 cmake ../.. \
-    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DPLAT=iOS -DUSE_LUA=1 \
     -DAUDIO=avfoundation \
     -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
     -DGAME_NAME="My Game" \
@@ -61,7 +61,7 @@ the engine in one place and generate a per-game `.xcodeproj` inside the game rep
 # From inside your game repo — point cmake at the engine source
 mkdir -p ~/tower-defense-ios_xcode && cd ~/tower-defense-ios_xcode
 cmake ~/mini-mbm \
-    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DPLAT=iOS -DUSE_LUA=1 \
     -DAUDIO=avfoundation \
     -DGAME_BUNDLE_ID=com.mini.mbm.tower-defense \
     -DGAME_NAME="Tower Defense Monster" \
@@ -299,7 +299,7 @@ Example configure command for Tower Defense:
 ```sh
 mkdir -p ~/tower-defense-ios_xcode && cd ~/tower-defense-ios_xcode
 cmake ~/mini-mbm \
-    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DPLAT=iOS -DUSE_LUA=1 \
     -DAUDIO=avfoundation \
     -DGAME_BUNDLE_ID=com.mini.mbm.tower-defense \
     -DGAME_NAME="Tower Defense Monster" \

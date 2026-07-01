@@ -1537,7 +1537,6 @@ The engine receives `onTouchDown(id, x, y)` / `onTouchMove(id, x, y)` / `onTouch
 cmake -B build/ios \
       -DPLAT=iOS \
       -DUSE_ALL=1 \
-      -DMBM_ENABLE_MESH_LEGACY_V7=1 \
       -DCMAKE_BUILD_TYPE=Debug \
       -G Xcode
 

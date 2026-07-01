@@ -56,7 +56,6 @@ cmake ~/mini-mbm \
     -DANDROID_NATIVE_API_LEVEL=24 \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=opensl \
     -DGAME_PACKAGE=com.mini.mbm.tower_defense \
     -DGAME_NAME="Tower Defense" \
@@ -71,7 +70,6 @@ cmake ~/mini-mbm \
     -DANDROID_NATIVE_API_LEVEL=24 \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=opensl \
     -DUSE_STL_STATIC=1 \
     -DGAME_PACKAGE=com.mini.mbm.tower_defense \
@@ -230,7 +228,6 @@ cmake ~/mini-mbm \
     -DANDROID_NATIVE_API_LEVEL=24 \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=opensl
 
 make -j$(nproc)
@@ -251,7 +248,6 @@ cmake ~/mini-mbm \
     -DANDROID_ABI=arm64-v8a \
     -DANDROID_NATIVE_API_LEVEL=24 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=opensl
 
 make -j$(nproc)
@@ -502,7 +498,6 @@ cmake ../.. \
     -DANDROID_NATIVE_API_LEVEL=24 \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=opensl
 ```
 
@@ -617,7 +612,6 @@ cmake ~/mini-mbm \
     -DANDROID_ABI=arm64-v8a \
     -DANDROID_NATIVE_API_LEVEL=24 \
     -DUSE_LUA=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=opensl \
     -DUSE_STL_STATIC=1 \
     -DGAME_PACKAGE=com.example.tower_defense \

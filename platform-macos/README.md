@@ -46,7 +46,6 @@ mkdir -p build && cd build
 cmake .. \
     -DPLAT=MacOs \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DCMAKE_BUILD_TYPE=Debug
 make -j$(sysctl -n hw.logicalcpu)
 ```
@@ -57,7 +56,6 @@ Equivalently via `cmake --build`:
 cmake -B build \
     -DPLAT=MacOs \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(sysctl -n hw.logicalcpu)
 ```
@@ -69,7 +67,6 @@ mkdir -p build && cd build
 cmake .. \
     -DPLAT=MacOs \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DCMAKE_BUILD_TYPE=Release
 make -j$(sysctl -n hw.logicalcpu)
 ```
@@ -138,7 +135,6 @@ mkdir -p ~/my-game-macos && cd ~/my-game-macos
 cmake ~/mini-mbm \
     -DPLAT=MacOs \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DCMAKE_BUILD_TYPE=Release
 make -j$(sysctl -n hw.logicalcpu)
 ```
@@ -179,7 +175,6 @@ cmake ~/mini-mbm \
     -DPLAT=MacOs \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DCMAKE_BUILD_TYPE=Release \
     -DGAME_NAME="Tower Defense Monster" \
     -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets \
@@ -250,7 +245,6 @@ cmake ~/mini-mbm \
     -DPLAT=MacOs \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DCMAKE_BUILD_TYPE=Release \
     -DGAME_NAME="Tower Defense Monster" \
     -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets \
@@ -405,7 +399,6 @@ cmake ~/mini-mbm \
     -DPLAT=MacOs \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
-    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DMAS_DELIVERY=1 \
     -DMAS_BUNDLE_ID=com.mini.mbm.tower-defense \
     -DMAS_APP_NAME="Tower Defense Monsters" \
