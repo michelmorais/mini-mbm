@@ -36,7 +36,6 @@ extern "C"
 #include <lua-wrap/render-table/texture-view-lua.h>
 #include <lua-wrap/render-table/particle-lua.h>
 #include <core_mbm/mesh-manager.h>
-#include <core_mbm/header-mesh-legacy-disk.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/shapes.h>

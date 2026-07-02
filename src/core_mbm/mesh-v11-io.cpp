@@ -258,7 +258,7 @@ namespace util
             return false;
         if (in.storage == util::TEXTURE_REF_STORAGE_PATH)
             return writeStringV11(fp, in.path);
-        return false; // EMBEDDED_COMPRESSED is reserved, not implemented (milestone 3 scope)
+        return false; // EMBEDDED_COMPRESSED is reserved, not implemented
     }
 
     bool writeSubsetDescV11(FILE *fp, const util::SUBSET_DESC_V11 &in)
@@ -313,7 +313,7 @@ namespace util
             return false;
         if (out.storage == util::TEXTURE_REF_STORAGE_PATH)
             return readStringV11(fp, out.path);
-        return false; // EMBEDDED_COMPRESSED is reserved, not implemented (milestone 4 scope)
+        return false; // EMBEDDED_COMPRESSED is reserved, not implemented
     }
 
     bool readSubsetDescV11(util::MEM_CURSOR_V11 &fp, util::SUBSET_DESC_V11 &out)

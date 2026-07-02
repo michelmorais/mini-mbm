@@ -94,7 +94,7 @@ namespace mbm
         API_IMPL virtual ~TILE();
         API_IMPL void release();
         API_IMPL bool load(const char * fileName);
-        // Background-thread-friendly equivalent of load() (mesh-v11-plan.md milestone 22) - see MESH::loadAsync.
+        // Background-thread-friendly equivalent of load() - see MESH::loadAsync.
         API_IMPL void loadAsync(const char *fileName, std::function<void(bool success)> callback);
         API_IMPL const char * getFileName();
         API_IMPL const util::BTILE_INFO *	getTileInfo() const;

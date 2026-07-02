@@ -24,10 +24,10 @@
 namespace
 {
     // UBER_IMG's own on-disk header - decoupled from the legacy mesh v8 util::HEADER/HEADER_IMG
-    // format (docs/mesh-v11-plan.md Scope Decision 5 / milestone 5.5). UBER_IMG is an unrelated
-    // compressed-texture-blob format (texture-manager*.cpp's ".uberimg" loader), not a mesh format,
-    // so it no longer needs to share a struct layout with mesh files just because it once reused the
-    // same read/write helpers. Private to this file - nothing else needs to know this layout.
+    // format. UBER_IMG is an unrelated compressed-texture-blob format (texture-manager*.cpp's
+    // ".uberimg" loader), not a mesh format, so it no longer needs to share a struct layout with mesh
+    // files just because it once reused the same read/write helpers. Private to this file - nothing
+    // else needs to know this layout.
     constexpr char    kUberImgTag[4]  = {'U', 'B', 'I', 'M'};
     constexpr uint16_t kUberImgVersion = 1;
 

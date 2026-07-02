@@ -6,16 +6,15 @@
 #include <shapes.h>
 #include "mesh-io-primitives.h" // util::MEM_CURSOR_V11
 
-// v11's SECTION_DETAIL_PHYSICS keeps the v8 on-disk field layout verbatim (docs/mesh-v11-plan.md
-// File Format Design Principles), so saveV11/loadV11 reuse these primitives directly. Every other
-// v8-v10 primitive (headers, frames, subsets, animation/shader, material-texture-slot,
-// font/particle/tile/btile) moved to src/mesh_deprecated/mesh-v8-io-legacy.h/.cpp in milestone 5.
-// readHeaderV8/readHeaderImgV8 (+ write counterparts) moved there too in milestone 5.5 - uber-image.cpp's
+// v11's SECTION_DETAIL_PHYSICS keeps the v8 on-disk field layout verbatim, so saveV11/loadV11 reuse
+// these primitives directly. Every other v8-v10 primitive (headers, frames, subsets,
+// animation/shader, material-texture-slot, font/particle/tile/btile), including
+// readHeaderV8/readHeaderImgV8 (+ write counterparts), has been removed entirely - uber-image.cpp's
 // UBER_IMG (an unrelated compressed-image-blob format, not a mesh format) no longer reuses them, it
-// has its own self-contained header now (docs/mesh-v11-plan.md Scope Decision 5).
-// The read side here only ever runs against an already-staged v11 section payload (MEM_CURSOR_V11,
-// milestone 15) - SECTION_DETAIL_PHYSICS is the only v11 section reusing this v8 layout, and its
-// payload is always read from memory, never a real on-disk FILE*. The write side stays FILE*-based
+// has its own self-contained header now.
+// The read side here only ever runs against an already-staged v11 section payload (MEM_CURSOR_V11)
+// - SECTION_DETAIL_PHYSICS is the only v11 section reusing this v8 layout, and its payload is
+// always read from memory, never a real on-disk FILE*. The write side stays FILE*-based
 // (writeSectionV11Streamed always streams into the real file).
 namespace util
 {

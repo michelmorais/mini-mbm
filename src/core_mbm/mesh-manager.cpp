@@ -30,7 +30,6 @@
 #include <cr-static-local.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <header-mesh.h>
-#include <header-mesh-legacy-disk.h>
 #include "mesh-v8-io.h"
 #include "mesh-v11-io.h"
 #include "mesh-io-primitives.h"
@@ -72,10 +71,9 @@ const bool is_any_mode_valid(const util::INFO_DRAW_MODE & info_mode,std::string 
 
 namespace mbm
 {
-    // Milestone 6 (async loading): the pure-CPU result of parsing a v11 file, safe to build on a
-    // worker thread and hand to the main thread - no BUFFER_GL/TEXTURE_MANAGER/addPath/global-state
-    // calls anywhere in here (see docs/mesh-v11-plan.md's Async Loading section for why those must
-    // stay main-thread-only). MESH_MBM::finishLoadFromIntermediate (main thread) consumes this.
+    // The pure-CPU result of parsing a v11 file, safe to build on a worker thread and hand to the
+    // main thread - no BUFFER_GL/TEXTURE_MANAGER/addPath/global-state calls anywhere in here (those
+    // must stay main-thread-only). MESH_MBM::finishLoadFromIntermediate (main thread) consumes this.
     // Declared with external linkage (not in the anonymous namespace below) so it can be
     // forward-declared in mesh-manager.h for the MESH_MBM::finishLoadFromIntermediate declaration -
     // same PIMPL-style "forward declare in the header, define in the .cpp" pattern already used for
@@ -253,14 +251,11 @@ namespace
                     i += detail.totalBounding;
                 }
                 break;
-                // MBM_DETAIL_TYPE_FONT/PARTICLE/TILE removed in milestone 5, still absent after
-                // milestones 12/13 added real FONT/PARTICLE/TILE_MAP support: SECTION_DETAIL_PHYSICS
-                // is written for every mesh type (including FONT/PARTICLE/TILE_MAP - saveV11 does not
-                // reject them), but its own DETAIL_MESH.type sub-dispatch only ever carries physics
-                // bounding volumes. FONT/PARTICLE/TILE_MAP detail data lives in its own top-level
-                // SECTION_DETAIL_FONT/PARTICLE/TILE section instead (docs/mesh-v11-format.md §6c/§6d),
-                // so those detail types can never appear here. v1-v10 handling of them moved to
-                // mesh_deprecated.
+                // MBM_DETAIL_TYPE_FONT/PARTICLE/TILE never appear here: SECTION_DETAIL_PHYSICS is
+                // written for every mesh type (including FONT/PARTICLE/TILE_MAP), but its own
+                // DETAIL_MESH.type sub-dispatch only ever carries physics bounding volumes.
+                // FONT/PARTICLE/TILE_MAP detail data lives in its own top-level
+                // SECTION_DETAIL_FONT/PARTICLE/TILE section instead (docs/mesh-v11-format.md §6c/§6d).
                 default:
                 {
                     return log_util::onFailed(nullptr,__FILE__, __LINE__, "unknown type bounding box [%d] [%s]", detail.type, fileNamePath);
@@ -318,8 +313,7 @@ namespace
     // Maps SUBSET_DEBUG::materialTextureSlots[].type (legacy util::MATERIAL_TEXTURE_SLOT_TYPE numbering,
     // 1-4) onto the v11 on-disk role byte (mbm::TEXTURE_ROLE numbering, 2-5) - the two enums exist for
     // different reasons (one is the in-memory editor's legacy slot id, the other is the runtime
-    // shader/texture role) and were never given matching values. See docs/mesh-v11-plan.md Scope
-    // Decision 2.
+    // shader/texture role) and were never given matching values.
     mbm::TEXTURE_ROLE legacyMaterialSlotTypeToTextureRole(const uint16_t legacyType) noexcept
     {
         switch (legacyType)
@@ -352,9 +346,9 @@ namespace
     // MEM_CURSOR_V11, so loadV11 can reuse the project's existing payload-level readers
     // (util::readXxxV11, and - for SECTION_DETAIL_PHYSICS - the real read_detail_mesh_section
     // template) without duplicating any parsing logic, and without copying the payload through a
-    // real OS temp file first (superseded an earlier tmpfile()-per-section design - see
-    // docs/mesh-v11-plan.md milestone 15: that had a real per-section syscall cost and a Windows
-    // risk, since MSVC's tmpfile() defaults to a root directory non-admin users can't write to).
+    // real OS temp file first (superseded an earlier tmpfile()-per-section design, which had a real
+    // per-section syscall cost and a Windows risk, since MSVC's tmpfile() defaults to a root
+    // directory non-admin users can't write to).
     util::MEM_CURSOR_V11 stage_payload_as_cursor(const std::vector<uint8_t> &payload)
     {
         return util::MEM_CURSOR_V11{payload.data(), payload.size(), 0};
@@ -610,7 +604,7 @@ namespace
             return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read FRAME_HEADER_V11 [%s]", fileNamePath);
         if (frameHeader.indexWidth != 16)
             return log_util::onFailed(nullptr, __FILE__, __LINE__,
-                                      "loadV11 only supports 16-bit indices (milestone 4 core slice) [%s]", fileNamePath);
+                                      "loadV11 only supports 16-bit indices [%s]", fileNamePath);
 
         outFrame.vertexCount = frameHeader.vertexCount;
         outFrame.hasNormal   = frameHeader.hasNormal != 0;
@@ -854,7 +848,7 @@ namespace
             }
             else
             {
-                errorOut = "loadV11 does not support this section type yet (milestone 4 core slice)";
+                errorOut = "loadV11 does not support this section type";
                 return false;
             }
         }
@@ -958,10 +952,9 @@ namespace mbm
         workerThreads.clear();
     }
 
-    // (MESH_MBM::loadV11 delegates entirely to parse_v11_intermediate/finishLoadFromIntermediate,
-    // which use the free-function equivalent read_triangle_detail_v11 above instead - milestone 21
-    // deleted MESH_MBM::readTriangleDetailCompat, which had been dead/uncalled since that delegation
-    // was introduced.)
+    // (MESH_MBM has no equivalent method: MESH_MBM::loadV11 delegates entirely to
+    // parse_v11_intermediate/finishLoadFromIntermediate, which use the free-function equivalent
+    // read_triangle_detail_v11 above instead.)
     bool MESH_MBM_DEBUG::readDebugTriangleDetailCompat(util::MEM_CURSOR_V11 &fp, const char *fileNamePath, const int totalBounding)
     {
         for (int j = 0; j < totalBounding; j++)
@@ -1176,11 +1169,11 @@ namespace mbm
         this->impl->typeMe = type;
     }
 
-    // Peeks a mesh file's header without fully loading it (editor file-browser preview). Milestone 5:
-    // v1-v10 support moved out of core_mbm, so this only understands v11 files now - a non-v11 file
-    // (bad magic) returns false, no legacy fallback. v11 has no font/particle/animation section types
-    // implemented yet, so datailFontOut/lsStageParticle/headerMeshMbmOut.totalAnimation always come
-    // back empty/default for a v11 mesh peek - that's correct, not a bug, until those sections exist.
+    // Peeks a mesh file's header without fully loading it (editor file-browser preview). A non-v11
+    // file (bad magic) returns false, no legacy fallback. datailFontOut/lsStageParticle are never
+    // populated here - this quick peek only walks SECTION_MATERIAL_TRANSFORM/ANIMATION/FRAME_STATIC,
+    // it doesn't read font/particle detail sections - the (void) casts above are intentional, not
+    // oversights.
     bool MESH_MBM_DEBUG::getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
                               util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut,
                               std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut)
@@ -1506,7 +1499,7 @@ namespace mbm
             return util::TYPE_MESH_PARTICLE;
         if (strcasecmp(ext, "TILE") == 0)
             return util::TYPE_MESH_TILE_MAP;
-        // Unrecognized extension - peek the v11 file header directly (milestone 5: v1-v10 is gone).
+        // Unrecognized extension - peek the v11 file header directly.
         FILE *fp = util::openFile(fileNamePath, "rb");
         if (!fp)
             return util::TYPE_MESH_UNKNOWN;
@@ -2446,7 +2439,7 @@ namespace mbm
         if (!util::readFrameHeaderV11(fp, frameHeader))
             return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read FRAME_HEADER_V11");
         if (frameHeader.indexWidth != 16)
-            return log_util::onFailed(nullptr, __FILE__, __LINE__, "loadV11 only supports 16-bit indices (milestone 4 core slice)");
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "loadV11 only supports 16-bit indices");
 
         auto pBuffer = new util::BUFFER_MESH_DEBUG();
         pBuffer->headerFrame.totalSubset      = static_cast<int>(frameHeader.totalSubset);
@@ -2709,7 +2702,7 @@ namespace mbm
             else
             {
                 return log_util::onFailed(fp, __FILE__, __LINE__,
-                                          "loadV11 does not support section type %u yet (milestone 4 core slice) [%s]",
+                                          "loadV11 does not support section type %u [%s]",
                                           sectionHeader.type, fileNamePath);
             }
         }
@@ -4001,7 +3994,7 @@ namespace mbm
         return true;
     }
 
-    // Main-thread-only GPU-finish half of loading a v11 mesh (milestone 6: async loading). Consumes
+    // Main-thread-only GPU-finish half of loading a v11 mesh (async loading). Consumes
     // the pure-CPU MESH_LOAD_INTERMEDIATE_V11 that parse_v11_intermediate produced (on the calling
     // thread for loadV11, on a worker thread for loadAsync) and does everything that touches the GPU
     // or other shared/global state: TEXTURE_MANAGER::load, BUFFER_GL, EnablePixelPerfectTexture,
@@ -4229,12 +4222,12 @@ namespace mbm
         }
     }
 
-    // Milestone 6: async loading. onComplete always fires from pumpAsyncLoads() on the main thread,
-    // never inline here - even on a cache hit, so callers never have to special-case "sometimes
-    // synchronous" behavior. Real parsing happens on a worker thread (lazily started); the GPU-finish
-    // work (TEXTURE_MANAGER::load/BUFFER_GL/addPath/EnablePixelPerfectTexture) happens in
-    // pumpAsyncLoads, on the main thread, since those touch the GPU context and other shared state
-    // that isn't safe off the main thread (see docs/mesh-v11-plan.md's Async Loading section).
+    // onComplete always fires from pumpAsyncLoads() on the main thread, never inline here - even on
+    // a cache hit, so callers never have to special-case "sometimes synchronous" behavior. Real
+    // parsing happens on a worker thread (lazily started); the GPU-finish work
+    // (TEXTURE_MANAGER::load/BUFFER_GL/addPath/EnablePixelPerfectTexture) happens in pumpAsyncLoads,
+    // on the main thread, since those touch the GPU context and other shared state that isn't safe
+    // off the main thread.
     void MESH_MANAGER::loadAsync(const char *fileName, MeshAsyncLoadCallback onComplete)
     {
         const std::string fileNameBase = util::getBaseName(fileName);

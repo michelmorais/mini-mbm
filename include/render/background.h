@@ -60,11 +60,11 @@ namespace mbm
         API_IMPL bool loadTexture(const char *fileNameMeshMbm, const bool hasAlpha);
         API_IMPL void setFrontGround(const bool enable);
         API_IMPL bool load(const char *fileName, const bool hasAlpha = false, const bool majorScale = true);
-        // Background-thread-friendly equivalent of load() (mesh-v11-plan.md milestone 22). Only the
-        // mesh-file branch (.mbm/.spt/.msh) is genuinely deferred to a worker thread - the texture
-        // branch has no async loading primitive anywhere in the engine, so it still runs
-        // synchronously here, just within this same callback-shaped API (documented limitation, not
-        // a bug). Does not cover the loadFont(...) variant.
+        // Background-thread-friendly equivalent of load(). Only the mesh-file branch (.mbm/.spt/.msh)
+        // is genuinely deferred to a worker thread - the texture branch has no async loading
+        // primitive anywhere in the engine, so it still runs synchronously here, just within this
+        // same callback-shaped API (documented limitation, not a bug). Does not cover the
+        // loadFont(...) variant.
         API_IMPL void loadAsync(const char *fileName, const bool hasAlpha, const bool majorScale, std::function<void(bool success)> callback);
         API_IMPL bool setTexture(const MESH_MBM *_mesh, // fixa textura para o estagio 0 e 1, stage = 1 para TextureAnimationEffect
                                  const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;

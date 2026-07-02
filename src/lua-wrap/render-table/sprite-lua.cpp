@@ -106,8 +106,8 @@ namespace mbm
         return 1;
     }
 
-    // Background-thread-friendly equivalent of "load" (mesh-v11-plan.md milestone 22) - see
-    // mesh-lua.cpp's onLoadAsyncMeshLua for the full rationale of the ref-holding mechanism.
+    // Background-thread-friendly equivalent of "load" - see mesh-lua.cpp's onLoadAsyncMeshLua for
+    // the full rationale of the ref-holding mechanism.
     namespace
     {
         struct AsyncLoadCtxSprite

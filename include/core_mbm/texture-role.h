@@ -21,11 +21,11 @@
 #define TEXTURE_ROLE_H
 
 // Single, dependency-free definition of "what kind of texture is this" - shared by the runtime
-// shader/texture layer (shader.h) and the v11 mesh file format (header-mesh.h's SUBSET_EXTRA_SLOT_V11
-// / SUBSET_DESC_V11), per docs/mesh-v11-plan.md Scope Decision 2/4. Kept tiny and standalone so
-// header-mesh.h (deliberately lean: stdint.h, vector, string, primitives.h, core-exports.h) never has
-// to pull in shader.h's heavier include graph (particle-control.h, TEXTURE/RENDERIZABLE forward decls)
-// just to reference a texture role byte.
+// shader/texture layer (shader.h) and the v11 mesh file format (header-mesh.h's
+// SUBSET_EXTRA_SLOT_V11 / SUBSET_DESC_V11). Kept tiny and standalone so header-mesh.h (deliberately
+// lean: stdint.h, vector, string, primitives.h, core-exports.h) never has to pull in shader.h's
+// heavier include graph (particle-control.h, TEXTURE/RENDERIZABLE forward decls) just to reference
+// a texture role byte.
 
 #include <stdint.h>
 

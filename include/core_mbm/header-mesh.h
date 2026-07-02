@@ -125,13 +125,6 @@ namespace util
     #define MBM_DETAIL_TYPE_PARTICLE 6
     #define MBM_DETAIL_TYPE_TILE 7
 
-    // Legacy v1-v10 on-disk reference structs (HEADER_DISK_V8, HEADER_MESH_DISK_V8, ...,
-    // STAGE_PARTICLE_DISK_V8) moved to header-mesh-legacy-disk.h, and (milestone 21) the legacy
-    // in-memory util::HEADER/EXTRA_HEADER structs plus the old *_VERSION_MBM_HEADER version
-    // constants moved to src/mesh_deprecated/mesh-v8-io-legacy.h - they document/back the old v1-v10
-    // format for the offline mesh_deprecated importer, but nothing in core_mbm reads/writes them
-    // anymore (core_mbm's only load/save path is v11), so this header no longer needs to carry them.
-
     struct API_IMPL INFO_DRAW_MODE //added since version 5
     {
         uint32_t mode_draw; //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
@@ -299,6 +292,17 @@ namespace util
         char nameTexture[64];
 
         API_IMPL MATERIAL_TEXTURE_SLOT_HEADER()noexcept;
+    };
+
+    // Legacy in-memory editor slot-id numbering (1-4) for MATERIAL_TEXTURE_SLOT_DEBUG::type below -
+    // unrelated to mbm::TEXTURE_ROLE (the v11 on-disk role byte); see
+    // legacyMaterialSlotTypeToTextureRole/textureRoleToLegacyMaterialSlotType in mesh-manager.cpp.
+    enum MATERIAL_TEXTURE_SLOT_TYPE : uint16_t
+    {
+        MATERIAL_TEXTURE_SLOT_NORMAL   = 1,
+        MATERIAL_TEXTURE_SLOT_SPECULAR = 2,
+        MATERIAL_TEXTURE_SLOT_EMISSIVE = 3,
+        MATERIAL_TEXTURE_SLOT_MASK     = 4,
     };
 
     struct MATERIAL_TEXTURE_SLOT_DEBUG
@@ -546,9 +550,7 @@ namespace util
     };
 
     // -----------------------------------------------------------------------------------------
-    // Mesh v11 format (docs/mesh-v11-format.md) - section/TLV envelope. Layout locked, milestone 0
-    // closed 2026-06-25 (docs/mesh-v11-plan.md). Section payload structs (frame/subset/material...)
-    // are not defined yet - they land with the v11 writer/reader (milestones 3-4).
+    // Mesh v11 format (docs/mesh-v11-format.md) - section/TLV envelope.
     // -----------------------------------------------------------------------------------------
 
     #define MBM_V11_MAGIC "MBM1"
@@ -602,9 +604,9 @@ namespace util
 
     // Non-owning cursor over an already-in-memory byte buffer - typically a v11 section's
     // decompressed payload. Lets the v11/v8 payload-level readers (mesh-v11-io.h/mesh-v8-io.h)
-    // consume bytes without staging them through a real OS temp file first (milestone 15;
-    // superseded an earlier tmpfile()-per-section design - see docs/mesh-v11-plan.md). Declared
-    // here (not in the internal mesh-io-primitives.h where its read primitives live) because
+    // consume bytes without staging them through a real OS temp file first (superseded an earlier
+    // tmpfile()-per-section design). Declared here (not in the internal mesh-io-primitives.h where
+    // its read primitives live) because
     // MESH_MBM_DEBUG's class declaration (mesh-manager.h, a public header) needs the type visible.
     // Read-only: nothing ever serializes a payload back out of memory through this type, only into
     // a real FILE* via writeSectionV11Streamed.
@@ -616,16 +618,15 @@ namespace util
     };
 
     // -----------------------------------------------------------------------------------------
-    // Mesh v11 section payloads (docs/mesh-v11-format.md Sec. 6) - milestone 3 (core slice: material
-    // transform, static frames, physics detail, extra paths). Animation/FX and the font/particle/tile
-    // detail payloads are not covered here yet.
+    // Mesh v11 section payloads (docs/mesh-v11-format.md Sec. 6): material transform, static frames,
+    // physics detail, extra paths, animation/FX, and font/particle/tile detail.
     // -----------------------------------------------------------------------------------------
 
     struct API_IMPL FRAME_HEADER_V11
     {
         uint32_t totalSubset;
         uint32_t vertexCount;
-        uint8_t  indexWidth;   // 16 or 32 (only 16 emitted by the milestone-3 writer)
+        uint8_t  indexWidth;   // 16 or 32 (only 16 ever emitted by saveV11)
         uint8_t  hasNormal;    // bool
         uint8_t  hasUv;        // bool
         uint8_t  uvSource;     // 0 = OWN, 1 = SHARED_WITH_FRAME_0
@@ -636,7 +637,7 @@ namespace util
     enum TEXTURE_REF_STORAGE_V11 : uint8_t
     {
         TEXTURE_REF_STORAGE_PATH               = 0,
-        TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED = 1, // reserved - no milestone-3 writer emits this
+        TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED = 1, // reserved - saveV11 never emits this
     };
 
     // Not struct-level API_IMPL: a std::string member (directly or via a nested V11 struct) would

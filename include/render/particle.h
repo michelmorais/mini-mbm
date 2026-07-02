@@ -45,11 +45,10 @@ namespace mbm
         API_IMPL void release();
         API_IMPL bool load(const char *fileNameTextureOrMesh, const char *operatorShader, const char *newCodeLine,
                   const uint32_t sizeOfParticle = 0, const bool initializeParticleData = true);
-        // Background-thread-friendly equivalent of load() (mesh-v11-plan.md milestone 22). Only the
-        // .ptl (mesh-based particle) path is genuinely deferred to a worker thread - a plain texture
-        // file has no async loading primitive anywhere in the engine, so that path still runs
-        // synchronously here, just within this same callback-shaped API (documented limitation, not
-        // a bug).
+        // Background-thread-friendly equivalent of load(). Only the .ptl (mesh-based particle) path
+        // is genuinely deferred to a worker thread - a plain texture file has no async loading
+        // primitive anywhere in the engine, so that path still runs synchronously here, just within
+        // this same callback-shaped API (documented limitation, not a bug).
         API_IMPL void loadAsync(const char *fileNameTextureOrMesh, const char *operatorShader, const char *newCodeLine,
                   const uint32_t sizeOfParticle, const bool initializeParticleData, std::function<void(bool success)> callback);
         API_IMPL bool addParticle(const uint32_t numParticles,const bool forceNow);

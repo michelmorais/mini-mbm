@@ -43,9 +43,9 @@ namespace mbm
     class SHADER;
     class MESH_MBM;
     struct IMAGE_RESOURCE;
-    // Defined in mesh-manager.cpp only (milestone 6: async loading) - forward-declared here so
-    // MESH_MBM::finishLoadFromIntermediate can be declared without exposing the type's layout in
-    // the public header, same PIMPL-style pattern as MESH_MBM::Impl.
+    // Defined in mesh-manager.cpp only - forward-declared here so MESH_MBM::finishLoadFromIntermediate
+    // can be declared without exposing the type's layout in the public header, same PIMPL-style
+    // pattern as MESH_MBM::Impl.
     struct MESH_LOAD_INTERMEDIATE_V11;
 
     struct BUFFER_MESH
@@ -127,18 +127,17 @@ namespace mbm
         API_IMPL void addNormals();
         API_IMPL void removeBuffer(uint32_t indexFrame);
         API_IMPL void removeAnimation(uint32_t index);
-        // Writes the v11 section/TLV format (docs/mesh-v11-format.md). Milestone 3 core slice only:
-        // material+transform, static frames (path-referenced textures only), physics bounding volumes,
-        // extra paths. Returns false with a message in errorOut (not a partial file) if the mesh has any
-        // animations or is FONT/PARTICLE/TILE_MAP typed - those land in a later pass of this milestone.
-        // `compress` (milestone 8, opt-in, default-off at every call site): when true, requests DEFLATE
-        // for SECTION_FRAME_STATIC (the vertex/index buffer - the one section large enough for
+        // Writes the v11 section/TLV format (docs/mesh-v11-format.md): material+transform, frames,
+        // physics bounding volumes, extra paths, animation headers, and (for FONT/PARTICLE/TILE_MAP
+        // meshes) their own detail section. Returns false with a message in errorOut (not a partial
+        // file) on failure.
+        // `compress` (opt-in, default-off at every call site): when true, requests DEFLATE for
+        // SECTION_FRAME_STATIC (the vertex/index buffer - the one section large enough for
         // compression to be worth it); every other section always stays uncompressed.
         API_IMPL bool saveV11(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, const bool compress, char *errorOut,const int lenErrorOut);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
-        // Reads the v11 section/TLV format. Milestone 5: this is now the only mesh format core_mbm
-        // reads/writes - v1-v10 support moved to the offline mesh_deprecated library (no longer
-        // linked into core_mbm), per docs/mesh-v11-plan.md Scope Decision 1.
+        // Reads the v11 section/TLV format. This is the only mesh format core_mbm reads/writes -
+        // v1-v10 support has been removed entirely.
         API_IMPL bool loadV11(const char *fileNamePath);
         API_IMPL bool check(char *error,const int lenError);
         API_IMPL void centralizeFrame(const int indexFrame, const int indexSubset);
@@ -226,14 +225,13 @@ namespace mbm
         MESH_MBM();
         bool load(const char *fileNamePath);
         bool load(const char *fileNamePath, RENDERIZABLE *renderizable);
-        // Reads the v11 section/TLV format. Milestone 5: this is now the only mesh format - it backs
-        // load()/MESH_MANAGER::load() directly, since v1-v10 support moved to the offline
-        // mesh_deprecated library (no longer linked into core_mbm).
+        // Reads the v11 section/TLV format. This is the only mesh format - it backs
+        // load()/MESH_MANAGER::load() directly.
         bool loadV11(const char *fileNamePath);
-        // Main-thread-only GPU-finish half of loadV11 (milestone 6: async loading) - see
-        // mesh-manager.cpp's IntermediateMeshV11/finishLoadFromIntermediate comments. Takes the
-        // forward-declared struct below by reference; defined in mesh-manager.cpp only, same
-        // forward-declare-in-header pattern as Impl.
+        // Main-thread-only GPU-finish half of loadV11 (async loading) - see mesh-manager.cpp's
+        // IntermediateMeshV11/finishLoadFromIntermediate comments. Takes the forward-declared struct
+        // below by reference; defined in mesh-manager.cpp only, same forward-declare-in-header
+        // pattern as Impl.
         bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
 
         struct Impl;
