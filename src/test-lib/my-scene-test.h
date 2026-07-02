@@ -37,6 +37,7 @@
 #include <core_mbm/mesh-manager.h> // mesh debug
 #include <render/tile.h>
 #include <vector>
+#include <string>
 
 enum class RenderMode { NONE, SCREEN_2D, WORLD_2D, WORLD_3D };
 
@@ -129,6 +130,21 @@ class MY_SCENE : public mbm::SCENE
     // Timed notification (5 seconds)
     mbm::TEXT_DRAW*         notificationText;
     float                   notificationTimer;
+
+    // Automated-test exit: when >= 0, onLoop() we  quit the loop exiting the application
+    // testElapsedSeconds reaches testTimeoutSeconds. Set via main()'s optional
+    // <seconds> command-line argument so agent-driven test runs are not stuck
+    // waiting forever in the render loop.
+    float                   testTimeoutSeconds;
+    float                   testElapsedSeconds;
+
+    // Automated-test mesh preload: when cliMeshMode != RenderMode::NONE, onInitScene()
+    // loads cliMeshFile (or the default "Crate.msh" when empty) into that world/coord
+    // space right away via the same loadObjectAt() path the interactive menu uses, so
+    // an agent can verify a specific mesh without driving the mouse-only menu UI.
+    // Set via main()'s optional <mesh_file> <world> command-line arguments.
+    std::string             cliMeshFile;
+    RenderMode              cliMeshMode;
 
     MY_SCENE();
     virtual ~MY_SCENE();

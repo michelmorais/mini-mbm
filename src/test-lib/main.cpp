@@ -25,10 +25,46 @@
 #endif
 
 #include "my-scene-test.h"
+#include <cstdlib>
+#include <cstring>
 
-int main()
+// Usage: testLib [seconds] [mesh_file] [world]
+//   seconds    Exit on its own once this many seconds have elapsed in the
+//              render loop, instead of running forever. Meant for
+//              agent-driven / CI test runs, where nothing is present to
+//              press a key or close the window. Pass 0 to keep running
+//              indefinitely while still setting mesh_file/world below.
+//   mesh_file  Optional .msh to preload immediately in onInitScene(), via
+//              the same path the interactive MESH menu row uses, so a mesh
+//              feature can be verified without driving the mouse-only menu.
+//              Looked up via the engine's normal asset search paths (see
+//              util::addPath) — same rules as the interactive menu.
+//   world      Coordinate space for mesh_file: "2ds", "2dw", or "3d"
+//              (default "3d" when mesh_file is given but world is omitted).
+int main(int argc, char** argv)
 {
     GAME game;
+    if (argc > 1)
+    {
+        const float seconds = static_cast<float>(std::atof(argv[1]));
+        if (seconds > 0.0f)
+            game.myScene.testTimeoutSeconds = seconds;
+    }
+    if (argc > 2)
+    {
+        game.myScene.cliMeshFile = argv[2];
+        RenderMode mode = RenderMode::WORLD_3D;
+        if (argc > 3)
+        {
+            if (strcmp(argv[3], "2ds") == 0)
+                mode = RenderMode::SCREEN_2D;
+            else if (strcmp(argv[3], "2dw") == 0)
+                mode = RenderMode::WORLD_2D;
+            else if (strcmp(argv[3], "3d") == 0)
+                mode = RenderMode::WORLD_3D;
+        }
+        game.myScene.cliMeshMode = mode;
+    }
 	// this is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
     game.setUsageOfDefaultPS_VS_WhenNoShader(true, true);
     constexpr bool singleLoop    = false;

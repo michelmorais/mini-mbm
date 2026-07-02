@@ -133,6 +133,7 @@ namespace usage
             "-n, --name             " << " set window's name" << std::endl <<
             "-a, --addpath          " << " add path to search file at run time" << std::endl <<
             "--noborder             " << " new window without border" << std::endl <<
+            "--disable_select_monitor" << " skip the monitor/fullscreen/script picker dialog (useful for automated testing; requires --scene)" << std::endl <<
 
 
 #if defined _WIN32

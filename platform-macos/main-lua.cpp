@@ -70,6 +70,7 @@ int main(const int argc,const char **argv)
 {
     bool allowFullScreen = false;
     bool full_screen_checked = false;
+    bool disable_select_monitor = false;
 
     mbm::APP_RUN default_applications[] = {
             {"Asset packager"        , STR_PT_BR_ASSET_PACKAGER,    "asset_packager.lua"},
@@ -156,6 +157,7 @@ int main(const int argc,const char **argv)
 
         allowFullScreen = parser.allowFullScreen;
         full_screen_checked = parser.full_screen_checked;
+        disable_select_monitor = parser.disable_select_monitor;
     }
     int ret = 0;
 
@@ -182,7 +184,13 @@ int main(const int argc,const char **argv)
         #endif
     #endif
     size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
-    if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected,
+    if (disable_select_monitor)
+    {
+        // Automated/headless testing path: skip the monitor/fullscreen/script picker dialog
+        // entirely and run whatever scene was set via --scene above.
+        ret = mbm::onLoop();
+    }
+    else if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected,
             nullptr, 0, allowFullScreen, full_screen_checked, requested_width, requested_height))
     {
         if (index_app_selected > -1 && index_app_selected < size_app)
