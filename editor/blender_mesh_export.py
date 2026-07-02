@@ -12,6 +12,7 @@ Writes a Lua intermediate file with baked mesh frames:
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import re
 import shutil
@@ -24,6 +25,14 @@ from typing import Any
 
 
 MAX_MBM_SUBSET_VERTICES = 65535
+
+# v11 mesh format constants (docs/mesh-v11-format.md, mirrors src/core_mbm/mesh-v11-io.cpp).
+TYPE_MESH_3D = 0
+SECTION_MATERIAL_TRANSFORM = 1
+SECTION_ANIMATION = 2
+SECTION_FRAME_STATIC = 10
+SECTION_DETAIL_PHYSICS = 20
+SECTION_EXTRA_PATHS = 30
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -842,17 +851,6 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
     }
 
 
-def fixed_bytes(value: str, size: int) -> bytes:
-    data = str(value or "").encode("utf-8", errors="ignore")
-    if len(data) >= size:
-        data = data[: size - 1]
-    return data + (b"\0" * (size - len(data)))
-
-
-def write_i16(fp: Any, value: int) -> None:
-    fp.write(struct.pack("<h", int(value)))
-
-
 def write_u16(fp: Any, value: int) -> None:
     fp.write(struct.pack("<H", int(value)))
 
@@ -893,29 +891,110 @@ def write_vec2(fp: Any, value: tuple[float, float]) -> None:
     write_f32(fp, value[1])
 
 
-def write_header_v8(fp: Any, extra_header_count: int = 0) -> None:
-    fp.write(fixed_bytes("mbm", 16))
-    fp.write(fixed_bytes("Mesh 3d mbm", 16))
-    write_i32(fp, 8)
-    write_u32(fp, 0x010203FF)
-    write_i32(fp, 0)
-    write_i32(fp, 0)
-    write_i32(fp, 0)
-    write_i32(fp, extra_header_count)
+def write_string_v11(fp: Any, value: str) -> None:
+    data = str(value or "").encode("utf-8")
+    if len(data) > 0xFFFF:
+        raise RuntimeError(f"string too long for a v11 length-prefixed field: {len(data)} bytes")
+    write_u16(fp, len(data))
+    fp.write(data)
 
 
-def write_extra_path_headers_v8(fp: Any, paths: list[str]) -> None:
+def write_file_header_v11(fp: Any, type_mesh: int, back_buffer_width: int, back_buffer_height: int,
+                           section_count: int) -> None:
+    fp.write(b"MBM1")
+    write_u16(fp, 11)
+    fp.write(bytes((type_mesh, 0)))
+    write_i32(fp, back_buffer_width)
+    write_i32(fp, back_buffer_height)
+    write_u32(fp, section_count)
+
+
+def write_section_header_v11(fp: Any, section_type: int, section_version: int, compression: int,
+                              uncompressed_length: int, compressed_length: int, crc32_value: int) -> None:
+    write_u16(fp, section_type)
+    write_u16(fp, section_version)
+    fp.write(bytes((compression, 0, 0, 0)))
+    write_u32(fp, uncompressed_length)
+    write_u32(fp, compressed_length)
+    write_u32(fp, crc32_value)
+
+
+def write_section_v11(fp: Any, section_type: int, section_version: int, payload: bytes, compress: bool) -> None:
+    if compress and payload:
+        compressed = zlib.compress(payload, 9)
+        compression = 1
+    else:
+        compressed = payload
+        compression = 0
+    crc32_value = zlib.crc32(payload) & 0xFFFFFFFF
+    write_section_header_v11(fp, section_type, section_version, compression, len(payload), len(compressed),
+                              crc32_value)
+    fp.write(compressed)
+
+
+def build_material_transform_payload_v11(angles: tuple[float, float, float]) -> bytes:
+    buf = io.BytesIO()
+    write_material_default(buf)
+    write_f32(buf, angles[0])
+    write_f32(buf, angles[1])
+    write_f32(buf, angles[2])
+    write_f32(buf, 0.0)  # posX
+    write_f32(buf, 0.0)  # posY
+    write_f32(buf, 0.0)  # posZ
+    write_u32(buf, 4)       # mode_draw = MODE_DRAW_TRIANGLES
+    write_u32(buf, 0x0405)  # mode_cull_face = CULL_BACK
+    write_u32(buf, 0x0900)  # mode_front_face_direction = CW
+    return buf.getvalue()
+
+
+def build_extra_paths_payload_v11(paths: list[str]) -> bytes:
+    buf = io.BytesIO()
+    write_u32(buf, len(paths))
     for path in paths:
-        encoded = path.encode("utf-8")
-        fp.write(b"\x01")
-        write_i32(fp, len(encoded))
-        fp.write(encoded)
+        write_string_v11(buf, path)
+    return buf.getvalue()
 
 
-def write_info_draw_mode_v8(fp: Any) -> None:
-    write_u32(fp, 4)       # MODE_DRAW_TRIANGLES
-    write_u32(fp, 0x0405)  # CULL_BACK
-    write_u32(fp, 0x0900)  # CW
+def build_animation_payload_v11(anim: dict[str, Any]) -> bytes:
+    buf = io.BytesIO()
+    write_string_v11(buf, str(anim.get("name", "default")))
+    write_i32(buf, int(anim.get("initialFrame", 1)) - 1)
+    write_i32(buf, int(anim.get("finalFrame", 1)) - 1)
+    write_f32(buf, float(anim.get("timeBetweenFrame", 0.0)))
+    write_i32(buf, int(anim.get("typeAnimation", 1)))
+    write_u16(buf, 0)     # blendState
+    buf.write(b"\x00")    # hasFx - this exporter never authors shader FX
+    return buf.getvalue()
+
+
+def write_frame_header_v11(fp: Any, total_subset: int, vertex_count: int, index_width: int, has_normal: bool,
+                            has_uv: bool, uv_source: int, index_count: int) -> None:
+    write_u32(fp, total_subset)
+    write_u32(fp, vertex_count)
+    fp.write(bytes((index_width, 1 if has_normal else 0, 1 if has_uv else 0, uv_source)))
+    write_u32(fp, index_count)
+
+
+def write_texture_ref_v11(fp: Any, path: str) -> None:
+    fp.write(b"\x00")  # storage = PATH_REFERENCE
+    write_string_v11(fp, path)
+
+
+def write_subset_desc_v11(fp: Any, texture: str, vertex_count: int, vertex_start: int, index_start: int,
+                           index_count: int) -> None:
+    write_texture_ref_v11(fp, texture)
+    write_i32(fp, vertex_count)
+    write_i32(fp, vertex_start)
+    write_i32(fp, index_start)
+    write_i32(fp, index_count)
+    fp.write(bytes((1, 0, 0, 0)))  # alphaColor: hasAlpha forced on, matching saveV11's convention
+    write_u16(fp, 0)  # extraSlotCount - this exporter never authors extra PBR slots
+
+
+def build_detail_physics_payload_v11(bounds: dict[str, tuple[float, float, float]]) -> bytes:
+    buf = io.BytesIO()
+    write_detail_cube_v8(buf, bounds)
+    return buf.getvalue()
 
 
 def write_detail_cube_v8(fp: Any, bounds: dict[str, tuple[float, float, float]]) -> None:
@@ -925,42 +1004,6 @@ def write_detail_cube_v8(fp: Any, bounds: dict[str, tuple[float, float, float]])
     write_i32(fp, 1)
     write_vec3(fp, bounds["half"])
     write_vec3(fp, bounds["center"])
-
-
-def write_header_mesh_v8(fp: Any, total_frames: int, total_animations: int, angles: tuple[float, float, float]) -> None:
-    write_material_default(fp)
-    write_i32(fp, total_animations)
-    write_i32(fp, total_frames)
-    write_i32(fp, 1)  # deprecated_typePhysics, kept for compatibility with a default cube bound.
-    write_i16(fp, 1)  # HAS_NOR_IN_FILE
-    write_i16(fp, 1)  # HAS_TEX_EACH_FRAME
-    write_f32(fp, angles[0])
-    write_f32(fp, angles[1])
-    write_f32(fp, angles[2])
-    write_f32(fp, 0.0)
-    write_f32(fp, 0.0)
-    write_f32(fp, 0.0)
-
-
-def write_animation_v8(fp: Any, anim: dict[str, Any]) -> None:
-    fp.write(fixed_bytes(str(anim.get("name", "default")), 32))
-    write_i32(fp, int(anim.get("initialFrame", 1)) - 1)
-    write_i32(fp, int(anim.get("finalFrame", 1)) - 1)
-    write_f32(fp, float(anim.get("timeBetweenFrame", 0.0)))
-    write_i32(fp, int(anim.get("typeAnimation", 1)))
-    write_u16(fp, 1)
-    write_u16(fp, 0)
-    write_empty_shader_step_v8(fp)
-    write_empty_shader_step_v8(fp)
-
-
-def write_empty_shader_step_v8(fp: Any) -> None:
-    write_i16(fp, 0)
-    write_i16(fp, 0)
-    write_i16(fp, 0)
-    write_i16(fp, 0)
-    write_i32(fp, 0)
-    write_f32(fp, 0.0)
 
 
 def texture_name_for_msh(path: str) -> str:
@@ -1042,7 +1085,7 @@ def write_direct_frame_chunk_indexed(path: str, subsets: list[dict[str, Any]], a
         if vertex_start + len(vertices) > MAX_MBM_SUBSET_VERTICES:
             raise RuntimeError(
                 f"Cannot export this mesh as one MSH frame: total frame vertices exceed "
-                f"{MAX_MBM_SUBSET_VERTICES}. mini-mbm MSH v8 uses a 16-bit index buffer per frame."
+                f"{MAX_MBM_SUBSET_VERTICES}. mini-mbm MSH v11 frames use a 16-bit index buffer."
             )
         if len(vertices) > MAX_MBM_SUBSET_VERTICES:
             raise RuntimeError(f"Subset {subset_index} exceeds {MAX_MBM_SUBSET_VERTICES} vertices after splitting.")
@@ -1069,26 +1112,18 @@ def write_direct_frame_chunk_indexed(path: str, subsets: list[dict[str, Any]], a
         index_start += len(indices)
 
     with open(path, "wb") as fp:
-        write_i32(fp, len(subset_headers))
-        write_i32(fp, len(index_buffer))
-        write_i32(fp, len(positions))
-        write_i32(fp, 3)
-        fp.write(b"IB\0\0")
-        for header in subset_headers:
-            fp.write(fixed_bytes(header["texture"], 64))
-            write_i32(fp, header["vertexCount"])
-            write_i32(fp, header["vertexStart"])
-            write_i32(fp, header["indexStart"])
-            write_i32(fp, header["indexCount"])
-            fp.write(bytes((1, 0, 0, 0)))
-        for index in index_buffer:
-            write_u16(fp, index)
+        write_frame_header_v11(fp, len(subset_headers), len(positions), 16, True, True, 0, len(index_buffer))
         for pos in positions:
             write_vec3(fp, pos)
         for normal in normals:
             write_vec3(fp, normal)
         for uv in uvs:
             write_vec2(fp, uv)
+        for index in index_buffer:
+            write_u16(fp, index)
+        for header in subset_headers:
+            write_subset_desc_v11(fp, header["texture"], header["vertexCount"], header["vertexStart"],
+                                   header["indexStart"], header["indexCount"])
 
 
 def write_direct_frame_chunk_vb_only(path: str, subsets: list[dict[str, Any]], args: argparse.Namespace) -> None:
@@ -1123,24 +1158,16 @@ def write_direct_frame_chunk_vb_only(path: str, subsets: list[dict[str, Any]], a
         vertex_start += len(indices)
 
     with open(path, "wb") as fp:
-        write_i32(fp, len(subset_headers))
-        write_i32(fp, 0)
-        write_i32(fp, len(positions))
-        write_i32(fp, 3)
-        fp.write(b"VB\0\0")
-        for header in subset_headers:
-            fp.write(fixed_bytes(header["texture"], 64))
-            write_i32(fp, header["vertexCount"])
-            write_i32(fp, header["vertexStart"])
-            write_i32(fp, header["indexStart"])
-            write_i32(fp, header["indexCount"])
-            fp.write(bytes((1, 0, 0, 0)))
+        write_frame_header_v11(fp, len(subset_headers), len(positions), 16, True, True, 0, 0)
         for pos in positions:
             write_vec3(fp, pos)
         for normal in normals:
             write_vec3(fp, normal)
         for uv in uvs:
             write_vec2(fp, uv)
+        for header in subset_headers:
+            write_subset_desc_v11(fp, header["texture"], header["vertexCount"], header["vertexStart"],
+                                   header["indexStart"], header["indexCount"])
 
 
 def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: argparse.Namespace) -> None:
@@ -1148,21 +1175,6 @@ def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: arg
         write_direct_frame_chunk_vb_only(path, subsets, args)
         return
     write_direct_frame_chunk_indexed(path, subsets, args)
-
-
-def compress_file_zlib(src: str, dst: str) -> None:
-    compressor = zlib.compressobj(level=9)
-    tmp_dst = f"{dst}.tmp.{os.getpid()}"
-    with open(src, "rb") as fp_in, open(tmp_dst, "wb") as fp_out:
-        while True:
-            chunk = fp_in.read(1024 * 1024)
-            if not chunk:
-                break
-            fp_out.write(compressor.compress(chunk))
-        fp_out.write(compressor.flush())
-        fp_out.flush()
-        os.fsync(fp_out.fileno())
-    os.replace(tmp_dst, dst)
 
 
 def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
@@ -1177,7 +1189,6 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
 
     clips = parse_animation_clips(args, scene)
     temp_root = tempfile.mkdtemp(prefix="mbm_direct_msh_")
-    raw_path = os.path.join(temp_root, "mesh.raw")
     frame_paths: list[str] = []
     animations: list[dict[str, Any]] = []
     texture_paths: set[str] = set()
@@ -1237,22 +1248,40 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             float(args.angle_z) if args.post_process else 0.0,
         )
         texture_path_list = sorted(texture_paths)
-        with open(raw_path, "wb") as fp:
-            write_header_v8(fp, len(texture_path_list))
-            write_extra_path_headers_v8(fp, texture_path_list)
-            write_info_draw_mode_v8(fp)
-            write_detail_cube_v8(fp, finalize_bounds(bounds))
-            write_header_mesh_v8(fp, len(frame_paths), len(animations), angles)
+
+        section_count = 1  # SECTION_MATERIAL_TRANSFORM
+        if texture_path_list:
+            section_count += 1  # SECTION_EXTRA_PATHS
+        section_count += 1  # SECTION_DETAIL_PHYSICS
+        section_count += len(animations)
+        section_count += len(frame_paths)
+
+        check_cancel_requested(args.cancel_file)
+        debug_print(args.debug_steps, "writing output")
+        tmp_out = f"{out_path}.tmp.{os.getpid()}"
+        with open(tmp_out, "wb") as fp:
+            write_file_header_v11(fp, TYPE_MESH_3D, 0, 0, section_count)
+
+            write_section_v11(fp, SECTION_MATERIAL_TRANSFORM, 1, build_material_transform_payload_v11(angles), False)
+
+            if texture_path_list:
+                write_section_v11(fp, SECTION_EXTRA_PATHS, 1, build_extra_paths_payload_v11(texture_path_list), False)
+
+            write_section_v11(fp, SECTION_DETAIL_PHYSICS, 1, build_detail_physics_payload_v11(finalize_bounds(bounds)),
+                               False)
+
             for anim in animations:
-                write_animation_v8(fp, anim)
+                write_section_v11(fp, SECTION_ANIMATION, 1, build_animation_payload_v11(anim), False)
+
             for frame_path in frame_paths:
                 with open(frame_path, "rb") as frame_fp:
-                    shutil.copyfileobj(frame_fp, fp, length=1024 * 1024)
+                    frame_payload = frame_fp.read()
+                write_section_v11(fp, SECTION_FRAME_STATIC, 1, frame_payload, True)
+
             fp.flush()
             os.fsync(fp.fileno())
         check_cancel_requested(args.cancel_file)
-        debug_print(args.debug_steps, "writing output")
-        compress_file_zlib(raw_path, out_path)
+        os.replace(tmp_out, out_path)
         return len(frame_paths)
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
