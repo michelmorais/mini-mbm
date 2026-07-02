@@ -7,7 +7,7 @@ description: "Step-by-step workflow for creating or scaffolding a new mini-mbm L
 
 ## When to Use
 
-- Scaffolding a new game project (directory, `main.lua`, `.github/copilot-instructions.md`, `AGENTS.md`)
+- Scaffolding a new game project (directory, `main.lua`, `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`)
 - Answering "how do I do X in mini-mbm Lua?"
 - Implementing game features: sprites, physics, HUD, input, particles, shaders
 - Helping someone work in a **standalone game folder** that has no engine source
@@ -24,6 +24,7 @@ The engine binary and shared libraries (`box2d.so`, `ImGui.so`, etc.) are extern
 ├── .github/
 │   └── copilot-instructions.md    ← API context auto-loaded by Copilot
 ├── AGENTS.md                      ← API context auto-loaded by Codex
+├── CLAUDE.md                      ← symlink to AGENTS.md; auto-loaded by Claude Code
 ├── main.lua                       ← entry point
 ├── assets/
 │   ├── sprites/                   ← .spt files
@@ -38,7 +39,7 @@ Run with:
 ./mini-mbm main.lua
 ```
 
-The `.github/copilot-instructions.md` and `AGENTS.md` files are the **game-project API context** for Copilot and Codex. They should be copied from `game-template/.github/copilot-instructions.md` and `game-template/AGENTS.md` in this engine repo.
+The `.github/copilot-instructions.md` and `AGENTS.md` files are the **game-project API context** for Copilot and Codex. They should be copied from `game-template/.github/copilot-instructions.md` and `game-template/AGENTS.md` in this engine repo. `CLAUDE.md` is a symlink to the game folder's own `AGENTS.md` — not a copy — so Claude Code sees the same content without a second file to keep in sync; `game-template/CLAUDE.md` itself follows the same pattern (symlinked to `game-template/AGENTS.md`) for anyone opening `game-template/` directly.
 
 ---
 
@@ -49,8 +50,9 @@ When users ask to create a new game project at a path like `/home/michel/my-game
 1. Create the directory structure above.
 2. Copy `game-template/.github/copilot-instructions.md` to `<game-folder>/.github/copilot-instructions.md`.
 3. Copy `game-template/AGENTS.md` to `<game-folder>/AGENTS.md`.
-4. Copy `game-template/main.lua` to `<game-folder>/main.lua`.
-5. Customize `main.lua` for the specific game concept.
+4. In `<game-folder>`, run `ln -s AGENTS.md CLAUDE.md` (do **not** copy — a symlink keeps Claude Code's context identical to Codex's without a second file to drift).
+5. Copy `game-template/main.lua` to `<game-folder>/main.lua`.
+6. Customize `main.lua` for the specific game concept.
 
 ---
 
@@ -229,6 +231,7 @@ end
 - [ ] Game folder created
 - [ ] `.github/copilot-instructions.md` copied from `game-template/`
 - [ ] `AGENTS.md` copied from `game-template/`
+- [ ] `CLAUDE.md` symlinked to `AGENTS.md` (`ln -s AGENTS.md CLAUDE.md`), not copied
 - [ ] `main.lua` created with `onInitScene`, `onLoop`, key callbacks
 - [ ] `mbm.addPath(script_dir)` at top so assets resolve correctly
 - [ ] `mbm.setColor(r,g,b)` sets background
