@@ -407,6 +407,59 @@ Important consequences:
 - runtime light enable/disable still affects the uniforms seen by lit-default shaders, but not
   which shader class was chosen at load time
 
+### Contract: Classification Happens Once, At Creation Time
+
+This is a real engine contract (verified against `getDefaultShaderModeForRenderizable()` in
+`shader-fx.cpp` and its call sites), not just an implementation detail that happens to be true today:
+
+```cpp
+DEFAULT_SHADER_MODE getDefaultShaderModeForRenderizable(const RENDERIZABLE *renderizable) noexcept
+{
+    ...
+    LIGHT_STATE lightState;
+    if (getLightState(target, lightState) && lightState.enabled)
+        return DEFAULT_SHADER_MODE_LIT;
+    return DEFAULT_SHADER_MODE_UNLIT;
+}
+```
+
+This function is called exactly once per default-shader FX build — never per-frame, and never again
+later for an object that already has its FX built. The call sites are all one-shot setup paths:
+
+- `ANIMATION_MANAGER::populateAnimationFromHeader()` — once per animation baked into a mesh/sprite/tile
+  file, during `load()`/`loadAsync()`
+- `ANIMATION_MANAGER::addAnimation()` — when a script adds a new animation programmatically
+- the equivalent one-shot FX setup in `gif-view.cpp`, `line-mesh.cpp`, `particle.cpp`,
+  `texture-view.cpp`, `render-2-texture.cpp`, `shape-mesh.cpp` (all primitive factories), and
+  `steered_particle.cpp`
+
+`setLightEnabled()` itself only flips a bool on `LIGHT_STATE`; it does not walk any list of existing
+renderizables, so there is no code path that could retroactively reclassify them even in principle.
+
+Concrete example of the behavior this produces:
+
+```lua
+-- lighting for '3d' is OFF here
+for i = 1, 5 do
+    local m = mesh:new('3d')
+    m:load('crate.msh') -- classified default-unlit right now, permanently
+end
+
+mbm.setLightEnabled('3d', true)
+
+for i = 1, 3 do
+    local m = mesh:new('3d')
+    m:load('crate.msh') -- classified default-lit right now, permanently
+end
+
+-- The first 5 meshes never react to ambient/directional/point light changes.
+-- The last 3 meshes do, for the rest of their lifetime.
+```
+
+To make a previously-created object switch classification, it has to go through that same one-shot
+build path again — e.g. call `load()` on it again (or add a fresh animation) after changing
+`setLightEnabled()` for its target. There is no lighter-weight "just reclassify this object" API.
+
 Custom shaders stay authoritative:
 
 - the engine does not auto-merge lighting into a custom shader
