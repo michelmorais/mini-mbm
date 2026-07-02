@@ -48,10 +48,28 @@ symbols to search for.
    - **Function signatures and call conventions** — for `lua-api.md`, check the doc's method
      against the actual `luaL_Reg` registration and C++ function it binds to, including `:` vs `.`
      dispatch (§1b already documents this distinction — a method registered without `self` handling
-     but documented with `:` is a real mismatch).
+     but documented with `:` is a real mismatch). Also check the **return value**, not just the
+     signature: a Lua-bound wrapper's real return is whatever it pushes and `return`s from the
+     `lua_State` — `return 0` (nothing), `return 1` (one value), or `lua_error_debug(...)` (thrown
+     Lua error) on failure — which is *not* the same as the C++ function's `bool`/etc. return type
+     it wraps. A wrapper can call a `bool`-returning C++ function and still push nothing to Lua on
+     success, signaling failure only via a thrown error — documenting it as `Returns: bool` is a
+     real and easy-to-make mistake. Where feasible, verify by actually running the call (see the
+     `engine-testing` skill) instead of inferring the Lua return from the C++ signature.
    - **Cross-references to other files/line numbers** the doc cites as evidence (e.g.
      `mesh-manager.cpp:905-998`) — these go stale first as the referenced file is edited. A stale
      reference is low severity but flags the doc probably wasn't touched in that commit.
+   - **Missing entries — code exposes something the doc never mentions at all.** This is the one
+     check that runs *code → doc* instead of doc → code: grep the actual registration surface
+     (e.g. every `luaL_Reg` table in `src/lua-wrap/**` for `docs/lua-api.md`) for functions with no
+     matching doc section, rather than only checking existing doc claims against code. Found twice
+     in one pass in this repo already: a fully-implemented Lighting API (`mbm.setLightEnabled`,
+     `setAmbientLight`, `setDirectionalLight*`, `setPointLight*`, `addPointLight`,
+     `clearPointLights`, `setRequestedMaxLights`, `getSupportedMaxLights`, `getValidatedMaxLights`,
+     `setLightSelectionMode`, `getSelectedPointLights`, `getLightState`, `resetLight` — all
+     registered in `src/lua-wrap/framework-lua.cpp`) and `mesh:loadAsync`
+     (`src/lua-wrap/render-table/mesh-lua.cpp`) were both live and callable but entirely absent
+     from `docs/lua-api.md`.
 
 2. **For each claim, find the concrete code that could violate it** and check it directly — don't
    infer from a nearby comment, since comments drift exactly as fast as docs do (the `4a06285` fix
@@ -77,3 +95,7 @@ symbols to search for.
 - If the doc has a "Milestone N Decisions" or "Future Work" section, those are explicitly
   scoped-out or historical — don't flag them as drift just because the code doesn't implement them
   yet; check instead that the doc still correctly says they're *not* implemented.
+- For `docs/lua-api.md` claims specifically, prefer verifying by actually calling the Lua function
+  through a running engine over reading the binding source alone — see the `engine-testing` skill
+  for how to launch `mini-mbm`/`testLib` headlessly with a timeout. Reading the C++ wrapper can
+  still get the return-value drift wrong (see the return-value bullet above); running it doesn't.

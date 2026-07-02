@@ -181,6 +181,15 @@ For the full Lua lifecycle callbacks (`onInitScene`, `onLoop(delta)`, input call
 complete `mbm.*` API, see the **`lua-game`** skill and `docs/lua-api.md` — this skill only covers
 how to *launch and stop* a test run, not the scripting API itself.
 
+Before writing the test script, check `docs/lua-api.md` for the actual signature of the
+function(s) under test rather than guessing from the C++ side or an old memory of the API —
+`mbm.*` argument shapes are frequently more permissive than they look (many take either a table
+or expanded numeric args, see e.g. `mbm.setAmbientLight`/`mbm.setPointLight` in §3.16) and new
+bindings land there as they're added (e.g. §3.16 Lighting, and `mesh:loadAsync` in §7.2). If the
+doc and the code under test disagree, or the doc is silent on something `src/lua-wrap/**` clearly
+exposes, that's a `doc-drift-check` skill situation — fix the doc as part of the same change
+instead of testing against a description you already know is wrong.
+
 ---
 
 ## Quick reference: full command patterns

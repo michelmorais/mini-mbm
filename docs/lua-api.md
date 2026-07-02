@@ -261,6 +261,56 @@ mbm.addShader({
 | `mbm.generateImageResourceHeaderFromPng` | `(pngFile, headerFile)` | bool | Convert PNG to a C++ `static-resource` header |
 | `mbm.setMinMaxWindowSize` | `(minX, minY, maxX, maxY)` | — | Set window size constraints |
 
+### 3.16 Lighting
+
+Every function takes a `target` string identifying which render space the light state applies
+to: `"3d"` or `"2dw"` (2D-screen space `"2ds"` has no lighting). Color/position/direction
+arguments accept either a table (`{r,g,b,*a}` / `{x,y,z}`) or the components expanded inline —
+both forms are shown below. Alpha (`a`) always defaults to `1.0` when omitted. All the setters
+below return nothing on success and **raise a Lua error** (catchable with `pcall`) if `target`
+or the arguments are invalid — they do not return `false`.
+
+| Function | Signature | Returns | Description |
+|---|---|---|---|
+| `mbm.setLightEnabled` | `(target, enabled: bool)` | — (errors on failure) | Enable/disable lighting for `target` |
+| `mbm.resetLight` | `(target)` | — (errors on failure) | Reset `target`'s lighting (ambient/directional/point) to engine defaults |
+| `mbm.setAmbientLight` | `(target, {r,g,b,*a})` or `(target, r,g,b,*a)` | — (errors on failure) | Set the ambient light color |
+| `mbm.setDirectionalLight` | `(target, direction, color)` or `(target, x,y,z, r,g,b,*a)` | — (errors on failure) | Set directional light direction + color together |
+| `mbm.setDirectionalLightDirection` | `(target, direction)` or `(target, x,y,z)` | — (errors on failure) | Set only the directional light's direction |
+| `mbm.setDirectionalLightColor` | `(target, color)` or `(target, r,g,b,*a)` | — (errors on failure) | Set only the directional light's color |
+| `mbm.setPointLight` | `(target, position, radius, color)` or `(target, x,y,z, radius, r,g,b,*a)` | — (errors on failure) | Set the (single, legacy) point light position/radius/color together |
+| `mbm.setPointLightPosition` | `(target, position)` or `(target, x,y,z)` | — (errors on failure) | Set only the point light's position |
+| `mbm.setPointLightRadius` | `(target, radius)` | — (errors on failure) | Set only the point light's radius |
+| `mbm.setPointLightColor` | `(target, color)` or `(target, r,g,b,*a)` | — (errors on failure) | Set only the point light's color |
+| `mbm.addPointLight` | `(target, position, radius, color)` or `(target, x,y,z, radius, r,g,b,*a)` | — (errors on failure) | Add a point light to `target`'s multi-light list (up to `getSupportedMaxLights`) |
+| `mbm.clearPointLights` | `(target)` | — (errors on failure) | Remove every point light previously added via `addPointLight` |
+| `mbm.setRequestedMaxLights` | `(target, requestedMaxLights: int)` | — (errors on failure) | Request how many point lights the shader should support; errors if it exceeds `getSupportedMaxLights` for the current backend |
+| `mbm.getSupportedMaxLights` | `(target)` | int | Max point lights the current graphics backend can support for `target` |
+| `mbm.getValidatedMaxLights` | `(target)` | int | The actually-validated max lights currently in effect for `target` |
+| `mbm.setLightSelectionMode` | `(target, mode: string)` | — (errors on failure) | Set how per-object point lights are chosen when there are more lights than `getValidatedMaxLights`. Only `"per_object_nearest"` exists today |
+| `mbm.getSelectedPointLights` | `(target, objectCenter, objectBoundingAABB)` | table | For one object at `objectCenter` with half-extents `objectBoundingAABB` (both `{x,y,z}`), returns the array (1-indexed) of point lights actually selected for it: `{sourceIndex, distanceToObjectCenter, position={x,y,z}, radius, color={r,g,b,a}}` per entry. `sourceIndex` is the 1-based index into the list `addPointLight` built |
+| `mbm.getLightState` | `(target)` | table | Full lighting snapshot: `{enabled, target, requestedMaxLights, supportedMaxLights, validatedMaxLights, lightSelectionMode, ambientColor={r,g,b,a}, directionalColor={r,g,b,a}, directionalDirection={x,y,z}, pointColor={r,g,b,a}, pointPosition={x,y,z}, pointRadius, pointLights={...}}` |
+
+```lua
+-- Typical setup: ambient + directional "sun" light, plus a couple of point lights
+mbm.setLightEnabled("3d", true)
+mbm.setAmbientLight("3d", 30, 30, 40)
+mbm.setDirectionalLight("3d", 0, -1, 0.3, 255, 250, 230)
+
+mbm.setRequestedMaxLights("3d", 4)
+mbm.addPointLight("3d", 100, 50, 0, 300, 255, 120, 0)   -- x,y,z, radius, r,g,b
+mbm.addPointLight("3d", -200, 80, 50, 250, 80, 120, 255)
+
+function onLoop(delta)
+    -- Ask which of the point lights actually affect this specific object, e.g. for a
+    -- forward-lit custom shader that only supports a handful of lights per draw call.
+    local selected = mbm.getSelectedPointLights("3d", {x=player.x, y=player.y, z=player.z}, {x=50,y=50,z=50})
+    for _, light in ipairs(selected) do
+        -- light.position, light.radius, light.color, light.distanceToObjectCenter
+    end
+end
+```
+
 ---
 
 ## 4. Camera Object
@@ -452,6 +502,21 @@ All common methods apply. Animation names come from the `.spt` file.
 ```lua
 local m = mesh:new("3d", x, y, z)
 m:load("file.mbm")   -- load mesh; returns bool
+```
+
+`mesh:loadAsync` is a background-thread-friendly equivalent of `load`: the file I/O and mesh
+parsing happen on a worker thread, and the callback always fires later — from the engine's normal
+per-frame update, never inline from the `loadAsync` call itself, not even when the file turns out
+to already be cached. Do not assume the mesh is ready on the line right after calling it.
+
+```lua
+m:loadAsync("file.mbm", function(self_mesh, success)
+    if success then
+        self_mesh:setScale(1, 1, 1)
+    else
+        print("error", "red", "failed to load mesh")
+    end
+end)
 ```
 
 ### 7.3 texture
