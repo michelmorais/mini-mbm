@@ -1,4 +1,4 @@
-# GitHub Copilot Instructions — mini-mbm
+# Agent Instructions — mini-mbm
 
 ## What is mini-mbm
 
@@ -10,6 +10,27 @@ Key features:
 - Asset types: sprite (`.spt`), mesh (`.mbm`), texture, GIF, background, font, particle, tile map, shape mesh, line mesh, render-to-texture, HMD/VR
 - Plugin architecture — optional features compiled as shared libraries loaded at runtime
 - Lua 5.4 scripting with the `mbm` namespace; ImGui-based editor tools written in Lua
+
+---
+
+## Agent Context Files
+
+- `AGENTS.md` is the shared Codex/ChatGPT project context.
+- `CLAUDE.md` is a symbolic link to `AGENTS.md`, so Claude Code receives the same instructions.
+- `.github/copilot-instructions.md` is the Copilot copy of this file and should stay synchronized with `AGENTS.md`.
+- Keep critical invariants and project-wide rules in this file; move long task workflows into repo-local skills when they are Codex-specific.
+
+## Codex Skills
+
+Repo-local Codex skills live in `.agents/skills/`.
+
+- Use `engine-testing` before running `testLib`, `mini-mbm`, Lua scripts, or render/backend verification.
+- Use `lua-game` when scaffolding or editing standalone Lua games.
+- Use `new-plugin` when creating Lua/C++ plugins or plugin-helper-backed Lua bindings.
+- Use `new-editor-tool` when adding ImGui/Lua editor tools under `editor/`.
+- Use `new-platform-port` when adding a new `PLAT=` target or platform directory.
+- Use `doc-drift-check` when touching docs tied to implementation behavior, especially `docs/lua-api.md`, `docs/mesh-v11-format.md`, and `docs/light.md`.
+- Use `grill-me` when asked to stress-test a plan or design before implementation.
 
 ---
 
@@ -354,7 +375,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 | Game project template | `game-template/` | Starting point for new standalone game folders |
 | Game copilot context | `game-template/.github/copilot-instructions.md` | Self-contained API context for game projects |
 | Game Codex context | `game-template/AGENTS.md` | Self-contained Codex context for game projects |
-| Scaffolding skill | `.github/skills/lua-game/SKILL.md` | Invoke when scaffolding a new game from the engine repo |
+| Scaffolding skill | `.agents/skills/lua-game/SKILL.md` | Invoke when scaffolding a new game from the engine repo |
 
 ### Lua API Quick Summary
 
