@@ -1,7 +1,7 @@
 #ifndef MESH_MANAGER_IMPL_H
 #define MESH_MANAGER_IMPL_H
 
-// Private implementation storage for MESH_MBM / MESH_MBM_DEBUG (docs/mesh-v11-plan.md, milestone 2).
+// Private implementation storage for MESH_MBM / MESH_MBM_DEBUG.
 // include/core_mbm/mesh-manager.h only forward-declares `struct Impl` on both classes - this header
 // is the one place their actual fields are defined, mirroring how MESH_MANAGER::Impl already works
 // (struct MESH_MANAGER::Impl, defined directly in mesh-manager.cpp). Included by every .cpp file in

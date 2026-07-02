@@ -40,8 +40,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL virtual ~MESH();
     API_IMPL void release();
     API_IMPL bool load(const char *fileName);
-    // Background-thread-friendly equivalent of load() (mesh-v11-plan.md milestone 22): does the
-    // file I/O + v11 parsing on a worker thread (MESH_MANAGER::loadAsync), runs the exact same
+    // Background-thread-friendly equivalent of load(): does the file I/O + v11 parsing on a worker
+    // thread (MESH_MANAGER::loadAsync), runs the exact same
     // finish logic load() runs, then invokes callback(success) - always from pumpAsyncLoads() on
     // the main thread, never inline, matching MESH_MANAGER::loadAsync's own contract.
     API_IMPL void loadAsync(const char *fileName, std::function<void(bool success)> callback);

@@ -421,9 +421,9 @@ namespace mbm
         return 1;
     }
 
-    // Background-thread-friendly equivalent of "load" (mesh-v11-plan.md milestone 22). Only a .ptl
-    // (mesh-based particle) fileName is genuinely deferred to a worker thread - a plain texture file
-    // has no async loading primitive anywhere in the engine, so that path still runs synchronously
+    // Background-thread-friendly equivalent of "load". Only a .ptl (mesh-based particle) fileName is
+    // genuinely deferred to a worker thread - a plain texture file has no async loading primitive
+    // anywhere in the engine, so that path still runs synchronously
     // here, just within this same callback-shaped API. The callback is always the LAST argument,
     // regardless of how many of the optional middle args (numParticle/operatorShader/newCodeLine)
     // are also passed - same positional-optional parsing as onLoadParticleLua, just computed against

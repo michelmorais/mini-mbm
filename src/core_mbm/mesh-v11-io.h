@@ -1,10 +1,9 @@
 #ifndef MESH_V11_IO_H
 #define MESH_V11_IO_H
 
-// Section/TLV envelope read-write helpers for the v11 mesh format (docs/mesh-v11-format.md).
-// Milestone 1 scope only: the fixed file header and the generic section envelope (type/length/crc,
-// optional per-section DEFLATE). Section *payload* layouts (frame/subset/material/...) are not
-// defined here - they land with the v11 writer/reader (milestones 3-4) on top of these helpers.
+// Section/TLV envelope read-write helpers for the v11 mesh format (docs/mesh-v11-format.md): the
+// fixed file header, the generic section envelope (type/length/crc, optional per-section DEFLATE),
+// and the section-payload field-by-field serializers built on top of them.
 
 #include <cstdio>
 #include <header-mesh.h>
@@ -23,9 +22,8 @@ namespace util
 
     // Length-prefixed UTF-8 string: uint16 length, then `length` bytes, no null terminator
     // (format doc Sec. 5 - replaces fixed char[] name/path buffers). The read side only ever runs
-    // against an already-decompressed section payload (see MEM_CURSOR_V11 in
-    // mesh-io-primitives.h, milestone 15) - the write side still streams straight into the real
-    // on-disk FILE*.
+    // against an already-decompressed section payload (see MEM_CURSOR_V11 in mesh-io-primitives.h)
+    // - the write side still streams straight into the real on-disk FILE*.
     bool readStringV11(util::MEM_CURSOR_V11 &fp, std::string &out);
     bool writeStringV11(FILE *fp, const std::string &in);
 
@@ -52,27 +50,26 @@ namespace util
     // convention as writeSectionV11 itself), checksum, and write the real envelope + payload, and
     // finally truncates the file to the new end (compression can shrink the payload below what was
     // originally streamed to disk, so the stale uncompressed tail bytes must not linger). `header.type`/
-    // `sectionVersion` must already be set by the caller. Used for every section in milestone 3
-    // (material transform, static frames, physics detail, extra paths) so they share one code path
-    // instead of four bespoke ones.
+    // `sectionVersion` must already be set by the caller. Used for every section so they share one
+    // code path instead of bespoke ones per section type.
     bool writeSectionV11Streamed(FILE *fp, util::SECTION_HEADER_V11 &header,
                                  const std::function<bool(FILE*)> &writePayload);
 
-    // Milestone 3 section-payload field-by-field serializers (docs/mesh-v11-format.md Sec. 6),
-    // following the same little-endian, never-struct-blitted style as mesh-v8-io.cpp / the envelope
-    // helpers above. Each writes directly into `fp` - meant to be called from inside a
-    // writeSectionV11Streamed callback.
+    // Section-payload field-by-field serializers (docs/mesh-v11-format.md Sec. 6), following the
+    // same little-endian, never-struct-blitted style as mesh-v8-io.cpp / the envelope helpers above.
+    // Each writes directly into `fp` - meant to be called from inside a writeSectionV11Streamed
+    // callback.
     bool writeFrameHeaderV11(FILE *fp, const util::FRAME_HEADER_V11 &in);
     bool writeTextureRefV11(FILE *fp, const util::TEXTURE_REF_V11 &in);
     bool writeSubsetDescV11(FILE *fp, const util::SUBSET_DESC_V11 &in);
     bool writeSubsetExtraSlotV11(FILE *fp, const util::SUBSET_EXTRA_SLOT_V11 &in);
     bool writeMaterialTransformV11(FILE *fp, const util::MATERIAL_TRANSFORM_V11 &in);
 
-    // Milestone 4: the read-side mirror of the serializers above. Read against an in-memory
-    // section payload (MEM_CURSOR_V11) rather than FILE* - see readStringV11's comment above
-    // (milestone 15); the write side stays FILE*-based.
+    // The read-side mirror of the serializers above. Read against an in-memory section payload
+    // (MEM_CURSOR_V11) rather than FILE* - see readStringV11's comment above; the write side stays
+    // FILE*-based.
     bool readFrameHeaderV11(util::MEM_CURSOR_V11 &fp, util::FRAME_HEADER_V11 &out);
-    // Fails (returns false) on TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED - reserved, unread this milestone.
+    // Fails (returns false) on TEXTURE_REF_STORAGE_EMBEDDED_COMPRESSED - reserved, unread.
     bool readTextureRefV11(util::MEM_CURSOR_V11 &fp, util::TEXTURE_REF_V11 &out);
     bool readSubsetDescV11(util::MEM_CURSOR_V11 &fp, util::SUBSET_DESC_V11 &out);
     bool readSubsetExtraSlotV11(util::MEM_CURSOR_V11 &fp, util::SUBSET_EXTRA_SLOT_V11 &out);

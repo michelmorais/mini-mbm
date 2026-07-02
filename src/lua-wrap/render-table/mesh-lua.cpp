@@ -107,7 +107,7 @@ namespace mbm
         return 1;
     }
 
-    // Background-thread-friendly equivalent of "load" (mesh-v11-plan.md milestone 22):
+    // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
     // receive `self` back and keeps the Lua object (and therefore the underlying C++ object, since

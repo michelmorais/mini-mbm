@@ -124,12 +124,12 @@ namespace mbm
         return 1;
     }
 
-    // Background-thread-friendly equivalent of the plain-load branch of "load" (mesh-v11-plan.md
-    // milestone 22) - does not cover the loadFont(...) variant (see header comment on
-    // BACKGROUND::loadAsync). Only the mesh-file path is genuinely deferred to a worker thread; the
-    // texture path stays synchronous within this same callback-shaped API (no TEXTURE_MANAGER async
-    // primitive exists anywhere in the engine). The callback is always the LAST argument, same
-    // effectiveTop trick as onLoadAsyncParticleLua, since the optional hasAlpha arg can be omitted.
+    // Background-thread-friendly equivalent of the plain-load branch of "load" - does not cover the
+    // loadFont(...) variant (see header comment on BACKGROUND::loadAsync). Only the mesh-file path
+    // is genuinely deferred to a worker thread; the texture path stays synchronous within this same
+    // callback-shaped API (no TEXTURE_MANAGER async primitive exists anywhere in the engine). The
+    // callback is always the LAST argument, same effectiveTop trick as onLoadAsyncParticleLua, since
+    // the optional hasAlpha arg can be omitted.
     namespace
     {
         struct AsyncLoadCtxBackGround
