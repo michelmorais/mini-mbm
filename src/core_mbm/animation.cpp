@@ -1005,11 +1005,6 @@ namespace mbm
         }
     }
 
-    void ANIMATION_MANAGER::populateTextureStage2FromMesh(MESH_MBM *mesh)
-    {
-        this->populateTextureAnimationEffectFromMesh(mesh);
-    }
-
     bool ANIMATION_MANAGER::populateAnimationFromHeader(MESH_MBM *mesh, util::HEADER_ANIMATION *header, const uint32_t index)
     {
         if (mesh == nullptr || header == nullptr)

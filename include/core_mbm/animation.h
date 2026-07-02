@@ -154,7 +154,6 @@ namespace mbm
         API_IMPL ANIMATION_MANAGER() noexcept;
         API_IMPL virtual ~ANIMATION_MANAGER();
         API_IMPL void populateTextureAnimationEffectFromMesh(MESH_MBM *mesh);
-        API_IMPL void populateTextureStage2FromMesh(MESH_MBM *mesh);
         API_IMPL bool populateAnimationFromHeader(MESH_MBM *mesh, util::HEADER_ANIMATION *header, const uint32_t index);
         // Shared by MESH/SPRITE/TILE's load()/loadAsync(): optional type validation (skip by passing
         // expectedType=nullptr, matching MESH's existing no-check behavior) + populating every
