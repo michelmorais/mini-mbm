@@ -79,6 +79,9 @@ MY_SCENE::MY_SCENE()
     shaderMenuVisible   = true;
     currentPsShaderIdx = -1;
     currentVsShaderIdx = -1;
+    testTimeoutSeconds = -1.0f;
+    testElapsedSeconds = 0.0f;
+    cliMeshMode        = RenderMode::NONE;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -154,6 +157,18 @@ void MY_SCENE::onInitScene()
         lineFontIsOver = new mbm::LINE_MESH(this, false, true);
         std::vector<mbm::VEC3> linePoints(4);
         lineFontIsOver->add(std::move(linePoints));
+
+        if (cliMeshMode != RenderMode::NONE)
+        {
+            for (size_t i = 0; i < menuItems.size(); ++i)
+            {
+                if (menuItems[i].objType == MenuObjectType::MESH)
+                {
+                    loadObjectAt(i, cliMeshMode);
+                    break;
+                }
+            }
+        }
     }
     else
     {
@@ -164,6 +179,22 @@ void MY_SCENE::onInitScene()
 void MY_SCENE::onLoop()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    if (testTimeoutSeconds >= 0.0f)
+    {
+        testElapsedSeconds += device->delta;
+        if (testElapsedSeconds >= testTimeoutSeconds)
+        {
+            INFO_LOG("testLib: test timeout of %.2fs reached, quitting.", testTimeoutSeconds);
+            // setRun(false) lets CORE_MANAGER::onLoop's while(device->isRunning())
+            // exit cleanly at the top of its next iteration. mbm::DEVICE::quit()
+            // is NOT the right call here: it immediately deletes the DEVICE
+            // singleton mid-frame (it's meant to run once, from GAME's destructor,
+            // after the loop has already returned), which segfaults the next time
+            // this same onLoop() call touches device.
+            device->setRun(false);
+            return;
+        }
+    }
     if (statusText)
     {
         const mbm::CAMERA &camera = device->getCamera();
@@ -707,15 +738,18 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         case MenuObjectType::MESH:
         {
             mesh = new mbm::MESH(this, is3d, is2dS);
-            if (mesh->load("Crate.msh"))
+            const bool isCustomMesh = !cliMeshFile.empty();
+            const char* meshFile = isCustomMesh ? cliMeshFile.c_str() : "Crate.msh";
+            if (mesh->load(meshFile))
             {
-                mesh->setScale(mbm::VEC3(3.5f, 3.5f, 3.5f));
-                INFO_LOG("MESH loaded (%s)", modeToStr(mode));
+                if (!isCustomMesh)
+                    mesh->setScale(mbm::VEC3(3.5f, 3.5f, 3.5f)); // tuned for the bundled Crate.msh fixture only
+                INFO_LOG("MESH loaded (%s) [%s]", modeToStr(mode), meshFile);
                 row.object = mesh;
             }
             else
             {
-                ERROR_LOG("Failed to load MESH");
+                ERROR_LOG("Failed to load MESH [%s]", meshFile);
                 delete mesh;
                 mesh = nullptr;
             }
