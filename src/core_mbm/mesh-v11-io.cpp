@@ -168,7 +168,7 @@ namespace util
 
         payloadOut.resize(header.uncompressedLength);
         if (header.uncompressedLength == 0)
-            return header.compressedLength == 0;
+            return header.compressedLength == 0 && header.crc32Value == mbm::crc32Buffer(nullptr, 0);
 
         if (header.compression == util::SECTION_COMPRESSION_DEFLATE)
         {

@@ -253,10 +253,13 @@ namespace
                     i += detail.totalBounding;
                 }
                 break;
-                // MBM_DETAIL_TYPE_FONT/PARTICLE/TILE removed in milestone 5: this function is now only
-                // called from saveV11/loadV11's SECTION_DETAIL_PHYSICS, which saveV11 never writes for
-                // FONT/PARTICLE/TILE_MAP meshes (mesh-manager.cpp's saveV11 rejects them outright), so
-                // those detail types can never appear here. v1-v10 handling of them moved to
+                // MBM_DETAIL_TYPE_FONT/PARTICLE/TILE removed in milestone 5, still absent after
+                // milestones 12/13 added real FONT/PARTICLE/TILE_MAP support: SECTION_DETAIL_PHYSICS
+                // is written for every mesh type (including FONT/PARTICLE/TILE_MAP - saveV11 does not
+                // reject them), but its own DETAIL_MESH.type sub-dispatch only ever carries physics
+                // bounding volumes. FONT/PARTICLE/TILE_MAP detail data lives in its own top-level
+                // SECTION_DETAIL_FONT/PARTICLE/TILE section instead (docs/mesh-v11-format.md §6c/§6d),
+                // so those detail types can never appear here. v1-v10 handling of them moved to
                 // mesh_deprecated.
                 default:
                 {

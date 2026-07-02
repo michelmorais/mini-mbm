@@ -89,10 +89,16 @@ enum SECTION_TYPE : uint16_t
 
 Sections of repeated kinds (`SECTION_ANIMATION`, `SECTION_FRAME_STATIC`) appear back-to-back in
 ascending index order; nothing in the envelope encodes "which animation/frame index is this," the
-order in the file is the index, same as today. `SECTION_DETAIL_*` presence is implied by `typeMesh`
-in the file header (a font mesh has `SECTION_DETAIL_FONT`, a particle mesh has
-`SECTION_DETAIL_PARTICLE`, etc.) exactly like today's `DETAIL_MESH.type` dispatch
-(`mesh-manager.cpp:905-998`), just moved into the TLV envelope instead of an inline tag.
+order in the file is the index, same as today.
+
+`SECTION_DETAIL_PHYSICS` is the one section every mesh type gets — the writer always emits it (a
+mesh with no explicit bounding shapes gets one synthesized so the section is never missing), *not*
+conditioned on `typeMesh`. Only `SECTION_DETAIL_FONT`/`_PARTICLE`/`_TILE` presence is implied by
+`typeMesh` (a font mesh has `SECTION_DETAIL_FONT`, a particle mesh has `SECTION_DETAIL_PARTICLE`,
+a tile map has `SECTION_DETAIL_TILE`, and no other mesh type has any of the three) — the same
+`DETAIL_MESH.type` dispatch this replaces (`read_detail_mesh_section`, `mesh-manager.cpp`) only ever
+carries physics bounding volumes now; FONT/PARTICLE/TILE detail data moved to their own top-level
+sections in milestones 12/13, it's never nested inside `SECTION_DETAIL_PHYSICS`.
 
 `SECTION_FRAME_SKINNED` is reserved *now* (the numeric id is spoken for) specifically so that when
 bones ship later, they get a new section type, not a new file-format version. No v11.0 code path
@@ -142,7 +148,16 @@ struct SUBSET_DESC_V11
 {
     TEXTURE_REF_V11 primaryTexture;   // implicit role TEXTURE_ROLE_DIFFUSE, always present
     int32_t  vertexCount, vertexStart, indexStart, indexCount;
-    uint8_t  alphaColor[4];
+    uint8_t  alphaColor[4];           // byte 0: hasAlpha flag consumed by TEXTURE_MANAGER::load on
+                                       // reload (forces the primary texture's alpha channel on/off);
+                                       // bytes 1-3 are an unused legacy color-key remnant. The v11.0
+                                       // writer has no real per-subset source for this today - it
+                                       // always emits {1,0,0,0} (SUBSET_DEBUG carries no alpha-color
+                                       // state), so every v11-saved subset currently reloads with its
+                                       // primary texture's alpha channel forced on regardless of the
+                                       // source texture. Not a legacy-compat field to preserve as-is;
+                                       // a future milestone could wire a real per-subset value through
+                                       // if that forced-on behavior ever needs to be an author choice.
     uint16_t extraSlotCount;
     // followed by extraSlotCount * { uint8_t role; TEXTURE_REF_V11 texture; }
     // `role` is an mbm::TEXTURE_ROLE value (shader.h), restricted here to
