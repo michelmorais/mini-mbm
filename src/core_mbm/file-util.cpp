@@ -57,10 +57,47 @@
     // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
     #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
 #endif
+#include <thread>
+#include <mutex>
 
 std::vector<std::string> lsPath;
-std::string              pathRet;
+thread_local std::string pathRet;   // was a shared global; returned as a raw pointer (.c_str()), so it must be per-thread to be safe now that getFullPath() can run on a worker thread too
 OnAddPathScript onAddPathScript = nullptr;
+
+// lsPath/addPath/onAddPathScript were originally only ever touched from the main thread. Async
+// mesh loading (MESH_MANAGER's worker threads, see mesh-manager.cpp) now also calls into
+// util::openFile/getFullPath while parsing a mesh off the main thread, which read/write lsPath
+// unsynchronized and - via onAddPathScript - run Lua (luaL_dostring) on the shared lua_State,
+// neither of which is safe from a thread other than the one that owns them. The guards below make
+// both paths safe without changing any observable behavior for the (overwhelmingly common)
+// main-thread call path. See docs/async-loading-and-threading.md.
+static const std::thread::id  g_mainThreadId = std::this_thread::get_id();
+static std::recursive_mutex   g_lsPathMutex;   // recursive: addPath()/getFullPath() call into each other while already holding it
+static std::mutex             g_deferredScriptsMutex;
+static std::vector<std::string> g_deferredAddPathScripts;
+
+static bool isOnMainThread() noexcept
+{
+    return std::this_thread::get_id() == g_mainThreadId;
+}
+
+// Invokes onAddPathScript inline when called from the main thread (today's exact behavior).
+// Off the main thread, defers it to g_deferredAddPathScripts instead of touching Lua directly;
+// util::pumpDeferredAddPathScripts() flushes that queue from the main thread once per frame.
+static void invokeOrDeferAddPathScript(const char *path)
+{
+    if (!onAddPathScript || !path)
+        return;
+    if (isOnMainThread())
+    {
+        onAddPathScript(path);
+    }
+    else
+    {
+        std::lock_guard<std::mutex> lock(g_deferredScriptsMutex);
+        g_deferredAddPathScripts.emplace_back(path);
+    }
+}
 
 #ifdef _WIN32
     std::string currentDir;
@@ -621,12 +658,13 @@ namespace util
             return nullptr;
 		if(strlen(fileName) == 0)
 			return fileName;
+        std::lock_guard<std::recursive_mutex> lsPathLock(g_lsPathMutex);
         if(strstr(fileName,util::getDecompressModelFileName()) != nullptr)
         {
             const char *currentPath = mbm::androidGetAbsPath();
             if (currentPath)
             {
-                static std::string fileDecompress;
+                thread_local std::string fileDecompress;
                 if(fileDecompress.size() == 0)
                 {
                     fileDecompress += currentPath;
@@ -685,7 +723,7 @@ namespace util
                     }
                     else
                     {
-                        static std::string s_fullPath;
+                        thread_local std::string s_fullPath;
                         s_fullPath = fullPath;
                         addPath(s_fullPath.c_str());
                         return s_fullPath.c_str();
@@ -720,6 +758,7 @@ namespace util
             return nullptr;
 		if (fileName[0] == 0)
 			return fileName;
+        std::lock_guard<std::recursive_mutex> lsPathLock(g_lsPathMutex);
         fileName = getCorrectSeparator2SO(fileName);
         if (access_file(fileName, 0) != 0 || strstr(fileName, util::getDirSeparator()) == nullptr)
         {
@@ -776,16 +815,32 @@ namespace util
 		onAddPathScript = onNewAddPathScript;
 	}
 
+    void pumpDeferredAddPathScripts()
+    {
+        std::vector<std::string> pending;
+        {
+            std::lock_guard<std::mutex> lock(g_deferredScriptsMutex);
+            if (g_deferredAddPathScripts.empty())
+                return;
+            pending.swap(g_deferredAddPathScripts);
+        }
+        if (onAddPathScript)
+        {
+            for (const auto &path : pending)
+                onAddPathScript(path.c_str());
+        }
+    }
+
     void addPath(const char *newPathSource)
     {
-		
+        std::lock_guard<std::recursive_mutex> lsPathLock(g_lsPathMutex);
+
         if (newPathSource)
         {
 			std::string newPathBuffer;
             newPathSource    = getCorrectSeparator2SO(newPathSource);
             const char *path = getPathFromName(newPathSource);
-			if(onAddPathScript)
-				onAddPathScript(path);
+			invokeOrDeferAddPathScript(path);
     #if defined (USE_DUMMY_BACK_END_ENGINE)
             // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
             REMINDER_TODO                

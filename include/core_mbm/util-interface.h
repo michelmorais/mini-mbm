@@ -86,7 +86,13 @@ namespace util
     API_IMPL void remove_directory(const char * folder);
     API_IMPL const char * getDecompressModelFileName();
     API_IMPL const char* getBaseName(const char *fileName);
-	API_IMPL void setOnAddPathScript(OnAddPathScript onAddPathScript) noexcept;
+    API_IMPL void setOnAddPathScript(OnAddPathScript onAddPathScript) noexcept;
+    // addPath()/getFullPath() calls made off the main thread (e.g. MESH_MANAGER's async parsing
+    // workers) cannot safely invoke onAddPathScript inline - it runs Lua on the shared lua_State,
+    // which is only safe from the thread that owns it. Those calls queue the path here instead;
+    // call this once per frame from the main thread (CORE_MANAGER::update() does this, right next
+    // to MESH_MANAGER::pumpAsyncLoads()) to flush the queue safely. No-op when nothing is queued.
+    API_IMPL void pumpDeferredAddPathScripts();
 }
 
 namespace log_util
@@ -101,10 +107,10 @@ namespace log_util
     API_IMPL char *formatNewMessage(const size_t length, const char *message, va_list params);
     API_IMPL bool fail(const int lineNum, const char *fileName, const char *format, ...);
     API_IMPL bool onFailed(FILE *fp,const char* fileName, const int numLine, const char *format, ...);
-	API_IMPL void log_tag(const TYPE_LOG type_log,const char* tag, const char *format, ...);
-	API_IMPL void * log_tag_file_and_line(const int lineNum, const char *fileName,const TYPE_LOG type_log, const char *format, ...);
+    API_IMPL void log_tag(const TYPE_LOG type_log,const char* tag, const char *format, ...);
+    API_IMPL void * log_tag_file_and_line(const int lineNum, const char *fileName,const TYPE_LOG type_log, const char *format, ...);
     API_IMPL void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format, ...);
-	API_IMPL void setScriptPrintLine(OnScriptPrintLine onScriptPrintLine) noexcept;
+    API_IMPL void setScriptPrintLine(OnScriptPrintLine onScriptPrintLine) noexcept;
     API_IMPL void callScriptPrintLine() noexcept;
 }
 
@@ -115,27 +121,27 @@ namespace log_util
     #define INFO_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_INFO,  "min-mbm INFO",  __VA_ARGS__)
     #define WARN_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_WARN,  "min-mbm WARN",  __VA_ARGS__)
 
-	#ifdef _DEBUG
-	#    define PRINT_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_ERROR, __VA_ARGS__ );
-	#else
-	#    define PRINT_IF_DEBUG(...) while(false)
-	#endif
-
-	#ifdef _DEBUG
-	#    define PRINT_INFO_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_INFO, __VA_ARGS__ );
-	#else
-	#    define PRINT_INFO_IF_DEBUG(...) while(false)
-	#endif
+    #ifdef _DEBUG
+    #    define PRINT_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_ERROR, __VA_ARGS__ );
+    #else
+    #    define PRINT_IF_DEBUG(...) while(false)
+    #endif
 
     #ifdef _DEBUG
-	#    define PRINT_WARN_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_WARN, __VA_ARGS__ );
-	#else
-	#    define PRINT_WARN_IF_DEBUG(...) while(false)
-	#endif
+    #    define PRINT_INFO_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_INFO, __VA_ARGS__ );
+    #else
+    #    define PRINT_INFO_IF_DEBUG(...) while(false)
+    #endif
 
-	#define ERROR_AT(line_num,file_name,...)  log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_ERROR, __VA_ARGS__ );
-	#define INFO_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_INFO, __VA_ARGS__ );
-	#define WARN_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_WARN, __VA_ARGS__ );
+    #ifdef _DEBUG
+    #    define PRINT_WARN_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_WARN, __VA_ARGS__ );
+    #else
+    #    define PRINT_WARN_IF_DEBUG(...) while(false)
+    #endif
+
+    #define ERROR_AT(line_num,file_name,...)  log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_ERROR, __VA_ARGS__ );
+    #define INFO_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_INFO, __VA_ARGS__ );
+    #define WARN_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_WARN, __VA_ARGS__ );
 #endif
 
 API_IMPL const char* getLodePNGVersion();

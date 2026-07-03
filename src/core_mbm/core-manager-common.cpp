@@ -503,6 +503,11 @@ namespace mbm
         // main thread (GPU buffer/texture creation, which must happen on the thread owning the GL
         // context) and dispatches their completion callbacks. No-op when nothing is in flight.
         MESH_MANAGER::getInstance()->pumpAsyncLoads();
+        // Async mesh parsing can call util::openFile/getFullPath/addPath off the main thread (e.g.
+        // resolving a texture reference discovered mid-parse); addPath() defers the Lua-touching
+        // part of that work instead of running it inline off-thread. Flush it here, same pattern as
+        // pumpAsyncLoads() above. No-op when nothing is queued. See docs/async-loading-and-threading.md.
+        util::pumpDeferredAddPathScripts();
         this->updatePhysis();
         this->updateAudio();
         for (unsigned int i = 0; i < this->getTotalPlugins(); ++i)
