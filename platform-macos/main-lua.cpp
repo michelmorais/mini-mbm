@@ -79,6 +79,7 @@ int main(const int argc,const char **argv)
             {"Particle Editor"       , STR_PT_BR_PARTICLE_EDITOR,   "particle_editor.lua"},
             {"Physics Editor"        , STR_PT_BR_PHYSICS_EDITOR,     "physic_editor.lua"},
             {"Scene 2D Editor"       , STR_PT_BR_SCENE_2D_EDITOR,    "scene_editor2d.lua"},
+            {"Scene 3D Editor"       , STR_PT_BR_SCENE_3D_EDITOR,    "scene_editor3d.lua"},
             {"Shader Editor"         , STR_PT_BR_SHADER_EDITOR,      "shader_editor.lua"},
             {"Sprite Maker"          , STR_PT_BR_SPRITE_MAKER,       "sprite_maker.lua"},
             {"Texture Packer"        , STR_PT_BR_TEXTURE_PACKER,      "texture_packer.lua"},

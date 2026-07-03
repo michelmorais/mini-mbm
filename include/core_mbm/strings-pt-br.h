@@ -28,6 +28,7 @@
 #define STR_PT_BR_PARTICLE_EDITOR      "Editor de Part" "\xED" "culas"
 #define STR_PT_BR_PHYSICS_EDITOR       "Editor de F" "\xED" "sica"
 #define STR_PT_BR_SCENE_2D_EDITOR      "Editor de Cena 2D"
+#define STR_PT_BR_SCENE_3D_EDITOR      "Editor de Cena 3D"
 #define STR_PT_BR_SHADER_EDITOR        "Editor de Shader"
 #define STR_PT_BR_SPRITE_MAKER         "Editor de Sprite"
 #define STR_PT_BR_TEXTURE_PACKER       "Empacotador de texturas"
