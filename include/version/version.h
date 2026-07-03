@@ -71,8 +71,9 @@
     6.2   Mesh v10 stores TextureAnimationEffect once per animation FX block instead of duplicating it in PS/VS stage records.
     6.3   Mesh v11 stores TextureAnimationEffect once per animation FX block instead of duplicating it in PS/VS stage records.
     6.4   Lighting system created with support multiple light sources and improved performance. Mesh v12 introduces a new lighting.
+    6.5   Added reusable Blender-style 3D orbit navigation gizmo (editor_utils.lua drawOrbitGizmo) to mesh_debug's Camera window; split the Light panel into its own window.
 */
-#define MBM_VERSION "6.4" // MBM_VERSION must be in format X.Y"
+#define MBM_VERSION "6.5" // MBM_VERSION must be in format X.Y"
 #endif
 
 #endif
