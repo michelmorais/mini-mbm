@@ -895,7 +895,7 @@ function drawMeshSetTab(item_width)
 
     tImGui.Separator()
     local tFiltered = getFilteredMeshSetEntries()
-    local winSize = {tImGui.GetWindowSize()}
+    local winWidth = tImGui.GetWindowWidth()
     local xLast = tImGui.GetCursorPosX()
     for n, entry in ipairs(tFiltered) do
         local texInfo = getOrCreateThumbnail(entry)
@@ -921,7 +921,7 @@ function drawMeshSetTab(item_width)
             tImGui.EndTooltip()
         end
         xLast = xLast + size.x + 10
-        if xLast < (winSize[1] or 400) - size.x then
+        if xLast < winWidth - size.x then
             tImGui.SameLine()
         else
             xLast = tImGui.GetCursorPosX()
@@ -1044,7 +1044,7 @@ function drawMeshSelector(xStart)
     local isOpen, closedClicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_selector), true, 0)
     if isOpen then
         local tFiltered = getFilteredMeshSetEntries()
-        local winSize = {tImGui.GetWindowSize()}
+        local winWidth = tImGui.GetWindowWidth()
         local xLast = tImGui.GetCursorPosX()
         for n, entry in ipairs(tFiltered) do
             local texInfo = getOrCreateThumbnail(entry)
@@ -1069,7 +1069,7 @@ function drawMeshSelector(xStart)
                 tImGui.Button(tLang.L('generating') .. '##selpending' .. n, size)
             end
             xLast = xLast + size.x + 10
-            if xLast < (winSize[1] or 400) - size.x then
+            if xLast < winWidth - size.x then
                 tImGui.SameLine()
             else
                 xLast = tImGui.GetCursorPosX()

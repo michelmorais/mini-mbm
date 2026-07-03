@@ -924,13 +924,15 @@ local pressed = tImGui.ImageButton(textureName, w, h)
 tImGui.IsItemHovered()       -- was last item hovered?
 tImGui.IsItemClicked(btn?)   -- was last item clicked?
 tImGui.IsItemActive()
-tImGui.GetItemRectMin()      -- returns x, y (top-left of last item)
-tImGui.GetItemRectMax()      -- returns x, y (bottom-right)
-tImGui.GetItemRectSize()     -- returns w, h
+tImGui.GetItemRectMin()      -- returns a single {x,y} table (top-left of last item), NOT two values
+tImGui.GetItemRectMax()      -- returns a single {x,y} table (bottom-right), NOT two values
+tImGui.GetItemRectSize()     -- returns a single {x,y} table, NOT two values
 tImGui.SetTooltip("text")    -- tooltip on hover
 tImGui.PushID("id")          tImGui.PopID()
-tImGui.GetWindowSize()       -- returns w, h
-tImGui.GetWindowPos()        -- returns x, y
+tImGui.GetWindowSize()       -- returns a single {x,y} table, NOT two values (use GetWindowWidth()/GetWindowHeight() for plain numbers)
+tImGui.GetWindowPos()        -- returns a single {x,y} table, NOT two values
+tImGui.GetWindowWidth()      -- returns a single number
+tImGui.GetWindowHeight()     -- returns a single number
 tImGui.SetScrollHereY(0.5)   -- scroll to position
 ```
 
