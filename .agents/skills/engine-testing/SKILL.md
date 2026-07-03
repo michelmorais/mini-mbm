@@ -229,8 +229,8 @@ function onLoop(delta)
         if tImGui.Begin('Smoketest', false, 0) then
             tUtil.yourNewWidget(mockState)   -- call the real function, not a reimplementation
         end
-        tImGui.End()
     end)
+    tImGui.End()   -- always, OUTSIDE the pcall — see warning below
     if not ok then errMsg = err end
     if start_time and (mbm.getTimeRun() - start_time) >= 4 then
         if errMsg then print('error', 'red', 'SMOKETEST FAIL: ' .. tostring(errMsg))
@@ -245,6 +245,21 @@ without it a Lua runtime error inside an ImGui callback can scroll past in the l
 failing the process's exit code. Run it the same way as any Path B script
 (`--disable_select_monitor`, `timeout -s KILL` backstop), then `grep` the log for the sentinel
 and for `error|traceback|attempt to|nil value` as a second pass.
+
+**`tImGui.End()` must be outside the `pcall`, never inside it.** If the widget call between
+`Begin`/`End` errors, a Lua error unwinds via `longjmp` straight past anything else in that same
+`pcall`'d function — including an `End()` written after it — leaving ImGui's internal window
+stack unbalanced. On the *next* frame ImGui's own error-recovery asserts `"Missing End()"` and
+**aborts the whole process** (`imgui.cpp: ErrorRecoveryTryToRecoverState`). This is not
+hypothetical: a real editor bug (`scene_editor3d.lua` passing `texInfo.id`, a nil field, to
+`ImageButton` instead of `texInfo` itself) hit exactly this, and reproducing it here — even with
+`End()` correctly moved outside the `pcall` — **still aborted the process**, because a widget call
+that partially executes before erroring (e.g. `ImageButton` typechecking its texture argument
+after already touching internal ImGui state) can corrupt more than just the Begin/End counter.
+`pcall` reliably catches the error for *logging* (the `SMOKETEST FAIL` sentinel above did print),
+but it is not a crash-safety net for ImGui state — don't treat a passing pcall-wrapped smoke test
+as proof a given call is safe if it still throws. The only real fix is removing the erroring call
+so it never throws in the first place, not defending around it after the fact.
 
 ### Visually verifying the render, without mouse input
 

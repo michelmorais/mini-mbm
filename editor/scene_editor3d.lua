@@ -905,7 +905,7 @@ function drawMeshSetTab(item_width)
             if selected then
                 tImGui.PushStyleColor('ImGuiCol_Button', {r = 0, g = 1, b = 0, a = 1})
             end
-            if tImGui.ImageButton('mesh_set_btn_' .. n, texInfo.id, size, {x = 0, y = 0}, {x = 1, y = 1}) then
+            if tImGui.ImageButton('mesh_set_btn_' .. n, texInfo, size, {x = 0, y = 0}, {x = 1, y = 1}) then
                 iPreviewedMeshSetIndex = n
                 updatePreviewMesh3d(entry)
             end
@@ -1054,7 +1054,7 @@ function drawMeshSelector(xStart)
                 if selected then
                     tImGui.PushStyleColor('ImGuiCol_Button', {r = 0, g = 1, b = 0, a = 1})
                 end
-                if tImGui.ImageButton('mesh_selector_btn_' .. n, texInfo.id, size, {x = 0, y = 0}, {x = 1, y = 1}) then
+                if tImGui.ImageButton('mesh_selector_btn_' .. n, texInfo, size, {x = 0, y = 0}, {x = 1, y = 1}) then
                     sMeshSelectedForPlacement = entry.fileName
                 end
                 if selected then
