@@ -75,8 +75,9 @@
     6.3   Mesh v11 stores TextureAnimationEffect once per animation FX block instead of duplicating it in PS/VS stage records.
     6.4   Lighting system created with support multiple light sources and improved performance. Mesh v12 introduces a new lighting.
     6.5.0 Added reusable Blender-style 3D orbit navigation gizmo (editor_utils.lua drawOrbitGizmo) to mesh_debug's Camera window; split the Light panel into its own window. First entry using the X.Y.Z format.
+    6.6.0 Added Scene Editor 3D (editor/scene_editor3d.lua): grid/free placement of any renderizable, per-layer Y control, cached mesh thumbnails via render2texture, async mesh loading with progress, and a self-contained requirable scene export.
 */
-#define MBM_VERSION "6.5.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.6.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
