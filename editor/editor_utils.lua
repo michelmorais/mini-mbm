@@ -955,5 +955,111 @@ tUtil.showStatusMessage = function (sMessageYellow,sMessageGrayed)
     tImGui.End()
 end
 
+-- Blender-style navigation gizmo: draws an interactive sphere with 6 axis dots.
+-- c: spherical camera state {azimuth=, elevation=, ...}, mutated in place.
+-- opts (optional): size (px diameter), sensitivity (rad/px drag), elevationLimit (rad).
+-- Must be called between the caller's tImGui.Begin/End. Returns true if c changed.
+tUtil.drawOrbitGizmo = function(c, opts)
+    opts = opts or {}
+    local size           = opts.size or 110
+    local sensitivity    = opts.sensitivity or 0.005
+    local elevationLimit = opts.elevationLimit or (math.pi * 0.49)
+
+    local function normalize3(x, y, z)
+        local len = math.sqrt(x*x + y*y + z*z)
+        if len > 0.0001 then
+            return x / len, y / len, z / len
+        end
+        return x, y, z
+    end
+
+    local caz, saz = math.cos(c.azimuth), math.sin(c.azimuth)
+    local cel, sel = math.cos(c.elevation), math.sin(c.elevation)
+    local dirX, dirY, dirZ = cel * saz, sel, cel * caz -- unit vector focus -> camera
+    local fwX, fwY, fwZ    = -dirX, -dirY, -dirZ        -- forward: camera -> focus
+
+    -- Same convention as the viewport pan code (onTouchMove): right = normalize(cross(worldUp, forward))
+    local rgX, rgZ = fwZ, -fwX
+    local rgLen    = math.sqrt(rgX * rgX + rgZ * rgZ)
+    if rgLen > 0.0001 then
+        rgX, rgZ = rgX / rgLen, rgZ / rgLen
+    else
+        rgX, rgZ = math.cos(c.azimuth + math.pi * 0.5), math.sin(c.azimuth + math.pi * 0.5)
+    end
+    local rgY = 0
+    local upX, upY, upZ = normalize3(fwY * rgZ - fwZ * rgY, fwZ * rgX - fwX * rgZ, fwX * rgY - fwY * rgX)
+
+    local p0     = tImGui.GetCursorScreenPos()
+    local center = {x = p0.x + size * 0.5, y = p0.y + size * 0.5}
+    local radius = size * 0.5 - 12
+
+    local tAxes = {
+        {label='X', x= 1, y= 0, z= 0, color={r=0.85,g=0.27,b=0.27,a=1}, snapAz=math.pi*0.5,  snapEl=0,               positive=true},
+        {label='',  x=-1, y= 0, z= 0, color={r=0.85,g=0.27,b=0.27,a=1}, snapAz=-math.pi*0.5, snapEl=0,               positive=false},
+        {label='Y', x= 0, y= 1, z= 0, color={r=0.35,g=0.75,b=0.35,a=1}, snapAz=nil,          snapEl=elevationLimit,  positive=true},
+        {label='',  x= 0, y=-1, z= 0, color={r=0.35,g=0.75,b=0.35,a=1}, snapAz=nil,          snapEl=-elevationLimit, positive=false},
+        {label='Z', x= 0, y= 0, z= 1, color={r=0.35,g=0.55,b=0.95,a=1}, snapAz=0,            snapEl=0,               positive=true},
+        {label='',  x= 0, y= 0, z=-1, color={r=0.35,g=0.55,b=0.95,a=1}, snapAz=math.pi,      snapEl=0,               positive=false},
+    }
+
+    for _, tAxis in ipairs(tAxes) do
+        local sx = tAxis.x * rgX + tAxis.y * rgY + tAxis.z * rgZ
+        local sy = tAxis.x * upX + tAxis.y * upY + tAxis.z * upZ
+        -- depth < 0 means the axis points back toward the camera (near side); > 0 means it points
+        -- away, into the screen (far side).
+        tAxis.depth     = tAxis.x * fwX + tAxis.y * fwY + tAxis.z * fwZ
+        tAxis.screen    = {x = center.x + sx * radius, y = center.y - sy * radius}
+        tAxis.dotRadius = tAxis.depth < 0 and 7 or 5
+    end
+    -- Painter's algorithm: draw far side first, near side last (on top).
+    table.sort(tAxes, function(a, b) return a.depth > b.depth end)
+
+    tImGui.AddCircle(center, radius + 8, {r=1,g=1,b=1,a=0.15}, 24, 1.0)
+    for _, tAxis in ipairs(tAxes) do
+        tImGui.AddLine(center, tAxis.screen, {r=tAxis.color.r, g=tAxis.color.g, b=tAxis.color.b, a=0.5}, 1.0)
+        if tAxis.positive then
+            tImGui.AddCircleFilled(tAxis.screen, tAxis.dotRadius, tAxis.color, 12)
+            local tTextSize = tImGui.CalcTextSize(tAxis.label)
+            tImGui.AddText({x = tAxis.screen.x - tTextSize.x * 0.5, y = tAxis.screen.y - tTextSize.y * 0.5},
+                            {r=1,g=1,b=1,a=1}, tAxis.label)
+        else
+            tImGui.AddCircle(tAxis.screen, tAxis.dotRadius, tAxis.color, 12, 1.5)
+        end
+    end
+
+    tImGui.SetCursorScreenPos(p0)
+    tImGui.InvisibleButton('##orbitGizmo', {x = size, y = size})
+    local changed = false
+
+    if tImGui.IsItemClicked(0) then
+        local tMouse = tImGui.GetMousePos()
+        local bestAxis, bestDist = nil, nil
+        for _, tAxis in ipairs(tAxes) do
+            local dx, dy = tMouse.x - tAxis.screen.x, tMouse.y - tAxis.screen.y
+            local dist   = math.sqrt(dx * dx + dy * dy)
+            if dist <= tAxis.dotRadius + 3 and (bestDist == nil or dist < bestDist) then
+                bestAxis, bestDist = tAxis, dist
+            end
+        end
+        if bestAxis then
+            if bestAxis.snapAz then c.azimuth = bestAxis.snapAz end
+            c.elevation = bestAxis.snapEl
+            changed = true
+        end
+    end
+
+    if tImGui.IsItemActive() then
+        local tDelta = tImGui.GetMouseDragDelta(0)
+        if tDelta.x ~= 0 or tDelta.y ~= 0 then
+            c.azimuth   = c.azimuth - tDelta.x * sensitivity
+            c.elevation = c.elevation + tDelta.y * sensitivity
+            c.elevation = math.max(-elevationLimit, math.min(elevationLimit, c.elevation))
+            tImGui.ResetMouseDragDelta(0)
+            changed = true
+        end
+    end
+
+    return changed
+end
 
 return tUtil

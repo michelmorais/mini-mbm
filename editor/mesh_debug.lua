@@ -6398,10 +6398,11 @@ function showCameraWindow()
     local winW = 300
     tImGui.SetNextWindowPos({x = iW - winW - 5, y = 25}, tImGui.Flags('ImGuiCond_Once'))
     local wFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoCollapse')
-    local opened = tImGui.Begin(tLang.L('camera_panel') .. '##camWin', false, wFlags)
+    -- Mode toggle: 2D / 3D radio buttons
+    local camMode = bCameraMode3D and 1 or 0
+    local camModeStr = bCameraMode3D and ' 3d' or ' 2d'
+    local opened = tImGui.Begin(tLang.L('camera_panel') .. camModeStr .. '##camWin', false, wFlags)
     if opened then
-        -- Mode toggle: 2D / 3D radio buttons
-        local camMode = bCameraMode3D and 1 or 0
         camMode = tImGui.RadioButton(tLang.L('camera_2d') .. '##camMode', camMode, 0)
         tImGui.SameLine()
         camMode = tImGui.RadioButton(tLang.L('camera_3d') .. '##camMode', camMode, 1)
@@ -6427,6 +6428,10 @@ function showCameraWindow()
         if bCameraMode3D then
             if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
                 local c = tLoadedMeshes[iSelectedMeshIndex].cam3d
+                if tUtil.drawOrbitGizmo(c) then
+                    applyCam3d(c)
+                end
+                tImGui.Separator()
                 local px, py, pz = cam3dGetPos(c)
                 tUtil.pushResponsiveItemWidth(72)
 
@@ -6476,8 +6481,6 @@ function showCameraWindow()
             else
                 tImGui.TextDisabled(tLang.L('cam_no_mesh'))
             end
-            tImGui.Separator()
-            showEditorLightPanel('3d', '3d')
         else
             tUtil.pushResponsiveItemWidth(72)
             local rx, nx = tImGui.DragFloat('X##c2dx', camera2d.x, 5.0, 0, 0, '%.1f', 0)
@@ -6491,8 +6494,25 @@ function showCameraWindow()
                 camera2d:setPos(0, 0)
             end
             tImGui.Separator()
-            showEditorLightPanel('2dw', '2dw')
             tImGui.TextDisabled(tLang.L('cam_hint_2d'))
+        end
+    end
+    tImGui.End()
+end
+
+function showLightWindow()
+    local iW = mbm.getSizeScreen()
+    local winW = 470
+    local winY = bCameraMode3D and 500 or 220
+    tImGui.SetNextWindowPos({x = iW - winW - 5, y = winY}, tImGui.Flags('ImGuiCond_Once'))
+    local camModeStr = bCameraMode3D and ' 3d' or ' 2d'
+    local wFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoCollapse')
+    local opened = tImGui.Begin(tLang.L('light_panel') .. camModeStr .. '##lightWin', false, wFlags)
+    if opened then
+        if bCameraMode3D then
+            showEditorLightPanel('3d', '3d')
+        else
+            showEditorLightPanel('2dw', '2dw')
         end
     end
     tImGui.End()
@@ -7059,6 +7079,7 @@ function onLoop(delta)
     main_menu_mesh_debug()
     showBlenderImportDialog()
     showCameraWindow()
+    showLightWindow()
     showMeshTreeWindow()
     showApplyAllWindow()
     showListTexturesWindow()
