@@ -187,8 +187,8 @@ end
 
 function drawLightPanel()
     tImGui.Text(tLang.L('light_panel'))
-    local changedEnabled, enabled = tImGui.Checkbox('##light_enabled', tLightConfig.bEnabled)
-    if changedEnabled then
+    local enabled = tImGui.Checkbox('##light_enabled', tLightConfig.bEnabled)
+    if enabled ~= tLightConfig.bEnabled then
         tLightConfig.bEnabled = enabled
         applyTabLighting()
     end
@@ -654,6 +654,59 @@ function removePlacedMesh(index)
     table.remove(tPlacedMeshes, index)
 end
 
+-- Registers a single file into the Mesh Set list (if not already present) so it also
+-- becomes selectable later from the Mesh Set tab / Mesh Selector window.
+function registerMeshSetEntry(fileName)
+    for _, e in ipairs(tMeshSetEntries) do
+        if e.fileName == fileName then return e end
+    end
+    local tInfo = meshDebug and meshDebug:getInfo(fileName) or nil
+    if not tInfo or not tInfo.type then return nil end
+    local entry = { fileName = fileName, type = tInfo.type, ext = tInfo.ext, isSelected = false, thumbState = nil }
+    table.insert(tMeshSetEntries, entry)
+    return entry
+end
+
+sLastMeshAdd = ''
+
+-- Direct "Add Mesh" entry point (mirrors scene_editor2d.lua's onAddMesh): opens a native
+-- multi-file picker and places every chosen asset straight into the active layer, at the
+-- world origin, without requiring the Mesh Set tab's folder-scan workflow first.
+function onAddMeshDirect()
+    local fileName = mbm.openMultiFile(sLastMeshAdd,
+        'tile', 'spt', 'ptl', 'png', 'msh', 'fnt', 'jpeg', 'jpg', 'bmp', 'gif', 'psd', 'pic', 'pnm', 'hdr', 'tga', 'tif')
+    if not fileName then return end
+
+    if #tLayers == 0 then
+        addLayer()
+    end
+    if iSelectedLayer == 0 then
+        iSelectedLayer = 1
+    end
+
+    local function addOne(sFile)
+        local entry = registerMeshSetEntry(sFile)
+        if not entry then
+            tUtil.showMessageWarn(tLang.L('failed_to_add_mesh'))
+            return
+        end
+        sLastMeshAdd = sFile
+        if tMapOptions.sMapType == 'Free' then
+            addPlacedMesh(sFile, entry.type, iSelectedLayer, 0, 0, 0, 0)
+        else
+            addPlacedMesh(sFile, entry.type, iSelectedLayer, 0, 0)
+        end
+    end
+
+    if type(fileName) == 'string' then
+        addOne(fileName)
+    elseif type(fileName) == 'table' then
+        for _, f in ipairs(fileName) do
+            addOne(f)
+        end
+    end
+end
+
 ------------------------------------------------------------------------------------------------------------------
 -- Map-tab "Object Option" markers
 ------------------------------------------------------------------------------------------------------------------
@@ -909,8 +962,8 @@ function drawLayerTab(item_width)
                 rebuildGridVisual()
             end
 
-            local cVis, vis = tImGui.Checkbox(tLang.L('visible') .. '##layer_visible' .. i, layer.visible)
-            if cVis then
+            local vis = tImGui.Checkbox(tLang.L('visible') .. '##layer_visible' .. i, layer.visible)
+            if vis ~= layer.visible then
                 layer.visible = vis
                 for _, tPlaced in ipairs(tPlacedMeshes) do
                     if tPlaced.layerIndex == i and tPlaced.tObj then
@@ -950,20 +1003,20 @@ function drawLayerTab(item_width)
     end
 
     tImGui.Separator()
-    local cShow, show = tImGui.Checkbox(tLang.L('mesh_selector_separated'), bShowMeshSelector)
-    if cShow then bShowMeshSelector = show end
+    local show = tImGui.Checkbox(tLang.L('mesh_selector_separated'), bShowMeshSelector)
+    if show ~= bShowMeshSelector then bShowMeshSelector = show end
 
     tImGui.Separator()
     tImGui.Text(tLang.L('placed_meshes_fmt'):format(#tPlacedMeshes))
     for i, tPlaced in ipairs(tPlacedMeshes) do
         local rowOpen = tImGui.TreeNodeEx(tUtil.getShortName(tPlaced.fileName) .. '##placed_tree' .. i)
         if rowOpen then
-            local cSel, sel = tImGui.Checkbox(tLang.L('selected') .. '##placed_sel' .. i, tPlaced.isSelected)
-            if cSel then tPlaced.isSelected = sel end
+            local sel = tImGui.Checkbox(tLang.L('selected') .. '##placed_sel' .. i, tPlaced.isSelected)
+            if sel ~= tPlaced.isSelected then tPlaced.isSelected = sel end
 
             if tMapOptions.sMapType == 'Free' then
-                local cAttach, attach = tImGui.Checkbox(tLang.L('attached_to_layer') .. '##placed_attach' .. i, tPlaced.bAttachedToLayer)
-                if cAttach then
+                local attach = tImGui.Checkbox(tLang.L('attached_to_layer') .. '##placed_attach' .. i, tPlaced.bAttachedToLayer)
+                if attach ~= tPlaced.bAttachedToLayer then
                     tPlaced.bAttachedToLayer = attach
                     syncPlacedMeshTransform(tPlaced)
                 end
@@ -1149,6 +1202,13 @@ function main_menu_3d()
             tImGui.EndMenu()
         end
 
+        if tImGui.BeginMenu(tLang.L('menu_mesh')) then
+            if tImGui.MenuItem(tLang.L('add_mesh'), 'Ctrl+M') then
+                onAddMeshDirect()
+            end
+            tImGui.EndMenu()
+        end
+
         if tImGui.BeginMenu(tLang.L('layer_options')) then
             if sActiveTab == 'layer' then
                 if tImGui.MenuItem(tLang.L('select_all_meshes'), 'Ctrl+A') then
@@ -1173,8 +1233,8 @@ function main_menu_3d()
 
         if tImGui.BeginMenu(tLang.L('menu_run')) then
             tImGui.Text(tLang.L('resolution_expected'))
-            local cInv, inv = tImGui.Checkbox(tLang.L('invert_width_height') .. '##world', tOptionsEditor.bInvertResolution)
-            if cInv then tOptionsEditor.bInvertResolution = inv end
+            local inv = tImGui.Checkbox(tLang.L('invert_width_height') .. '##world', tOptionsEditor.bInvertResolution)
+            if inv ~= tOptionsEditor.bInvertResolution then tOptionsEditor.bInvertResolution = inv end
             local tResStr = {}
             for i, r in ipairs(tResolution) do
                 tResStr[i] = string.format('%dx%d (%s)', r.x, r.y, r.comment)
@@ -1206,8 +1266,8 @@ function main_menu_3d()
 
             tImGui.Separator()
             tImGui.Text(tLang.L('resolution'))
-            local cInvL, invL = tImGui.Checkbox(tLang.L('invert_width_height') .. '##launch', tOptionsLaunch.bInvertResolution)
-            if cInvL then tOptionsLaunch.bInvertResolution = invL end
+            local invL = tImGui.Checkbox(tLang.L('invert_width_height') .. '##launch', tOptionsLaunch.bInvertResolution)
+            if invL ~= tOptionsLaunch.bInvertResolution then tOptionsLaunch.bInvertResolution = invL end
             local retL, curL = tImGui.Combo('##ComboResolutionLaunch', tOptionsLaunch.iIndexResolution - 1, tResStr)
             if retL then tOptionsLaunch.iIndexResolution = curL + 1 end
 
@@ -1229,12 +1289,12 @@ function main_menu_3d()
         end
 
         if tImGui.BeginMenu(tLang.L('general_options')) then
-            local cShow, show = tImGui.Checkbox(tLang.L('show_mesh_map'), bEnableMainTabBar)
-            if cShow then bEnableMainTabBar = show end
+            local show = tImGui.Checkbox(tLang.L('show_mesh_map'), bEnableMainTabBar)
+            if show ~= bEnableMainTabBar then bEnableMainTabBar = show end
 
             tImGui.Separator()
-            local cOrigin, origin = tImGui.Checkbox(tLang.L('enable_origin_lines'), bEnableOriginLines)
-            if cOrigin then
+            local origin = tImGui.Checkbox(tLang.L('enable_origin_lines'), bEnableOriginLines)
+            if origin ~= bEnableOriginLines then
                 bEnableOriginLines = origin
                 if tOriginLine3dX then tOriginLine3dX.visible = origin end
                 if tOriginLine3dY then tOriginLine3dY.visible = origin end

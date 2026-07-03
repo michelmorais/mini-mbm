@@ -829,7 +829,8 @@ tImGui.TextWrapped("long text ...")
 
 local pressed = tImGui.Button("label", w?, h?)
 local pressed = tImGui.SmallButton("label")
-local changed, v = tImGui.Checkbox("label", bool_value)
+local v = tImGui.Checkbox("label", bool_value)   -- returns only the new/current value, not a separate changed flag
+-- detect a toggle yourself: `if v ~= bool_value then ... end`
 
 -- Sliders (return changed:bool, newValue)
 local c, v  = tImGui.SliderFloat("label", value, min, max, fmt?)
