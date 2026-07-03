@@ -22,10 +22,13 @@
 
 #ifndef MBM_VERSION
 /*
-    Example: "1.0.b"
-    1 - Major change
-    0 - New functionalities
-    a - Fix some issues or even improved non impact of new functionalities
+    Format: "X.Y" or "X.Y.Z"
+    X - Major change
+    Y - New functionalities
+    Z - Fix some issues or even improved non impact of new functionalities (optional patch component)
+
+    Historical entries below predate the "Z" patch component and used a trailing
+    letter (e.g. "3.1.a") instead; new entries should prefer numeric "X.Y.Z".
 
     1.0.a Framework began using Directx
     1.2.a Framework changed to Opengl-ES
@@ -71,9 +74,9 @@
     6.2   Mesh v10 stores TextureAnimationEffect once per animation FX block instead of duplicating it in PS/VS stage records.
     6.3   Mesh v11 stores TextureAnimationEffect once per animation FX block instead of duplicating it in PS/VS stage records.
     6.4   Lighting system created with support multiple light sources and improved performance. Mesh v12 introduces a new lighting.
-    6.5   Added reusable Blender-style 3D orbit navigation gizmo (editor_utils.lua drawOrbitGizmo) to mesh_debug's Camera window; split the Light panel into its own window.
+    6.5.0 Added reusable Blender-style 3D orbit navigation gizmo (editor_utils.lua drawOrbitGizmo) to mesh_debug's Camera window; split the Light panel into its own window. First entry using the X.Y.Z format.
 */
-#define MBM_VERSION "6.5" // MBM_VERSION must be in format X.Y"
+#define MBM_VERSION "6.5.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

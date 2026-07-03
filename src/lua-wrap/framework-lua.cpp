@@ -97,11 +97,15 @@ namespace mbm
 {
     inline const char* __std_p()
     {
-        static_assert(sizeof(MBM_VERSION) == 4, "MBM_VERSION must be in format X.Y");
+        // MBM_VERSION may be "X.Y" (min "1.0", sizeof==4) or "X.Y.Z" (min "1.0.0", sizeof==6);
+        // either way only the first 3 characters (major, '.', first digit of minor) are embedded
+        // below, same as before X.Y.Z existed, so the default password's length/layout is
+        // unaffected by adding a patch component.
+        static_assert(sizeof(MBM_VERSION) >= 4, "MBM_VERSION must be in format X.Y or X.Y.Z");
         static char _p[17] = {
             'M', 'i', 'N', 'i', 'M', 'b', 'M', '-',
             MBM_VERSION[0], MBM_VERSION[1], MBM_VERSION[2],
-            '#', ' ', 'W', 'M', 'W', 
+            '#', ' ', 'W', 'M', 'W',
             '\0'
         };
         return _p;

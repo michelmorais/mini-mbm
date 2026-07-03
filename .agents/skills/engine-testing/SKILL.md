@@ -23,6 +23,7 @@ Read this **before** starting a test run, not after it hangs.
 | C++ render/backend feature (a new `RENDERIZABLE` type, mesh/texture/font/sprite/tile/particle code, shader plumbing) | **testLib** (`src/test-lib/`) | Directly instantiates the engine (`GAME`/`CORE_MANAGER`), no Lua, no dialog, fastest iteration. Existing menu in `my-scene-test.cpp` already exercises texture/gif/sprite/mesh/shape/line/particle/render-to-texture/steered-particle/font/tile — extend it rather than writing a new harness. |
 | Lua API / gameplay feature | **mini-mbm + a `.lua` scene** | Runs the real Lua binding layer (`src/lua-wrap`), which testLib never touches. |
 | Something that must prove the two integrate (e.g. a new Lua binding for a new C++ type) | Both: testLib first to prove the C++ side renders correctly, then a `.lua` script to prove the binding | testLib alone can't catch a binding-layer regression. |
+| A Lua ImGui editor widget (`editor/*.lua`, `editor_utils.lua`) — new function, math, drawing logic | **Path C below**: an isolated throwaway smoke-test scene, not the full editor tool | Exercising the real editor tool (e.g. `mesh_debug.lua`) requires navigating its UI with mouse clicks to reach the code path under test, which this sandbox cannot automate (see Path C). An isolated scene calls the new function directly with mock data and needs zero navigation. |
 
 ---
 
@@ -192,6 +193,88 @@ instead of testing against a description you already know is wrong.
 
 ---
 
+## Path C — Lua ImGui editor widget in isolation
+
+A new function inside `editor_utils.lua` or one of the `editor/*.lua` tools (a drawing/math
+widget, a new panel, an interaction handler) does not need the full editor tool running to be
+verified. Reaching it through the real tool (e.g. `mesh_debug.lua`) usually requires navigating
+a file dialog or clicking through menus first — mouse interaction an agent in this sandbox cannot
+perform (no `xdotool`/`xte`/`pynput`/`python-xlib` available; confirmed by checking, don't assume).
+Instead, write a **throwaway scene script** that calls the new function directly with mock data.
+
+### Why the scratch scene must live next to the module it requires
+
+`require "editor_utils"` / `require "lang.language"` work from inside `editor/*.lua` files with no
+explicit `package.path` setup because the engine auto-adds the currently-running `--scene` file's
+own directory to `package.path` when it loads it (`src/lua-wrap/manager-lua.cpp`, the
+`package.path = package.path .. ';' .. path_lua` blocks). That mechanism only fires for the
+directory of the file passed to `--scene` — so put the scratch scene **inside `editor/`** (e.g.
+`editor/_tmp_<feature>_smoketest.lua`) to get the same free module resolution production code
+gets, then delete it when done (`git status` should come back clean). Don't try to work around
+this with a hand-rolled `LUA_PATH`; it's more moving parts for no benefit.
+
+### The smoke-test pattern
+
+```lua
+tImGui = require "ImGui"
+tUtil  = require "editor_utils"
+
+local mockState = { azimuth = 0.3, elevation = 0.3 }   -- whatever the function under test needs
+local start_time, errMsg = nil, nil
+
+function onInitScene() start_time = mbm.getTimeRun() end
+
+function onLoop(delta)
+    local ok, err = pcall(function()
+        if tImGui.Begin('Smoketest', false, 0) then
+            tUtil.yourNewWidget(mockState)   -- call the real function, not a reimplementation
+        end
+        tImGui.End()
+    end)
+    if not ok then errMsg = err end
+    if start_time and (mbm.getTimeRun() - start_time) >= 4 then
+        if errMsg then print('error', 'red', 'SMOKETEST FAIL: ' .. tostring(errMsg))
+        else print('info', 'green', 'SMOKETEST OK') end
+        mbm.quit()
+    end
+end
+```
+
+Wrapping the call in `pcall` and printing an explicit `SMOKETEST OK`/`FAIL` sentinel matters —
+without it a Lua runtime error inside an ImGui callback can scroll past in the log without ever
+failing the process's exit code. Run it the same way as any Path B script
+(`--disable_select_monitor`, `timeout -s KILL` backstop), then `grep` the log for the sentinel
+and for `error|traceback|attempt to|nil value` as a second pass.
+
+### Visually verifying the render, without mouse input
+
+This sandbox has a real X display (`echo $DISPLAY`, `/tmp/.X11-unix` — check, don't assume it's
+headless) and ImageMagick's `import`/`convert` are installed, even though no input-automation tool
+is. That's enough to *see* drawing-code output, just not to *click* on it:
+
+```sh
+timeout -s KILL 10 ./bin/debug/linux_x86/mini-mbm --scene editor/_tmp_foo_smoketest.lua \
+    --disable_select_monitor --nosplash -w 500 -h 400 -x 50 -y 50 > run.log 2>&1 &
+BGPID=$!
+sleep 2.5   # let it render at least one frame before the deadline fires
+import -display :1 -window root screenshot.png
+wait $BGPID
+convert screenshot.png -crop <WxH+X+Y> -resize 400% zoom.png   # crop to the widget, upscale
+```
+
+Then `Read` the cropped PNG directly — the Read tool renders images. This is not a gimmick: doing
+this on a new orbit-navigation gizmo caught a real inverted painter's-algorithm bug (near/far dot
+sizing and draw order were backwards) that code review alone had missed — the math looked
+plausible on paper but was visibly wrong once rendered.
+
+**Honest limit:** this verifies rendering and catches runtime errors across many frames, but it
+does **not** exercise click/drag interaction (no synthetic mouse input exists here). Say so
+explicitly rather than claiming full interactive verification — e.g. "I confirmed the gizmo
+renders and updates state correctly in isolation; I couldn't automate an actual click/drag, so
+give it one manual pass in the running editor."
+
+---
+
 ## Quick reference: full command patterns
 
 ```sh
@@ -219,3 +302,6 @@ timeout -s KILL 15 ./bin/debug/linux_x86/mini-mbm \
 | Assuming `timeout N` (SIGTERM) reliably stops the engine | These are GUI/render-loop processes; prefer the in-process timeout mechanisms above and treat `timeout -s KILL` as a backstop, not the primary mechanism |
 | Loading a mesh/sprite/texture without `util::addPath`/`mbm.addPath` for its directory first | Missing textures fall back to a blocking native file-picker dialog that no timeout can interrupt — always add the asset path first |
 | Trying to click through testLib's menu to load a specific mesh for an agent-driven check | Pass it as `testLib <seconds> <mesh_file> <world>` instead — no mouse interaction needed |
+| Trying to reach a new editor widget through the full editor tool (file dialogs, menu clicks) | Path C: isolate it in a throwaway scene under `editor/` that calls the function directly with mock data |
+| Assuming a Lua widget "looks right" from code review alone, or claiming interactive UI is verified when only rendering was checked | Screenshot it (Path C) when the logic involves geometry/drawing/depth — and say plainly if click/drag interaction wasn't actually exercised |
+| Leaving a scratch scene file behind under `editor/` after a Path C smoke test | `rm` it before finishing — `git status` should show only the real feature files changed |
