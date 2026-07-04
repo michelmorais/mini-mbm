@@ -1783,32 +1783,42 @@ function onLoop(delta)
     tUtil.showOverlayMessage()
 end
 
+-- A left-button press+release only places a mesh if the camera was never actually rotated in
+-- between -- otherwise "rotate around" (drag) would drop a new mesh at the press position every
+-- single time you start orbiting, which is what onTouchDown used to do. iDragThresholdPx allows a
+-- few pixels of incidental jitter (real mice/trackpads rarely produce a perfectly static click)
+-- without that counting as an intentional drag.
+iDragThresholdPx    = 3
+fMouseDownX, fMouseDownY = 0, 0
+bCameraDraggedThisPress  = false
+
+function tryPlaceMeshAt(x, y)
+    if sActiveTab ~= 'layer' or not sMeshSelectedForPlacement then return end
+    local entry = nil
+    for _, e in ipairs(tMeshSetEntries) do
+        if e.fileName == sMeshSelectedForPlacement then entry = e; break end
+    end
+    if not entry or iSelectedLayer == 0 then return end
+    local layer = tLayers[iSelectedLayer]
+    local wx, wy, wz = screenToWorldOnLayerPlane(x, y, layer.fY)
+    if not wx then return end
+    if tMapOptions.sMapType == 'Free' then
+        addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, 0, 0, wx, wz, true)
+    else
+        local cx, cz = worldToGridCell(wx, wz, layer)
+        addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
+    end
+end
+
 function onTouchDown(key, x, y)
     if tImGui.GetWantCaptureMouse() then return end
     isClickedMouseleft  = (key == 0)
     isClickedMouseRight = (key == 1)
     mouseLastX, mouseLastY = x, y
 
-    if key == 0 and sActiveTab == 'layer' and sMeshSelectedForPlacement then
-        local entry = nil
-        for _, e in ipairs(tMeshSetEntries) do
-            if e.fileName == sMeshSelectedForPlacement then entry = e; break end
-        end
-        if entry and iSelectedLayer > 0 then
-            local layer = tLayers[iSelectedLayer]
-            if tMapOptions.sMapType == 'Free' then
-                local wx, wy, wz = screenToWorldOnLayerPlane(x, y, layer.fY)
-                if wx then
-                    addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, 0, 0, wx, wz, true)
-                end
-            else
-                local wx, wy, wz = screenToWorldOnLayerPlane(x, y, layer.fY)
-                if wx then
-                    local cx, cz = worldToGridCell(wx, wz, layer)
-                    addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
-                end
-            end
-        end
+    if key == 0 then
+        fMouseDownX, fMouseDownY = x, y
+        bCameraDraggedThisPress  = false
     end
 end
 
@@ -1818,6 +1828,12 @@ function onTouchMove(key, x, y)
         return
     end
     if isClickedMouseleft then
+        if not bCameraDraggedThisPress then
+            local ddx, ddy = x - fMouseDownX, y - fMouseDownY
+            if (ddx * ddx + ddy * ddy) > (iDragThresholdPx * iDragThresholdPx) then
+                bCameraDraggedThisPress = true
+            end
+        end
         cam3d.azimuth   = cam3d.azimuth   - (x - mouseLastX) * 0.005
         cam3d.elevation = cam3d.elevation + (y - mouseLastY) * 0.005
         cam3d.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, cam3d.elevation))
@@ -1839,13 +1855,41 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if key == 0 and isClickedMouseleft and not bCameraDraggedThisPress and not tImGui.GetWantCaptureMouse() then
+        tryPlaceMeshAt(x, y)
+    end
     isClickedMouseleft  = false
     isClickedMouseRight = false
 end
 
+-- Zooms toward whatever is under the cursor (mouseLastX/Y, tracked from the last move/down event --
+-- onTouchZoom's own signature has no x,y) instead of always toward the orbit focus point. This is
+-- the expected behavior in other 3D editors (Blender/Maya/etc: scroll dollies toward the point
+-- under the cursor). Implemented by moving the orbit focus (fx,fy,fz) along the cursor's world-space
+-- ray by the same amount the camera-to-focus distance shrinks/grows, which keeps azimuth/elevation
+-- (the viewing angle) unchanged while making the camera itself dolly along that ray -- see the
+-- derivation in the memory/commit for this change if the math needs revisiting.
 function onTouchZoom(zoom)
     if tImGui.GetWantCaptureMouse() then return end
-    cam3d.distance = math.max(10, cam3d.distance * (1.0 - zoom * 0.15))
+    local oldDistance = cam3d.distance
+    local newDistance = math.max(10, oldDistance * (1.0 - zoom * 0.15))
+    local deltaDistance = oldDistance - newDistance
+
+    local caz, saz = math.cos(cam3d.azimuth), math.sin(cam3d.azimuth)
+    local cel, sel = math.cos(cam3d.elevation), math.sin(cam3d.elevation)
+    local dirX, dirY, dirZ = cel * saz, sel, cel * caz -- focus -> camera unit vector (matches cam3dGetPos)
+
+    local x1, y1, z1 = mbm.to3d(mouseLastX, mouseLastY, 100)
+    local x2, y2, z2 = mbm.to3d(mouseLastX, mouseLastY, 1000)
+    local rx, ry, rz = x2 - x1, y2 - y1, z2 - z1
+    local rlen = math.sqrt(rx * rx + ry * ry + rz * rz)
+    if rlen > 1e-6 then
+        rx, ry, rz = rx / rlen, ry / rlen, rz / rlen
+        cam3d.fx = cam3d.fx + deltaDistance * (dirX + rx)
+        cam3d.fy = cam3d.fy + deltaDistance * (dirY + ry)
+        cam3d.fz = cam3d.fz + deltaDistance * (dirZ + rz)
+    end
+    cam3d.distance = newDistance
 end
 
 function onKeyDown(key)
