@@ -63,9 +63,11 @@ tComboSnapScaleMode = {'none', 'full_fit', 'bigger_only'}
 tComboSnapScaleModeLabel = {'No scaling', 'Scale to full fit', 'Scale when bigger than grid'}
 
 tMapOptions = {
-    sMapType         = 'Free',
+    sMapType         = 'Orthogonal',
     fGridCellWidthX  = 100,
     fGridCellDepthZ  = 100,
+    iGridCountX      = 20,
+    iGridCountZ      = 20,
     sSnapScaleMode   = 'none',
 }
 
@@ -290,15 +292,34 @@ end
 -- Grid math
 ------------------------------------------------------------------------------------------------------------------
 
+-- Isometric grid lines are drawn rotated 45 degrees (rebuildGridVisual) -- cell math must apply
+-- the same rotation, or placement keeps snapping to the (invisible) orthogonal axes underneath
+-- the isometric visual, which is what it used to do here (a real, confirmed bug: the grid *looked*
+-- isometric but always snapped orthogonally).
+function getMapRotationRad()
+    return tMapOptions.sMapType == 'Isometric' and (math.pi * 0.25) or 0
+end
+
 function gridCellToWorld(cx, cz, layer)
-    local x = cx * tMapOptions.fGridCellWidthX + layer.offset.x
-    local z = cz * tMapOptions.fGridCellDepthZ + layer.offset.z
+    local lx = cx * tMapOptions.fGridCellWidthX
+    local lz = cz * tMapOptions.fGridCellDepthZ
+    local rot = getMapRotationRad()
+    local cosr, sinr = math.cos(rot), math.sin(rot)
+    local x = lx * cosr - lz * sinr + layer.offset.x
+    local z = lx * sinr + lz * cosr + layer.offset.z
     return x, layer.fY, z
 end
 
 function worldToGridCell(wx, wz, layer)
-    local cx = math.floor((wx - layer.offset.x) / tMapOptions.fGridCellWidthX + 0.5)
-    local cz = math.floor((wz - layer.offset.z) / tMapOptions.fGridCellDepthZ + 0.5)
+    local lx = wx - layer.offset.x
+    local lz = wz - layer.offset.z
+    -- inverse rotation: rotate world-space coords back into the grid's own (unrotated) local space
+    local rot = -getMapRotationRad()
+    local cosr, sinr = math.cos(rot), math.sin(rot)
+    local localX = lx * cosr - lz * sinr
+    local localZ = lx * sinr + lz * cosr
+    local cx = math.floor(localX / tMapOptions.fGridCellWidthX + 0.5)
+    local cz = math.floor(localZ / tMapOptions.fGridCellDepthZ + 0.5)
     return cx, cz
 end
 
@@ -332,6 +353,13 @@ function computeSnapScale(tObj)
     if tMapOptions.sSnapScaleMode == 'none' or tMapOptions.sMapType == 'Free' then
         return 1, 1, 1
     end
+    -- getAABB(true) measures the CURRENT world-space AABB, which factors in the object's CURRENT
+    -- scale (confirmed: RENDERIZABLE::updateAABB() builds its transform from getScale() too, not
+    -- just position/angle). Reset to identity scale first, or this measures an *already-scaled*
+    -- object and computes a new scale relative to that -- which compounds every time this runs
+    -- again on the same object (e.g. resyncAllPlacedMeshes firing on every click of a cell-size
+    -- spinner's +/- buttons), drifting further off with each call instead of converging.
+    tObj:setScale(1, 1, 1)
     local w, h, d = tObj:getAABB(true)
     w, h, d = w or 1, h or 1, d or 1
     local targetW, targetD = tMapOptions.fGridCellWidthX, tMapOptions.fGridCellDepthZ
@@ -356,10 +384,10 @@ function rebuildGridVisual()
     end
     local layer = tLayers[iSelectedLayer]
     if not layer then return end
-    local halfLinesX, halfLinesZ = 10, 10
+    local halfLinesX = math.max(1, math.floor(tMapOptions.iGridCountX * 0.5))
+    local halfLinesZ = math.max(1, math.floor(tMapOptions.iGridCountZ * 0.5))
     local w, d = tMapOptions.fGridCellWidthX, tMapOptions.fGridCellDepthZ
-    local isIso = tMapOptions.sMapType == 'Isometric'
-    local rot = isIso and (math.pi * 0.25) or 0
+    local rot = getMapRotationRad()
     local cosr, sinr = math.cos(rot), math.sin(rot)
 
     local function rotXZ(x, z)
@@ -691,6 +719,38 @@ function syncPlacedMeshTransform(tPlaced)
     tPlaced.tObj:setScale(tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z)
 end
 
+-- Placed meshes are the scene being built (Map / Map edition) -- Mesh View is only ever supposed
+-- to show the single currently-previewed asset, never the actual placed content. Without this,
+-- every placed instance kept rendering there too (a real bug: visible in Mesh View despite that
+-- tab's own "Placed Meshes" count having nothing to do with it).
+function applyPlacedMeshVisibility(tPlaced)
+    if not tPlaced.tObj then return end
+    local layer = tLayers[tPlaced.layerIndex]
+    local layerVisible = (not layer) or layer.visible
+    tPlaced.tObj.visible = layerVisible and (sActiveTab ~= 'mesh_set')
+end
+
+function updateAllPlacedMeshVisibility()
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        applyPlacedMeshVisibility(tPlaced)
+    end
+end
+
+-- Re-derives world position (and, under an active snap-scale mode, scale) for every placed mesh
+-- from its stored cell index -- needed whenever the grid definition itself changes (cell size, map
+-- type, snap-scale mode), since placed meshes are stored by cell index, not a frozen world position.
+function resyncAllPlacedMeshes()
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.tObj then
+            if tMapOptions.sSnapScaleMode ~= 'none' then
+                local sx, sy, sz = computeSnapScale(tPlaced.tObj)
+                tPlaced.scale = {x = sx, y = sy, z = sz}
+            end
+            syncPlacedMeshTransform(tPlaced)
+        end
+    end
+end
+
 -- `bSync`: true for direct interactive placement (Layer tab click, fill-layer) -- always
 -- synchronous, no progress modal. false/nil (the default) goes through the async-capable path,
 -- with a progress modal, used for bulk/first-time loads like "Load 3D Scene".
@@ -707,9 +767,16 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
     local function onLoaded(tObj)
         if tObj then
             tPlaced.tObj = tObj
+            -- Some mesh files embed a non-zero default angle (confirmed: e.g. Crate.msh loads at
+            -- roughly -32/4/0 degrees) -- getAABB(true) measures the CURRENT world-space AABB,
+            -- which for a tilted object is inflated/skewed relative to its true footprint. Reset
+            -- to the orientation this placement will actually use (0, rotationY, 0) *before*
+            -- measuring, or "fit to cell" scale is computed against the wrong footprint.
+            tObj:setAngle(0, tPlaced.rotationY or 0, 0)
             local sx, sy, sz = computeSnapScale(tObj)
             tPlaced.scale = {x = sx, y = sy, z = sz}
             syncPlacedMeshTransform(tPlaced)
+            applyPlacedMeshVisibility(tPlaced)
         end
     end
     if bSync then
@@ -851,6 +918,7 @@ function drawMapTab(item_width)
     if ret then
         tMapOptions.sMapType = tComboMapType3dCodes[current_item]
         rebuildGridVisual()
+        resyncAllPlacedMeshes()
     end
 
     if tMapOptions.sMapType ~= 'Free' then
@@ -858,11 +926,26 @@ function drawMapTab(item_width)
         local c2, d = tImGui.InputFloat(tLang.L('grid_depth_z') .. '##GridDepthZ', tMapOptions.fGridCellDepthZ, 1, 10, '%.2f')
         if c1 then tMapOptions.fGridCellWidthX = w end
         if c2 then tMapOptions.fGridCellDepthZ = d end
-        if c1 or c2 then rebuildGridVisual() end
+        if c1 or c2 then
+            rebuildGridVisual()
+            -- Placed meshes are stored by cell index (cellX/cellZ), not world position -- their
+            -- world position (and, under a snap-scale mode, their scale) is derived from the cell
+            -- size, so it must be recomputed here too, not just the grid's visual lines.
+            resyncAllPlacedMeshes()
+        end
+
+        -- How many cells wide/deep the visible grid (and "fill layer") span -- previously fixed
+        -- at 10 half-lines (21x21) regardless of any setting.
+        local c3, cx = tImGui.InputInt(tLang.L('grid_count_x') .. '##GridCountX', tMapOptions.iGridCountX, 1, 10)
+        local c4, cz = tImGui.InputInt(tLang.L('grid_count_z') .. '##GridCountZ', tMapOptions.iGridCountZ, 1, 10)
+        if c3 then tMapOptions.iGridCountX = math.max(1, cx) end
+        if c4 then tMapOptions.iGridCountZ = math.max(1, cz) end
+        if c3 or c4 then rebuildGridVisual() end
 
         local retSnap, curSnap = tImGui.Combo(tLang.L('snap_scale_mode') .. '##SnapScaleMode', tComboSnapScaleModeIndexOf(tMapOptions.sSnapScaleMode), tComboSnapScaleModeLabel)
         if retSnap then
             tMapOptions.sSnapScaleMode = tComboSnapScaleMode[curSnap]
+            resyncAllPlacedMeshes()
         end
     end
 
@@ -936,9 +1019,9 @@ function updatePreviewMesh3d(entry)
     if tPreviewMesh3d then
         markMeshLoaded(entry.fileName)
         tPreviewMesh3d:setPos(0, 0, 0)
-        local w, h, d = tPreviewMesh3d:getAABB(true)
-        cam3d.fx, cam3d.fy, cam3d.fz = 0, 0, 0
-        cam3d.distance = math.max(w or 100, h or 100, d or 100) * 2.5
+        -- Deliberately does NOT touch cam3d (focus/distance) here -- selecting a different mesh in
+        -- this tab must not re-frame/move the camera out from under a view the user already set up.
+        -- Every previewed mesh is placed at the same (0,0,0), so the existing view stays valid.
     end
 end
 
@@ -1046,8 +1129,8 @@ function drawLayerTab(item_width)
             if vis ~= layer.visible then
                 layer.visible = vis
                 for _, tPlaced in ipairs(tPlacedMeshes) do
-                    if tPlaced.layerIndex == i and tPlaced.tObj then
-                        tPlaced.tObj.visible = vis
+                    if tPlaced.layerIndex == i then
+                        applyPlacedMeshVisibility(tPlaced)
                     end
                 end
             end
@@ -1170,9 +1253,12 @@ function fillActiveLayerWithMesh(fileName)
         if e.fileName == fileName then entry = e; break end
     end
     if not entry then return end
-    local iRange = 5
-    for cx = -iRange, iRange do
-        for cz = -iRange, iRange do
+    -- Fill exactly the visible/configured grid extent (see tMapOptions.iGridCountX/Z), matching
+    -- rebuildGridVisual's own half-extent -- rather than an arbitrary fixed range.
+    local iRangeX = math.max(1, math.floor(tMapOptions.iGridCountX * 0.5))
+    local iRangeZ = math.max(1, math.floor(tMapOptions.iGridCountZ * 0.5))
+    for cx = -iRangeX, iRangeX do
+        for cz = -iRangeZ, iRangeZ do
             addPlacedMesh(fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
         end
     end
@@ -1227,6 +1313,13 @@ end
 function setActiveTab(sTab)
     sActiveTab = sTab
     cam3d = tCamByTab[sTab]
+    -- The Mesh View preview object is a real renderizable placed at the world origin -- without
+    -- this it kept rendering in Map/Map edition too (a real bug: it showed up in the scene even
+    -- though nothing had actually been placed, e.g. "Placed Meshes (0)" was still correct).
+    if tPreviewMesh3d then
+        tPreviewMesh3d.visible = (sTab == 'mesh_set')
+    end
+    updateAllPlacedMeshVisibility()
 end
 
 function main_tab_bar()
@@ -1747,6 +1840,8 @@ function onInitScene()
 
     mbm.setLightEnabled('3d', false)
     addLayer()
+    rebuildGridVisual() -- Orthogonal is now the default map type, so the grid must exist from the
+                        -- start, not only after the user first touches a Map-tab field.
     applyCam3d(cam3d)
     tUtil.sMessageOverlay = tLang.L('welcome_scene_editor_3d')
 end
@@ -1761,12 +1856,17 @@ function onLoop(delta)
     -- (switching tabs would otherwise apply the previous tab's camera for one stale frame)
     applyCam3d(cam3d)
 
-    if sActiveTab == 'mesh_set' and iPreviewedMeshSetIndex > 0 then
-        tUtil.setInitialWindowPositionRight(tLang.L('mesh_preview_orbit'), -160, 0, 160, 160, 160)
-        tImGui.Begin(tLang.L('mesh_preview_orbit'), true, tImGui.Flags('ImGuiWindowFlags_NoTitleBar'))
-        tUtil.drawOrbitGizmo(cam3d, {size = 110})
-        tImGui.End()
-    end
+    -- Shown in all three tabs (Map, Mesh View, Map edition) -- `cam3d` already aliases whichever
+    -- tab's own camera is current (setActiveTab), so this always drives the right one.
+    -- setInitialWindowPositionRight's `x` is added on top of its own right-edge alignment (it
+    -- already computes screenWidth - width internally) -- passing x = -width here (as before)
+    -- double-shifted it an extra `width` in from the edge, which is why "almost its own width"
+    -- was missing on the right. x = 0 sits it flush against the edge.
+    tUtil.setInitialWindowPositionRight(tLang.L('mesh_preview_orbit'), 0, 0, 160, 160, 160)
+    tImGui.Begin(tLang.L('mesh_preview_orbit'), true,
+        tImGui.Flags({'ImGuiWindowFlags_NoTitleBar', 'ImGuiWindowFlags_NoResize'}))
+    tUtil.drawOrbitGizmo(cam3d, {size = 110})
+    tImGui.End()
 
     -- Deciding "should this input reach the scene, or was it meant for the UI" is exactly what
     -- io.WantCaptureMouse is for -- unlike tImGui.IsAnyWindowHovered() (which this used to call),
