@@ -5787,6 +5787,56 @@ local function applyAllTransform(sType, sMode)
     end)
 end
 
+-- Bakes each mesh's own current default angle into its geometry (same-sign rotateFrame,
+-- so the rendered appearance is unchanged) then zeroes the default angle. No-op if already 0,0,0.
+local function applyAllResetDefaultAngle(sType)
+    return runApplyAllOperation(sType, tLang.L('reset_default_angle'), function(tEntry)
+        local meshD = tEntry.meshDebug
+        local okGet, ang = dpCall(function() return meshD:getAngle() end)
+        if not okGet or not ang then
+            return 'failed', tLang.L('an_error_occurred')
+        end
+        if (ang.x or 0) == 0 and (ang.y or 0) == 0 and (ang.z or 0) == 0 then
+            return 'skipped', tLang.L('default_already_zero')
+        end
+        local okRotate = dpCall(function() meshD:rotateFrame(0, ang.x, ang.y, ang.z, 0) end)
+        if not okRotate then
+            return 'failed', tLang.L('an_error_occurred')
+        end
+        local okSet = dpCall(function() meshD:setAngle(0, 0, 0) end)
+        if not okSet then
+            return 'failed', tLang.L('an_error_occurred')
+        end
+        tEntry.modified = true
+        return 'success'
+    end)
+end
+
+-- Bakes each mesh's own current default position into its geometry (same-sign translateFrame,
+-- so the rendered appearance is unchanged) then zeroes the default position. No-op if already 0,0,0.
+local function applyAllResetDefaultPosition(sType)
+    return runApplyAllOperation(sType, tLang.L('reset_default_position'), function(tEntry)
+        local meshD = tEntry.meshDebug
+        local okGet, pos = dpCall(function() return meshD:getPosition() end)
+        if not okGet or not pos then
+            return 'failed', tLang.L('an_error_occurred')
+        end
+        if (pos.x or 0) == 0 and (pos.y or 0) == 0 and (pos.z or 0) == 0 then
+            return 'skipped', tLang.L('default_already_zero')
+        end
+        local okTranslate = dpCall(function() meshD:translateFrame(0, pos.x, pos.y, pos.z, 0) end)
+        if not okTranslate then
+            return 'failed', tLang.L('an_error_occurred')
+        end
+        local okSet = dpCall(function() meshD:setPosition(0, 0, 0) end)
+        if not okSet then
+            return 'failed', tLang.L('an_error_occurred')
+        end
+        tEntry.modified = true
+        return 'success'
+    end)
+end
+
 local function applyAllTexture(sType, bClear)
     local tx = tApplyAllWin.texture
     local sOperation = bClear and tLang.L('tex_clear') or tLang.L('tex_set')
@@ -6053,6 +6103,18 @@ function showApplyAllWindow()
                 if tImGui.Button(tLang.L('apply_translate') .. '##applyAllTranslate') then
                     applyAllTransform(win.selectedType, 'translate')
                 end
+                tImGui.Spacing()
+                tImGui.Separator()
+                if tImGui.Button(tLang.L('reset_default_angle') .. '##applyAllResetDefaultAngle') then
+                    applyAllResetDefaultAngle(win.selectedType)
+                end
+                tImGui.SameLine()
+                tImGui.HelpMarker(tLang.L('reset_default_angle_tooltip'))
+                if tImGui.Button(tLang.L('reset_default_position') .. '##applyAllResetDefaultPosition') then
+                    applyAllResetDefaultPosition(win.selectedType)
+                end
+                tImGui.SameLine()
+                tImGui.HelpMarker(tLang.L('reset_default_position_tooltip'))
                 tImGui.TreePop()
             end
 
