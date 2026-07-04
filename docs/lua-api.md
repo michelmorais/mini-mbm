@@ -90,6 +90,13 @@ wx, wy, wz   = mbm.to3d(sx, sy, depth)  -- screen pixels → 3D world coords
 
 All engine-level functions live in the global `mbm` table.
 
+**Every color value anywhere in this API — `mbm.setColor`, `obj:setColor`, `line:setColor`,
+the lighting functions (§3.16), `mbm.colorDialog`, and ImGui's `ColorEdit`/`ColorPicker`
+widgets (§12) — is 0.0-1.0 per channel, never 0-255.** Several of these were previously
+mis-documented as 0-255 (an easy assumption to carry over from other engines/APIs); values
+outside `[0,1]` don't error, they silently clamp or saturate, so the mistake shows up as
+"my light/tint/background is stuck white or black" rather than a crash.
+
 ### 3.1 Scene & Control
 
 | Function | Signature | Returns | Description |
@@ -113,7 +120,7 @@ All engine-level functions live in the global `mbm` table.
 | `mbm.getRealSizeScreen` | `()` | w, h | Actual window/framebuffer size in pixels |
 | `mbm.getSizeScreen` | `()` | w, h | Logical/scaled back-buffer size |
 | `mbm.getDisplayMetrics` | `()` | table | DPI and density info from the OS |
-| `mbm.setColor` | `(r, g, b)` | — | Background clear color (0–255 each channel) |
+| `mbm.setColor` | `(r, g, b)` | — | Background clear color (0.0–1.0 each channel, not 0-255) |
 | `mbm.enableClearScreen` | `(enable: bool)` | — | Toggle clearing the back-buffer each frame |
 | `mbm.refresh` | `()` | — | Force a window redraw / resize event |
 | `mbm.getObjectsRendered` | `(type?: string)` | number | Count of rendered objects; filter by type name |
@@ -226,7 +233,7 @@ mbm.addShader({
 | `mbm.messageBox` | `(title, msg)` | — | Native message dialog |
 | `mbm.inputBox` | `(title, default?)` | string\|nil | Native text input dialog |
 | `mbm.inputPassword` | `(title)` | string\|nil | Native password input (masked) |
-| `mbm.colorDialog` | `()` | r, g, b \| nil | Native color picker; returns 0-255 values |
+| `mbm.colorDialog` | `(r?, g?, b?)` | r, g, b \| nil | Native color picker; optional default color and the returned r,g,b are all 0.0-1.0, not 0-255 |
 
 ### 3.13 System Info
 
@@ -270,6 +277,11 @@ both forms are shown below. Alpha (`a`) always defaults to `1.0` when omitted. A
 below return nothing on success and **raise a Lua error** (catchable with `pcall`) if `target`
 or the arguments are invalid — they do not return `false`.
 
+All colors accepted/returned by the functions below (ambient, directional, point-light colors)
+are **0.0-1.0 per channel**, not 0-255 — values are clamped to `[0,1]` internally
+(`device-common.cpp`'s `clampLightChannel`), so passing e.g. `255` silently saturates to `1.0`
+rather than erroring.
+
 | Function | Signature | Returns | Description |
 |---|---|---|---|
 | `mbm.setLightEnabled` | `(target, enabled: bool)` | — (errors on failure) | Enable/disable lighting for `target` |
@@ -293,13 +305,14 @@ or the arguments are invalid — they do not return `false`.
 
 ```lua
 -- Typical setup: ambient + directional "sun" light, plus a couple of point lights
+-- (colors are 0.0-1.0 per channel, not 0-255 -- see note above)
 mbm.setLightEnabled("3d", true)
-mbm.setAmbientLight("3d", 30, 30, 40)
-mbm.setDirectionalLight("3d", 0, -1, 0.3, 255, 250, 230)
+mbm.setAmbientLight("3d", 0.12, 0.12, 0.16)
+mbm.setDirectionalLight("3d", 0, -1, 0.3, 1.0, 0.98, 0.9)
 
 mbm.setRequestedMaxLights("3d", 4)
-mbm.addPointLight("3d", 100, 50, 0, 300, 255, 120, 0)   -- x,y,z, radius, r,g,b
-mbm.addPointLight("3d", -200, 80, 50, 250, 80, 120, 255)
+mbm.addPointLight("3d", 100, 50, 0, 300, 1.0, 0.47, 0)   -- x,y,z, radius, r,g,b
+mbm.addPointLight("3d", -200, 80, 50, 250, 0.31, 0.47, 1.0)
 
 function onLoop(delta)
     -- Ask which of the point lights actually affect this specific object, e.g. for a
@@ -459,7 +472,7 @@ obj.alwaysRender = true   -- render even when off-screen / outside frustum
 | `obj:setTypeAnim` | `(type: int)` | — | Set animation loop type using `mbm.*` constants |
 | `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
 | `obj:setTexture` | `(textureName: string)` | bool | Replace the object's texture at runtime |
-| `obj:setColor` | `(r, g, b, a?)` | — | Tint the object (0–255 per channel) |
+| `obj:setColor` | `(r, g, b, a?)` | bool | Tint the object (0.0-1.0 per channel, not 0-255). Same underlying binding as `setTexture` (dispatches on argument type: a string sets a texture, numbers set a solid tint) — passing >1 values doesn't error, they just clamp/wrap like any float color channel |
 | `obj:setPixelShader` | `(shaderName: string, varValues?: table)` | bool | Apply a pixel shader |
 | `obj:setVertexShader` | `(shaderName: string, varValues?: table)` | bool | Apply a vertex shader |
 | `obj:getShader` | `()` | table | Get current shader config (`name`, `var` values) |
@@ -626,7 +639,7 @@ local ln = line:new("2dw", x, y)
 ln:add({x1,y1, x2,y2, x3,y3})   -- add line strip vertices
 ln:set(idx, {x1,y1, x2,y2})     -- update a specific segment
 ln:size()                         -- number of line segments
-ln:setColor(r, g, b, a?)         -- line color (0-255)
+ln:setColor(r, g, b, a?)         -- line color (0.0-1.0 each channel, not 0-255)
 ln:setPhysics(physicsTable)       -- attach a physics silhouette
 ln:drawBounding(bool)             -- show bounding box
 ```
@@ -789,6 +802,19 @@ local tImGui = require "ImGui"
 ```
 **All ImGui calls must happen inside `onLoop(delta)`.** They are immediate-mode — call every frame.
 
+### Common Pitfalls
+
+These bindings return/expect a different shape or range than most ImGui-familiar code (or this
+doc's older revisions) assumes. Each was found by tracing the actual C++ binding after a
+real bug, not from reading the header alone — verify against `plugins/imGui/imgui-lua.cpp` if
+in doubt rather than assuming a Dear ImGui C++ signature carries over as-is.
+
+- **`Checkbox`** returns only the resulting value, not `(changed, value)`: `local v = tImGui.Checkbox(label, value)`. Detect a toggle yourself with `if v ~= value then ... end`.
+- **`ColorEdit3` / `ColorEdit4` / `ColorPicker3` / `ColorPicker4`** take AND return a single `{r,g,b,*a}` **table** (0.0-1.0 per channel), never separate r,g,b[,a] numbers in either direction. Passing scalars throws `"Expected table [tRgb]"` — this crashed an editor mid-session because a table field (`color.r`) was passed instead of the table itself.
+- **`Combo`**'s `currentIdx` argument and returned index are **1-based** (Lua array convention) — the binding does the `-1`/`+1` conversion against ImGui's native 0-based index internally. Passing a 0-based index (e.g. `i-1` from a manual lookup loop) renders the combo with nothing selected.
+- **`ListBox`** does **not** do that conversion — its index is **0-based**, unlike `Combo`. The two widgets are inconsistent with each other; don't assume one from the other.
+- **`GetWindowSize` / `GetWindowPos` / `GetItemRectMin` / `GetItemRectMax` / `GetItemRectSize`** each return a single `{x,y}` table, not two numbers. Use `GetWindowWidth()`/`GetWindowHeight()` if you just need plain numbers.
+
 ### Window Management
 
 ```lua
@@ -850,14 +876,23 @@ local c, v = tImGui.InputFloat("label", value, step?, stepFast?)
 local c, v = tImGui.InputInt("label", value, step?, stepFast?)
 
 -- Color
-local c, r,g,b     = tImGui.ColorEdit3("label", r, g, b)          -- 0.0–1.0
-local c, r,g,b,a   = tImGui.ColorEdit4("label", r, g, b, a)
-local c, r,g,b     = tImGui.ColorPicker3("label", r, g, b)
-local c, r,g,b,a   = tImGui.ColorPicker4("label", r, g, b, a)
+-- ColorEdit3/4 and ColorPicker3/4 take AND return a single {r,g,b,*a} table (0.0-1.0 per
+-- channel), NOT separate r,g,b,[a] numbers in either direction. Passing/expecting scalars
+-- here throws "Expected table [tRgb]" (ColorEdit4's crash mode when misused) or silently
+-- misreads the result.
+local c, tRgb  = tImGui.ColorEdit3("label", {r=1,g=1,b=1})            -- tRgb = {r,g,b}
+local c, tRgba = tImGui.ColorEdit4("label", {r=1,g=1,b=1,a=1})        -- tRgba = {r,g,b,a}
+local c, tRgb  = tImGui.ColorPicker3("label", {r=1,g=1,b=1})
+local c, tRgba = tImGui.ColorPicker4("label", {r=1,g=1,b=1,a=1})
 
 -- Combo / Listbox
-local c, idx = tImGui.Combo("label", currentIdx, {"item1","item2",...})
-local c, idx = tImGui.ListBox("label", currentIdx, {"item1","item2",...}, h?)
+-- Combo's currentIdx/returned idx are 1-BASED (Lua convention: pass/read them like a Lua
+-- array index, e.g. `tItems[idx]`). The C binding does the -1/+1 conversion to ImGui's
+-- native 0-based index internally, so index 0 (or any 0-based value) reads as "no selection"
+-- and renders the combo box empty.
+local c, idx = tImGui.Combo("label", currentIdx, {"item1","item2",...})   -- idx: 1-based
+-- Combo and ListBox are consistent with each other here
+local c, idx = tImGui.ListBox("label", currentIdx, {"item1","item2",...}, h?)   -- idx: 1-based
 
 -- Tree / collapsing
 local open = tImGui.TreeNode("label")

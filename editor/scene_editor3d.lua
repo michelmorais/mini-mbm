@@ -54,7 +54,11 @@ sFileNameScene3d       = ''
 ImGuiPopupFlags_MouseButtonRight = 0
 
 -- ---- Map-level state ----
-tComboMapType3d = {'Free', 'Orthogonal grid', 'Isometric grid'}
+-- NOTE: tImGui.Combo takes/returns a 1-based index (Lua convention), NOT a 0-based C index --
+-- the binding does the -1/+1 conversion internally. tComboXxxIndexOf() helpers below return
+-- 1-based indices and combo results are used directly (no +-1 offset) to match this.
+tComboMapType3d      = {'Free', 'Orthogonal grid', 'Isometric grid'}
+tComboMapType3dCodes = {'Free', 'Orthogonal', 'Isometric'}
 tComboSnapScaleMode = {'none', 'full_fit', 'bigger_only'}
 tComboSnapScaleModeLabel = {'No scaling', 'Scale to full fit', 'Scale when bigger than grid'}
 
@@ -92,8 +96,17 @@ tThumbnailGenQueue = {}
 tThumbGenRt        = nil
 tThumbGenActive    = nil
 
--- ---- Orbit camera (mesh_debug.lua pattern, one shared instance for the whole editor) ----
-cam3d = { azimuth = 0.3, elevation = 0.3, distance = 800, fx = 0, fy = 0, fz = 0 }
+-- ---- Orbit camera (mesh_debug.lua pattern) ----
+-- Each tab keeps its own independent camera state so previewing a mesh in the Mesh Set tab (which
+-- recenters/refits the camera on that mesh) can't disturb the framing you set up in the Layer tab,
+-- and vice versa. `cam3d` always points at whichever of these is current for `sActiveTab` -- kept
+-- as a plain alias (not a copy) so every existing `cam3d.xxx` read/write below keeps working as-is.
+tCamByTab = {
+    map      = { azimuth = 0.3, elevation = 0.3, distance = 800, fx = 0, fy = 0, fz = 0 },
+    mesh_set = { azimuth = 0.3, elevation = 0.3, distance = 800, fx = 0, fy = 0, fz = 0 },
+    layer    = { azimuth = 0.3, elevation = 0.3, distance = 800, fx = 0, fy = 0, fz = 0 },
+}
+cam3d = tCamByTab.map
 
 -- ---- Mesh Selector / placement state ----
 bShowMeshSelector         = true
@@ -112,10 +125,12 @@ bEnableOriginLines = true
 tGridLines = {}
 
 -- ---- Lighting ----
+-- Colors are 0.0-1.0 floats (ImGui ColorEdit4 range and what mbm.setAmbientLight/etc. actually
+-- expect/clamp to internally) -- NOT 0-255, despite some docs/lua-api.md examples suggesting otherwise.
 tLightConfig = {
     bEnabled          = false,
-    ambientColor      = {r = 30, g = 30, b = 40, a = 255},
-    directionalColor  = {r = 255, g = 250, b = 230, a = 255},
+    ambientColor      = {r = 0.12, g = 0.12, b = 0.16, a = 1},
+    directionalColor  = {r = 1, g = 0.98, b = 0.9, a = 1},
     directionalDir    = {x = 0, y = -1, z = 0.3},
     pointLights       = {},
 }
@@ -200,14 +215,14 @@ function drawLightPanel()
     end
 
     tImGui.Text(tLang.L('light_ambient'))
-    local changedAmbient, ambientColor = tImGui.ColorEdit4('##light_ambient', tLightConfig.ambientColor.r, tLightConfig.ambientColor.g, tLightConfig.ambientColor.b, tLightConfig.ambientColor.a)
+    local changedAmbient, ambientColor = tImGui.ColorEdit4('##light_ambient', tLightConfig.ambientColor)
     if changedAmbient then
         tLightConfig.ambientColor = ambientColor
         mbm.setAmbientLight('3d', ambientColor)
     end
 
     tImGui.Text(tLang.L('light_directional'))
-    local changedDirColor, dirColor = tImGui.ColorEdit4('##light_directional_color', tLightConfig.directionalColor.r, tLightConfig.directionalColor.g, tLightConfig.directionalColor.b, tLightConfig.directionalColor.a)
+    local changedDirColor, dirColor = tImGui.ColorEdit4('##light_directional_color', tLightConfig.directionalColor)
     if changedDirColor then
         tLightConfig.directionalColor = dirColor
         mbm.setDirectionalLightColor('3d', dirColor)
@@ -223,7 +238,7 @@ function drawLightPanel()
     tImGui.Separator()
     tImGui.Text(tLang.L('light_point_lights_fmt'):format(#tLightConfig.pointLights))
     if tImGui.Button(tLang.L('add_point_light')) then
-        table.insert(tLightConfig.pointLights, {x = 0, y = 200, z = 0, radius = 400, r = 255, g = 255, b = 255, a = 255})
+        table.insert(tLightConfig.pointLights, {x = 0, y = 200, z = 0, radius = 400, r = 1, g = 1, b = 1, a = 1})
         applyLightConfigToEngine()
     end
     for i, pl in ipairs(tLightConfig.pointLights) do
@@ -235,7 +250,7 @@ function drawLightPanel()
         local p3, pz = tImGui.InputFloat(tLang.L('axis_z') .. '##pl_z' .. i, pl.z, 1, 10, '%.2f')
         tImGui.PopItemWidth()
         local p4, pr = tImGui.InputFloat(tLang.L('light_radius') .. '##pl_r' .. i, pl.radius, 1, 10, '%.2f')
-        local changedColor, plColor = tImGui.ColorEdit4('##pl_color' .. i, pl.r, pl.g, pl.b, pl.a)
+        local changedColor, plColor = tImGui.ColorEdit4('##pl_color' .. i, {r = pl.r, g = pl.g, b = pl.b, a = pl.a})
         if p1 or p2 or p3 or p4 or changedColor then
             pl.x, pl.y, pl.z, pl.radius = px, py, pz, pr
             if changedColor then pl.r, pl.g, pl.b, pl.a = plColor.r, plColor.g, plColor.b, plColor.a end
@@ -352,7 +367,7 @@ function rebuildGridVisual()
         local x1, z1 = rotXZ(x, -halfLinesZ * d)
         local x2, z2 = rotXZ(x,  halfLinesZ * d)
         ln:add({x1, 0, z1, x2, 0, z2})
-        ln:setColor(90, 90, 90, 160)
+        ln:setColor(0.35, 0.35, 0.35, 0.63)
         table.insert(tGridLines, ln)
     end
     for i = -halfLinesZ, halfLinesZ do
@@ -361,7 +376,7 @@ function rebuildGridVisual()
         local x1, z1 = rotXZ(-halfLinesX * w, z)
         local x2, z2 = rotXZ( halfLinesX * w, z)
         ln:add({x1, 0, z1, x2, 0, z2})
-        ln:setColor(90, 90, 90, 160)
+        ln:setColor(0.35, 0.35, 0.35, 0.63)
         table.insert(tGridLines, ln)
     end
 end
@@ -370,10 +385,24 @@ end
 -- Async mesh loading & progress
 ------------------------------------------------------------------------------------------------------------------
 
--- Loads a renderizable asset asynchronously when it is a heavy `mesh`, synchronously otherwise.
--- Always resolves through onDone(tObj), and always tracked by tLoadProgress for the progress modal.
+-- Tracks every fileName that has ever been loaded once (via a thumbnail bake, a Mesh Set preview,
+-- or an earlier placement). MESH_MANAGER caches mesh data by fileName internally, so a *second*
+-- `mesh:load()` of the same file is cheap (just spins up a new instance from the cached data,
+-- no disk I/O) -- only the very first load of a given asset is potentially heavy and worth the
+-- async/progress-modal treatment.
+tMeshAlreadyLoaded = {}
+
+function markMeshLoaded(fileName)
+    tMeshAlreadyLoaded[fileName] = true
+end
+
+-- Loads a renderizable asset for placement. `mesh` assets use the (potentially heavy) async path
+-- only the first time a given fileName is loaded; every subsequent placement of an already-loaded
+-- mesh loads synchronously, since the engine's mesh cache makes that effectively instant. Other
+-- (lighter) asset types always load synchronously. Always resolves through onDone(tObj), and always
+-- tracked by tLoadProgress for the progress modal.
 function placeMeshAsync(fileName, sType, coordType, onDone)
-    if sType == 'mesh' then
+    if sType == 'mesh' and not tMeshAlreadyLoaded[fileName] then
         local m = mesh:new(coordType)
         local wasEnabled = mbm.getLightState('3d').enabled
         if not wasEnabled then
@@ -381,13 +410,22 @@ function placeMeshAsync(fileName, sType, coordType, onDone)
         end
         m:loadAsync(fileName, function(self_mesh, success)
             applyTabLighting()
+            if success then markMeshLoaded(fileName) end
             tLoadProgress.iLoaded = tLoadProgress.iLoaded + 1
             onDone(success and self_mesh or nil)
         end)
+    elseif sType == 'mesh' then
+        local tObj = createMeshWithLightingSupport(function()
+            local m = mesh:new(coordType)
+            return m:load(fileName) and m or nil
+        end)
+        tLoadProgress.iLoaded = tLoadProgress.iLoaded + 1
+        onDone(tObj)
     else
         local tObj = createMeshWithLightingSupport(function()
             return tUtil.onAddMeshToEditor(fileName, false, coordType)
         end)
+        if tObj then markMeshLoaded(fileName) end
         tLoadProgress.iLoaded = tLoadProgress.iLoaded + 1
         onDone(tObj)
     end
@@ -458,6 +496,7 @@ function processThumbnailQueue()
         entry.thumbState = 'failed'
         return
     end
+    markMeshLoaded(entry.fileName)
     tThumbGenRt:add(tObj)
     local w, h, d = tObj:getAABB(true)
     local fitDist = math.max(w or 50, h or 50, d or 50) * 2.2
@@ -542,7 +581,7 @@ end
 function buildWireBoxLine(x, y, z, w, h, d)
     local hw, hh, hd = (w or 10) * 0.5, (h or 10) * 0.5, (d or 10) * 0.5
     local ln = line:new('3d', x, y, z)
-    ln:setColor(255, 255, 0, 255)
+    ln:setColor(1, 1, 0, 1)
     local corners = {
         {-hw, -hh, -hd}, {hw, -hh, -hd}, {hw, -hh, hd}, {-hw, -hh, hd},
         {-hw,  hh, -hd}, {hw,  hh, -hd}, {hw,  hh, hd}, {-hw,  hh, hd},
@@ -667,35 +706,34 @@ function registerMeshSetEntry(fileName)
     return entry
 end
 
-sLastMeshAdd = ''
+-- Only the directory (not the full file+extension) of the last pick is kept as the next dialog's
+-- default -- passing a full "name.ext" back into a multi-extension open dialog as its default is
+-- what native file pickers on some desktops mis-render (e.g. re-appending the filter's extension).
+-- Reopening into the same folder is all the convenience this actually needs.
+sLastMeshAddDir = ''
+
+local function dirOf(sPath)
+    return sPath:match('^(.*)[\\/][^\\/]*$') or ''
+end
 
 -- Direct "Add Mesh" entry point (mirrors scene_editor2d.lua's onAddMesh): opens a native
--- multi-file picker and places every chosen asset straight into the active layer, at the
--- world origin, without requiring the Mesh Set tab's folder-scan workflow first.
+-- multi-file picker and registers every chosen asset into the Mesh Set inventory only --
+-- it does NOT place an instance into the scene. Placement happens explicitly afterward, from
+-- the Layer tab's Mesh Selector (pick the asset there, then click in the scene to place it).
 function onAddMeshDirect()
-    local fileName = mbm.openMultiFile(sLastMeshAdd,
+    local fileName = mbm.openMultiFile(sLastMeshAddDir,
         'tile', 'spt', 'ptl', 'png', 'msh', 'fnt', 'jpeg', 'jpg', 'bmp', 'gif', 'psd', 'pic', 'pnm', 'hdr', 'tga', 'tif')
     if not fileName then return end
 
-    if #tLayers == 0 then
-        addLayer()
-    end
-    if iSelectedLayer == 0 then
-        iSelectedLayer = 1
-    end
-
+    local lastEntry = nil
     local function addOne(sFile)
         local entry = registerMeshSetEntry(sFile)
         if not entry then
             tUtil.showMessageWarn(tLang.L('failed_to_add_mesh'))
             return
         end
-        sLastMeshAdd = sFile
-        if tMapOptions.sMapType == 'Free' then
-            addPlacedMesh(sFile, entry.type, iSelectedLayer, 0, 0, 0, 0)
-        else
-            addPlacedMesh(sFile, entry.type, iSelectedLayer, 0, 0)
-        end
+        sLastMeshAddDir = dirOf(sFile)
+        lastEntry = entry
     end
 
     if type(fileName) == 'string' then
@@ -704,6 +742,12 @@ function onAddMeshDirect()
         for _, f in ipairs(fileName) do
             addOne(f)
         end
+    end
+
+    -- Select the last-added asset for placement so the natural next step (switch to the Layer
+    -- tab, click in the scene) works immediately without an extra trip to the Mesh Selector.
+    if lastEntry then
+        sMeshSelectedForPlacement = lastEntry.fileName
     end
 end
 
@@ -723,7 +767,7 @@ function updateSceneObjectShapes()
         local ln = tSceneObjectShapes[i]
         if not ln then
             ln = line:new('3d', tObj.x, tObj.y, tObj.z)
-            ln:setColor(0, 255, 255, 255)
+            ln:setColor(0, 1, 1, 1)
             tSceneObjectShapes[i] = ln
         end
         ln:setPos(tObj.x, tObj.y, tObj.z)
@@ -767,10 +811,9 @@ end
 ------------------------------------------------------------------------------------------------------------------
 
 function drawMapTab(item_width)
-    local ret, current_item = tImGui.Combo(tLang.L('map_type') .. '##MapType3d', tComboMapTypeIndexOf(tMapOptions.sMapType), tComboMapType3d)
+    local ret, current_item = tImGui.Combo(tLang.L('map_type') .. '##MapType3d', tComboMapTypeIndexOf(tMapOptions.sMapType), tComboMapType3dCodes)
     if ret then
-        local sNew = ({'Free', 'Orthogonal', 'Isometric'})[current_item + 1]
-        tMapOptions.sMapType = sNew
+        tMapOptions.sMapType = tComboMapType3dCodes[current_item]
         rebuildGridVisual()
     end
 
@@ -783,7 +826,7 @@ function drawMapTab(item_width)
 
         local retSnap, curSnap = tImGui.Combo(tLang.L('snap_scale_mode') .. '##SnapScaleMode', tComboSnapScaleModeIndexOf(tMapOptions.sSnapScaleMode), tComboSnapScaleModeLabel)
         if retSnap then
-            tMapOptions.sSnapScaleMode = tComboSnapScaleMode[curSnap + 1]
+            tMapOptions.sSnapScaleMode = tComboSnapScaleMode[curSnap]
         end
     end
 
@@ -800,7 +843,7 @@ function drawMapTab(item_width)
         if isOpen then
             local ret2, cur2 = tImGui.Combo('##marker_type' .. i, tComboObjectTypeIndexOf(tObj.type), tComboObjectType3d)
             if ret2 then
-                tObj.type = tComboObjectType3d[cur2 + 1]
+                tObj.type = tComboObjectType3d[cur2]
             end
             drawObjectMarkerFields(tObj)
             if tImGui.Button(tLang.L('delete') .. '##marker_del' .. i) then
@@ -817,24 +860,24 @@ function drawMapTab(item_width)
 end
 
 function tComboMapTypeIndexOf(sType)
-    for i, s in ipairs({'Free', 'Orthogonal', 'Isometric'}) do
-        if s == sType then return i - 1 end
+    for i, s in ipairs(tComboMapType3dCodes) do
+        if s == sType then return i end
     end
-    return 0
+    return 1
 end
 
 function tComboSnapScaleModeIndexOf(sMode)
     for i, s in ipairs(tComboSnapScaleMode) do
-        if s == sMode then return i - 1 end
+        if s == sMode then return i end
     end
-    return 0
+    return 1
 end
 
 function tComboObjectTypeIndexOf(sType)
     for i, s in ipairs(tComboObjectType3d) do
-        if s == sType then return i - 1 end
+        if s == sType then return i end
     end
-    return 0
+    return 1
 end
 
 ------------------------------------------------------------------------------------------------------------------
@@ -855,6 +898,7 @@ function updatePreviewMesh3d(entry)
         return tUtil.onAddMeshToEditor(entry.fileName, false, '3d')
     end)
     if tPreviewMesh3d then
+        markMeshLoaded(entry.fileName)
         tPreviewMesh3d:setPos(0, 0, 0)
         local w, h, d = tPreviewMesh3d:getAABB(true)
         cam3d.fx, cam3d.fy, cam3d.fz = 0, 0, 0
@@ -875,7 +919,7 @@ function drawMeshSetTab(item_width)
 
     local retF, curF = tImGui.Combo(tLang.L('filter_type') .. '##MeshSetFilter', tComboMeshSetFilterIndexOf(sMeshSetFilterType), tComboMeshSetFilter)
     if retF then
-        sMeshSetFilterType = tComboMeshSetFilter[curF + 1]
+        sMeshSetFilterType = tComboMeshSetFilter[curF]
     end
 
     if iPreviewedMeshSetIndex > 0 then
@@ -931,9 +975,9 @@ end
 
 function tComboMeshSetFilterIndexOf(sType)
     for i, s in ipairs(tComboMeshSetFilter) do
-        if s == sType then return i - 1 end
+        if s == sType then return i end
     end
-    return 0
+    return 1
 end
 
 ------------------------------------------------------------------------------------------------------------------
@@ -1144,6 +1188,11 @@ end
 -- Main windows
 ------------------------------------------------------------------------------------------------------------------
 
+function setActiveTab(sTab)
+    sActiveTab = sTab
+    cam3d = tCamByTab[sTab]
+end
+
 function main_tab_bar()
     if not bEnableMainTabBar then return end
     tUtil.setInitialWindowPositionLeft(tLang.L(tWindowsTitle.title_scene3d), 0, 0, 260, 260)
@@ -1152,17 +1201,17 @@ function main_tab_bar()
         local item_width = tUtil.getResponsiveItemWidth(200)
         if tImGui.BeginTabBar('##TabBar3d', 0) then
             if tImGui.BeginTabItem(tLang.L('tab_map')) then
-                sActiveTab = 'map'
+                setActiveTab('map')
                 drawMapTab(item_width)
                 tImGui.EndTabItem()
             end
             if tImGui.BeginTabItem(tLang.L('tab_mesh_set')) then
-                sActiveTab = 'mesh_set'
+                setActiveTab('mesh_set')
                 drawMeshSetTab(item_width)
                 tImGui.EndTabItem()
             end
             if tImGui.BeginTabItem(tLang.L('tab_layer')) then
-                sActiveTab = 'layer'
+                setActiveTab('layer')
                 drawLayerTab(item_width)
                 tImGui.EndTabItem()
             end
@@ -1239,8 +1288,8 @@ function main_menu_3d()
             for i, r in ipairs(tResolution) do
                 tResStr[i] = string.format('%dx%d (%s)', r.x, r.y, r.comment)
             end
-            local retR, curR = tImGui.Combo('##ComboResolutionWorld', tOptionsEditor.iIndexResolution - 1, tResStr)
-            if retR then tOptionsEditor.iIndexResolution = curR + 1 end
+            local retR, curR = tImGui.Combo('##ComboResolutionWorld', tOptionsEditor.iIndexResolution, tResStr)
+            if retR then tOptionsEditor.iIndexResolution = curR end
 
             tImGui.Separator()
             tImGui.Text(tLang.L('camera_position'))
@@ -1268,8 +1317,8 @@ function main_menu_3d()
             tImGui.Text(tLang.L('resolution'))
             local invL = tImGui.Checkbox(tLang.L('invert_width_height') .. '##launch', tOptionsLaunch.bInvertResolution)
             if invL ~= tOptionsLaunch.bInvertResolution then tOptionsLaunch.bInvertResolution = invL end
-            local retL, curL = tImGui.Combo('##ComboResolutionLaunch', tOptionsLaunch.iIndexResolution - 1, tResStr)
-            if retL then tOptionsLaunch.iIndexResolution = curL + 1 end
+            local retL, curL = tImGui.Combo('##ComboResolutionLaunch', tOptionsLaunch.iIndexResolution, tResStr)
+            if retL then tOptionsLaunch.iIndexResolution = curL end
 
             if tImGui.Button(tLang.L('play'), tUtil.getResponsiveItemSize(200)) then
                 onPlay3d()
@@ -1304,17 +1353,32 @@ function main_menu_3d()
             tLang.renderLanguageSubmenu()
 
             if tImGui.BeginMenu(tLang.L('background_color')) then
+                local sz       = tImGui.GetTextLineHeight()
+                local rounding = 0
+                local flags    = 0
+
                 local tColors = {
-                    {name = 'default', r = 60, g = 60, b = 60},
-                    {name = 'white',   r = 255, g = 255, b = 255},
-                    {name = 'black',   r = 0, g = 0, b = 0},
-                    {name = 'red',     r = 255, g = 0, b = 0},
-                    {name = 'green',   r = 0, g = 255, b = 0},
-                    {name = 'blue',    r = 0, g = 0, b = 255},
+                    {'default', tUtil.tColorBackground},
+                    {'white',   {r = 1, g = 1, b = 1, a = 1}},
+                    {'black',   {r = 0, g = 0, b = 0, a = 1}},
+                    {'red',     {r = 1, g = 0, b = 0, a = 1}},
+                    {'green',   {r = 0, g = 1, b = 0, a = 1}},
+                    {'blue',    {r = 0, g = 0, b = 1, a = 1}},
+                    {'cyan',    {r = 0, g = 1, b = 1, a = 1}},
+                    {'yellow',  {r = 1, g = 1, b = 0, a = 1}},
+                    {'magenta', {r = 1, g = 0, b = 1, a = 1}},
                 }
-                for _, c in ipairs(tColors) do
-                    if tImGui.MenuItem(tLang.L(c.name)) then
-                        mbm.setColor(c.r, c.g, c.b)
+
+                for i = 1, #tColors do
+                    local winPos = tImGui.GetCursorScreenPos()
+                    local p_max  = {x = winPos.x + sz, y = winPos.y + sz}
+                    local name   = tLang.L(tColors[i][1])
+                    local color  = tColors[i][2]
+                    tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
+                    tImGui.Dummy({x = sz, y = sz})
+                    tImGui.SameLine()
+                    if tImGui.MenuItem(name) then
+                        mbm.setColor(color.r, color.g, color.b)
                     end
                 end
                 tImGui.EndMenu()
@@ -1570,7 +1634,7 @@ function onSaveAsScene3d()
     onSaveScene3d()
 end
 
-function getTempScene3dFile()
+function getOSTempDir()
     local sep = package.config:sub(1, 1)
     local tmpDir
     if sep == '\\' then
@@ -1578,6 +1642,11 @@ function getTempScene3dFile()
     else
         tmpDir = os.getenv('TMPDIR') or '/tmp'
     end
+    return tmpDir, sep
+end
+
+function getTempScene3dFile()
+    local tmpDir, sep = getOSTempDir()
     return tmpDir .. sep .. 'mbm_scene3d_preview.lua'
 end
 
@@ -1616,18 +1685,26 @@ function onInitScene()
     camera3d = mbm.getCamera('3d')
     ImGuiPopupFlags_MouseButtonRight = tImGui.Flags('ImGuiPopupFlags_MouseButtonRight')
 
-    sThumbnailCacheDir = (mbm.getPathEngine() or '.') .. package.config:sub(1, 1)
+    -- Thumbnails are cache/scratch data, not project assets -- generate them under the OS temp
+    -- dir (same place getTempScene3dFile() already uses), never inside the engine/project folder.
+    local tmpDir, sep = getOSTempDir()
+    sThumbnailCacheDir = tmpDir .. sep .. 'mbm_scene3d_thumbnails' .. sep
+    if sep == '\\' then
+        os.execute('mkdir "' .. sThumbnailCacheDir .. '" 2>nul')
+    else
+        os.execute('mkdir -p "' .. sThumbnailCacheDir .. '"')
+    end
     sMeshSetFolder = mbm.getPathEngine() or ''
 
     tOriginLine3dX = line:new('3d', 0, 0, 0)
     tOriginLine3dX:add({-999999, 0, 0, 999999, 0, 0})
-    tOriginLine3dX:setColor(255, 0, 0, 255)
+    tOriginLine3dX:setColor(1, 0, 0, 1)
     tOriginLine3dY = line:new('3d', 0, 0, 0)
     tOriginLine3dY:add({0, -999999, 0, 0, 999999, 0})
-    tOriginLine3dY:setColor(0, 255, 0, 255)
+    tOriginLine3dY:setColor(0, 1, 0, 1)
     tOriginLine3dZ = line:new('3d', 0, 0, 0)
     tOriginLine3dZ:add({0, 0, -999999, 0, 0, 999999})
-    tOriginLine3dZ:setColor(0, 0, 255, 255)
+    tOriginLine3dZ:setColor(0, 0, 1, 1)
 
     mbm.setLightEnabled('3d', false)
     addLayer()
@@ -1636,12 +1713,14 @@ function onInitScene()
 end
 
 function onLoop(delta)
-    applyCam3d(cam3d)
     processThumbnailQueue()
     tickThumbnailBake()
 
     main_menu_3d()
     main_tab_bar()
+    -- after main_tab_bar() so `cam3d` already points at the tab that was active *this* frame
+    -- (switching tabs would otherwise apply the previous tab's camera for one stale frame)
+    applyCam3d(cam3d)
 
     if sActiveTab == 'mesh_set' and iPreviewedMeshSetIndex > 0 then
         tImGui.Begin(tLang.L('mesh_preview_orbit'), true, 0)
@@ -1718,6 +1797,7 @@ function onTouchUp(key, x, y)
 end
 
 function onTouchZoom(zoom)
+    if tImGui.IsAnyWindowHovered() then return end
     cam3d.distance = math.max(10, cam3d.distance * (1.0 - zoom * 0.15))
 end
 

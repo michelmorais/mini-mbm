@@ -5287,7 +5287,7 @@ int onListBoxImGuiLua(lua_State *lua)
     int index_input                       = 1;
     const int top                         = lua_gettop(lua);
     const char * p_label                  = luaL_checkstring(lua,index_input++);
-    int current_item                      = luaL_checkinteger(lua,index_input++);
+    int current_item                      = luaL_checkinteger(lua,index_input++) - 1; // Lua is 1-based, ImGui is 0-based
     std::vector<std::string> lsItems      = get_string_arrayFromTable(lua,index_input++,"ListBox items");
     const int height_in_items             = top >= index_input ? luaL_checkinteger(lua,index_input++) :  -1;
     std::vector<const char*> items(lsItems.size());
