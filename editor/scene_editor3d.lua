@@ -97,6 +97,11 @@ tThumbGenRt        = nil
 tThumbGenActive    = nil
 
 -- ---- Orbit camera (mesh_debug.lua pattern) ----
+-- Default camera3d:setFar() (camera.cpp) is only 1000 -- far too close for a scene editor where
+-- placed objects and the orbit distance routinely exceed it, silently clipping meshes out of view
+-- well before they leave the screen. This is a scene-authoring tool, not a shipped game render path,
+-- so there is no real perf reason to keep the default; push it out generously (applied in onInitScene).
+iCameraFarPlane3d = 80000
 -- Each tab keeps its own independent camera state so previewing a mesh in the Mesh Set tab (which
 -- recenters/refits the camera on that mesh) can't disturb the framing you set up in the Layer tab,
 -- and vice versa. `cam3d` always points at whichever of these is current for `sActiveTab` -- kept
@@ -396,11 +401,31 @@ function markMeshLoaded(fileName)
     tMeshAlreadyLoaded[fileName] = true
 end
 
+-- Synchronous load for interactive placement (Layer tab click, fill-layer): the asset is expected
+-- to already be registered in the Mesh Set inventory, and in the common case has already been
+-- loaded once for its thumbnail/preview (see markMeshLoaded call sites), so a plain load() is cheap
+-- -- no async, no progress modal. Used directly by anything that places one object in response to a
+-- single user action, where a modal popping up mid-click would be surprising.
+function placeMeshSync(fileName, sType, coordType)
+    local tObj = createMeshWithLightingSupport(function()
+        if sType == 'mesh' then
+            local m = mesh:new(coordType)
+            return m:load(fileName) and m or nil
+        else
+            return tUtil.onAddMeshToEditor(fileName, false, coordType)
+        end
+    end)
+    if tObj then markMeshLoaded(fileName) end
+    return tObj
+end
+
 -- Loads a renderizable asset for placement. `mesh` assets use the (potentially heavy) async path
 -- only the first time a given fileName is loaded; every subsequent placement of an already-loaded
 -- mesh loads synchronously, since the engine's mesh cache makes that effectively instant. Other
 -- (lighter) asset types always load synchronously. Always resolves through onDone(tObj), and always
--- tracked by tLoadProgress for the progress modal.
+-- tracked by tLoadProgress for the progress modal. Used for bulk/first-time loads (e.g. Load 3D
+-- Scene) where a progress modal is actually wanted -- NOT for single interactive placements, see
+-- placeMeshSync above.
 function placeMeshAsync(fileName, sType, coordType, onDone)
     if sType == 'mesh' and not tMeshAlreadyLoaded[fileName] then
         local m = mesh:new(coordType)
@@ -414,18 +439,8 @@ function placeMeshAsync(fileName, sType, coordType, onDone)
             tLoadProgress.iLoaded = tLoadProgress.iLoaded + 1
             onDone(success and self_mesh or nil)
         end)
-    elseif sType == 'mesh' then
-        local tObj = createMeshWithLightingSupport(function()
-            local m = mesh:new(coordType)
-            return m:load(fileName) and m or nil
-        end)
-        tLoadProgress.iLoaded = tLoadProgress.iLoaded + 1
-        onDone(tObj)
     else
-        local tObj = createMeshWithLightingSupport(function()
-            return tUtil.onAddMeshToEditor(fileName, false, coordType)
-        end)
-        if tObj then markMeshLoaded(fileName) end
+        local tObj = placeMeshSync(fileName, sType, coordType)
         tLoadProgress.iLoaded = tLoadProgress.iLoaded + 1
         onDone(tObj)
     end
@@ -482,7 +497,20 @@ function processThumbnailQueue()
     if not entry then
         return
     end
-    tThumbGenRt = tThumbGenRt or render2texture:new('3d')
+    if not tThumbGenRt then
+        -- render2texture is itself a RENDERIZABLE placed in the world (inherits setPos/visible/etc,
+        -- §6 of docs/lua-api.md) -- it is NOT an invisible offscreen-only object by default, it also
+        -- draws its own quad wherever it's positioned. Park it far beyond any camera's far plane so
+        -- that quad never actually appears, and force `alwaysRender = true` so the engine still runs
+        -- its internal capture pass every frame regardless: `isRenderEnabled() == false` (a hidden/
+        -- invisible object) makes the engine skip frustum-culling AND treat it as never-on-frustum,
+        -- and RENDER_2_TEXTURE's own capture pass (core-manager-opengl_es.cpp's renderToTargets())
+        -- is gated on that same on-frustum flag -- so naively hiding it via `.visible = false` would
+        -- silently stop thumbnails from ever baking. Being physically beyond the far plane means the
+        -- GPU's own clip test discards its quad, independent of that app-level flag.
+        tThumbGenRt = render2texture:new('3d', 0, -1000000, 0)
+        tThumbGenRt.alwaysRender = true
+    end
     local ok = tThumbGenRt:create(160, 160, true, 'thumb_gen_' .. tostring(entry.fileName))
     if not ok then
         entry.thumbState = 'failed'
@@ -663,7 +691,10 @@ function syncPlacedMeshTransform(tPlaced)
     tPlaced.tObj:setScale(tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z)
 end
 
-function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ)
+-- `bSync`: true for direct interactive placement (Layer tab click, fill-layer) -- always
+-- synchronous, no progress modal. false/nil (the default) goes through the async-capable path,
+-- with a progress modal, used for bulk/first-time loads like "Load 3D Scene".
+function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, bSync)
     local tPlaced = {
         fileName = fileName, type = sType, layerIndex = layerIndex,
         cellX = cellX or 0, cellZ = cellZ or 0,
@@ -673,15 +704,20 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ)
         isSelected = false, tObj = nil,
     }
     table.insert(tPlacedMeshes, tPlaced)
-    beginLoadProgress(tLoadProgress.iTotal + 1, tUtil.getShortName(fileName))
-    placeMeshAsync(fileName, sType, '3d', function(tObj)
+    local function onLoaded(tObj)
         if tObj then
             tPlaced.tObj = tObj
             local sx, sy, sz = computeSnapScale(tObj)
             tPlaced.scale = {x = sx, y = sy, z = sz}
             syncPlacedMeshTransform(tPlaced)
         end
-    end)
+    end
+    if bSync then
+        onLoaded(placeMeshSync(fileName, sType, '3d'))
+    else
+        beginLoadProgress(tLoadProgress.iTotal + 1, tUtil.getShortName(fileName))
+        placeMeshAsync(fileName, sType, '3d', onLoaded)
+    end
     return tPlaced
 end
 
@@ -1137,7 +1173,7 @@ function fillActiveLayerWithMesh(fileName)
     local iRange = 5
     for cx = -iRange, iRange do
         for cz = -iRange, iRange do
-            addPlacedMesh(fileName, entry.type, iSelectedLayer, cx, cz)
+            addPlacedMesh(fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
         end
     end
 end
@@ -1387,7 +1423,9 @@ function main_menu_3d()
         end
 
         if tImGui.BeginMenu(tLang.L('zoom')) then
-            local retZ, distance = tImGui.SliderFloat('##Scale3d', cam3d.distance, 50, 5000, tLang.L('scale_format'))
+            -- This is the orbit camera's distance from its focus point, not a scale factor --
+            -- labeled/formatted accordingly (was previously showing "Scale %.1f").
+            local retZ, distance = tImGui.SliderFloat('##Scale3d', cam3d.distance, 50, iCameraFarPlane3d - 5000, tLang.L('camera_distance_format'))
             if retZ then cam3d.distance = distance end
             tImGui.SameLine()
             if tImGui.Button(tLang.L('default') .. '##zoom_default') then
@@ -1683,6 +1721,7 @@ end
 
 function onInitScene()
     camera3d = mbm.getCamera('3d')
+    camera3d:setFar(iCameraFarPlane3d)
     ImGuiPopupFlags_MouseButtonRight = tImGui.Flags('ImGuiPopupFlags_MouseButtonRight')
 
     -- Thumbnails are cache/scratch data, not project assets -- generate them under the OS temp
@@ -1723,12 +1762,20 @@ function onLoop(delta)
     applyCam3d(cam3d)
 
     if sActiveTab == 'mesh_set' and iPreviewedMeshSetIndex > 0 then
-        tImGui.Begin(tLang.L('mesh_preview_orbit'), true, 0)
+        tUtil.setInitialWindowPositionRight(tLang.L('mesh_preview_orbit'), -160, 0, 160, 160, 160)
+        tImGui.Begin(tLang.L('mesh_preview_orbit'), true, tImGui.Flags('ImGuiWindowFlags_NoTitleBar'))
         tUtil.drawOrbitGizmo(cam3d, {size = 110})
         tImGui.End()
     end
 
-    if not tImGui.IsAnyWindowHovered() then
+    -- Deciding "should this input reach the scene, or was it meant for the UI" is exactly what
+    -- io.WantCaptureMouse is for -- unlike tImGui.IsAnyWindowHovered() (which this used to call),
+    -- it also covers active drags and popups/combos that extend outside their parent window's
+    -- rect, and stays correct even when queried from onTouchDown/onTouchMove/onTouchZoom, which
+    -- fire *before* onLoop() draws this frame's windows (see docs/lua-api.md's ImGui Common
+    -- Pitfalls). IsAnyWindowHovered() intermittently missed clicks on this editor's own windows,
+    -- letting them fall through and place/rotate/zoom the scene underneath the UI.
+    if not tImGui.GetWantCaptureMouse() then
         updateHoverHighlight(mouseLastX, mouseLastY)
     end
 
@@ -1737,7 +1784,7 @@ function onLoop(delta)
 end
 
 function onTouchDown(key, x, y)
-    if tImGui.IsAnyWindowHovered() then return end
+    if tImGui.GetWantCaptureMouse() then return end
     isClickedMouseleft  = (key == 0)
     isClickedMouseRight = (key == 1)
     mouseLastX, mouseLastY = x, y
@@ -1752,13 +1799,13 @@ function onTouchDown(key, x, y)
             if tMapOptions.sMapType == 'Free' then
                 local wx, wy, wz = screenToWorldOnLayerPlane(x, y, layer.fY)
                 if wx then
-                    addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, 0, 0, wx, wz)
+                    addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, 0, 0, wx, wz, true)
                 end
             else
                 local wx, wy, wz = screenToWorldOnLayerPlane(x, y, layer.fY)
                 if wx then
                     local cx, cz = worldToGridCell(wx, wz, layer)
-                    addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, cx, cz)
+                    addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
                 end
             end
         end
@@ -1766,7 +1813,7 @@ function onTouchDown(key, x, y)
 end
 
 function onTouchMove(key, x, y)
-    if tImGui.IsAnyWindowHovered() then
+    if tImGui.GetWantCaptureMouse() then
         mouseLastX, mouseLastY = x, y
         return
     end
@@ -1797,7 +1844,7 @@ function onTouchUp(key, x, y)
 end
 
 function onTouchZoom(zoom)
-    if tImGui.IsAnyWindowHovered() then return end
+    if tImGui.GetWantCaptureMouse() then return end
     cam3d.distance = math.max(10, cam3d.distance * (1.0 - zoom * 0.15))
 end
 

@@ -347,7 +347,14 @@ Obtained via `local cam = mbm.getCamera("2d")` or `mbm.getCamera("3d")`.
 | `cam:setFocus` | `(x, y, z?)` | — | Set look-at target |
 | `cam:getFocus` | `()` | vec3 | Get look-at target |
 | `cam:setUp` | `(x, y, z?)` | — | Set up vector |
-| `cam:setUp` | `()` | vec3 | Get up vector |
+| `cam:getUp` | `()` | vec3 | Get up vector |
+| `cam:setAngleOfView` | `(degrees)` | — | 3D camera only. Field-of-view angle |
+| `cam:setFar` | `(distance)` | — | 3D camera only. Far clip plane distance — objects beyond this are culled. **Default is only 1000**, easy to exceed in a normal 3D scene (was entirely undocumented before) |
+| `cam:setNear` | `(distance)` | — | 3D camera only. Near clip plane distance |
+
+`setFar`/`setNear`/`setAngleOfView` exist only on the 3D camera (`mbm.getCamera("3d")`) — the 2D
+camera has no equivalent (it has no perspective/clipping planes). There is currently no `getFar`/
+`getNear`/`getAngleOfView` getter exposed to Lua.
 
 ---
 
@@ -814,6 +821,17 @@ in doubt rather than assuming a Dear ImGui C++ signature carries over as-is.
 - **`Combo`**'s `currentIdx` argument and returned index are **1-based** (Lua array convention) — the binding does the `-1`/`+1` conversion against ImGui's native 0-based index internally. Passing a 0-based index (e.g. `i-1` from a manual lookup loop) renders the combo with nothing selected.
 - **`ListBox`** does **not** do that conversion — its index is **0-based**, unlike `Combo`. The two widgets are inconsistent with each other; don't assume one from the other.
 - **`GetWindowSize` / `GetWindowPos` / `GetItemRectMin` / `GetItemRectMax` / `GetItemRectSize`** each return a single `{x,y}` table, not two numbers. Use `GetWindowWidth()`/`GetWindowHeight()` if you just need plain numbers.
+- **Don't use `IsAnyWindowHovered()`/`IsAnyItemHovered()` to decide whether a click/scroll/drag should reach your game scene instead of the UI.** Use **`GetWantCaptureMouse()`** (and `GetWantCaptureKeyboard()` for keyboard) instead. Three reasons, all hit in practice on the same editor, repeatedly, across several tabs before being root-caused:
+  1. `IsWindowHovered(ImGuiHoveredFlags_AnyWindow)` (what `IsAnyWindowHovered()` wraps) is designed to be queried about a *specific* window from inside that window's `Begin()`/`End()` block; using it as a global "is the UI in front of the mouse anywhere" check is a repurposing of a per-window API, not its intended use. Dear ImGui's own header comment on `IsWindowHovered` says as much: *"If you are trying to check whether your mouse should be dispatched to Dear ImGui or to your app, you should use the `io.WantCaptureMouse` boolean for that!"*
+  2. `WantCaptureMouse`/`WantCaptureKeyboard` additionally account for cases `IsAnyWindowHovered()` misses: an active drag started over a window but now outside its rect, or an open combo/popup list rendered outside its parent window's bounds.
+  3. Engine-specific: mini-mbm's own input callbacks (`onTouchDown`, `onTouchMove`, `onTouchZoom`) fire from the platform event-dispatch loop **before** `onLoop()` runs for that frame — see `CORE_MANAGER::onLoop()` in `core-manager-common.cpp`: `plugin->onPrepare()` (which calls `ImGui::NewFrame()`) runs, then queued input events are dispatched to the scene, and only *afterward* does `this->logic()` call `onLoop()`, which is where every `Begin()`/window actually gets drawn this frame. `WantCaptureMouse` is computed by `NewFrame()` itself and is documented as valid to read immediately after it — exactly where these callbacks run. `IsAnyWindowHovered()` has no such guarantee at that point in the frame.
+
+  ```lua
+  function onTouchDown(key, x, y)
+      if tImGui.GetWantCaptureMouse() then return end  -- click was for the UI, not the scene
+      ...
+  end
+  ```
 
 ### Window Management
 
@@ -969,6 +987,11 @@ tImGui.GetWindowPos()        -- returns a single {x,y} table, NOT two values
 tImGui.GetWindowWidth()      -- returns a single number
 tImGui.GetWindowHeight()     -- returns a single number
 tImGui.SetScrollHereY(0.5)   -- scroll to position
+
+tImGui.GetWantCaptureMouse()      -- true if the UI wants this frame's mouse input (see Common Pitfalls above)
+tImGui.GetWantCaptureKeyboard()   -- true if the UI wants this frame's keyboard input
+tImGui.CaptureMouseFromApp(bool?)     -- manually override WantCaptureMouse for next frame (default true)
+tImGui.CaptureKeyboardFromApp(bool?) -- manually override WantCaptureKeyboard for next frame (default true)
 ```
 
 ---

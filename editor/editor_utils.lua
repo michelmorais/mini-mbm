@@ -735,7 +735,7 @@ tUtil.iShapeNickName = 1
 tUtil.setShapeToMesh = function(tObj)
     local w,h,d  = tObj:getAABB(true)
     if d then
-	print("****************************** is3d")
+	   return
     else
         local triangles = 2
         local dynamic   = false
@@ -779,7 +779,6 @@ tUtil.setShapeToMesh = function(tObj)
         end
 
 	end
-	
 end
 
 tUtil.getExtension  = function(fileName)

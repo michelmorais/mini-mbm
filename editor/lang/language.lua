@@ -1311,8 +1311,8 @@ M.en = {
     scene_editor_options_title= "Scene Editor Options",
     mesh_selector_title       = "Mesh Selector",
     tab_map                   = "Map",
-    tab_mesh_set              = "Mesh Set",
-    tab_layer                 = "Layer",
+    tab_mesh_set              = "Mesh View",
+    tab_layer                 = "Map edition",
     map_type                  = "Type",
     grid_width_x              = "Width (X)",
     grid_depth_z              = "Depth (Z)",
@@ -1355,6 +1355,7 @@ M.en = {
     light_radius              = "Radius",
     light_point_lights_fmt    = "Point Lights (%d)",
     add_point_light           = "Add Point Light",
+    camera_distance_format    = "Distance %.1f",
 }
 
 M.pt_br = {
@@ -2656,8 +2657,8 @@ M.pt_br = {
     scene_editor_options_title= "Opções do Editor de Cena",
     mesh_selector_title       = "Seletor de Mesh",
     tab_map                   = "Mapa",
-    tab_mesh_set              = "Conjunto de Meshes",
-    tab_layer                 = "Camada",
+    tab_mesh_set              = "Visualização de Mesh",
+    tab_layer                 = "Edição do Mapa",
     map_type                  = "Tipo",
     grid_width_x              = "Largura (X)",
     grid_depth_z              = "Profundidade (Z)",
@@ -2700,6 +2701,7 @@ M.pt_br = {
     light_radius              = "Raio",
     light_point_lights_fmt    = "Luzes Pontuais (%d)",
     add_point_light           = "Adicionar Luz Pontual",
+    camera_distance_format    = "Distância %.1f",
 }
 
 -- Default from OS via mbm.getIdiom()
