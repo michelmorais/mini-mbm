@@ -46,11 +46,19 @@ on every successfully opened file, to auto-register its directory as a known sea
 `LUA_MANAGER::onAddPathScript`) that runs `luaL_dostring()` on the shared `lua_State*` to extend
 `package.path` — completely fine from the main thread, a guaranteed crash from a worker thread.
 
-Mesh v11 parsing (`parse_v11_intermediate`) calls `util::openFile`/`util::getFullPath` **more than
-once** — not just for the top-level mesh file, but also for texture references discovered as it
-walks the file's contents. That rules out "just pre-resolve the one known path on the main thread
-before queuing the job" as a fix — there's no fixed, enumerable set of call sites to chase, and a
-future format change could add more. The fix has to live in `addPath()`/`getFullPath()` themselves:
+**Correction from an earlier version of this doc**: it was initially assumed `parse_v11_intermediate`
+also resolved texture-reference paths mid-parse, ruling out a narrower fix. Verified false —
+`fillTextureReferenceForHeader` (the other `getFullPath` call in `mesh-manager.cpp`) is only reached
+from `MESH_MBM_DEBUG::saveV11()`, the save path, always main-thread. The load path
+(`parse_v11_frame_intermediate`) carries texture path strings and `SECTION_EXTRA_PATHS` entries
+forward as raw, unresolved data; `finishLoadFromIntermediate` (main-thread-only, called from
+`pumpAsyncLoads`) already resolves and registers all of it safely. The *only* unsafe call turned out
+to be `parse_v11_intermediate`'s own top-level `util::openFile` call — see
+`docs/async-mesh-path-resolution-refactor.md` for a scoped, low-risk follow-up plan that removes
+even that one call from the worker thread, so mesh loading stops touching the mutex/deferred-queue
+machinery below entirely. That plan is *not yet implemented* — the general fix here is what's
+currently shipped, and it remains the right safety net regardless (it protects any other
+worker-thread code path that calls these functions, present or future):
 
 - `lsPath` (the global search-path list) is now guarded by a mutex — it was previously read/written
   unsynchronized from both the main thread and worker threads.
