@@ -184,6 +184,11 @@ function onInitScene()
         shader = {
             sourceFile = '',
         },
+        physics = {
+            primitiveType = 1,
+            triCountRect  = 2,
+            triCountCircle = 5,
+        },
         lastResultText = '',
     }
 
@@ -3030,6 +3035,35 @@ function getMeshTotalVertices(meshD)
     return total
 end
 
+-- Computes the mesh's own bounding box from frame 1's vertex data only (not mesh:getSize()).
+-- Returns center/width/height/depth, or false if frame 1 has no vertices.
+function computeMeshVertexBoundsFrame1(meshD)
+    local ok, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    if not ok or not nSubsets then return false end
+    local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+    local total = 0
+    for s = 1, nSubsets do
+        local ok2, nV = dpCall(function() return meshD:getTotalVertex(1, s) end)
+        if ok2 and nV then
+            for v = 1, nV do
+                local ok3, vd = dpCall(function() return meshD:getVertex(1, s, v) end)
+                if ok3 and vd then
+                    local vz = vd.z or 0
+                    minX = math.min(minX, vd.x); maxX = math.max(maxX, vd.x)
+                    minY = math.min(minY, vd.y); maxY = math.max(maxY, vd.y)
+                    minZ = math.min(minZ, vz);   maxZ = math.max(maxZ, vz)
+                    total = total + 1
+                end
+            end
+        end
+    end
+    if total == 0 then return false end
+    return {
+        cx = (minX + maxX) * 0.5, cy = (minY + maxY) * 0.5, cz = (minZ + maxZ) * 0.5,
+        width = maxX - minX, height = maxY - minY, depth = maxZ - minZ,
+    }
+end
+
 -- Returns total triangle count (indexCount/3) across all frames/subsets, or 0 on error
 function getMeshTotalTriangles(meshD)
     local total = 0
@@ -5837,6 +5871,112 @@ local function applyAllResetDefaultPosition(sType)
     end)
 end
 
+local BOX_LETTERS_PHYS = {'a','b','c','d','e','f','g','h'}
+
+-- 8 corners of an axis-aligned box, same CUBE_COMPLEX convention as physic_editor.lua
+-- (front face a,b,c,d @ +halfDepth, back face e,f,g,h @ -halfDepth), see include/core_mbm/shapes.h
+local function boxCornersPhys(hw,hh,hd)
+    return {
+        {x=-hw,y=-hh,z= hd}, {x=-hw,y= hh,z= hd}, {x= hw,y= hh,z= hd}, {x= hw,y=-hh,z= hd},
+        {x=-hw,y=-hh,z=-hd}, {x=-hw,y= hh,z=-hd}, {x= hw,y= hh,z=-hd}, {x= hw,y=-hh,z=-hd},
+    }
+end
+
+-- Builds physic table(s) for the given primitive kind, centered/sized from a
+-- computeMeshVertexBoundsFrame1() result. Mirrors the construction math in
+-- physic_editor.lua's "Add physic" button, driven by the mesh's own vertex bounds
+-- instead of tMesh:getSize()/an assumed (0,0,0) center.
+-- kind: 1=rectangle 2=rectangle_triangle 3=circle 4=circle_triangle 5=triangle 6=complex_cube
+local function buildPhysicsFromBounds(kind, bounds, triCountRect, triCountCircle)
+    local cx,cy,cz = bounds.cx, bounds.cy, bounds.cz
+    local width,height,depth = bounds.width, bounds.height, bounds.depth
+    local tList = {}
+
+    if kind == 1 then --rectangle -> cube
+        table.insert(tList, {type='cube', x=cx,y=cy,z=cz, width=width, height=height})
+    elseif kind == 2 then --rectangle/triangle
+        local half_width  = width / 2
+        local half_height = height / 2
+        local step_div = width / (triCountRect / 2.0)
+        local step = -half_width
+        for i=1, triCountRect / 2 do
+            local tri1 = {x=0,y=0,z=0,type='triangle'}
+            tri1.a = {x = cx + step,            y = cy - half_height}
+            tri1.b = {x = cx + step,            y = cy + half_height}
+            tri1.c = {x = cx + step + step_div, y = cy - half_height}
+            table.insert(tList, tri1)
+            step = step + step_div
+            local tri2 = {x=0,y=0,z=0,type='triangle'}
+            tri2.a = {x = tri1.c.x, y = tri1.c.y}
+            tri2.b = {x = tri1.b.x, y = tri1.b.y}
+            tri2.c = {x = cx + step, y = cy + half_height}
+            table.insert(tList, tri2)
+        end
+    elseif kind == 3 then --circle -> sphere
+        table.insert(tList, {type='sphere', x=cx,y=cy,z=cz, ray = width * 0.5})
+    elseif kind == 4 then --circle/triangle
+        local degree     = math.rad(360) / triCountCircle
+        local ray_width  = width * 0.5
+        local ray_height = height * 0.5
+        local pVertex = {[1]=math.sin(0) * ray_width,[2]=math.cos(0) * ray_height}
+        for i=1, triCountCircle do
+            table.insert(pVertex, math.sin(degree * i) * ray_width)
+            table.insert(pVertex, math.cos(degree * i) * ray_height)
+        end
+        local index = 3
+        for i=1, triCountCircle do
+            local tri = {x=0,y=0,z=0,type='triangle'}
+            tri.a = {x = cx, y = cy}
+            tri.b = {x = cx + pVertex[index-2], y = cy + pVertex[index-1]}
+            tri.c = {x = cx + pVertex[index+0], y = cy + pVertex[index+1]}
+            index = index + 2
+            table.insert(tList, tri)
+        end
+    elseif kind == 5 then --triangle
+        table.insert(tList, {
+            type='triangle', x=0,y=0,z=0,
+            a = {x = cx + width * -0.25, y = cy + height * -0.25},
+            b = {x = cx,                 y = cy + height * 0.25},
+            c = {x = cx + width * 0.25,  y = cy + height * -0.25},
+        })
+    elseif kind == 6 then --complex (single 8-point box)
+        local useDepth = (depth and depth > 0) and depth or width
+        local corners  = boxCornersPhys(width * 0.5, height * 0.5, useDepth * 0.5)
+        local tComplex = {type='complex', x=0,y=0,z=0}
+        for i,l in ipairs(BOX_LETTERS_PHYS) do
+            tComplex[l] = {x = cx + corners[i].x, y = cy + corners[i].y, z = cz + corners[i].z}
+        end
+        table.insert(tList, tComplex)
+    end
+
+    return tList
+end
+
+-- Replaces each mesh's physics with one primitive computed from that mesh's own
+-- frame-1 vertex bounds (not mesh:getSize()). setPhysics() fully releases the prior
+-- INFO_PHYSICS before rebuilding (plugins/plugin-helper/plugin-helper.cpp), so this is
+-- a true reset, matching applyAllResetDefaultAngle/applyAllResetDefaultPosition above.
+local function applyAllResetPhysics(sType)
+    local opt = tApplyAllWin.physics
+    return runApplyAllOperation(sType, tLang.L('reset_physics_to'), function(tEntry)
+        local meshD  = tEntry.meshDebug
+        local bounds = computeMeshVertexBoundsFrame1(meshD)
+        if not bounds then
+            return 'skipped', tLang.L('apply_all_no_matching_targets')
+        end
+        local tPhysics = buildPhysicsFromBounds(opt.primitiveType, bounds, opt.triCountRect, opt.triCountCircle)
+        if #tPhysics == 0 then
+            return 'skipped', tLang.L('apply_all_no_matching_targets')
+        end
+        local ok = dpCall(function() meshD:setPhysics(tPhysics) end)
+        if not ok then
+            return 'failed', tLang.L('an_error_occurred')
+        end
+        tEntry.modified = true
+        return 'success'
+    end)
+end
+
 local function applyAllTexture(sType, bClear)
     local tx = tApplyAllWin.texture
     local sOperation = bClear and tLang.L('tex_clear') or tLang.L('tex_set')
@@ -6115,6 +6255,82 @@ function showApplyAllWindow()
                 end
                 tImGui.SameLine()
                 tImGui.HelpMarker(tLang.L('reset_default_position_tooltip'))
+                tImGui.TreePop()
+            end
+
+            if tImGui.TreeNodeEx(tLang.L('physics_label') .. '##applyAllPhysics', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                local pw  = win.physics
+                local idx = tImGui.RadioButton(tLang.L('rectangle'), pw.primitiveType, 1)
+                idx       = tImGui.RadioButton(tLang.L('rectangle_triangle'), idx, 2)
+                if idx == 2 then
+                    tImGui.SameLine()
+                    tUtil.pushResponsiveItemWidth(70)
+                    local result, iValue = tImGui.InputInt('##applyAllPrimRect', pw.triCountRect, 2, 2, 0)
+                    if result and iValue > 1 and iValue < 1000 and iValue % 2 == 0 then
+                        pw.triCountRect = iValue
+                    end
+                    tImGui.PopItemWidth()
+                end
+                idx       = tImGui.RadioButton(tLang.L('circle'), idx, 3)
+                idx       = tImGui.RadioButton(tLang.L('circle_triangle'), idx, 4)
+                if idx == 4 then
+                    tImGui.SameLine()
+                    tUtil.pushResponsiveItemWidth(70)
+                    local result, iValue = tImGui.InputInt('##applyAllPrimCircle', pw.triCountCircle, 1, 1, 0)
+                    if result and iValue > 3 and iValue < 1000 then
+                        pw.triCountCircle = iValue
+                    end
+                    tImGui.PopItemWidth()
+                end
+                idx       = tImGui.RadioButton(tLang.L('triangle'), idx, 5)
+                idx       = tImGui.RadioButton(tLang.L('complex_cube'), idx, 6)
+                pw.primitiveType = idx
+
+                local color     = {r=1,g=1,b=0.4,a=1}
+                local thickness = 5.0
+                local winPos    = tImGui.GetCursorScreenPos()
+                if idx == 1 then
+                    local p_min = {x = winPos.x + 75,  y = winPos.y + 15}
+                    local p_max = {x = winPos.x + 125, y = winPos.y + 65}
+                    tImGui.AddRect(p_min, p_max, color, 2.0, tImGui.Flags('ImDrawFlags_RoundCornersAll'), thickness)
+                elseif idx == 2 then
+                    local p_min = {x = winPos.x + 75,  y = winPos.y + 15}
+                    local p_max = {x = winPos.x + 125, y = winPos.y + 65}
+                    tImGui.AddRect(p_min, p_max, color, 2.0, tImGui.Flags('ImDrawFlags_RoundCornersAll'), thickness)
+                    tImGui.AddLine(p_min,p_max,color,thickness)
+                elseif idx == 3 then
+                    local center = {x=winPos.x + 100,y=winPos.y + 25 + 7.5}
+                    tImGui.AddCircle(center, 25, color, 18, thickness)
+                elseif idx == 4 then
+                    local center = {x=winPos.x + 100,y=winPos.y + 25 + 7.5}
+                    tImGui.AddNgon(center, 25, color, pw.triCountCircle, thickness)
+                elseif idx == 5 then
+                    local p1 = {x=0 +  winPos.x + 75,y=50 + winPos.y + 15}
+                    local p2 = {x=25 + winPos.x + 75,y=0  + winPos.y + 15}
+                    local p3 = {x=50 + winPos.x + 75,y=50 + winPos.y + 15}
+                    tImGui.AddTriangle(p1, p2, p3, color, thickness + 5)
+                elseif idx == 6 then
+                    local off   = 18
+                    local p_min = {x = winPos.x + 75,       y = winPos.y + 15 + off}
+                    local p_max = {x = winPos.x + 125,      y = winPos.y + 65 + off}
+                    local q_min = {x = winPos.x + 75 + off, y = winPos.y + 15}
+                    local q_max = {x = winPos.x + 125 + off,y = winPos.y + 65}
+                    tImGui.AddRect(p_min, p_max, color, 0, 0, thickness)
+                    tImGui.AddRect(q_min, q_max, color, 0, 0, thickness)
+                    tImGui.AddLine({x=p_min.x,y=p_min.y}, {x=q_min.x,y=q_min.y}, color, thickness)
+                    tImGui.AddLine({x=p_max.x,y=p_min.y}, {x=q_max.x,y=q_min.y}, color, thickness)
+                    tImGui.AddLine({x=p_min.x,y=p_max.y}, {x=q_min.x,y=q_max.y}, color, thickness)
+                    tImGui.AddLine({x=p_max.x,y=p_max.y}, {x=q_max.x,y=q_max.y}, color, thickness)
+                end
+                winPos.y = winPos.y + 100
+                tImGui.SetCursorScreenPos(winPos)
+
+                tImGui.Separator()
+                if tImGui.Button(tLang.L('reset_physics_to') .. '##applyAllResetPhysics') then
+                    applyAllResetPhysics(win.selectedType)
+                end
+                tImGui.SameLine()
+                tImGui.HelpMarker(tLang.L('reset_physics_to_tooltip'))
                 tImGui.TreePop()
             end
 

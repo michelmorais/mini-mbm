@@ -78,8 +78,9 @@
     6.6.0 Added Scene Editor 3D (editor/scene_editor3d.lua): grid/free placement of any renderizable, per-layer Y control, cached mesh thumbnails via render2texture, async mesh loading with progress, and a self-contained requirable scene export.
     6.6.1 Fixed Scene Editor 3D: Combo() off-by-one index bug (Map type/snap-scale combos), ColorEdit4 crash in the light panel (wrong calling convention + wrong 0-255 color range), background color menu parity with Scene Editor 2D, thumbnail cache location, per-tab orbit camera, sync reload of already-cached meshes, and scroll-into-scene leak while hovering ImGui windows.
     6.6.2 Added tImGui.GetWantCaptureMouse()/GetWantCaptureKeyboard() (plugins/imGui): expose io.WantCaptureMouse/WantCaptureKeyboard for reading, the correct/documented way to decide whether input should reach the game scene vs the UI, replacing IsAnyWindowHovered() which repeatedly let clicks/scroll on Scene Editor 3D's own windows leak into the 3D scene. Also fixed the editor's stray white render-to-texture quad, mislabeled/too-short camera zoom, and made Layer-tab placement synchronous.
+    6.7.0 Physic Editor: fixed a crash loading 3D meshes (selection/highlight API was 2D-only); added a real 3D orbit camera + nav gizmo, mouse-based selection of physics shapes via native :collide(), and full editing support for all physics types on 3D meshes. Added a "Complex" primitive (8-point box, plus a 12-triangle decomposition) to the Add-Physic UI. Mesh Debug: added a bulk "Reset Physics To" operation in Apply-to-all, computing each mesh's own frame-1 vertex bounds instead of assuming mesh:getSize().
 */
-#define MBM_VERSION "6.6.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.7.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
