@@ -651,8 +651,10 @@ function boxTriangleFaces(corners)
     }
 end
 
--- Builds an invisible 3D box shape (used both as translucent highlight fill and as the
--- native :collide(x,y) mouse hit-test target) sized to the given center/extents.
+-- Builds an invisible 3D box shape (used only as the translucent highlight fill /
+-- source geometry for the wireframe; mouse hit-testing is a real ray-cast, see below,
+-- since RENDERIZABLE:collide(x,y) approximates ray distance from an object's own Z,
+-- which only holds up for cameras looking straight down +Z -- not an arbitrary orbit).
 function makeBoxShape3d(cx,cy,cz,w,h,d,name)
     local hw = math.max(w,0.01) * 0.5
     local hh = math.max(h,0.01) * 0.5
@@ -667,7 +669,27 @@ function makeBoxShape3d(cx,cy,cz,w,h,d,name)
     end
     local tShape = shape:new('3d',cx,cy,cz)
     tShape:create(verts, nil, name)
-    return tShape
+    return tShape, hw,hh,hd
+end
+
+-- Ray (origin o, unit direction d) vs axis-aligned box (min/max) slab test.
+function rayHitsAABB(ox,oy,oz, dx,dy,dz, minX,minY,minZ,maxX,maxY,maxZ)
+    local tmin, tmax = -math.huge, math.huge
+    local function slab(o,d,mn,mx)
+        if math.abs(d) < 1e-9 then
+            return o >= mn and o <= mx
+        end
+        local t1 = (mn - o) / d
+        local t2 = (mx - o) / d
+        if t1 > t2 then t1,t2 = t2,t1 end
+        if t1 > tmin then tmin = t1 end
+        if t2 < tmax then tmax = t2 end
+        return tmin <= tmax
+    end
+    if not slab(ox,dx,minX,maxX) then return false end
+    if not slab(oy,dy,minY,maxY) then return false end
+    if not slab(oz,dz,minZ,maxZ) then return false end
+    return tmax >= 0
 end
 
 function setupPhysics3d(tInfoPhysic)
@@ -681,7 +703,12 @@ function setupPhysics3d(tInfoPhysic)
     end
 
     tInfoPhysic.isOver = function(self,x,y)
-        return self.tShape ~= nil and self.tShape:collide(x,y) or false
+        if not self.aabbMin then return false end
+        local ox,oy,oz = mbm.to3d(x,y,0)
+        local ex,ey,ez = mbm.to3d(x,y,1)
+        return rayHitsAABB(ox,oy,oz, ex-ox,ey-oy,ez-oz,
+            self.aabbMin.x,self.aabbMin.y,self.aabbMin.z,
+            self.aabbMax.x,self.aabbMax.y,self.aabbMax.z)
     end
 
     if tInfoPhysic.tShape then
@@ -689,23 +716,25 @@ function setupPhysics3d(tInfoPhysic)
         tInfoPhysic.tShape = nil
     end
 
+    local cx,cy,cz,w,h,d
+
     if tInfoPhysic.type == 'cube' then
         tInfoPhysic.type_info = 'cube'
-        tInfoPhysic.tShape = makeBoxShape3d(tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z,
-                                             tInfoPhysic.width,tInfoPhysic.height,tInfoPhysic.depth or tInfoPhysic.width,
-                                             sUniqueName)
+        cx,cy,cz = tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z
+        w,h,d = tInfoPhysic.width,tInfoPhysic.height,tInfoPhysic.depth or tInfoPhysic.width
     elseif tInfoPhysic.type == 'sphere' then
         tInfoPhysic.type_info = 'sphere'
+        cx,cy,cz = tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z
         local diameter = tInfoPhysic.ray * 2.0
-        tInfoPhysic.tShape = makeBoxShape3d(tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z, diameter,diameter,diameter, sUniqueName)
+        w,h,d = diameter,diameter,diameter
     elseif tInfoPhysic.type == 'triangle' then
         tInfoPhysic.type_info = 'triangle'
         local a,b,c = tInfoPhysic.a, tInfoPhysic.b, tInfoPhysic.c
         local minX = math.min(a.x,b.x,c.x); local maxX = math.max(a.x,b.x,c.x)
         local minY = math.min(a.y,b.y,c.y); local maxY = math.max(a.y,b.y,c.y)
         local minZ = math.min(a.z or 0,b.z or 0,c.z or 0); local maxZ = math.max(a.z or 0,b.z or 0,c.z or 0)
-        local cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
-        tInfoPhysic.tShape = makeBoxShape3d(cx,cy,cz, maxX-minX, maxY-minY, maxZ-minZ, sUniqueName)
+        cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
+        w,h,d = maxX-minX, maxY-minY, maxZ-minZ
     elseif tInfoPhysic.type == 'complex' then
         tInfoPhysic.type_info = 'complex'
         local minX,maxX,minY,maxY,minZ,maxZ =  math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
@@ -715,11 +744,16 @@ function setupPhysics3d(tInfoPhysic)
             minY = math.min(minY,p.y); maxY = math.max(maxY,p.y)
             minZ = math.min(minZ,p.z); maxZ = math.max(maxZ,p.z)
         end
-        local cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
-        tInfoPhysic.tShape = makeBoxShape3d(cx,cy,cz, maxX-minX, maxY-minY, maxZ-minZ, sUniqueName)
+        cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
+        w,h,d = maxX-minX, maxY-minY, maxZ-minZ
     end
 
-    if tInfoPhysic.tShape then
+    if cx then
+        local hw,hh,hd
+        tInfoPhysic.tShape, hw,hh,hd = makeBoxShape3d(cx,cy,cz, w,h,d, sUniqueName)
+        tInfoPhysic.aabbMin = {x=cx-hw, y=cy-hh, z=cz-hd}
+        tInfoPhysic.aabbMax = {x=cx+hw, y=cy+hh, z=cz+hd}
+
         tInfoPhysic.tShape:setColor(0,1,0,0.15)
         tInfoPhysic.tShape.visible = false
 
@@ -756,10 +790,6 @@ function onLoadMesh()
             tHighLightPoint = shape:new('3d')
             tHighLightPoint:create('circle',25,25,18,false,string.format('tHighLightPoint_%d',os.time()))
             bIs3d = true
-            local w,h,d = tMesh:getSize()
-            tCam3d.fx, tCam3d.fy, tCam3d.fz = 0,0,0
-            tCam3d.distance = math.max(w or 300, h or 300, (d or 0)) * 2.5
-            tCam3d.azimuth, tCam3d.elevation = 0, 0.4
         end
         tHighLightPoint:setColor(0,1,0)
         tHighLightPoint.visible = false
@@ -770,6 +800,16 @@ function onLoadMesh()
             tInfoPhysics = tMesh:getPhysics()
             camera2d:setPos(-150,0)
             if bIs3d then
+                -- tMesh:getSize() only returns real dimensions once the mesh has
+                -- actually loaded geometry -- computing this before load() left
+                -- distance at 0 (a degenerate, same-position camera/focus).
+                local w,h,d = tMesh:getSize()
+                if not w or w == 0 then w = 300 end
+                if not h or h == 0 then h = 300 end
+                if not d or d == 0 then d = 0 end
+                tCam3d.fx, tCam3d.fy, tCam3d.fz = 0,0,0
+                tCam3d.distance = math.max(w,h,d) * 2.5
+                tCam3d.azimuth, tCam3d.elevation = 0, 0.4
                 applyCam3d(tCam3d)
             end
 
@@ -1911,7 +1951,9 @@ function onLoop(delta)
 
     if bIs3d and tMesh then
         applyCam3d(tCam3d)
-        tImGui.Begin(tLang.L('mesh_preview_orbit') .. '##physicsOrbit3d', true, tImGui.Flags({'ImGuiWindowFlags_NoTitleBar','ImGuiWindowFlags_NoResize'}))
+        tUtil.setInitialWindowPositionRight(tLang.L('mesh_preview_orbit'), 0, 0, 160, 160, 160)
+        tImGui.Begin(tLang.L('mesh_preview_orbit'), true,
+            tImGui.Flags({'ImGuiWindowFlags_NoTitleBar', 'ImGuiWindowFlags_NoResize'}))
         tUtil.drawOrbitGizmo(tCam3d, {size = 110})
         tImGui.End()
     end
