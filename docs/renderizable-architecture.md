@@ -28,7 +28,8 @@ Remove it with `DEVICE::removeRenderizable(this)` — call this in your destruct
 |-------|---------|
 | `getPosition()` / `setPosition()` | World position. **Position Z is the depth-sort key.** |
 | `getScale()` / `setScale()` and `getAngle()` / `setAngle()` | Transform |
-| `getBoundingAABB()` / `setBoundingAABB()` | AABB populated by `updateAABB()`, used for frustum culling |
+| `getBoundingAABB()` / `setBoundingAABB()` | AABB **size only**, populated by `updateAABB()`, used for frustum culling. Does NOT imply the box is centered at `getPosition()` — see the next row. |
+| `getBoundingAABBCenterOffset()` / `setBoundingAABBCenterOffset()` | World-space offset from `getPosition()` to the AABB's true geometric center (MBM_VERSION 6.9.0). `(0,0,0)` when the geometry is centered on its own pivot (the common case); non-zero otherwise (e.g. a mesh anchored at its base). Also populated by `updateAABB()`. Virtual — override it directly (bypassing the `INFO_PHYSICS`-derived computation) if a subclass's visual box isn't physics-derived; `TEXT_DRAW` does this from its own `aabbMin`/`aabbMax` (font alignment offset). |
 | `isRenderEnabled()` / `setEnableRender()` | Hide without removing from the render list |
 | `isAlwaysRenderizeEnabled()` / `setAlwaysRenderize()` | Skip frustum culling when enabled |
 | `getBlend()` / `setBlendState()` | Blend state for this object |

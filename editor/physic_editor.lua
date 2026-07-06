@@ -783,16 +783,28 @@ function onLoadMesh()
             tHighLightPoint = shape:new('2dw')
             tHighLightPoint:create('circle',25,25,18,false,string.format('tHighLightPoint_%d',os.time()))
             tHighLightPoint.z = -100
+            tAABBCenterMarker = shape:new('2dw')
+            tAABBCenterMarker:create('circle',15,15,12,false,string.format('tAABBCenterMarker_%d',os.time()))
+            tAABBCenterMarker.z = -100
             bIs3d = false
         elseif file_name:lower():match('%.msh$') then
             tMesh = mesh:new('3d')
             setupPhysics = setupPhysics3d
             tHighLightPoint = shape:new('3d')
             tHighLightPoint:create('circle',25,25,18,false,string.format('tHighLightPoint_%d',os.time()))
+            tAABBCenterMarker = shape:new('3d')
+            tAABBCenterMarker:create('circle',15,15,12,false,string.format('tAABBCenterMarker_%d',os.time()))
             bIs3d = true
         end
         tHighLightPoint:setColor(0,1,0)
         tHighLightPoint.visible = false
+        -- Distinct from tHighLightPoint (hover highlight, green) -- marks the mesh's true AABB
+        -- center (obj:getAABBCenter(), MBM_VERSION 6.9.0), not just its pivot/local origin. Lets
+        -- the user see where new physics shapes will default to when adding one (see
+        -- add_physic_btn below) instead of guessing for an off-center-pivot mesh (e.g. a building
+        -- anchored at its floor).
+        tAABBCenterMarker:setColor(1,1,0)
+        tAABBCenterMarker.visible = true
 
         if tMesh:load(file_name) then
             bShowEditPhysics = true
@@ -1369,7 +1381,14 @@ function showEditPhysics()
             if depth == nil then
                 depth = 1
             end
-            local tInfoPhysicsInner = {x=0,y=0,z=0}
+            -- Defaults to the mesh's true AABB center (obj:getAABBCenter(), MBM_VERSION 6.9.0)
+            -- instead of the hardcoded local origin -- for a mesh pivoted at its floor/base (e.g.
+            -- a building), the origin is an awkward starting point for a new hitbox; this lands
+            -- new shapes at the mesh's actual visual middle instead. Naturally still (0,0,0) for
+            -- a mesh with no physics shapes yet (nothing to compute a center from) or one that's
+            -- genuinely centered on its own pivot already.
+            local cx, cy, cz = tMesh:getAABBCenter(true)
+            local tInfoPhysicsInner = {x = cx or 0, y = cy or 0, z = cz or 0}
             if indexPrimitive == 1 then --cube
                 
                 tInfoPhysicsInner.type = 'cube'
@@ -1967,6 +1986,11 @@ function onLoop(delta)
         end
 
         tUtil.showStatusMessage('Info',string.format('Scale: %2.2f\nPhysics %d\n%s',tMesh.sx,#tInfoPhysics,strSelected))
+    end
+
+    if tMesh and tAABBCenterMarker then
+        local cx, cy, cz = tMesh:getAABBCenter(true)
+        tAABBCenterMarker:setPos(cx, cy, bIs3d and cz or -100)
     end
 
     if #tSimulate == 0 then

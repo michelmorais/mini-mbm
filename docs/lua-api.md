@@ -474,7 +474,8 @@ obj.alwaysRender = true   -- render even when off-screen / outside frustum
 | Method | Signature | Returns | Description |
 |---|---|---|---|
 | `obj:getSize` | `(considerScale?: bool)` | w, h [, d] | Object dimensions. 3D returns depth too. |
-| `obj:getAABB` | `(update?: bool)` | w, h [, d] | Axis-aligned bounding box. Pass `true` to force recalc. |
+| `obj:getAABB` | `(update?: bool)` | w, h [, d] | Axis-aligned bounding box **size only** — does NOT imply the box is centered at `getPosition()`. Pass `true` to force recalc. |
+| `obj:getAABBCenter` | `(update?: bool)` | x, y [, z] | The AABB's **true** geometric center in world space (since MBM_VERSION 6.9.0). Equals `getPosition()` when the object's geometry is centered on its own pivot (the common case); differs for anything anchored elsewhere (a mesh pivoted at its base/floor, a character pivoted at its feet, `font` text whose origin is alignment-driven, not centered). Pass `true` to force recalc. |
 | `obj:isOnScreen` | `()` | bool | Whether the object is visible within the camera frustum |
 | `obj:isLoaded` | `()` | bool | Whether the asset is fully loaded |
 
@@ -502,6 +503,15 @@ screen pixel, for any object sitting near world Z=0 (e.g. anything left at its d
 position), so the test could never register a hit no matter where you clicked. That's fixed now;
 no workaround needed. See §2 for `mbm.getPickRay` if you need the same ray/AABB math directly
 from Lua (e.g. against a box that isn't a renderizable's own AABB).
+
+**`obj:collide` (every form — object-vs-object, screen point, 2D and 3D) now tests against each
+object's true AABB center (`obj:getAABBCenter()`, §6.3), not just `getPosition()`** (since
+MBM_VERSION 6.9.0). This replaces an older internal-only mechanism (`doOffsetIfText`) that
+handled this correction for `font` objects alone, by temporarily mutating the object's live
+position, running the check, then restoring it. The new mechanism is general (any renderizable
+type can have a non-zero center offset, not just text) and doesn't touch `getPosition()` at all.
+No Lua-visible behavior change for anything already centered on its own pivot — this only
+changes results for objects where `getAABBCenter() != getPosition()`.
 
 ### 6.5 Physics
 

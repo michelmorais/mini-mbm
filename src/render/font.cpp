@@ -389,6 +389,18 @@ namespace mbm
         *w = this->aabbMax.x - this->aabbMin.x;
         *h = std::abs(this->aabbMax.y - this->aabbMin.y);
     }
+
+    const VEC3 & TEXT_DRAW::getBoundingAABBCenterOffset() const noexcept
+    {
+        // aabbMin/aabbMax already have position baked in (see forceCalcSize) -- subtract it back
+        // out so this returns a pure offset, matching every other RENDERIZABLE's contract.
+        const VEC3 &position = this->getPosition();
+        this->cachedAABBCenterOffset = VEC3(
+            (this->aabbMin.x + this->aabbMax.x) * 0.5f - position.x,
+            (this->aabbMin.y + this->aabbMax.y) * 0.5f - position.y,
+            0.0f);
+        return this->cachedAABBCenterOffset;
+    }
     
     bool TEXT_DRAW::getWidthHeightString(float *_width, float *_height, const char *str)
     {

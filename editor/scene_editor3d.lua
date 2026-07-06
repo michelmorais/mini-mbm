@@ -691,9 +691,13 @@ function processThumbnailQueue()
     tThumbGenRt:add(tObj)
     local w, h, d = tObj:getAABB(true)
     local fitDist = math.max(w or 50, h or 50, d or 50) * 2.2
+    -- Frame the mesh's true visual center, not its pivot (obj:getAABBCenter(), MBM_VERSION
+    -- 6.9.0) -- for a mesh anchored at its base (e.g. a building), focusing on the pivot (its
+    -- floor) would frame the thumbnail on its feet instead of centering the whole asset.
+    local cx, cy, cz = tObj:getAABBCenter(true)
     local rtCam = tThumbGenRt:getCamera('3d')
-    rtCam:setPos(fitDist * 0.7, fitDist * 0.5, fitDist * 0.7)
-    rtCam:setFocus(0, 0, 0)
+    rtCam:setPos(cx + fitDist * 0.7, cy + fitDist * 0.5, cz + fitDist * 0.7)
+    rtCam:setFocus(cx, cy, cz)
     entry.thumbState = 'generating'
     tThumbGenActive = { entry = entry, tObj = tObj, framesWaited = 0 }
 end
@@ -829,11 +833,16 @@ function updateHoverHighlight(sx, sy)
         if tHoveredPlaced then
             local tObj = tPlacedMeshes[tHoveredPlaced].tObj
             local w, h, d = tObj:getAABB(true)
-            tHoverBoxLine = buildWireBoxLine(tObj.x, tObj.y, tObj.z, w, h, d)
+            -- Centered on the mesh's true AABB center (obj:getAABBCenter(), MBM_VERSION 6.9.0),
+            -- not its pivot -- for a mesh anchored at its base (e.g. a floor-pivoted building),
+            -- a box drawn around the pivot would sit half underground instead of enclosing it.
+            local cx, cy, cz = tObj:getAABBCenter()
+            tHoverBoxLine = buildWireBoxLine(cx, cy, cz, w, h, d)
         end
     elseif tHoveredPlaced then
         local tObj = tPlacedMeshes[tHoveredPlaced].tObj
-        tHoverBoxLine:setPos(tObj.x, tObj.y, tObj.z)
+        local cx, cy, cz = tObj:getAABBCenter()
+        tHoverBoxLine:setPos(cx, cy, cz)
     end
 end
 

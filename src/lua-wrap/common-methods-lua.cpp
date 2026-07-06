@@ -127,44 +127,6 @@ namespace mbm
         return lua_error_debug(lua, "\nExpected: [renderizable],[x],[y](2ds)");
     }
 
-    void doOffsetIfText(RENDERIZABLE *ptr,const float w,const float h)
-    {
-        if(ptr->getTypeClass() == TYPE_CLASS::TYPE_CLASS_TEXT)
-        {
-            VEC3 &position = ptr->getPosition();
-            const bool is2dScreenObject = ptr->is2dScreenObject();
-            if(is2dScreenObject)
-            {
-                position.x += w * 0.5f;
-                position.y += h * 0.5f;
-            }
-            else
-            {
-                position.x += w * 0.5f;
-                position.y -= h * 0.5f;
-            }
-        }
-    }
-
-    void undoOffsetIfText(RENDERIZABLE *ptr,const float w,const float h)
-    {
-        if(ptr->getTypeClass() == TYPE_CLASS::TYPE_CLASS_TEXT)
-        {
-            VEC3 &position = ptr->getPosition();
-            const bool is2dScreenObject = ptr->is2dScreenObject();
-            if(is2dScreenObject)
-            {
-                position.x -= w * 0.5f;
-                position.y -= h * 0.5f;
-            }
-            else
-            {
-                position.x -= w * 0.5f;
-                position.y += h * 0.5f;
-            }
-        }
-    }
-
     int onCheckCollisionBoundingBoxRenderizable(lua_State *lua)
     {
         const int top = lua_gettop(lua);
@@ -186,9 +148,15 @@ namespace mbm
 			float h1 = 0.0f;
 			float w2 = 0.0f;
 			float h2 = 0.0f;
-            VEC3 &positionA = ptrA->getPosition();
-            VEC3 &positionB = ptrB->getPosition();
-            
+            // True center of each object's AABB, not just its pivot -- (0,0,0) offset for anything
+            // pivoted at its own visual center (the overwhelming majority of objects), a real
+            // correction for anything that isn't (TEXT_DRAW's alignment-driven offset, or any 3D
+            // mesh anchored off its geometric center -- see MBM_VERSION 6.9.0). Replaces the old
+            // doOffsetIfText()/undoOffsetIfText() mutate-position-then-restore hack, which only
+            // ever handled TEXT_DRAW and did so by temporarily corrupting the live position.
+            const VEC3 positionA = ptrA->getPosition() + ptrA->getBoundingAABBCenterOffset();
+            const VEC3 positionB = ptrB->getPosition() + ptrB->getBoundingAABBCenterOffset();
+
             if(ptrA->is2dScreenObject())
             {
                 if(ptrB->is2dScreenObject())//2ds
@@ -201,16 +169,12 @@ namespace mbm
                     }
                     else
                     {
-                        goOn =  ptrA->getWidthHeight(&w1,&h1) && 
+                        goOn =  ptrA->getWidthHeight(&w1,&h1) &&
                                 ptrB->getWidthHeight(&w2,&h2);
                     }
                     if(goOn)
                     {
-                        doOffsetIfText(ptrA,w1,h1);
-                        doOffsetIfText(ptrB,w2,h2);
                         collide = device->checkBoundCollision(positionA, w1,h1,positionB,w2,h2);
-                        undoOffsetIfText(ptrA,w1,h1);
-                        undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
                 else if(ptrB->is3DObject() == false)//2dw
@@ -223,22 +187,18 @@ namespace mbm
                     }
                     else
                     {
-                       goOn =   ptrA->getWidthHeight(&w1,&h1) && 
-                                ptrB->getWidthHeight(&w2,&h2); 
+                       goOn =   ptrA->getWidthHeight(&w1,&h1) &&
+                                ptrB->getWidthHeight(&w2,&h2);
                     }
                     if(goOn)
                     {
                         VEC2 pos;
-                        doOffsetIfText(ptrA,w1,h1);
-                        doOffsetIfText(ptrB,w2,h2);
                         device->transformeWorld2dToScreen2d_scaled(positionB.x,positionB.y,pos);
                         const VEC3 p2(pos.x,pos.y,0.0f);
                         collide = device->checkBoundCollision(positionA,w1,h1,p2,w2,h2);
-                        undoOffsetIfText(ptrA,w1,h1);
-                        undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
-            
+
             }
             else if(ptrA->is3DObject() == false)//2dw
             {
@@ -252,16 +212,12 @@ namespace mbm
                     }
                     else
                     {
-                       goOn =   ptrA->getWidthHeight(&w1,&h1) && 
-                                ptrB->getWidthHeight(&w2,&h2); 
+                       goOn =   ptrA->getWidthHeight(&w1,&h1) &&
+                                ptrB->getWidthHeight(&w2,&h2);
                     }
                     if(goOn)
                     {
-                        doOffsetIfText(ptrA,w1,h1);
-                        doOffsetIfText(ptrB,w2,h2);
                         collide = device->checkBoundCollision(positionA,w1,h1,positionB,w2,h2);
-                        undoOffsetIfText(ptrA,w1,h1);
-                        undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
                 else if(ptrB->is2dScreenObject())
@@ -274,21 +230,17 @@ namespace mbm
                     }
                     else
                     {
-                       goOn =   ptrA->getWidthHeight(&w1,&h1) && 
-                                ptrB->getWidthHeight(&w2,&h2); 
+                       goOn =   ptrA->getWidthHeight(&w1,&h1) &&
+                                ptrB->getWidthHeight(&w2,&h2);
                     }
                     if(goOn)
                     {
                         VEC3 pos;
-                        doOffsetIfText(ptrA,w1,h1);
-                        doOffsetIfText(ptrB,w2,h2);
                         device->transformeScreen2dToWorld2d_scaled(positionB.x,positionB.y,pos);
                         collide = device->checkBoundCollision(positionA,w1,h1,pos,w2,h2);
-                        undoOffsetIfText(ptrA,w1,h1);
-                        undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
-                
+
             }
             else//3d
             {
@@ -303,16 +255,12 @@ namespace mbm
                     }
                     else
                     {
-                       goOn =   ptrA->getWidthHeight(&w1,&h1,&d1) && 
-                                ptrB->getWidthHeight(&w2,&h2,&d2); 
+                       goOn =   ptrA->getWidthHeight(&w1,&h1,&d1) &&
+                                ptrB->getWidthHeight(&w2,&h2,&d2);
                     }
                     if(goOn)
                     {
-                        doOffsetIfText(ptrA,w1,h1);
-                        doOffsetIfText(ptrB,w2,h2);
                         collide = device->checkBoundCollision(positionA,w1,h1,d1,positionB,w2,h2,d2);
-                        undoOffsetIfText(ptrA,w1,h1);
-                        undoOffsetIfText(ptrB,w2,h2);
                     }
                 }
             }
@@ -340,7 +288,9 @@ namespace mbm
 				ptrA->getAABB(&w,&h,&d);
 			else
 				ptrA->getWidthHeight(&w,&h,&d);
-            VEC3 &positionA = ptrA->getPosition();
+            // True AABB center, not just the pivot -- see the object-vs-object branch above for
+            // why (same MBM_VERSION 6.9.0 mechanism, same doOffsetIfText() hack it replaces).
+            const VEC3 positionA = ptrA->getPosition() + ptrA->getBoundingAABBCenterOffset();
 			if(ptrA->is2dScreenObject())
 			{
 				const VEC2 rect(w*0.5f,h*0.5f);
@@ -360,14 +310,12 @@ namespace mbm
 				// world Z=0 -- collide() could never register a hit on such an object, from any
 				// screen point -- and was inaccurate in general for a free-orbiting camera, where
 				// an object's Z has no fixed relationship to its actual camera distance.
-				doOffsetIfText(ptrA,w,h);
 				VEC3 rayOrigin(0.0f,0.0f,0.0f);
 				VEC3 rayDir(0.0f,0.0f,0.0f);
 				if (device->rayCast(x,y,&rayOrigin,&rayDir))
 				{
 					collide = device->rayIntersectsAABB(rayOrigin,rayDir,positionA,w,h,d);
 				}
-				undoOffsetIfText(ptrA,w,h);
 			}
 			lua_pushboolean(lua, collide ? 1 : 0);
 		}
@@ -442,6 +390,27 @@ namespace mbm
             lua_pushnumber(lua, h);
             return 2;
         }
+    }
+
+    // Returns the object's TRUE geometric AABB center in world space (position + the true
+    // center offset -- see MBM_VERSION 6.9.0) -- NOT just position, which getAABB() alone has
+    // always implicitly (and often wrongly) assumed to already be the center.
+    int onGetAABBCenterRenderizableLua(lua_State *lua)
+    {
+        const int top = lua_gettop(lua);
+        RENDERIZABLE *ptr = getRenderizableFromRawTable(lua, 1, 1);
+        if (top > 1 && lua_toboolean(lua, 2))
+            ptr->updateAABB();
+        const VEC3 &position = ptr->getPosition();
+        const VEC3 &offset = ptr->getBoundingAABBCenterOffset();
+        lua_pushnumber(lua, position.x + offset.x);
+        lua_pushnumber(lua, position.y + offset.y);
+        if (ptr->is3DObject())
+        {
+            lua_pushnumber(lua, position.z + offset.z);
+            return 3;
+        }
+        return 2;
     }
 
     int onSetPosRenderizableLua(lua_State *lua)
@@ -1077,6 +1046,7 @@ namespace mbm
                                                     // bounding box
                                                     {"getSize", onGetSizeRenderizableLua},
                                                     {"getAABB", onGetAABBRenderizableLua},
+                                                    {"getAABBCenter", onGetAABBCenterRenderizableLua},
                                                     {"isOver", onIsOverBoundingBoxRenderizable},
                                                     {"collide", onCheckCollisionBoundingBoxRenderizable},
                                                     // shader table common

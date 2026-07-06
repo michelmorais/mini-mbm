@@ -745,19 +745,19 @@ tUtil.setShapeToMesh = function(tObj)
         tObj.tShape = tShape
         tShape:setScale(w,h)
 
-        if tObj.type == 'font' then --little trick to put in the right place the line of font (text)
-            tObj.setPos_engine = tObj.setPos
-            tObj.setPos = function (self,x,y,z)
-                local w,h,d = self:getSize(true)
-                self.tShape:setPos((x  or self.x) + w * 0.5,(y or self.y) - h * 0.5, (z or self.z) - 1)
-                self:setPos_engine(x or self.x,y or self.y, z or self.z)
-            end
-        else
-            tObj.setPos_engine = tObj.setPos
-            tObj.setPos = function (self,x,y,z)
-                self.tShape:setPos(x or self.x,y or self.y, (z or self.z) - 1)
-                self:setPos_engine(x or self.x,y or self.y, z or self.z)
-            end
+        -- Single code path for every type, not one branch for font and one for everything else:
+        -- obj:getAABBCenter() (engine, MBM_VERSION 6.9.0) returns the object's TRUE AABB center in
+        -- world space -- the object's own position for anything pivoted at its visual center
+        -- (sprites/tiles/textures, the overwhelming default), and the correct alignment-corrected
+        -- point for font (whose origin is top-left, not centered). This replaces the old
+        -- hand-written `(x + w*0.5, y - h*0.5)` font-only correction with the same mechanism
+        -- `obj:collide()` now uses internally, instead of a second, independently-written copy of
+        -- the same formula.
+        tObj.setPos_engine = tObj.setPos
+        tObj.setPos = function (self,x,y,z)
+            self:setPos_engine(x or self.x, y or self.y, z or self.z)
+            local cx, cy = self:getAABBCenter(true)
+            self.tShape:setPos(cx, cy, (z or self.z) - 1)
         end
 
         tObj.setScale_engine = tObj.setScale
@@ -765,11 +765,8 @@ tUtil.setShapeToMesh = function(tObj)
             self:setScale_engine(sx or self.sx, sy or self.sy, sz or self.sz)
             local w,h,d = self:getSize(true)
             self.tShape:setScale(w,h,d or 1)
-            -- For font objects, the shape center must be repositioned after scale changes
-            -- because font origin is top-left: shape center = (x + w/2, y - h/2).
-            if self.type == 'font' then
-                self.tShape:setPos(self.x + w * 0.5, self.y - h * 0.5, self.z - 1)
-            end
+            local cx, cy = self:getAABBCenter(true)
+            self.tShape:setPos(cx, cy, self.z - 1)
         end
 
         tObj.setAngle_engine = tObj.setAngle

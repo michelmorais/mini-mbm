@@ -20,6 +20,7 @@
 #include <physics.h>
 #include <shapes.h>
 #include <cfloat>
+#include <algorithm>
 
 namespace mbm
 {
@@ -62,180 +63,115 @@ namespace mbm
         }
         lsTriangle.clear();
     }
+    // Was: derived size from `2 * max(|absCenter-halfDim|, |absCenter+halfDim|)` for CUBE/SPHERE --
+    // only correct when absCenter==(0,0,0). For any off-center shape (an intentionally offset
+    // hitbox, or the auto-generated single CUBE fillAtLeastOneBound() bakes for any mesh with no
+    // hand-authored physics, whose absCenter is the mesh's own true center and is almost never
+    // (0,0,0) for anything not pivoted at its own visual middle) this silently inflated the
+    // reported size -- for a mesh anchored at one edge (absCenter on that axis exactly equals
+    // halfDim on that axis), the formula returns exactly 2x the true dimension on that axis. Also
+    // did not union across shape kinds when a mesh had more than one (each `if(sN)` block
+    // overwrote the previous kind's *w/*h/*d rather than merging). Now derived from
+    // getBoundsMinMax(), the same true-min/max accumulation CUBE_COMPLEX/TRIANGLE already used
+    // correctly, applied uniformly and merged across every kind present. See MBM_VERSION 6.9.0.
     bool INFO_PHYSICS::getBounds(float *w, float *h) const
     {
-        *w                     = 0;
-        *h                     = 0;
-        bool               ret = false;
-        const size_t s1  = this->lsCube.size();
-        const size_t s2  = this->lsSphere.size();
-        const size_t s3  = this->lsCubeComplex.size();
-        const size_t s4  = this->lsTriangle.size();
-        if (s1)
+        *w = 0;
+        *h = 0;
+        VEC2 vmin, vmax;
+        if (!this->getBoundsMinMax(vmin, vmax))
+            return false;
+        *w = vmax.x - vmin.x;
+        *h = vmax.y - vmin.y;
+        return true;
+    }
+    bool INFO_PHYSICS::getBounds(float *w, float *h, float *d) const
+    {
+        *w = 0;
+        *h = 0;
+        *d = 0;
+        VEC3 vmin, vmax;
+        if (!this->getBoundsMinMax(vmin, vmax))
+            return false;
+        *w = vmax.x - vmin.x;
+        *h = vmax.y - vmin.y;
+        *d = vmax.z - vmin.z;
+        return true;
+    }
+
+    // True accumulated min/max across every shape kind present, properly unioned. getBounds()
+    // above derives its size from this directly; this function additionally exposes the min/max
+    // themselves, which is what lets a caller (RENDERIZABLE::updateAABB()) derive a true AABB
+    // CENTER, not just a size -- see MBM_VERSION 6.9.0. CUBE/SPHERE derive min/max directly from
+    // absCenter+-halfDim/ray (their own stored data is already the true bound); CUBE_COMPLEX/
+    // TRIANGLE reuse their own already-correct getBounds(vmax,vmin).
+    bool INFO_PHYSICS::getBoundsMinMax(VEC2 &vmin, VEC2 &vmax) const
+    {
+        vmin = VEC2(FLT_MAX, FLT_MAX);
+        vmax = VEC2(-FLT_MAX, -FLT_MAX);
+        bool ret = false;
+        for (const auto cube : this->lsCube)
         {
-            float w1 = 0, h1 = 0;
-            for(size_t i = 0; i < s1; ++i)
-            {
-                const CUBE* cube = this->lsCube[i];
-                const float x1 = std::abs(cube->absCenter.x - cube->halfDim.x);
-                const float x2 = std::abs(cube->absCenter.x + cube->halfDim.x);
-                const float y1 = std::abs(cube->absCenter.y - cube->halfDim.y);
-                const float y2 = std::abs(cube->absCenter.y + cube->halfDim.y);
-                if(x1 > w1)
-                    w1  =   x1;
-                if(x2 > w1)
-                    w1  =   x2;
-                if(y1 > h1)
-                    h1  =   y1;
-                if(y2 > h1)
-                    h1  =   y2;
-            }
-            *w = w1 * 2.0f;
-            *h = h1 * 2.0f;
+            vmin.x = std::min(vmin.x, cube->absCenter.x - cube->halfDim.x);
+            vmin.y = std::min(vmin.y, cube->absCenter.y - cube->halfDim.y);
+            vmax.x = std::max(vmax.x, cube->absCenter.x + cube->halfDim.x);
+            vmax.y = std::max(vmax.y, cube->absCenter.y + cube->halfDim.y);
             ret = true;
         }
-        if (s2)
+        for (const auto sphere : this->lsSphere)
         {
-            for(size_t i = 0; i < s2; ++i)
-            {
-                const mbm::SPHERE* sphere = this->lsSphere[i];
-                const float x1 = std::abs(sphere->absCenter[0] - sphere->ray);
-                const float x2 = std::abs(sphere->absCenter[0] + sphere->ray);
-                const float y1 = std::abs(sphere->absCenter[1] - sphere->ray);
-                const float y2 = std::abs(sphere->absCenter[1] + sphere->ray);
-                if(x1 > *w)
-                    *w = x1;
-                if(x2 > *w)
-                    *w = x2;
-                if(y1 > *h)
-                    *h = y1;
-                if(y2 > *h)
-                    *h = y2;
-            }
-            *w *= 2.0f;
-            *h *= 2.0f;
+            vmin.x = std::min(vmin.x, sphere->absCenter[0] - sphere->ray);
+            vmin.y = std::min(vmin.y, sphere->absCenter[1] - sphere->ray);
+            vmax.x = std::max(vmax.x, sphere->absCenter[0] + sphere->ray);
+            vmax.y = std::max(vmax.y, sphere->absCenter[1] + sphere->ray);
             ret = true;
         }
-        if (s3)
+        for (const auto complex : this->lsCubeComplex)
         {
-            VEC2 vmax(-FLT_MAX, -FLT_MAX);
-            VEC2 vmin(FLT_MAX, FLT_MAX);
-            for (size_t i = 0; i < s3; ++i)
-            {
-                const mbm::CUBE_COMPLEX *complex = this->lsCubeComplex[i];
-                complex->getBounds(vmax,vmin);
-            }
-            *w = vmax.x - vmin.x;
-            *h = vmax.y - vmin.y;
+            complex->getBounds(vmax, vmin);
             ret = true;
         }
-        if (s4)
+        for (const auto triangle : this->lsTriangle)
         {
-            VEC2 vmax(-FLT_MAX, -FLT_MAX);
-            VEC2 vmin(FLT_MAX, FLT_MAX);
-            for (size_t i = 0; i < s4; ++i)
-            {
-                const mbm::TRIANGLE *triangle = this->lsTriangle[i];
-                triangle->getBounds(vmax, vmin);
-            }
-            *w = vmax.x - vmin.x;
-            *h = vmax.y - vmin.y;
+            triangle->getBounds(vmax, vmin);
             ret = true;
         }
         return ret;
     }
-    bool INFO_PHYSICS::getBounds(float *w, float *h, float *d) const
+
+    bool INFO_PHYSICS::getBoundsMinMax(VEC3 &vmin, VEC3 &vmax) const
     {
-        *w                     = 0;
-        *h                     = 0;
-        *d                     = 0;
-        bool               ret = false;
-        const size_t s1  = this->lsCube.size();
-        const size_t s2  = this->lsSphere.size();
-        const size_t s3  = this->lsCubeComplex.size();
-        const size_t s4  = this->lsTriangle.size();
-        if (s1)
+        vmin = VEC3(FLT_MAX, FLT_MAX, FLT_MAX);
+        vmax = VEC3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+        bool ret = false;
+        for (const auto cube : this->lsCube)
         {
-            float w1 = 0,h1 = 0, d1 = 0;
-            for(size_t i = 0; i < s1; ++i)
-            {
-                const CUBE* cube = this->lsCube[i];
-                const float x1 = std::abs(cube->absCenter.x - cube->halfDim.x);
-                const float x2 = std::abs(cube->absCenter.x + cube->halfDim.x);
-                const float y1 = std::abs(cube->absCenter.y - cube->halfDim.y);
-                const float y2 = std::abs(cube->absCenter.y + cube->halfDim.y);
-                const float z1 = std::abs(cube->absCenter.z - cube->halfDim.z);
-                const float z2 = std::abs(cube->absCenter.z + cube->halfDim.z);
-                if(x1 > w1)
-                    w1  =   x1;
-                if(x2 > w1)
-                    w1  =   x2;
-                if(y1 > h1)
-                    h1  =   y1;
-                if(y2 > h1)
-                    h1  =   y2;
-                if(z1 > d1)
-                    d1  =   z1;
-                if(z2 > d1)
-                    d1  =   z2;
-            }
-            *w = w1 * 2.0f;
-            *h = h1 * 2.0f;
-            *d = d1 * 2.0f;
+            vmin.x = std::min(vmin.x, cube->absCenter.x - cube->halfDim.x);
+            vmin.y = std::min(vmin.y, cube->absCenter.y - cube->halfDim.y);
+            vmin.z = std::min(vmin.z, cube->absCenter.z - cube->halfDim.z);
+            vmax.x = std::max(vmax.x, cube->absCenter.x + cube->halfDim.x);
+            vmax.y = std::max(vmax.y, cube->absCenter.y + cube->halfDim.y);
+            vmax.z = std::max(vmax.z, cube->absCenter.z + cube->halfDim.z);
             ret = true;
         }
-        if (s2)
+        for (const auto sphere : this->lsSphere)
         {
-            for(size_t i = 0; i < s2; ++i)
-            {
-                const mbm::SPHERE* sphere = this->lsSphere[i];
-                const float x1 = std::abs(sphere->absCenter[0] - sphere->ray);
-                const float x2 = std::abs(sphere->absCenter[0] + sphere->ray);
-                const float y1 = std::abs(sphere->absCenter[1] - sphere->ray);
-                const float y2 = std::abs(sphere->absCenter[1] + sphere->ray);
-                const float z1 = std::abs(sphere->absCenter[2] - sphere->ray);
-                const float z2 = std::abs(sphere->absCenter[2] + sphere->ray);
-                if(x1 > *w)
-                    *w = x1;
-                if(x2 > *w)
-                    *w = x2;
-                if(y1 > *h)
-                    *h = y1;
-                if(y2 > *h)
-                    *h = y2;
-                if(z1 > *d)
-                    *d = z1;
-                if(z2 > *d)
-                    *d = z2;
-            }
+            vmin.x = std::min(vmin.x, sphere->absCenter[0] - sphere->ray);
+            vmin.y = std::min(vmin.y, sphere->absCenter[1] - sphere->ray);
+            vmin.z = std::min(vmin.z, sphere->absCenter[2] - sphere->ray);
+            vmax.x = std::max(vmax.x, sphere->absCenter[0] + sphere->ray);
+            vmax.y = std::max(vmax.y, sphere->absCenter[1] + sphere->ray);
+            vmax.z = std::max(vmax.z, sphere->absCenter[2] + sphere->ray);
             ret = true;
         }
-        if (s3)
+        for (const auto complex : this->lsCubeComplex)
         {
-            VEC3 vmax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-            VEC3 vmin(FLT_MAX, FLT_MAX, FLT_MAX);
-            for (size_t i = 0; i < s3; ++i)
-            {
-                const mbm::CUBE_COMPLEX *complex = this->lsCubeComplex[i];
-                complex->getBounds(vmax,vmin);
-            }
-            *w = vmax.x - vmin.x;
-            *h = vmax.y - vmin.y;
-            *d = vmax.z - vmin.z;
+            complex->getBounds(vmax, vmin);
             ret = true;
         }
-        if (s4)
+        for (const auto triangle : this->lsTriangle)
         {
-            VEC3 vmax(-FLT_MAX, -FLT_MAX,-FLT_MAX);
-            VEC3 vmin(FLT_MAX, FLT_MAX, FLT_MAX);
-            for (size_t i = 0; i < s4; ++i)
-            {
-                const mbm::TRIANGLE *triangle = this->lsTriangle[i];
-                triangle->getBounds(vmax,vmin);
-            }
-            *w = vmax.x - vmin.x;
-            *h = vmax.y - vmin.y;
-            *d = vmax.z - vmin.z;
+            triangle->getBounds(vmax, vmin);
             ret = true;
         }
         return ret;
