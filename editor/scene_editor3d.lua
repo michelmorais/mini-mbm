@@ -128,10 +128,10 @@ iSizeMeshOnSelector       = 90
 
 -- ---- Hover / selection state ----
 tHoveredPlaced = nil
-tHoverBoxLine  = nil
 
 -- ---- Multi-select rectangle drag (Layer tab, Shift+drag) ----
 keyShiftPressed    = false
+keyControlPressed  = false
 bRectSelecting     = false
 tRectSelection     = { xStart = 0, yStart = 0 }
 lnRectSelection    = nil
@@ -773,27 +773,55 @@ end
 -- Hover-highlight (Layer tab)
 ------------------------------------------------------------------------------------------------------------------
 
-function buildWireBoxLine(x, y, z, w, h, d)
-    local hw, hh, hd = (w or 10) * 0.5, (h or 10) * 0.5, (d or 10) * 0.5
-    local ln = line:new('3d', x, y, z)
-    ln:setColor(1, 1, 0, 1)
-    local corners = {
-        {-hw, -hh, -hd}, {hw, -hh, -hd}, {hw, -hh, hd}, {-hw, -hh, hd},
-        {-hw,  hh, -hd}, {hw,  hh, -hd}, {hw,  hh, hd}, {-hw,  hh, hd},
+-- 8 corners / 12 triangles (2 per face) of a UNIT axis-aligned box (half-extent 0.5 on every
+-- axis) -- same corner/winding convention as physic_editor.lua's makeBoxShape3d. Built at unit
+-- size once and resized per-object via setScale(w,h,d) every frame (cheap: a transform update,
+-- not a geometry rebuild) rather than rebuilding the mesh whenever an object's size changes.
+function highlightBoxCorners()
+    local h = 0.5
+    return {
+        {x=-h,y=-h,z= h}, {x=-h,y= h,z= h}, {x= h,y= h,z= h}, {x= h,y=-h,z= h},
+        {x=-h,y=-h,z=-h}, {x=-h,y= h,z=-h}, {x= h,y= h,z=-h}, {x= h,y=-h,z=-h},
     }
-    local edges = {
-        {1,2},{2,3},{3,4},{4,1},
-        {5,6},{6,7},{7,8},{8,5},
-        {1,5},{2,6},{3,7},{4,8},
+end
+
+function highlightBoxTriangleFaces(corners)
+    local a,b,c,d,e,f,g,h = corners[1],corners[2],corners[3],corners[4],corners[5],corners[6],corners[7],corners[8]
+    return {
+        {a,b,c},{a,c,d}, -- front
+        {h,g,f},{h,f,e}, -- back
+        {e,f,b},{e,b,a}, -- left
+        {d,c,g},{d,g,h}, -- right
+        {b,f,g},{b,g,c}, -- top
+        {e,a,d},{e,d,h}, -- bottom
     }
-    local pts = {}
-    for _, e in ipairs(edges) do
-        local a, b = corners[e[1]], corners[e[2]]
-        table.insert(pts, a[1]); table.insert(pts, a[2]); table.insert(pts, a[3])
-        table.insert(pts, b[1]); table.insert(pts, b[2]); table.insert(pts, b[3])
+end
+
+iHighlightShapeNickName = 1
+
+-- A solid, translucent box (not a wireframe) -- mirrors the tinted-overlay visual language
+-- tilemap_editor.lua and physic_editor.lua already use for hover/selection feedback, instead of
+-- the plain yellow wireframe this used to draw.
+function makeHighlightBoxShape()
+    local corners = highlightBoxCorners()
+    local faces = highlightBoxTriangleFaces(corners)
+    local verts = {}
+    for _, tri in ipairs(faces) do
+        for _, p in ipairs(tri) do
+            table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z)
+        end
     end
-    ln:add(pts)
-    return ln
+    iHighlightShapeNickName = iHighlightShapeNickName + 1
+    local shp = shape:new('3d', 0, 0, 0)
+    shp:create(verts, nil, string.format('scene3d_highlight_%d', iHighlightShapeNickName))
+    return shp
+end
+
+function destroyHighlightShape(tPlaced)
+    if tPlaced.tHighlightShape then
+        tPlaced.tHighlightShape:destroy()
+        tPlaced.tHighlightShape = nil
+    end
 end
 
 -- Literal Euclidean distance from the camera to a world point -- mbm.to3d(sx,sy,depth)'s `depth`
@@ -806,9 +834,13 @@ function distanceFromCamera(px, py, pz)
     return math.sqrt(dx * dx + dy * dy + dz * dz)
 end
 
+-- Only recomputes WHICH mesh the cursor is over (a real screen-space hit test, obj:collide) --
+-- the actual highlight visuals (color/blink/visibility) are updated separately, every frame
+-- regardless of whether the hover target changed, by updateSelectionHighlights() below (blinking
+-- needs a per-frame update even while hovering nothing new).
 function updateHoverHighlight(sx, sy)
     if sActiveTab ~= 'layer' then
-        if tHoverBoxLine then tHoverBoxLine.visible = false end
+        tHoveredPlaced = nil
         return
     end
     local bestIndex, bestDist = nil, math.huge
@@ -824,25 +856,41 @@ function updateHoverHighlight(sx, sy)
             end
         end
     end
-    if bestIndex ~= tHoveredPlaced then
-        if tHoverBoxLine then
-            tHoverBoxLine:destroy()
-            tHoverBoxLine = nil
+    tHoveredPlaced = bestIndex
+end
+
+-- Called every frame (Layer tab only) -- shows a translucent box over every placed mesh that's
+-- either hovered or selected: green while it belongs to the currently active layer, red
+-- otherwise (mirrors the active-layer concept the grid/placement already enforces), fixed alpha
+-- 0.4 while merely hovered, blinking between alpha 0.2 and 0.5 while selected (a plain per-frame
+-- sine wave -- no shader needed for this). Selected takes priority over hover when both apply.
+function updateSelectionHighlights()
+    if sActiveTab ~= 'layer' then
+        for _, tPlaced in ipairs(tPlacedMeshes) do
+            if tPlaced.tHighlightShape then tPlaced.tHighlightShape.visible = false end
         end
-        tHoveredPlaced = bestIndex
-        if tHoveredPlaced then
-            local tObj = tPlacedMeshes[tHoveredPlaced].tObj
-            local w, h, d = tObj:getAABB(true)
-            -- Centered on the mesh's true AABB center (obj:getAABBCenter(), MBM_VERSION 6.9.0),
-            -- not its pivot -- for a mesh anchored at its base (e.g. a floor-pivoted building),
-            -- a box drawn around the pivot would sit half underground instead of enclosing it.
-            local cx, cy, cz = tObj:getAABBCenter()
-            tHoverBoxLine = buildWireBoxLine(cx, cy, cz, w, h, d)
+        return
+    end
+    local blinkAlpha = 0.35 + 0.15 * math.sin(mbm.getTimeRun() * 4)
+    for i, tPlaced in ipairs(tPlacedMeshes) do
+        local isHovered = (i == tHoveredPlaced)
+        -- Skip a mesh whose own layer is currently hidden (or is otherwise not rendering) -- a
+        -- tinted box floating over nothing would be confusing, not helpful.
+        if (tPlaced.isSelected or isHovered) and tPlaced.tObj and tPlaced.tObj.visible then
+            if not tPlaced.tHighlightShape then
+                tPlaced.tHighlightShape = makeHighlightBoxShape()
+            end
+            local w, h, d = tPlaced.tObj:getAABB(true)
+            local cx, cy, cz = tPlaced.tObj:getAABBCenter()
+            tPlaced.tHighlightShape:setPos(cx, cy, cz)
+            tPlaced.tHighlightShape:setScale(w, h, d)
+            local belongsToActiveLayer = tPlaced.layerIndex == iSelectedLayer
+            local r, g = belongsToActiveLayer and 0 or 1, belongsToActiveLayer and 1 or 0
+            tPlaced.tHighlightShape:setColor(r, g, 0, tPlaced.isSelected and blinkAlpha or 0.4)
+            tPlaced.tHighlightShape.visible = true
+        elseif tPlaced.tHighlightShape then
+            tPlaced.tHighlightShape.visible = false
         end
-    elseif tHoveredPlaced then
-        local tObj = tPlacedMeshes[tHoveredPlaced].tObj
-        local cx, cy, cz = tObj:getAABBCenter()
-        tHoverBoxLine:setPos(cx, cy, cz)
     end
 end
 
@@ -925,10 +973,19 @@ function finalizeRectSelection(xStart, yStart, xEnd, yEnd)
     end
 end
 
--- A plain click (no Shift) always replaces the selection outright -- Shift is reserved for the
--- rectangle-drag gesture above, so there is no separate additive-click modifier to juggle here.
+-- A plain click replaces the selection outright with whatever's hovered (or clears it, over empty
+-- space). Ctrl+click instead toggles just the hovered mesh's own selection state, leaving every
+-- other selected mesh alone -- the "add one more to the selection" gesture, complementing
+-- Shift+drag's rectangle-select (which also replaces, over an area rather than a single mesh).
 function handleSelectClickAt()
     if sActiveTab ~= 'layer' then return end
+    if keyControlPressed then
+        if tHoveredPlaced then
+            local tPlaced = tPlacedMeshes[tHoveredPlaced]
+            tPlaced.isSelected = not tPlaced.isSelected
+        end
+        return
+    end
     for i, tPlaced in ipairs(tPlacedMeshes) do
         tPlaced.isSelected = (i == tHoveredPlaced)
     end
@@ -1008,13 +1065,26 @@ function resolvePlacedMeshWorldPos(tPlaced)
     end
 end
 
+-- Per-asset offset (Mesh property tab, keyed by fileName) has three independent parts, each
+-- ADDED/MULTIPLIED on top of whatever the placement/grid/rotate-tool logic already computed for
+-- this specific instance -- correcting a whole asset's authored pivot/rotation/scale in one place
+-- fixes every placed copy of it at once, same reasoning as the original position-only offset.
+function getMeshOffset(fileName)
+    local offset = tMeshOffsets[fileName]
+    return {
+        x = (offset and offset.x) or 0, y = (offset and offset.y) or 0, z = (offset and offset.z) or 0,
+        rx = (offset and offset.rx) or 0, ry = (offset and offset.ry) or 0, rz = (offset and offset.rz) or 0,
+        sx = (offset and offset.sx) or 1, sy = (offset and offset.sy) or 1, sz = (offset and offset.sz) or 1,
+    }
+end
+
 function syncPlacedMeshTransform(tPlaced)
     if not tPlaced.tObj then return end
     local x, y, z = resolvePlacedMeshWorldPos(tPlaced)
-    local offset = tMeshOffsets[tPlaced.fileName] or {x = 0, y = 0, z = 0}
+    local offset = getMeshOffset(tPlaced.fileName)
     tPlaced.tObj:setPos(x + offset.x, y + offset.y, z + offset.z)
-    tPlaced.tObj:setAngle(0, tPlaced.rotationY or 0, 0)
-    tPlaced.tObj:setScale(tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z)
+    tPlaced.tObj:setAngle(offset.rx, (tPlaced.rotationY or 0) + offset.ry, offset.rz)
+    tPlaced.tObj:setScale(tPlaced.scale.x * offset.sx, tPlaced.scale.y * offset.sy, tPlaced.scale.z * offset.sz)
 end
 
 -- Placed meshes are the scene being built (Map / Map edition) -- Mesh View is only ever supposed
@@ -1090,6 +1160,9 @@ function removePlacedMesh(index)
     local tPlaced = tPlacedMeshes[index]
     if tPlaced and tPlaced.tObj then
         tPlaced.tObj:destroy()
+    end
+    if tPlaced then
+        destroyHighlightShape(tPlaced)
     end
     table.remove(tPlacedMeshes, index)
 end
@@ -1345,14 +1418,15 @@ function updatePreviewMesh3d(entry)
         -- to always sit at the literal world origin regardless of the configured offset, which is
         -- why editing the offset looked like it did nothing here (it silently only ever affected
         -- newly-placed instances going forward, never anything already visible).
-        local offset = tMeshOffsets[entry.fileName] or {x = 0, y = 0, z = 0}
+        local offset = getMeshOffset(entry.fileName)
         tPreviewMesh3d:setPos(offset.x, offset.y, offset.z)
         -- Some mesh files embed a non-zero default angle (confirmed: e.g. Crate.msh loads at
-        -- roughly -32/4/0 degrees) -- normalize it here too, same reason as the placement path
-        -- (addPlacedMesh), so the preview matches how the asset will actually look once placed
-        -- (always at angle (0, rotationY, 0)), instead of showing it at whatever tilt the source
-        -- file happens to bake in.
-        tPreviewMesh3d:setAngle(0, 0, 0)
+        -- roughly -32/4/0 degrees) -- normalize the BASE angle to (0,0,0) here, same reason as the
+        -- placement path (addPlacedMesh), so the preview matches how the asset will actually look
+        -- once placed (always at angle (0, rotationY, 0)) before layering the rotation offset on
+        -- top of that, instead of showing it at whatever tilt the source file happens to bake in.
+        tPreviewMesh3d:setAngle(offset.rx, offset.ry, offset.rz)
+        tPreviewMesh3d:setScale(offset.sx, offset.sy, offset.sz)
         -- Deliberately does NOT touch cam3d (focus/distance) here -- selecting a different mesh in
         -- this tab must not re-frame/move the camera out from under a view the user already set up.
         -- Every previewed mesh is placed at the same (0,0,0), so the existing view stays valid.
@@ -1380,17 +1454,41 @@ function drawMeshSetTab(item_width)
         if entry then
             tImGui.Separator()
             tImGui.Text(tLang.L('mesh_offset_fmt'):format(tUtil.getShortName(entry.fileName)))
-            local offset = tMeshOffsets[entry.fileName] or {x = 0, y = 0, z = 0}
+            local offset = getMeshOffset(entry.fileName)
+
+            tImGui.Text(tLang.L('offset_position'))
             local o1, ox = tImGui.InputFloat(tLang.L('axis_x') .. '##offset_x', offset.x, 1, 10, '%.2f')
             local o2, oy = tImGui.InputFloat(tLang.L('axis_y') .. '##offset_y', offset.y, 1, 10, '%.2f')
             local o3, oz = tImGui.InputFloat(tLang.L('axis_z') .. '##offset_z', offset.z, 1, 10, '%.2f')
-            if o1 or o2 or o3 then
-                tMeshOffsets[entry.fileName] = {x = ox, y = oy, z = oz}
+
+            -- Stored/applied in radians (matching rotationY and every other angle in this editor)
+            -- but edited in degrees here -- degrees are what a human reasonably types by hand.
+            tImGui.Text(tLang.L('offset_rotation'))
+            local o4, orxDeg = tImGui.InputFloat(tLang.L('axis_x') .. '##offset_rx', math.deg(offset.rx), 1, 10, '%.2f')
+            local o5, oryDeg = tImGui.InputFloat(tLang.L('axis_y') .. '##offset_ry', math.deg(offset.ry), 1, 10, '%.2f')
+            local o6, orzDeg = tImGui.InputFloat(tLang.L('axis_z') .. '##offset_rz', math.deg(offset.rz), 1, 10, '%.2f')
+
+            -- A multiplier on top of whatever scale placement/snap-scale already computed, not a
+            -- replacement for it -- 1.0 (the default) means "no change".
+            tImGui.Text(tLang.L('offset_scale'))
+            local o7, osx = tImGui.InputFloat(tLang.L('axis_x') .. '##offset_sx', offset.sx, 0.1, 1, '%.2f')
+            local o8, osy = tImGui.InputFloat(tLang.L('axis_y') .. '##offset_sy', offset.sy, 0.1, 1, '%.2f')
+            local o9, osz = tImGui.InputFloat(tLang.L('axis_z') .. '##offset_sz', offset.sz, 0.1, 1, '%.2f')
+
+            if o1 or o2 or o3 or o4 or o5 or o6 or o7 or o8 or o9 then
+                tMeshOffsets[entry.fileName] = {
+                    x = ox, y = oy, z = oz,
+                    rx = math.rad(orxDeg), ry = math.rad(oryDeg), rz = math.rad(orzDeg),
+                    sx = math.max(osx, 0.001), sy = math.max(osy, 0.001), sz = math.max(osz, 0.001),
+                }
                 -- Reflect the change immediately, not just for future placements: the live
-                -- preview (positioned at this offset -- see updatePreviewMesh3d) and every
-                -- already-placed instance of this same asset, in every tab.
+                -- preview (positioned/rotated/scaled by this offset -- see updatePreviewMesh3d)
+                -- and every already-placed instance of this same asset, in every tab.
+                local newOffset = tMeshOffsets[entry.fileName]
                 if tPreviewMesh3d then
-                    tPreviewMesh3d:setPos(ox, oy, oz)
+                    tPreviewMesh3d:setPos(newOffset.x, newOffset.y, newOffset.z)
+                    tPreviewMesh3d:setAngle(newOffset.rx, newOffset.ry, newOffset.rz)
+                    tPreviewMesh3d:setScale(newOffset.sx, newOffset.sy, newOffset.sz)
                 end
                 for _, tPlaced in ipairs(tPlacedMeshes) do
                     if tPlaced.fileName == entry.fileName then
@@ -1462,7 +1560,9 @@ function drawLayerTab(item_width)
         local isOpen = tImGui.TreeNodeEx(layer.name .. '##layer_tree' .. i)
         if i == iSelectedLayer then
             tImGui.SameLine()
-            tImGui.TextDisabled(tLang.L('active'))
+            tImGui.PushStyleColor('ImGuiCol_Text', {r = 0, g = 1, b = 0, a = 1})
+            tImGui.Text(tLang.L('active'))
+            tImGui.PopStyleColor(1)
         end
         if isOpen then
             if tImGui.Button(tLang.L('select') .. '##select_layer' .. i) then
@@ -1517,7 +1617,13 @@ function drawLayerTab(item_width)
     tImGui.Separator()
     tImGui.Text(tLang.L('placed_meshes_fmt'):format(#tPlacedMeshes))
     for i, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.isSelected then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r = 0, g = 1, b = 0, a = 1})
+        end
         local rowOpen = tImGui.TreeNodeEx(tUtil.getShortName(tPlaced.fileName) .. '##placed_tree' .. i)
+        if tPlaced.isSelected then
+            tImGui.PopStyleColor(1)
+        end
         if rowOpen then
             local sel = tImGui.Checkbox(tLang.L('selected') .. '##placed_sel' .. i, tPlaced.isSelected)
             if sel ~= tPlaced.isSelected then tPlaced.isSelected = sel end
@@ -1899,12 +2005,15 @@ tScene3d.updateCamera = function(self)
 end
 
 tScene3d._addMesh = function(self, tInfo, onDone)
-    local offset = self.tMeshOffsets[tInfo.fileName] or {x=0,y=0,z=0}
+    local offset = self.tMeshOffsets[tInfo.fileName] or {}
+    local ox, oy, oz = offset.x or 0, offset.y or 0, offset.z or 0
+    local orx, ory, orz = offset.rx or 0, offset.ry or 0, offset.rz or 0
+    local osx, osy, osz = offset.sx or 1, offset.sy or 1, offset.sz or 1
     local function finish(tObj)
         if tObj then
-            tObj:setPos(tInfo.x + offset.x, tInfo.y + offset.y, tInfo.z + offset.z)
-            tObj:setAngle(0, tInfo.rotationY or 0, 0)
-            tObj:setScale(tInfo.sx or 1, tInfo.sy or 1, tInfo.sz or 1)
+            tObj:setPos(tInfo.x + ox, tInfo.y + oy, tInfo.z + oz)
+            tObj:setAngle(orx, (tInfo.rotationY or 0) + ory, orz)
+            tObj:setScale((tInfo.sx or 1) * osx, (tInfo.sy or 1) * osy, (tInfo.sz or 1) * osz)
             table.insert(self.tMeshesLoaded, tObj)
             self.tMeshesLoadedDictionary[tInfo.fileName] = self.tMeshesLoadedDictionary[tInfo.fileName] or {}
             table.insert(self.tMeshesLoadedDictionary[tInfo.fileName], tObj)
@@ -2204,6 +2313,9 @@ function onLoop(delta)
     if not tImGui.GetWantCaptureMouse() then
         updateHoverHighlight(mouseLastX, mouseLastY)
     end
+    -- Runs every frame regardless of mouse-capture state -- blinking on already-selected meshes
+    -- must keep animating even while the cursor is over the UI, not just while hovering the scene.
+    updateSelectionHighlights()
 
     showMeshTools()
     showLoadProgressModal()
@@ -2367,6 +2479,8 @@ end
 function onKeyDown(key)
     if key == mbm.getKeyCode('shift') then
         keyShiftPressed = true
+    elseif key == mbm.getKeyCode('control') or key == mbm.getKeyCode('windows') then
+        keyControlPressed = true
     elseif key == mbm.getKeyCode('F5') then
         onPlay3d()
     elseif key == mbm.getKeyCode('Delete') and sActiveTab == 'layer' then
@@ -2388,5 +2502,7 @@ function onKeyUp(key)
             bRectSelecting = false
             if lnRectSelection then lnRectSelection.visible = false end
         end
+    elseif key == mbm.getKeyCode('control') or key == mbm.getKeyCode('windows') then
+        keyControlPressed = false
     end
 end
