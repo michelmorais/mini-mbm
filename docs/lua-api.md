@@ -644,7 +644,7 @@ sh:onRender(callback)  -- callback(sh) called every frame for dynamic update
 ```lua
 local ln = line:new("2dw", x, y)
 ln:add({x1,y1, x2,y2, x3,y3})   -- add line strip vertices
-ln:set(idx, {x1,y1, x2,y2})     -- update a specific segment
+ln:set({x1,y1, x2,y2}, idx)     -- update a specific segment (table FIRST, then index -- confirmed against line-mesh-lua.cpp)
 ln:size()                         -- number of line segments
 ln:setColor(r, g, b, a?)         -- line color (0.0-1.0 each channel, not 0-255)
 ln:setPhysics(physicsTable)       -- attach a physics silhouette

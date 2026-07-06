@@ -62,6 +62,11 @@ tComboMapType3dCodes = {'Free', 'Orthogonal', 'Isometric'}
 tComboSnapScaleMode = {'none', 'full_fit', 'bigger_only'}
 tComboSnapScaleModeLabel = {'No scaling', 'Scale to full fit', 'Scale when bigger than grid'}
 
+-- A cell size of 0 (or negative) is a division-by-zero hazard in worldToGridCell, and a grid
+-- count of 0 (or negative) is meaningless -- both fields previously had no floor at all.
+MIN_GRID_CELL_SIZE = 1
+MIN_GRID_COUNT     = 1
+
 tMapOptions = {
     sMapType         = 'Orthogonal',
     fGridCellWidthX  = 100,
@@ -374,18 +379,44 @@ function computeSnapScale(tObj)
     return scale, scale, scale
 end
 
-function rebuildGridVisual()
-    for _, ln in ipairs(tGridLines) do
-        ln:destroy()
+-- Grid lines are a persistent pool, reused in place -- NOT destroyed and recreated every time
+-- position/size changes. obj:destroy() (renderizable.cpp) only unregisters an object from
+-- rendering; the actual C++/GPU resource release waits for Lua's GC to run its __gc metamethods,
+-- "potentially many frames later" (verbatim from that function's own comment). Rebuilding all
+-- ~42 lines from scratch on every width/depth/offset tweak was real, unbounded churn for what is
+-- genuinely just a position update -- ln:set(vertices, segmentIndex) repositions an *existing*
+-- line's geometry directly, so the pool only ever grows/shrinks by the exact delta when the
+-- number of lines actually needed changes (grid count), never for a plain reposition.
+function ensureGridLinePoolSize(n)
+    while #tGridLines < n do
+        local ln = line:new('3d', 0, 0, 0)
+        ln:add({0, 0, 0, 0, 0, 0}) -- placeholder segment 1, so ln:set(..., 1) always has something to update
+        table.insert(tGridLines, ln)
     end
-    tGridLines = {}
+    while #tGridLines > n do
+        tGridLines[#tGridLines]:destroy()
+        tGridLines[#tGridLines] = nil
+    end
+end
+
+function rebuildGridVisual()
     if tMapOptions.sMapType == 'Free' or iSelectedLayer == 0 then
+        ensureGridLinePoolSize(0)
         return
     end
     local layer = tLayers[iSelectedLayer]
-    if not layer then return end
-    local halfLinesX = math.max(1, math.floor(tMapOptions.iGridCountX * 0.5))
-    local halfLinesZ = math.max(1, math.floor(tMapOptions.iGridCountZ * 0.5))
+    if not layer then
+        ensureGridLinePoolSize(0)
+        return
+    end
+    -- N cells need exactly N+1 boundary lines. The previous "halfLines = floor(count/2), draw
+    -- -halfLines..halfLines" scheme could only ever produce an ODD number of lines, so it was
+    -- structurally incapable of representing an odd cell count -- and floor(1*0.5)=0 clamped up
+    -- to the same 1 as floor(2*0.5)=1, so count=1 and count=2 rendered identically. This scheme
+    -- draws exactly nCellsX+1 / nCellsZ+1 lines, centered on the layer origin, so every count >= 1
+    -- is distinct and matches its label (count=1 -> exactly one cell/segment shown).
+    local nCellsX = math.max(1, tMapOptions.iGridCountX)
+    local nCellsZ = math.max(1, tMapOptions.iGridCountZ)
     local w, d = tMapOptions.fGridCellWidthX, tMapOptions.fGridCellDepthZ
     local rot = getMapRotationRad()
     local cosr, sinr = math.cos(rot), math.sin(rot)
@@ -394,23 +425,31 @@ function rebuildGridVisual()
         return x * cosr - z * sinr, x * sinr + z * cosr
     end
 
-    for i = -halfLinesX, halfLinesX do
-        local x = i * w
-        local ln = line:new('3d', layer.offset.x, layer.fY, layer.offset.z)
-        local x1, z1 = rotXZ(x, -halfLinesZ * d)
-        local x2, z2 = rotXZ(x,  halfLinesZ * d)
-        ln:add({x1, 0, z1, x2, 0, z2})
+    local halfExtentX = nCellsX * 0.5 * w
+    local halfExtentZ = nCellsZ * 0.5 * d
+
+    ensureGridLinePoolSize((nCellsX + 1) + (nCellsZ + 1))
+
+    local idx = 1
+    for i = 0, nCellsX do
+        local x = (i - nCellsX * 0.5) * w
+        local x1, z1 = rotXZ(x, -halfExtentZ)
+        local x2, z2 = rotXZ(x,  halfExtentZ)
+        local ln = tGridLines[idx]
+        ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
+        ln:set({x1, 0, z1, x2, 0, z2}, 1)
         ln:setColor(0.35, 0.35, 0.35, 0.63)
-        table.insert(tGridLines, ln)
+        idx = idx + 1
     end
-    for i = -halfLinesZ, halfLinesZ do
-        local z = i * d
-        local ln = line:new('3d', layer.offset.x, layer.fY, layer.offset.z)
-        local x1, z1 = rotXZ(-halfLinesX * w, z)
-        local x2, z2 = rotXZ( halfLinesX * w, z)
-        ln:add({x1, 0, z1, x2, 0, z2})
+    for i = 0, nCellsZ do
+        local z = (i - nCellsZ * 0.5) * d
+        local x1, z1 = rotXZ(-halfExtentX, z)
+        local x2, z2 = rotXZ( halfExtentX, z)
+        local ln = tGridLines[idx]
+        ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
+        ln:set({x1, 0, z1, x2, 0, z2}, 1)
         ln:setColor(0.35, 0.35, 0.35, 0.63)
-        table.insert(tGridLines, ln)
+        idx = idx + 1
     end
 end
 
@@ -553,6 +592,10 @@ function processThumbnailQueue()
         return
     end
     markMeshLoaded(entry.fileName)
+    -- Same normalization as the preview/placement paths -- a baked default angle (e.g. Crate.msh's
+    -- ~-32/4/0) would otherwise bake a tilted thumbnail that doesn't match how the asset actually
+    -- looks once placed.
+    tObj:setAngle(0, 0, 0)
     tThumbGenRt:add(tObj)
     local w, h, d = tObj:getAABB(true)
     local fitDist = math.max(w or 50, h or 50, d or 50) * 2.2
@@ -922,10 +965,18 @@ function drawMapTab(item_width)
     end
 
     if tMapOptions.sMapType ~= 'Free' then
+        -- Cell size of 0 (or negative) is not just meaningless, it's a division-by-zero hazard in
+        -- worldToGridCell -- and there was previously no floor at all on these two fields.
+        --
+        -- rebuildGridVisual() now repositions its existing line pool in place (ln:set(...)) instead
+        -- of destroying and recreating every line on every call, so updating live on every changed
+        -- frame here -- even while holding a +/- spinner's auto-repeat -- is cheap and safe: no
+        -- destroy/create churn for a plain reposition, and grid-count changes only grow/shrink the
+        -- pool by the actual delta, not a full rebuild. See rebuildGridVisual's own comment.
         local c1, w = tImGui.InputFloat(tLang.L('grid_width_x') .. '##GridWidthX', tMapOptions.fGridCellWidthX, 1, 10, '%.2f')
         local c2, d = tImGui.InputFloat(tLang.L('grid_depth_z') .. '##GridDepthZ', tMapOptions.fGridCellDepthZ, 1, 10, '%.2f')
-        if c1 then tMapOptions.fGridCellWidthX = w end
-        if c2 then tMapOptions.fGridCellDepthZ = d end
+        if c1 then tMapOptions.fGridCellWidthX = math.max(MIN_GRID_CELL_SIZE, w) end
+        if c2 then tMapOptions.fGridCellDepthZ = math.max(MIN_GRID_CELL_SIZE, d) end
         if c1 or c2 then
             rebuildGridVisual()
             -- Placed meshes are stored by cell index (cellX/cellZ), not world position -- their
@@ -938,8 +989,8 @@ function drawMapTab(item_width)
         -- at 10 half-lines (21x21) regardless of any setting.
         local c3, cx = tImGui.InputInt(tLang.L('grid_count_x') .. '##GridCountX', tMapOptions.iGridCountX, 1, 10)
         local c4, cz = tImGui.InputInt(tLang.L('grid_count_z') .. '##GridCountZ', tMapOptions.iGridCountZ, 1, 10)
-        if c3 then tMapOptions.iGridCountX = math.max(1, cx) end
-        if c4 then tMapOptions.iGridCountZ = math.max(1, cz) end
+        if c3 then tMapOptions.iGridCountX = math.max(MIN_GRID_COUNT, cx) end
+        if c4 then tMapOptions.iGridCountZ = math.max(MIN_GRID_COUNT, cz) end
         if c3 or c4 then rebuildGridVisual() end
 
         local retSnap, curSnap = tImGui.Combo(tLang.L('snap_scale_mode') .. '##SnapScaleMode', tComboSnapScaleModeIndexOf(tMapOptions.sSnapScaleMode), tComboSnapScaleModeLabel)
@@ -1019,6 +1070,12 @@ function updatePreviewMesh3d(entry)
     if tPreviewMesh3d then
         markMeshLoaded(entry.fileName)
         tPreviewMesh3d:setPos(0, 0, 0)
+        -- Some mesh files embed a non-zero default angle (confirmed: e.g. Crate.msh loads at
+        -- roughly -32/4/0 degrees) -- normalize it here too, same reason as the placement path
+        -- (addPlacedMesh), so the preview matches how the asset will actually look once placed
+        -- (always at angle (0, rotationY, 0)), instead of showing it at whatever tilt the source
+        -- file happens to bake in.
+        tPreviewMesh3d:setAngle(0, 0, 0)
         -- Deliberately does NOT touch cam3d (focus/distance) here -- selecting a different mesh in
         -- this tab must not re-frame/move the camera out from under a view the user already set up.
         -- Every previewed mesh is placed at the same (0,0,0), so the existing view stays valid.
@@ -1253,12 +1310,17 @@ function fillActiveLayerWithMesh(fileName)
         if e.fileName == fileName then entry = e; break end
     end
     if not entry then return end
-    -- Fill exactly the visible/configured grid extent (see tMapOptions.iGridCountX/Z), matching
-    -- rebuildGridVisual's own half-extent -- rather than an arbitrary fixed range.
-    local iRangeX = math.max(1, math.floor(tMapOptions.iGridCountX * 0.5))
-    local iRangeZ = math.max(1, math.floor(tMapOptions.iGridCountZ * 0.5))
-    for cx = -iRangeX, iRangeX do
-        for cz = -iRangeZ, iRangeZ do
+    -- Fill exactly nCellsX * nCellsZ cells (tMapOptions.iGridCountX/Z), matching
+    -- rebuildGridVisual's extent -- cell index cx snaps to world cx*cellWidth (see
+    -- worldToGridCell), so a centered run of nCells indices is [-floor(nCells/2), that+nCells-1].
+    local function cellRange(nCells)
+        local cMin = -math.floor(nCells * 0.5)
+        return cMin, cMin + nCells - 1
+    end
+    local cxMin, cxMax = cellRange(math.max(1, tMapOptions.iGridCountX))
+    local czMin, czMax = cellRange(math.max(1, tMapOptions.iGridCountZ))
+    for cx = cxMin, cxMax do
+        for cz = czMin, czMax do
             addPlacedMesh(fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
         end
     end
