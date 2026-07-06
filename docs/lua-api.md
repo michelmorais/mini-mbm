@@ -81,7 +81,9 @@ Every render object constructor takes a coordinate-system string as its first ar
 ```lua
 wx, wy       = mbm.to2dw(sx, sy)        -- screen pixels → 2D world coords
 sx, sy       = mbm.to2ds(wx, wy)        -- 2D world coords → screen pixels
-wx, wy, wz   = mbm.to3d(sx, sy, depth)  -- screen pixels → 3D world coords
+wx, wy, wz   = mbm.to3d(sx, sy, depth)  -- screen pixels → 3D world coords at given depth
+ox,oy,oz,
+dx,dy,dz     = mbm.getPickRay(sx, sy)   -- screen pixels → 3D pick ray (origin + unit direction)
 ```
 
 **`mbm.to3d`'s `depth` is a literal distance traveled from the camera along the ray through
@@ -92,20 +94,23 @@ same `depth=0`, identical result) and in source: `DEVICE::transformeScreen2dToWo
 (`device-common.cpp`) takes this parameter as `howFarZFromCamera` and computes
 `out = rayOrigin + rayDir * howFarZFromCamera`, where `rayOrigin`/`rayDir` come from
 `DEVICE::rayCast(sx, sy, ...)` — a real screen-ray reconstruction, camera-relative by
-construction. To reconstruct a full ray from Lua (e.g. to intersect a known plane), sample at
-two different `depth` values and use their difference as the direction — see
-`screenToWorldOnLayerPlane` in `editor/scene_editor3d.lua` for a worked example. Passing a
-world coordinate (e.g. an object's Z) as `depth`, assuming it approximates "how far away it
-is from the camera," only works when the camera happens to look straight down that axis; for
-a free-orbiting camera it can be wildly wrong (see §6.4's `obj:collide` note, which has the
-same bug at the C++ level).
+construction. Note `rayCast`'s own internal `rayDir` is **not** normalized (its magnitude grows
+for pixels away from screen center, an artifact of how it falls out of the projection-matrix
+math) — `mbm.to3d`'s `howFarZFromCamera` is therefore a scaling factor along a variable-length
+vector, not a literal real-world distance except exactly at screen center. `mbm.getPickRay`
+(below) normalizes this before returning it, specifically so it doesn't carry this gotcha into
+new code. To reconstruct a full ray from `mbm.to3d` alone (e.g. to intersect a known plane),
+sample at two different `depth` values and use their difference as the direction — see
+`screenToWorldOnLayerPlane` in `editor/scene_editor3d.lua` for a worked example (still valid:
+the *direction* it derives is correct even though neither sample point is a literal-distance
+position on its own).
 
-**There is no ray-cast-based 3D picking exposed to Lua.** `DEVICE::rayCast` (C++,
-`device-common.cpp`) does produce a proper camera-relative ray (origin + direction), and backs
-`mbm.to3d` internally, but it is not itself bound as a Lua function, and there is no
-`obj:rayIntersect`/`mbm.pickRay`-style API. The only screen-space hit-testing available from
-Lua is `obj:collide(x, y)` (§6.4) — an approximate unprojection-at-a-guessed-depth, not a true
-ray-vs-geometry test.
+**`mbm.getPickRay(sx, sy)` returns a proper 3D pick ray for the given screen pixel: `ox,oy,oz`**
+(the ray origin — always the camera's own current world position, for any pixel) **and
+`dx,dy,dz`** (a normalized/unit direction). Wraps the engine's internal `DEVICE::rayCast`
+(`device-common.cpp`), previously used only internally to back `mbm.to3d`. Use this instead of
+guessing a `depth` for `mbm.to3d` when you actually need real ray-vs-object math (e.g. testing
+against a known bounding box) — `obj:collide(x, y)` (§6.4) now does exactly this internally.
 
 ---
 
@@ -201,7 +206,8 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 |---|---|---|---|
 | `mbm.to2dw` | `(sx, sy)` | wx, wy | Screen px → 2D world coords |
 | `mbm.to2ds` | `(wx, wy)` | sx, sy | 2D world coords → screen px |
-| `mbm.to3d` | `(sx, sy, depth)` | wx, wy, wz | Screen px → 3D world coords at given depth |
+| `mbm.to3d` | `(sx, sy, depth)` | wx, wy, wz | Screen px → 3D world coords at given camera-relative depth (see §2's note) |
+| `mbm.getPickRay` | `(sx, sy)` | ox,oy,oz, dx,dy,dz | Screen px → 3D pick ray: origin (camera position) + normalized direction (see §2) |
 
 ### 3.8 Textures
 
@@ -476,20 +482,26 @@ obj.alwaysRender = true   -- render even when off-screen / outside frustum
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `obj:collide` | `(other)` or `(x, y)` | bool | AABB collision vs another object, or vs screen point |
+| `obj:collide` | `(other, useAABB?: bool)` or `(x, y, useAABB?: bool)` | bool | AABB collision vs another object, or vs screen point. `useAABB` defaults to `true` (use `getAABB`); pass `false` to compare raw `getWidthHeight` dimensions instead. |
 | `obj:isOver` | `(x, y)` | bool | Is screen point (x, y) inside the object's bounding rect |
 
-**`obj:collide(x, y)` on a 3D object degenerates for anything sitting near world Z=0.**
-Confirmed in `common-methods-lua.cpp` (`onCheckCollisionBoundingBoxRenderizable`): the 3D
-branch unprojects the screen point using the object's own **raw world Z coordinate** as the
-`depth` passed to the same primitive `mbm.to3d` uses (see §2's note on what `depth` actually
-means — camera-relative distance, not a world coordinate). For an object at Z≈0, that's
-`depth≈0`, which unprojects to the camera's own position for *every* screen pixel — so the
-test can never register a hit, no matter where you click. This isn't a hypothetical: it
-reproduces for any object at the coordinate-space origin, e.g. anything left at its default
-placement position. It's a pre-existing engine-level approximation (not something fixable from
-Lua) — if you hit it, keep placed/tested objects off `Z=0` as a workaround, or test with a
-small offset. There is no ray-cast-based alternative currently exposed to Lua (see §2).
+**The `(x, y, useAABB)` 3-argument form was silently broken until MBM_VERSION 6.8.0** —
+`onCheckCollisionBoundingBoxRenderizable` (`common-methods-lua.cpp`) only entered that code path
+when Lua's argument count was exactly 3 (`self, x, y`), so passing a 4th `useAABB` argument
+(`self, x, y, useAABB` — 4 args) missed that branch entirely and fell through to a generic
+`luaL_error`, even though the code inside was clearly written to read a 4th argument. Fixed by
+accepting both 3 and 4 argument counts here; if you need this form, upgrade past 6.8.0.
+
+**`obj:collide(x, y)` on a 3D object does a real ray/AABB test** (`common-methods-lua.cpp`,
+`onCheckCollisionBoundingBoxRenderizable`, since MBM_VERSION 6.8.0): it casts a proper
+screen-space pick ray (`DEVICE::rayCast`) and intersects it against the object's world AABB
+(`DEVICE::rayIntersectsAABB`, slab method). Before 6.8.0 this instead unprojected the screen
+point using the object's own **raw world Z coordinate** as the `depth` passed to the same
+primitive `mbm.to3d` uses (see §2) — which degenerated to the camera's own position, for *every*
+screen pixel, for any object sitting near world Z=0 (e.g. anything left at its default placement
+position), so the test could never register a hit no matter where you clicked. That's fixed now;
+no workaround needed. See §2 for `mbm.getPickRay` if you need the same ray/AABB math directly
+from Lua (e.g. against a box that isn't a renderizable's own AABB).
 
 ### 6.5 Physics
 

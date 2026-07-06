@@ -993,6 +993,34 @@ namespace mbm
         return 3;
     }
 
+    // Exposes DEVICE::rayCast (already used internally to back mbm.to3d) as a proper screen-space
+    // pick ray: origin (the camera's own world position) + a NORMALIZED direction. The internal
+    // rayCast's direction is not unit-length (its magnitude grows for pixels away from screen
+    // center -- an artifact of how it's derived from the projection matrix), which is fine for
+    // mbm.to3d's own use (its `depth` parameter is just a free scaling factor, not a claimed
+    // real-world distance) but would be a confusing, non-obvious footgun for any new caller
+    // expecting `origin + dir * realDistance` to land a known distance away. Normalizing here
+    // makes that arithmetic actually correct for callers of this new function.
+    int onGetPickRay(lua_State *lua)
+    {
+        const float  sx     = luaL_checknumber(lua, 1);
+        const float  sy     = luaL_checknumber(lua, 2);
+        DEVICE      *device = DEVICE::getInstance();
+        VEC3         rayOrigin(0.0f, 0.0f, 0.0f);
+        VEC3         rayDir(0.0f, 0.0f, 0.0f);
+        if (!device->rayCast(sx, sy, &rayOrigin, &rayDir))
+            return lua_error_debug(lua, "\nmbm.getPickRay failed to compute the view matrix inverse");
+        VEC3 rayDirNormalized(0.0f, 0.0f, 0.0f);
+        vec3Normalize(&rayDirNormalized, &rayDir);
+        lua_pushnumber(lua, rayOrigin.x);
+        lua_pushnumber(lua, rayOrigin.y);
+        lua_pushnumber(lua, rayOrigin.z);
+        lua_pushnumber(lua, rayDirNormalized.x);
+        lua_pushnumber(lua, rayDirNormalized.y);
+        lua_pushnumber(lua, rayDirNormalized.z);
+        return 6;
+    }
+
     int onGetTotalObjectsRender(lua_State *lua)
     {
         DEVICE *device = DEVICE::getInstance();
@@ -3143,6 +3171,7 @@ namespace mbm
             {"to2dw", ontransform2dS2dWMbm},
             {"to2ds", ontransform2dW2dSMbm},
             {"to3d", ontransform2dsto3dmbm},
+            {"getPickRay", onGetPickRay},
             {"getObjectsRendered", onGetTotalObjectsRender},
             {"addOnTouch", addOnTouchMeshLua},
             {"setGlobal", onSetGlobal},

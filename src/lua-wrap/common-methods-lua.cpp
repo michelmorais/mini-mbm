@@ -318,8 +318,13 @@ namespace mbm
             }
             lua_pushboolean(lua, collide ? 1 : 0);
         }
-		else if (top == 3)
+		else if (top == 3 || top == 4)
 		{
+			// Was `top == 3` only, which made the `top > 3` useAABB check below unreachable dead
+			// code: obj:collide(x, y, useAABB) (4 args total: self+x+y+useAABB) never matched this
+			// branch at all, since top==4 -- it fell through to the final `else` and errored with
+			// "Expected: [renderizable],[renderizable] or [x,y]" instead of accepting the optional
+			// 4th argument the code below was clearly written to support.
 			RENDERIZABLE *ptrA  = getRenderizableFromRawTable(lua, 1, 1);
 			const float x		= luaL_checknumber(lua,2);
 			const float y		= luaL_checknumber(lua,3);
@@ -348,10 +353,20 @@ namespace mbm
 			}
 			else//3d
 			{
-				VEC3 pOther(x,y,0);
-				device->transformeScreen2dToWorld3d_scaled(x,y,&pOther,std::abs(positionA.z));
+				// A real screen-space ray/AABB test (rayCast + rayIntersectsAABB), not an
+				// unprojection at a *guessed* depth. The previous approach passed the object's own
+				// world Z as that guessed depth (assuming it approximates distance from the
+				// camera), which degenerates to the camera's own position for any object near
+				// world Z=0 -- collide() could never register a hit on such an object, from any
+				// screen point -- and was inaccurate in general for a free-orbiting camera, where
+				// an object's Z has no fixed relationship to its actual camera distance.
 				doOffsetIfText(ptrA,w,h);
-				collide = device->checkBoundCollision(positionA,w,h,d,pOther,1,1,1);
+				VEC3 rayOrigin(0.0f,0.0f,0.0f);
+				VEC3 rayDir(0.0f,0.0f,0.0f);
+				if (device->rayCast(x,y,&rayOrigin,&rayDir))
+				{
+					collide = device->rayIntersectsAABB(rayOrigin,rayDir,positionA,w,h,d);
+				}
 				undoOffsetIfText(ptrA,w,h);
 			}
 			lua_pushboolean(lua, collide ? 1 : 0);
