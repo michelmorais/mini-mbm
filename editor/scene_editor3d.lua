@@ -368,6 +368,26 @@ function createMeshWithLightingSupport(createFn)
     return tObj
 end
 
+-- Point lights are usually meant to sit somewhere around the scene being built, so drag range
+-- should scale with it rather than being some arbitrary fixed constant -- reuses the exact same
+-- extent the grid itself is drawn/bordered to (getGridWorldExtent), offset by the active layer's
+-- own position, so a bigger grid naturally gets a bigger draggable range. There's no equivalent
+-- "grid extent" on Y (the grid is a flat plane) -- reuses the X/Z span, biased upward, since a
+-- light more often sits above the scene than below it.
+function getPointLightDragRange()
+    local xLow, xHigh, zLow, zHigh = getGridWorldExtent()
+    local layer = tLayers[iSelectedLayer]
+    local offX, offZ, offY = 0, 0, 0
+    if layer then
+        offX, offZ, offY = layer.offset.x, layer.offset.z, layer.fY
+    end
+    local minX, maxX = offX + xLow, offX + xHigh
+    local minZ, maxZ = offZ + zLow, offZ + zHigh
+    local span = math.max(maxX - minX, maxZ - minZ, 1)
+    local minY, maxY = offY - span * 0.25, offY + span * 1.5
+    return minX, maxX, minY, maxY, minZ, maxZ
+end
+
 function drawLightPanel()
     tImGui.Text(tLang.L('light_panel'))
     local enabled = tImGui.Checkbox('##light_enabled', tLightConfig.bEnabled)
@@ -410,15 +430,14 @@ function drawLightPanel()
         table.insert(tLightConfig.pointLights, {x = 0, y = 200, z = 0, radius = 400, r = 1, g = 1, b = 1, a = 1})
         applyLightConfigToEngine()
     end
+    local minX, maxX, minY, maxY, minZ, maxZ = getPointLightDragRange()
     for i, pl in ipairs(tLightConfig.pointLights) do
         tImGui.PushItemWidth(120)
-        local p1, px = tImGui.InputFloat(tLang.L('axis_x') .. '##pl_x' .. i, pl.x, 1, 10, '%.2f')
-        
-        local p2, py = tImGui.InputFloat(tLang.L('axis_y') .. '##pl_y' .. i, pl.y, 1, 10, '%.2f')
-        
-        local p3, pz = tImGui.InputFloat(tLang.L('axis_z') .. '##pl_z' .. i, pl.z, 1, 10, '%.2f')
+        local p1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##pl_x' .. i, pl.x, 1, minX, maxX, '%.2f')
+        local p2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##pl_y' .. i, pl.y, 1, minY, maxY, '%.2f')
+        local p3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##pl_z' .. i, pl.z, 1, minZ, maxZ, '%.2f')
         tImGui.PopItemWidth()
-        local p4, pr = tImGui.InputFloat(tLang.L('light_radius') .. '##pl_r' .. i, pl.radius, 1, 10, '%.2f')
+        local p4, pr = tImGui.DragFloat(tLang.L('light_radius') .. '##pl_r' .. i, pl.radius, 1, 1, math.max(maxX - minX, maxZ - minZ), '%.2f')
         local changedColor, plColor = tImGui.ColorEdit4('##pl_color' .. i, {r = pl.r, g = pl.g, b = pl.b, a = pl.a})
         if p1 or p2 or p3 or p4 or changedColor then
             pl.x, pl.y, pl.z, pl.radius = px, py, pz, pr
