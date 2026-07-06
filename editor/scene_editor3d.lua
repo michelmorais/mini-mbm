@@ -74,6 +74,7 @@ tMapOptions = {
     iGridCountX      = 20,
     iGridCountZ      = 20,
     sSnapScaleMode   = 'none',
+    bShowGrid        = true,
 }
 
 -- ---- Layers ----
@@ -128,6 +129,13 @@ iSizeMeshOnSelector       = 90
 -- ---- Hover / selection state ----
 tHoveredPlaced = nil
 tHoverBoxLine  = nil
+
+-- ---- Multi-select rectangle drag (Layer tab, Shift+drag) ----
+keyShiftPressed    = false
+bRectSelecting     = false
+tRectSelection     = { xStart = 0, yStart = 0 }
+lnRectSelection    = nil
+tToolsMeshSize     = { x = 0, y = 0 }
 
 -- ---- Origin lines ----
 tOriginLine3dX, tOriginLine3dY, tOriginLine3dZ = nil, nil, nil
@@ -341,24 +349,60 @@ function gridCellRange(nCells)
     return cMin, cMin + nCells - 1
 end
 
+-- The grid's local-space (pre-rotation, pre-layer-offset) extent, in the SAME lattice
+-- gridCellRange/gridCellToWorld/worldToGridCell all share -- used both for the Orthogonal/
+-- Isometric integer-cell bounds check and the Free-mode continuous world-position bounds check
+-- below, so the two never disagree about where the grid's edge actually is.
+function getGridWorldExtent()
+    local nCellsX = math.max(1, tMapOptions.iGridCountX)
+    local nCellsZ = math.max(1, tMapOptions.iGridCountZ)
+    local w, d = tMapOptions.fGridCellWidthX, tMapOptions.fGridCellDepthZ
+    local cxMin = gridCellRange(nCellsX)
+    local czMin = gridCellRange(nCellsZ)
+    return cxMin * w, (cxMin + nCellsX) * w, czMin * d, (czMin + nCellsZ) * d
+end
+
 -- Grid modes only place/keep meshes within the currently configured extent -- the grid is meant
 -- to represent the bounds of the scene being built, so anything outside it is not a valid
--- placement (Free mode has no bounds and is always allowed).
+-- placement.
 function isCellWithinGridBounds(cx, cz)
-    if tMapOptions.sMapType == 'Free' then return true end
     local cxMin, cxMax = gridCellRange(math.max(1, tMapOptions.iGridCountX))
     local czMin, czMax = gridCellRange(math.max(1, tMapOptions.iGridCountZ))
     return cx >= cxMin and cx <= cxMax and cz >= czMin and cz <= czMax
 end
 
+-- Free mode has no snapping, but the grid still represents the bounds of the scene -- a world
+-- position is valid as long as it falls within the same extent the grid lines are drawn at
+-- (allowing for the layer's own offset and the map's rotation, exactly like worldToGridCell's
+-- inverse-rotation step).
+function isWorldPosWithinGridBounds(wx, wz, layer)
+    local lx = wx - layer.offset.x
+    local lz = wz - layer.offset.z
+    local rot = -getMapRotationRad()
+    local cosr, sinr = math.cos(rot), math.sin(rot)
+    local localX = lx * cosr - lz * sinr
+    local localZ = lx * sinr + lz * cosr
+    local xLow, xHigh, zLow, zHigh = getGridWorldExtent()
+    return localX >= xLow and localX <= xHigh and localZ >= zLow and localZ <= zHigh
+end
+
 -- Called whenever the grid extent shrinks (count reduced) -- meshes that fall outside the new
 -- bounds no longer belong to the scene the grid represents, so they're removed rather than left
--- floating past the visible edge.
+-- floating past the visible edge. Applies to Free-mode meshes too now that Free mode is bordered
+-- by the same grid (only the snapping is skipped for Free, not the bounds).
 function removePlacedMeshesOutsideGrid()
-    if tMapOptions.sMapType == 'Free' then return end
     for i = #tPlacedMeshes, 1, -1 do
         local tPlaced = tPlacedMeshes[i]
-        if not isCellWithinGridBounds(tPlaced.cellX, tPlaced.cellZ) then
+        local layer = tLayers[tPlaced.layerIndex]
+        local within
+        if not layer then
+            within = true -- no layer to test against -- leave orphaned entries alone here
+        elseif tMapOptions.sMapType == 'Free' then
+            within = isWorldPosWithinGridBounds(tPlaced.freeX, tPlaced.freeZ, layer)
+        else
+            within = isCellWithinGridBounds(tPlaced.cellX, tPlaced.cellZ)
+        end
+        if not within then
             removePlacedMesh(i)
         end
     end
@@ -436,7 +480,10 @@ function ensureGridLinePoolSize(n)
 end
 
 function rebuildGridVisual()
-    if tMapOptions.sMapType == 'Free' or iSelectedLayer == 0 then
+    -- Free mode still shows the grid (it just skips snapping when placing) -- the grid also
+    -- borders Free-mode placement now, so hiding it there would leave that border invisible.
+    -- Only the explicit "Show Grid" checkbox and having an active layer hide it.
+    if not tMapOptions.bShowGrid or iSelectedLayer == 0 then
         ensureGridLinePoolSize(0)
         return
     end
@@ -745,6 +792,16 @@ function buildWireBoxLine(x, y, z, w, h, d)
     return ln
 end
 
+-- Literal Euclidean distance from the camera to a world point -- mbm.to3d(sx,sy,depth)'s `depth`
+-- is exactly this (confirmed empirically: depth=0 returns the camera's own position, independent
+-- of sx,sy), so this is the value that must feed any unprojection meant to land near a specific
+-- known world point (see isPointInScreenRectAtObjectDepth below).
+function distanceFromCamera(px, py, pz)
+    local camPos = camera3d:getPos()
+    local dx, dy, dz = px - camPos.x, py - camPos.y, pz - camPos.z
+    return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+
 function updateHoverHighlight(sx, sy)
     if sActiveTab ~= 'layer' then
         if tHoverBoxLine then tHoverBoxLine.visible = false end
@@ -778,6 +835,150 @@ function updateHoverHighlight(sx, sy)
         local tObj = tPlacedMeshes[tHoveredPlaced].tObj
         tHoverBoxLine:setPos(tObj.x, tObj.y, tObj.z)
     end
+end
+
+------------------------------------------------------------------------------------------------------------------
+-- Multi-select (Layer tab): click-to-select, Shift+drag rectangle-select, rotate/delete tools
+------------------------------------------------------------------------------------------------------------------
+
+-- A screen-space rectangle does not map to an axis-aligned rectangle in world space once the
+-- camera can orbit/tilt (unlike tilemap_editor.lua's fixed top-down 2D camera, where screen and
+-- world rects coincide) -- it maps to a general quadrilateral. Unprojecting onto a fixed world
+-- Y-plane (screenToWorldOnLayerPlane's own trick) is unreliable here: as a screen ray approaches
+-- parallel-to-the-plane (looking toward the horizon, which the top of the viewport can easily be
+-- for a modestly-elevated orbit camera), the ray/plane intersection point swings wildly, which
+-- empirically produced badly-skewed quads for perfectly ordinary selection rectangles (confirmed
+-- by hand-checking the actual unprojected corners against a real orbit camera pose).
+--
+-- Unprojecting each rectangle corner at the object's true camera-distance (distanceFromCamera)
+-- keeps every corner on the same "shell" the object sits on, which stays well-defined for any
+-- camera pose (no near-parallel-to-plane singularity like the Y-plane approach above suffers
+-- from). Testing X/Y containment on that shell (rather than X/Z) mirrors obj:collide's own
+-- simplification of disregarding the matching depth axis, which is fine since it's fixed equal by
+-- construction. Note this is only reliable for a rectangle with reasonable screen-space extent --
+-- a single-point version of this same trick was tried for hover/click hit-testing and rejected: at
+-- the tight margins of one object's own footprint, small unprojection error (a few percent of the
+-- camera distance) is enough to miss, so hover-pick keeps using the native, pre-existing
+-- obj:collide(x,y) instead (see updateHoverHighlight).
+function isPointInScreenRectAtObjectDepth(px, py, pz, xStart, yStart, xEnd, yEnd)
+    local depth = distanceFromCamera(px, py, pz)
+    local screenCorners = {
+        {xStart, yStart}, {xEnd, yStart}, {xEnd, yEnd}, {xStart, yEnd},
+    }
+    local poly = {}
+    for _, sc in ipairs(screenCorners) do
+        local wx, wy, wz = mbm.to3d(sc[1], sc[2], depth)
+        table.insert(poly, {wx, wy})
+    end
+    local function cross(o, a, b)
+        return (a[1] - o[1]) * (b[2] - o[2]) - (a[2] - o[2]) * (b[1] - o[1])
+    end
+    local sign = nil
+    for i = 1, 4 do
+        local a, b = poly[i], poly[(i % 4) + 1]
+        local c = cross(a, b, {px, py})
+        if math.abs(c) > 1e-6 then
+            local isPositive = c > 0
+            if sign == nil then
+                sign = isPositive
+            elseif sign ~= isPositive then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+function updateRectSelectionLine(xStart, yStart, xEnd, yEnd)
+    local pts = {
+        xStart, yStart, xEnd, yStart,
+        xEnd, yEnd, xStart, yEnd,
+        xStart, yStart,
+    }
+    lnRectSelection:set(pts, 1)
+end
+
+-- Called once on mouse-up (matches tilemap_editor.lua: the drag only draws a preview, selection
+-- itself is finalized a single time on release, not recomputed every dragged frame).
+function finalizeRectSelection(xStart, yStart, xEnd, yEnd)
+    if sActiveTab ~= 'layer' then return end
+    if math.abs(xEnd - xStart) < 2 and math.abs(yEnd - yStart) < 2 then
+        -- Degenerate (near-zero-area) drag -- a Shift+click with no real drag. A zero-area
+        -- rectangle has no well-defined "inside" for the quad test above (every point would
+        -- trivially satisfy it), so fall back to whatever's directly under the cursor, same as a
+        -- plain click.
+        for i, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = (i == tHoveredPlaced) end
+        return
+    end
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        tPlaced.isSelected = tPlaced.tObj ~= nil and isPointInScreenRectAtObjectDepth(
+            tPlaced.tObj.x, tPlaced.tObj.y, tPlaced.tObj.z, xStart, yStart, xEnd, yEnd)
+    end
+end
+
+-- A plain click (no Shift) always replaces the selection outright -- Shift is reserved for the
+-- rectangle-drag gesture above, so there is no separate additive-click modifier to juggle here.
+function handleSelectClickAt()
+    if sActiveTab ~= 'layer' then return end
+    for i, tPlaced in ipairs(tPlacedMeshes) do
+        tPlaced.isSelected = (i == tHoveredPlaced)
+    end
+end
+
+function unselectAllPlacedMeshes()
+    for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = false end
+end
+
+-- Both Orthogonal's snap step and Isometric's (just phase-shifted by 45 degrees, see
+-- snapRotation) are 90 degrees apart, so a single +-90 degree step is exactly one grid rotation
+-- and never drifts off the active mode's lattice; used for Free mode too as the "quick" tool-
+-- window rotate step (a precise arbitrary angle is out of scope for this button).
+function rotateSelectedMeshes(sign)
+    local step = math.pi * 0.5
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.isSelected then
+            tPlaced.rotationY = (tPlaced.rotationY or 0) + sign * step
+            syncPlacedMeshTransform(tPlaced)
+        end
+    end
+end
+
+-- Bottom-right floating tool window, mirrors tilemap_editor.lua's showTileTools -- appears only
+-- while at least one placed mesh is selected, offering the same Rotate Right / Rotate Left /
+-- Delete actions (no Flip -- that's a 2D sprite-image operation with no 3D equivalent) against
+-- every currently-selected mesh at once.
+function showMeshTools()
+    if sActiveTab ~= 'layer' then return end
+    local iSelectedCount = 0
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.isSelected then iSelectedCount = iSelectedCount + 1 end
+    end
+    if iSelectedCount == 0 then return end
+
+    local item_width = 150
+    local flags = {'ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing', 'ImGuiWindowFlags_NoNav'}
+    tImGui.SetNextWindowBgAlpha(0.75)
+    local iW, iH = mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x = iW - tToolsMeshSize.x, y = iH - tToolsMeshSize.y}, 0, {x = 0, y = 0})
+    tImGui.Begin('##ToolsMeshLayer', false, tImGui.Flags(flags))
+    if iSelectedCount > 1 then
+        tImGui.Text(string.format('Total Selected (%d)', iSelectedCount))
+    else
+        tImGui.Text(tLang.L('total_selected_1'))
+    end
+    if tImGui.Button(tLang.L('rotate_right'), tUtil.getResponsiveItemSize(item_width)) then
+        rotateSelectedMeshes(1)
+    end
+    if tImGui.Button(tLang.L('rotate_left'), tUtil.getResponsiveItemSize(item_width)) then
+        rotateSelectedMeshes(-1)
+    end
+    if tImGui.Button(tLang.L('delete_btn'), tUtil.getResponsiveItemSize(item_width)) then
+        for i = #tPlacedMeshes, 1, -1 do
+            if tPlacedMeshes[i].isSelected then removePlacedMesh(i) end
+        end
+    end
+    tToolsMeshSize = tImGui.GetWindowSize()
+    tImGui.End()
 end
 
 ------------------------------------------------------------------------------------------------------------------
@@ -1009,40 +1210,52 @@ function drawMapTab(item_width)
         resyncAllPlacedMeshes()
     end
 
+    local showGrid = tImGui.Checkbox(tLang.L('show_grid') .. '##ShowGrid', tMapOptions.bShowGrid)
+    if showGrid ~= tMapOptions.bShowGrid then
+        tMapOptions.bShowGrid = showGrid
+        rebuildGridVisual()
+    end
+
+    -- Cell size of 0 (or negative) is not just meaningless, it's a division-by-zero hazard in
+    -- worldToGridCell -- and there was previously no floor at all on these two fields.
+    --
+    -- rebuildGridVisual() now repositions its existing line pool in place (ln:set(...)) instead
+    -- of destroying and recreating every line on every call, so updating live on every changed
+    -- frame here -- even while holding a +/- spinner's auto-repeat -- is cheap and safe: no
+    -- destroy/create churn for a plain reposition, and grid-count changes only grow/shrink the
+    -- pool by the actual delta, not a full rebuild. See rebuildGridVisual's own comment.
+    --
+    -- These fields are shown/editable in ALL three map types now, not just Orthogonal/Isometric --
+    -- Free mode still has no snapping, but it's now bordered by this same grid (see
+    -- isWorldPosWithinGridBounds), so its extent must stay adjustable there too.
+    local c1, w = tImGui.InputFloat(tLang.L('grid_width_x') .. '##GridWidthX', tMapOptions.fGridCellWidthX, 1, 10, '%.2f')
+    local c2, d = tImGui.InputFloat(tLang.L('grid_depth_z') .. '##GridDepthZ', tMapOptions.fGridCellDepthZ, 1, 10, '%.2f')
+    if c1 then tMapOptions.fGridCellWidthX = math.max(MIN_GRID_CELL_SIZE, w) end
+    if c2 then tMapOptions.fGridCellDepthZ = math.max(MIN_GRID_CELL_SIZE, d) end
+    if c1 or c2 then
+        rebuildGridVisual()
+        -- Placed meshes are stored by cell index (cellX/cellZ), not world position -- their
+        -- world position (and, under a snap-scale mode, their scale) is derived from the cell
+        -- size, so it must be recomputed here too, not just the grid's visual lines.
+        resyncAllPlacedMeshes()
+    end
+
+    -- How many cells wide/deep the visible grid (and "fill layer") span -- previously fixed
+    -- at 10 half-lines (21x21) regardless of any setting.
+    local c3, cx = tImGui.InputInt(tLang.L('grid_count_x') .. '##GridCountX', tMapOptions.iGridCountX, 1, 10)
+    local c4, cz = tImGui.InputInt(tLang.L('grid_count_z') .. '##GridCountZ', tMapOptions.iGridCountZ, 1, 10)
+    if c3 then tMapOptions.iGridCountX = math.max(MIN_GRID_COUNT, cx) end
+    if c4 then tMapOptions.iGridCountZ = math.max(MIN_GRID_COUNT, cz) end
+    if c3 or c4 then
+        rebuildGridVisual()
+        -- Shrinking the grid can leave previously-placed meshes past the new edge -- the grid
+        -- is the bounds of the scene, so anything now outside it is removed, not left floating.
+        removePlacedMeshesOutsideGrid()
+    end
+
     if tMapOptions.sMapType ~= 'Free' then
-        -- Cell size of 0 (or negative) is not just meaningless, it's a division-by-zero hazard in
-        -- worldToGridCell -- and there was previously no floor at all on these two fields.
-        --
-        -- rebuildGridVisual() now repositions its existing line pool in place (ln:set(...)) instead
-        -- of destroying and recreating every line on every call, so updating live on every changed
-        -- frame here -- even while holding a +/- spinner's auto-repeat -- is cheap and safe: no
-        -- destroy/create churn for a plain reposition, and grid-count changes only grow/shrink the
-        -- pool by the actual delta, not a full rebuild. See rebuildGridVisual's own comment.
-        local c1, w = tImGui.InputFloat(tLang.L('grid_width_x') .. '##GridWidthX', tMapOptions.fGridCellWidthX, 1, 10, '%.2f')
-        local c2, d = tImGui.InputFloat(tLang.L('grid_depth_z') .. '##GridDepthZ', tMapOptions.fGridCellDepthZ, 1, 10, '%.2f')
-        if c1 then tMapOptions.fGridCellWidthX = math.max(MIN_GRID_CELL_SIZE, w) end
-        if c2 then tMapOptions.fGridCellDepthZ = math.max(MIN_GRID_CELL_SIZE, d) end
-        if c1 or c2 then
-            rebuildGridVisual()
-            -- Placed meshes are stored by cell index (cellX/cellZ), not world position -- their
-            -- world position (and, under a snap-scale mode, their scale) is derived from the cell
-            -- size, so it must be recomputed here too, not just the grid's visual lines.
-            resyncAllPlacedMeshes()
-        end
-
-        -- How many cells wide/deep the visible grid (and "fill layer") span -- previously fixed
-        -- at 10 half-lines (21x21) regardless of any setting.
-        local c3, cx = tImGui.InputInt(tLang.L('grid_count_x') .. '##GridCountX', tMapOptions.iGridCountX, 1, 10)
-        local c4, cz = tImGui.InputInt(tLang.L('grid_count_z') .. '##GridCountZ', tMapOptions.iGridCountZ, 1, 10)
-        if c3 then tMapOptions.iGridCountX = math.max(MIN_GRID_COUNT, cx) end
-        if c4 then tMapOptions.iGridCountZ = math.max(MIN_GRID_COUNT, cz) end
-        if c3 or c4 then
-            rebuildGridVisual()
-            -- Shrinking the grid can leave previously-placed meshes past the new edge -- the grid
-            -- is the bounds of the scene, so anything now outside it is removed, not left floating.
-            removePlacedMeshesOutsideGrid()
-        end
-
+        -- Snapping/scaling to the grid is meaningless in Free mode (no snapping applies there at
+        -- all), so this combo stays exclusive to the two grid-snapped modes.
         local retSnap, curSnap = tImGui.Combo(tLang.L('snap_scale_mode') .. '##SnapScaleMode', tComboSnapScaleModeIndexOf(tMapOptions.sSnapScaleMode), tComboSnapScaleModeLabel)
         if retSnap then
             tMapOptions.sSnapScaleMode = tComboSnapScaleMode[curSnap]
@@ -1119,7 +1332,12 @@ function updatePreviewMesh3d(entry)
     end)
     if tPreviewMesh3d then
         markMeshLoaded(entry.fileName)
-        tPreviewMesh3d:setPos(0, 0, 0)
+        -- Reflect this asset's per-asset offset (Mesh property tab) in the preview too -- it used
+        -- to always sit at the literal world origin regardless of the configured offset, which is
+        -- why editing the offset looked like it did nothing here (it silently only ever affected
+        -- newly-placed instances going forward, never anything already visible).
+        local offset = tMeshOffsets[entry.fileName] or {x = 0, y = 0, z = 0}
+        tPreviewMesh3d:setPos(offset.x, offset.y, offset.z)
         -- Some mesh files embed a non-zero default angle (confirmed: e.g. Crate.msh loads at
         -- roughly -32/4/0 degrees) -- normalize it here too, same reason as the placement path
         -- (addPlacedMesh), so the preview matches how the asset will actually look once placed
@@ -1159,6 +1377,17 @@ function drawMeshSetTab(item_width)
             local o3, oz = tImGui.InputFloat(tLang.L('axis_z') .. '##offset_z', offset.z, 1, 10, '%.2f')
             if o1 or o2 or o3 then
                 tMeshOffsets[entry.fileName] = {x = ox, y = oy, z = oz}
+                -- Reflect the change immediately, not just for future placements: the live
+                -- preview (positioned at this offset -- see updatePreviewMesh3d) and every
+                -- already-placed instance of this same asset, in every tab.
+                if tPreviewMesh3d then
+                    tPreviewMesh3d:setPos(ox, oy, oz)
+                end
+                for _, tPlaced in ipairs(tPlacedMeshes) do
+                    if tPlaced.fileName == entry.fileName then
+                        syncPlacedMeshTransform(tPlaced)
+                    end
+                end
             end
         end
     end
@@ -1367,6 +1596,8 @@ function fillActiveLayerWithMesh(fileName)
     local czMin, czMax = gridCellRange(math.max(1, tMapOptions.iGridCountZ))
     for cx = cxMin, cxMax do
         for cz = czMin, czMax do
+            local existingIndex = findPlacedMeshAtCell(iSelectedLayer, cx, cz)
+            if existingIndex then removePlacedMesh(existingIndex) end
             addPlacedMesh(fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
         end
     end
@@ -1384,33 +1615,6 @@ function menuPopUpOptionToAddMesh()
             end
             tImGui.EndPopup()
         end
-    end
-end
-
-function menuPopUpRotateMesh(tPlaced)
-    if tImGui.BeginPopupContextItem('##rotate_menu_' .. tostring(tPlaced)) then
-        if tMapOptions.sMapType == 'Orthogonal' then
-            for _, deg in ipairs({0, 90, 180, 270}) do
-                if tImGui.Selectable(string.format(tLang.L('rotate_to_fmt'), deg)) then
-                    tPlaced.rotationY = math.rad(deg)
-                    syncPlacedMeshTransform(tPlaced)
-                end
-            end
-        elseif tMapOptions.sMapType == 'Isometric' then
-            for _, deg in ipairs({45, 135, 225, 315}) do
-                if tImGui.Selectable(string.format(tLang.L('rotate_to_fmt'), deg)) then
-                    tPlaced.rotationY = math.rad(deg)
-                    syncPlacedMeshTransform(tPlaced)
-                end
-            end
-        else
-            local result, fDeg = tImGui.SliderFloat(tLang.L('rotation'), math.deg(tPlaced.rotationY or 0), 0, 360, '%.1f')
-            if result then
-                tPlaced.rotationY = math.rad(fDeg)
-                syncPlacedMeshTransform(tPlaced)
-            end
-        end
-        tImGui.EndPopup()
     end
 end
 
@@ -1946,6 +2150,11 @@ function onInitScene()
     tOriginLine3dZ:add({0, 0, -999999, 0, 0, 999999})
     tOriginLine3dZ:setColor(0, 0, 1, 1)
 
+    lnRectSelection = line:new('2ds')
+    lnRectSelection:add({0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    lnRectSelection:setColor(0, 1, 1, 1)
+    lnRectSelection.visible = false
+
     mbm.setLightEnabled('3d', false)
     addLayer()
     rebuildGridVisual() -- Orthogonal is now the default map type, so the grid must exist from the
@@ -1987,6 +2196,7 @@ function onLoop(delta)
         updateHoverHighlight(mouseLastX, mouseLastY)
     end
 
+    showMeshTools()
     showLoadProgressModal()
     tUtil.showOverlayMessage()
 end
@@ -2000,6 +2210,19 @@ iDragThresholdPx    = 3
 fMouseDownX, fMouseDownY = 0, 0
 bCameraDraggedThisPress  = false
 
+-- Finds an existing placed mesh occupying the same grid cell on the given layer -- Orthogonal/
+-- Isometric placement replaces whatever is already there (matching tilemap_editor.lua's brick
+-- placement: painting over an occupied tile overwrites it, it never stacks duplicates). Free mode
+-- has no cell concept, so duplicates/overlaps there are the user's own call, same as before.
+function findPlacedMeshAtCell(layerIndex, cx, cz)
+    for i, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.layerIndex == layerIndex and tPlaced.cellX == cx and tPlaced.cellZ == cz then
+            return i
+        end
+    end
+    return nil
+end
+
 function tryPlaceMeshAt(x, y)
     if sActiveTab ~= 'layer' or not sMeshSelectedForPlacement then return end
     local entry = nil
@@ -2011,6 +2234,9 @@ function tryPlaceMeshAt(x, y)
     local wx, wy, wz = screenToWorldOnLayerPlane(x, y, layer.fY)
     if not wx then return end
     if tMapOptions.sMapType == 'Free' then
+        -- The grid still borders Free mode (no snapping, but bounded) -- reject a click past the
+        -- grid's edge the same way grid modes do.
+        if not isWorldPosWithinGridBounds(wx, wz, layer) then return end
         addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, 0, 0, wx, wz, true)
     else
         local cx, cz = worldToGridCell(wx, wz, layer)
@@ -2018,6 +2244,8 @@ function tryPlaceMeshAt(x, y)
         -- not a valid placement, so it's silently rejected rather than placing a mesh the grid
         -- itself doesn't visually contain.
         if not isCellWithinGridBounds(cx, cz) then return end
+        local existingIndex = findPlacedMeshAtCell(iSelectedLayer, cx, cz)
+        if existingIndex then removePlacedMesh(existingIndex) end
         addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
     end
 end
@@ -2031,11 +2259,24 @@ function onTouchDown(key, x, y)
     if key == 0 then
         fMouseDownX, fMouseDownY = x, y
         bCameraDraggedThisPress  = false
+        -- Shift+drag starts a selection rectangle instead of orbiting -- Shift is the explicit
+        -- signal that this press means "select", so the camera must not move underneath it.
+        if keyShiftPressed and sActiveTab == 'layer' then
+            bRectSelecting = true
+            tRectSelection.xStart, tRectSelection.yStart = x, y
+            updateRectSelectionLine(x, y, x, y)
+            lnRectSelection.visible = true
+        end
     end
 end
 
 function onTouchMove(key, x, y)
     if tImGui.GetWantCaptureMouse() then
+        mouseLastX, mouseLastY = x, y
+        return
+    end
+    if bRectSelecting then
+        updateRectSelectionLine(tRectSelection.xStart, tRectSelection.yStart, x, y)
         mouseLastX, mouseLastY = x, y
         return
     end
@@ -2067,9 +2308,19 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
-    if key == 0 and isClickedMouseleft and not bCameraDraggedThisPress and not tImGui.GetWantCaptureMouse() then
-        tryPlaceMeshAt(x, y)
+    if key == 0 and not tImGui.GetWantCaptureMouse() then
+        if bRectSelecting then
+            finalizeRectSelection(tRectSelection.xStart, tRectSelection.yStart, x, y)
+            lnRectSelection.visible = false
+        elseif isClickedMouseleft and not bCameraDraggedThisPress then
+            if sMeshSelectedForPlacement then
+                tryPlaceMeshAt(x, y)
+            else
+                handleSelectClickAt()
+            end
+        end
     end
+    bRectSelecting      = false
     isClickedMouseleft  = false
     isClickedMouseRight = false
 end
@@ -2105,14 +2356,28 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
-    if key == mbm.getKeyCode('F5') then
+    if key == mbm.getKeyCode('shift') then
+        keyShiftPressed = true
+    elseif key == mbm.getKeyCode('F5') then
         onPlay3d()
     elseif key == mbm.getKeyCode('Delete') and sActiveTab == 'layer' then
         for i = #tPlacedMeshes, 1, -1 do
             if tPlacedMeshes[i].isSelected then removePlacedMesh(i) end
         end
+    elseif key == mbm.getKeyCode('esc') and sActiveTab == 'layer' then
+        unselectAllPlacedMeshes()
     end
 end
 
 function onKeyUp(key)
+    if key == mbm.getKeyCode('shift') then
+        keyShiftPressed = false
+        -- Releasing Shift mid-drag should not leave a stuck selection rectangle or camera-orbit
+        -- state behind -- onTouchUp is the normal finalize path, but a key-up can arrive first
+        -- (e.g. releasing Shift before the mouse button).
+        if bRectSelecting then
+            bRectSelecting = false
+            if lnRectSelection then lnRectSelection.visible = false end
+        end
+    end
 end
