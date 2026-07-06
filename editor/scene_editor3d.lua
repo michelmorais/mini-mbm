@@ -155,6 +155,12 @@ tLightConfig = {
     pointLights       = {},
 }
 
+-- Editor-only, NOT serialized into the saved/exported scene (tLightConfig.directionalDir is the
+-- one persisted, engine-facing value -- this is just a friendlier way to edit it, derived from it
+-- on load and re-derived into it on every change). Same azimuth/elevation shape as cam3d, so the
+-- existing orbit trackball widget (tUtil.drawOrbitGizmo) works on it unmodified.
+tLightOrbit = { azimuth = 0, elevation = 0 }
+
 -- ---- Run/menu options ----
 tResolution = {
     {x = 800 , y = 600  , comment = 'XVGA'},
@@ -206,6 +212,148 @@ function applyLightConfigToEngine()
     end
 end
 
+-- tLightOrbit uses the exact same azimuth/elevation convention as cam3d/drawOrbitGizmo: the unit
+-- vector these angles describe points FROM the scene TOWARD the light source ("where is the sun"
+-- -- intuitive to drag, same gesture as orbiting the camera). mbm.setDirectionalLight's direction
+-- is the direction light TRAVELS (source -> scene), the opposite of that -- hence the negation.
+function computeDirectionalDirFromOrbit()
+    local caz, saz = math.cos(tLightOrbit.azimuth), math.sin(tLightOrbit.azimuth)
+    local cel, sel = math.cos(tLightOrbit.elevation), math.sin(tLightOrbit.elevation)
+    local towardLightX, towardLightY, towardLightZ = cel * saz, sel, cel * caz
+    tLightConfig.directionalDir = { x = -towardLightX, y = -towardLightY, z = -towardLightZ }
+end
+
+-- Inverse of the above -- derives azimuth/elevation from whatever directionalDir currently is
+-- (the persisted/exported value), so tLightOrbit starts in sync on init and after loading a
+-- scene, instead of snapping to some arbitrary default the first time the trackball is touched.
+function computeOrbitFromDirectionalDir()
+    local dir = tLightConfig.directionalDir
+    local towardX, towardY, towardZ = -dir.x, -dir.y, -dir.z
+    local len = math.sqrt(towardX * towardX + towardY * towardY + towardZ * towardZ)
+    if len < 1e-6 then
+        towardX, towardY, towardZ, len = 0, 1, 0, 1 -- degenerate (zero vector) -- default to straight down
+    end
+    towardX, towardY, towardZ = towardX / len, towardY / len, towardZ / len
+    tLightOrbit.elevation = math.asin(math.max(-1, math.min(1, towardY)))
+    tLightOrbit.azimuth = math.atan(towardX, towardZ)
+end
+
+------------------------------------------------------------------------------------------------------------------
+-- Light gizmos (Map tab only): a visual arrow showing where the directional light comes from,
+-- and a small tinted marker at each point light's position -- otherwise there is no way to see
+-- where a light actually is/points relative to the placed scene, only numbers in a panel.
+------------------------------------------------------------------------------------------------------------------
+
+tLightGizmo = { lnShaft = nil, lnWing1 = nil, lnWing2 = nil }
+tPointLightMarkers = {}
+
+-- An arbitrary vector perpendicular to (dx,dy,dz), used to build the arrow's two head "wings".
+-- Picks world-X as the reference instead of world-Y whenever the direction is close to vertical,
+-- so the cross product never degenerates near-parallel.
+function perpendicularToDirection(dx, dy, dz)
+    local refx, refy, refz = 0, 1, 0
+    if math.abs(dy) > 0.99 then
+        refx, refy, refz = 1, 0, 0
+    end
+    local px = dy * refz - dz * refy
+    local py = dz * refx - dx * refz
+    local pz = dx * refy - dy * refx
+    local len = math.sqrt(px * px + py * py + pz * pz)
+    if len < 1e-6 then len = 1 end
+    return px / len, py / len, pz / len
+end
+
+-- Where the arrow's head (the "light hits here") end sits -- above the currently active layer's
+-- center, or a reasonable fixed point if no layer is selected yet.
+function getLightGizmoAnchor()
+    local layer = tLayers[iSelectedLayer]
+    if layer then
+        return layer.offset.x, layer.fY + 300, layer.offset.z
+    end
+    return 0, 300, 0
+end
+
+function ensureLightGizmoLines()
+    if tLightGizmo.lnShaft then return end
+    tLightGizmo.lnShaft = line:new('3d', 0, 0, 0)
+    tLightGizmo.lnShaft:add({0, 0, 0, 0, 0, 0})
+    tLightGizmo.lnShaft:setColor(1, 0.9, 0.3, 1)
+    tLightGizmo.lnWing1 = line:new('3d', 0, 0, 0)
+    tLightGizmo.lnWing1:add({0, 0, 0, 0, 0, 0})
+    tLightGizmo.lnWing1:setColor(1, 0.9, 0.3, 1)
+    tLightGizmo.lnWing2 = line:new('3d', 0, 0, 0)
+    tLightGizmo.lnWing2:add({0, 0, 0, 0, 0, 0})
+    tLightGizmo.lnWing2:setColor(1, 0.9, 0.3, 1)
+end
+
+-- Called every frame (Map tab only) -- draws an arrow from where the light comes from (the tail)
+-- to a fixed reference point near the active layer (the head), pointing in the direction light
+-- actually travels (tLightConfig.directionalDir), so it visually reads as "the sun is over there,
+-- shining this way" instead of just three numbers in a panel.
+function updateDirectionalLightGizmo()
+    local showGizmo = sActiveTab == 'map' and tLightConfig.bEnabled
+    if not showGizmo then
+        if tLightGizmo.lnShaft then
+            tLightGizmo.lnShaft.visible = false
+            tLightGizmo.lnWing1.visible = false
+            tLightGizmo.lnWing2.visible = false
+        end
+        return
+    end
+    ensureLightGizmoLines()
+
+    local dir = tLightConfig.directionalDir
+    local len = math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z)
+    if len < 1e-6 then len = 1 end
+    local ndx, ndy, ndz = dir.x / len, dir.y / len, dir.z / len
+
+    local ax, ay, az = getLightGizmoAnchor()
+    local shaftLen = 150
+    local tx, ty, tz = ax - ndx * shaftLen, ay - ndy * shaftLen, az - ndz * shaftLen
+
+    tLightGizmo.lnShaft:setPos(0, 0, 0)
+    tLightGizmo.lnShaft:set({tx, ty, tz, ax, ay, az}, 1)
+    tLightGizmo.lnShaft.visible = true
+
+    local px, py, pz = perpendicularToDirection(ndx, ndy, ndz)
+    local headLen, headWidth = 24, 12
+    local hx, hy, hz = ax - ndx * headLen, ay - ndy * headLen, az - ndz * headLen
+    tLightGizmo.lnWing1:setPos(0, 0, 0)
+    tLightGizmo.lnWing1:set({ax, ay, az, hx + px * headWidth, hy + py * headWidth, hz + pz * headWidth}, 1)
+    tLightGizmo.lnWing1.visible = true
+    tLightGizmo.lnWing2:setPos(0, 0, 0)
+    tLightGizmo.lnWing2:set({ax, ay, az, hx - px * headWidth, hy - py * headWidth, hz - pz * headWidth}, 1)
+    tLightGizmo.lnWing2.visible = true
+end
+
+-- Called every frame (Map tab only) -- one small tinted box marker per point light (same
+-- technique as the placed-mesh selection highlight: physic_editor.lua visualizes its own SPHERE
+-- physics shapes as boxes too -- there's no true sphere-mesh primitive in this codebase's Lua
+-- tooling), so each point light's actual position is visible among the placed scene, not just
+-- x/y/z numbers in a panel.
+function updatePointLightMarkers()
+    local showMarkers = sActiveTab == 'map' and tLightConfig.bEnabled
+    if not showMarkers then
+        for _, marker in ipairs(tPointLightMarkers) do marker.visible = false end
+        return
+    end
+    while #tPointLightMarkers < #tLightConfig.pointLights do
+        table.insert(tPointLightMarkers, makeHighlightBoxShape())
+    end
+    while #tPointLightMarkers > #tLightConfig.pointLights do
+        tPointLightMarkers[#tPointLightMarkers]:destroy()
+        tPointLightMarkers[#tPointLightMarkers] = nil
+    end
+    local markerSize = 20
+    for i, pl in ipairs(tLightConfig.pointLights) do
+        local marker = tPointLightMarkers[i]
+        marker:setPos(pl.x, pl.y, pl.z)
+        marker:setScale(markerSize, markerSize, markerSize)
+        marker:setColor(pl.r, pl.g, pl.b, 0.5)
+        marker.visible = true
+    end
+end
+
 -- A mesh's shader variant is selected based on whether lighting is enabled at the moment
 -- it is created/loaded -- a mesh created while lighting is off never gains the lit-shader
 -- variant even if lighting is toggled on globally afterward. So every mesh-creation call
@@ -247,11 +395,12 @@ function drawLightPanel()
         tLightConfig.directionalColor = dirColor
         mbm.setDirectionalLightColor('3d', dirColor)
     end
-    local c1, dx = tImGui.InputFloat(tLang.L('axis_x') .. '##light_dir_x', tLightConfig.directionalDir.x, 0.1, 1, '%.2f')
-    local c2, dy = tImGui.InputFloat(tLang.L('axis_y') .. '##light_dir_y', tLightConfig.directionalDir.y, 0.1, 1, '%.2f')
-    local c3, dz = tImGui.InputFloat(tLang.L('axis_z') .. '##light_dir_z', tLightConfig.directionalDir.z, 0.1, 1, '%.2f')
-    if c1 or c2 or c3 then
-        tLightConfig.directionalDir = {x = dx, y = dy, z = dz}
+    -- Same orbit trackball widget already used for the camera (tUtil.drawOrbitGizmo only reads/
+    -- writes .azimuth/.elevation, nothing else, so it works unmodified on tLightOrbit) -- drag to
+    -- re-aim the sun instead of typing a raw direction vector by hand.
+    tImGui.Text(tLang.L('light_direction'))
+    if tUtil.drawOrbitGizmo(tLightOrbit, {size = 110}) then
+        computeDirectionalDirFromOrbit()
         mbm.setDirectionalLightDirection('3d', tLightConfig.directionalDir)
     end
 
@@ -2161,6 +2310,7 @@ function onOpenScene3d()
     end
     tMeshOffsets  = tLoaded.tMeshOffsets or {}
     tLightConfig  = tLoaded.tLightConfig or tLightConfig
+    computeOrbitFromDirectionalDir() -- re-derive the trackball's angles from whatever loaded
     tSceneObjects = tLoaded.tSceneObjects or {}
     tSceneObjectShapes = {}
     for i = #tPlacedMeshes, 1, -1 do removePlacedMesh(i) end
@@ -2274,6 +2424,7 @@ function onInitScene()
     lnRectSelection.visible = false
 
     mbm.setLightEnabled('3d', false)
+    computeOrbitFromDirectionalDir() -- seed tLightOrbit from the default directionalDir
     addLayer()
     rebuildGridVisual() -- Orthogonal is now the default map type, so the grid must exist from the
                         -- start, not only after the user first touches a Map-tab field.
@@ -2316,6 +2467,8 @@ function onLoop(delta)
     -- Runs every frame regardless of mouse-capture state -- blinking on already-selected meshes
     -- must keep animating even while the cursor is over the UI, not just while hovering the scene.
     updateSelectionHighlights()
+    updateDirectionalLightGizmo()
+    updatePointLightMarkers()
 
     showMeshTools()
     showLoadProgressModal()
