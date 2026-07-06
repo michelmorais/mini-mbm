@@ -413,9 +413,9 @@ function drawLightPanel()
     for i, pl in ipairs(tLightConfig.pointLights) do
         tImGui.PushItemWidth(120)
         local p1, px = tImGui.InputFloat(tLang.L('axis_x') .. '##pl_x' .. i, pl.x, 1, 10, '%.2f')
-        tImGui.SameLine()
+        
         local p2, py = tImGui.InputFloat(tLang.L('axis_y') .. '##pl_y' .. i, pl.y, 1, 10, '%.2f')
-        tImGui.SameLine()
+        
         local p3, pz = tImGui.InputFloat(tLang.L('axis_z') .. '##pl_z' .. i, pl.z, 1, 10, '%.2f')
         tImGui.PopItemWidth()
         local p4, pr = tImGui.InputFloat(tLang.L('light_radius') .. '##pl_r' .. i, pl.radius, 1, 10, '%.2f')
