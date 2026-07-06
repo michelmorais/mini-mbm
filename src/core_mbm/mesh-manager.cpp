@@ -1221,6 +1221,7 @@ namespace mbm
         headerMeshMbmOut = tmp;
         info_mode = util::INFO_DRAW_MODE();
 
+        bool sawFirstFrame = false;
         for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
         {
             util::SECTION_HEADER_V11 sectionHeader;
@@ -1252,6 +1253,19 @@ namespace mbm
             else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
             {
                 ++headerMeshMbmOut.totalFrames;
+                // hasNorText only reflects frame 0, mirroring loadV11's hasNormalFlag/hasTextureFlag derivation.
+                if (!sawFirstFrame)
+                {
+                    sawFirstFrame = true;
+                    util::MEM_CURSOR_V11 tmpFp = stage_payload_as_cursor(payload);
+                    util::FRAME_HEADER_V11 v11FrameHeader;
+                    if (util::readFrameHeaderV11(tmpFp, v11FrameHeader))
+                    {
+                        headerMeshMbmOut.hasNorText[0] = v11FrameHeader.hasNormal ? HAS_NOR_IN_FILE : HAS_NOR_NO;
+                        headerMeshMbmOut.hasNorText[1] = !v11FrameHeader.hasUv ? HAS_TEX_NO
+                                                        : (v11FrameHeader.uvSource == 0 ? HAS_TEX_EACH_FRAME : HAS_TEX_FIRST_FRAME);
+                    }
+                }
             }
         }
         fclose(fp);
