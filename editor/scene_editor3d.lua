@@ -328,6 +328,42 @@ function worldToGridCell(wx, wz, layer)
     return cx, cz
 end
 
+-- Single source of truth for how an axis's "count" setting maps to a span of integer cell
+-- indices, shared by rebuildGridVisual (visual lines), fillActiveLayerWithMesh, and the
+-- placement bounds check below. Cell indices land on the same absolute lattice regardless of
+-- parity (cMin = -floor(nCells/2)), so this must NOT be reimplemented as nCells*0.5 anywhere --
+-- that alternative is only an integer for even nCells, and for odd nCells it silently shifts
+-- the visual grid by half a cell relative to where cellX/cellZ actually snap (a real, confirmed
+-- bug: changing "Width count"/"Depth count" from an even to an odd number re-centered the grid
+-- lines under already-placed meshes instead of leaving the lattice -- and the meshes on it -- alone).
+function gridCellRange(nCells)
+    local cMin = -math.floor(nCells * 0.5)
+    return cMin, cMin + nCells - 1
+end
+
+-- Grid modes only place/keep meshes within the currently configured extent -- the grid is meant
+-- to represent the bounds of the scene being built, so anything outside it is not a valid
+-- placement (Free mode has no bounds and is always allowed).
+function isCellWithinGridBounds(cx, cz)
+    if tMapOptions.sMapType == 'Free' then return true end
+    local cxMin, cxMax = gridCellRange(math.max(1, tMapOptions.iGridCountX))
+    local czMin, czMax = gridCellRange(math.max(1, tMapOptions.iGridCountZ))
+    return cx >= cxMin and cx <= cxMax and cz >= czMin and cz <= czMax
+end
+
+-- Called whenever the grid extent shrinks (count reduced) -- meshes that fall outside the new
+-- bounds no longer belong to the scene the grid represents, so they're removed rather than left
+-- floating past the visible edge.
+function removePlacedMeshesOutsideGrid()
+    if tMapOptions.sMapType == 'Free' then return end
+    for i = #tPlacedMeshes, 1, -1 do
+        local tPlaced = tPlacedMeshes[i]
+        if not isCellWithinGridBounds(tPlaced.cellX, tPlaced.cellZ) then
+            removePlacedMesh(i)
+        end
+    end
+end
+
 function snapRotation(angleRad)
     if tMapOptions.sMapType == 'Orthogonal' then
         local step = math.pi * 0.5
@@ -413,8 +449,8 @@ function rebuildGridVisual()
     -- -halfLines..halfLines" scheme could only ever produce an ODD number of lines, so it was
     -- structurally incapable of representing an odd cell count -- and floor(1*0.5)=0 clamped up
     -- to the same 1 as floor(2*0.5)=1, so count=1 and count=2 rendered identically. This scheme
-    -- draws exactly nCellsX+1 / nCellsZ+1 lines, centered on the layer origin, so every count >= 1
-    -- is distinct and matches its label (count=1 -> exactly one cell/segment shown).
+    -- draws exactly nCellsX+1 / nCellsZ+1 lines, so every count >= 1 is distinct and matches its
+    -- label (count=1 -> exactly one cell/segment shown).
     local nCellsX = math.max(1, tMapOptions.iGridCountX)
     local nCellsZ = math.max(1, tMapOptions.iGridCountZ)
     local w, d = tMapOptions.fGridCellWidthX, tMapOptions.fGridCellDepthZ
@@ -425,16 +461,25 @@ function rebuildGridVisual()
         return x * cosr - z * sinr, x * sinr + z * cosr
     end
 
-    local halfExtentX = nCellsX * 0.5 * w
-    local halfExtentZ = nCellsZ * 0.5 * d
+    -- Line positions must land on the exact same integer*cellSize lattice that cellX/cellZ snap
+    -- to (gridCellRange) -- NOT a float "-nCellsX*0.5*w..+nCellsX*0.5*w" center, which is only an
+    -- integer multiple of w when nCellsX is even. For odd counts that float center lands half a
+    -- cell off the lattice, so the whole visual grid would shift under already-placed meshes
+    -- (which stay pinned to their absolute cellX*w world position, unaffected by count) instead of
+    -- the grid consistently framing them. Confirmed bug: toggling "Width count" 20 -> 19 re-centered
+    -- the lines while placed meshes correctly stayed put, making it look like the meshes had moved.
+    local cxMin = gridCellRange(nCellsX)
+    local czMin = gridCellRange(nCellsZ)
+    local xLow, xHigh = cxMin * w, (cxMin + nCellsX) * w
+    local zLow, zHigh = czMin * d, (czMin + nCellsZ) * d
 
     ensureGridLinePoolSize((nCellsX + 1) + (nCellsZ + 1))
 
     local idx = 1
     for i = 0, nCellsX do
-        local x = (i - nCellsX * 0.5) * w
-        local x1, z1 = rotXZ(x, -halfExtentZ)
-        local x2, z2 = rotXZ(x,  halfExtentZ)
+        local x = (cxMin + i) * w
+        local x1, z1 = rotXZ(x, zLow)
+        local x2, z2 = rotXZ(x, zHigh)
         local ln = tGridLines[idx]
         ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
         ln:set({x1, 0, z1, x2, 0, z2}, 1)
@@ -442,9 +487,9 @@ function rebuildGridVisual()
         idx = idx + 1
     end
     for i = 0, nCellsZ do
-        local z = (i - nCellsZ * 0.5) * d
-        local x1, z1 = rotXZ(-halfExtentX, z)
-        local x2, z2 = rotXZ( halfExtentX, z)
+        local z = (czMin + i) * d
+        local x1, z1 = rotXZ(xLow, z)
+        local x2, z2 = rotXZ(xHigh, z)
         local ln = tGridLines[idx]
         ln:setPos(layer.offset.x, layer.fY, layer.offset.z)
         ln:set({x1, 0, z1, x2, 0, z2}, 1)
@@ -991,7 +1036,12 @@ function drawMapTab(item_width)
         local c4, cz = tImGui.InputInt(tLang.L('grid_count_z') .. '##GridCountZ', tMapOptions.iGridCountZ, 1, 10)
         if c3 then tMapOptions.iGridCountX = math.max(MIN_GRID_COUNT, cx) end
         if c4 then tMapOptions.iGridCountZ = math.max(MIN_GRID_COUNT, cz) end
-        if c3 or c4 then rebuildGridVisual() end
+        if c3 or c4 then
+            rebuildGridVisual()
+            -- Shrinking the grid can leave previously-placed meshes past the new edge -- the grid
+            -- is the bounds of the scene, so anything now outside it is removed, not left floating.
+            removePlacedMeshesOutsideGrid()
+        end
 
         local retSnap, curSnap = tImGui.Combo(tLang.L('snap_scale_mode') .. '##SnapScaleMode', tComboSnapScaleModeIndexOf(tMapOptions.sSnapScaleMode), tComboSnapScaleModeLabel)
         if retSnap then
@@ -1311,14 +1361,10 @@ function fillActiveLayerWithMesh(fileName)
     end
     if not entry then return end
     -- Fill exactly nCellsX * nCellsZ cells (tMapOptions.iGridCountX/Z), matching
-    -- rebuildGridVisual's extent -- cell index cx snaps to world cx*cellWidth (see
-    -- worldToGridCell), so a centered run of nCells indices is [-floor(nCells/2), that+nCells-1].
-    local function cellRange(nCells)
-        local cMin = -math.floor(nCells * 0.5)
-        return cMin, cMin + nCells - 1
-    end
-    local cxMin, cxMax = cellRange(math.max(1, tMapOptions.iGridCountX))
-    local czMin, czMax = cellRange(math.max(1, tMapOptions.iGridCountZ))
+    -- rebuildGridVisual's extent -- see gridCellRange's own comment for why this must be the
+    -- one shared definition of the cell-index span rather than a locally reimplemented copy.
+    local cxMin, cxMax = gridCellRange(math.max(1, tMapOptions.iGridCountX))
+    local czMin, czMax = gridCellRange(math.max(1, tMapOptions.iGridCountZ))
     for cx = cxMin, cxMax do
         for cz = czMin, czMax do
             addPlacedMesh(fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
@@ -1968,6 +2014,10 @@ function tryPlaceMeshAt(x, y)
         addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, 0, 0, wx, wz, true)
     else
         local cx, cz = worldToGridCell(wx, wz, layer)
+        -- The grid represents the bounds of the scene being built -- clicking past its edge is
+        -- not a valid placement, so it's silently rejected rather than placing a mesh the grid
+        -- itself doesn't visually contain.
+        if not isCellWithinGridBounds(cx, cz) then return end
         addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
     end
 end
