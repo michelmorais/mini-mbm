@@ -513,13 +513,13 @@ namespace mbm
                 if (is3dObject)
                 {
                     device->setBillboard(&SHADER::modelView, &position, &scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
+                    SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
                 }
                 else
                 {
                     const VEC3 positionWorld(position.x, position.y, position.z);
                     MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &angle, &scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
+                    SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
                 }
                 this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
@@ -540,12 +540,12 @@ namespace mbm
                 if (is3dObject)
                 {
                     device->setBillboard(&SHADER::modelView, &position, &scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
+                    SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
                 }
                 else
                 {
                     MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
+                    SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
                 }
                 this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
@@ -562,12 +562,12 @@ namespace mbm
                 if (is3dObject)
                 {
                     device->setBillboard(&SHADER::modelView, &position, &scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
+                    SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
                 }
                 else
                 {
                     MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
+                    SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
                 }
                 this->setBlendState(animation->getBlendState());
                 fx.shader.update(); // glUseProgram
@@ -645,11 +645,9 @@ namespace mbm
                                     curWidthLetter = static_cast<float>(detail->widthLetter) * 0.5f;
                                     SHADER::modelView._41 += curWidthLetter;
                                     if (is3dObject)
-                                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &camera.matrixPerspective);
+                                        SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
                                     else
-                                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &camera.matrixPerspective2d);
+                                        SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
                                     fx.shader.update(); // glUseProgram
                                     fx.setBlendOp();
                                     BUFFER_MESH *frameBuffer = this->impl->mesh->getBuffer(static_cast<unsigned int>(detail->indexFrame));

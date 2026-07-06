@@ -351,9 +351,14 @@ The engine uploads these reserved light names automatically when the active shad
 - `LightCount`: integer active-light count for the current draw within the validated capacity
 - `AmbientColor`: `vec4` / `float4`
 - `LightDirectionView`: `vec3` / `float3`, direction the light travels in view space
+- `DirectionalColor`: `vec4` / `float4`, the directional light's own color — kept separate from
+  `LightColor[]` (below) specifically so a `3d` mesh's directional contribution and its point-light
+  contributions don't clobber the same array slot when both are active at once (MBM_VERSION 6.11.0)
 - `LightPositionView`: scalar one-light fallback or array base name `LightPositionView[0]`
 - `LightRadius`: scalar one-light fallback or array base name `LightRadius[0]`
-- `LightColor`: scalar one-light fallback or array base name `LightColor[0]`
+- `LightColor`: scalar one-light fallback or array base name `LightColor[0]` — for the array form,
+  index-0-and-up are the currently *selected point lights* for this draw (see "Reserved Lighting
+  Now Combines Directional + Point On `3d`" below), never the directional light
 - `MaterialDiffuse`: `vec4` / `float4`
 - `MaterialAmbient`: `vec4` / `float4`
 - `MaterialSpecular`: `vec4` / `float4`
@@ -376,6 +381,7 @@ constant float4 &MaterialEmissive  [[buffer(12)]]
 constant float  &MaterialPower     [[buffer(13)]]
 constant float3 *LightPositionView [[buffer(15)]]
 constant float  *LightRadius       [[buffer(16)]]
+constant float4 &DirectionalColor  [[buffer(18)]]
 ```
 
 Custom shader CFG variables cannot use these reserved names; they are owned by the engine.
@@ -472,7 +478,8 @@ When classified as unlit, it keeps the cheaper unlit path even if normals or UVs
 Current default-lit shading behavior:
 
 - ambient uses `AmbientColor * MaterialAmbient`
-- diffuse uses `LightColor * NdotL`
+- diffuse uses `DirectionalColor * NdotL` (directional) plus, for `3d`, any selected point lights'
+  `LightColor[i] * NdotL * attenuation` summed in — see below
 - emissive adds `MaterialEmissive.rgb`
 - specular uses `MaterialSpecular.rgb` and `MaterialPower`
 
@@ -480,9 +487,31 @@ The current specular term is a view-space Blinn-Phong style highlight:
 
 - directional `3d` lighting uses the view-space light direction together with the current fragment
   view direction
+- `3d` point lights (see below) each contribute their own specular term the same way, using their
+  own view-space light vector
 - `2dw` point-light shading uses the per-light view-space vector together with the current fragment
   view direction
 - when `MaterialPower <= 0`, the default lit shaders contribute no specular highlight
+
+### Reserved Lighting Now Combines Directional + Point On `3d` (MBM_VERSION 6.11.0)
+
+Before 6.11.0, a `3d` mesh's built-in lit shader only ever evaluated its directional light —
+`mbm.addPointLight('3d', ...)` correctly stored the light and `mbm.getSelectedPointLights('3d', ...)`
+correctly returned it, but the reserved shader path never asked for a point-light-capable variant for
+`3d`, so nearby point lights were entirely invisible on 3D meshes. Fixed by having the `3d` lit
+fragment shader run its existing directional term **and** loop over the selected point lights in the
+same pass (both accumulate into the same `light`/`specular` totals), instead of only ever picking one
+or the other. `DirectionalColor` (see "Reserved Shader Inputs" above) exists specifically so the
+directional and point contributions don't share — and clobber — the same `LightColor[0]` array slot.
+`2dw` shading is unaffected: it was already point-light-only and stays that way.
+
+This was fixed together with a related bug: the per-object matrix the vertex shader used to build
+`vNormalView`/`vPositionView` (uploaded as the `mvMatrix` uniform) was the model matrix only, never
+multiplied by the camera's view matrix, even though `LightDirectionView`/`LightPositionView` were
+already correctly rotated into true view space. That mismatch made directional lighting appear to
+change as the camera orbited a scene, and made 2D point-light attenuation subtly wrong whenever a 2D
+camera panned. See `docs/new-backend-instructions.md`'s `mvMatrix` entry for the backend-facing
+contract.
 
 `MaterialPower` is the shininess exponent, not a linear strength slider. The current shaders use a
 term equivalent to `pow(max(dot(normal, halfDir), 0), MaterialPower)`.

@@ -176,7 +176,11 @@ namespace mbm
         float lightRadiusArray[DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
         float lightColorArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
         uint32_t selectedPointLightCount = 0u;
-        if (lightMode == 2)
+        // Point-light selection now runs for LightMode 1 (3D, combined with directional) too, not just
+        // 2 (2D, point-only) - see docs/light.md. The legacy scalar LightPositionView/LightColor/LightRadius
+        // fallback (read only by the canUsePointLight2D==false custom-vertex-shader shader variant) keeps
+        // being overridden by the nearest selection for LightMode 2 only, exactly as before.
+        if (lightMode == 1 || lightMode == 2)
         {
             LIGHT_POINT_SELECTION pointLightSelections[DEFAULT_SUPPORTED_MAX_LIGHTS];
             selectedPointLightCount = DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
@@ -194,7 +198,7 @@ namespace mbm
                 lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
                 lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
             }
-            if (selectedPointLightCount > 0u)
+            if (lightMode == 2 && selectedPointLightCount > 0u)
             {
                 positionView.x = lightPositionViewArray[0];
                 positionView.y = lightPositionViewArray[1];
@@ -214,7 +218,7 @@ namespace mbm
             lightColorArray[2] = lightColor.b;
             lightColorArray[3] = lightColor.a;
         }
-        const int lightCount = lightMode == 2 ? static_cast<int>(selectedPointLightCount) : (enabled != 0 ? 1 : 0);
+        const int lightCount = (lightMode == 1 || lightMode == 2) ? static_cast<int>(selectedPointLightCount) : (enabled != 0 ? 1 : 0);
 
         GLint handle = GLGetUniformLocationOptional(programObject, "LightEnabled");
         if (handle != -1)
@@ -241,6 +245,12 @@ namespace mbm
         if (handle != -1)
         {
             GLUniform3f(handle, directionView.x, directionView.y, directionView.z);
+        }
+        handle = GLGetUniformLocationOptional(programObject, "DirectionalColor");
+        if (handle != -1)
+        {
+            GLUniform4f(handle, lightState.directionalColor.r, lightState.directionalColor.g,
+                        lightState.directionalColor.b, lightState.directionalColor.a);
         }
         handle = GLGetUniformLocationOptional(programObject, "LightPositionView");
         if (handle != -1)
@@ -948,6 +958,8 @@ namespace mbm
                     defaultCodePs += supportedMaxLights;
                     defaultCodePs += "];"
                         "uniform int LightCount;";
+                    if (hasNormal)
+                        defaultCodePs += "uniform vec4 DirectionalColor;";
                 }
                 if (hasNormal)
                     defaultCodePs += "varying vec3 vNormalView;";
@@ -981,18 +993,41 @@ namespace mbm
                 }
                 else if (hasNormal)
                 {
+                    // LightMode == 1 (3D): directional (DirectionalColor, independent of the point-light
+                    // array below so the two don't clobber each other) combined with any selected point
+                    // lights, in one pass. LightMode == 2 (2D) falls through to the pre-existing,
+                    // untouched point-only block below via the dangling "else".
                     defaultCodePs += " if (LightMode == 0) { gl_FragColor = texColor; return; }"
                         " if (LightMode == 1) {"
                         "  vec3 normalView = normalize(vNormalView);"
                         "  vec3 viewDir = normalize(-vPositionView);"
                         "  vec3 lightTravel = normalize(LightDirectionView);"
                         "  float diffuse = max(dot(normalView, -lightTravel), 0.0);"
-                        "  light += LightColor[0].rgb * diffuse;"
+                        "  light += DirectionalColor.rgb * diffuse;"
                         "  if (diffuse > 0.0 && MaterialPower > 0.0) {"
                         "   vec3 lightDir = normalize(-lightTravel);"
                         "   vec3 halfDir = normalize(lightDir + viewDir);"
                         "   float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
-                        "   specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;"
+                        "   specular += DirectionalColor.rgb * MaterialSpecular.rgb * spec;"
+                        "  }"
+                        "  for (int i = 0; i < ";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "; ++i) {"
+                        "   if (i >= LightCount) break;"
+                        "   vec3 toLight = LightPositionView[i] - vPositionView;"
+                        "   float dist = length(toLight);"
+                        "   if (LightRadius[i] > 0.0001) {"
+                        "    vec3 pLightDir = toLight / max(dist, 0.0001);"
+                        "    float pDiffuse = max(dot(normalView, pLightDir), 0.0);"
+                        "    float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);"
+                        "    attenuation *= attenuation;"
+                        "    light += LightColor[i].rgb * pDiffuse * attenuation;"
+                        "    if (pDiffuse > 0.0 && MaterialPower > 0.0) {"
+                        "     vec3 pHalfDir = normalize(pLightDir + viewDir);"
+                        "     float pSpec = pow(max(dot(normalView, pHalfDir), 0.0), MaterialPower);"
+                        "     specular += LightColor[i].rgb * MaterialSpecular.rgb * pSpec * attenuation;"
+                        "    }"
+                        "   }"
                         "  }"
                         " } else ";
                 }
@@ -1045,7 +1080,17 @@ namespace mbm
                     "uniform int LightMode;"
                     "uniform vec4 AmbientColor;"
                     "uniform vec3 LightDirectionView;"
-                    "uniform vec4 LightColor;"
+                    "uniform vec4 DirectionalColor;"
+                    "uniform vec3 LightPositionView[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "uniform float LightRadius[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "uniform vec4 LightColor[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "uniform int LightCount;"
                     "uniform vec4 MaterialSpecular;"
                     "uniform vec4 MaterialDiffuse;"
                     "uniform vec4 MaterialAmbient;"
@@ -1054,21 +1099,40 @@ namespace mbm
                     "varying vec3 vPositionView;"
                     "void main() {"
                     " vec4 baseColor = vec4(1.0, 1.0, 1.0, 1.0);"
-                    " if (LightEnabled == 0 || LightMode != 1) { gl_FragColor = baseColor; return; }"
+                    " if (LightEnabled == 0 || LightMode == 0) { gl_FragColor = baseColor; return; }"
                     " vec3 normalView = normalize(vNormalView);"
                     " vec3 viewDir = normalize(-vPositionView);"
                     " vec3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0.0);"
                     " vec3 base = MaterialDiffuse.rgb;"
-                    " vec3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);"
+                    " vec3 light = (AmbientColor.rgb * MaterialAmbient.rgb) + (DirectionalColor.rgb * diffuse);"
                     " vec3 specular = vec3(0.0);"
                     " if (diffuse > 0.0 && MaterialPower > 0.0) {"
                     "  vec3 lightDir = normalize(-lightTravel);"
                     "  vec3 halfDir = normalize(lightDir + viewDir);"
                     "  float spec = pow(max(dot(normalView, halfDir), 0.0), MaterialPower);"
-                    "  specular = LightColor.rgb * MaterialSpecular.rgb * spec;"
+                    "  specular = DirectionalColor.rgb * MaterialSpecular.rgb * spec;"
                     " }"
-                    " vec3 litColor = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0, 1.0);"
+                    " for (int i = 0; i < ";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "; ++i) {"
+                    "  if (i >= LightCount) break;"
+                    "  vec3 toLight = LightPositionView[i] - vPositionView;"
+                    "  float dist = length(toLight);"
+                    "  if (LightRadius[i] > 0.0001) {"
+                    "   vec3 pLightDir = toLight / max(dist, 0.0001);"
+                    "   float pDiffuse = max(dot(normalView, pLightDir), 0.0);"
+                    "   float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);"
+                    "   attenuation *= attenuation;"
+                    "   light += LightColor[i].rgb * pDiffuse * attenuation;"
+                    "   if (pDiffuse > 0.0 && MaterialPower > 0.0) {"
+                    "    vec3 pHalfDir = normalize(pLightDir + viewDir);"
+                    "    float pSpec = pow(max(dot(normalView, pHalfDir), 0.0), MaterialPower);"
+                    "    specular += LightColor[i].rgb * MaterialSpecular.rgb * pSpec * attenuation;"
+                    "   }"
+                    "  }"
+                    " }"
+                    " vec3 litColor = clamp((base * clamp(light, 0.0, 1.0)) + MaterialEmissive.rgb + specular, 0.0, 1.0);"
                     " gl_FragColor = vec4(litColor, MaterialDiffuse.a);"
                     "}";
             }
@@ -1239,7 +1303,7 @@ namespace mbm
             }
             if (gles_shaderSpecific->mvMatrixHandle != -1)
             {
-                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, mvMatrixLightSpace.p);
             }
             //-----------------------------------------------------------------------------------------------------------
             // TextureAnimationEffect is one shared texture per animation, not per-subset (see
@@ -1294,7 +1358,7 @@ namespace mbm
                 }
                 if (gles_shaderSpecific->mvMatrixHandle != -1)
                 {
-                    GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, mvMatrixLightSpace.p);
                 }
                 //-----------------------------------------------------------------------------------------------------------
                 // if(pBufferId->hasColorKeying[i])
@@ -1357,7 +1421,7 @@ namespace mbm
             }
             if (gles_shaderSpecific->mvMatrixHandle != -1)
             {
-                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, mvMatrixLightSpace.p);
             }
             //-----------------------------------------------------------------------------------------------------------
             // TextureAnimationEffect is shared per-animation, not per-subset - bind once, outside the loop.
@@ -1405,7 +1469,7 @@ namespace mbm
                 }
                 if (gles_shaderSpecific->mvMatrixHandle != -1)
                 {
-                    GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                    GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, mvMatrixLightSpace.p);
                 }
                 //-----------------------------------------------------------------------------------------------------------
                 bindTextureRoleOpenGlEs(pBufferId, i, TEXTURE_ROLE_DIFFUSE, gles_shaderSpecific->samplerHandle0);
@@ -1461,7 +1525,7 @@ namespace mbm
         }
         if (gles_shaderSpecific->mvMatrixHandle != -1)
         {
-            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::mvMatrixLightSpace.p);
         }
         // Unbind VBO so vertex pointers are treated as client-side arrays, and disable
         // stale attrib arrays left by a previous draw (e.g. LINE_MESH position-only shader)
@@ -1555,7 +1619,7 @@ namespace mbm
         }
         if (gles_shaderSpecific->mvMatrixHandle != -1)
         {
-            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::mvMatrixLightSpace.p);
         }
 
         // Unbind VBO so vertex pointers are treated as client-side arrays, and disable

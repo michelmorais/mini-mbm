@@ -774,11 +774,9 @@ namespace mbm
                                     SHADER::modelView._41 += infoFont->letterDiffX[index];
                                     SHADER::modelView._42 += infoFont->letterDiffY[index];
                                     if (is3dObject)
-                                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &camera.matrixPerspective);
+                                        SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
                                     else
-                                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &camera.matrixPerspective2d);
+                                        SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
                                     SHADER::modelView._41 -= infoFont->letterDiffX[index];
                                     SHADER::modelView._42 -= infoFont->letterDiffY[index];
                                     if (doRender)

@@ -282,7 +282,7 @@ namespace mbm
 
                 FX &fx = anim->getFx();
                 MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &angle, &backGround_scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->getCamera().matrixPerspective2d);
+                SHADER::updateMvpAndLightMatrices(device->getCamera().matrixView2d, device->getCamera().matrixPerspective2d);
                 if (fx.shader.render(&this->backGroundMap, this) == false)
                 {
                     device->enableFilteringAfterPixelPerfect();
@@ -331,11 +331,13 @@ namespace mbm
         TEXTURE* textureAnimationEffect = fx.textureAnimationEffect ? fx.textureAnimationEffect : nullptr;
         VEC3 thePosBrick(renderPos);
         const MATRIX *matrixPerspective = nullptr;
+        const MATRIX *viewMatrix = nullptr;
         const CAMERA &camera = device->getCamera();
         if (this->is3DObject())
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &angle, &scale);
             matrixPerspective = &camera.matrixPerspective;
+            viewMatrix = &camera.matrixView;
         }
         else if(this->is2dScreenObject())
         {
@@ -344,11 +346,13 @@ namespace mbm
             device->transformeScreen2dToWorld2d_scaled(position.x, position.y, thePosBrick);
             MatrixTranslationRotationScale(&SHADER::modelView, &thePosBrick, &angle, &scale);
             matrixPerspective = &camera.matrixPerspective2d;
+            viewMatrix = &camera.matrixView2d;
         }
         else
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &angle, &scale);
             matrixPerspective = &camera.matrixPerspective2d;
+            viewMatrix = &camera.matrixView2d;
         }
         const bool render_left_to_right = ptr_TileInfo->map.renderDirection[0] == 1; // render_left_to_right == 1
         const bool render_top_to_down   = ptr_TileInfo->map.renderDirection[1] == 1; // render_top_to_down == 1
@@ -372,6 +376,7 @@ namespace mbm
                                 offset_x,
                                 offset_y,
                                 &thePosBrick,
+                                viewMatrix,
                                 matrixPerspective) == false)
                             {
                                 device->enableFilteringAfterPixelPerfect();
@@ -395,6 +400,7 @@ namespace mbm
                                 offset_x,
                                 offset_y,
                                 &thePosBrick,
+                                viewMatrix,
                                 matrixPerspective) == false)
                             {
                                 device->enableFilteringAfterPixelPerfect();
@@ -421,6 +427,7 @@ namespace mbm
                                 offset_x,
                                 offset_y,
                                 &thePosBrick,
+                                viewMatrix,
                                 matrixPerspective) == false)
                             {
                                 device->enableFilteringAfterPixelPerfect();
@@ -444,6 +451,7 @@ namespace mbm
                                 offset_x,
                                 offset_y,
                                 &thePosBrick,
+                                viewMatrix,
                                 matrixPerspective) == false)
                             {
                                 device->enableFilteringAfterPixelPerfect();
@@ -473,6 +481,7 @@ namespace mbm
                                 offset_x,
                                 offset_y,
                                 &thePosBrick,
+                                viewMatrix,
                                 matrixPerspective) == false)
                             {
                                 device->enableFilteringAfterPixelPerfect();
@@ -496,6 +505,7 @@ namespace mbm
                                 offset_x,
                                 offset_y,
                                 &thePosBrick,
+                                viewMatrix,
                                 matrixPerspective) == false)
                             {
                                 device->enableFilteringAfterPixelPerfect();
@@ -522,6 +532,7 @@ namespace mbm
                                 offset_x,
                                 offset_y,
                                 &thePosBrick,
+                                viewMatrix,
                                 matrixPerspective) == false)
                             {
                                 device->enableFilteringAfterPixelPerfect();
@@ -545,6 +556,7 @@ namespace mbm
                                 offset_x,
                                 offset_y,
                                 &thePosBrick,
+                                viewMatrix,
                                 matrixPerspective) == false)
                             {
                                 device->enableFilteringAfterPixelPerfect();
@@ -568,6 +580,7 @@ namespace mbm
                             const float offset_x,
                             const float offset_y,
                             const VEC3 * pos,
+                            const MATRIX *viewMatrix,
                             const MATRIX *matrixPerspective) const
     {
         const uint32_t index     = j + (i  * ptr_TileInfo->map.count_height_tile);
@@ -577,7 +590,7 @@ namespace mbm
             const VEC3 &scale = this->getScale();
             SHADER::modelView._41 = (bTileIndex->x * scale.x) + offset_x + pos->x;
             SHADER::modelView._42 = (bTileIndex->y * scale.y) + offset_y + pos->y;
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, matrixPerspective);
+            SHADER::updateMvpAndLightMatrices(*viewMatrix, *matrixPerspective);
             BUFFER_MESH *frameBuffer = this->mesh->getBuffer(bTileIndex->index);
             mbm::bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr, textureAnimationEffect);
             if (this->mesh->render(bTileIndex->index, shader, this) == false)
@@ -1252,7 +1265,7 @@ namespace mbm
             if (this->is3DObject())
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
+                SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
             }
             else if (this->is2dScreenObject())
             {
@@ -1260,12 +1273,12 @@ namespace mbm
                                     position.y * camera.scaleScreen2d.y, position.z);
                 device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
+                SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
+                SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
             }
 
             BUFFER_MESH *frameBuffer = this->ptr_Mesh->getBuffer(brickID);

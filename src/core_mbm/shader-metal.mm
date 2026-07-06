@@ -179,7 +179,10 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
     float lightRadiusArray[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
     float lightColorArray[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
     uint32_t selectedPointLightCount = 0u;
-    if (lightMode == 2)
+    // Point-light selection now runs for LightMode 1 (3D, combined with directional) too, not just
+    // 2 (2D, point-only) - see docs/light.md. The legacy scalar-fallback override (used only by
+    // shader variants without an array-based point-light loop) stays scoped to LightMode 2, as before.
+    if (lightMode == 1 || lightMode == 2)
     {
         mbm::LIGHT_POINT_SELECTION pointLightSelections[mbm::DEFAULT_SUPPORTED_MAX_LIGHTS];
         selectedPointLightCount = mbm::DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
@@ -197,7 +200,7 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
             lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
             lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
         }
-        if (selectedPointLightCount > 0u)
+        if (lightMode == 2 && selectedPointLightCount > 0u)
         {
             positionView.x = lightPositionViewArray[0];
             positionView.y = lightPositionViewArray[1];
@@ -220,7 +223,7 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
         lightColorArray[2] = currentLightColor.b;
         lightColorArray[3] = currentLightColor.a;
     }
-    int32_t lightCount = lightMode == 2 ? static_cast<int32_t>(selectedPointLightCount) : (lightEnabled != 0 ? 1 : 0);
+    int32_t lightCount = (lightMode == 1 || lightMode == 2) ? static_cast<int32_t>(selectedPointLightCount) : (lightEnabled != 0 ? 1 : 0);
     [enc setVertexBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
     [enc setFragmentBytes:&lightEnabled length:sizeof(lightEnabled) atIndex:4];
     [enc setVertexBytes:&lightCount length:sizeof(lightCount) atIndex:5];
@@ -256,6 +259,10 @@ static void uploadReservedLightBuffersMetal(id<MTLRenderCommandEncoder> enc, con
     [enc setFragmentBytes:lightRadiusArray length:sizeof(lightRadiusArray) atIndex:16];
     [enc setVertexBytes:&hasNormalMap length:sizeof(hasNormalMap) atIndex:17];
     [enc setFragmentBytes:&hasNormalMap length:sizeof(hasNormalMap) atIndex:17];
+    float directionalColor[4] = {lightState.directionalColor.r, lightState.directionalColor.g,
+                                  lightState.directionalColor.b, lightState.directionalColor.a};
+    [enc setVertexBytes:directionalColor length:sizeof(directionalColor) atIndex:18];
+    [enc setFragmentBytes:directionalColor length:sizeof(directionalColor) atIndex:18];
 }
 
 static const mbm::TEXTURE *getBoundTextureForRoleMetal(const mbm::BUFFER_GL *pBufferId,
@@ -575,6 +582,8 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                               " constant float3* LightPositionView [[buffer(15)]],"
                               " constant float* LightRadius [[buffer(16)]],"
                               " constant int& LightCount [[buffer(5)]]"];
+            if (hasNor)
+                [src appendString:@", constant float4& DirectionalColor [[buffer(18)]]"];
             [src appendFormat:@") {\n  float4 texColor = %s.sample(samp, in.uv) * u.color;\n",
                               textureDiffuseName];
             [src appendString:@"  if (LightEnabled == 0 || LightMode == 0) return texColor;\n"
@@ -583,19 +592,40 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                               "  float3 specular = float3(0.0f);\n"];
             if (hasNor)
             {
-                [src appendString:@"  if (LightMode == 1) {\n"
+                // LightMode == 1 (3D): directional (DirectionalColor, independent of the point-light
+                // array below so the two don't clobber each other) combined with any selected point
+                // lights, in one pass. LightMode == 2 (2D) falls through to the pre-existing,
+                // untouched point-only block below via the "else".
+                [src appendFormat:@"  if (LightMode == 1) {\n"
                                   "    float3 normalView = normalize(in.nor);\n"
                                   "    float3 viewDir = normalize(-in.positionView);\n"
                                   "    float3 lightTravel = normalize(LightDirectionView);\n"
                                   "    float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
-                                  "    light += LightColor[0].rgb * diffuse;\n"
+                                  "    light += DirectionalColor.rgb * diffuse;\n"
                                   "    if (diffuse > 0.0f && MaterialPower > 0.0f) {\n"
                                   "      float3 lightDir = normalize(-lightTravel);\n"
                                   "      float3 halfDir = normalize(lightDir + viewDir);\n"
                                   "      float spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);\n"
-                                  "      specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;\n"
+                                  "      specular += DirectionalColor.rgb * MaterialSpecular.rgb * spec;\n"
                                   "    }\n"
-                                  "  } else {\n"];
+                                  "    for (int i = 0; i < %u; ++i) {\n"
+                                  "      if (i >= LightCount) break;\n"
+                                  "      float3 toLight = LightPositionView[i] - in.positionView;\n"
+                                  "      float dist = length(toLight);\n"
+                                  "      if (LightRadius[i] > 0.0001f) {\n"
+                                  "        float3 pLightDir = toLight / max(dist, 0.0001f);\n"
+                                  "        float pDiffuse = max(dot(normalView, pLightDir), 0.0f);\n"
+                                  "        float attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);\n"
+                                  "        attenuation *= attenuation;\n"
+                                  "        light += LightColor[i].rgb * pDiffuse * attenuation;\n"
+                                  "        if (pDiffuse > 0.0f && MaterialPower > 0.0f) {\n"
+                                  "          float3 pHalfDir = normalize(pLightDir + viewDir);\n"
+                                  "          float pSpec = pow(max(dot(normalView, pHalfDir), 0.0f), MaterialPower);\n"
+                                  "          specular += LightColor[i].rgb * MaterialSpecular.rgb * pSpec * attenuation;\n"
+                                  "        }\n"
+                                  "      }\n"
+                                  "    }\n"
+                                  "  } else {\n", static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
             }
             else
             {
@@ -637,7 +667,11 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
             [src appendString:@", constant int& LightEnabled [[buffer(4)]],"
                               " constant float4& AmbientColor [[buffer(6)]],"
                               " constant float3& LightDirectionView [[buffer(7)]],"
-                              " constant float4& LightColor [[buffer(8)]],"
+                              " constant float4& DirectionalColor [[buffer(18)]],"
+                              " constant float4* LightColor [[buffer(8)]],"
+                              " constant float3* LightPositionView [[buffer(15)]],"
+                              " constant float* LightRadius [[buffer(16)]],"
+                              " constant int& LightCount [[buffer(5)]],"
                               " constant float4& MaterialDiffuse [[buffer(9)]],"
                               " constant float4& MaterialAmbient [[buffer(10)]],"
                               " constant float4& MaterialSpecular [[buffer(11)]],"
@@ -648,22 +682,40 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
         [src appendString:@") {\n"];
         if (hasNor && useReservedLightScaffolding)
         {
-            [src appendString:@"  if (LightEnabled == 0 || LightMode != 1) return u.color;\n"
+            [src appendFormat:@"  if (LightEnabled == 0 || LightMode == 0) return u.color;\n"
                               "  float3 normalView = normalize(in.nor);\n"
                               "  float3 viewDir = normalize(-in.positionView);\n"
                               "  float3 lightTravel = normalize(LightDirectionView);\n"
                               "  float diffuse = max(dot(normalView, -lightTravel), 0.0);\n"
                               "  float3 base = MaterialDiffuse.rgb;\n"
-                              "  float3 light = clamp((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse), 0.0, 1.0);\n"
+                              "  float3 light = (AmbientColor.rgb * MaterialAmbient.rgb) + (DirectionalColor.rgb * diffuse);\n"
                               "  float3 specular = float3(0.0f);\n"
                               "  if (diffuse > 0.0f && MaterialPower > 0.0f) {\n"
                               "    float3 lightDir = normalize(-lightTravel);\n"
                               "    float3 halfDir = normalize(lightDir + viewDir);\n"
                               "    float spec = pow(max(dot(normalView, halfDir), 0.0f), MaterialPower);\n"
-                              "    specular = LightColor.rgb * MaterialSpecular.rgb * spec;\n"
+                              "    specular = DirectionalColor.rgb * MaterialSpecular.rgb * spec;\n"
                               "  }\n"
-                              "  float3 litColor = clamp((base * light) + MaterialEmissive.rgb + specular, 0.0, 1.0);\n"
-                              "  return float4(litColor, MaterialDiffuse.a);\n}\n"];
+                              "  for (int i = 0; i < %u; ++i) {\n"
+                              "    if (i >= LightCount) break;\n"
+                              "    float3 toLight = LightPositionView[i] - in.positionView;\n"
+                              "    float dist = length(toLight);\n"
+                              "    if (LightRadius[i] > 0.0001f) {\n"
+                              "      float3 pLightDir = toLight / max(dist, 0.0001f);\n"
+                              "      float pDiffuse = max(dot(normalView, pLightDir), 0.0f);\n"
+                              "      float attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);\n"
+                              "      attenuation *= attenuation;\n"
+                              "      light += LightColor[i].rgb * pDiffuse * attenuation;\n"
+                              "      if (pDiffuse > 0.0f && MaterialPower > 0.0f) {\n"
+                              "        float3 pHalfDir = normalize(pLightDir + viewDir);\n"
+                              "        float pSpec = pow(max(dot(normalView, pHalfDir), 0.0f), MaterialPower);\n"
+                              "        specular += LightColor[i].rgb * MaterialSpecular.rgb * pSpec * attenuation;\n"
+                              "      }\n"
+                              "    }\n"
+                              "  }\n"
+                              "  float3 litColor = clamp((base * clamp(light, 0.0f, 1.0f)) + MaterialEmissive.rgb + specular, 0.0f, 1.0f);\n"
+                              "  return float4(litColor, MaterialDiffuse.a);\n}\n",
+                              static_cast<unsigned int>(mbm::DEFAULT_SUPPORTED_MAX_LIGHTS)];
         }
         else
         {
@@ -1137,7 +1189,7 @@ namespace mbm
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;
             memcpy(uni.mvp, SHADER::mvpMatrix.p, sizeof(uni.mvp));
-            memcpy(uni.mv,  SHADER::modelView.p,  sizeof(uni.mv));
+            memcpy(uni.mv,  SHADER::mvMatrixLightSpace.p,  sizeof(uni.mv));
             uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
             if (pShader)
             {
@@ -1288,7 +1340,7 @@ namespace mbm
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;
             memcpy(uni.mvp, SHADER::mvpMatrix.p, sizeof(uni.mvp));
-            memcpy(uni.mv,  SHADER::modelView.p,  sizeof(uni.mv));
+            memcpy(uni.mv,  SHADER::mvMatrixLightSpace.p,  sizeof(uni.mv));
             uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
@@ -1460,7 +1512,7 @@ namespace mbm
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;
             memcpy(uni.mvp, SHADER::mvpMatrix.p, sizeof(uni.mvp));
-            memcpy(uni.mv,  SHADER::modelView.p,  sizeof(uni.mv));
+            memcpy(uni.mv,  SHADER::mvMatrixLightSpace.p,  sizeof(uni.mv));
             uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
 
             for (uint32_t i = 0; i < totalAlive; ++i)
@@ -1521,7 +1573,7 @@ namespace mbm
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;
             memcpy(uni.mvp, SHADER::mvpMatrix.p, sizeof(uni.mvp));
-            memcpy(uni.mv,  SHADER::modelView.p,  sizeof(uni.mv));
+            memcpy(uni.mv,  SHADER::mvMatrixLightSpace.p,  sizeof(uni.mv));
             uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
 
             // Build fragment uniform buffer from pShader vars; override color with pGroup->color.

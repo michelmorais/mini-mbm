@@ -134,6 +134,7 @@ namespace mbm
                                             const float offset_x,
                                             const float offset_y,
                                             const VEC3 * pos,
+                                            const MATRIX *viewMatrix,
                                             const MATRIX *matrixPerspective) const;
         MESH_MBM *              mesh;
         std::vector<TILE_OBJ*>	lsTileObjs;
