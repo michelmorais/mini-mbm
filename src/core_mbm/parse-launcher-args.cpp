@@ -195,6 +195,7 @@ void PARSE_launcher_ARGS::parserArgs(const char** argv, const int pNumArgs)
     {
         printf("DEBUG argv[%d] = %s\n", dbg_i, argv[dbg_i]);
     }
+    printf("DEBUG¨ if you are seen this, we are debugging.\nCheck if we are waiting for the monitor selection (next). you can by pass it passing the argument --disable_select_monitor\n");
     fflush(stdout);
     #endif
     
