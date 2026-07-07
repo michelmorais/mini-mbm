@@ -2777,7 +2777,11 @@ function addMeshToTable(fileName)
         tRightChecked        = {},
         tPickLeftExpanded    = {},
         tPickRightExpanded   = {},
-        sOpenNode            = nil
+        sOpenNode            = nil,
+        tNormalLineGood      = nil,
+        tNormalLineBad       = nil,
+        bNormalsVizDirty     = true,
+        sNormalVizCoordType  = nil
     })
     -- Auto-switch camera to 3D when a mesh (.msh) file is loaded
     if info.type == 'mesh' and not bCameraMode3D then
@@ -2787,7 +2791,8 @@ function addMeshToTable(fileName)
 end
 
 function removeMeshFromTable(index)
-    table.remove(tLoadedMeshes, index)
+    local removed = table.remove(tLoadedMeshes, index)
+    if removed then destroyNormalVisualization(removed) end
     if iSelectedMeshIndex == index then
         iSelectedMeshIndex = 0
         iLastPreviewedIndex = 0
@@ -3062,6 +3067,145 @@ function computeMeshVertexBoundsFrame1(meshD)
         cx = (minX + maxX) * 0.5, cy = (minY + maxY) * 0.5, cz = (minZ + maxZ) * 0.5,
         width = maxX - minX, height = maxY - minY, depth = maxZ - minZ,
     }
+end
+
+-- Normalizes a 3D vector. Returns nx,ny,nz,len or nil if the vector is (near) zero.
+local function normalizeVec3(x, y, z)
+    local len = math.sqrt(x * x + y * y + z * z)
+    if len < 1e-8 then return nil end
+    return x / len, y / len, z / len, len
+end
+
+-- Computes, per local vertex index (1..nV, matching getIndex/getVertex's own local-index
+-- convention), the unit geometric normal averaged from every adjacent triangle in subset
+-- (f,s). Only meaningful when meshD:getModeDraw() == 'TRIANGLES' (the caller is expected to
+-- check that first). Vertices not referenced by any triangle are absent from the result.
+function computeGeoNormalsForSubset(meshD, f, s)
+    local okIdx, indices = dpCall(function() return meshD:getIndex(f, s) end)
+    if not okIdx or not indices then return {} end
+    local okV, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
+    if not okV or not nV or nV <= 0 then return {} end
+    local okVerts, verts = dpCall(function() return meshD:getVertex(f, s, 1, nV) end)
+    if not okVerts or not verts then return {} end
+
+    -- mini-mbm's own default winding is CW (see header-mesh.cpp's mode_front_face_direction
+    -- default), the opposite of the "CCW = outward" convention textbook cross(e1,e2) assumes.
+    -- Flip the sign whenever the mesh isn't explicitly CCW so the geometric normal actually
+    -- points outward for a normally-wound mesh instead of appearing universally "flipped".
+    local okFF, frontFace = dpCall(function() return meshD:getModeFrontFace() end)
+    local sign = (okFF and frontFace == 'CCW') and 1 or -1
+
+    local accum = {}  -- local vertex index -> {x=,y=,z=} summed face normals
+    local nTri = math.floor(#indices / 3)
+    for t = 1, nTri do
+        local i0, i1, i2 = indices[t * 3 - 2], indices[t * 3 - 1], indices[t * 3]
+        local p0, p1, p2 = verts[i0], verts[i1], verts[i2]
+        if p0 and p1 and p2 then
+            local e1x, e1y, e1z = p1.x - p0.x, p1.y - p0.y, p1.z - p0.z
+            local e2x, e2y, e2z = p2.x - p0.x, p2.y - p0.y, p2.z - p0.z
+            local cx = sign * (e1y * e2z - e1z * e2y)
+            local cy = sign * (e1z * e2x - e1x * e2z)
+            local cz = sign * (e1x * e2y - e1y * e2x)
+            local nx, ny, nz = normalizeVec3(cx, cy, cz)
+            if nx then
+                for _, vi in ipairs({i0, i1, i2}) do
+                    local a = accum[vi]
+                    if a then
+                        a.x, a.y, a.z = a.x + nx, a.y + ny, a.z + nz
+                    else
+                        accum[vi] = {x = nx, y = ny, z = nz}
+                    end
+                end
+            end
+        end
+    end
+
+    local geo = {}
+    for vi, sum in pairs(accum) do
+        local nx, ny, nz = normalizeVec3(sum.x, sum.y, sum.z)
+        if nx then geo[vi] = {x = nx, y = ny, z = nz} end
+    end
+    return geo
+end
+
+-- Destroys tEntry's normal-visualization line objects (if any) and clears the fields.
+function destroyNormalVisualization(tEntry)
+    if tEntry.tNormalLineGood then tEntry.tNormalLineGood:destroy() end
+    if tEntry.tNormalLineBad then tEntry.tNormalLineBad:destroy() end
+    tEntry.tNormalLineGood = nil
+    tEntry.tNormalLineBad  = nil
+end
+
+-- Rebuilds the two line objects that visualize frame-1's per-vertex normals: green where the
+-- stored normal agrees with the geometric face normal (from triangle winding), red where it
+-- opposes it. Works for any type that has normals (sprite/tile/mesh/etc all share the same
+-- vertex/index buffer shape); only color-coded when the draw mode is 'TRIANGLES' (otherwise
+-- every normal is drawn green/neutral, since face winding isn't well-defined). Lines are drawn
+-- in whichever coord space the preview is currently using (2dw or 3d), matching bCameraMode3D.
+function rebuildNormalVisualization(tEntry, meshD)
+    destroyNormalVisualization(tEntry)
+    tEntry.bNormalsVizDirty = false
+    local info = tEntry.info or {}
+    if not info.hasNormal then return end
+
+    local okNS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    if not okNS or not nSubsets or nSubsets <= 0 then return end
+
+    local bounds = computeMeshVertexBoundsFrame1(meshD)
+    local diag = 50.0
+    if bounds then
+        diag = math.sqrt(bounds.width * bounds.width + bounds.height * bounds.height + bounds.depth * bounds.depth)
+    end
+    local lineLen = math.max(2.0, math.min(diag * 0.05, 500.0))
+
+    local okMode, modeDraw = dpCall(function() return meshD:getModeDraw() end)
+    local triOk = okMode and modeDraw == 'TRIANGLES'
+
+    local coordType = bCameraMode3D and '3d' or '2dw'
+    tEntry.sNormalVizCoordType = coordType
+    local is3D = coordType == '3d'
+    local lnGood = line:new(coordType, 0, 0, 0)
+    local lnBad  = line:new(coordType, 0, 0, 0)
+    lnGood:setColor(0, 1, 0)
+    lnBad:setColor(1, 0, 0)
+    local anySegment = false
+
+    for s = 1, nSubsets do
+        local okV, nV = dpCall(function() return meshD:getTotalVertex(1, s) end)
+        if okV and nV and nV > 0 then
+            local okVerts, verts = dpCall(function() return meshD:getVertex(1, s, 1, nV) end)
+            if okVerts and verts then
+                local geo = triOk and computeGeoNormalsForSubset(meshD, 1, s) or nil
+                for ii = 1, nV do
+                    local vd = verts[ii]
+                    local nx, ny, nz = normalizeVec3(vd.nx, vd.ny, vd.nz)
+                    if nx then
+                        local isBad = false
+                        if geo and geo[ii] then
+                            local g = geo[ii]
+                            local dot = nx * g.x + ny * g.y + nz * g.z
+                            isBad = dot <= 0
+                        end
+                        local target = isBad and lnBad or lnGood
+                        if is3D then
+                            target:add({vd.x, vd.y, vd.z, vd.x + nx * lineLen, vd.y + ny * lineLen, vd.z + nz * lineLen})
+                        else
+                            target:add({vd.x, vd.y, vd.x + nx * lineLen, vd.y + ny * lineLen})
+                        end
+                        anySegment = true
+                    end
+                end
+            end
+        end
+    end
+
+    if anySegment then
+        tEntry.tNormalLineGood = lnGood
+        tEntry.tNormalLineBad  = lnBad
+    else
+        lnGood:destroy()
+        lnBad:destroy()
+    end
 end
 
 -- Returns total triangle count (indexCount/3) across all frames/subsets, or 0 on error
@@ -4383,6 +4527,165 @@ function collectAnimFrameErrors(tEntry)
     return #errors > 0 and table.concat(errors, '\n') or nil
 end
 
+-- Renders one row's NX/NY/NZ DragFloats + status + Flip/Recompute buttons for local vertex
+-- `v` of subset (1, s). `geo` is the (possibly nil) result of computeGeoNormalsForSubset for
+-- this subset, reused for every row so it is computed once per subset per frame, not per row.
+function showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk)
+    local okVd, vd = dpCall(function() return meshD:getVertex(1, s, v) end)
+    if not okVd or not vd then return end
+    local rid = index .. '-' .. s .. '-' .. v
+
+    tImGui.TableNextRow()
+    tImGui.TableNextColumn()
+    tImGui.Text(tostring(v))
+
+    local function commitNormal(nx, ny, nz)
+        vd.nx, vd.ny, vd.nz = nx, ny, nz
+        dpCall(function() meshD:setVertex(1, s, v, vd) end)
+        tEntry.modified = true
+        tEntry.bNormalsVizDirty = true
+        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    end
+
+    tImGui.PushItemWidth(52)
+    tImGui.TableNextColumn()
+    local chgX, nx = tImGui.DragFloat('##nx-' .. rid, vd.nx, 0.01, 0, 0, '%.2f')
+    tImGui.TableNextColumn()
+    local chgY, ny = tImGui.DragFloat('##ny-' .. rid, vd.ny, 0.01, 0, 0, '%.2f')
+    tImGui.TableNextColumn()
+    local chgZ, nz = tImGui.DragFloat('##nz-' .. rid, vd.nz, 0.01, 0, 0, '%.2f')
+    tImGui.PopItemWidth()
+    if chgX or chgY or chgZ then
+        commitNormal(chgX and nx or vd.nx, chgY and ny or vd.ny, chgZ and nz or vd.nz)
+    end
+
+    -- Status + Flip/Recompute share one narrow column so the table stays compact.
+    tImGui.TableNextColumn()
+    local snx, sny, snz = normalizeVec3(vd.nx, vd.ny, vd.nz)
+    if not snx then
+        tImGui.TextDisabled(tLang.L('normal_status_zero'))
+    elseif geo and geo[v] then
+        local g = geo[v]
+        local dot = snx * g.x + sny * g.y + snz * g.z
+        if dot > 0 then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r = 0.3, g = 1, b = 0.3, a = 1})
+            tImGui.Text(tLang.L('normal_status_ok'))
+        else
+            tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.3, b = 0.3, a = 1})
+            tImGui.Text(tLang.L('normal_status_flipped'))
+        end
+        tImGui.PopStyleColor(1)
+    else
+        tImGui.TextDisabled('-')
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('normal_flip_short') .. '##nflip-' .. rid) then
+        commitNormal(-vd.nx, -vd.ny, -vd.nz)
+    end
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.Text(tLang.L('normal_flip'))
+        tImGui.EndTooltip()
+    end
+    if triOk and geo and geo[v] then
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('normal_recompute_short') .. '##nrecalc-' .. rid) then
+            local g = geo[v]
+            commitNormal(g.x, g.y, g.z)
+        end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.Text(tLang.L('normal_recompute'))
+            tImGui.EndTooltip()
+        end
+    end
+end
+
+-- Renders the per-subset header (bulk Flip/Recompute buttons + a scrollable vertex table)
+-- for frame 1, subset s. Only called when meshType == 'mesh' and info.hasNormal.
+function showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
+    local okNV, nV = dpCall(function() return meshD:getTotalVertex(1, s) end)
+    if not okNV or not nV or nV <= 0 then return end
+
+    local label = string.format('%s %d (%d)', tLang.L('normal_subset_label'), s, nV)
+    if not tImGui.TreeNodeEx(label .. '##nsub-' .. index .. '-' .. s, 0) then return end
+
+    local geo = triOk and computeGeoNormalsForSubset(meshD, 1, s) or {}
+
+    local function bulkUpdate(fn)
+        for v = 1, nV do
+            local okVd, vd = dpCall(function() return meshD:getVertex(1, s, v) end)
+            if okVd and vd then
+                local nx, ny, nz = fn(v, vd, geo[v])
+                if nx then
+                    vd.nx, vd.ny, vd.nz = nx, ny, nz
+                    dpCall(function() meshD:setVertex(1, s, v, vd) end)
+                end
+            end
+        end
+        tEntry.modified = true
+        tEntry.bNormalsVizDirty = true
+        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    end
+
+    if tImGui.Button(tLang.L('normal_flip_all') .. '##nflipall-' .. index .. '-' .. s) then
+        bulkUpdate(function(v, vd) return -vd.nx, -vd.ny, -vd.nz end)
+    end
+    if triOk then
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('normal_recompute_all') .. '##nrecalcall-' .. index .. '-' .. s) then
+            bulkUpdate(function(v, vd, g) if g then return g.x, g.y, g.z end return nil end)
+        end
+    end
+
+    -- Kept intentionally narrow (Idx + NX/NY/NZ + one combined Status/Actions column) so the
+    -- whole table fits inside the Mesh Tree window's default ~350px width; ScrollX is a safety
+    -- net if the window is narrower still or a translation makes the status text wider.
+    local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_ScrollY',
+        'ImGuiTableFlags_ScrollX', 'ImGuiTableFlags_RowBg')
+    local listH = math.min(nV * 24 + 30, 260)
+    if tImGui.BeginTable('nsubTbl-' .. index .. '-' .. s, 5, tblFlags, {x = 0, y = listH}) then
+        tImGui.TableSetupScrollFreeze(0, 1)
+        tImGui.TableSetupColumn(tLang.L('normal_col_idx'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 30)
+        tImGui.TableSetupColumn('NX', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 56)
+        tImGui.TableSetupColumn('NY', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 56)
+        tImGui.TableSetupColumn('NZ', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 56)
+        tImGui.TableSetupColumn(tLang.L('normal_col_status'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 110)
+        tImGui.TableHeadersRow()
+        for v = 1, nV do
+            showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk)
+        end
+        tImGui.EndTable()
+    end
+
+    tImGui.TreePop()
+end
+
+-- Draws the per-vertex normal viewer/editor for frame 1 of any entry that has normals:
+-- auto-builds the line visualization while the Normals node is open, and lists every subset's
+-- vertices with inline nx/ny/nz editing plus Flip/Recompute actions.
+function showNormalsEditor(tEntry, meshD, index)
+    if not (tEntry.info or {}).hasNormal then return end
+
+    local wantCoordType = bCameraMode3D and '3d' or '2dw'
+    if not tEntry.tNormalLineGood or tEntry.bNormalsVizDirty or tEntry.sNormalVizCoordType ~= wantCoordType then
+        rebuildNormalVisualization(tEntry, meshD)
+    end
+
+    local okMode, modeDraw = dpCall(function() return meshD:getModeDraw() end)
+    local triOk = okMode and modeDraw == 'TRIANGLES'
+    if not triOk then
+        tImGui.TextDisabled(tLang.L('normal_non_triangle_note'))
+    end
+
+    local okNS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    if okNS and nSubsets then
+        for s = 1, nSubsets do
+            showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
+        end
+    end
+end
+
 function showMeshOptions(tEntry, index)
     local meshD = tEntry.meshDebug
     local info = tEntry.info or {}
@@ -4429,6 +4732,7 @@ function showMeshOptions(tEntry, index)
             meshD:removeNormals()
             if tEntry.info then tEntry.info.hasNormal = false end
             tEntry.modified = true
+            tEntry.bNormalsVizDirty = true
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             if nVertices > 0 then
                 local bytesSaved = nVertices * 12  -- 3 floats per normal
@@ -4443,6 +4747,7 @@ function showMeshOptions(tEntry, index)
             meshD:addNormals()
             if tEntry.info then tEntry.info.hasNormal = true end
             tEntry.modified = true
+            tEntry.bNormalsVizDirty = true
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             if nVertices > 0 then
                 tUtil.showMessage(string.format('Added normals: %s\n%d vertices', shortName, nVertices), 4)
@@ -4450,7 +4755,10 @@ function showMeshOptions(tEntry, index)
                 tUtil.showMessage('Added normals: ' .. shortName, 4)
             end
         end
+        showNormalsEditor(tEntry, meshD, index)
         tImGui.TreePop()
+    elseif tEntry.tNormalLineGood or tEntry.tNormalLineBad then
+        destroyNormalVisualization(tEntry)
     end
 
     -- Auto-cancel transform preview when the Transform node is closed
@@ -6658,6 +6966,20 @@ function showMeshTreeWindow()
                     if i == iSelectedMeshIndex then
                         iSelectedMeshIndex = 0
                     end
+                    -- showMeshOptions (and its own Normals-node auto-cancel) only runs for the
+                    -- currently expanded/selected entry, so a collapsed entry's normal-viz lines
+                    -- would otherwise never get destroyed and leak on screen after switching to
+                    -- another mesh. Enforce it here unconditionally instead.
+                    if tEntry.tNormalLineGood or tEntry.tNormalLineBad then
+                        destroyNormalVisualization(tEntry)
+                    end
+                    -- Same pre-existing leak class for the Transform tab's preview clone (its
+                    -- own auto-cancel likewise only ran inside showMeshOptions, i.e. only while
+                    -- this entry was the selected one).
+                    if tEntry.tXformPreviewMesh then
+                        tEntry.tXformPreviewMesh:destroy()
+                        tEntry.tXformPreviewMesh = nil
+                    end
                 end
             end
             for j = #tToRemove, 1, -1 do
@@ -6672,7 +6994,11 @@ function showMeshTreeWindow()
 end
 
 function showCameraWindow()
-    local iW = mbm.getSizeScreen()
+    -- getRealSizeScreen (physical framebuffer pixels), not getSizeScreen (logical/scaled
+    -- points): SetNextWindowPos operates in the same space ImGui itself renders in, which on a
+    -- HiDPI/Retina display (macOS) is larger than the logical size. Using the logical size here
+    -- pushed this right-anchored window off the right edge of the screen on macOS.
+    local iW = mbm.getRealSizeScreen()
     local winW = 300
     tImGui.SetNextWindowPos({x = iW - winW - 5, y = 25}, tImGui.Flags('ImGuiCond_Once'))
     local wFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoCollapse')
@@ -6779,7 +7105,9 @@ function showCameraWindow()
 end
 
 function showLightWindow()
-    local iW = mbm.getSizeScreen()
+    -- See showCameraWindow's comment: must use the real/physical screen size, not the
+    -- logical one, or this right-anchored window ends up off-screen on HiDPI displays.
+    local iW = mbm.getRealSizeScreen()
     local winW = 470
     local winY = bCameraMode3D and 500 or 220
     tImGui.SetNextWindowPos({x = iW - winW - 5, y = winY}, tImGui.Flags('ImGuiCond_Once'))
