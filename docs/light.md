@@ -3,6 +3,95 @@
 This document explains the material model used by Mini MBM lighting and how it differs from
 modern physically based rendering.
 
+## Quick Mental Model (Read This First)
+
+Skip this section if you already know Lambert/Blinn-Phong lighting — the rest of the document is
+the precise reference. This section is the intuition-first version, for diagnosing whether
+something you're seeing is a bug or expected behavior.
+
+### The three ingredients of a lit pixel
+
+Every lit surface point on screen is `ambient + diffuse + specular` added together:
+
+- **Ambient** (`AmbientColor * MaterialAmbient`) — a flat, direction-less fill light. No angle, no
+  position, just a multiply. Simulates "bounced light in the room" so shadowed areas aren't pure
+  black. If you change nothing else, this is the color a fully-shadowed surface still shows.
+- **Diffuse** (Lambertian: `max(dot(Normal, LightDirection), 0)`) — *how directly does this surface
+  face the light?* Directly facing the light = 1 (full brightness); facing away = 0 (dark). This is
+  the term that makes a sphere look round. It does **not** depend on where the camera is — moving
+  only the camera must never change this term. If it does, that's a real bug (this is exactly what
+  MBM_VERSION 6.11.0 fixed for 3D: `mvMatrix` wasn't actually in camera space, so diffuse quietly
+  changed with camera orbit).
+- **Specular** (Blinn-Phong: `pow(max(dot(Normal, HalfVector), 0), MaterialPower)`) — the shiny
+  highlight. Unlike diffuse, this **does** depend on the camera (`HalfVector` averages "toward the
+  light" and "toward the camera"). A specular highlight sliding around as you orbit the camera is
+  correct, not a bug. A low `MaterialPower` (e.g. `1.0`) spreads this into a broad, soft-looking
+  highlight that can be mistaken for a lighting-direction problem — see the checklist below.
+
+### Where does the Normal come from?
+
+This explains most surprises people run into:
+
+1. **A real mesh with authored per-vertex normals** (a `.msh`, or a sprite/tile with normals) — the
+   normal varies smoothly across the surface based on actual geometry. No surprises, standard
+   Lambert/Blinn-Phong applies directly.
+2. **A flat 2D sprite with no normal map** — there's no real surface to derive a normal from, so the
+   engine used to fake `Normal = (0,0,1)` (dead-on facing the camera) and still ran it through the
+   real diffuse dot-product against an in-plane point light. That combination produces meaningless,
+   geometry-free artifacts (a tiny sharp "hotspot" instead of a soft glow) purely as an accident of
+   whatever Z-offset the light happens to have. Fixed in the same round as the above: this case now
+   skips the angle term and lights purely by distance (see `HasNormalMap` in Reserved Shader Inputs).
+3. **A flat 2D sprite *with* a normal map** — a texture where pixel colors encode directions instead
+   of colors, giving the illusion of bumps on a flat surface (e.g. `src/test-lib/box.spt` +
+   `wooden-box_normal.png`). Here the engine samples a *real, different* normal per pixel and runs
+   the *real* diffuse math against it. A light placed close and at a shallow angle will then
+   legitimately produce a small, sharp, "sparkly" highlight where individual bumps catch the light —
+   that is the entire point of a normal map, not a bug. Moving the light farther away, or adjusting
+   its assumed "height" above the flat art, smooths this back into a soft glow. Whether a specific
+   normal-map/light/height combination "looks right" is an art-tuning question, not an engine one.
+
+   That "height" is the light's `z`. Mini MBM's 2D camera is left-handed: increasing `z` moves
+   *away* from the camera (deeper into the screen), and a 2D world sprite sits at/near `z = 0` by
+   default. So a light at a negative `z` sits in front of the sprite plane (closer to the camera)
+   and one at a positive `z` sits behind it — think of `z` as how high the lamp hangs above the flat
+   art, not as a draw-order value. Low/close (small `|z|`) gives the sharp, sparkly look above;
+   higher/farther gives a soft, even glow.
+
+Per-vertex normals on a sprite that never uses them for lighting (case 3 skips them entirely,
+sampling the texture instead) can be flat-out wrong without ever being visible — this is exactly
+what happened with `box.spt`: its own vertex normals were wrong, but nothing ever noticed because
+that lighting path doesn't read them.
+
+### Point light falloff (attenuation)
+
+`attenuation = (1 - clamp(dist / radius, 0, 1))²`. Not true inverse-square (which never reaches
+exactly zero) — a common game-engine approximation that guarantees the light contributes exactly
+zero at `radius`, giving a clean bounded circle of effect instead of an infinite dim tail. `radius`
+is "how far this light reaches" as a tuning knob, not a physical unit.
+
+### Diagnostic checklist: is this a bug or expected?
+
+1. **Isolate one light at a time.** With several lights active you're looking at a sum of all of
+   them — hard to reason about. Temporarily `clearPointLights` down to one.
+2. **Zero out `MaterialPower`** if you can, to kill specular and look at diffuse alone. Specular is
+   the *only* term allowed to change when just the camera moves; if a "weird gradient" disappears
+   when you zero it, that's what you were looking at.
+3. **Check whether the mesh's normals actually point where you think.** Mesh Debug's Normals tree
+   node (added in MBM_VERSION 6.12.0) draws every frame-1 vertex normal as a line, color-coded green
+   ("OK", agrees with the geometric face normal from triangle winding) or red ("flipped", opposes
+   it), with per-vertex and per-subset Flip/Recompute actions. A mesh reported as lighting from the
+   "wrong side" (e.g. a floor only lighting up from underneath) usually means its authored normals
+   are inverted — flip them there rather than fighting the light direction to compensate.
+4. **Check for a normal map before blaming attenuation math.** `grep` the `.spt`/`.msh` for a
+   `_normal.png`-style texture reference — a normal map changes the whole character of a point
+   light's falloff (see above).
+5. **Move only the camera, nothing else.** Diffuse and attenuation must stay pixel-identical; only
+   specular is allowed to shift.
+6. **When truly unsure, drop to the simplest possible asset**: a plain flat quad, no normal map,
+   `MaterialPower = 0`. Confirm a point light looks like a plain soft radial glow there. If that's
+   clean, whatever looked "wrong" on a fancier asset is almost always that asset's own material or
+   normal data, not the engine.
+
 ## Classic Material
 
 Mini MBM currently has a classic material model in mesh data:
@@ -177,8 +266,14 @@ There are two independent point-light storages per target, and the naming is eas
 
 `mbm.getSelectedPointLights(target, ...)` (see below) reads from the **list** when it is non-empty.
 If the list is empty, it falls back to treating the legacy single slot as one synthetic candidate
-light. So the legacy slot only matters for selection on targets where `addPointLight` was never
-called.
+light — but only if that slot was actually configured at least once (any of `setPointLight`/
+`setPointLightPosition`/`setPointLightRadius`/`setPointLightColor` were called for this target).
+Before MBM_VERSION 6.11.0's second point-light fix, this fallback fired unconditionally whenever the
+list was empty, which meant *any* 3D mesh with lighting enabled and zero point lights configured
+would silently pick up `LIGHT_STATE`'s bare struct defaults (`pointPosition=(0,0,128)`, `radius=512`,
+white) as a phantom point light nobody asked for — harmless while 3D never consumed point-light
+selection at all, but very much not harmless once it started to. So the legacy slot only matters for
+selection on targets where `addPointLight` was never called *and* one of the legacy setters was.
 
 ## Current Implementation Scope
 
