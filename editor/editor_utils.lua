@@ -951,6 +951,36 @@ tUtil.showStatusMessage = function (sMessageYellow,sMessageGrayed)
     tImGui.End()
 end
 
+-- Converts an {azimuth=, elevation=} orbit state (the same convention drawOrbitGizmo below uses
+-- for the 3D camera) into a directional-light direction vector {x=,y=,z=}. The orbit angles
+-- describe the unit vector pointing FROM the scene TOWARD the light source ("where is the sun" --
+-- intuitive to drag, same gesture as orbiting the camera). mbm.setDirectionalLightDirection's
+-- direction is the direction light TRAVELS (source -> scene), the opposite of that -- hence the
+-- negation. Shared by scene_editor3d.lua and mesh_debug.lua so this math only lives once.
+tUtil.dirFromOrbit = function(orbit)
+    local caz, saz = math.cos(orbit.azimuth), math.sin(orbit.azimuth)
+    local cel, sel = math.cos(orbit.elevation), math.sin(orbit.elevation)
+    local towardLightX, towardLightY, towardLightZ = cel * saz, sel, cel * caz
+    return { x = -towardLightX, y = -towardLightY, z = -towardLightZ }
+end
+
+-- Inverse of the above -- derives {azimuth=, elevation=} from a directional-light direction vector
+-- (e.g. the persisted/exported directionalDir), so an orbit gizmo starts in sync with whatever
+-- direction is currently set instead of snapping to some arbitrary default the first time it's
+-- touched.
+tUtil.orbitFromDir = function(dir)
+    local towardX, towardY, towardZ = -dir.x, -dir.y, -dir.z
+    local len = math.sqrt(towardX * towardX + towardY * towardY + towardZ * towardZ)
+    if len < 1e-6 then
+        towardX, towardY, towardZ, len = 0, 1, 0, 1 -- degenerate (zero vector) -- default to straight down
+    end
+    towardX, towardY, towardZ = towardX / len, towardY / len, towardZ / len
+    return {
+        elevation = math.asin(math.max(-1, math.min(1, towardY))),
+        azimuth = math.atan(towardX, towardZ),
+    }
+end
+
 -- Blender-style navigation gizmo: draws an interactive sphere with 6 axis dots.
 -- c: spherical camera state {azimuth=, elevation=, ...}, mutated in place.
 -- opts (optional): size (px diameter), sensitivity (rad/px drag), elevationLimit (rad).

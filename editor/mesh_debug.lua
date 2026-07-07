@@ -246,15 +246,20 @@ local function cloneMaterialTable(mat)
 end
 
 local function cloneLightState(state)
+    local directionalDirection = {
+        x = (state and state.directionalDirection and state.directionalDirection.x) or 0,
+        y = (state and state.directionalDirection and state.directionalDirection.y) or -0.70710677,
+        z = (state and state.directionalDirection and state.directionalDirection.z) or -0.70710677,
+    }
     return {
         enabled = state and state.enabled or false,
         ambientColor = makeColorRGBA(state and state.ambientColor, {r = 0.2, g = 0.2, b = 0.2, a = 1}),
         directionalColor = makeColorRGBA(state and state.directionalColor, {r = 1, g = 1, b = 1, a = 1}),
-        directionalDirection = {
-            x = (state and state.directionalDirection and state.directionalDirection.x) or 0,
-            y = (state and state.directionalDirection and state.directionalDirection.y) or -0.70710677,
-            z = (state and state.directionalDirection and state.directionalDirection.z) or -0.70710677,
-        },
+        directionalDirection = directionalDirection,
+        -- Orbit-trackball state for the directional-direction gizmo (same widget the 3D camera and
+        -- scene_editor3d.lua's own light panel use) -- seeded once from whatever direction is
+        -- currently set so it starts in sync instead of snapping somewhere arbitrary.
+        orbit = tUtil.orbitFromDir(directionalDirection),
         pointColor = makeColorRGBA(state and state.pointColor, {r = 1, g = 1, b = 1, a = 1}),
         pointPosition = {
             x = (state and state.pointPosition and state.pointPosition.x) or 0,
@@ -335,11 +340,13 @@ local function getPreviewStage2Texture(tEntry)
     if not tPreviewMesh then
         return nil
     end
-    local okSh, tShader = dpCall(function() return tPreviewMesh:getShader() end)
+    -- plain pcall (no dpCall/print): a mesh with no active shader animation has no FX,
+    -- which is an expected, frequent case here, not a bug worth logging every frame.
+    local okSh, tShader = pcall(function() return tPreviewMesh:getShader() end)
     if not okSh or not tShader then
         return nil
     end
-    local okTex, tex2 = dpCall(function() return tShader:getTextureStage2() end)
+    local okTex, tex2 = pcall(function() return tShader:getTextureStage2() end)
     if not okTex or type(tex2) ~= 'string' or tex2 == '' then
         return nil
     end
@@ -500,19 +507,14 @@ local function showEditorLightPanel(target, idSuffix)
             dpCall(function() mbm.setDirectionalLightColor(target, directionalColor) end)
         end
 
-        local dir = lightState.directionalDirection or {x = 0, y = -0.70710677, z = -0.70710677}
+        -- Same orbit trackball widget already used for the camera here and for the light in
+        -- scene_editor3d.lua (tUtil.drawOrbitGizmo only reads/writes .azimuth/.elevation, so it
+        -- works unmodified on lightState.orbit) -- drag to re-aim the sun instead of typing a raw
+        -- direction vector by hand.
         tImGui.Text(tLang.L('direction_label'))
-        tUtil.pushResponsiveItemWidth(120)
-        local d1, nx = tImGui.SliderFloat('X##lightDirX' .. idSuffix, dir.x or 0, -1.0, 1.0, '%.3f')
-        local d2, ny = tImGui.SliderFloat('Y##lightDirY' .. idSuffix, dir.y or 0, -1.0, 1.0, '%.3f')
-        local d3, nz = tImGui.SliderFloat('Z##lightDirZ' .. idSuffix, dir.z or 0, -1.0, 1.0, '%.3f')
-        tImGui.PopItemWidth()
-        if d1 or d2 or d3 then
-            lightState.directionalDirection = {
-                x = d1 and nx or dir.x or 0,
-                y = d2 and ny or dir.y or 0,
-                z = d3 and nz or dir.z or 0,
-            }
+        lightState.orbit = lightState.orbit or tUtil.orbitFromDir(lightState.directionalDirection)
+        if tUtil.drawOrbitGizmo(lightState.orbit, {size = 110}) then
+            lightState.directionalDirection = tUtil.dirFromOrbit(lightState.orbit)
             dpCall(function()
                 mbm.setDirectionalLightDirection(target,
                     lightState.directionalDirection.x,
@@ -520,6 +522,8 @@ local function showEditorLightPanel(target, idSuffix)
                     lightState.directionalDirection.z)
             end)
         end
+        tImGui.TextDisabled(string.format('%s: x=%.3f y=%.3f z=%.3f', tLang.L('direction_label'),
+            lightState.directionalDirection.x, lightState.directionalDirection.y, lightState.directionalDirection.z))
     end
 
     if tImGui.Button(tLang.L('reset_light') .. '##lightReset' .. idSuffix) then
@@ -2788,6 +2792,94 @@ function addMeshToTable(fileName)
         setMeshDebugCameraMode3d(true)
     end
     return true
+end
+
+local function buildCubeFaceVertices(p0, p1, p2, p3)
+    return {
+        {x = p0.x, y = p0.y, z = p0.z, u = 0, v = 0},
+        {x = p1.x, y = p1.y, z = p1.z, u = 1, v = 0},
+        {x = p2.x, y = p2.y, z = p2.z, u = 1, v = 1},
+        {x = p3.x, y = p3.y, z = p3.z, u = 0, v = 1},
+    }
+end
+
+-- Builds a 100x100x100 cube with 6 independently-colored, flat-shaded faces (24 unique vertices,
+-- no sharing across faces, so addNormals() gives each face its own crisp normal instead of
+-- averaging with its neighbors) and saves it as a real, reloadable .msh next to the engine's other
+-- reference test assets -- a known-good mesh for testing lighting/normals against, and a working
+-- example of the from-scratch mesh-building API. Positive axes get primary colors, negative axes
+-- their complements, so the cube doubles as an orientation reference.
+-- Face winding was hand-verified against calculateNormals()'s actual cross(p1-p0, p2-p0) formula
+-- (it does NOT apply any CW/CCW correction) so each face's auto-computed normal genuinely points
+-- outward. Despite that, the engine's actual screen-space rasterization treats this same winding
+-- as CW-front, not CCW-front (confirmed by visual test: setModeFrontFace('CCW') showed the inside
+-- of the cube instead of its outer faces) -- so setModeFrontFace('CW') is required here even
+-- though the winding is genuinely "outward" by the raw cross-product math. Normals and culling are
+-- independent mechanisms in this engine, so this doesn't affect the already-verified normals above.
+function onAddColoredCube()
+    local h = 50
+    local A = {x = -h, y = -h, z = -h}
+    local B = {x =  h, y = -h, z = -h}
+    local C = {x =  h, y =  h, z = -h}
+    local D = {x = -h, y =  h, z = -h}
+    local E = {x = -h, y = -h, z =  h}
+    local F = {x =  h, y = -h, z =  h}
+    local G = {x =  h, y =  h, z =  h}
+    local H = {x = -h, y =  h, z =  h}
+
+    local tFaces = {
+        {verts = {B, C, G, F}, color = '#FFFF0000'}, -- +X red
+        {verts = {A, E, H, D}, color = '#FF00FFFF'}, -- -X cyan
+        {verts = {D, H, G, C}, color = '#FF00FF00'}, -- +Y green
+        {verts = {A, B, F, E}, color = '#FFFF00FF'}, -- -Y magenta
+        {verts = {E, F, G, H}, color = '#FF0000FF'}, -- +Z blue
+        {verts = {A, D, C, B}, color = '#FFFFFF00'}, -- -Z yellow
+    }
+
+    local meshD = meshDebug:new()
+    meshD:setType('mesh')
+    meshD:setModeFrontFace('CW')
+    local frameIdx = meshD:addFrame(3)
+
+    for _, face in ipairs(tFaces) do
+        local subIdx = meshD:addSubSet(frameIdx)
+        local verts = buildCubeFaceVertices(face.verts[1], face.verts[2], face.verts[3], face.verts[4])
+        if not meshD:addVertex(frameIdx, subIdx, verts) then
+            tUtil.showMessage(tLang.L('colored_cube_add_vertex_failed'))
+            return
+        end
+        if not meshD:addIndex(frameIdx, subIdx, {1, 2, 3, 1, 3, 4}) then
+            tUtil.showMessage(tLang.L('colored_cube_add_index_failed'))
+            return
+        end
+        meshD:setTexture(frameIdx, subIdx, face.color)
+    end
+
+    meshD:addNormals()
+
+    -- MESH::render() (src/render/mesh.cpp) draws nothing at all when a mesh has zero animations,
+    -- even a static single-frame one -- add a trivial frame-1-to-1 animation so the cube renders
+    -- immediately, without requiring a manual "Add Animation" click.
+    if not meshD:addAnim('Static', 1, 1, 1.0, 0) then
+        tUtil.showMessage(tLang.L('colored_cube_add_anim_failed'))
+        return
+    end
+
+    local mshPath = 'src/test-lib/colored_cube.msh'
+    local okCheck, errCheck = meshD:check()
+    if not okCheck then
+        tUtil.showMessage(string.format(tLang.L('colored_cube_check_failed_fmt'), tostring(errCheck)))
+        return
+    end
+    if not meshD:save(mshPath, false, false) then
+        tUtil.showMessage(string.format(tLang.L('colored_cube_save_failed_fmt'), mshPath))
+        return
+    end
+
+    if addMeshToTable(mshPath) then
+        bShowMeshTree = true
+        tUtil.showMessage(string.format(tLang.L('colored_cube_added_fmt'), mshPath))
+    end
 end
 
 function removeMeshFromTable(index)
@@ -5482,7 +5574,9 @@ function showMeshOptions(tEntry, index)
 
     if openNode(tEntry, 'shader', tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
-            local okSh, tShader = dpCall(function() return tPreviewMesh:getShader() end)
+            -- plain pcall (no dpCall/print): a mesh with no active shader animation has no FX,
+            -- an expected state (shown via the "Preview required" message below), not a bug to log.
+            local okSh, tShader = pcall(function() return tPreviewMesh:getShader() end)
             if okSh and tShader then
                 tUtil.pushResponsiveItemWidth(180)
                 local sAnim, iCurAnim = tPreviewMesh:getAnim()
@@ -6789,6 +6883,9 @@ function main_menu_mesh_debug()
             end
             if tImGui.MenuItem(tLang.L("load_from_folder")) then
                 onLoadMeshFromFolder()
+            end
+            if tImGui.MenuItem(tLang.L("add_colored_cube")) then
+                onAddColoredCube()
             end
             tImGui.Separator()
             if tImGui.MenuItem(tLang.L("save_all_to_folder"), nil, false, #tLoadedMeshes > 0) then

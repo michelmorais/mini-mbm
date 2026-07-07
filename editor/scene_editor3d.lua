@@ -212,30 +212,18 @@ function applyLightConfigToEngine()
     end
 end
 
--- tLightOrbit uses the exact same azimuth/elevation convention as cam3d/drawOrbitGizmo: the unit
--- vector these angles describe points FROM the scene TOWARD the light source ("where is the sun"
--- -- intuitive to drag, same gesture as orbiting the camera). mbm.setDirectionalLight's direction
--- is the direction light TRAVELS (source -> scene), the opposite of that -- hence the negation.
+-- tLightOrbit uses the exact same azimuth/elevation convention as cam3d/drawOrbitGizmo. The
+-- conversion math itself lives in editor_utils.lua (tUtil.dirFromOrbit/orbitFromDir) since
+-- mesh_debug.lua's light panel now uses the same orbit-gizmo-for-light-direction pattern -- these
+-- two wrappers just bridge that shared math to this file's own tLightOrbit/tLightConfig globals.
 function computeDirectionalDirFromOrbit()
-    local caz, saz = math.cos(tLightOrbit.azimuth), math.sin(tLightOrbit.azimuth)
-    local cel, sel = math.cos(tLightOrbit.elevation), math.sin(tLightOrbit.elevation)
-    local towardLightX, towardLightY, towardLightZ = cel * saz, sel, cel * caz
-    tLightConfig.directionalDir = { x = -towardLightX, y = -towardLightY, z = -towardLightZ }
+    tLightConfig.directionalDir = tUtil.dirFromOrbit(tLightOrbit)
 end
 
--- Inverse of the above -- derives azimuth/elevation from whatever directionalDir currently is
--- (the persisted/exported value), so tLightOrbit starts in sync on init and after loading a
--- scene, instead of snapping to some arbitrary default the first time the trackball is touched.
 function computeOrbitFromDirectionalDir()
-    local dir = tLightConfig.directionalDir
-    local towardX, towardY, towardZ = -dir.x, -dir.y, -dir.z
-    local len = math.sqrt(towardX * towardX + towardY * towardY + towardZ * towardZ)
-    if len < 1e-6 then
-        towardX, towardY, towardZ, len = 0, 1, 0, 1 -- degenerate (zero vector) -- default to straight down
-    end
-    towardX, towardY, towardZ = towardX / len, towardY / len, towardZ / len
-    tLightOrbit.elevation = math.asin(math.max(-1, math.min(1, towardY)))
-    tLightOrbit.azimuth = math.atan(towardX, towardZ)
+    local orbit = tUtil.orbitFromDir(tLightConfig.directionalDir)
+    tLightOrbit.azimuth = orbit.azimuth
+    tLightOrbit.elevation = orbit.elevation
 end
 
 ------------------------------------------------------------------------------------------------------------------
@@ -423,6 +411,8 @@ function drawLightPanel()
         computeDirectionalDirFromOrbit()
         mbm.setDirectionalLightDirection('3d', tLightConfig.directionalDir)
     end
+    tImGui.TextDisabled(string.format('%s: x=%.3f y=%.3f z=%.3f', tLang.L('light_direction'),
+        tLightConfig.directionalDir.x, tLightConfig.directionalDir.y, tLightConfig.directionalDir.z))
 
     tImGui.Separator()
     tImGui.Text(tLang.L('light_point_lights_fmt'):format(#tLightConfig.pointLights))
