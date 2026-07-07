@@ -1051,7 +1051,7 @@ namespace mbm
                         "   float dist = length(toLight);"
                         "   if (LightRadius[i] > 0.0001) {"
                         "    vec3 lightDir = toLight / max(dist, 0.0001);"
-                        "    float diffuse = max(dot(normalView, lightDir), 0.0);"
+                        "    float diffuse = HasNormalMap != 0 ? max(dot(normalView, lightDir), 0.0) : 1.0;"
                         "    float attenuation = 1.0 - clamp(dist / LightRadius[i], 0.0, 1.0);"
                         "    attenuation *= attenuation;"
                         "    light += LightColor[i].rgb * diffuse * attenuation;"

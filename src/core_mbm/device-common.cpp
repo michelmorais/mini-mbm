@@ -635,13 +635,17 @@ namespace mbm
             std::vector<LIGHT_POINT_SELECTION> candidates;
             DEVICE *device = DEVICE::getInstance();
             const std::vector<LIGHT_POINT> &pointLights = DEVICE_LIGHT_ACCESS::getPointLights(device, target);
-            if (pointLights.empty())
+            const LIGHT_STATE &lightState = DEVICE_LIGHT_ACCESS::getLightState(device, target);
+            const bool legacySlotConfigured = lightState.pointPositionConfigured ||
+                                              lightState.pointColorConfigured ||
+                                              lightState.pointRadiusConfigured;
+            if (pointLights.empty() && legacySlotConfigured)
             {
                 // Fallback to the single legacy point-light slot (setPointLight/setPointLightPosition/
-                // setPointLightRadius/setPointLightColor) when addPointLight was never called for this target.
-                // Without this branch, a game that only ever used setPointLight would silently select zero
-                // lights here, since this function was originally list-only.
-                const LIGHT_STATE &lightState = DEVICE_LIGHT_ACCESS::getLightState(device, target);
+                // setPointLightRadius/setPointLightColor) when addPointLight was never called for this target,
+                // but only if the developer actually configured that slot at least once - otherwise every
+                // mesh/sprite with lighting enabled would silently pick up LIGHT_STATE's struct defaults
+                // (pointPosition=(0,0,128), radius=512, color=white) as a phantom point light no one asked for.
                 LIGHT_POINT_SELECTION selection;
                 selection.pointLight.position = lightState.pointPosition;
                 selection.pointLight.radius = lightState.pointRadius;
@@ -654,7 +658,7 @@ namespace mbm
                 selection.distanceToObjectCenter = distanceToObjectCenter;
                 candidates.push_back(selection);
             }
-            else
+            else if (pointLights.empty() == false)
             {
                 candidates.reserve(pointLights.size());
 

@@ -1121,7 +1121,7 @@ namespace mbm
                     "   float dist = length(toLight);"
                     "   if (LightRadius[i] > 0.0001f) {"
                     "    float3 lightDir = toLight / max(dist, 0.0001f);"
-                    "    float diffuse = max(dot(normalView, lightDir), 0);"
+                    "    float diffuse = HasNormalMap != 0 ? max(dot(normalView, lightDir), 0) : 1.0f;"
                     "    float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
                     "    attenuation *= attenuation;"
                     "    light += LightColor[i].rgb * diffuse * attenuation;"

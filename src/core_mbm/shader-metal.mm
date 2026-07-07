@@ -639,7 +639,7 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
                               "      float dist = length(toLight);\n"
                               "      if (LightRadius[i] > 0.0001f) {\n"
                               "        float3 lightDir = toLight / max(dist, 0.0001f);\n"
-                              "        float diffuse = max(dot(normalView, lightDir), 0.0f);\n"
+                              "        float diffuse = HasNormalMap != 0 ? max(dot(normalView, lightDir), 0.0f) : 1.0f;\n"
                               "        float attenuation = 1.0f - clamp(dist / LightRadius[i], 0.0f, 1.0f);\n"
                               "        attenuation *= attenuation;\n"
                               "        light += LightColor[i].rgb * diffuse * attenuation;\n"
