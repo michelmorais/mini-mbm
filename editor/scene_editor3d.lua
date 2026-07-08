@@ -1311,6 +1311,7 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
     end
     if bSync then
         onLoaded(placeMeshSync(fileName, sType, '3d'))
+        tLoadProgress.iLoaded = tLoadProgress.iLoaded + 1
     else
         -- Only (re)start the progress tracker for a standalone placement (e.g. one grid click).
         -- A bulk caller like onOpenScene3d already calls beginLoadProgress once with the correct
@@ -1418,32 +1419,45 @@ function updateSceneObjectShapes()
     end
 end
 
-function drawObjectMarkerFields(tObj)
-    local cName, sName = tImGui.InputText('##marker_name', tObj.name or 'no_name', 64)
+-- markerIndex must be part of every widget ID here -- ImGui identifies widgets by ID string, and
+-- every field below (bar the caller's own type-combo/delete-button) used a bare, non-unique ID, so
+-- multiple markers rendered in the same frame all shared ONE underlying widget/edit-buffer per
+-- field: typing a name into one marker's field could be silently clobbered the moment a second
+-- marker's row (using the exact same '##marker_name' ID) rendered afterward.
+function drawObjectMarkerFields(tObj, markerIndex)
+    -- tImGui.InputText(label, text, flags?) has no "max length" parameter at all -- its C++
+    -- binding always auto-sizes the edit buffer from the current text's own length + 256 bytes of
+    -- headroom. The "64" here was passed expecting some other framework's (label, text, maxLength)
+    -- shape; this binding instead validates any bare number as a raw ImGuiInputTextFlags bitmask,
+    -- and 64 == ImGuiInputTextFlags_EnterReturnsTrue (1<<6) -- a real, valid flag -- so it silently
+    -- changed this field's contract to "only report a change once Enter is pressed" instead of
+    -- "report a change on every keystroke", which is why a typed name never appeared to stick
+    -- (confirmed: the user never pressed Enter after typing, just moved on).
+    local cName, sName = tImGui.InputText('##marker_name' .. markerIndex, tObj.name or 'no_name')
     if cName then tObj.name = sName end
-    local c1, x = tImGui.InputFloat(tLang.L('axis_x') .. '##marker_x', tObj.x, 1, 10, '%.2f')
-    local c2, y = tImGui.InputFloat(tLang.L('axis_y') .. '##marker_y', tObj.y, 1, 10, '%.2f')
-    local c3, z = tImGui.InputFloat(tLang.L('axis_z') .. '##marker_z', tObj.z, 1, 10, '%.2f')
+    local c1, x = tImGui.InputFloat(tLang.L('axis_x') .. '##marker_x' .. markerIndex, tObj.x, 1, 10, '%.2f')
+    local c2, y = tImGui.InputFloat(tLang.L('axis_y') .. '##marker_y' .. markerIndex, tObj.y, 1, 10, '%.2f')
+    local c3, z = tImGui.InputFloat(tLang.L('axis_z') .. '##marker_z' .. markerIndex, tObj.z, 1, 10, '%.2f')
     if c1 or c2 or c3 then
         tObj.x, tObj.y, tObj.z = x, y, z
     end
     if tObj.type == 'rectangle' then
-        local cw, w = tImGui.InputFloat(tLang.L('width') .. '##marker_w', tObj.width or 100, 1, 10, '%.2f')
-        local ch, h = tImGui.InputFloat(tLang.L('height') .. '##marker_h', tObj.height or 100, 1, 10, '%.2f')
+        local cw, w = tImGui.InputFloat(tLang.L('width') .. '##marker_w' .. markerIndex, tObj.width or 100, 1, 10, '%.2f')
+        local ch, h = tImGui.InputFloat(tLang.L('height') .. '##marker_h' .. markerIndex, tObj.height or 100, 1, 10, '%.2f')
         if cw then tObj.width = w end
         if ch then tObj.height = h end
     elseif tObj.type == 'circle' then
-        local cr, r = tImGui.InputFloat(tLang.L('ray') .. '##marker_ray', tObj.ray or 50, 1, 10, '%.2f')
+        local cr, r = tImGui.InputFloat(tLang.L('ray') .. '##marker_ray' .. markerIndex, tObj.ray or 50, 1, 10, '%.2f')
         if cr then tObj.ray = r end
     elseif tObj.type == 'line' then
         tObj.points = tObj.points or {}
-        if tImGui.Button(tLang.L('add_point') .. '##marker_addpt') then
+        if tImGui.Button(tLang.L('add_point') .. '##marker_addpt' .. markerIndex) then
             table.insert(tObj.points, {x = tObj.x, y = tObj.y, z = tObj.z})
         end
         for i, p in ipairs(tObj.points) do
-            local pc1, px = tImGui.InputFloat(tLang.L('axis_x') .. '##pt_x' .. i, p.x, 1, 10, '%.2f')
-            local pc2, py = tImGui.InputFloat(tLang.L('axis_y') .. '##pt_y' .. i, p.y, 1, 10, '%.2f')
-            local pc3, pz = tImGui.InputFloat(tLang.L('axis_z') .. '##pt_z' .. i, p.z, 1, 10, '%.2f')
+            local pc1, px = tImGui.InputFloat(tLang.L('axis_x') .. '##pt_x' .. markerIndex .. '_' .. i, p.x, 1, 10, '%.2f')
+            local pc2, py = tImGui.InputFloat(tLang.L('axis_y') .. '##pt_y' .. markerIndex .. '_' .. i, p.y, 1, 10, '%.2f')
+            local pc3, pz = tImGui.InputFloat(tLang.L('axis_z') .. '##pt_z' .. markerIndex .. '_' .. i, p.z, 1, 10, '%.2f')
             if pc1 or pc2 or pc3 then p.x, p.y, p.z = px, py, pz end
         end
     end
@@ -1453,10 +1467,44 @@ end
 -- Map tab
 ------------------------------------------------------------------------------------------------------------------
 
+-- resolvePlacedMeshWorldPos only ever reads ONE of {cellX,cellZ} or {freeX,freeZ,freeY}, whichever
+-- the CURRENT tMapOptions.sMapType selects -- the other pair is stale/never populated for a given
+-- mesh (e.g. a grid-placed mesh's freeX/freeZ are left at their addPlacedMesh default of 0). So
+-- switching sMapType with no resync collapses every mesh whose *previous* mode didn't maintain the
+-- pair the *new* mode reads (confirmed: grid-placed meshes snapping to the origin the moment Free
+-- mode is selected, reported directly by a user testing this). Preserve visual position across
+-- either switch direction: capture each mesh's currently-resolved world position BEFORE the mode
+-- changes (captureAllPlacedMeshWorldPositions, called while the OLD sMapType/rotation is still
+-- active), then re-derive both the free and grid-cell fields from that snapshot AFTER the new mode
+-- is in effect (applyPlacedMeshWorldPositions, so worldToGridCell's rotation matches the new mode).
+function captureAllPlacedMeshWorldPositions()
+    local tSnapshots = {}
+    for i, tPlaced in ipairs(tPlacedMeshes) do
+        local x, y, z = resolvePlacedMeshWorldPos(tPlaced)
+        tSnapshots[i] = {x = x, y = y, z = z}
+    end
+    return tSnapshots
+end
+
+function applyPlacedMeshWorldPositions(tSnapshots)
+    for i, tPlaced in ipairs(tPlacedMeshes) do
+        local snap = tSnapshots[i]
+        if snap then
+            local layer = tLayers[tPlaced.layerIndex]
+            tPlaced.freeX, tPlaced.freeY, tPlaced.freeZ = snap.x, snap.y, snap.z
+            if layer then
+                tPlaced.cellX, tPlaced.cellZ = worldToGridCell(snap.x, snap.z, layer)
+            end
+        end
+    end
+end
+
 function drawMapTab(item_width)
     local ret, current_item = tImGui.Combo(tLang.L('map_type') .. '##MapType3d', tComboMapTypeIndexOf(tMapOptions.sMapType), tComboMapType3dCodes)
     if ret then
+        local tSnapshots = captureAllPlacedMeshWorldPositions() -- BEFORE the switch, while the old mode/rotation is still active
         tMapOptions.sMapType = tComboMapType3dCodes[current_item]
+        applyPlacedMeshWorldPositions(tSnapshots) -- AFTER, so worldToGridCell uses the new mode's rotation
         rebuildGridVisual()
         resyncAllPlacedMeshes()
     end
@@ -1529,7 +1577,7 @@ function drawMapTab(item_width)
             if ret2 then
                 tObj.type = tComboObjectType3d[cur2]
             end
-            drawObjectMarkerFields(tObj)
+            drawObjectMarkerFields(tObj, i)
             if tImGui.Button(tLang.L('delete') .. '##marker_del' .. i) then
                 if tSceneObjectShapes[i] then tSceneObjectShapes[i]:destroy() end
                 table.remove(tSceneObjects, i)
@@ -2151,8 +2199,10 @@ end
 -- Save / Load / Play / final generated script
 ------------------------------------------------------------------------------------------------------------------
 
-function getHeader3d(fileName)
-    local sHeader = '--[[\n' .. [[
+function getHeader3d(fileName, bIsExport)
+    local sHeader
+    if bIsExport then
+        sHeader = '--[[\n' .. [[
     Scene 3d - this file is meant to be used in the engine mbm
 
     how to:
@@ -2184,6 +2234,18 @@ function getHeader3d(fileName)
         local tAll   = tScene3d:getAllSceneObjects()
 
 ]] .. ']]\n\n'
+    else
+        sHeader = '--[[\n' .. [[
+    Scene 3d - EDITOR SAVE FILE (Scene Editor 3D)
+
+    This file is Scene Editor 3D's own save format, meant to be reopened by the editor itself
+    (File > Load, or onOpenScene3d) -- it is NOT meant to be `require`'d directly by a game.
+    To get a clean, `require`-able scene for a real game to load, use File > Export Game Scene...
+    instead, which writes a separate "<name>-scene3d.lua" file with a small, game-facing API
+    (tScene3d:load/get/getObject/getAmbientLight/etc -- see that file's own header once exported).
+
+]] .. ']]\n\n'
+    end
     sHeader = sHeader:gsub('SCENE_NAME', tUtil.getShortName(fileName, false):gsub('%.lua$', ''))
     return sHeader
 end
@@ -2345,7 +2407,7 @@ return tScene3d]]
     return sCode
 end
 
-function writeScene3d(fileName, bAsyncMesh)
+function writeScene3d(fileName, bAsyncMesh, bIsExport)
     local oldLocale = os.setlocale(nil, 'numeric')
     os.setlocale('C', 'numeric')
     local fp = io.open(fileName, 'w')
@@ -2354,7 +2416,7 @@ function writeScene3d(fileName, bAsyncMesh)
         return false, string.format(tLang.L('could_not_open_for_write_fmt'), fileName)
     end
 
-    fp:write(getHeader3d(fileName))
+    fp:write(getHeader3d(fileName, bIsExport))
 
     local tPaths = mbm.getAllPaths()
     for _, sPath in ipairs(tPaths) do
@@ -2389,13 +2451,44 @@ function writeScene3d(fileName, bAsyncMesh)
     writeSavedTable('tScene3d.tMeshOffsets', tMeshOffsets)
     writeSavedTable('tScene3d.tSceneObjects', tSceneObjects)
 
+    -- Full editor-authoring state (map/grid settings, layers, per-mesh cell/attachment info) is
+    -- Save-only -- Export must keep producing a clean, game-facing file with no editor concepts in
+    -- it, per the earlier, separate "no editor information" requirement for Export Game Scene.
+    if not bIsExport then
+        writeSavedTable('tScene3d.tMapOptions', tMapOptions)
+        writeSavedTable('tScene3d.tLayers', tLayers)
+        writeSavedTable('tScene3d.tOptionsEditor', {
+            iIndexResolution        = tOptionsEditor.iIndexResolution,
+            bInvertResolution       = tOptionsEditor.bInvertResolution,
+            sCurrentScriptExecution = tOptionsEditor.sCurrentScriptExecution,
+            fSceneCamPos            = tOptionsEditor.fSceneCamPos,
+            fSceneCamFocus          = tOptionsEditor.fSceneCamFocus,
+        })
+        -- The editor's own per-tab orbit-navigation viewport camera (azimuth/elevation/distance/
+        -- focus) -- distinct from tOptionsEditor.fSceneCamPos/fSceneCamFocus above, which is the
+        -- exported game's initial camera. Without this, "Main Scene"/"Map edition" always reopened
+        -- framed at whatever the default orbit happened to be, not where the scene was last viewed.
+        writeSavedTable('tScene3d.tCamByTab', tCamByTab)
+    end
+
     fp:write('tScene3d.tPlacedMeshInfo = {\n')
     for i, tPlaced in ipairs(tPlacedMeshes) do
         local x, y, z = resolvePlacedMeshWorldPos(tPlaced)
-        fp:write(string.format(
-            '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g},\n',
-            i, tPlaced.fileName, tPlaced.type, x, y, z, tPlaced.rotationY or 0,
-            tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z))
+        if bIsExport then
+            fp:write(string.format(
+                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g},\n',
+                i, tPlaced.fileName, tPlaced.type, x, y, z, tPlaced.rotationY or 0,
+                tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z))
+        else
+            fp:write(string.format(
+                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g,'
+                .. 'layerIndex=%d,cellX=%d,cellZ=%d,freeX=%g,freeZ=%g,freeY=%g,bAttachedToLayer=%s},\n',
+                i, tPlaced.fileName, tPlaced.type, x, y, z, tPlaced.rotationY or 0,
+                tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
+                tPlaced.layerIndex or 1, tPlaced.cellX or 0, tPlaced.cellZ or 0,
+                tPlaced.freeX or 0, tPlaced.freeZ or 0, tPlaced.freeY or 0,
+                tostring(tPlaced.bAttachedToLayer == true)))
+        end
     end
     fp:write('}\n\n')
 
@@ -2403,6 +2496,89 @@ function writeScene3d(fileName, bAsyncMesh)
     fp:close()
     os.setlocale(oldLocale, 'numeric')
     return true
+end
+
+-- Applies a loaded/deserialized scene3d-edit.lua module table to the editor's live global state.
+-- Extracted out of onOpenScene3d so it can be exercised directly in a headless test (no
+-- mbm.openFile dialog involved) -- also the single place that must tolerate old-format save files
+-- (saved before tMapOptions/tLayers/per-mesh cell data existed), so every new field read here falls
+-- back to today's pre-existing behavior when absent.
+function applyLoadedScene3d(tLoaded)
+    tMeshOffsets  = tLoaded.tMeshOffsets or {}
+    tLightConfig  = tLoaded.tLightConfig or tLightConfig
+    computeOrbitFromDirectionalDir() -- re-derive the trackball's angles from whatever loaded
+    -- applyLightConfigToEngine() only ever gets called from UI actions (the enabled checkbox,
+    -- color pickers, add/remove point light) -- restoring tLightConfig's DATA here doesn't, on its
+    -- own, push it to the engine (mbm.setLightEnabled/setAmbientLight/etc), so a reload always
+    -- looked like lights were off until some unrelated light edit incidentally called it. Apply it
+    -- explicitly now that the real data is in place.
+    applyLightConfigToEngine()
+    tSceneObjects = tLoaded.tSceneObjects or {}
+    tSceneObjectShapes = {}
+    for i = #tPlacedMeshes, 1, -1 do removePlacedMesh(i) end
+
+    -- Map/grid settings: old-format files have no tMapOptions key at all, so this simply leaves
+    -- whatever the current session already has (matches pre-existing behavior for such files).
+    tMapOptions = tLoaded.tMapOptions or tMapOptions
+
+    -- Layers must be rebuilt BEFORE placed meshes, in the saved order, since each placed mesh's
+    -- layerIndex is a positional index into this array -- restoring one without the other would
+    -- silently attach meshes to the wrong layer's Y-height/offset.
+    tLayers = {}
+    if tLoaded.tLayers and #tLoaded.tLayers > 0 then
+        for _, l in ipairs(tLoaded.tLayers) do
+            table.insert(tLayers, {
+                name = l.name, visible = l.visible, fY = l.fY,
+                offset = {x = l.offset.x, z = l.offset.z},
+            })
+        end
+    else
+        addLayer() -- old-format fallback: exactly today's pre-existing single-default-layer behavior
+    end
+    iSelectedLayer = #tLayers > 0 and 1 or 0
+    rebuildGridVisual() -- grid must reflect the just-restored tMapOptions/tLayers before placing meshes
+
+    -- Synchronous on purpose: firing loadAsync for every placed mesh back-to-back (hundreds of
+    -- concurrent in-flight requests, common for a large fill-the-grid scene) reproducibly crashes
+    -- the process (SIGSEGV inside the Lua registry lookup in mesh-lua.cpp's async callback, hit
+    -- while investigating a user report of a stuck/broken reload) -- a real bug in the async-load
+    -- pipeline under heavy concurrency that's out of scope to redesign here. A one-time scene
+    -- reload has no need for non-blocking loads in the first place, so bSync=true sidesteps it.
+    beginLoadProgress(#(tLoaded.tPlacedMeshInfo or {}), tLang.L('loading_scene'))
+    for _, tInfo in ipairs(tLoaded.tPlacedMeshInfo or {}) do
+        local bAttached = tInfo.bAttachedToLayer
+        if bAttached == nil then bAttached = false end -- old-format fallback: today's free-position behavior
+        local tPlaced = addPlacedMesh(tInfo.fileName, tInfo.type, tInfo.layerIndex or 1,
+            tInfo.cellX or 0, tInfo.cellZ or 0, tInfo.freeX or tInfo.x, tInfo.freeZ or tInfo.z, true)
+        tPlaced.bAttachedToLayer = bAttached
+        tPlaced.freeY = tInfo.freeY or tInfo.y
+        tPlaced.rotationY = tInfo.rotationY
+        tPlaced.scale = {x = tInfo.sx, y = tInfo.sy, z = tInfo.sz}
+        -- Mesh Set / Mesh Selector panels are populated by browsing a folder, which a load never
+        -- did -- register every placed mesh's file directly so both panels show what's actually
+        -- in the scene, independent of whether the original asset folder is even reachable.
+        registerMeshSetEntry(tInfo.fileName)
+        -- addPlacedMesh's synchronous path already positioned tObj using its own hardcoded
+        -- defaults (bAttachedToLayer=true, freeY=0, rotationY=0, scale={1,1,1}) before returning --
+        -- the patches above only updated the tPlaced data record, not the live object's transform.
+        -- Re-sync now that the real saved values are in place.
+        syncPlacedMeshTransform(tPlaced)
+    end
+
+    -- Game-facing initial camera -- written by writeScene3d but never restored until now.
+    tOptionsEditor.fSceneCamPos   = tLoaded.fCamPos or tOptionsEditor.fSceneCamPos
+    tOptionsEditor.fSceneCamFocus = tLoaded.fCamFocus or tOptionsEditor.fSceneCamFocus
+    if tLoaded.tOptionsEditor then
+        tOptionsEditor.iIndexResolution        = tLoaded.tOptionsEditor.iIndexResolution or tOptionsEditor.iIndexResolution
+        tOptionsEditor.bInvertResolution        = tLoaded.tOptionsEditor.bInvertResolution
+        tOptionsEditor.sCurrentScriptExecution   = tLoaded.tOptionsEditor.sCurrentScriptExecution or tOptionsEditor.sCurrentScriptExecution
+    end
+    -- The editor's own per-tab orbit-navigation viewport camera (distinct from fSceneCamPos/
+    -- fSceneCamFocus above, which is the game's initial camera) -- old-format files have no such
+    -- key, so this simply leaves the current session's camera framing untouched for those. `cam3d`
+    -- itself needs no re-aliasing here: main_tab_bar() re-derives `cam3d = tCamByTab[sTab]` every
+    -- frame regardless.
+    tCamByTab = tLoaded.tCamByTab or tCamByTab
 end
 
 function onOpenScene3d()
@@ -2423,21 +2599,7 @@ function onOpenScene3d()
         tUtil.showMessageWarn(tLang.L('scene_3d_load_failed'))
         return
     end
-    tMeshOffsets  = tLoaded.tMeshOffsets or {}
-    tLightConfig  = tLoaded.tLightConfig or tLightConfig
-    computeOrbitFromDirectionalDir() -- re-derive the trackball's angles from whatever loaded
-    tSceneObjects = tLoaded.tSceneObjects or {}
-    tSceneObjectShapes = {}
-    for i = #tPlacedMeshes, 1, -1 do removePlacedMesh(i) end
-    beginLoadProgress(#(tLoaded.tPlacedMeshInfo or {}), tLang.L('loading_scene'))
-    for _, tInfo in ipairs(tLoaded.tPlacedMeshInfo or {}) do
-        if #tLayers == 0 then addLayer() end
-        local tPlaced = addPlacedMesh(tInfo.fileName, tInfo.type, 1, 0, 0, tInfo.x, tInfo.z)
-        tPlaced.bAttachedToLayer = false
-        tPlaced.freeY = tInfo.y
-        tPlaced.rotationY = tInfo.rotationY
-        tPlaced.scale = {x = tInfo.sx, y = tInfo.sy, z = tInfo.sz}
-    end
+    applyLoadedScene3d(tLoaded)
 end
 
 function onSaveScene3d()
@@ -2475,7 +2637,7 @@ function onExportGameScene3d()
     local fileName = mbm.saveFile(exportDefault, '*-scene3d.lua')
     if not fileName then return end
 
-    local ok, err = writeScene3d(fileName, tOptionsEditor.bAsyncMeshLoad)
+    local ok, err = writeScene3d(fileName, tOptionsEditor.bAsyncMeshLoad, true)
     if not ok then
         tUtil.showMessageWarn(err)
         return
@@ -2517,7 +2679,7 @@ function onPlay3d()
         tUtil.newInstance(width, height, expectedWidth, expectedHeight, tOptionsEditor.sCurrentScriptExecution)
     else
         local sTmpFile = getTempScene3dFile()
-        local ok, err = writeScene3d(sTmpFile, tOptionsEditor.bAsyncMeshLoad)
+        local ok, err = writeScene3d(sTmpFile, tOptionsEditor.bAsyncMeshLoad, true)
         if not ok then
             tUtil.showMessageWarn(err or 'Failed to write temporary play file')
             return
