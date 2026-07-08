@@ -682,19 +682,44 @@ p:getStageTime()          p:setStageTime(t)
 ### 7.8 shape
 
 ```lua
-local sh = shape:new("2dw", x, y)
--- Indexed shape: vertices, indices, UVs
-sh:create(vertices, indices, uvs)
--- Example: triangle
-sh:create({0,0, 0,100, 100,0},  -- flat vertex list (x,y pairs)
-          {1,2,3},               -- index list (1-based)
-          {0,0, 0,1, 1,0})       -- UV list
+local sh = shape:new("2dw", x, y)  -- or shape:new("3d", x, y, z)
 
--- Or create with normals/depth for 3D:
+-- Named primitive (flat 2D-style shapes; still usable as flat markers/highlights in 3D):
+sh:create("circle", width, height, numTriangles?, dynamic?, nickName?)      -- numTriangles default 18
+sh:create("rectangle", width, height, numTriangles?, dynamic?, nickName?)   -- aliases: "quad"/"square"/"rect"
+sh:create("triangle", width, height, numTriangles?, dynamic?, nickName?)
+sh:create("triangle", {x1,y1, x2,y2, x3,y3}, dynamic?, nickName?)          -- explicit 2D triangle (flat 6-number table, no z)
+
+-- Raw vertex list -- any shape, "x,y" pairs for a 2D shape / "x,y,z" triples for a 3D one:
+sh:create(verticesFlat, uvsFlatOrNil, nickName?, modeDraw?, modeCullFace?, modeFrontFace?)
+
+-- Indexed variants (separate vertex/index/uv buffers):
 sh:createIndexed(vertices, indices, uvs, normals?)
 sh:createDynamicIndexed(vertices, indices, uvs)  -- updatable each frame
 sh:onRender(callback)  -- callback(sh) called every frame for dynamic update
 ```
+
+**Pitfall: `nickName` is a shared cache key, not a per-instance label or a "reload guard."** Every
+`create*` variant above ultimately resolves its geometry through the engine's mesh manager, keyed
+by `nickName` (or an auto-generated name if omitted) — **across every `shape` object in the
+process**, not scoped to the one object you called `:create()` on. If you build a shape whose
+vertex content actually changes over time (e.g. regenerating geometry from live/draggable input
+each time it edits) and reuse the same literal `nickName` on every rebuild, every call after the
+very first silently returns that first call's cached mesh — your new vertex data is discarded with
+no error, and any other shape that happens to reuse the same name gets that same stale geometry
+too. Confirmed directly in `src/render/shape-mesh.cpp` (`SHAPE_MESH::load` calls
+`MESH_MANAGER::load(nickName, ...)`, a name-first cache lookup) and reproduced building Scene
+Editor 3D's triangle object marker (`editor/scene_editor3d.lua`): reusing one fixed nickname across
+every point-drag rebuild made the shape appear completely static, and made every triangle marker
+in the scene look identical to whichever one was created first.
+- **Safe to share a fixed `nickName`** only when the content is deliberately identical across every
+  instance that uses it (e.g. one unit-size cube/sphere/quad, with each instance differentiated
+  purely via `:setPos()`/`:setScale()` — the intended, efficient use of this cache). Otherwise give
+  each rebuild a unique `nickName`, e.g. an index/counter baked into the string.
+  `onCreateTriangleShapeMeshLua`'s own fallback (used whenever `nickName` is omitted for the 2D
+  explicit-triangle form above) demonstrates the safe pattern directly: it derives the name FROM
+  the actual point values (`"triangle_points:x1:y1:...:dynamic"`), so different content is
+  guaranteed to produce a different, non-colliding name.
 
 ### 7.9 line
 
