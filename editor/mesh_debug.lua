@@ -3180,12 +3180,23 @@ function computeGeoNormalsForSubset(meshD, f, s)
     local okVerts, verts = dpCall(function() return meshD:getVertex(f, s, 1, nV) end)
     if not okVerts or not verts then return {} end
 
-    -- mini-mbm's own default winding is CW (see header-mesh.cpp's mode_front_face_direction
-    -- default), the opposite of the "CCW = outward" convention textbook cross(e1,e2) assumes.
-    -- Flip the sign whenever the mesh isn't explicitly CCW so the geometric normal actually
-    -- points outward for a normally-wound mesh instead of appearing universally "flipped".
-    local okFF, frontFace = dpCall(function() return meshD:getModeFrontFace() end)
-    local sign = (okFF and frontFace == 'CCW') and 1 or -1
+    -- Deliberately NOT front-face-aware: MESH_MBM_DEBUG::calculateNormals() (mesh-manager.cpp,
+    -- the actual engine algorithm behind addNormals()/"Recompute from geometry") always uses the
+    -- raw, uncorrected cross(p1-p0, p2-p0) with no front-face sign flip -- so this check must use
+    -- exactly the same formula to answer its one real question ("does the stored normal agree
+    -- with what this engine's own tool would (re)compute for this winding"). A front-face-based
+    -- sign flip was tried before (assuming CW-declared meshes need it negated) but that isn't a
+    -- reliable rule: culling (glFrontFace, screen-space triangle winding) and lighting (the stored
+    -- per-vertex normal) are independent mechanisms with no fixed relationship to each other --
+    -- whether raw cross(e1,e2) happens to point outward or inward depends on how each individual
+    -- mesh's vertices were actually wound, not on its declared front-face string. Confirmed both
+    -- ways: a hand-built cube (front_face=CW, raw-cross genuinely outward) was misreported as
+    -- universally "Flipped" under the old sign flip despite rendering correctly, while base.msh
+    -- (a Blender export, also front_face=CW) was misreported as universally "OK" under the same
+    -- flip despite its top/bottom faces actually lighting from the wrong side (verified: an
+    -- overhead light lit its bottom, not its top -- a real, pre-existing defect the old heuristic
+    -- was masking).
+    local sign = 1
 
     local accum = {}  -- local vertex index -> {x=,y=,z=} summed face normals
     local nTri = math.floor(#indices / 3)
