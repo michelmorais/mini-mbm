@@ -757,6 +757,23 @@ local rt = render2texture:new(width, height, channels?)
 someSprite:setTexture(rt:getName())
 ```
 
+`rt:getCamera(type)` (`type` is `"2d"` or `"3d"`) returns a camera object independent of the main
+scene camera (`mbm.getCamera`), with its own `setPos`/`getPos`/`setFocus`/`getFocus`/`setScale`/
+`getScale`/`setAngle`/`getAngle`/`setUp`/`getUp`/`move`, plus (MBM_VERSION 6.24.0)
+`setNear`/`getNear`/`setFar`/`getFar`:
+
+```lua
+local camRt = rt:getCamera('3d')
+camRt:setPos(0, 100, -300)
+camRt:setFocus(0, 0, 0)
+camRt:setNear(0.1)   -- 3D: perspective near plane (default 0.1)
+camRt:setFar(2000)   -- 3D: perspective far plane, objects beyond this are culled (default 1000)
+```
+
+For `rt:getCamera('2d')`, `setNear`/`setFar` instead drive the 2D camera's own orthographic depth
+range (default -100/100), independent of the 3D pair above — each camera object always affects
+only its own projection.
+
 ---
 
 ## 8. vec2 / vec3 Objects

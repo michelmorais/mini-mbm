@@ -43,6 +43,14 @@ namespace mbm
     int onGetAngleCameraRender2TextureLua(lua_State *lua);
     int onGetUpCameraRender2TextureLua(lua_State *lua);
     int onSetUpCameraRender2TextureLua(lua_State *lua);
+    int onSetNearCameraRender2TextureLua(lua_State *lua);
+    int onGetNearCameraRender2TextureLua(lua_State *lua);
+    int onSetFarCameraRender2TextureLua(lua_State *lua);
+    int onGetFarCameraRender2TextureLua(lua_State *lua);
+    int onSetNear2dCameraRender2TextureLua(lua_State *lua);
+    int onGetNear2dCameraRender2TextureLua(lua_State *lua);
+    int onSetFar2dCameraRender2TextureLua(lua_State *lua);
+    int onGetFar2dCameraRender2TextureLua(lua_State *lua);
     int onSetColorBackgroundRender2TextureLua(lua_State *lua);
     int onEnableFrameRender2TextureLua(lua_State *lua);
     int onSaveRender2Texture(lua_State *lua);

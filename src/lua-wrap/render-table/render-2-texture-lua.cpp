@@ -359,6 +359,71 @@ namespace mbm
         return 0;
     }
 
+    int onSetNearCameraRender2TextureLua(lua_State *lua)
+    {
+        CAMERA_TARGET *camera = getCameraRender2TextureTargetFromRawTable(lua, 1, 1);
+        const float    value  = luaL_checknumber(lua, 2);
+        camera->setNearPlane(value);
+        return 0;
+    }
+
+    int onGetNearCameraRender2TextureLua(lua_State *lua)
+    {
+        CAMERA_TARGET *camera = getCameraRender2TextureTargetFromRawTable(lua, 1, 1);
+        lua_pushnumber(lua, camera->getNearPlane());
+        return 1;
+    }
+
+    int onSetFarCameraRender2TextureLua(lua_State *lua)
+    {
+        CAMERA_TARGET *camera = getCameraRender2TextureTargetFromRawTable(lua, 1, 1);
+        const float    value  = luaL_checknumber(lua, 2);
+        camera->setFarPlane(value);
+        return 0;
+    }
+
+    int onGetFarCameraRender2TextureLua(lua_State *lua)
+    {
+        CAMERA_TARGET *camera = getCameraRender2TextureTargetFromRawTable(lua, 1, 1);
+        lua_pushnumber(lua, camera->getFarPlane());
+        return 1;
+    }
+
+    // 2D counterparts: CAMERA_TARGET keeps a separate zNear2d/zFar2d pair (enableMode2D's
+    // MatrixOrthoLH depth range) from the 3D perspective zNear/zFar (enableMode3D) -- registered
+    // under the same Lua names ("setNear"/"setFar"/...) as the 3D variants above, dispatched by
+    // `is3d` in onGetCameraRender2Texture, so `rt:getCamera("2d"):setFar(x)` touches the field
+    // that actually affects that camera instead of silently writing to its unused 3D field.
+    int onSetNear2dCameraRender2TextureLua(lua_State *lua)
+    {
+        CAMERA_TARGET *camera = getCameraRender2TextureTargetFromRawTable(lua, 1, 1);
+        const float    value  = luaL_checknumber(lua, 2);
+        camera->setNearPlane2d(value);
+        return 0;
+    }
+
+    int onGetNear2dCameraRender2TextureLua(lua_State *lua)
+    {
+        CAMERA_TARGET *camera = getCameraRender2TextureTargetFromRawTable(lua, 1, 1);
+        lua_pushnumber(lua, camera->getNearPlane2d());
+        return 1;
+    }
+
+    int onSetFar2dCameraRender2TextureLua(lua_State *lua)
+    {
+        CAMERA_TARGET *camera = getCameraRender2TextureTargetFromRawTable(lua, 1, 1);
+        const float    value  = luaL_checknumber(lua, 2);
+        camera->setFarPlane2d(value);
+        return 0;
+    }
+
+    int onGetFar2dCameraRender2TextureLua(lua_State *lua)
+    {
+        CAMERA_TARGET *camera = getCameraRender2TextureTargetFromRawTable(lua, 1, 1);
+        lua_pushnumber(lua, camera->getFarPlane2d());
+        return 1;
+    }
+
     int onSetColorBackgroundRender2TextureLua(lua_State *lua)
     {
         const int         top            = lua_gettop(lua);
@@ -423,7 +488,12 @@ namespace mbm
             {"setScale", onSetScaleCameraRender2TextureLua}, {"getScale", onGetScaleCameraRender2TextureLua},
             {"setAngle", onSetAngleCameraRender2TextureLua}, {"getAngle", onGetAngleCameraRender2TextureLua},
             {"setUp", onSetUpCameraRender2TextureLua},       {"getUp", onGetUpCameraRender2TextureLua},
-            {"move", onMoveCameraRender2TextureLua},         {nullptr, nullptr}};
+            {"move", onMoveCameraRender2TextureLua},
+            {"setNear", is3d ? onSetNearCameraRender2TextureLua : onSetNear2dCameraRender2TextureLua},
+            {"getNear", is3d ? onGetNearCameraRender2TextureLua : onGetNear2dCameraRender2TextureLua},
+            {"setFar",  is3d ? onSetFarCameraRender2TextureLua  : onSetFar2dCameraRender2TextureLua},
+            {"getFar",  is3d ? onGetFarCameraRender2TextureLua  : onGetFar2dCameraRender2TextureLua},
+            {nullptr, nullptr}};
         luaL_newlib(lua, regCamera3dMethods);
         auto **udata = static_cast<CAMERA_TARGET **>(lua_newuserdata(lua, sizeof(CAMERA_TARGET *)));
         if (is3d)

@@ -895,6 +895,15 @@ function processThumbnailQueue()
     -- floor) would frame the thumbnail on its feet instead of centering the whole asset.
     local cx, cy, cz = tObj:getAABBCenter(true)
     local rtCam = tThumbGenRt:getCamera('3d')
+    -- render2texture's own 3D camera (CAMERA_TARGET, render-2-texture.cpp) defaults to
+    -- zNear=0.1/zFar=1000, independent of the main scene camera's cam:setFar/setNear. A mesh
+    -- whose bounding box put the fitDist camera distance beyond that fixed far plane got
+    -- silently culled, baking a flat white thumbnail (render2texture's clear color) -- this was
+    -- previously unfixable from Lua since rt:getCamera() never exposed setNear/setFar at all
+    -- (MBM_VERSION 6.24.0 added the binding). Scale the clip range to this mesh's own framing
+    -- distance so any mesh, however large or small, stays inside the frustum.
+    rtCam:setNear(math.max(0.01, fitDist * 0.001))
+    rtCam:setFar(fitDist * 4)
     rtCam:setPos(cx + fitDist * 0.7, cy + fitDist * 0.5, cz + fitDist * 0.7)
     rtCam:setFocus(cx, cy, cz)
     entry.thumbState = 'generating'
