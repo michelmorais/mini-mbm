@@ -522,8 +522,9 @@ local function showEditorLightPanel(target, idSuffix)
                     lightState.directionalDirection.z)
             end)
         end
-        tImGui.TextDisabled(string.format('%s: x=%.3f y=%.3f z=%.3f', tLang.L('direction_label'),
-            lightState.directionalDirection.x, lightState.directionalDirection.y, lightState.directionalDirection.z))
+        tImGui.TextDisabled(string.format('x=%.3f', lightState.directionalDirection.x))
+        tImGui.TextDisabled(string.format('y=%.3f', lightState.directionalDirection.y))
+        tImGui.TextDisabled(string.format('z=%.3f', lightState.directionalDirection.z))
     end
 
     if tImGui.Button(tLang.L('reset_light') .. '##lightReset' .. idSuffix) then

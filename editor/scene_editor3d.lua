@@ -411,8 +411,9 @@ function drawLightPanel()
         computeDirectionalDirFromOrbit()
         mbm.setDirectionalLightDirection('3d', tLightConfig.directionalDir)
     end
-    tImGui.TextDisabled(string.format('%s: x=%.3f y=%.3f z=%.3f', tLang.L('light_direction'),
-        tLightConfig.directionalDir.x, tLightConfig.directionalDir.y, tLightConfig.directionalDir.z))
+    tImGui.TextDisabled(string.format('x=%.3f', tLightConfig.directionalDir.x))
+    tImGui.TextDisabled(string.format('y=%.3f', tLightConfig.directionalDir.y))
+    tImGui.TextDisabled(string.format('z=%.3f', tLightConfig.directionalDir.z))
 
     tImGui.Separator()
     tImGui.Text(tLang.L('light_point_lights_fmt'):format(#tLightConfig.pointLights))
