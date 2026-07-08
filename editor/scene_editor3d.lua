@@ -1312,7 +1312,14 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
     if bSync then
         onLoaded(placeMeshSync(fileName, sType, '3d'))
     else
-        beginLoadProgress(tLoadProgress.iTotal + 1, tUtil.getShortName(fileName))
+        -- Only (re)start the progress tracker for a standalone placement (e.g. one grid click).
+        -- A bulk caller like onOpenScene3d already calls beginLoadProgress once with the correct
+        -- total before its loop; stomping it here on every single placement grew iTotal by 1 per
+        -- mesh (ending up double the real count, e.g. 800 instead of 400) and kept resetting
+        -- iLoaded back to 0, so the modal could never reach 100% -- a real, confirmed hang.
+        if not tLoadProgress.bLoading then
+            beginLoadProgress(1, tUtil.getShortName(fileName))
+        end
         placeMeshAsync(fileName, sType, '3d', onLoaded)
     end
     return tPlaced
