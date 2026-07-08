@@ -85,9 +85,10 @@ iSelectedLayer = 0
 tPlacedMeshes = {}
 
 -- ---- Map-tab "Object Option" markers (editor-only path/spawn-point data) ----
-tSceneObjects      = {}
-tSceneObjectShapes = {}
-tComboObjectType3d = {'point', 'rectangle', 'circle', 'triangle', 'line'}
+tSceneObjects            = {}
+tSceneObjectShapes       = {}
+tComboObjectType3d       = {'point', 'rectangle', 'circle', 'triangle', 'line'}
+bShowSceneObjectMarkers  = true -- manual show/hide toggle, ANDed with the "Main Scene tab only" rule
 
 -- ---- Mesh Set (asset browser + thumbnail cache) ----
 tMeshSetEntries      = {}
@@ -120,6 +121,11 @@ tCamByTab = {
     layer    = { azimuth = 0.3, elevation = 0.3, distance = 800, fx = 0, fy = 0, fz = 0 },
 }
 cam3d = tCamByTab.map
+
+-- WASD/arrow-key viewport movement -- one shared accumulator (not per-tab like tCamByTab) since
+-- only one tab's camera is ever being driven by the keyboard at a time (whichever is active).
+-- Set/cleared in onKeyDown/onKeyUp, consumed once per frame in onLoop before applyCam3d(cam3d).
+tCam3dMove = { forward = 0, right = 0 }
 
 -- ---- Mesh Selector / placement state ----
 bShowMeshSelector         = true
@@ -461,6 +467,37 @@ function applyCam3d(c)
     local x, y, z = cam3dGetPos(c)
     camera3d:setPos(x, y, z)
     camera3d:setFocus(c.fx, c.fy, c.fz)
+end
+
+-- WASD/arrow-key ground-plane movement for the active tab's orbit camera, consumed once per frame
+-- from onLoop (before applyCam3d(cam3d), so this frame's applyCam3d already reflects the move).
+-- Reuses the exact forward/right XZ-plane derivation already used by right-drag-pan (onTouchMove,
+-- `fwx,fwy,fwz` normalized then `rgx,rgz = -fwz, fwx`) so keyboard and mouse panning feel
+-- consistent. Speed scales with cam3d.distance like every other camera interaction in this file
+-- (pan drag, zoom) -- a fixed absolute speed would feel wrong at very different zoom levels.
+-- Gated on GetWantCaptureKeyboard() here (at the point of consumption), not at key-down time,
+-- since ImGui focus can change between the key press and the next frame.
+function updateCam3dKeyboardMovement(delta)
+    if tCam3dMove.forward == 0 and tCam3dMove.right == 0 then return end
+    if tImGui.GetWantCaptureKeyboard() then return end
+    -- Was re-deriving "right" by hand as cross(forward, worldUp) (-fwz, fwx) -- that guess had the
+    -- wrong handedness (D strafed toward the camera's actual LEFT, not right, A vice versa).
+    -- camera:getNormal('R')/('F') (src/lua-wrap/camera-lua.cpp) read the engine's own true
+    -- normalRight/normalForward directly, removing the guesswork entirely.
+    local fw = camera3d:getNormal('F')
+    local rg = camera3d:getNormal('R')
+    -- Re-normalized on the XZ plane only (ground-plane movement at constant speed regardless of
+    -- how much the camera is pitched up/down), same as the original derivation.
+    local fwLen = math.sqrt(fw.x * fw.x + fw.z * fw.z)
+    local rgLen = math.sqrt(rg.x * rg.x + rg.z * rg.z)
+    if fwLen < 1e-6 or rgLen < 1e-6 then return end
+    local fwx, fwz = fw.x / fwLen, fw.z / fwLen
+    local rgx, rgz = rg.x / rgLen, rg.z / rgLen
+    local speed = cam3d.distance * 0.8 * delta
+    local dx = (fwx * tCam3dMove.forward + rgx * tCam3dMove.right) * speed
+    local dz = (fwz * tCam3dMove.forward + rgz * tCam3dMove.right) * speed
+    cam3d.fx = cam3d.fx + dx
+    cam3d.fz = cam3d.fz + dz
 end
 
 ------------------------------------------------------------------------------------------------------------------
@@ -1406,16 +1443,194 @@ function addSceneObjectMarker()
     updateSceneObjectShapes()
 end
 
+-- All marker shapes share this color -- semi-transparent magenta, matching the Tile Map Editor's
+-- own "this is an editor marker, not real geometry" convention (editor/tilemap_editor.lua:2018,
+-- the line-type object marker there uses the same {1.0, 0.0, 1.0, 0.7}).
+tSceneMarkerColor = {r = 1, g = 0, b = 1, a = 0.7}
+
+-- 8 corners / 12 triangles of a unit box (half-extent 0.5), same CUBE_COMPLEX corner convention as
+-- physic_editor.lua's own box-gizmo builder (include/core_mbm/shapes.h: front face a,b,c,d @
+-- +halfDepth, back face e,f,g,h @ -halfDepth). Built at unit size and scaled per-instance via
+-- :setScale() rather than baking each marker's absolute size into its own vertex data.
+local function unitCubeVerts()
+    local h = 0.5
+    local a, b, c, d = {x = -h, y = -h, z =  h}, {x = -h, y =  h, z =  h}, {x =  h, y =  h, z =  h}, {x =  h, y = -h, z =  h}
+    local e, f, g, hh = {x = -h, y = -h, z = -h}, {x = -h, y =  h, z = -h}, {x =  h, y =  h, z = -h}, {x =  h, y = -h, z = -h}
+    local faces = {
+        {a, b, c}, {a, c, d}, {hh, g, f}, {hh, f, e}, {e, f, b}, {e, b, a}, {d, c, g}, {d, g, hh}, {b, f, g}, {b, g, c}, {e, a, d}, {e, d, hh},
+    }
+    local verts = {}
+    for _, tri in ipairs(faces) do
+        for _, p in ipairs(tri) do
+            table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z)
+        end
+    end
+    return verts
+end
+
+-- Unit-radius UV-sphere, low tessellation (this is an editor marker, not a shipped asset).
+-- Scaled per-instance via :setScale(r,r,r) from tObj.ray. No named 'sphere' primitive exists in
+-- SHAPE_MESH's Lua binding (src/lua-wrap/render-table/shape-lua.cpp:134-203 only defines
+-- circle/rectangle/triangle, all flat) -- hence a raw-vertex build, same idiom as unitCubeVerts.
+local function unitSphereVerts(latSegments, lonSegments)
+    latSegments = latSegments or 8
+    lonSegments = lonSegments or 12
+    local function toXYZ(theta, phi)
+        local s = math.sin(theta)
+        return s * math.cos(phi), math.cos(theta), s * math.sin(phi)
+    end
+    local verts = {}
+    local function push(x, y, z) table.insert(verts, x); table.insert(verts, y); table.insert(verts, z) end
+    for i = 0, latSegments - 1 do
+        local theta1 = (i / latSegments) * math.pi
+        local theta2 = ((i + 1) / latSegments) * math.pi
+        for j = 0, lonSegments - 1 do
+            local phi1 = (j / lonSegments) * math.pi * 2
+            local phi2 = ((j + 1) / lonSegments) * math.pi * 2
+            local x1, y1, z1 = toXYZ(theta1, phi1)
+            local x2, y2, z2 = toXYZ(theta1, phi2)
+            local x3, y3, z3 = toXYZ(theta2, phi1)
+            local x4, y4, z4 = toXYZ(theta2, phi2)
+            push(x1, y1, z1); push(x3, y3, z3); push(x4, y4, z4)
+            push(x1, y1, z1); push(x4, y4, z4); push(x2, y2, z2)
+        end
+    end
+    return verts
+end
+
+-- Unit (1x1) double-sided flat quad, centered on the origin in the local XY plane (z=0) -- the
+-- named 'rectangle' shape primitive is single-sided (backface-culled), which is exactly why a
+-- rectangle marker was only visible from one side; building it here from raw vertices lets a
+-- second copy of the same two triangles be added with reversed winding, so one or the other is
+-- always front-facing regardless of which side the camera is on.
+local function unitQuadVerts()
+    local h = 0.5
+    local a, b, c, d = {x = -h, y = -h, z = 0}, {x =  h, y = -h, z = 0}, {x =  h, y =  h, z = 0}, {x = -h, y =  h, z = 0}
+    local front = {{a, b, c}, {a, c, d}}
+    local back  = {{a, c, b}, {a, d, c}}
+    local verts = {}
+    for _, tri in ipairs(front) do
+        for _, p in ipairs(tri) do table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z) end
+    end
+    for _, tri in ipairs(back) do
+        for _, p in ipairs(tri) do table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z) end
+    end
+    return verts
+end
+
+-- Double-sided triangle (same front+reversed-back-winding idea as unitQuadVerts) built directly
+-- from 3 absolute world points, since a triangle marker's 3 corners are independently user-editable
+-- (not a fixed size around a center) and need not be axis-aligned/coplanar with any particular
+-- plane.
+local function triangleVertsFromPoints(p1, p2, p3)
+    local front = {p1, p2, p3}
+    local back  = {p1, p3, p2}
+    local verts = {}
+    for _, p in ipairs(front) do table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z) end
+    for _, p in ipairs(back) do table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z) end
+    return verts
+end
+
+-- Flat xyz array for a `line` marker's current point path, built at the world origin (see the
+-- comment this replaced) -- falls back to a short 2-point stub centered on the marker's own x/y/z
+-- so a brand-new line marker with no points yet is still visible.
+local function lineFlatPoints(tObj)
+    local pts = tObj.points or {}
+    local flat = {}
+    if #pts > 0 then
+        for _, p in ipairs(pts) do
+            table.insert(flat, p.x); table.insert(flat, p.y); table.insert(flat, p.z)
+        end
+    else
+        table.insert(flat, tObj.x); table.insert(flat, tObj.y); table.insert(flat, tObj.z)
+        table.insert(flat, tObj.x + 1); table.insert(flat, tObj.y); table.insert(flat, tObj.z)
+    end
+    return flat
+end
+
+-- Builds/rebuilds tSceneObjectShapes[i] = {handle=, sType=, sig=} so it always matches tObj.type
+-- and (for line/triangle, whose geometry IS their editable points, not a fixed unit shape scaled
+-- from a single center) their current point values. `line` updates live via LINE_MESH:set()
+-- (no destroy/recreate needed -- it replaces the point list on the existing object, confirmed via
+-- src/lua-wrap/render-table/line-mesh-lua.cpp's onSetLineMeshLua, which places no size constraint
+-- on the new array). `triangle` has no such in-place update in SHAPE_MESH's Lua binding, so it
+-- destroys/recreates whenever a signature of its 3 points changes.
 function updateSceneObjectShapes()
     for i, tObj in ipairs(tSceneObjects) do
-        local ln = tSceneObjectShapes[i]
-        if not ln then
-            ln = line:new('3d', tObj.x, tObj.y, tObj.z)
-            ln:setColor(0, 1, 1, 1)
-            tSceneObjectShapes[i] = ln
+        local entry = tSceneObjectShapes[i]
+        if not entry or entry.sType ~= tObj.type then
+            if entry and entry.handle then entry.handle:destroy() end
+            local handle
+            if tObj.type == 'point' then
+                handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
+                handle:create(unitCubeVerts(), nil, 'editor_marker_cube_unit')
+            elseif tObj.type == 'circle' then
+                handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
+                handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
+            elseif tObj.type == 'rectangle' then
+                handle = shape:new('3d', tObj.x, tObj.y, tObj.z)
+                handle:create(unitQuadVerts(), nil, 'editor_marker_quad_unit')
+            elseif tObj.type == 'triangle' then
+                -- Real geometry (from tObj.points) is filled in by the per-frame check below,
+                -- which always runs immediately after this (entry.sig starts nil, never equal to
+                -- a real signature) -- this placeholder just needs to be a valid triangle. Unique
+                -- nickname per marker index for the same reason explained below on the real
+                -- rebuild path -- SHAPE_MESH::load (src/render/shape-mesh.cpp:859) resolves its
+                -- nickname through MESH_MANAGER::load, a name-keyed SHARED cache: a second
+                -- :create() call anywhere using an already-seen name gets back that FIRST call's
+                -- cached geometry, silently ignoring whatever new vertex data was just passed in.
+                handle = shape:new('3d', 0, 0, 0)
+                handle:create({0, 0, 0, 0.01, 0, 0, 0, 0.01, 0}, nil, 'editor_marker_triangle_init_' .. i)
+            else -- 'line'
+                -- Built at the world origin, not tObj.x/y/z -- tObj.points already store absolute
+                -- world coordinates (captured from the marker's own x/y/z fields when "add point"
+                -- was pressed, then independently editable), the same convention the always-on
+                -- origin/axis lines use (tOriginLine3dX etc. are created at (0,0,0) and given
+                -- absolute-extent coordinates via :add()). Giving this handle its own non-zero
+                -- setPos as well would double-offset every point.
+                handle = line:new('3d', 0, 0, 0)
+                handle:add(lineFlatPoints(tObj))
+            end
+            handle:setColor(tSceneMarkerColor.r, tSceneMarkerColor.g, tSceneMarkerColor.b, tSceneMarkerColor.a)
+            entry = { handle = handle, sType = tObj.type, sig = nil, rebuildCount = 0 }
+            tSceneObjectShapes[i] = entry
         end
-        ln:setPos(tObj.x, tObj.y, tObj.z)
-        ln.visible = (sActiveTab == 'map')
+        if tObj.type == 'point' then
+            entry.handle:setPos(tObj.x, tObj.y, tObj.z)
+            entry.handle:setScale(40, 40, 40)
+        elseif tObj.type == 'circle' then
+            entry.handle:setPos(tObj.x, tObj.y, tObj.z)
+            local r = tObj.ray or 50
+            entry.handle:setScale(r, r, r)
+        elseif tObj.type == 'rectangle' then
+            entry.handle:setPos(tObj.x, tObj.y, tObj.z)
+            entry.handle:setScale(tObj.width or 100, tObj.height or 100, 1)
+        elseif tObj.type == 'triangle' then
+            local p1 = (tObj.points and tObj.points[1]) or {x = tObj.x, y = tObj.y, z = tObj.z}
+            local p2 = (tObj.points and tObj.points[2]) or {x = tObj.x, y = tObj.y, z = tObj.z}
+            local p3 = (tObj.points and tObj.points[3]) or {x = tObj.x, y = tObj.y, z = tObj.z}
+            local sig = string.format('%.2f,%.2f,%.2f|%.2f,%.2f,%.2f|%.2f,%.2f,%.2f',
+                p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, p3.x, p3.y, p3.z)
+            if entry.sig ~= sig then
+                -- A genuinely unique nickname per rebuild (marker index + a running counter) is
+                -- required here, not a fixed literal string -- see the comment on the placeholder
+                -- creation above: MESH_MANAGER::load caches by nickname across ALL shape objects,
+                -- so reusing one fixed name meant every edit after the very first triangle ever
+                -- created just got that first triangle's stale geometry back, silently ignoring
+                -- the new points (this was the actual bug: dragging any point/the whole triangle
+                -- visibly did nothing, and every triangle marker rendered identically).
+                entry.rebuildCount = (entry.rebuildCount or 0) + 1
+                entry.handle:destroy()
+                entry.handle = shape:new('3d', 0, 0, 0)
+                entry.handle:create(triangleVertsFromPoints(p1, p2, p3), nil,
+                    'editor_marker_triangle_' .. i .. '_' .. entry.rebuildCount)
+                entry.handle:setColor(tSceneMarkerColor.r, tSceneMarkerColor.g, tSceneMarkerColor.b, tSceneMarkerColor.a)
+                entry.sig = sig
+            end
+        else -- 'line'
+            entry.handle:set(lineFlatPoints(tObj), 1)
+        end
+        entry.handle.visible = (sActiveTab == 'map') and bShowSceneObjectMarkers
     end
 end
 
@@ -1435,29 +1650,90 @@ function drawObjectMarkerFields(tObj, markerIndex)
     -- (confirmed: the user never pressed Enter after typing, just moved on).
     local cName, sName = tImGui.InputText('##marker_name' .. markerIndex, tObj.name or 'no_name')
     if cName then tObj.name = sName end
-    local c1, x = tImGui.InputFloat(tLang.L('axis_x') .. '##marker_x' .. markerIndex, tObj.x, 1, 10, '%.2f')
-    local c2, y = tImGui.InputFloat(tLang.L('axis_y') .. '##marker_y' .. markerIndex, tObj.y, 1, 10, '%.2f')
-    local c3, z = tImGui.InputFloat(tLang.L('axis_z') .. '##marker_z' .. markerIndex, tObj.z, 1, 10, '%.2f')
+
+    -- Same DragFloat + scene-range convention already used for point lights (getPointLightDragRange)
+    -- -- a typed InputFloat has no sense of the scene's actual scale, so nudging a marker into place
+    -- meant guessing numbers; dragging within the grid's real extent is the same "grab and move it"
+    -- interaction the point-light panel already has.
+    local minX, maxX, minY, maxY, minZ, maxZ = getPointLightDragRange()
+    local rangeSpan = math.max(maxX - minX, maxZ - minZ)
+
+    tImGui.PushItemWidth(120)
+    local c1, x = tImGui.DragFloat(tLang.L('axis_x') .. '##marker_x' .. markerIndex, tObj.x, 1, minX, maxX, '%.2f')
+    local c2, y = tImGui.DragFloat(tLang.L('axis_y') .. '##marker_y' .. markerIndex, tObj.y, 1, minY, maxY, '%.2f')
+    local c3, z = tImGui.DragFloat(tLang.L('axis_z') .. '##marker_z' .. markerIndex, tObj.z, 1, minZ, maxZ, '%.2f')
+    tImGui.PopItemWidth()
     if c1 or c2 or c3 then
+        -- For a triangle, x/y/z is a "move the whole shape" convenience control, not its own
+        -- corner -- translate all 3 stored corners by the same delta so dragging it relocates the
+        -- triangle without reshaping it.
+        if tObj.type == 'triangle' and tObj.points then
+            local dx, dy, dz = x - tObj.x, y - tObj.y, z - tObj.z
+            for _, p in ipairs(tObj.points) do
+                p.x, p.y, p.z = p.x + dx, p.y + dy, p.z + dz
+            end
+        end
         tObj.x, tObj.y, tObj.z = x, y, z
     end
+
     if tObj.type == 'rectangle' then
-        local cw, w = tImGui.InputFloat(tLang.L('width') .. '##marker_w' .. markerIndex, tObj.width or 100, 1, 10, '%.2f')
-        local ch, h = tImGui.InputFloat(tLang.L('height') .. '##marker_h' .. markerIndex, tObj.height or 100, 1, 10, '%.2f')
+        local cw, w = tImGui.DragFloat(tLang.L('width') .. '##marker_w' .. markerIndex, tObj.width or 100, 1, 1, rangeSpan, '%.2f')
+        local ch, h = tImGui.DragFloat(tLang.L('height') .. '##marker_h' .. markerIndex, tObj.height or 100, 1, 1, rangeSpan, '%.2f')
         if cw then tObj.width = w end
         if ch then tObj.height = h end
     elseif tObj.type == 'circle' then
-        local cr, r = tImGui.InputFloat(tLang.L('ray') .. '##marker_ray' .. markerIndex, tObj.ray or 50, 1, 10, '%.2f')
+        local cr, r = tImGui.DragFloat(tLang.L('ray') .. '##marker_ray' .. markerIndex, tObj.ray or 50, 1, 1, rangeSpan, '%.2f')
         if cr then tObj.ray = r end
+    elseif tObj.type == 'triangle' then
+        -- 3 independently draggable corners, initialized around the marker's own position the
+        -- first time this marker becomes a triangle (or if points was never a valid 3-tuple, e.g.
+        -- an older save/a fresh marker) -- not degenerate all-zero, so the shape is visible and
+        -- editable immediately.
+        if not tObj.points or #tObj.points ~= 3 then
+            tObj.points = {
+                {x = tObj.x - 50, y = tObj.y, z = tObj.z - 50},
+                {x = tObj.x + 50, y = tObj.y, z = tObj.z - 50},
+                {x = tObj.x,      y = tObj.y, z = tObj.z + 50},
+            }
+        end
+        for i, p in ipairs(tObj.points) do
+            tImGui.Text(tLang.L('object') .. ' ' .. i)
+            local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##tri_x' .. markerIndex .. '_' .. i, p.x, 1, minX, maxX, '%.2f')
+            local pc2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##tri_y' .. markerIndex .. '_' .. i, p.y, 1, minY, maxY, '%.2f')
+            local pc3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##tri_z' .. markerIndex .. '_' .. i, p.z, 1, minZ, maxZ, '%.2f')
+            if pc1 or pc2 or pc3 then p.x, p.y, p.z = px, py, pz end
+        end
     elseif tObj.type == 'line' then
         tObj.points = tObj.points or {}
         if tImGui.Button(tLang.L('add_point') .. '##marker_addpt' .. markerIndex) then
-            table.insert(tObj.points, {x = tObj.x, y = tObj.y, z = tObj.z})
+            local n = #tObj.points
+            local newPoint
+            if n >= 2 then
+                -- Continue the last segment: same direction AND same length as (points[n] -
+                -- points[n-1]) -- plain linear extrapolation (new = last + (last - secondLast)),
+                -- the "calculated, not typed" convention this mirrors from Tile Map Editor's own
+                -- line tool (editor/tilemap_editor.lua's add-point button), except that one always
+                -- steps by exactly one tile width/height regardless of the previous segment's real
+                -- length -- here the previous segment's actual length is preserved, as asked.
+                local last, prev = tObj.points[n], tObj.points[n - 1]
+                newPoint = {
+                    x = last.x + (last.x - prev.x),
+                    y = last.y + (last.y - prev.y),
+                    z = last.z + (last.z - prev.z),
+                }
+            elseif n == 1 then
+                -- No prior segment to continue -- step off in a default direction/length.
+                local last = tObj.points[1]
+                newPoint = {x = last.x + 100, y = last.y, z = last.z}
+            else
+                newPoint = {x = tObj.x, y = tObj.y, z = tObj.z}
+            end
+            table.insert(tObj.points, newPoint)
         end
         for i, p in ipairs(tObj.points) do
-            local pc1, px = tImGui.InputFloat(tLang.L('axis_x') .. '##pt_x' .. markerIndex .. '_' .. i, p.x, 1, 10, '%.2f')
-            local pc2, py = tImGui.InputFloat(tLang.L('axis_y') .. '##pt_y' .. markerIndex .. '_' .. i, p.y, 1, 10, '%.2f')
-            local pc3, pz = tImGui.InputFloat(tLang.L('axis_z') .. '##pt_z' .. markerIndex .. '_' .. i, p.z, 1, 10, '%.2f')
+            local pc1, px = tImGui.DragFloat(tLang.L('axis_x') .. '##pt_x' .. markerIndex .. '_' .. i, p.x, 1, minX, maxX, '%.2f')
+            local pc2, py = tImGui.DragFloat(tLang.L('axis_y') .. '##pt_y' .. markerIndex .. '_' .. i, p.y, 1, minY, maxY, '%.2f')
+            local pc3, pz = tImGui.DragFloat(tLang.L('axis_z') .. '##pt_z' .. markerIndex .. '_' .. i, p.z, 1, minZ, maxZ, '%.2f')
             if pc1 or pc2 or pc3 then p.x, p.y, p.z = px, py, pz end
         end
     end
@@ -1567,6 +1843,8 @@ function drawMapTab(item_width)
 
     tImGui.Separator()
     tImGui.Text(tLang.L('object_options'))
+    local showObj = tImGui.Checkbox(tLang.L('show_scene_objects'), bShowSceneObjectMarkers)
+    if showObj ~= bShowSceneObjectMarkers then bShowSceneObjectMarkers = showObj end
     if tImGui.Button(tLang.L('add_object'), tUtil.getResponsiveItemSize(item_width - 40)) then
         addSceneObjectMarker()
     end
@@ -1579,7 +1857,7 @@ function drawMapTab(item_width)
             end
             drawObjectMarkerFields(tObj, i)
             if tImGui.Button(tLang.L('delete') .. '##marker_del' .. i) then
-                if tSceneObjectShapes[i] then tSceneObjectShapes[i]:destroy() end
+                if tSceneObjectShapes[i] and tSceneObjectShapes[i].handle then tSceneObjectShapes[i].handle:destroy() end
                 table.remove(tSceneObjects, i)
                 table.remove(tSceneObjectShapes, i)
                 tImGui.TreePop()
@@ -2110,12 +2388,56 @@ function main_menu_3d()
             tImGui.TextDisabled('F5')
 
             tImGui.Text(tLang.L('execute_script'))
+            tImGui.SameLine()
+            tImGui.HelpMarker(tLang.L('help_execute_script_test'))
             if tImGui.Button('...##exec_script', {x = 30, y = 0}) then
                 local fileName = mbm.openFile(tOptionsEditor.sCurrentScriptExecution, '*.lua')
                 if fileName then tOptionsEditor.sCurrentScriptExecution = fileName end
             end
-            tImGui.SameLine()
-            tImGui.TextDisabled(tOptionsEditor.sCurrentScriptExecution ~= '' and tOptionsEditor.sCurrentScriptExecution or tLang.L('none'))
+
+            -- Without a driver script, Play (onPlay3d) launches the bare exported/module file
+            -- directly -- it defines no onInitScene/onLoop of its own (it ends in `return
+            -- tScene3d`, meant to be `require`d), so a fresh engine instance loading it as --scene
+            -- does nothing at all (blank window). createBasicScriptForScene3d generates a small
+            -- driver that requires the scene module and actually calls tScene:load(), mirroring
+            -- scene_editor2d.lua's own createBasicScriptForScene -- this button was missing here
+            -- entirely, which is why Run/Play did not work.
+            if tOptionsEditor.sCurrentScriptExecution:len() == 0 then
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('create_it_for_me'), tUtil.getResponsiveItemSize(160)) then
+                    if sFileNameScene3d ~= '' then
+                        local sceneModulePath = sFileNameScene3d:gsub('%.scene3d%-edit%.lua$', '-scene3d.lua')
+                        local ok, err = writeScene3d(sceneModulePath, tOptionsEditor.bAsyncMeshLoad, true)
+                        if ok then
+                            createBasicScriptForScene3d(sceneModulePath)
+                        else
+                            tUtil.showMessageWarn(err or 'Failed to write the exported scene file')
+                        end
+                    else
+                        tUtil.showMessageWarn(tLang.L('no_scene_loaded_for_script'))
+                    end
+                end
+            end
+
+            if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
+                tImGui.TextDisabled(tUtil.getShortName(tOptionsEditor.sCurrentScriptExecution))
+                tImGui.SameLine()
+                tImGui.HelpMarker(tOptionsEditor.sCurrentScriptExecution)
+                tImGui.SameLine()
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r = 1, g = 0, b = 0.3, a = 1})
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r = 0, g = 0, b = 0.3, a = 0})
+                if tImGui.Button('X', {x = 40, y = 0}) then
+                    tOptionsEditor.sCurrentScriptExecution = ''
+                end
+                tImGui.PopStyleColor(2)
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('clear_script'))
+                    tImGui.EndTooltip()
+                end
+            else
+                tImGui.TextDisabled(tLang.L('none'))
+            end
 
             tImGui.EndMenu()
         end
@@ -2255,17 +2577,52 @@ end
 -- engine) -- the emitted file only ever contains ONE of the two, not a runtime branch on a
 -- baked boolean.
 function getSceneLoaderCode3d(bAsyncMesh)
-    local sMeshLoadBranch
+    local sMeshLoadBranch, sAsyncQueueHelper
     if bAsyncMesh then
+        -- Routed through _loadMeshAsyncQueued instead of calling mesh:loadAsync directly -- firing
+        -- many concurrent loadAsync calls for the SAME file (e.g. a level with many placed
+        -- instances of one prop) is a confirmed engine-level crash (SIGSEGV inside the async
+        -- callback's Lua registry lookup, mesh-lua.cpp's onLoadAsyncMeshLua via
+        -- MESH_MANAGER::pumpAsyncLoads -- see the async-mesh-load-concurrency-crash memory/commit
+        -- history), reproduced via this exact Play-with-async-enabled path. The underlying pipeline
+        -- bug itself is out of scope here (shared engine infrastructure, needs a dedicated
+        -- investigation) -- this caps same-file concurrency to 1-in-flight at the Lua level, which
+        -- is what the confirmed reproduction actually needed. Different files still load fully in
+        -- parallel; only repeated instances of one file are serialized.
         sMeshLoadBranch = [[
+        self:_loadMeshAsyncQueued(tInfo.fileName, finish)]]
+        sAsyncQueueHelper = [[
+tScene3d._loadMeshAsyncQueued = function(self, fileName, onLoaded)
+    self.tAsyncQueueByFile = self.tAsyncQueueByFile or {}
+    local queue = self.tAsyncQueueByFile[fileName]
+    if not queue then
+        queue = { bLoading = false, pending = {} }
+        self.tAsyncQueueByFile[fileName] = queue
+    end
+    local function processNext()
+        local req = table.remove(queue.pending, 1)
+        if not req then
+            queue.bLoading = false
+            return
+        end
+        queue.bLoading = true
         local m = mesh:new('3d')
-        m:loadAsync(tInfo.fileName, function(self_mesh, success)
-            finish(success and self_mesh or nil)
-        end)]]
+        m:loadAsync(fileName, function(self_mesh, success)
+            req(success and self_mesh or nil)
+            processNext()
+        end)
+    end
+    table.insert(queue.pending, onLoaded)
+    if not queue.bLoading then
+        processNext()
+    end
+end
+]]
     else
         sMeshLoadBranch = [[
         local m = mesh:new('3d')
         finish(m:load(tInfo.fileName) and m or nil)]]
+        sAsyncQueueHelper = ''
     end
 
     local sCode = [[
@@ -2285,6 +2642,7 @@ tScene3d.updateCamera = function(self)
     cam:setFocus(self.fCamFocus.x, self.fCamFocus.y, self.fCamFocus.z)
 end
 
+@@ASYNC_QUEUE_HELPER@@
 tScene3d._addMesh = function(self, tInfo, onDone)
     local offset = self.tMeshOffsets[tInfo.fileName] or {}
     local ox, oy, oz = offset.x or 0, offset.y or 0, offset.z or 0
@@ -2404,6 +2762,7 @@ end
 
 return tScene3d]]
     sCode = sCode:gsub('@@MESH_LOAD_BRANCH@@', (sMeshLoadBranch:gsub('%%', '%%%%')))
+    sCode = sCode:gsub('@@ASYNC_QUEUE_HELPER@@', (sAsyncQueueHelper:gsub('%%', '%%%%')))
     return sCode
 end
 
@@ -2645,6 +3004,89 @@ function onExportGameScene3d()
     tUtil.showMessage(string.format(tLang.L('scene_exported_ok_fmt'), fileName))
 end
 
+-- Modeled directly on scene_editor2d.lua's createBasicScriptForScene -- generates a small
+-- `require`-and-drive script the "Run" menu's Play button can actually launch, since the
+-- exported/module scene file itself defines no onInitScene/onLoop (see the menu_run comment at
+-- the "create it for me" button for why that matters). `sFullSceneName` must be a real, already
+-- written scene module path (the caller is responsible for exporting first) -- this only derives
+-- the require name and writes the driver alongside it.
+function createBasicScriptForScene3d(sFullSceneName)
+    local tDefaultScene = [[
+tScene = require "YOUR_SCENE3D"
+
+local tMove  = {forward = 0, right = 0}
+local fSpeed = 400 -- units/second; adjust to taste
+
+function onInitScene()
+    tScene:load(function(percent)
+        print(string.format('Loading your scene %.1f', percent))
+    end)
+end
+
+function onKeyDown(key)
+    if key == mbm.getKeyCode('W') or key == mbm.getKeyCode('up') then tMove.forward = 1
+    elseif key == mbm.getKeyCode('S') or key == mbm.getKeyCode('down') then tMove.forward = -1
+    elseif key == mbm.getKeyCode('A') or key == mbm.getKeyCode('left') then tMove.right = -1
+    elseif key == mbm.getKeyCode('D') or key == mbm.getKeyCode('right') then tMove.right = 1
+    end
+end
+
+function onKeyUp(key)
+    if key == mbm.getKeyCode('W') or key == mbm.getKeyCode('up')
+    or key == mbm.getKeyCode('S') or key == mbm.getKeyCode('down') then tMove.forward = 0
+    elseif key == mbm.getKeyCode('A') or key == mbm.getKeyCode('left')
+    or key == mbm.getKeyCode('D') or key == mbm.getKeyCode('right') then tMove.right = 0
+    end
+end
+
+function onLoop(delta)
+    if tMove.forward ~= 0 or tMove.right ~= 0 then
+        local cam = mbm.getCamera('3d')
+        local pos, focus = cam:getPos(), cam:getFocus()
+        local fw, rg = cam:getNormal('F'), cam:getNormal('R')
+        local fwLen = math.sqrt(fw.x * fw.x + fw.z * fw.z)
+        local rgLen = math.sqrt(rg.x * rg.x + rg.z * rg.z)
+        if fwLen > 1e-6 and rgLen > 1e-6 then
+            local fwx, fwz = fw.x / fwLen, fw.z / fwLen
+            local rgx, rgz = rg.x / rgLen, rg.z / rgLen
+            local dx = (fwx * tMove.forward + rgx * tMove.right) * fSpeed * delta
+            local dz = (fwz * tMove.forward + rgz * tMove.right) * fSpeed * delta
+            cam:setPos(pos.x + dx, pos.y, pos.z + dz)
+            cam:setFocus(focus.x + dx, focus.y, focus.z + dz)
+        end
+    end
+    -- your logic here
+end
+]]
+
+    local sProjectName = sFullSceneName:gsub("\\", '/')
+    local tProjectName = sProjectName:split('/')
+    sProjectName        = tProjectName[#tProjectName]:gsub('%..*$', '')
+    tDefaultScene       = tDefaultScene:gsub('YOUR_SCENE3D', string.format('%s', sProjectName))
+    local sTemp         = tProjectName[1] or ''
+    local sSeparator    = '/'
+    if mbm.is('windows') then
+        sSeparator = '\\'
+    end
+    for i = 2, (#tProjectName - 1) do
+        sTemp = sTemp .. sSeparator .. tProjectName[i]
+    end
+
+    local sFileToSave = string.format('%s%s%s-logic.lua', sTemp, sSeparator, sProjectName)
+    sFileToSave = mbm.saveFile(sFileToSave, 'lua')
+    if sFileToSave then
+        local fp = io.open(sFileToSave, 'w')
+        if fp then
+            fp:write(tDefaultScene)
+            fp:close()
+            tOptionsEditor.sCurrentScriptExecution = sFileToSave
+            tUtil.showMessage(tLang.L('file_created_ok'))
+        else
+            tUtil.showMessageWarn(string.format(tLang.L('could_not_open_for_write_fmt'), sFileToSave))
+        end
+    end
+end
+
 function getOSTempDir()
     local sep = package.config:sub(1, 1)
     local tmpDir
@@ -2740,7 +3182,16 @@ function onLoop(delta)
     main_tab_bar()
     -- after main_tab_bar() so `cam3d` already points at the tab that was active *this* frame
     -- (switching tabs would otherwise apply the previous tab's camera for one stale frame)
+    updateCam3dKeyboardMovement(delta)
     applyCam3d(cam3d)
+
+    -- Unconditional, every frame, regardless of which tab is active -- drawMapTab also calls this
+    -- once at the end of its own marker-list UI, but that only runs while the Map tab itself is
+    -- being drawn, so its `.visible = (sActiveTab == 'map') and bShowSceneObjectMarkers` toggle
+    -- never got a chance to turn markers back OFF once the user switched to a different tab (they
+    -- stayed visible everywhere, not just the Main Scene/Map tab they're meant to be a reference
+    -- for). Calling it here as well keeps visibility correct no matter which tab is current.
+    updateSceneObjectShapes()
 
     -- Shown in all three tabs (Map, Mesh View, Map edition) -- `cam3d` already aliases whichever
     -- tab's own camera is current (setActiveTab), so this always drives the right one.
@@ -2942,6 +3393,14 @@ function onKeyDown(key)
         end
     elseif key == mbm.getKeyCode('esc') and sActiveTab == 'layer' then
         unselectAllPlacedMeshes()
+    elseif key == mbm.getKeyCode('W') or key == mbm.getKeyCode('up') then
+        tCam3dMove.forward = 1
+    elseif key == mbm.getKeyCode('S') or key == mbm.getKeyCode('down') then
+        tCam3dMove.forward = -1
+    elseif key == mbm.getKeyCode('A') or key == mbm.getKeyCode('left') then
+        tCam3dMove.right = -1
+    elseif key == mbm.getKeyCode('D') or key == mbm.getKeyCode('right') then
+        tCam3dMove.right = 1
     end
 end
 
@@ -2957,5 +3416,11 @@ function onKeyUp(key)
         end
     elseif key == mbm.getKeyCode('control') or key == mbm.getKeyCode('windows') then
         keyControlPressed = false
+    elseif key == mbm.getKeyCode('W') or key == mbm.getKeyCode('up')
+        or key == mbm.getKeyCode('S') or key == mbm.getKeyCode('down') then
+        tCam3dMove.forward = 0
+    elseif key == mbm.getKeyCode('A') or key == mbm.getKeyCode('left')
+        or key == mbm.getKeyCode('D') or key == mbm.getKeyCode('right') then
+        tCam3dMove.right = 0
     end
 end

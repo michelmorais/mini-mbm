@@ -890,6 +890,7 @@ M.en = {
     blocks_to_move = "Blocks to move",
     object_options = "Object Options",
     add_object = "Add Object",
+    show_scene_objects = "Show objects in scene",
     -- Common editor messages (reused across editors)
     command_executed = "Command executed.. ",
     failed_to_add_mesh = "Failed to add mesh!",
@@ -2269,6 +2270,7 @@ M.pt_br = {
     blocks_to_move = "Blocos a mover",
     object_options = "Opções do objeto",
     add_object = "Adicionar objeto",
+    show_scene_objects = "Mostrar objetos na cena",
     -- Common editor messages (reused across editors)
     command_executed = "Comando executado.. ",
     failed_to_add_mesh = "Falha ao adicionar mesh!",
