@@ -2806,11 +2806,10 @@ end
 
 -- Builds a 100x100x100 cube with 6 independently-colored, flat-shaded faces (24 unique vertices,
 -- no sharing across faces, so addNormals() gives each face its own crisp normal instead of
--- averaging with its neighbors) and saves it as a real, reloadable .msh in the OS temp folder
--- (getTempDir(), already OS-aware: TMPDIR/TEMP/TMP, falling back to /tmp) -- a known-good,
--- repeatable-to-regenerate mesh for testing lighting/normals against, and a working example of
--- the from-scratch mesh-building API. Positive axes get primary colors, negative axes their
--- complements, so the cube doubles as an orientation reference.
+-- averaging with its neighbors) and saves it as a real, reloadable .msh next to the engine's other
+-- reference test assets -- a known-good mesh for testing lighting/normals against, and a working
+-- example of the from-scratch mesh-building API. Positive axes get primary colors, negative axes
+-- their complements, so the cube doubles as an orientation reference.
 -- Face winding was hand-verified against calculateNormals()'s actual cross(p1-p0, p2-p0) formula
 -- (it does NOT apply any CW/CCW correction) so each face's auto-computed normal genuinely points
 -- outward. Despite that, the engine's actual screen-space rasterization treats this same winding
@@ -2867,7 +2866,7 @@ function onAddColoredCube()
         return
     end
 
-    local mshPath = getTempDir() .. '/colored_cube.msh'
+    local mshPath = 'src/test-lib/colored_cube.msh'
     local okCheck, errCheck = meshD:check()
     if not okCheck then
         tUtil.showMessage(string.format(tLang.L('colored_cube_check_failed_fmt'), tostring(errCheck)))
