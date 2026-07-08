@@ -189,6 +189,15 @@ function onInitScene()
             triCountRect  = 2,
             triCountCircle = 5,
         },
+        -- Mirrors cloneMaterialTable(nil)'s defaults; cloneMaterialTable itself is defined
+        -- later in the file (below onInitScene) so it can't be called from here.
+        material = {
+            Diffuse  = {r = 1, g = 1, b = 1, a = 1},
+            Ambient  = {r = 1, g = 1, b = 1, a = 1},
+            Specular = {r = 0, g = 0, b = 0, a = 1},
+            Emissive = {r = 0, g = 0, b = 0, a = 1},
+            Power    = 0,
+        },
         lastResultText = '',
     }
 
@@ -6200,6 +6209,94 @@ local function applyAllAddNormals(sType)
     return summary
 end
 
+-- Applies fnNormal(vd, geoNormal) -> nx, ny, nz (or nil to leave the vertex untouched) to every
+-- vertex across every frame and subset of meshD. Unlike showNormalSubsetEditor's bulkUpdate
+-- (frame 1, one subset, triggered from the Mesh Tree), this walks the whole mesh so the "Apply
+-- to All" bulk operation covers every animation frame, matching how removeNormals()/addNormals()
+-- already behave. geoNormal is only computed (via computeGeoNormalsForSubset) when needGeo is
+-- true and the subset's draw mode is TRIANGLES; it's nil otherwise.
+local function bulkUpdateAllNormals(meshD, needGeo, fnNormal)
+    local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    if not okF or not nFrames then return 0 end
+    local okMode, modeDraw = dpCall(function() return meshD:getModeDraw() end)
+    local triOk = okMode and modeDraw == 'TRIANGLES'
+    local count = 0
+    for f = 1, nFrames do
+        local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+        if okS and nSubsets then
+            for s = 1, nSubsets do
+                local geo = (needGeo and triOk) and computeGeoNormalsForSubset(meshD, f, s) or nil
+                local okV, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
+                if okV and nV and nV > 0 then
+                    for v = 1, nV do
+                        local okVd, vd = dpCall(function() return meshD:getVertex(f, s, v) end)
+                        if okVd and vd then
+                            local nx, ny, nz = fnNormal(vd, geo and geo[v])
+                            if nx then
+                                vd.nx, vd.ny, vd.nz = nx, ny, nz
+                                dpCall(function() meshD:setVertex(f, s, v, vd) end)
+                                count = count + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return count
+end
+
+local function applyAllFlipNormalsBulk(sType)
+    local totalVertices = 0
+    local summary = runApplyAllOperation(sType, tLang.L('normal_flip_all'), function(tEntry)
+        if not (tEntry.info and tEntry.info.hasNormal) then
+            return 'skipped', tLang.L('apply_all_no_matching_targets')
+        end
+        local count = bulkUpdateAllNormals(tEntry.meshDebug, false, function(vd)
+            return -vd.nx, -vd.ny, -vd.nz
+        end)
+        if count == 0 then
+            return 'skipped', tLang.L('apply_all_no_matching_targets')
+        end
+        totalVertices = totalVertices + count
+        tEntry.modified = true
+        tEntry.bNormalsVizDirty = true
+        return 'success'
+    end)
+    if totalVertices > 0 then
+        tApplyAllWin.lastResultText = tApplyAllWin.lastResultText
+            .. string.format('\n%d vertices', totalVertices)
+        tUtil.showMessage(tApplyAllWin.lastResultText, 8)
+    end
+    return summary
+end
+
+local function applyAllRecomputeNormalsBulk(sType)
+    local totalVertices = 0
+    local summary = runApplyAllOperation(sType, tLang.L('normal_recompute_all'), function(tEntry)
+        if not (tEntry.info and tEntry.info.hasNormal) then
+            return 'skipped', tLang.L('apply_all_no_matching_targets')
+        end
+        local count = bulkUpdateAllNormals(tEntry.meshDebug, true, function(vd, g)
+            if g then return g.x, g.y, g.z end
+            return nil
+        end)
+        if count == 0 then
+            return 'skipped', tLang.L('apply_all_no_matching_targets')
+        end
+        totalVertices = totalVertices + count
+        tEntry.modified = true
+        tEntry.bNormalsVizDirty = true
+        return 'success'
+    end)
+    if totalVertices > 0 then
+        tApplyAllWin.lastResultText = tApplyAllWin.lastResultText
+            .. string.format('\n%d vertices', totalVertices)
+        tUtil.showMessage(tApplyAllWin.lastResultText, 8)
+    end
+    return summary
+end
+
 local function applyAllCentralize(sType)
     return runApplyAllOperation(sType, tLang.L('centralize'), function(tEntry)
         tEntry.meshDebug:centralize()
@@ -6387,6 +6484,26 @@ local function applyAllResetPhysics(sType)
             return 'failed', tLang.L('an_error_occurred')
         end
         tEntry.modified = true
+        return 'success'
+    end)
+end
+
+-- Overwrites each target mesh's whole material (setMaterial() applies to the entire mesh, not
+-- a specific frame/subset -- there is no per-frame/subset material in the engine) with the
+-- Diffuse/Ambient/Specular/Emissive/Power currently staged in tApplyAllWin.material.
+local function applyAllMaterial(sType)
+    local mat = cloneMaterialTable(tApplyAllWin.material)
+    return runApplyAllOperation(sType, tLang.L('material'), function(tEntry)
+        local meshD = tEntry.meshDebug
+        local okSet = dpCall(function() meshD:setMaterial(mat) end)
+        if not okSet then
+            return 'failed', tLang.L('an_error_occurred')
+        end
+        tEntry.modified = true
+        if tEntry.tMaterialUI then
+            tEntry.tMaterialUI.original = cloneMaterialTable(mat)
+            tEntry.tMaterialUI.current = cloneMaterialTable(mat)
+        end
         return 'success'
     end)
 end
@@ -6608,6 +6725,41 @@ function showApplyAllWindow()
                 tImGui.SameLine()
                 if tImGui.Button(tLang.L('add_normals') .. '##applyAllAddNormals') then
                     applyAllAddNormals(win.selectedType)
+                end
+                tImGui.Separator()
+                if tImGui.Button(tLang.L('normal_flip_all') .. '##applyAllFlipNormals') then
+                    applyAllFlipNormalsBulk(win.selectedType)
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('normal_recompute_all') .. '##applyAllRecomputeNormals') then
+                    applyAllRecomputeNormalsBulk(win.selectedType)
+                end
+                tImGui.TextDisabled(tLang.L('apply_all_normals_scope_note'))
+                tImGui.TreePop()
+            end
+
+            if tImGui.TreeNodeEx(tLang.L('material') .. '##applyAllMaterial', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                tImGui.TextWrapped(tLang.L('apply_all_material_help'))
+                local matFlags = 0
+                local mat = win.material
+
+                local function editApplyAllColor(key, label)
+                    local clicked, color = tImGui.ColorEdit4(label .. '##applyAllMat-' .. key, mat[key], matFlags)
+                    if clicked and color then
+                        mat[key] = makeColorRGBA(color, mat[key])
+                    end
+                end
+
+                editApplyAllColor('Diffuse', tLang.L('diffuse'))
+                editApplyAllColor('Ambient', tLang.L('ambient'))
+                editApplyAllColor('Specular', tLang.L('specular'))
+                editApplyAllColor('Emissive', tLang.L('emissive'))
+
+                local rp, np = tImGui.InputFloat(tLang.L('power') .. '##applyAllMatPower', mat.Power, 0.1, 1, '%.2f', matFlags)
+                if rp then mat.Power = np end
+
+                if tImGui.Button(tLang.L('apply_btn') .. '##applyAllMaterialApply') then
+                    applyAllMaterial(win.selectedType)
                 end
                 tImGui.TreePop()
             end
