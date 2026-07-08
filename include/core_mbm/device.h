@@ -123,6 +123,8 @@ namespace mbm
         API_IMPL void setDepthTest(const bool enable);
         API_IMPL void refreshDevice();
         API_IMPL bool rayCast(const float sx, const float sy, VEC3 *rayOriginOut, VEC3 *rayDir) const;
+        API_IMPL bool rayIntersectsAABB(const VEC3 &rayOrigin, const VEC3 &rayDir, const VEC3 &boxCenter,
+                                         const float w, const float h, const float d) const noexcept;
         API_IMPL bool transformeScreen2dToWorld3d_scaled(const float x, const float y, VEC3 *out,const float howFarZFromCamera) const;
         API_IMPL void transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC2 &out) const noexcept;
         API_IMPL void transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC3 &out) const noexcept;

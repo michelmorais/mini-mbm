@@ -610,6 +610,16 @@ these exact strings to decide which uniform/attribute handles to look up.  Your 
 | `aTextCoord` | vertex attribute | `attribute vec2 aTextCoord` | `[[attribute(1)]]` or `[[attribute(2)]]` if normal present |
 | `mvpMatrix` | uniform | `uniform mat4 mvpMatrix` | `Uniforms.mvp` at `[[buffer(1)]]` |
 | `mvMatrix` | uniform | `uniform mat4 mvMatrix` | `Uniforms.mv` at `[[buffer(1)]]` |
+
+`mvMatrix` carries `model * cameraView` (true view-space), not the model matrix alone — the
+engine uploads `SHADER::mvMatrixLightSpace` (see `shader.h`/`shader.cpp`), a matrix kept
+separate from `SHADER::modelView` (which stays model-only, since `mvpMatrix` is built from it
+combined with a perspective matrix that already bakes in the camera view). The reserved
+lighting shaders rely on this to build `vNormalView`/`vPositionView` as genuine view-space
+vectors — get this wrong and lighting will appear to change as the camera orbits (MBM_VERSION
+6.11.0 fixed exactly this bug). A new backend must compute and upload the model·view matrix
+for `mvMatrix`, not just re-upload the model matrix.
+
 | `TextureDiffuse` | sampler | `uniform sampler2D TextureDiffuse` | `[[texture(0)]]` + `[[sampler(0)]]` |
 | `TextureAnimationEffect` | sampler | `uniform sampler2D TextureAnimationEffect` | `[[texture(1)]]` + `[[sampler(0)]]` |
 | `TextureNormal` | sampler | `uniform sampler2D TextureNormal` | `[[texture(2)]]` + `[[sampler(0)]]` |

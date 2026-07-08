@@ -5287,7 +5287,7 @@ int onListBoxImGuiLua(lua_State *lua)
     int index_input                       = 1;
     const int top                         = lua_gettop(lua);
     const char * p_label                  = luaL_checkstring(lua,index_input++);
-    int current_item                      = luaL_checkinteger(lua,index_input++);
+    int current_item                      = luaL_checkinteger(lua,index_input++) - 1; // Lua is 1-based, ImGui is 0-based
     std::vector<std::string> lsItems      = get_string_arrayFromTable(lua,index_input++,"ListBox items");
     const int height_in_items             = top >= index_input ? luaL_checkinteger(lua,index_input++) :  -1;
     std::vector<const char*> items(lsItems.size());
@@ -6231,6 +6231,28 @@ int onCaptureKeyboardFromAppImGuiLua(lua_State *lua)
     return 0;
 }
 
+int onGetWantCaptureMouseImGuiLua(lua_State *lua)
+{
+    //  This is the flag Dear ImGui itself recommends for "should this input go to my app or to the
+    //  UI" (see the comment on IsWindowHovered above) -- unlike IsAnyWindowHovered/IsAnyItemHovered,
+    //  it also accounts for active drags, open combos/popups extending outside their parent window's
+    //  rect, and is valid immediately after NewFrame(), which is exactly when engine input callbacks
+    //  (onTouchDown/onTouchMove/onTouchZoom) fire in mini-mbm's frame loop -- before onLoop() has
+    //  drawn a single window this frame. Prefer this over IsAnyWindowHovered() for that dispatch
+    //  decision; see docs/lua-api.md's ImGui Common Pitfalls section.
+    const ImGuiIO& io = ImGui::GetIO();
+    lua_pushboolean(lua, io.WantCaptureMouse);
+    return 1;
+}
+
+int onGetWantCaptureKeyboardImGuiLua(lua_State *lua)
+{
+    //  See onGetWantCaptureMouseImGuiLua -- same rationale, for keyboard input.
+    const ImGuiIO& io = ImGui::GetIO();
+    lua_pushboolean(lua, io.WantCaptureKeyboard);
+    return 1;
+}
+
 int onIsMouseDownImGuiLua(lua_State *lua)
 {
     //  Is mouse button held?
@@ -6911,6 +6933,8 @@ int onNewimguiLua(lua_State *lua)
         {"CalcTextSize",                                         onCalcTextSizeImGuiLua }, // Not Tested, Queries/State
         {"CaptureKeyboardFromApp",                     onCaptureKeyboardFromAppImGuiLua }, // Not Tested, Keyboard/Mouse
         {"CaptureMouseFromApp",                           onCaptureMouseFromAppImGuiLua }, // Not Tested, Keyboard/Mouse
+        {"GetWantCaptureMouse",                         onGetWantCaptureMouseImGuiLua },
+        {"GetWantCaptureKeyboard",                   onGetWantCaptureKeyboardImGuiLua },
         {"Checkbox",                                                 onCheckboxImGuiLua },
         {"CheckboxFlags",                                       onCheckboxFlagsImGuiLua }, // Not Tested, Input Widgets
         {"CloseCurrentPopup",                               onCloseCurrentPopupImGuiLua },

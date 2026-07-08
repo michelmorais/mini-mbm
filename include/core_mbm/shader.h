@@ -210,7 +210,9 @@ namespace mbm
     {
       public:
         API_IMPL static MATRIX modelView;
+        API_IMPL static MATRIX mvMatrixLightSpace; // modelView x camera view - true view-space matrix uploaded as the "mvMatrix" shader uniform (drives vNormalView/vPositionView)
         API_IMPL static MATRIX mvpMatrix; // ModelView x projection
+        API_IMPL static void updateMvpAndLightMatrices(const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix) noexcept;
         API_IMPL SHADER();
         API_IMPL virtual ~SHADER();
         API_IMPL void * getBackendShaderSpecific() const noexcept;

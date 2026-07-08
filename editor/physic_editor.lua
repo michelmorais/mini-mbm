@@ -36,6 +36,9 @@ require "box2d"
 function onInitScene()
     camera2d		     = mbm.getCamera("2d")
     camera2d:setPos(-150,0)
+    camera3d             = mbm.getCamera("3d")
+    tCam3d               = {azimuth=0, elevation=0.4, distance=600, fx=0, fy=0, fz=0}
+    lastMouse3d          = {x=0, y=0}
     tLineCenterX         = line:new("2dw",0,0,50)
     tLineCenterY         = line:new("2dw",0,0,50)
     bEnableMoveWorld     = true
@@ -120,12 +123,21 @@ function onSaveMesh()
 end
 
 function updatePhysics(tPhysic)
-    if bIs3d then
-        print('line','implement')
-    else
-        setupPhysics(tPhysic)
-    end
+    setupPhysics(tPhysic)
     tInfoPhysics:updateCircles()
+end
+
+function cam3dGetPos(c)
+    local x = c.fx + c.distance * math.cos(c.elevation) * math.sin(c.azimuth)
+    local y = c.fy + c.distance * math.sin(c.elevation)
+    local z = c.fz + c.distance * math.cos(c.elevation) * math.cos(c.azimuth)
+    return x,y,z
+end
+
+function applyCam3d(c)
+    local x,y,z = cam3dGetPos(c)
+    camera3d:setPos(x,y,z)
+    camera3d:setFocus(c.fx,c.fy,c.fz)
 end
 
 function onRender(tShape, vertex, uv, index_read_only)
@@ -524,30 +536,232 @@ function setupPhysics2d(tInfoPhysic)
 
         tLine:set(tPoints,1)
     elseif tInfoPhysic.type == 'complex' then
-        print('a x:',tInfoPhysic.a.x)
-        print('a y:',tInfoPhysic.a.y)
-        print('a z:',tInfoPhysic.a.z)
-        print('b x:',tInfoPhysic.b.x)
-        print('b y:',tInfoPhysic.b.y)
-        print('b z:',tInfoPhysic.b.z)
-        print('c x:',tInfoPhysic.c.x)
-        print('c y:',tInfoPhysic.c.y)
-        print('c z:',tInfoPhysic.c.z)
-        print('d x:',tInfoPhysic.d.x)
-        print('d y:',tInfoPhysic.d.y)
-        print('d z:',tInfoPhysic.d.z)
-        print('e x:',tInfoPhysic.e.x)
-        print('e y:',tInfoPhysic.e.y)
-        print('e z:',tInfoPhysic.e.z)
-        print('f x:',tInfoPhysic.f.x)
-        print('f y:',tInfoPhysic.f.y)
-        print('f z:',tInfoPhysic.f.z)
-        print('g x:',tInfoPhysic.g.x)
-        print('g y:',tInfoPhysic.g.y)
-        print('g z:',tInfoPhysic.g.z)
-        print('h x:',tInfoPhysic.h.x)
-        print('h y:',tInfoPhysic.h.y)
-        print('h z:',tInfoPhysic.h.z)
+        tInfoPhysic.type_info = 'complex'
+        -- box2d (2D) only ever reads the front quad a,b,c,d; keep e..h mirrored to it
+        -- so the data stays well-formed if this same physic is later used on a 3D mesh.
+        local tPoints = {   tInfoPhysic.a.x * scale, tInfoPhysic.a.y * scale,
+                            tInfoPhysic.b.x * scale, tInfoPhysic.b.y * scale,
+                            tInfoPhysic.c.x * scale, tInfoPhysic.c.y * scale,
+                            tInfoPhysic.d.x * scale, tInfoPhysic.d.y * scale,
+                            tInfoPhysic.a.x * scale, tInfoPhysic.a.y * scale}
+
+        tInfoPhysic.tPoints = tPoints
+
+        if tInfoPhysic.tShape == nil then
+            tShape               = shape:new('2dw')
+            local sUniqueName    = tostring(os.time()) .. tostring(os.clock()) .. tostring(math.random())
+            tInfoPhysic.tShape   = tShape
+            local vertsXY = {  tInfoPhysic.a.x,tInfoPhysic.a.y, tInfoPhysic.b.x,tInfoPhysic.b.y,
+                                tInfoPhysic.c.x,tInfoPhysic.c.y, tInfoPhysic.d.x,tInfoPhysic.d.y}
+            local idx     = {1,2,3, 1,3,4}
+            tShape:createDynamicIndexed(vertsXY, idx, nil, sUniqueName)
+            tShape:onRender(onRender)
+            tShape:setColor(0,1,0,0.1)
+
+            tInfoPhysic.isOver = function(self,x,y)
+                local x,y = mbm.to2dw(x,y)
+                local minX = math.min(self.a.x,self.b.x,self.c.x,self.d.x) * scale
+                local maxX = math.max(self.a.x,self.b.x,self.c.x,self.d.x) * scale
+                local minY = math.min(self.a.y,self.b.y,self.c.y,self.d.y) * scale
+                local maxY = math.max(self.a.y,self.b.y,self.c.y,self.d.y) * scale
+                return x >= minX and x <= maxX and y >= minY and y <= maxY
+            end
+
+            tInfoPhysic.moveFrame = function(self,x_diff,y_diff,x,y)
+                local vertex = self.tShape.vertex
+                for i=1,4 do
+                    vertex[i].x = vertex[i].x + x_diff
+                    vertex[i].y = vertex[i].y - y_diff
+                end
+                self.a.x, self.a.y = vertex[1].x / scale, vertex[1].y / scale
+                self.b.x, self.b.y = vertex[2].x / scale, vertex[2].y / scale
+                self.c.x, self.c.y = vertex[3].x / scale, vertex[3].y / scale
+                self.d.x, self.d.y = vertex[4].x / scale, vertex[4].y / scale
+                self.e.x, self.e.y = self.a.x, self.a.y
+                self.f.x, self.f.y = self.b.x, self.b.y
+                self.g.x, self.g.y = self.c.x, self.c.y
+                self.h.x, self.h.y = self.d.x, self.d.y
+
+                local tPoints = {  vertex[1].x,vertex[1].y, vertex[2].x,vertex[2].y,
+                                    vertex[3].x,vertex[3].y, vertex[4].x,vertex[4].y,
+                                    vertex[1].x,vertex[1].y}
+                self.tPoints = tPoints
+                tLine:set(tPoints,1)
+            end
+
+            tInfoPhysic.editByCirclePosition = function(self,x,y,index_circle,tCircles)
+                local x,y = mbm.to2dw(x,y)
+                local vertex = self.tShape.vertex
+                vertex[index_circle].x = x
+                vertex[index_circle].y = y
+
+                local tPoints = {  vertex[1].x,vertex[1].y, vertex[2].x,vertex[2].y,
+                                    vertex[3].x,vertex[3].y, vertex[4].x,vertex[4].y,
+                                    vertex[1].x,vertex[1].y}
+                self.tPoints = tPoints
+                tLine:set(tPoints,1)
+                tCircles[index_circle]:setPos(x,y)
+
+                self.a.x, self.a.y = vertex[1].x / scale, vertex[1].y / scale
+                self.b.x, self.b.y = vertex[2].x / scale, vertex[2].y / scale
+                self.c.x, self.c.y = vertex[3].x / scale, vertex[3].y / scale
+                self.d.x, self.d.y = vertex[4].x / scale, vertex[4].y / scale
+                self.e.x, self.e.y = self.a.x, self.a.y
+                self.f.x, self.f.y = self.b.x, self.b.y
+                self.g.x, self.g.y = self.c.x, self.c.y
+                self.h.x, self.h.y = self.d.x, self.d.y
+            end
+        else
+            local vertex = tInfoPhysic.tShape.vertex
+            vertex[1].x, vertex[1].y = tInfoPhysic.a.x * scale, tInfoPhysic.a.y * scale
+            vertex[2].x, vertex[2].y = tInfoPhysic.b.x * scale, tInfoPhysic.b.y * scale
+            vertex[3].x, vertex[3].y = tInfoPhysic.c.x * scale, tInfoPhysic.c.y * scale
+            vertex[4].x, vertex[4].y = tInfoPhysic.d.x * scale, tInfoPhysic.d.y * scale
+        end
+
+        tLine:set(tPoints,1)
+    end
+
+    if tInfoPhysic.finishMoveFrame == nil then
+        tInfoPhysic.finishMoveFrame = function(self,x,y) end
+    end
+end
+
+local BOX_LETTERS = {'a','b','c','d','e','f','g','h'}
+
+-- 8 corners of an axis-aligned box, using the engine's own CUBE_COMPLEX convention
+-- (front face a,b,c,d @ +halfDepth, back face e,f,g,h @ -halfDepth), see include/core_mbm/shapes.h
+function boxCorners(hw,hh,hd)
+    return {
+        {x=-hw,y=-hh,z= hd}, {x=-hw,y= hh,z= hd}, {x= hw,y= hh,z= hd}, {x= hw,y=-hh,z= hd},
+        {x=-hw,y=-hh,z=-hd}, {x=-hw,y= hh,z=-hd}, {x= hw,y= hh,z=-hd}, {x= hw,y=-hh,z=-hd},
+    }
+end
+
+-- 12 triangles (2 per face) covering a box defined by its 8 corners (a..h order)
+function boxTriangleFaces(corners)
+    local a,b,c,d,e,f,g,h = corners[1],corners[2],corners[3],corners[4],corners[5],corners[6],corners[7],corners[8]
+    return {
+        {a,b,c},{a,c,d}, -- front
+        {h,g,f},{h,f,e}, -- back
+        {e,f,b},{e,b,a}, -- left
+        {d,c,g},{d,g,h}, -- right
+        {b,f,g},{b,g,c}, -- top
+        {e,a,d},{e,d,h}, -- bottom
+    }
+end
+
+-- Builds an invisible 3D box shape (used only as the translucent highlight fill /
+-- source geometry for the wireframe; mouse hit-testing is a real ray-cast, see below,
+-- since RENDERIZABLE:collide(x,y) approximates ray distance from an object's own Z,
+-- which only holds up for cameras looking straight down +Z -- not an arbitrary orbit).
+function makeBoxShape3d(cx,cy,cz,w,h,d,name)
+    local hw = math.max(w,0.01) * 0.5
+    local hh = math.max(h,0.01) * 0.5
+    local hd = math.max(d,0.01) * 0.5
+    local corners = boxCorners(hw,hh,hd)
+    local faces   = boxTriangleFaces(corners)
+    local verts   = {}
+    for _,tri in ipairs(faces) do
+        for _,p in ipairs(tri) do
+            table.insert(verts,p.x); table.insert(verts,p.y); table.insert(verts,p.z)
+        end
+    end
+    local tShape = shape:new('3d',cx,cy,cz)
+    tShape:create(verts, nil, name)
+    return tShape, hw,hh,hd
+end
+
+-- Ray (origin o, unit direction d) vs axis-aligned box (min/max) slab test.
+function rayHitsAABB(ox,oy,oz, dx,dy,dz, minX,minY,minZ,maxX,maxY,maxZ)
+    local tmin, tmax = -math.huge, math.huge
+    local function slab(o,d,mn,mx)
+        if math.abs(d) < 1e-9 then
+            return o >= mn and o <= mx
+        end
+        local t1 = (mn - o) / d
+        local t2 = (mx - o) / d
+        if t1 > t2 then t1,t2 = t2,t1 end
+        if t1 > tmin then tmin = t1 end
+        if t2 < tmax then tmax = t2 end
+        return tmin <= tmax
+    end
+    if not slab(ox,dx,minX,maxX) then return false end
+    if not slab(oy,dy,minY,maxY) then return false end
+    if not slab(oz,dz,minZ,maxZ) then return false end
+    return tmax >= 0
+end
+
+function setupPhysics3d(tInfoPhysic)
+    local sUniqueName = tostring(os.time()) .. tostring(os.clock()) .. tostring(math.random())
+
+    if tInfoPhysic.destroy == nil then
+        tInfoPhysic.destroy = function(self)
+            if self.tShape then self.tShape:destroy() end
+            if self.tLine then self.tLine:destroy() end
+        end
+    end
+
+    tInfoPhysic.isOver = function(self,x,y)
+        if not self.aabbMin then return false end
+        local ox,oy,oz = mbm.to3d(x,y,0)
+        local ex,ey,ez = mbm.to3d(x,y,1)
+        return rayHitsAABB(ox,oy,oz, ex-ox,ey-oy,ez-oz,
+            self.aabbMin.x,self.aabbMin.y,self.aabbMin.z,
+            self.aabbMax.x,self.aabbMax.y,self.aabbMax.z)
+    end
+
+    if tInfoPhysic.tShape then
+        tInfoPhysic.tShape:destroy()
+        tInfoPhysic.tShape = nil
+    end
+
+    local cx,cy,cz,w,h,d
+
+    if tInfoPhysic.type == 'cube' then
+        tInfoPhysic.type_info = 'cube'
+        cx,cy,cz = tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z
+        w,h,d = tInfoPhysic.width,tInfoPhysic.height,tInfoPhysic.depth or tInfoPhysic.width
+    elseif tInfoPhysic.type == 'sphere' then
+        tInfoPhysic.type_info = 'sphere'
+        cx,cy,cz = tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z
+        local diameter = tInfoPhysic.ray * 2.0
+        w,h,d = diameter,diameter,diameter
+    elseif tInfoPhysic.type == 'triangle' then
+        tInfoPhysic.type_info = 'triangle'
+        local a,b,c = tInfoPhysic.a, tInfoPhysic.b, tInfoPhysic.c
+        local minX = math.min(a.x,b.x,c.x); local maxX = math.max(a.x,b.x,c.x)
+        local minY = math.min(a.y,b.y,c.y); local maxY = math.max(a.y,b.y,c.y)
+        local minZ = math.min(a.z or 0,b.z or 0,c.z or 0); local maxZ = math.max(a.z or 0,b.z or 0,c.z or 0)
+        cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
+        w,h,d = maxX-minX, maxY-minY, maxZ-minZ
+    elseif tInfoPhysic.type == 'complex' then
+        tInfoPhysic.type_info = 'complex'
+        local minX,maxX,minY,maxY,minZ,maxZ =  math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+        for _,l in ipairs(BOX_LETTERS) do
+            local p = tInfoPhysic[l]
+            minX = math.min(minX,p.x); maxX = math.max(maxX,p.x)
+            minY = math.min(minY,p.y); maxY = math.max(maxY,p.y)
+            minZ = math.min(minZ,p.z); maxZ = math.max(maxZ,p.z)
+        end
+        cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
+        w,h,d = maxX-minX, maxY-minY, maxZ-minZ
+    end
+
+    if cx then
+        local hw,hh,hd
+        tInfoPhysic.tShape, hw,hh,hd = makeBoxShape3d(cx,cy,cz, w,h,d, sUniqueName)
+        tInfoPhysic.aabbMin = {x=cx-hw, y=cy-hh, z=cz-hd}
+        tInfoPhysic.aabbMax = {x=cx+hw, y=cy+hh, z=cz+hd}
+
+        tInfoPhysic.tShape:setColor(0,1,0,0.15)
+        tInfoPhysic.tShape.visible = false
+
+        if tInfoPhysic.tLine == nil then
+            tInfoPhysic.tLine = line:new('3d')
+        end
+        tInfoPhysic.tLine:drawBounding(tInfoPhysic.tShape,false)
+        tInfoPhysic.tLine:setColor(0,1,0)
     end
 
     if tInfoPhysic.finishMoveFrame == nil then
@@ -569,40 +783,53 @@ function onLoadMesh()
             tHighLightPoint = shape:new('2dw')
             tHighLightPoint:create('circle',25,25,18,false,string.format('tHighLightPoint_%d',os.time()))
             tHighLightPoint.z = -100
+            tAABBCenterMarker = shape:new('2dw')
+            tAABBCenterMarker:create('circle',15,15,12,false,string.format('tAABBCenterMarker_%d',os.time()))
+            tAABBCenterMarker.z = -100
             bIs3d = false
         elseif file_name:lower():match('%.msh$') then
             tMesh = mesh:new('3d')
             setupPhysics = setupPhysics3d
             tHighLightPoint = shape:new('3d')
+            tHighLightPoint:create('circle',25,25,18,false,string.format('tHighLightPoint_%d',os.time()))
+            tAABBCenterMarker = shape:new('3d')
+            tAABBCenterMarker:create('circle',15,15,12,false,string.format('tAABBCenterMarker_%d',os.time()))
             bIs3d = true
         end
         tHighLightPoint:setColor(0,1,0)
         tHighLightPoint.visible = false
+        -- Distinct from tHighLightPoint (hover highlight, green) -- marks the mesh's true AABB
+        -- center (obj:getAABBCenter(), MBM_VERSION 6.9.0), not just its pivot/local origin. Lets
+        -- the user see where new physics shapes will default to when adding one (see
+        -- add_physic_btn below) instead of guessing for an off-center-pivot mesh (e.g. a building
+        -- anchored at its floor).
+        tAABBCenterMarker:setColor(1,1,0)
+        tAABBCenterMarker.visible = true
 
         if tMesh:load(file_name) then
             bShowEditPhysics = true
             sLastEditorFileName = file_name
             tInfoPhysics = tMesh:getPhysics()
             camera2d:setPos(-150,0)
+            if bIs3d then
+                -- tMesh:getSize() only returns real dimensions once the mesh has
+                -- actually loaded geometry -- computing this before load() left
+                -- distance at 0 (a degenerate, same-position camera/focus).
+                local w,h,d = tMesh:getSize()
+                if not w or w == 0 then w = 300 end
+                if not h or h == 0 then h = 300 end
+                if not d or d == 0 then d = 0 end
+                tCam3d.fx, tCam3d.fy, tCam3d.fz = 0,0,0
+                tCam3d.distance = math.max(w,h,d) * 2.5
+                tCam3d.azimuth, tCam3d.elevation = 0, 0.4
+                applyCam3d(tCam3d)
+            end
 
             for i=1, #tInfoPhysics do
                 tInfoPhysics[i].selectable = true
             end
 
-            if bIs3d then
-                for i=1, #tInfoPhysics do
-                    local tLine = line:new('3d')
-                    if tInfoPhysics[i].type == 'cube' then
-                        tInfoPhysics[i].type_info = 'cube'
-                        local x,y,z,w,h,d = tInfoPhysics[i].x,tInfoPhysics[i].y,tInfoPhysics[i].z,tInfoPhysics[i].width, tInfoPhysics[i].height, tInfoPhysics[i].depth
-                        tLine:add({ x,y,z,
-                                    x,y + h,z,
-                                    x + w,y + h,z,
-                                    x + w,y,z,
-                                    x,y,z})
-                    end
-                end
-            else
+            do
 
                 tInfoPhysics.highLightPoint = function(self,index,value)
                     if index == nil then --disable high light
@@ -610,17 +837,45 @@ function onLoadMesh()
                     else
                         tHighLightPoint.visible = true
                         local tInfoPhysic = self[index]
-                        if tInfoPhysic.type_info == 'rectangle' then
-                            tHighLightPoint:setPos(tInfoPhysic.x * scale,tInfoPhysic.y * scale)
-                        elseif tInfoPhysic.type_info == 'triangle' then
-                            if value == 0 then
+                        if bIs3d then
+                            if tInfoPhysic.type_info == 'cube' or tInfoPhysic.type_info == 'sphere' then
+                                tHighLightPoint:setPos(tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z)
+                            elseif tInfoPhysic.type_info == 'triangle' then
+                                if value == 0 then
+                                    tHighLightPoint:setPos(tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z or 0)
+                                elseif value == 1 then
+                                    tHighLightPoint:setPos(tInfoPhysic.a.x,tInfoPhysic.a.y,tInfoPhysic.a.z or 0)
+                                elseif value == 2 then
+                                    tHighLightPoint:setPos(tInfoPhysic.b.x,tInfoPhysic.b.y,tInfoPhysic.b.z or 0)
+                                elseif value == 3 then
+                                    tHighLightPoint:setPos(tInfoPhysic.c.x,tInfoPhysic.c.y,tInfoPhysic.c.z or 0)
+                                end
+                            elseif tInfoPhysic.type_info == 'complex' then
+                                local l = BOX_LETTERS[value or 0]
+                                if l then
+                                    local p = tInfoPhysic[l]
+                                    tHighLightPoint:setPos(p.x,p.y,p.z)
+                                end
+                            end
+                        else
+                            if tInfoPhysic.type_info == 'rectangle' then
                                 tHighLightPoint:setPos(tInfoPhysic.x * scale,tInfoPhysic.y * scale)
-                            elseif value == 1 then
-                                tHighLightPoint:setPos(tInfoPhysic.a.x * scale,tInfoPhysic.a.y * scale)
-                            elseif value == 2 then
-                                tHighLightPoint:setPos(tInfoPhysic.b.x * scale,tInfoPhysic.b.y * scale)
-                            elseif value == 3 then
-                                tHighLightPoint:setPos(tInfoPhysic.c.x * scale,tInfoPhysic.c.y * scale)
+                            elseif tInfoPhysic.type_info == 'triangle' then
+                                if value == 0 then
+                                    tHighLightPoint:setPos(tInfoPhysic.x * scale,tInfoPhysic.y * scale)
+                                elseif value == 1 then
+                                    tHighLightPoint:setPos(tInfoPhysic.a.x * scale,tInfoPhysic.a.y * scale)
+                                elseif value == 2 then
+                                    tHighLightPoint:setPos(tInfoPhysic.b.x * scale,tInfoPhysic.b.y * scale)
+                                elseif value == 3 then
+                                    tHighLightPoint:setPos(tInfoPhysic.c.x * scale,tInfoPhysic.c.y * scale)
+                                end
+                            elseif tInfoPhysic.type_info == 'complex' then
+                                local l = BOX_LETTERS[value or 0]
+                                if l then
+                                    local p = tInfoPhysic[l]
+                                    tHighLightPoint:setPos(p.x * scale,p.y * scale)
+                                end
                             end
                         end
                     end
@@ -661,29 +916,27 @@ function onLoadMesh()
                     for i=1, #self.tCircles do
                         self.tCircles[i].visible = false
                     end
+                    if bIs3d then
+                        return -- no corner-drag handles in 3D; shapes are edited via numeric fields
+                    end
                     if self.iIndexSelected ~= 0 then
                         local tSelectedPoints = self[self.iIndexSelected].tPoints
                         for j=1, #self do
                             if self[j].bSelected then
                                 local tPoints      = self[j].tPoints
-                                if bIs3d then
-                                    local iTotalPoints = #tPoints / 3
-                                    print('line','implement')
-                                else
-                                    local iTotalPoints = (#tPoints / 2) - 1 --the last one is to close the geometry
-                                    for i=1, iTotalPoints do
-                                        local iindex  = (i -1) * 2 + 1
-                                        local tCircle = self.tCircles[i]
-                                        if tCircle == nil then
-                                            tCircle          = shape:new('2dw')
-                                            self.tCircles[i] = tCircle
-                                            tCircle:create('circle',20,20,18,false,string.format('circle_%d%d',i,os.time()))
-                                            tCircle:setColor(1,0,0)
-                                        end
-                                        local x,y = tSelectedPoints[iindex], tSelectedPoints[iindex+1]
-                                        tCircle:setPos(x ,y )
-                                        tCircle.visible = true
+                                local iTotalPoints = (#tPoints / 2) - 1 --the last one is to close the geometry
+                                for i=1, iTotalPoints do
+                                    local iindex  = (i -1) * 2 + 1
+                                    local tCircle = self.tCircles[i]
+                                    if tCircle == nil then
+                                        tCircle          = shape:new('2dw')
+                                        self.tCircles[i] = tCircle
+                                        tCircle:create('circle',20,20,18,false,string.format('circle_%d%d',i,os.time()))
+                                        tCircle:setColor(1,0,0)
                                     end
+                                    local x,y = tSelectedPoints[iindex], tSelectedPoints[iindex+1]
+                                    tCircle:setPos(x ,y )
+                                    tCircle.visible = true
                                 end
                                 break
                             end
@@ -810,6 +1063,7 @@ function onLoadMesh()
             end
             tUtil.showMessage(tLang.L("mesh_loaded_ok"))
         else
+            bShowEditPhysics = false
             tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_file_fmt"), file_name))
         end
     end
@@ -1042,8 +1296,8 @@ function showEditPhysics()
             tImGui.PopItemWidth()
         end
 
-        indexPrimitive       = tImGui.RadioButton('Circle',             indexPrimitive, 3)
-        indexPrimitive       = tImGui.RadioButton('Circle/Triangle',    indexPrimitive, 4)
+        indexPrimitive       = tImGui.RadioButton(tLang.L("circle"),          indexPrimitive, 3)
+        indexPrimitive       = tImGui.RadioButton(tLang.L("circle_triangle"), indexPrimitive, 4)
         if indexPrimitive == 4 then
             tImGui.SameLine()
             tUtil.pushResponsiveItemWidth(70)
@@ -1055,8 +1309,10 @@ function showEditPhysics()
             tImGui.PopItemWidth()
         end
         indexPrimitive       = tImGui.RadioButton(tLang.L("triangle"), indexPrimitive, 5)
+        indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
+        indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube_triangle"), indexPrimitive, 7)
         local tSizeBtn       = {x=width - 20,y=0} -- size button
-        
+
         local color             = {r=1,g=1,b=0.4,a=1}
         local thickness         =  5.0
         local winPos            = tImGui.GetCursorScreenPos()
@@ -1094,6 +1350,22 @@ function showEditPhysics()
             local p2     = {x=25 + winPos.x + 75,y=0  + winPos.y + 15}
             local p3     = {x=50 + winPos.x + 75,y=50 + winPos.y + 15}
             tImGui.AddTriangle(p1, p2, p3, color, thickness + 5)
+        elseif indexPrimitive == 6 or indexPrimitive == 7 then
+            -- simple isometric-cube icon: two offset squares joined by 4 diagonals
+            local off  = 18
+            local p_min = {x = winPos.x + 75,       y = winPos.y + 15 + off}
+            local p_max = {x = winPos.x + 125,      y = winPos.y + 65 + off}
+            local q_min = {x = winPos.x + 75 + off, y = winPos.y + 15}
+            local q_max = {x = winPos.x + 125 + off,y = winPos.y + 65}
+            tImGui.AddRect(p_min, p_max, color, 0, 0, thickness)
+            tImGui.AddRect(q_min, q_max, color, 0, 0, thickness)
+            tImGui.AddLine({x=p_min.x,y=p_min.y}, {x=q_min.x,y=q_min.y}, color, thickness)
+            tImGui.AddLine({x=p_max.x,y=p_min.y}, {x=q_max.x,y=q_min.y}, color, thickness)
+            tImGui.AddLine({x=p_min.x,y=p_max.y}, {x=q_min.x,y=q_max.y}, color, thickness)
+            tImGui.AddLine({x=p_max.x,y=p_max.y}, {x=q_max.x,y=q_max.y}, color, thickness)
+            if indexPrimitive == 7 then
+                tImGui.AddLine({x=p_min.x,y=p_min.y}, {x=p_max.x,y=p_max.y}, color, thickness)
+            end
         end
 
         tPhysicsOptions.iIndexPrimitiveType = indexPrimitive
@@ -1109,7 +1381,14 @@ function showEditPhysics()
             if depth == nil then
                 depth = 1
             end
-            local tInfoPhysicsInner = {x=0,y=0,z=0}
+            -- Defaults to the mesh's true AABB center (obj:getAABBCenter(), MBM_VERSION 6.9.0)
+            -- instead of the hardcoded local origin -- for a mesh pivoted at its floor/base (e.g.
+            -- a building), the origin is an awkward starting point for a new hitbox; this lands
+            -- new shapes at the mesh's actual visual middle instead. Naturally still (0,0,0) for
+            -- a mesh with no physics shapes yet (nothing to compute a center from) or one that's
+            -- genuinely centered on its own pivot already.
+            local cx, cy, cz = tMesh:getAABBCenter(true)
+            local tInfoPhysicsInner = {x = cx or 0, y = cy or 0, z = cz or 0}
             if indexPrimitive == 1 then --cube
                 
                 tInfoPhysicsInner.type = 'cube'
@@ -1168,15 +1447,23 @@ function showEditPhysics()
                 tInfoPhysicsInner.a = {x = width * -0.25, y = height * -0.25}
                 tInfoPhysicsInner.b = {x = 0, y = height * 0.25}
                 tInfoPhysicsInner.c = {x = width * 0.25, y = height * -0.25}
-            elseif indexPrimitive == 6 then --complex
+            elseif indexPrimitive == 6 then --complex (single 8-point box)
+                local corners = boxCorners(width * 0.5, height * 0.5, depth * 0.5)
                 tInfoPhysicsInner.type = 'complex'
-                tInfoPhysicsInner.a={x=-50,y=-50}
-                tInfoPhysicsInner.b={x=0,y=0}
-                tInfoPhysicsInner.c={x=40,y=-40}
-                tInfoPhysicsInner.d={x=50,y=50}
-                tInfoPhysicsInner.e={x=0,y=0}
-                tInfoPhysicsInner.f={x=-50,y=50}
-                tInfoPhysicsInner.g={x=-250,y=250}
+                for i,l in ipairs(BOX_LETTERS) do
+                    tInfoPhysicsInner[l] = {x=corners[i].x, y=corners[i].y, z=corners[i].z}
+                end
+            elseif indexPrimitive == 7 then --complex (box decomposed into 12 triangles)
+                local corners = boxCorners(width * 0.5, height * 0.5, depth * 0.5)
+                local faces   = boxTriangleFaces(corners)
+                for _,tri in ipairs(faces) do
+                    local tInfoPhysicsTriangle = {x=0,y=0,z=0,type='triangle'}
+                    tInfoPhysicsTriangle.a = {x=tri[1].x, y=tri[1].y, z=tri[1].z}
+                    tInfoPhysicsTriangle.b = {x=tri[2].x, y=tri[2].y, z=tri[2].z}
+                    tInfoPhysicsTriangle.c = {x=tri[3].x, y=tri[3].y, z=tri[3].z}
+                    addPhysics(tInfoPhysicsTriangle)
+                end
+                tInfoPhysicsInner = nil
             end
             if tInfoPhysicsInner then
                 addPhysics(tInfoPhysicsInner)
@@ -1419,7 +1706,38 @@ function showEditPhysics()
                             tInfoPhysics:highLightPoint(i,3)
                         end
                     elseif tPhysic.type == 'complex' then
-                        tImGui.Text(tLang.L("not_implemented"))
+                        for pi,l in ipairs(BOX_LETTERS) do
+                            local p = tPhysic[l]
+                            local label    = string.upper(l) .. tLang.L("axis_x") .. string.format('##complex_%d_%s_x', i, l)
+                            local result, fValue = tImGui.InputFloat(label, p.x, step, step_fast, format, flags)
+                            if result then
+                                p.x = fValue
+                                updatePhysics(tPhysic)
+                            end
+                            if tImGui.IsItemHovered(0) then
+                                tInfoPhysics:highLightPoint(i,pi)
+                            end
+
+                            local label    = string.upper(l) .. tLang.L("axis_y") .. string.format('##complex_%d_%s_y', i, l)
+                            local result, fValue = tImGui.InputFloat(label, p.y, step, step_fast, format, flags)
+                            if result then
+                                p.y = fValue
+                                updatePhysics(tPhysic)
+                            end
+                            if tImGui.IsItemHovered(0) then
+                                tInfoPhysics:highLightPoint(i,pi)
+                            end
+
+                            local label    = string.upper(l) .. tLang.L("axis_z") .. string.format('##complex_%d_%s_z', i, l)
+                            local result, fValue = tImGui.InputFloat(label, p.z, step, step_fast, format, flags)
+                            if result then
+                                p.z = fValue
+                                updatePhysics(tPhysic)
+                            end
+                            if tImGui.IsItemHovered(0) then
+                                tInfoPhysics:highLightPoint(i,pi)
+                            end
+                        end
                     end
                     if tImGui.Button(tLang.L("delete_physic"), {x=0,y=0}) then
                         table.remove(tInfoPhysics,i)
@@ -1486,39 +1804,40 @@ function onTouchDown(key,x,y)
     isClickedMouseLeft = key == 0
     camera2d.mx = x
     camera2d.my = y
+    lastMouse3d.x = x
+    lastMouse3d.y = y
 
     if not IsAnyWindowHovered and tInfoPhysics then
-        if tInfoPhysics then
-            tInfoPhysics:setTouchDown(x,y)
-            local i_circle     =  tInfoPhysics:isOverCircle(x,y)
-            local index_isOver =  tInfoPhysics:indexIsOver(x,y)
-            if index_isOver == 0 and i_circle == 0 then
-                tInfoPhysics:unSelectFrame()
-            end
+        tInfoPhysics:setTouchDown(x,y)
+        local i_circle     =  tInfoPhysics:isOverCircle(x,y)
+        local index_isOver =  tInfoPhysics:indexIsOver(x,y)
+        if index_isOver == 0 and i_circle == 0 then
+            tInfoPhysics:unSelectFrame()
+        end
+        if index_isOver ~= 0 then
+            tInfoPhysics:setSelected(index_isOver)
+        end
+        local index_sel    =  tInfoPhysics:getIndexSelectedFrame()
+        if index_sel == 0 then
             if index_isOver ~= 0 then
-                tInfoPhysics:setSelected(index_isOver)
-            end
-            local index_sel    =  tInfoPhysics:getIndexSelectedFrame()
-            if index_sel == 0 then
-                if index_isOver ~= 0 then
-                    bEnableMoveWorld = false
-                else
-                    tInfoPhysics:unSelectFrame()
-                    bEnableMoveWorld = true
-                end
+                bEnableMoveWorld = false
             else
-                local index_isOver =  tInfoPhysics:indexIsOver(x,y)
-                if index_isOver ~= 0 or i_circle ~= 0 then
-                    bEnableMoveWorld = false
-                else
-                    bEnableMoveWorld = true
-                end
-                if i_circle ~= 0 then
-                    tInfoPhysics:setSelectedCircle(i_circle)
-                end
+                tInfoPhysics:unSelectFrame()
+                bEnableMoveWorld = true
             end
+        else
+            local index_isOver =  tInfoPhysics:indexIsOver(x,y)
+            if index_isOver ~= 0 or i_circle ~= 0 then
+                bEnableMoveWorld = false
+            else
+                bEnableMoveWorld = true
+            end
+            if i_circle ~= 0 then
+                tInfoPhysics:setSelectedCircle(i_circle)
+            end
+        end
 
-            
+        if not bIs3d then
             x,y = mbm.to2dw(x,y)
             for i = 2, #tSimulate do
                 local tMesh = tSimulate[i]
@@ -1539,6 +1858,26 @@ end
 
 function onTouchMove(key,x,y)
     local IsAnyWindowHovered = tImGui.IsAnyWindowHovered()
+
+    if bIs3d then
+        if isClickedMouseLeft and not IsAnyWindowHovered then
+            local dx = x - lastMouse3d.x
+            local dy = y - lastMouse3d.y
+            tCam3d.azimuth   = tCam3d.azimuth - dx * 0.005
+            tCam3d.elevation = tCam3d.elevation + dy * 0.005
+            local limit = math.pi * 0.49
+            if tCam3d.elevation >  limit then tCam3d.elevation =  limit end
+            if tCam3d.elevation < -limit then tCam3d.elevation = -limit end
+            applyCam3d(tCam3d)
+        elseif not IsAnyWindowHovered and tInfoPhysics then
+            local index_isOver =  tInfoPhysics:indexIsOver(x,y)
+            tInfoPhysics:setHighLight(index_isOver,x,y)
+        end
+        lastMouse3d.x = x
+        lastMouse3d.y = y
+        return
+    end
+
     if bEnableMoveWorld and isClickedMouseLeft and not bMovingAnyPoint and not IsAnyWindowHovered then
         local px = (camera2d.mx - x) * camera2d.sx
         local py = (camera2d.my - y) * camera2d.sy
@@ -1577,7 +1916,9 @@ function onTouchUp(key,x,y)
     if tInfoPhysics then
         tInfoPhysics:finishMovingFrame(x,y)
         tInfoPhysics:unSelectCircles()
-        tInfoPhysics:setScale(scale,scale,scale)
+        if not bIs3d then
+            tInfoPhysics:setScale(scale,scale,scale)
+        end
     end
     camera2d.mx = x
     camera2d.my = y
@@ -1592,13 +1933,20 @@ end
 function onTouchZoom(zoom)
     local IsAnyWindowHovered = tImGui.IsAnyWindowHovered()
     if tMesh and not IsAnyWindowHovered then
-        scale = tMesh.sx
-        scale = scale + (zoom * 0.1)
-        scale = math.max(scale,0.1)
-        scale = math.min(scale,100)
-        tMesh:setScale(scale,scale,scale)
-        if tInfoPhysics then
-            tInfoPhysics:setScale(scale,scale,scale)
+        if bIs3d then
+            tCam3d.distance = tCam3d.distance - (zoom * 20)
+            tCam3d.distance = math.max(tCam3d.distance, 10)
+            tCam3d.distance = math.min(tCam3d.distance, 20000)
+            applyCam3d(tCam3d)
+        else
+            scale = tMesh.sx
+            scale = scale + (zoom * 0.1)
+            scale = math.max(scale,0.1)
+            scale = math.min(scale,100)
+            tMesh:setScale(scale,scale,scale)
+            if tInfoPhysics then
+                tInfoPhysics:setScale(scale,scale,scale)
+            end
         end
     end
 end
@@ -1620,6 +1968,15 @@ function onLoop(delta)
     tUtil.showOverlayMessage()
     tex_alpha_pattern:setPos(camera2d.x,camera2d.y)
 
+    if bIs3d and tMesh then
+        applyCam3d(tCam3d)
+        tUtil.setInitialWindowPositionRight(tLang.L('mesh_preview_orbit'), 0, 0, 160, 160, 160)
+        tImGui.Begin(tLang.L('mesh_preview_orbit'), true,
+            tImGui.Flags({'ImGuiWindowFlags_NoTitleBar', 'ImGuiWindowFlags_NoResize'}))
+        tUtil.drawOrbitGizmo(tCam3d, {size = 110})
+        tImGui.End()
+    end
+
     if tMesh and tInfoPhysics then
         local strSelected = ''
         for i=1, #tInfoPhysics do
@@ -1629,6 +1986,11 @@ function onLoop(delta)
         end
 
         tUtil.showStatusMessage('Info',string.format('Scale: %2.2f\nPhysics %d\n%s',tMesh.sx,#tInfoPhysics,strSelected))
+    end
+
+    if tMesh and tAABBCenterMarker then
+        local cx, cy, cz = tMesh:getAABBCenter(true)
+        tAABBCenterMarker:setPos(cx, cy, bIs3d and cz or -100)
     end
 
     if #tSimulate == 0 then

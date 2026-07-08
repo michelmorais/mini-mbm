@@ -81,14 +81,49 @@ Every render object constructor takes a coordinate-system string as its first ar
 ```lua
 wx, wy       = mbm.to2dw(sx, sy)        -- screen pixels → 2D world coords
 sx, sy       = mbm.to2ds(wx, wy)        -- 2D world coords → screen pixels
-wx, wy, wz   = mbm.to3d(sx, sy, depth)  -- screen pixels → 3D world coords
+wx, wy, wz   = mbm.to3d(sx, sy, depth)  -- screen pixels → 3D world coords at given depth
+ox,oy,oz,
+dx,dy,dz     = mbm.getPickRay(sx, sy)   -- screen pixels → 3D pick ray (origin + unit direction)
 ```
+
+**`mbm.to3d`'s `depth` is a literal distance traveled from the camera along the ray through
+that screen pixel — NOT a target world Z coordinate.** It's easy to assume otherwise (nothing
+in the name suggests it), but the underlying C++ makes it explicit: `depth=0` always returns
+the camera's own position, for *any* screen pixel — confirmed empirically (two different pixels,
+same `depth=0`, identical result) and in source: `DEVICE::transformeScreen2dToWorld3d_scaled`
+(`device-common.cpp`) takes this parameter as `howFarZFromCamera` and computes
+`out = rayOrigin + rayDir * howFarZFromCamera`, where `rayOrigin`/`rayDir` come from
+`DEVICE::rayCast(sx, sy, ...)` — a real screen-ray reconstruction, camera-relative by
+construction. Note `rayCast`'s own internal `rayDir` is **not** normalized (its magnitude grows
+for pixels away from screen center, an artifact of how it falls out of the projection-matrix
+math) — `mbm.to3d`'s `howFarZFromCamera` is therefore a scaling factor along a variable-length
+vector, not a literal real-world distance except exactly at screen center. `mbm.getPickRay`
+(below) normalizes this before returning it, specifically so it doesn't carry this gotcha into
+new code. To reconstruct a full ray from `mbm.to3d` alone (e.g. to intersect a known plane),
+sample at two different `depth` values and use their difference as the direction — see
+`screenToWorldOnLayerPlane` in `editor/scene_editor3d.lua` for a worked example (still valid:
+the *direction* it derives is correct even though neither sample point is a literal-distance
+position on its own).
+
+**`mbm.getPickRay(sx, sy)` returns a proper 3D pick ray for the given screen pixel: `ox,oy,oz`**
+(the ray origin — always the camera's own current world position, for any pixel) **and
+`dx,dy,dz`** (a normalized/unit direction). Wraps the engine's internal `DEVICE::rayCast`
+(`device-common.cpp`), previously used only internally to back `mbm.to3d`. Use this instead of
+guessing a `depth` for `mbm.to3d` when you actually need real ray-vs-object math (e.g. testing
+against a known bounding box) — `obj:collide(x, y)` (§6.4) now does exactly this internally.
 
 ---
 
 ## 3. mbm Namespace
 
 All engine-level functions live in the global `mbm` table.
+
+**Every color value anywhere in this API — `mbm.setColor`, `obj:setColor`, `line:setColor`,
+the lighting functions (§3.16), `mbm.colorDialog`, and ImGui's `ColorEdit`/`ColorPicker`
+widgets (§12) — is 0.0-1.0 per channel, never 0-255.** Several of these were previously
+mis-documented as 0-255 (an easy assumption to carry over from other engines/APIs); values
+outside `[0,1]` don't error, they silently clamp or saturate, so the mistake shows up as
+"my light/tint/background is stuck white or black" rather than a crash.
 
 ### 3.1 Scene & Control
 
@@ -113,7 +148,7 @@ All engine-level functions live in the global `mbm` table.
 | `mbm.getRealSizeScreen` | `()` | w, h | Actual window/framebuffer size in pixels |
 | `mbm.getSizeScreen` | `()` | w, h | Logical/scaled back-buffer size |
 | `mbm.getDisplayMetrics` | `()` | table | DPI and density info from the OS |
-| `mbm.setColor` | `(r, g, b)` | — | Background clear color (0–255 each channel) |
+| `mbm.setColor` | `(r, g, b)` | — | Background clear color (0.0–1.0 each channel, not 0-255) |
 | `mbm.enableClearScreen` | `(enable: bool)` | — | Toggle clearing the back-buffer each frame |
 | `mbm.refresh` | `()` | — | Force a window redraw / resize event |
 | `mbm.getObjectsRendered` | `(type?: string)` | number | Count of rendered objects; filter by type name |
@@ -171,7 +206,8 @@ All engine-level functions live in the global `mbm` table.
 |---|---|---|---|
 | `mbm.to2dw` | `(sx, sy)` | wx, wy | Screen px → 2D world coords |
 | `mbm.to2ds` | `(wx, wy)` | sx, sy | 2D world coords → screen px |
-| `mbm.to3d` | `(sx, sy, depth)` | wx, wy, wz | Screen px → 3D world coords at given depth |
+| `mbm.to3d` | `(sx, sy, depth)` | wx, wy, wz | Screen px → 3D world coords at given camera-relative depth (see §2's note) |
+| `mbm.getPickRay` | `(sx, sy)` | ox,oy,oz, dx,dy,dz | Screen px → 3D pick ray: origin (camera position) + normalized direction (see §2) |
 
 ### 3.8 Textures
 
@@ -226,7 +262,7 @@ mbm.addShader({
 | `mbm.messageBox` | `(title, msg)` | — | Native message dialog |
 | `mbm.inputBox` | `(title, default?)` | string\|nil | Native text input dialog |
 | `mbm.inputPassword` | `(title)` | string\|nil | Native password input (masked) |
-| `mbm.colorDialog` | `()` | r, g, b \| nil | Native color picker; returns 0-255 values |
+| `mbm.colorDialog` | `(r?, g?, b?)` | r, g, b \| nil | Native color picker; optional default color and the returned r,g,b are all 0.0-1.0, not 0-255 |
 
 ### 3.13 System Info
 
@@ -270,6 +306,11 @@ both forms are shown below. Alpha (`a`) always defaults to `1.0` when omitted. A
 below return nothing on success and **raise a Lua error** (catchable with `pcall`) if `target`
 or the arguments are invalid — they do not return `false`.
 
+All colors accepted/returned by the functions below (ambient, directional, point-light colors)
+are **0.0-1.0 per channel**, not 0-255 — values are clamped to `[0,1]` internally
+(`device-common.cpp`'s `clampLightChannel`), so passing e.g. `255` silently saturates to `1.0`
+rather than erroring.
+
 | Function | Signature | Returns | Description |
 |---|---|---|---|
 | `mbm.setLightEnabled` | `(target, enabled: bool)` | — (errors on failure) | Enable/disable lighting for `target` |
@@ -293,13 +334,14 @@ or the arguments are invalid — they do not return `false`.
 
 ```lua
 -- Typical setup: ambient + directional "sun" light, plus a couple of point lights
+-- (colors are 0.0-1.0 per channel, not 0-255 -- see note above)
 mbm.setLightEnabled("3d", true)
-mbm.setAmbientLight("3d", 30, 30, 40)
-mbm.setDirectionalLight("3d", 0, -1, 0.3, 255, 250, 230)
+mbm.setAmbientLight("3d", 0.12, 0.12, 0.16)
+mbm.setDirectionalLight("3d", 0, -1, 0.3, 1.0, 0.98, 0.9)
 
 mbm.setRequestedMaxLights("3d", 4)
-mbm.addPointLight("3d", 100, 50, 0, 300, 255, 120, 0)   -- x,y,z, radius, r,g,b
-mbm.addPointLight("3d", -200, 80, 50, 250, 80, 120, 255)
+mbm.addPointLight("3d", 100, 50, 0, 300, 1.0, 0.47, 0)   -- x,y,z, radius, r,g,b
+mbm.addPointLight("3d", -200, 80, 50, 250, 0.31, 0.47, 1.0)
 
 function onLoop(delta)
     -- Ask which of the point lights actually affect this specific object, e.g. for a
@@ -334,7 +376,14 @@ Obtained via `local cam = mbm.getCamera("2d")` or `mbm.getCamera("3d")`.
 | `cam:setFocus` | `(x, y, z?)` | — | Set look-at target |
 | `cam:getFocus` | `()` | vec3 | Get look-at target |
 | `cam:setUp` | `(x, y, z?)` | — | Set up vector |
-| `cam:setUp` | `()` | vec3 | Get up vector |
+| `cam:getUp` | `()` | vec3 | Get up vector |
+| `cam:setAngleOfView` | `(degrees)` | — | 3D camera only. Field-of-view angle |
+| `cam:setFar` | `(distance)` | — | 3D camera only. Far clip plane distance — objects beyond this are culled. **Default is only 1000**, easy to exceed in a normal 3D scene (was entirely undocumented before) |
+| `cam:setNear` | `(distance)` | — | 3D camera only. Near clip plane distance |
+
+`setFar`/`setNear`/`setAngleOfView` exist only on the 3D camera (`mbm.getCamera("3d")`) — the 2D
+camera has no equivalent (it has no perspective/clipping planes). There is currently no `getFar`/
+`getNear`/`getAngleOfView` getter exposed to Lua.
 
 ---
 
@@ -425,7 +474,8 @@ obj.alwaysRender = true   -- render even when off-screen / outside frustum
 | Method | Signature | Returns | Description |
 |---|---|---|---|
 | `obj:getSize` | `(considerScale?: bool)` | w, h [, d] | Object dimensions. 3D returns depth too. |
-| `obj:getAABB` | `(update?: bool)` | w, h [, d] | Axis-aligned bounding box. Pass `true` to force recalc. |
+| `obj:getAABB` | `(update?: bool)` | w, h [, d] | Axis-aligned bounding box **size only** — does NOT imply the box is centered at `getPosition()`. Pass `true` to force recalc. |
+| `obj:getAABBCenter` | `(update?: bool)` | x, y [, z] | The AABB's **true** geometric center in world space (since MBM_VERSION 6.9.0). Equals `getPosition()` when the object's geometry is centered on its own pivot (the common case); differs for anything anchored elsewhere (a mesh pivoted at its base/floor, a character pivoted at its feet, `font` text whose origin is alignment-driven, not centered). Pass `true` to force recalc. |
 | `obj:isOnScreen` | `()` | bool | Whether the object is visible within the camera frustum |
 | `obj:isLoaded` | `()` | bool | Whether the asset is fully loaded |
 
@@ -433,8 +483,35 @@ obj.alwaysRender = true   -- render even when off-screen / outside frustum
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `obj:collide` | `(other)` or `(x, y)` | bool | AABB collision vs another object, or vs screen point |
+| `obj:collide` | `(other, useAABB?: bool)` or `(x, y, useAABB?: bool)` | bool | AABB collision vs another object, or vs screen point. `useAABB` defaults to `true` (use `getAABB`); pass `false` to compare raw `getWidthHeight` dimensions instead. |
 | `obj:isOver` | `(x, y)` | bool | Is screen point (x, y) inside the object's bounding rect |
+
+**The `(x, y, useAABB)` 3-argument form was silently broken until MBM_VERSION 6.8.0** —
+`onCheckCollisionBoundingBoxRenderizable` (`common-methods-lua.cpp`) only entered that code path
+when Lua's argument count was exactly 3 (`self, x, y`), so passing a 4th `useAABB` argument
+(`self, x, y, useAABB` — 4 args) missed that branch entirely and fell through to a generic
+`luaL_error`, even though the code inside was clearly written to read a 4th argument. Fixed by
+accepting both 3 and 4 argument counts here; if you need this form, upgrade past 6.8.0.
+
+**`obj:collide(x, y)` on a 3D object does a real ray/AABB test** (`common-methods-lua.cpp`,
+`onCheckCollisionBoundingBoxRenderizable`, since MBM_VERSION 6.8.0): it casts a proper
+screen-space pick ray (`DEVICE::rayCast`) and intersects it against the object's world AABB
+(`DEVICE::rayIntersectsAABB`, slab method). Before 6.8.0 this instead unprojected the screen
+point using the object's own **raw world Z coordinate** as the `depth` passed to the same
+primitive `mbm.to3d` uses (see §2) — which degenerated to the camera's own position, for *every*
+screen pixel, for any object sitting near world Z=0 (e.g. anything left at its default placement
+position), so the test could never register a hit no matter where you clicked. That's fixed now;
+no workaround needed. See §2 for `mbm.getPickRay` if you need the same ray/AABB math directly
+from Lua (e.g. against a box that isn't a renderizable's own AABB).
+
+**`obj:collide` (every form — object-vs-object, screen point, 2D and 3D) now tests against each
+object's true AABB center (`obj:getAABBCenter()`, §6.3), not just `getPosition()`** (since
+MBM_VERSION 6.9.0). This replaces an older internal-only mechanism (`doOffsetIfText`) that
+handled this correction for `font` objects alone, by temporarily mutating the object's live
+position, running the check, then restoring it. The new mechanism is general (any renderizable
+type can have a non-zero center offset, not just text) and doesn't touch `getPosition()` at all.
+No Lua-visible behavior change for anything already centered on its own pivot — this only
+changes results for objects where `getAABBCenter() != getPosition()`.
 
 ### 6.5 Physics
 
@@ -458,8 +535,8 @@ obj.alwaysRender = true   -- render even when off-screen / outside frustum
 | `obj:onEndFx` | `(callback)` | — | Call `callback()` when shader effect ends |
 | `obj:setTypeAnim` | `(type: int)` | — | Set animation loop type using `mbm.*` constants |
 | `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
-| `obj:setTexture` | `(textureName: string)` | bool | Replace the object's texture at runtime |
-| `obj:setColor` | `(r, g, b, a?)` | — | Tint the object (0–255 per channel) |
+| `obj:setTexture` | `(textureName: string)` | bool | Replace the object's texture at runtime. `textureName` can also be a solid-color shorthand `"#RRGGBB"`/`"#RRGGBBAA"` hex string (alpha-last, e.g. `"#FF0000FF"` for opaque red) instead of a file path — generates a small solid-color texture on the fly |
+| `obj:setColor` | `(r, g, b, a?)` | bool | Tint the object (0.0-1.0 per channel, not 0-255). Same underlying binding as `setTexture` (dispatches on argument type: a string sets a texture, numbers set a solid tint) — passing >1 values doesn't error, they just clamp/wrap like any float color channel |
 | `obj:setPixelShader` | `(shaderName: string, varValues?: table)` | bool | Apply a pixel shader |
 | `obj:setVertexShader` | `(shaderName: string, varValues?: table)` | bool | Apply a vertex shader |
 | `obj:getShader` | `()` | table | Get current shader config (`name`, `var` values) |
@@ -605,28 +682,53 @@ p:getStageTime()          p:setStageTime(t)
 ### 7.8 shape
 
 ```lua
-local sh = shape:new("2dw", x, y)
--- Indexed shape: vertices, indices, UVs
-sh:create(vertices, indices, uvs)
--- Example: triangle
-sh:create({0,0, 0,100, 100,0},  -- flat vertex list (x,y pairs)
-          {1,2,3},               -- index list (1-based)
-          {0,0, 0,1, 1,0})       -- UV list
+local sh = shape:new("2dw", x, y)  -- or shape:new("3d", x, y, z)
 
--- Or create with normals/depth for 3D:
+-- Named primitive (flat 2D-style shapes; still usable as flat markers/highlights in 3D):
+sh:create("circle", width, height, numTriangles?, dynamic?, nickName?)      -- numTriangles default 18
+sh:create("rectangle", width, height, numTriangles?, dynamic?, nickName?)   -- aliases: "quad"/"square"/"rect"
+sh:create("triangle", width, height, numTriangles?, dynamic?, nickName?)
+sh:create("triangle", {x1,y1, x2,y2, x3,y3}, dynamic?, nickName?)          -- explicit 2D triangle (flat 6-number table, no z)
+
+-- Raw vertex list -- any shape, "x,y" pairs for a 2D shape / "x,y,z" triples for a 3D one:
+sh:create(verticesFlat, uvsFlatOrNil, nickName?, modeDraw?, modeCullFace?, modeFrontFace?)
+
+-- Indexed variants (separate vertex/index/uv buffers):
 sh:createIndexed(vertices, indices, uvs, normals?)
 sh:createDynamicIndexed(vertices, indices, uvs)  -- updatable each frame
 sh:onRender(callback)  -- callback(sh) called every frame for dynamic update
 ```
+
+**Pitfall: `nickName` is a shared cache key, not a per-instance label or a "reload guard."** Every
+`create*` variant above ultimately resolves its geometry through the engine's mesh manager, keyed
+by `nickName` (or an auto-generated name if omitted) — **across every `shape` object in the
+process**, not scoped to the one object you called `:create()` on. If you build a shape whose
+vertex content actually changes over time (e.g. regenerating geometry from live/draggable input
+each time it edits) and reuse the same literal `nickName` on every rebuild, every call after the
+very first silently returns that first call's cached mesh — your new vertex data is discarded with
+no error, and any other shape that happens to reuse the same name gets that same stale geometry
+too. Confirmed directly in `src/render/shape-mesh.cpp` (`SHAPE_MESH::load` calls
+`MESH_MANAGER::load(nickName, ...)`, a name-first cache lookup) and reproduced building Scene
+Editor 3D's triangle object marker (`editor/scene_editor3d.lua`): reusing one fixed nickname across
+every point-drag rebuild made the shape appear completely static, and made every triangle marker
+in the scene look identical to whichever one was created first.
+- **Safe to share a fixed `nickName`** only when the content is deliberately identical across every
+  instance that uses it (e.g. one unit-size cube/sphere/quad, with each instance differentiated
+  purely via `:setPos()`/`:setScale()` — the intended, efficient use of this cache). Otherwise give
+  each rebuild a unique `nickName`, e.g. an index/counter baked into the string.
+  `onCreateTriangleShapeMeshLua`'s own fallback (used whenever `nickName` is omitted for the 2D
+  explicit-triangle form above) demonstrates the safe pattern directly: it derives the name FROM
+  the actual point values (`"triangle_points:x1:y1:...:dynamic"`), so different content is
+  guaranteed to produce a different, non-colliding name.
 
 ### 7.9 line
 
 ```lua
 local ln = line:new("2dw", x, y)
 ln:add({x1,y1, x2,y2, x3,y3})   -- add line strip vertices
-ln:set(idx, {x1,y1, x2,y2})     -- update a specific segment
+ln:set({x1,y1, x2,y2}, idx)     -- update a specific segment (table FIRST, then index -- confirmed against line-mesh-lua.cpp)
 ln:size()                         -- number of line segments
-ln:setColor(r, g, b, a?)         -- line color (0-255)
+ln:setColor(r, g, b, a?)         -- line color (0.0-1.0 each channel, not 0-255)
 ln:setPhysics(physicsTable)       -- attach a physics silhouette
 ln:drawBounding(bool)             -- show bounding box
 ```
@@ -789,6 +891,30 @@ local tImGui = require "ImGui"
 ```
 **All ImGui calls must happen inside `onLoop(delta)`.** They are immediate-mode — call every frame.
 
+### Common Pitfalls
+
+These bindings return/expect a different shape or range than most ImGui-familiar code (or this
+doc's older revisions) assumes. Each was found by tracing the actual C++ binding after a
+real bug, not from reading the header alone — verify against `plugins/imGui/imgui-lua.cpp` if
+in doubt rather than assuming a Dear ImGui C++ signature carries over as-is.
+
+- **`Checkbox`** returns only the resulting value, not `(changed, value)`: `local v = tImGui.Checkbox(label, value)`. Detect a toggle yourself with `if v ~= value then ... end`.
+- **`ColorEdit3` / `ColorEdit4` / `ColorPicker3` / `ColorPicker4`** take AND return a single `{r,g,b,*a}` **table** (0.0-1.0 per channel), never separate r,g,b[,a] numbers in either direction. Passing scalars throws `"Expected table [tRgb]"` — this crashed an editor mid-session because a table field (`color.r`) was passed instead of the table itself.
+- **`Combo`**'s `currentIdx` argument and returned index are **1-based** (Lua array convention) — the binding does the `-1`/`+1` conversion against ImGui's native 0-based index internally. Passing a 0-based index (e.g. `i-1` from a manual lookup loop) renders the combo with nothing selected.
+- **`ListBox`** does **not** do that conversion — its index is **0-based**, unlike `Combo`. The two widgets are inconsistent with each other; don't assume one from the other.
+- **`GetWindowSize` / `GetWindowPos` / `GetItemRectMin` / `GetItemRectMax` / `GetItemRectSize`** each return a single `{x,y}` table, not two numbers. Use `GetWindowWidth()`/`GetWindowHeight()` if you just need plain numbers.
+- **Don't use `IsAnyWindowHovered()`/`IsAnyItemHovered()` to decide whether a click/scroll/drag should reach your game scene instead of the UI.** Use **`GetWantCaptureMouse()`** (and `GetWantCaptureKeyboard()` for keyboard) instead. Three reasons, all hit in practice on the same editor, repeatedly, across several tabs before being root-caused:
+  1. `IsWindowHovered(ImGuiHoveredFlags_AnyWindow)` (what `IsAnyWindowHovered()` wraps) is designed to be queried about a *specific* window from inside that window's `Begin()`/`End()` block; using it as a global "is the UI in front of the mouse anywhere" check is a repurposing of a per-window API, not its intended use. Dear ImGui's own header comment on `IsWindowHovered` says as much: *"If you are trying to check whether your mouse should be dispatched to Dear ImGui or to your app, you should use the `io.WantCaptureMouse` boolean for that!"*
+  2. `WantCaptureMouse`/`WantCaptureKeyboard` additionally account for cases `IsAnyWindowHovered()` misses: an active drag started over a window but now outside its rect, or an open combo/popup list rendered outside its parent window's bounds.
+  3. Engine-specific: mini-mbm's own input callbacks (`onTouchDown`, `onTouchMove`, `onTouchZoom`) fire from the platform event-dispatch loop **before** `onLoop()` runs for that frame — see `CORE_MANAGER::onLoop()` in `core-manager-common.cpp`: `plugin->onPrepare()` (which calls `ImGui::NewFrame()`) runs, then queued input events are dispatched to the scene, and only *afterward* does `this->logic()` call `onLoop()`, which is where every `Begin()`/window actually gets drawn this frame. `WantCaptureMouse` is computed by `NewFrame()` itself and is documented as valid to read immediately after it — exactly where these callbacks run. `IsAnyWindowHovered()` has no such guarantee at that point in the frame.
+
+  ```lua
+  function onTouchDown(key, x, y)
+      if tImGui.GetWantCaptureMouse() then return end  -- click was for the UI, not the scene
+      ...
+  end
+  ```
+
 ### Window Management
 
 ```lua
@@ -829,7 +955,8 @@ tImGui.TextWrapped("long text ...")
 
 local pressed = tImGui.Button("label", w?, h?)
 local pressed = tImGui.SmallButton("label")
-local changed, v = tImGui.Checkbox("label", bool_value)
+local v = tImGui.Checkbox("label", bool_value)   -- returns only the new/current value, not a separate changed flag
+-- detect a toggle yourself: `if v ~= bool_value then ... end`
 
 -- Sliders (return changed:bool, newValue)
 local c, v  = tImGui.SliderFloat("label", value, min, max, fmt?)
@@ -849,14 +976,23 @@ local c, v = tImGui.InputFloat("label", value, step?, stepFast?)
 local c, v = tImGui.InputInt("label", value, step?, stepFast?)
 
 -- Color
-local c, r,g,b     = tImGui.ColorEdit3("label", r, g, b)          -- 0.0–1.0
-local c, r,g,b,a   = tImGui.ColorEdit4("label", r, g, b, a)
-local c, r,g,b     = tImGui.ColorPicker3("label", r, g, b)
-local c, r,g,b,a   = tImGui.ColorPicker4("label", r, g, b, a)
+-- ColorEdit3/4 and ColorPicker3/4 take AND return a single {r,g,b,*a} table (0.0-1.0 per
+-- channel), NOT separate r,g,b,[a] numbers in either direction. Passing/expecting scalars
+-- here throws "Expected table [tRgb]" (ColorEdit4's crash mode when misused) or silently
+-- misreads the result.
+local c, tRgb  = tImGui.ColorEdit3("label", {r=1,g=1,b=1})            -- tRgb = {r,g,b}
+local c, tRgba = tImGui.ColorEdit4("label", {r=1,g=1,b=1,a=1})        -- tRgba = {r,g,b,a}
+local c, tRgb  = tImGui.ColorPicker3("label", {r=1,g=1,b=1})
+local c, tRgba = tImGui.ColorPicker4("label", {r=1,g=1,b=1,a=1})
 
 -- Combo / Listbox
-local c, idx = tImGui.Combo("label", currentIdx, {"item1","item2",...})
-local c, idx = tImGui.ListBox("label", currentIdx, {"item1","item2",...}, h?)
+-- Combo's currentIdx/returned idx are 1-BASED (Lua convention: pass/read them like a Lua
+-- array index, e.g. `tItems[idx]`). The C binding does the -1/+1 conversion to ImGui's
+-- native 0-based index internally, so index 0 (or any 0-based value) reads as "no selection"
+-- and renders the combo box empty.
+local c, idx = tImGui.Combo("label", currentIdx, {"item1","item2",...})   -- idx: 1-based
+-- Combo and ListBox are consistent with each other here
+local c, idx = tImGui.ListBox("label", currentIdx, {"item1","item2",...}, h?)   -- idx: 1-based
 
 -- Tree / collapsing
 local open = tImGui.TreeNode("label")
@@ -923,14 +1059,21 @@ local pressed = tImGui.ImageButton(textureName, w, h)
 tImGui.IsItemHovered()       -- was last item hovered?
 tImGui.IsItemClicked(btn?)   -- was last item clicked?
 tImGui.IsItemActive()
-tImGui.GetItemRectMin()      -- returns x, y (top-left of last item)
-tImGui.GetItemRectMax()      -- returns x, y (bottom-right)
-tImGui.GetItemRectSize()     -- returns w, h
+tImGui.GetItemRectMin()      -- returns a single {x,y} table (top-left of last item), NOT two values
+tImGui.GetItemRectMax()      -- returns a single {x,y} table (bottom-right), NOT two values
+tImGui.GetItemRectSize()     -- returns a single {x,y} table, NOT two values
 tImGui.SetTooltip("text")    -- tooltip on hover
 tImGui.PushID("id")          tImGui.PopID()
-tImGui.GetWindowSize()       -- returns w, h
-tImGui.GetWindowPos()        -- returns x, y
+tImGui.GetWindowSize()       -- returns a single {x,y} table, NOT two values (use GetWindowWidth()/GetWindowHeight() for plain numbers)
+tImGui.GetWindowPos()        -- returns a single {x,y} table, NOT two values
+tImGui.GetWindowWidth()      -- returns a single number
+tImGui.GetWindowHeight()     -- returns a single number
 tImGui.SetScrollHereY(0.5)   -- scroll to position
+
+tImGui.GetWantCaptureMouse()      -- true if the UI wants this frame's mouse input (see Common Pitfalls above)
+tImGui.GetWantCaptureKeyboard()   -- true if the UI wants this frame's keyboard input
+tImGui.CaptureMouseFromApp(bool?)     -- manually override WantCaptureMouse for next frame (default true)
+tImGui.CaptureKeyboardFromApp(bool?) -- manually override WantCaptureKeyboard for next frame (default true)
 ```
 
 ---

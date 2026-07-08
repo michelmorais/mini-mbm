@@ -68,6 +68,7 @@ namespace mbm
     int ontransform2dS2dWMbm(lua_State *lua);
     int ontransform2dW2dSMbm(lua_State *lua);
     int ontransform2dsto3dmbm(lua_State *lua);
+    int onGetPickRay(lua_State *lua);
     int onGetTotalObjectsRender(lua_State *lua);
     int addOnTouchMeshLua(lua_State *lua);
     int onSetGlobal(lua_State *lua);

@@ -21,6 +21,7 @@
 #define PHYSICS_CLASS_H
 
 #include "core-exports.h"
+#include "primitives.h"
 #include <vector>
 
 namespace mbm
@@ -62,8 +63,20 @@ namespace mbm
         API_IMPL ~INFO_PHYSICS()noexcept;
         API_IMPL void release();
         API_IMPL bool clone(const INFO_PHYSICS* const other);
+        // Total size only (derived from getBoundsMinMax() below: max-min on each axis). Prior to
+        // MBM_VERSION 6.9.0 this instead assumed CUBE/SPHERE shapes were centered at local origin
+        // (wrong whenever absCenter != 0 -- see getBoundsMinMax's own comment) and did not union
+        // bounds across shape kinds when more than one was present on the same mesh; both are
+        // fixed now that this derives from the same true min/max getBoundsMinMax computes.
         API_IMPL bool getBounds(float *w, float *h) const ;
         API_IMPL bool getBounds(float *w, float *h, float *d) const ;
+        // True accumulated min/max across every shape kind present (cube, sphere, cube-complex,
+        // triangle), properly unioned. Unlike getBounds() above, this also exposes the min/max
+        // themselves, not just their difference -- letting a caller derive the AABB's true CENTER,
+        // not just its size (see RENDERIZABLE::getBoundingAABBCenterOffset(), MBM_VERSION 6.9.0).
+        // Returns false if there are no physics shapes at all.
+        API_IMPL bool getBoundsMinMax(VEC2 &vmin, VEC2 &vmax) const ;
+        API_IMPL bool getBoundsMinMax(VEC3 &vmin, VEC3 &vmax) const ;
     };
 
 }

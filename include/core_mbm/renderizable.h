@@ -85,6 +85,13 @@ namespace mbm
         API_IMPL VEC3 & getBoundingAABB() noexcept;
         API_IMPL const VEC3 & getBoundingAABB() const noexcept;
         API_IMPL void setBoundingAABB(const VEC3 &newBoundingAABB) noexcept;
+        // World-space offset from getPosition() to the AABB's true geometric center -- (0,0,0)
+        // when the geometry is centered on its own pivot, non-zero otherwise (e.g. a mesh
+        // anchored at its base). Populated by updateAABB() alongside boundingAABB. Virtual so
+        // TEXT_DRAW (whose visual box is driven by text alignment, not INFO_PHYSICS) can
+        // override it directly from its own already-computed aabbMin/aabbMax.
+        API_IMPL virtual const VEC3 & getBoundingAABBCenterOffset() const noexcept;
+        API_IMPL void setBoundingAABBCenterOffset(const VEC3 &newOffset) noexcept;
         API_IMPL float getDistanceFromView() const noexcept;
         API_IMPL void setDistanceFromView(const float distance) noexcept;
         API_IMPL bool isAlwaysRenderizeEnabled() const noexcept;

@@ -2068,14 +2068,14 @@ namespace mbm
             const bool ret  = loadBufferGl(emptyBrick);
             auto texManager = mbm::TEXTURE_MANAGER::getInstance();
             mbm::TEXTURE::EnablePixelPerfectTexture(true);
-            id_texture_normal_brick    = texManager->load("#aaffffaa",true);
+            id_texture_normal_brick    = texManager->load("#ffffaaaa",true);
             mbm::TEXTURE::EnablePixelPerfectTexture(false);
             if (ret)
             {
                 this->emptyBrick.setTextureByStage(id_texture_normal_brick, 0, 0);
             }
-            id_texture_highlight_brick = texManager->load("#aaff0000",true);
-            id_texture_selected_brick  = texManager->load("#aa00ff00",true);
+            id_texture_highlight_brick = texManager->load("#ff0000aa",true);
+            id_texture_selected_brick  = texManager->load("#00ff00aa",true);
             return ret;
         }
     }

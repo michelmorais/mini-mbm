@@ -49,6 +49,12 @@ namespace mbm
         VEC3        scale;
         VEC3        angle;
         VEC3        boundingAABB;
+        // True offset, in world space, from `position` to the AABB's actual geometric center --
+        // (0,0,0) whenever the underlying geometry happens to be centered on its own pivot (the
+        // overwhelmingly common case), non-zero for anything anchored elsewhere (a building
+        // pivoted at its floor, a character pivoted at its feet). `boundingAABB` alone (the size)
+        // has always been silently assuming this offset is zero -- see MBM_VERSION 6.9.0.
+        VEC3        boundingAABBCenterOffset;
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVar;
 
         Impl(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
@@ -65,7 +71,8 @@ namespace mbm
             position(0, 0, 0),
             scale(1, 1, 1),
             angle(0, 0, 0),
-            boundingAABB(0, 0, 0)
+            boundingAABB(0, 0, 0),
+            boundingAABBCenterOffset(0, 0, 0)
         {
         }
     };
@@ -242,6 +249,16 @@ namespace mbm
     void RENDERIZABLE::setBoundingAABB(const VEC3 &newBoundingAABB) noexcept
     {
         this->impl->boundingAABB = newBoundingAABB;
+    }
+
+    const VEC3 & RENDERIZABLE::getBoundingAABBCenterOffset() const noexcept
+    {
+        return this->impl->boundingAABBCenterOffset;
+    }
+
+    void RENDERIZABLE::setBoundingAABBCenterOffset(const VEC3 &newOffset) noexcept
+    {
+        this->impl->boundingAABBCenterOffset = newOffset;
     }
 
     float RENDERIZABLE::getDistanceFromView() const noexcept
@@ -526,6 +543,53 @@ namespace mbm
                     }
 
                     this->setBoundingAABB(VEC3(box_max.x - box_min.x, box_max.y - box_min.y, box_max.z - box_min.z));
+
+                    // Same transform (translation/rotation/scale), but starting from the TRUE
+                    // local min/max (getBoundsMinMax) instead of a box assumed symmetric around
+                    // local origin -- this is what makes the offset non-zero for anything not
+                    // pivoted at its own visual center (see MBM_VERSION 6.9.0).
+                    VEC3 vminLocal, vmaxLocal;
+                    if (infoPhysics->getBoundsMinMax(vminLocal, vmaxLocal))
+                    {
+                        VEC3 q[8];
+                        q[0] = VEC3(vminLocal.x, vminLocal.y, vminLocal.z);
+                        q[1] = VEC3(vmaxLocal.x, vminLocal.y, vminLocal.z);
+                        q[2] = VEC3(vminLocal.x, vmaxLocal.y, vminLocal.z);
+                        q[3] = VEC3(vmaxLocal.x, vmaxLocal.y, vminLocal.z);
+                        q[4] = VEC3(vminLocal.x, vminLocal.y, vmaxLocal.z);
+                        q[5] = VEC3(vmaxLocal.x, vminLocal.y, vmaxLocal.z);
+                        q[6] = VEC3(vminLocal.x, vmaxLocal.y, vmaxLocal.z);
+                        q[7] = VEC3(vmaxLocal.x, vmaxLocal.y, vmaxLocal.z);
+
+                        VEC3 centerBoxMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+                        VEC3 centerBoxMin(FLT_MAX, FLT_MAX, FLT_MAX);
+                        for (auto & qi : q)
+                        {
+                            vec3TransformCoord(&qi, &qi, &matrix);
+
+                            if (qi.x > centerBoxMax.x)
+                                centerBoxMax.x = qi.x;
+                            if (qi.y > centerBoxMax.y)
+                                centerBoxMax.y = qi.y;
+                            if (qi.z > centerBoxMax.z)
+                                centerBoxMax.z = qi.z;
+
+                            if (qi.x < centerBoxMin.x)
+                                centerBoxMin.x = qi.x;
+                            if (qi.y < centerBoxMin.y)
+                                centerBoxMin.y = qi.y;
+                            if (qi.z < centerBoxMin.z)
+                                centerBoxMin.z = qi.z;
+                        }
+                        const VEC3 trueWorldCenter((centerBoxMax.x + centerBoxMin.x) * 0.5f,
+                                                    (centerBoxMax.y + centerBoxMin.y) * 0.5f,
+                                                    (centerBoxMax.z + centerBoxMin.z) * 0.5f);
+                        this->setBoundingAABBCenterOffset(trueWorldCenter - position);
+                    }
+                    else
+                    {
+                        this->setBoundingAABBCenterOffset(VEC3(0, 0, 0));
+                    }
                 }
                 else
                 {
@@ -536,6 +600,26 @@ namespace mbm
                     VEC3 boundingAABB = this->getBoundingAABB();
                     util::getAABB(halfDim, angle.z, &boundingAABB.x, &boundingAABB.y);
                     this->setBoundingAABB(boundingAABB);
+
+                    // 2D only rotates around Z -- rotate/scale the true local center directly
+                    // instead of reusing util::getAABB (which assumes a symmetric box, see above).
+                    VEC2 vminLocal2d, vmaxLocal2d;
+                    if (infoPhysics->getBoundsMinMax(vminLocal2d, vmaxLocal2d))
+                    {
+                        const float localCenterX = (vminLocal2d.x + vmaxLocal2d.x) * 0.5f;
+                        const float localCenterY = (vminLocal2d.y + vmaxLocal2d.y) * 0.5f;
+                        const float scaledX = localCenterX * scale.x;
+                        const float scaledY = localCenterY * scale.y;
+                        const float sin_o = sinf(angle.z);
+                        const float cos_o = cosf(angle.z);
+                        const float worldOffsetX = scaledX * cos_o - scaledY * sin_o;
+                        const float worldOffsetY = scaledX * sin_o + scaledY * cos_o;
+                        this->setBoundingAABBCenterOffset(VEC3(worldOffsetX, worldOffsetY, 0.0f));
+                    }
+                    else
+                    {
+                        this->setBoundingAABBCenterOffset(VEC3(0, 0, 0));
+                    }
                 }
             }
         }

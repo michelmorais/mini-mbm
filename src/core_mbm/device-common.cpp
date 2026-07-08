@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 //#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 //    #include <plusWindows/defaultThemePlusWindows.h>
@@ -634,13 +635,17 @@ namespace mbm
             std::vector<LIGHT_POINT_SELECTION> candidates;
             DEVICE *device = DEVICE::getInstance();
             const std::vector<LIGHT_POINT> &pointLights = DEVICE_LIGHT_ACCESS::getPointLights(device, target);
-            if (pointLights.empty())
+            const LIGHT_STATE &lightState = DEVICE_LIGHT_ACCESS::getLightState(device, target);
+            const bool legacySlotConfigured = lightState.pointPositionConfigured ||
+                                              lightState.pointColorConfigured ||
+                                              lightState.pointRadiusConfigured;
+            if (pointLights.empty() && legacySlotConfigured)
             {
                 // Fallback to the single legacy point-light slot (setPointLight/setPointLightPosition/
-                // setPointLightRadius/setPointLightColor) when addPointLight was never called for this target.
-                // Without this branch, a game that only ever used setPointLight would silently select zero
-                // lights here, since this function was originally list-only.
-                const LIGHT_STATE &lightState = DEVICE_LIGHT_ACCESS::getLightState(device, target);
+                // setPointLightRadius/setPointLightColor) when addPointLight was never called for this target,
+                // but only if the developer actually configured that slot at least once - otherwise every
+                // mesh/sprite with lighting enabled would silently pick up LIGHT_STATE's struct defaults
+                // (pointPosition=(0,0,128), radius=512, color=white) as a phantom point light no one asked for.
                 LIGHT_POINT_SELECTION selection;
                 selection.pointLight.position = lightState.pointPosition;
                 selection.pointLight.radius = lightState.pointRadius;
@@ -653,7 +658,7 @@ namespace mbm
                 selection.distanceToObjectCenter = distanceToObjectCenter;
                 candidates.push_back(selection);
             }
-            else
+            else if (pointLights.empty() == false)
             {
                 candidates.reserve(pointLights.size());
 
@@ -1390,7 +1395,53 @@ namespace mbm
         return true;
         */
     }
-    
+
+    // Standard slab-method ray/AABB intersection test. `rayDir` need not be normalized -- the
+    // slab method only compares ratios of intersection parameters (tMin/tMax) against each other
+    // and against zero, so any non-zero-length direction produces the same true/false result.
+    // This replaces the previous 3D collide(x,y) approach, which unprojected the screen point at
+    // a *guessed* depth (the object's own world Z, treated as if it approximated distance from
+    // the camera) and then did a point-in-box test -- that guess degenerates to the camera's own
+    // position for any object near world Z=0 (see onCheckCollisionBoundingBoxRenderizable's
+    // history), and is generally inaccurate for any object whose Z doesn't happen to match its
+    // real camera distance -- inherent to a free-orbiting camera, not just an edge case. A real
+    // ray/box test has no such guess to get wrong.
+    bool DEVICE::rayIntersectsAABB(const VEC3 &rayOrigin, const VEC3 &rayDir, const VEC3 &boxCenter,
+                                    const float w, const float h, const float d) const noexcept
+    {
+        const float halfW = w * 0.5f;
+        const float halfH = h * 0.5f;
+        const float halfD = d * 0.5f;
+        const float minB[3] = {boxCenter.x - halfW, boxCenter.y - halfH, boxCenter.z - halfD};
+        const float maxB[3] = {boxCenter.x + halfW, boxCenter.y + halfH, boxCenter.z + halfD};
+        const float origin[3] = {rayOrigin.x, rayOrigin.y, rayOrigin.z};
+        const float dir[3]    = {rayDir.x, rayDir.y, rayDir.z};
+
+        float tMin = -std::numeric_limits<float>::max();
+        float tMax = std::numeric_limits<float>::max();
+
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            if (std::abs(dir[axis]) < 1e-8f)
+            {
+                // Ray is parallel to this slab -- only a hit if the origin already lies within it.
+                if (origin[axis] < minB[axis] || origin[axis] > maxB[axis])
+                    return false;
+                continue;
+            }
+            float t1 = (minB[axis] - origin[axis]) / dir[axis];
+            float t2 = (maxB[axis] - origin[axis]) / dir[axis];
+            if (t1 > t2)
+                std::swap(t1, t2);
+            tMin = std::max(tMin, t1);
+            tMax = std::min(tMax, t2);
+            if (tMin > tMax)
+                return false;
+        }
+        // The box must be in front of (or at) the ray origin, not only behind it.
+        return tMax >= 0.0f;
+    }
+
     bool DEVICE::transformeScreen2dToWorld3d_scaled(const float x, const float y, VEC3 *out,
                                                          const float howFarZFromCamera) const
     {

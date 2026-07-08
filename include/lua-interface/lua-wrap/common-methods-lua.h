@@ -31,6 +31,7 @@ namespace mbm
   int onIsOverBoundingBoxRenderizable(lua_State *lua);
   int onGetSizeRenderizableLua(lua_State *lua);
   int onGetAABBRenderizableLua(lua_State *lua);
+  int onGetAABBCenterRenderizableLua(lua_State *lua);
   int onSetPosRenderizableLua(lua_State *lua);
   int onGetPosRenderizableLua(lua_State *lua);
   int onSetAngleRenderizableLua(lua_State *lua);
@@ -44,8 +45,6 @@ namespace mbm
   int onNewIndexRenderizableLua(lua_State *lua);
   int onIndexRenderizableLua(lua_State *lua);
   int onCheckCollisionBoundingBoxRenderizable(lua_State *lua);
-  void doOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
-  void undoOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
   void getTypeWordRenderizableLua(lua_State * lua, const int index, bool & is2dw, bool & is2ds, bool & is3d);
 
   class SELF_ADD_COMMON_METHODS

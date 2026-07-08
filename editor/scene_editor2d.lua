@@ -147,8 +147,8 @@ local fLastLClickX       = 0
 local fLastLClickY       = 0
 
 -- sTextureShape* for object selection outlines
-local sTextureShapeOver    = '#30FF8686'
-local sTextureShapeSelected= '#3086FF48'
+local sTextureShapeOver    = '#FF868630'
+local sTextureShapeSelected= '#86FF4830'
 
 -- Options (editor + launch)
 local tOptionsEditor = {}
@@ -434,8 +434,8 @@ local function rebuildPanelVisuals()
         sh:setScale(rect.w, rect.h, 1)
         local fc = getDepthFillColor(depth)
         local colorHex = string.format('#%02X%02X%02X%02X',
-            math.floor(fc.a*255), math.floor(fc.r*255),
-            math.floor(fc.g*255), math.floor(fc.b*255))
+            math.floor(fc.r*255), math.floor(fc.g*255),
+            math.floor(fc.b*255), math.floor(fc.a*255))
         sh:setTexture(colorHex)
         sh.z = -91 - depth  -- fill behind its own border but in front of scene objects
         panel.shapeRef = sh

@@ -735,7 +735,7 @@ tUtil.iShapeNickName = 1
 tUtil.setShapeToMesh = function(tObj)
     local w,h,d  = tObj:getAABB(true)
     if d then
-	print("****************************** is3d")
+	   return
     else
         local triangles = 2
         local dynamic   = false
@@ -745,19 +745,19 @@ tUtil.setShapeToMesh = function(tObj)
         tObj.tShape = tShape
         tShape:setScale(w,h)
 
-        if tObj.type == 'font' then --little trick to put in the right place the line of font (text)
-            tObj.setPos_engine = tObj.setPos
-            tObj.setPos = function (self,x,y,z)
-                local w,h,d = self:getSize(true)
-                self.tShape:setPos((x  or self.x) + w * 0.5,(y or self.y) - h * 0.5, (z or self.z) - 1)
-                self:setPos_engine(x or self.x,y or self.y, z or self.z)
-            end
-        else
-            tObj.setPos_engine = tObj.setPos
-            tObj.setPos = function (self,x,y,z)
-                self.tShape:setPos(x or self.x,y or self.y, (z or self.z) - 1)
-                self:setPos_engine(x or self.x,y or self.y, z or self.z)
-            end
+        -- Single code path for every type, not one branch for font and one for everything else:
+        -- obj:getAABBCenter() (engine, MBM_VERSION 6.9.0) returns the object's TRUE AABB center in
+        -- world space -- the object's own position for anything pivoted at its visual center
+        -- (sprites/tiles/textures, the overwhelming default), and the correct alignment-corrected
+        -- point for font (whose origin is top-left, not centered). This replaces the old
+        -- hand-written `(x + w*0.5, y - h*0.5)` font-only correction with the same mechanism
+        -- `obj:collide()` now uses internally, instead of a second, independently-written copy of
+        -- the same formula.
+        tObj.setPos_engine = tObj.setPos
+        tObj.setPos = function (self,x,y,z)
+            self:setPos_engine(x or self.x, y or self.y, z or self.z)
+            local cx, cy = self:getAABBCenter(true)
+            self.tShape:setPos(cx, cy, (z or self.z) - 1)
         end
 
         tObj.setScale_engine = tObj.setScale
@@ -765,11 +765,8 @@ tUtil.setShapeToMesh = function(tObj)
             self:setScale_engine(sx or self.sx, sy or self.sy, sz or self.sz)
             local w,h,d = self:getSize(true)
             self.tShape:setScale(w,h,d or 1)
-            -- For font objects, the shape center must be repositioned after scale changes
-            -- because font origin is top-left: shape center = (x + w/2, y - h/2).
-            if self.type == 'font' then
-                self.tShape:setPos(self.x + w * 0.5, self.y - h * 0.5, self.z - 1)
-            end
+            local cx, cy = self:getAABBCenter(true)
+            self.tShape:setPos(cx, cy, self.z - 1)
         end
 
         tObj.setAngle_engine = tObj.setAngle
@@ -779,7 +776,6 @@ tUtil.setShapeToMesh = function(tObj)
         end
 
 	end
-	
 end
 
 tUtil.getExtension  = function(fileName)
@@ -953,6 +949,36 @@ tUtil.showStatusMessage = function (sMessageYellow,sMessageGrayed)
     end
     tUtil.tStatusMessageSize      = tImGui.GetWindowSize()
     tImGui.End()
+end
+
+-- Converts an {azimuth=, elevation=} orbit state (the same convention drawOrbitGizmo below uses
+-- for the 3D camera) into a directional-light direction vector {x=,y=,z=}. The orbit angles
+-- describe the unit vector pointing FROM the scene TOWARD the light source ("where is the sun" --
+-- intuitive to drag, same gesture as orbiting the camera). mbm.setDirectionalLightDirection's
+-- direction is the direction light TRAVELS (source -> scene), the opposite of that -- hence the
+-- negation. Shared by scene_editor3d.lua and mesh_debug.lua so this math only lives once.
+tUtil.dirFromOrbit = function(orbit)
+    local caz, saz = math.cos(orbit.azimuth), math.sin(orbit.azimuth)
+    local cel, sel = math.cos(orbit.elevation), math.sin(orbit.elevation)
+    local towardLightX, towardLightY, towardLightZ = cel * saz, sel, cel * caz
+    return { x = -towardLightX, y = -towardLightY, z = -towardLightZ }
+end
+
+-- Inverse of the above -- derives {azimuth=, elevation=} from a directional-light direction vector
+-- (e.g. the persisted/exported directionalDir), so an orbit gizmo starts in sync with whatever
+-- direction is currently set instead of snapping to some arbitrary default the first time it's
+-- touched.
+tUtil.orbitFromDir = function(dir)
+    local towardX, towardY, towardZ = -dir.x, -dir.y, -dir.z
+    local len = math.sqrt(towardX * towardX + towardY * towardY + towardZ * towardZ)
+    if len < 1e-6 then
+        towardX, towardY, towardZ, len = 0, 1, 0, 1 -- degenerate (zero vector) -- default to straight down
+    end
+    towardX, towardY, towardZ = towardX / len, towardY / len, towardZ / len
+    return {
+        elevation = math.asin(math.max(-1, math.min(1, towardY))),
+        azimuth = math.atan(towardX, towardZ),
+    }
 end
 
 -- Blender-style navigation gizmo: draws an interactive sphere with 6 axis dots.

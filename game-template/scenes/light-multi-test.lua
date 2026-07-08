@@ -49,10 +49,10 @@ local last_report_time = 0
 
 local EQUAL_LIGHT_COLOR = {r = 1.0, g = 1.0, b = 1.0, a = 1.0}
 local lights = {
-    {position = {x = -220, y = -220, z = 10}, radius = 360, color = EQUAL_LIGHT_COLOR},
-    {position = {x = 220,  y = -220, z = 10}, radius = 360, color = EQUAL_LIGHT_COLOR},
-    {position = {x = -220, y =  220, z = 10}, radius = 360, color = EQUAL_LIGHT_COLOR},
-    {position = {x = 220,  y =  220, z = 10}, radius = 360, color = EQUAL_LIGHT_COLOR},
+    {position = {x = -220, y = -220, z = -10}, radius = 360, color = EQUAL_LIGHT_COLOR},
+    {position = {x = 220,  y = -220, z = -10}, radius = 360, color = EQUAL_LIGHT_COLOR},
+    {position = {x = -220, y =  220, z = -10}, radius = 360, color = EQUAL_LIGHT_COLOR},
+    {position = {x = 220,  y =  220, z = -10}, radius = 360, color = EQUAL_LIGHT_COLOR},
 }
 
 local function clamp01(value)
@@ -193,7 +193,7 @@ local function configure_lights()
     local supported = mbm.getSupportedMaxLights(TARGET)
     local requested = math.min(#lights, supported)
     mbm.setLightEnabled(TARGET, true)
-    mbm.setAmbientLight(TARGET, {r = 0.10, g = 0.10, b = 0.12, a = 1.0})
+    mbm.setAmbientLight(TARGET, {r = 0.01, g = 0.01, b = 0.01, a = 1.0})
     mbm.setRequestedMaxLights(TARGET, requested)
     mbm.setLightSelectionMode(TARGET, "per_object_nearest")
     mbm.clearPointLights(TARGET)

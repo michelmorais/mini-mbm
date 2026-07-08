@@ -7,10 +7,27 @@
 #sudo update-alternatives --set cc /usr/bin/clang
 #sudo update-alternatives --set c++ /usr/bin/clang++
 
-#leak (using Gcc)
-#add_compile_options(-fsanitize=address,undefined)
-#add_compile_options(-fno-omit-frame-pointer)
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
+#-----------------------------------------------------------------------------------------------------------------------
+# -DUSE_ASAN=1 : AddressSanitizer + UndefinedBehaviorSanitizer (GCC/Clang only). Use this for hunting
+# memory corruption / thread-safety bugs (e.g. a bug that manifests as a different crash signature on
+# every run is a strong signal to reach for this before more gdb sessions).
+#
+# Use a DEDICATED build directory, never your normal dev build - the sanitizers add real runtime
+# overhead and change some behavior (e.g. more conservative memory layout):
+#   mkdir -p build/linux_debug_asan && cd build/linux_debug_asan
+#   cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug -DUSE_ASAN=1
+#   make -j$(nproc)
+#
+# On Linux/macOS, plugins are loaded via dlopen() *after* the main executable, which can load the
+# sanitizer runtime out of order and abort immediately with "ASan runtime does not come first in
+# initial library list". If you see that, preload it explicitly:
+#   LD_PRELOAD=$(gcc -print-file-name=libasan.so) ./bin/debug/linux_x86/mini-mbm --scene ...
+#-----------------------------------------------------------------------------------------------------------------------
+if(USE_ASAN)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address,undefined")
+endif()
 set(CMAKE_VERSION_MAJOR "3.25.1")
 
 cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
@@ -141,6 +158,12 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
         message("-DUSE_BULLET3D=1            : Build Bullet3D Lua plugin (Current is ENABLED)")
     else()
         message("-DUSE_BULLET3D=0            : Build Bullet3D Lua plugin (Current is DISABLED)")
+    endif()
+
+    if(USE_ASAN)
+        message("-DUSE_ASAN=1               : AddressSanitizer + UBSan ENABLED - debug-only, real runtime overhead. See comment above 'if(USE_ASAN)' near the top of this file for the LD_PRELOAD note.")
+    else()
+        message("-DUSE_ASAN=0               : use -DUSE_ASAN=1 in a dedicated build dir to hunt memory-corruption/thread-safety bugs (see comment near the top of this file)")
     endif()
     message("******************************************************************************************************")
 endfunction()

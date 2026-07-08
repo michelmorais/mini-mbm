@@ -1221,6 +1221,7 @@ namespace mbm
         headerMeshMbmOut = tmp;
         info_mode = util::INFO_DRAW_MODE();
 
+        bool sawFirstFrame = false;
         for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
         {
             util::SECTION_HEADER_V11 sectionHeader;
@@ -1252,6 +1253,19 @@ namespace mbm
             else if (sectionHeader.type == util::SECTION_FRAME_STATIC)
             {
                 ++headerMeshMbmOut.totalFrames;
+                // hasNorText only reflects frame 0, mirroring loadV11's hasNormalFlag/hasTextureFlag derivation.
+                if (!sawFirstFrame)
+                {
+                    sawFirstFrame = true;
+                    util::MEM_CURSOR_V11 tmpFp = stage_payload_as_cursor(payload);
+                    util::FRAME_HEADER_V11 v11FrameHeader;
+                    if (util::readFrameHeaderV11(tmpFp, v11FrameHeader))
+                    {
+                        headerMeshMbmOut.hasNorText[0] = v11FrameHeader.hasNormal ? HAS_NOR_IN_FILE : HAS_NOR_NO;
+                        headerMeshMbmOut.hasNorText[1] = !v11FrameHeader.hasUv ? HAS_TEX_NO
+                                                        : (v11FrameHeader.uvSource == 0 ? HAS_TEX_EACH_FRAME : HAS_TEX_FIRST_FRAME);
+                    }
+                }
             }
         }
         fclose(fp);
@@ -1531,7 +1545,7 @@ namespace mbm
                     util::SUBSET_DEBUG *subset      = currentFrameBuffer->subset[indexSubset];
                     int                 countSubset = subset->vertexStart + subset->vertexCount;
                     countSubset -= (countSubset % 3);
-                    for (int i = subset->vertexStart; (i + 3) < countSubset; i += 3)
+                    for (int i = subset->vertexStart; (i + 3) <= countSubset; i += 3)
                     {
                         VEC3      a, b, n;
                         const int index0 = i;
@@ -1560,9 +1574,9 @@ namespace mbm
                 for (uint32_t indexSubset = 0; indexSubset < sSub; ++indexSubset)
                 {
                     util::SUBSET_DEBUG *subset           = currentFrameBuffer->subset[indexSubset];
-                    int                 countIndexSubset = subset->vertexStart + subset->vertexCount;
+                    int                 countIndexSubset = subset->indexStart + subset->indexCount;
                     countIndexSubset -= (countIndexSubset % 3);
-                    for (int i = subset->indexStart; (i + 3) < countIndexSubset; i += 3)
+                    for (int i = subset->indexStart; (i + 3) <= countIndexSubset; i += 3)
                     {
                         VEC3      a, b, n;
                         const auto index0 = static_cast<int>(currentFrameBuffer->indexBuffer[i]);
@@ -3190,7 +3204,7 @@ namespace mbm
                 if (indexCountAfter)
                 {
                     uint32_t s = indexCountBefore + sizeArrayNewIndexPart;
-                    memcpy(&newIndex[s], oldIndex, sizeof(unsigned short) * static_cast<size_t>(indexCountAfter));
+                    memcpy(&newIndex[s], &oldIndex[indexCountBefore + oldSizeIndex], sizeof(unsigned short) * static_cast<size_t>(indexCountAfter));
                 }
                 int diff = static_cast<int>(oldSizeIndex) - static_cast<int>(sizeArrayNewIndexPart);
                 for (uint32_t i = (indexSubset + 1); i < sizeSubset; ++i)
@@ -3199,7 +3213,7 @@ namespace mbm
                     pTmpSubset->indexStart += diff;
                 }
 
-                for (int i = pSubset->indexStart; i < (pSubset->indexStart + static_cast<int>(sizeArrayNewIndexPart)); ++i)
+                for (uint32_t i = indexCountBefore; i < (indexCountBefore + sizeArrayNewIndexPart); ++i)
                 {
                     newIndex[i] +=  static_cast<unsigned short>(pSubset->vertexStart);
                 }

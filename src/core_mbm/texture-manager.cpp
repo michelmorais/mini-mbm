@@ -274,26 +274,7 @@ namespace mbm
             return false;
         }
         this->fileName = colorAsString;
-        COLOR color;
-        colorAsString++;
-        int len = static_cast<int>(strlen(colorAsString));
-        if (len == 8)
-        {
-            char alpha[3] = {0,0,0};
-            alpha[0] = *colorAsString;
-            colorAsString++;
-            alpha[1] = *colorAsString;
-            colorAsString++;
-            const int n = static_cast<int>(strtol(colorAsString,nullptr, 16));
-            color = COLOR(n);
-            color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
-        }
-        else if (len == 6)
-        {
-            const int n = static_cast<int>(strtol(colorAsString, nullptr, 16));
-            color = COLOR(n);
-            color.a = 1.0f;
-        }
+        const COLOR color = COLOR::getColorFromHexString(colorAsString);
         if(hasColorAlpha)
         {
             uint8_t pixel[4 * 4 * 4];
@@ -1199,11 +1180,11 @@ namespace mbm
                 fallbackName = "#FFFFFFFF";
             break;
             case TEXTURE_ROLE_NORMAL:
-                fallbackName = "#FF8080FF";
+                fallbackName = "#8080FFFF";
             break;
             case TEXTURE_ROLE_SPECULAR:
             case TEXTURE_ROLE_EMISSIVE:
-                fallbackName = "#FF000000";
+                fallbackName = "#000000FF";
             break;
             case TEXTURE_ROLE_MASK:
                 fallbackName = "#FFFFFFFF";

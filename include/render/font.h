@@ -56,7 +56,14 @@ namespace mbm
         // use getAABB() for size only (it is always correct) and position.xy for origin.
         VEC2 aabbMin;
         VEC2 aabbMax;
-    
+        // Backing storage for the getBoundingAABBCenterOffset() override below -- computed fresh
+        // from aabbMin/aabbMax/position on every call (cheap arithmetic), so it's always
+        // consistent regardless of whether forceCalcSize() or the base updateAABB() ran most
+        // recently (TEXT_DRAW's own physics CUBE, unlike its visual box, is always centered at
+        // local origin -- see forceCalcSize -- so the generic physics-derived offset would be
+        // wrong for text; this override bypasses that entirely).
+        mutable VEC3 cachedAABBCenterOffset;
+
         API_IMPL virtual ~TEXT_DRAW();
         API_IMPL void release();
         API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, OnRestoreFont ptrOnRestoreFont,FONT_DRAW *_parentFONT_DRAW);
@@ -84,6 +91,7 @@ namespace mbm
         // Returns the bounding size in position-space units (screen pixels for is2dS, world units otherwise).
         using RENDERIZABLE::getAABB;
         API_IMPL void getAABB(float *w, float *h) const override;
+        API_IMPL const VEC3 & getBoundingAABBCenterOffset() const noexcept override;
         API_IMPL bool isOver3d(DEVICE *, const float x, const float y) const override;
         API_IMPL bool isOver2dw(DEVICE *, const float x, const float y) const override;
         API_IMPL bool isOver2ds(DEVICE *, const float x, const float y) const override;

@@ -190,7 +190,11 @@ namespace mbm
         float lightRadiusArray[DEFAULT_SUPPORTED_MAX_LIGHTS] = {};
         float lightColorArray[DEFAULT_SUPPORTED_MAX_LIGHTS * 4] = {};
         uint32_t selectedPointLightCount = 0u;
-        if (lightMode == 2)
+        // Point-light selection now runs for LightMode 1 (3D, combined with directional) too, not just
+        // 2 (2D, point-only) - see docs/light.md. The legacy scalar LightPositionView/LightColor/LightRadius
+        // fallback (read only by the canUsePointLight2D==false custom-vertex-shader shader variant) keeps
+        // being overridden by the nearest selection for LightMode 2 only, exactly as before.
+        if (lightMode == 1 || lightMode == 2)
         {
             LIGHT_POINT_SELECTION pointLightSelections[DEFAULT_SUPPORTED_MAX_LIGHTS];
             selectedPointLightCount = DEVICE::getInstance()->getSelectedPointLightsForCurrentRender(
@@ -208,7 +212,7 @@ namespace mbm
                 lightColorArray[(i * 4u) + 2u] = pointLightSelections[i].pointLight.color.b;
                 lightColorArray[(i * 4u) + 3u] = pointLightSelections[i].pointLight.color.a;
             }
-            if (selectedPointLightCount > 0u)
+            if (lightMode == 2 && selectedPointLightCount > 0u)
             {
                 positionView.x = lightPositionViewArray[0];
                 positionView.y = lightPositionViewArray[1];
@@ -228,7 +232,7 @@ namespace mbm
             lightColorArray[2] = lightColor.b;
             lightColorArray[3] = lightColor.a;
         }
-        const int lightCount = lightMode == 2 ? static_cast<int>(selectedPointLightCount) : (enabled != 0 ? 1 : 0);
+        const int lightCount = (lightMode == 1 || lightMode == 2) ? static_cast<int>(selectedPointLightCount) : (enabled != 0 ? 1 : 0);
 
         D3DXHANDLE handle = constantTable->GetConstantByName(nullptr, "LightEnabled");
         if (handle)
@@ -245,6 +249,9 @@ namespace mbm
         handle = constantTable->GetConstantByName(nullptr, "LightDirectionView");
         if (handle)
             constantTable->SetFloatArray(pd3dDevice, handle, &directionView.x, 3);
+        handle = constantTable->GetConstantByName(nullptr, "DirectionalColor");
+        if (handle)
+            constantTable->SetFloatArray(pd3dDevice, handle, &lightState.directionalColor.r, 4);
         handle = constantTable->GetConstantByName(nullptr, "LightPositionView");
         if (handle)
             constantTable->SetFloatArray(pd3dDevice, handle, &positionView.x, 3);
@@ -1033,6 +1040,8 @@ namespace mbm
                 defaultCodePs += supportedMaxLights;
                 defaultCodePs += "];"
                     "int LightCount;";
+                if (hasNormal)
+                    defaultCodePs += "float4 DirectionalColor;";
                 defaultCodePs += "sampler2D ";
                 defaultCodePs += textureDiffuseName;
                 defaultCodePs += " : register(s0);"
@@ -1058,17 +1067,40 @@ namespace mbm
                     " float3 specular = float3(0, 0, 0);";
                 if (hasNormal)
                 {
+                    // LightMode == 1 (3D): directional (DirectionalColor, independent of the point-light
+                    // array below so the two don't clobber each other) combined with any selected point
+                    // lights, in one pass. LightMode == 2 (2D) falls through to the pre-existing,
+                    // untouched point-only block below via the dangling "else".
                     defaultCodePs += " if (LightMode == 1) {"
                         "  float3 normalView = normalize(normalViewIn);"
                         "  float3 viewDir = normalize(-positionViewIn);"
                         "  float3 lightTravel = normalize(LightDirectionView);"
                         "  float diffuse = max(dot(normalView, -lightTravel), 0);"
-                        "  light += LightColor[0].rgb * diffuse;"
+                        "  light += DirectionalColor.rgb * diffuse;"
                         "  if (diffuse > 0.0f && MaterialPower > 0.0f) {"
                         "   float3 lightDir = normalize(-lightTravel);"
                         "   float3 halfDir = normalize(lightDir + viewDir);"
                         "   float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);"
-                        "   specular += LightColor[0].rgb * MaterialSpecular.rgb * spec;"
+                        "   specular += DirectionalColor.rgb * MaterialSpecular.rgb * spec;"
+                        "  }"
+                        "  for (int i = 0; i < ";
+                    defaultCodePs += supportedMaxLights;
+                    defaultCodePs += "; ++i) {"
+                        "   if (i >= LightCount) break;"
+                        "   float3 toLight = LightPositionView[i] - positionViewIn;"
+                        "   float dist = length(toLight);"
+                        "   if (LightRadius[i] > 0.0001f) {"
+                        "    float3 pLightDir = toLight / max(dist, 0.0001f);"
+                        "    float pDiffuse = max(dot(normalView, pLightDir), 0);"
+                        "    float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
+                        "    attenuation *= attenuation;"
+                        "    light += LightColor[i].rgb * pDiffuse * attenuation;"
+                        "    if (pDiffuse > 0.0f && MaterialPower > 0.0f) {"
+                        "     float3 pHalfDir = normalize(pLightDir + viewDir);"
+                        "     float pSpec = pow(max(dot(normalView, pHalfDir), 0), MaterialPower);"
+                        "     specular += LightColor[i].rgb * MaterialSpecular.rgb * pSpec * attenuation;"
+                        "    }"
+                        "   }"
                         "  }"
                         " } else ";
                 }
@@ -1089,7 +1121,7 @@ namespace mbm
                     "   float dist = length(toLight);"
                     "   if (LightRadius[i] > 0.0001f) {"
                     "    float3 lightDir = toLight / max(dist, 0.0001f);"
-                    "    float diffuse = max(dot(normalView, lightDir), 0);"
+                    "    float diffuse = HasNormalMap != 0 ? max(dot(normalView, lightDir), 0) : 1.0f;"
                     "    float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
                     "    attenuation *= attenuation;"
                     "    light += LightColor[i].rgb * diffuse * attenuation;"
@@ -1123,7 +1155,17 @@ namespace mbm
                     "int LightMode;"
                     "float4 AmbientColor;"
                     "float3 LightDirectionView;"
-                    "float4 LightColor;"
+                    "float4 DirectionalColor;"
+                    "float3 LightPositionView[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "float LightRadius[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "float4 LightColor[";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "];"
+                    "int LightCount;"
                     "float4 MaterialDiffuse;"
                     "float4 MaterialAmbient;"
                     "float4 MaterialSpecular;"
@@ -1139,21 +1181,40 @@ namespace mbm
                 "{ float4 baseColor = float4(1,1,1,1);";
             if (hasNormal && useReservedLightScaffolding)
             {
-                defaultCodePs += " if (LightEnabled == 0 || LightMode != 1) return baseColor;"
+                defaultCodePs += " if (LightEnabled == 0 || LightMode == 0) return baseColor;"
                     " float3 normalView = normalize(normalViewIn);"
                     " float3 viewDir = normalize(-positionViewIn);"
                     " float3 lightTravel = normalize(LightDirectionView);"
                     " float diffuse = max(dot(normalView, -lightTravel), 0);"
                     " float3 base = MaterialDiffuse.rgb;"
-                    " float3 light = saturate((AmbientColor.rgb * MaterialAmbient.rgb) + (LightColor.rgb * diffuse));"
+                    " float3 light = (AmbientColor.rgb * MaterialAmbient.rgb) + (DirectionalColor.rgb * diffuse);"
                     " float3 specular = float3(0, 0, 0);"
                     " if (diffuse > 0.0f && MaterialPower > 0.0f) {"
                     "  float3 lightDir = normalize(-lightTravel);"
                     "  float3 halfDir = normalize(lightDir + viewDir);"
                     "  float spec = pow(max(dot(normalView, halfDir), 0), MaterialPower);"
-                    "  specular = LightColor.rgb * MaterialSpecular.rgb * spec;"
+                    "  specular = DirectionalColor.rgb * MaterialSpecular.rgb * spec;"
                     " }"
-                    " float3 litColor = saturate((base * light) + MaterialEmissive.rgb + specular);"
+                    " for (int i = 0; i < ";
+                defaultCodePs += supportedMaxLights;
+                defaultCodePs += "; ++i) {"
+                    "  if (i >= LightCount) break;"
+                    "  float3 toLight = LightPositionView[i] - positionViewIn;"
+                    "  float dist = length(toLight);"
+                    "  if (LightRadius[i] > 0.0001f) {"
+                    "   float3 pLightDir = toLight / max(dist, 0.0001f);"
+                    "   float pDiffuse = max(dot(normalView, pLightDir), 0);"
+                    "   float attenuation = 1.0f - saturate(dist / LightRadius[i]);"
+                    "   attenuation *= attenuation;"
+                    "   light += LightColor[i].rgb * pDiffuse * attenuation;"
+                    "   if (pDiffuse > 0.0f && MaterialPower > 0.0f) {"
+                    "    float3 pHalfDir = normalize(pLightDir + viewDir);"
+                    "    float pSpec = pow(max(dot(normalView, pHalfDir), 0), MaterialPower);"
+                    "    specular += LightColor[i].rgb * MaterialSpecular.rgb * pSpec * attenuation;"
+                    "   }"
+                    "  }"
+                    " }"
+                    " float3 litColor = saturate((base * saturate(light)) + MaterialEmissive.rgb + specular);"
                     " return float4(litColor, MaterialDiffuse.a);";
             }
             else
@@ -1358,7 +1419,7 @@ namespace mbm
                 return false;
             }
             const D3DXMATRIX* pMvpMatrix    = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
-            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
+            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvMatrixLightSpace);
 
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvpMatrixHandle, pMvpMatrix);
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvMatrixHandle, pMatrixHandle);
@@ -1668,7 +1729,7 @@ namespace mbm
                 return false;
             }
             const D3DXMATRIX* pMvpMatrix    = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
-            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
+            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvMatrixLightSpace);
 
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvpMatrixHandle, pMvpMatrix);
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvMatrixHandle,  pMatrixHandle);
@@ -1945,7 +2006,7 @@ namespace mbm
                 return false;
             }
             const D3DXMATRIX* pMvpMatrix    = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
-            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
+            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvMatrixLightSpace);
 
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvpMatrixHandle, pMvpMatrix);
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvMatrixHandle, pMatrixHandle);

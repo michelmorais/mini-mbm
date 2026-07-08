@@ -156,7 +156,7 @@ namespace mbm
             if (this->is3DObject())
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective);
+                SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
             }
             else if (this->is2dScreenObject())
             {
@@ -164,12 +164,12 @@ namespace mbm
                                     position.y * camera.scaleScreen2d.y, position.z);
                 device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
+                SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &camera.matrixPerspective2d);
+                SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
             }
             FX &fx = anim->getFx();
             this->setBlendState(anim->getBlendState());

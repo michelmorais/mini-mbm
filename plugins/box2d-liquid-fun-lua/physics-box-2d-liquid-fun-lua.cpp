@@ -474,7 +474,7 @@ namespace mbm
         float stride           = 0;
         float angle            = the_ptr ? the_ptr->getAngle().z : 0.0f;
         bool segmented         = false;
-        std::string texture("#AAFF00FF");
+        std::string texture("#FF00FFAA");
         COLOR * p_color = nullptr;
         COLOR color(1.0f,1.0f,1.0f,1.0f);
         std::string blend,operation;

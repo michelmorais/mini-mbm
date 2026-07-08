@@ -315,12 +315,15 @@ struct API_IMPL COLOR
         a                    = prop * UCa;
     }
 
+    // Standard alpha-last hex format: "#RRGGBB" or "#RRGGBBAA" (matches CSS / VS Code color decorators).
     static const char* getStringHexColorFromColor(const COLOR &color,char * out_put_string,const int size_string_out) noexcept
     {
-        snprintf(out_put_string,size_string_out,"#%x",(uint32_t)color);
+        uint8_t red = 0, green = 0, blue = 0, alpha = 0;
+        color.get(&red, &green, &blue, &alpha);
+        snprintf(out_put_string,size_string_out,"#%02X%02X%02X%02X",red,green,blue,alpha);
         return out_put_string;
     }
-    
+
 
     static COLOR getColorFromHexString(const char *stringAsColor) noexcept
     {
@@ -336,12 +339,10 @@ struct API_IMPL COLOR
 
         if (len == 8)
         {
-            char alpha[3] = {0, 0, 0};
-            alpha[0]      = *stringAsColor;
-            stringAsColor++;
-            alpha[1] = *stringAsColor;
-            stringAsColor++;
-            const int n = static_cast<int>(strtol(stringAsColor, nullptr, 16));
+            char rgb[7] = {0};
+            memcpy(rgb, stringAsColor, 6);
+            char alpha[3] = {stringAsColor[6], stringAsColor[7], 0};
+            const int n = static_cast<int>(strtol(rgb, nullptr, 16));
             color       = COLOR(n);
             color.a     = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
         }

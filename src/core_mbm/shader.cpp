@@ -440,8 +440,15 @@ namespace mbm
     }
 
     mbm::MATRIX mbm::SHADER::modelView; // Matrix do modelo (ModelView)
+    mbm::MATRIX mbm::SHADER::mvMatrixLightSpace; // modelView x camera view (see shader.h)
     mbm::MATRIX mbm::SHADER::mvpMatrix; // ModelView x projection (perspectiva) (automaticamente setada)
-    
+
+    void SHADER::updateMvpAndLightMatrices(const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix) noexcept
+    {
+        MatrixMultiply(&SHADER::mvMatrixLightSpace, &SHADER::modelView, &viewMatrix);
+        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &perspectiveMatrix);
+    }
+
 	// Effect on Directx where it is possible not use shader code for PS or VS
     static bool useDeafultPSwhenNoPsShader = true;
     static bool useDeafultVSwhenNoVsShader = true;
