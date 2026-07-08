@@ -535,7 +535,7 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:onEndFx` | `(callback)` | — | Call `callback()` when shader effect ends |
 | `obj:setTypeAnim` | `(type: int)` | — | Set animation loop type using `mbm.*` constants |
 | `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
-| `obj:setTexture` | `(textureName: string)` | bool | Replace the object's texture at runtime |
+| `obj:setTexture` | `(textureName: string)` | bool | Replace the object's texture at runtime. `textureName` can also be a solid-color shorthand `"#RRGGBB"`/`"#RRGGBBAA"` hex string (alpha-last, e.g. `"#FF0000FF"` for opaque red) instead of a file path — generates a small solid-color texture on the fly |
 | `obj:setColor` | `(r, g, b, a?)` | bool | Tint the object (0.0-1.0 per channel, not 0-255). Same underlying binding as `setTexture` (dispatches on argument type: a string sets a texture, numbers set a solid tint) — passing >1 values doesn't error, they just clamp/wrap like any float color channel |
 | `obj:setPixelShader` | `(shaderName: string, varValues?: table)` | bool | Apply a pixel shader |
 | `obj:setVertexShader` | `(shaderName: string, varValues?: table)` | bool | Apply a vertex shader |

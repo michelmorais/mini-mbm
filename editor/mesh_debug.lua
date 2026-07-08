@@ -2829,12 +2829,12 @@ function onAddColoredCube()
     local H = {x = -h, y =  h, z =  h}
 
     local tFaces = {
-        {verts = {B, C, G, F}, color = '#FFFF0000'}, -- +X red
-        {verts = {A, E, H, D}, color = '#FF00FFFF'}, -- -X cyan
-        {verts = {D, H, G, C}, color = '#FF00FF00'}, -- +Y green
-        {verts = {A, B, F, E}, color = '#FFFF00FF'}, -- -Y magenta
-        {verts = {E, F, G, H}, color = '#FF0000FF'}, -- +Z blue
-        {verts = {A, D, C, B}, color = '#FFFFFF00'}, -- -Z yellow
+        {verts = {B, C, G, F}, color = '#FF0000FF'}, -- +X red
+        {verts = {A, E, H, D}, color = '#00FFFFFF'}, -- -X cyan
+        {verts = {D, H, G, C}, color = '#00FF00FF'}, -- +Y green
+        {verts = {A, B, F, E}, color = '#FF00FFFF'}, -- -Y magenta
+        {verts = {E, F, G, H}, color = '#0000FFFF'}, -- +Z blue
+        {verts = {A, D, C, B}, color = '#FFFF00FF'}, -- -Z yellow
     }
 
     local meshD = meshDebug:new()
