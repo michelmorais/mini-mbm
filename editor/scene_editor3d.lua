@@ -178,6 +178,9 @@ tOptionsEditor = {
     sCurrentScriptExecution  = '',
     fSceneCamPos             = {x = 0, y = 400, z = 900},
     fSceneCamFocus           = {x = 0, y = 0,   z = 0},
+    -- Editor-only, intentionally never persisted by Save/Export: picks which mesh-loading branch
+    -- (loadAsync vs sync load) gets baked into the next Export/Play-generated script.
+    bAsyncMeshLoad           = true,
 }
 tOptionsLaunch = { iIndexResolution = 3, bInvertResolution = false }
 
@@ -208,7 +211,7 @@ function applyLightConfigToEngine()
     mbm.setDirectionalLight('3d', tLightConfig.directionalDir, tLightConfig.directionalColor)
     mbm.clearPointLights('3d')
     for _, pl in ipairs(tLightConfig.pointLights) do
-        mbm.addPointLight('3d', pl.x, pl.y, pl.z, pl.radius, pl.r, pl.g, pl.b, pl.a or 255)
+        mbm.addPointLight('3d', pl.x, pl.y, pl.z, pl.radius, pl.r, pl.g, pl.b, pl.a or 1)
     end
 end
 
@@ -1960,6 +1963,10 @@ function main_menu_3d()
                 onSaveAsScene3d()
             end
             tImGui.Separator()
+            if tImGui.MenuItem(tLang.L('export_scene')) then
+                onExportGameScene3d()
+            end
+            tImGui.Separator()
             if tImGui.MenuItem(tLang.L('menu_quit'), 'Alt+F4') then
                 mbm.quit()
             end
@@ -2034,6 +2041,12 @@ function main_menu_3d()
             if invL ~= tOptionsLaunch.bInvertResolution then tOptionsLaunch.bInvertResolution = invL end
             local retL, curL = tImGui.Combo('##ComboResolutionLaunch', tOptionsLaunch.iIndexResolution, tResStr)
             if retL then tOptionsLaunch.iIndexResolution = curL end
+
+            tImGui.Separator()
+            local retAsync = tImGui.Checkbox(tLang.L('async_mesh_load_export'), tOptionsEditor.bAsyncMeshLoad)
+            if retAsync ~= tOptionsEditor.bAsyncMeshLoad then tOptionsEditor.bAsyncMeshLoad = retAsync end
+            tImGui.SameLine()
+            tImGui.HelpMarker(tLang.L('async_mesh_load_export_help'))
 
             if tImGui.Button(tLang.L('play'), tUtil.getResponsiveItemSize(200)) then
                 onPlay3d()
@@ -2141,22 +2154,62 @@ function getHeader3d(fileName)
         local tScene3d = require "SCENE_NAME"
         tScene3d:load(onProgress)
 
-    * To retrieve mesh(es) use get or getAll:
+    * To retrieve mesh(es) use get, getObject or getAll:
 
-        local tMesh = tScene3d:get('rock.msh')
+        local tMesh = tScene3d:get(1)               -- by load-order index
+        local tMesh = tScene3d:getObject('rock.msh') -- by name
         local tAll  = tScene3d:getAll('tree.msh')
 
     * To spawn a new instance at runtime:
 
         local tNew = tScene3d:addMesh('rock.msh')
 
+    * To read back the scene's lighting:
+
+        local tAmbient     = tScene3d:getAmbientLight()
+        local tDirectional = tScene3d:getDirectionalLight()  -- {color=, dir=}
+        local tPointLights = tScene3d:getPointLight()        -- no arg: all
+        local tPointLight1 = tScene3d:getPointLight(1)       -- one, by index
+
+    * To read back Map-tab marker objects (spawn points/paths/triggers):
+
+        local tSpawn = tScene3d:getSceneObject('spawn_player')
+        local tAll   = tScene3d:getAllSceneObjects()
+
 ]] .. ']]\n\n'
     sHeader = sHeader:gsub('SCENE_NAME', tUtil.getShortName(fileName, false):gsub('%.lua$', ''))
     return sHeader
 end
 
-function getSceneLoaderCode3d()
-    return [[
+-- bAsyncMesh picks which of two literal code branches gets baked into the generated
+-- tScene3d._addMesh for the 'mesh' render type (the only type with a real loadAsync in this
+-- engine) -- the emitted file only ever contains ONE of the two, not a runtime branch on a
+-- baked boolean.
+function getSceneLoaderCode3d(bAsyncMesh)
+    local sMeshLoadBranch
+    if bAsyncMesh then
+        sMeshLoadBranch = [[
+        local m = mesh:new('3d')
+        m:loadAsync(tInfo.fileName, function(self_mesh, success)
+            finish(success and self_mesh or nil)
+        end)]]
+    else
+        sMeshLoadBranch = [[
+        local m = mesh:new('3d')
+        finish(m:load(tInfo.fileName) and m or nil)]]
+    end
+
+    local sCode = [[
+-- Maps a file extension to this engine's render-type string, with no dependency on any
+-- editor-only global (mesh_debug.lua's `meshDebug` tool does not exist in a shipped game).
+local tExtToType3d = {
+    msh = 'mesh', spt = 'sprite', ptl = 'particle', tile = 'tile', gif = 'gif',
+}
+local function inferType3dFromFileName(fileName)
+    local ext = fileName:match('%.([%a%d]+)$')
+    return ext and tExtToType3d[ext:lower()] or 'texture'
+end
+
 tScene3d.updateCamera = function(self)
     local cam = mbm.getCamera('3d')
     cam:setPos(self.fCamPos.x, self.fCamPos.y, self.fCamPos.z)
@@ -2181,10 +2234,7 @@ tScene3d._addMesh = function(self, tInfo, onDone)
         if onDone then onDone(tObj) end
     end
     if tInfo.type == 'mesh' then
-        local m = mesh:new('3d')
-        m:loadAsync(tInfo.fileName, function(self_mesh, success)
-            finish(success and self_mesh or nil)
-        end)
+@@MESH_LOAD_BRANCH@@
     elseif tInfo.type == 'sprite' then
         local s = sprite:new('3d')
         finish(s:load(tInfo.fileName) and s or nil)
@@ -2208,8 +2258,9 @@ tScene3d.load = function(self, onProgress)
         mbm.setLightEnabled('3d', true)
         mbm.setAmbientLight('3d', self.tLightConfig.ambientColor)
         mbm.setDirectionalLight('3d', self.tLightConfig.directionalDir, self.tLightConfig.directionalColor)
+        mbm.clearPointLights('3d')
         for _, pl in ipairs(self.tLightConfig.pointLights or {}) do
-            mbm.addPointLight('3d', pl.x, pl.y, pl.z, pl.radius, pl.r, pl.g, pl.b, pl.a or 255)
+            mbm.addPointLight('3d', pl.x, pl.y, pl.z, pl.radius, pl.r, pl.g, pl.b, pl.a or 1)
         end
     else
         mbm.setLightEnabled('3d', false)
@@ -2236,22 +2287,58 @@ tScene3d.get = function(self, nameOrIndex)
     return list and list[1] or nil
 end
 
+tScene3d.getObject = function(self, name)
+    local list = self.tMeshesLoadedDictionary[name]
+    return list and list[1] or nil
+end
+
 tScene3d.getAll = function(self, name)
     return self.tMeshesLoadedDictionary[name] or {}
 end
 
-tScene3d.addMesh = function(self, nameOrFileName)
-    local tInfo = { fileName = nameOrFileName, type = (meshDebug and meshDebug:getInfo(nameOrFileName) and meshDebug:getInfo(nameOrFileName).type) or 'mesh', x = 0, y = 0, z = 0 }
+tScene3d.getAmbientLight = function(self)
+    return self.tLightConfig and self.tLightConfig.ambientColor
+end
+
+tScene3d.getDirectionalLight = function(self)
+    if not self.tLightConfig then return nil end
+    return {color = self.tLightConfig.directionalColor, dir = self.tLightConfig.directionalDir}
+end
+
+tScene3d.getPointLight = function(self, index)
+    local pointLights = self.tLightConfig and self.tLightConfig.pointLights or {}
+    if index then
+        return pointLights[index]
+    end
+    return pointLights
+end
+
+tScene3d.getSceneObject = function(self, name)
+    for _, tObj in ipairs(self.tSceneObjects or {}) do
+        if tObj.name == name then
+            return tObj
+        end
+    end
+    return nil
+end
+
+tScene3d.getAllSceneObjects = function(self)
+    return self.tSceneObjects or {}
+end
+
+tScene3d.addMesh = function(self, nameOrFileName, sTypeOverride)
+    local tInfo = { fileName = nameOrFileName, type = sTypeOverride or inferType3dFromFileName(nameOrFileName), x = 0, y = 0, z = 0 }
     local result = nil
     self:_addMesh(tInfo, function(tObj) result = tObj end)
     return result
 end
 
-return tScene3d
-]]
+return tScene3d]]
+    sCode = sCode:gsub('@@MESH_LOAD_BRANCH@@', (sMeshLoadBranch:gsub('%%', '%%%%')))
+    return sCode
 end
 
-function writeScene3d(fileName)
+function writeScene3d(fileName, bAsyncMesh)
     local oldLocale = os.setlocale(nil, 'numeric')
     os.setlocale('C', 'numeric')
     local fp = io.open(fileName, 'w')
@@ -2278,11 +2365,22 @@ function writeScene3d(fileName)
     fp:write(string.format('tScene3d.iExpectedWidth  = %d\n', xRes))
     fp:write(string.format('tScene3d.iExpectedHeight = %d\n', yRes))
 
-    fp:write('tScene3d.fCamPos   = ' .. tUtil.save(nil, tOptionsEditor.fSceneCamPos, nil, nil, {}) .. '\n')
-    fp:write('tScene3d.fCamFocus = ' .. tUtil.save(nil, tOptionsEditor.fSceneCamFocus, nil, nil, {}) .. '\n')
-    fp:write('tScene3d.tLightConfig = ' .. tUtil.save(nil, tLightConfig, nil, nil, {}) .. '\n')
-    fp:write('tScene3d.tMeshOffsets = ' .. tUtil.save(nil, tMeshOffsets, nil, nil, {}) .. '\n')
-    fp:write('tScene3d.tSceneObjects = ' .. tUtil.save(nil, tSceneObjects, nil, nil, {}) .. '\n')
+    -- tUtil.save(name, value, tOut, onSaveUserData) mutates tOut (an array of source-code lines);
+    -- it does not return a string -- match the same convention already used successfully by
+    -- scene_editor2d.lua's own writeScene(), instead of concatenating a non-existent return value.
+    local function writeSavedTable(varName, value)
+        local tOut = {}
+        tUtil.save(varName, value, tOut, nil)
+        for _, sLine in ipairs(tOut) do
+            fp:write(sLine .. '\n')
+        end
+    end
+
+    writeSavedTable('tScene3d.fCamPos', tOptionsEditor.fSceneCamPos)
+    writeSavedTable('tScene3d.fCamFocus', tOptionsEditor.fSceneCamFocus)
+    writeSavedTable('tScene3d.tLightConfig', tLightConfig)
+    writeSavedTable('tScene3d.tMeshOffsets', tMeshOffsets)
+    writeSavedTable('tScene3d.tSceneObjects', tSceneObjects)
 
     fp:write('tScene3d.tPlacedMeshInfo = {\n')
     for i, tPlaced in ipairs(tPlacedMeshes) do
@@ -2294,14 +2392,14 @@ function writeScene3d(fileName)
     end
     fp:write('}\n\n')
 
-    fp:write(getSceneLoaderCode3d())
+    fp:write(getSceneLoaderCode3d(bAsyncMesh))
     fp:close()
     os.setlocale(oldLocale, 'numeric')
     return true
 end
 
 function onOpenScene3d()
-    local fileName = mbm.openFile(sFileNameScene3d, '*.lua')
+    local fileName = mbm.openFile(sFileNameScene3d, '*.scene3d-edit.lua')
     if not fileName then return end
     sFileNameScene3d = fileName
     tUtil.showMessage(tLang.L('scene_3d_loaded_ok'))
@@ -2340,7 +2438,7 @@ function onSaveScene3d()
         onSaveAsScene3d()
         return
     end
-    local ok, err = writeScene3d(sFileNameScene3d)
+    local ok, err = writeScene3d(sFileNameScene3d, tOptionsEditor.bAsyncMeshLoad)
     if ok then
         tUtil.showMessage(tLang.L('scene_3d_saved_ok'))
     else
@@ -2349,10 +2447,33 @@ function onSaveScene3d()
 end
 
 function onSaveAsScene3d()
-    local fileName = mbm.saveFile(sFileNameScene3d, '*.lua')
+    local fileName = mbm.saveFile(sFileNameScene3d, '*.scene3d-edit.lua')
     if not fileName then return end
+    -- ensure the file always carries the .scene3d-edit.lua extension
+    if not fileName:match('%.scene3d%-edit%.lua$') then
+        fileName = fileName:gsub('%.lua$', '') .. '.scene3d-edit.lua'
+    end
     sFileNameScene3d = fileName
     onSaveScene3d()
+end
+
+function onExportGameScene3d()
+    -- derive the export default: my-scene.scene3d-edit.lua -> my-scene-scene3d.lua
+    local exportDefault = sFileNameScene3d:gsub('%.scene3d%-edit%.lua$', '-scene3d.lua')
+    if exportDefault == sFileNameScene3d then
+        -- fallback for files not following the convention (or not yet saved at all)
+        local base = (sFileNameScene3d ~= '' and sFileNameScene3d) or 'scene'
+        exportDefault = base:gsub('%.lua$', '') .. '-scene3d.lua'
+    end
+    local fileName = mbm.saveFile(exportDefault, '*-scene3d.lua')
+    if not fileName then return end
+
+    local ok, err = writeScene3d(fileName, tOptionsEditor.bAsyncMeshLoad)
+    if not ok then
+        tUtil.showMessageWarn(err)
+        return
+    end
+    tUtil.showMessage(string.format(tLang.L('scene_exported_ok_fmt'), fileName))
 end
 
 function getOSTempDir()
@@ -2389,7 +2510,7 @@ function onPlay3d()
         tUtil.newInstance(width, height, expectedWidth, expectedHeight, tOptionsEditor.sCurrentScriptExecution)
     else
         local sTmpFile = getTempScene3dFile()
-        local ok, err = writeScene3d(sTmpFile)
+        local ok, err = writeScene3d(sTmpFile, tOptionsEditor.bAsyncMeshLoad)
         if not ok then
             tUtil.showMessageWarn(err or 'Failed to write temporary play file')
             return
