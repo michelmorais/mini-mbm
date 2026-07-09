@@ -873,11 +873,14 @@ def write_color(fp: Any, color: tuple[float, float, float, float]) -> None:
 
 
 def write_material_default(fp: Any) -> None:
+    # Blender's exported material data has no equivalent of the engine's specular highlight, and
+    # a white Specular/Power=1 default made every imported mesh show an unwanted shiny highlight.
+    # Imports start flat (no specular) until the user deliberately adds it in the mesh debug tool.
     write_color(fp, (1.0, 1.0, 1.0, 1.0))  # Diffuse
     write_color(fp, (1.0, 1.0, 1.0, 1.0))  # Ambient
-    write_color(fp, (1.0, 1.0, 1.0, 1.0))  # Specular
+    write_color(fp, (0.0, 0.0, 0.0, 0.0))  # Specular
     write_color(fp, (0.0, 0.0, 0.0, 0.0))  # Emissive
-    write_f32(fp, 1.0)  # Power
+    write_f32(fp, 0.0)  # Power
 
 
 def write_vec3(fp: Any, value: tuple[float, float, float]) -> None:

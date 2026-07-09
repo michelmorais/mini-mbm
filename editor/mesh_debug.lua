@@ -2654,6 +2654,16 @@ local function convertObjToMesh(objPath, tParsed)
     -- Recalculate smooth normals from geometry
     meshD:addNormals()
 
+    -- OBJ/MTL has no equivalent of the engine's specular highlight, and the default MATERIAL
+    -- (Specular white, Power=1) makes freshly imported models show an unwanted shiny highlight.
+    -- Zero it out so imported meshes render flat until the user deliberately adds specular.
+    local okMat, mat = dpCall(function() return meshD:getMaterial() end)
+    if okMat and mat then
+        mat.Specular = {r = 0, g = 0, b = 0, a = 0}
+        mat.Power = 0
+        dpCall(function() meshD:setMaterial(mat) end)
+    end
+
     -- Output .msh next to the original .obj
     local mshPath = objPath:gsub('%.obj$', '.msh')
     if mshPath == objPath then
