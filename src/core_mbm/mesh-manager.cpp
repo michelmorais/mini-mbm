@@ -27,7 +27,6 @@
 #include <device.h>
 #include <util-interface.h>
 #include <shapes.h>
-#include <cr-static-local.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <header-mesh.h>
 #include "mesh-v8-io.h"
@@ -698,10 +697,13 @@ namespace
 
     // Worker-thread-safe equivalent of MESH_MBM::loadV11's section loop - see the struct comment
     // above for the main-thread-only calls this deliberately omits (deferred to
-    // MESH_MBM::finishLoadFromIntermediate instead).
+    // MESH_MBM::finishLoadFromIntermediate instead). fileNamePath must already be a resolved path
+    // (both callers - MESH_MBM::loadV11 and Impl::workerLoop - resolve it via util::getFullPath
+    // before calling this) - opened directly via fopenApp so this never touches getFullPath/addPath,
+    // which keeps it safe to call from a worker thread.
     bool parse_v11_intermediate(const char *fileNamePath, mbm::MESH_LOAD_INTERMEDIATE_V11 &out, std::string &errorOut)
     {
-        FILE *fp = util::openFile(fileNamePath, "rb");
+        FILE *fp = util::fopenApp(fileNamePath, "rb");
         if (!fp)
         {
             errorOut = "Failed to open file";
@@ -870,7 +872,10 @@ namespace mbm
         // loadAsync() call so games that never use async loading never spin up threads.
         struct AsyncJob
         {
-            std::string            fileName;
+            std::string            fileName;         // original, caller-given path - carried through to
+                                                       // AsyncResult::fileName/finishLoadFromIntermediate
+            std::string            resolvedFileName;  // getFullPath(fileName) resolved on the main thread
+                                                       // before queuing - the only path the worker opens
             MeshAsyncLoadCallback  onComplete;
         };
 
@@ -900,12 +905,25 @@ namespace mbm
         void stopAndJoinWorkers();
     };
 
+    // Clamped to [2, 8]: 2 is the floor (matches the previous hardcoded value, also what any
+    // platform that can't detect its core count - hardware_concurrency() returning 0 - or that only
+    // reports 1 core falls back to); 8 is a cap so a many-core desktop doesn't spin up an excessive
+    // number of threads for what is I/O-bound + comparatively light CPU parsing work, and so this
+    // pool doesn't crowd out cores rendering/audio/physics need on the main thread.
+    static unsigned int computeMeshWorkerCount()
+    {
+        const unsigned int hw = std::thread::hardware_concurrency();
+        if (hw < 2u) return 2u;
+        if (hw > 8u) return 8u;
+        return hw;
+    }
+
     void MESH_MANAGER::Impl::ensureWorkersStarted()
     {
         if (!workerThreads.empty())
             return;
-        constexpr int kWorkerCount = 2;
-        for (int i = 0; i < kWorkerCount; ++i)
+        const unsigned int workerCount = computeMeshWorkerCount();
+        for (unsigned int i = 0; i < workerCount; ++i)
             workerThreads.emplace_back([this]() { this->workerLoop(); });
     }
 
@@ -926,7 +944,7 @@ namespace mbm
             AsyncResult result;
             result.fileName   = job.fileName;
             result.onComplete = std::move(job.onComplete);
-            result.parseOk    = parse_v11_intermediate(job.fileName.c_str(), result.intermediate, result.error);
+            result.parseOk    = parse_v11_intermediate(job.resolvedFileName.c_str(), result.intermediate, result.error);
 
             {
                 std::lock_guard<std::mutex> lock(completionMutex);
@@ -4130,7 +4148,13 @@ namespace mbm
     {
         MESH_LOAD_INTERMEDIATE_V11 intermediate;
         std::string                error;
-        if (!parse_v11_intermediate(fileNamePath, intermediate, error))
+        // Resolve here (main thread) - same call util::openFile used to make internally, just one
+        // frame earlier - so parse_v11_intermediate can stay a plain "open this exact path" call
+        // shared with the worker-thread async path. fileNamePath itself (the caller's original,
+        // possibly-relative string) still flows into finishLoadFromIntermediate below unchanged, so
+        // MESH::getFileName()/onLoadMeshLua's same-file check keep seeing what the caller passed in.
+        const std::string resolvedPath = util::getFullPath(fileNamePath, nullptr);
+        if (!parse_v11_intermediate(resolvedPath.c_str(), intermediate, error))
             return log_util::onFailed(nullptr, __FILE__, __LINE__, "%s [%s]", error.c_str(), fileNamePath);
         return this->finishLoadFromIntermediate(intermediate, fileNamePath);
     }
@@ -4237,8 +4261,16 @@ namespace mbm
     }
 
     // onComplete always fires from pumpAsyncLoads() on the main thread, never inline here - even on
-    // a cache hit, so callers never have to special-case "sometimes synchronous" behavior. Real
-    // parsing happens on a worker thread (lazily started); the GPU-finish work
+    // a cache hit, so callers never have to special-case "sometimes synchronous" behavior. This was
+    // tried as an inline-dispatch optimization (fire onComplete directly on a cache hit) and reverted
+    // after it crashed real generated code: editor/scene_editor3d.lua's _loadMeshAsyncQueued chains
+    // same-file loadAsync requests by calling processNext() again from inside its own callback,
+    // written under (and relying on) the "callback never fires before this call returns" contract.
+    // Once inline cache-hit dispatch made every request after the first for one file (e.g. 400 placed
+    // instances of one prop) resolve synchronously, that chain recursed once per remaining request
+    // with no yield back to the event loop, blowing the C/Lua call stack (confirmed reproduction:
+    // SIGABRT via a corrupted Lua debug stack, "Could not get stack from LUA"). Real parsing happens
+    // on a worker thread (lazily started); the GPU-finish work
     // (TEXTURE_MANAGER::load/BUFFER_GL/addPath/EnablePixelPerfectTexture) happens in pumpAsyncLoads,
     // on the main thread, since those touch the GPU context and other shared state that isn't safe
     // off the main thread.
@@ -4260,8 +4292,9 @@ namespace mbm
 
         this->impl->ensureWorkersStarted();
         Impl::AsyncJob job;
-        job.fileName   = fileName;
-        job.onComplete = std::move(onComplete);
+        job.fileName         = fileName;
+        job.resolvedFileName = util::getFullPath(fileName, nullptr); // main thread only - safe here
+        job.onComplete       = std::move(onComplete);
         {
             std::lock_guard<std::mutex> lock(this->impl->jobMutex);
             this->impl->jobQueue.push(std::move(job));

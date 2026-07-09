@@ -1,8 +1,24 @@
 # Plan: Remove the Last Worker-Thread `getFullPath`/`addPath` Call from Async Mesh Loading
 
-Status: **not started** — written up for later, kept in-repo per request. Companion to
-`docs/async-loading-and-threading.md`, which documents the mutex/deferred-queue fix already
-shipped for the bug this plan follows up on.
+Status: **implemented** (see `MBM_VERSION` history in `include/version/version.h` for the entry
+that shipped this). Companion to `docs/async-loading-and-threading.md`, which documents the
+mutex/deferred-queue fix already shipped for the bug this plan follows up on.
+
+**Scope correction from the original write-up below**: this plan, as originally written, only
+analyzed `MESH_MANAGER::Impl::workerLoop()` (the async/worker-thread caller of
+`parse_v11_intermediate`) and asserted synchronous loading was untouched/out of scope. That was
+wrong for `MESH_MBM::loadV11()` (no `_DEBUG`) — it shares `parse_v11_intermediate` with the async
+path, reached via `MESH_MBM::load()` → `MESH_MANAGER::load(fileName, renderizable)`, and is called
+with the caller's raw/relative `fileName`, never pre-resolved. (`MESH_MBM_DEBUG::loadV11()` is a
+genuinely separate function with its own `util::openFile` call and really was untouched, as
+originally claimed — the two got conflated.) The shipped fix resolves the path in **both**
+`MESH_MANAGER::loadAsync()` and `MESH_MBM::loadV11()`, each keeping the caller's original,
+unresolved `fileName` flowing into `finishLoadFromIntermediate`/`impl->fileName` unchanged (needed
+because `onLoadMeshLua`, `mesh-lua.cpp`, compares `getFileName()` against the raw caller string to
+skip redundant reloads) — only the path used to actually open the file is the resolved one.
+`util::fopenApp` (previously file-local to `file-util.cpp`) was exposed in `util-interface.h`/
+`file-util.h` as the no-side-effect "open this exact, already-resolved path" primitive
+`parse_v11_intermediate` now uses instead of `util::openFile`.
 
 ## Why
 
@@ -97,13 +113,45 @@ main thread.
 
 ## What this does NOT change
 
-- Cache-hit behavior (`MESH_MANAGER::loadAsync`'s early return when `cached` is non-null) —
-  unaffected, still dispatches through `pumpAsyncLoads`'s `completedJobs` queue as today.
 - `finishLoadFromIntermediate`'s texture/extra-path handling — already correct, untouched.
-- Synchronous `MESH_MANAGER::load()` / `MESH_MBM_DEBUG::loadV11()` — untouched; they were never
-  part of the async/worker-thread problem (always main-thread callers).
+- `MESH_MBM_DEBUG::loadV11()` — untouched; a genuinely separate function (own `util::openFile` call),
+  never shared `parse_v11_intermediate`, never part of the async/worker-thread problem.
 - The Android JNI investigation from the original bug (`docs/async-loading-and-threading.md`) —
   unrelated to this plan, already resolved (no fix needed, `copyFileFromAsset` doesn't touch JNI).
+- Cache-hit behavior (`MESH_MANAGER::loadAsync`'s early return when `cached` is non-null) — still
+  goes through `pumpAsyncLoads`'s `completedJobs` queue, never inline. See "Tried and reverted"
+  below for why that's load-bearing, not just unfinished cleanup.
+
+## What changed beyond the original scope
+
+- `MESH_MANAGER::load()` / `MESH_MBM::loadV11()` (plain, non-`_DEBUG`) — **do** now resolve the path
+  up front too, for the reason in the scope-correction note above.
+
+## Tried and reverted: inline cache-hit dispatch
+
+In the same pass, `MESH_MANAGER::loadAsync`'s cache-hit branch was changed to call `onComplete`
+inline instead of queuing through `completedJobs`/`pumpAsyncLoads`, on the reasoning that nothing
+async happens on a cache hit so the extra frame of latency was pure waste. Verified safe against
+every `...::loadAsync` caller's *state-ordering* (`MESH`, `SPRITE`, `TILE`, `PARTICLE`, `BACKGROUND`
+and their Lua wrappers all register refs / set up bookkeeping before calling `loadAsync`, so nothing
+breaks if the callback fires before the call returns) — but that check missed *stack depth*.
+`editor/scene_editor3d.lua`'s generated `_loadMeshAsyncQueued` (added to serialize concurrent
+same-file `loadAsync` calls around the [[async-mesh-load-concurrency-crash]] SIGSEGV) chains
+same-file requests by calling `processNext()` again from inside its own `loadAsync` callback — a
+pattern that only works because the old contract guaranteed the callback runs on a *later* pump,
+never nested inside the call that queued it. Once cache hits fired inline, every request after the
+first for one file (verified with a real 400-placed-instance scene from Scene Editor 3D's own "Run")
+resolved synchronously and recursed into `processNext()` with no yield back to the event loop,
+exhausting the C/Lua call stack — reproduced as a real crash (`SIGABRT`, preceded by
+`plugin-helper.cpp`'s `lua_getstack` failing, i.e. a corrupted debug stack from the overflow), not a
+hypothetical. Reverted in full: `MESH_MANAGER::loadAsync`'s cache-hit branch queues through
+`completedJobs` again, `Impl::AsyncResult::cacheHit`/`cachedMesh` and `pumpAsyncLoads`'s cache-hit
+branch are back, and `include/render/mesh.h`'s "never inline" contract comment is restored.
+**Lesson for next time this is reconsidered**: any inline-dispatch change to `loadAsync` needs to be
+checked not just for "does calling code assume a later frame" but "does calling code recursively
+re-enter `loadAsync` from within its own callback for a bounded-but-large N" — the second class of
+bug doesn't show up with a handful of test calls, only at realistic scale (this reproduced with 400
+placed meshes, not with 2 or 3).
 
 ## Risk / size estimate
 
