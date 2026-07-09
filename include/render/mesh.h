@@ -43,7 +43,10 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     // Background-thread-friendly equivalent of load(): does the file I/O + v11 parsing on a worker
     // thread (MESH_MANAGER::loadAsync), runs the exact same
     // finish logic load() runs, then invokes callback(success) - always from pumpAsyncLoads() on
-    // the main thread, never inline, matching MESH_MANAGER::loadAsync's own contract.
+    // the main thread, never inline, matching MESH_MANAGER::loadAsync's own contract - EXCEPT when
+    // this->mesh is already set on this specific MESH instance (see the top of the .cpp), which
+    // fires callback(true) inline immediately; that early-out is independent of and predates
+    // MESH_MANAGER's own (queue-only, never-inline) cache-hit handling.
     API_IMPL void loadAsync(const char *fileName, std::function<void(bool success)> callback);
     API_IMPL const char *getFileName() const;
     API_IMPL FX*  getFx() const override;

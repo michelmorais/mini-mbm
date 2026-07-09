@@ -74,6 +74,10 @@ namespace util
     API_IMPL void getAABB(const float halfDimInOut[2], const float angleRadian, float *widthOut, float *heightOut) noexcept;
     API_IMPL void split(std::vector<std::string> &result, const char *in, const char delim);
     API_IMPL FILE* openFile(const char *fileName, const char *mode);
+    // Opens fileName directly via the platform fopen primitive - no getFullPath search, no addPath
+    // side effect. Caller must pass an already-resolved path (relative-to-CWD or absolute); does not
+    // search the registered lsPath list. Safe to call from any thread, unlike openFile/getFullPath.
+    API_IMPL FILE* fopenApp(const char *fileName, const char *mode);
     API_IMPL const char * getFullPath(const char *fileName, bool *existPath );
     API_IMPL void addPath(const char *newPathSource);
     API_IMPL bool getSizeFile(FILE *fp, size_t *sizeOut);

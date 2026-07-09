@@ -26,6 +26,10 @@
 namespace util
 {
     API_IMPL FILE* openFile(const char *fileName, const char *mode);
+    // Opens fileName directly via the platform fopen primitive - no getFullPath search, no addPath
+    // side effect. Caller must pass an already-resolved path (relative-to-CWD or absolute); does not
+    // search the registered lsPath list. Safe to call from any thread, unlike openFile/getFullPath.
+    API_IMPL FILE* fopenApp(const char *fileName, const char *mode);
     API_IMPL const char * getFullPath(const char *fileName, bool *existPath );
     API_IMPL const char* getBaseName(const char *fileName);
     API_IMPL void addPath(const char *newPathSource);
