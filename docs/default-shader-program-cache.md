@@ -156,11 +156,14 @@ runs.
 - **Windows, OpenGL ES backend** (user-verified): fill-layer on the default 20x20 grid dropped from
   ~21s to under 0.5s.
 - **Windows, DirectX9 backend** (`Debug|Win32`, user-verified the *bug* independently by manually
-  switching backends before this fix landed there): same ~20s+ stall reproduced, confirming the same
-  root cause applied; fixed by the same change, not yet re-timed by the user as of this writing.
-- **Metal**: not run (no macOS environment in this session) -- ported by code-reading/mirroring the
-  DirectX9 refcounting approach (Metal's `MBMPSOPair` retain/release semantics are structurally the
-  same as D3D9 COM `AddRef`/`Release`), self-reviewed line-by-line, not compiled or executed.
+  switching backends before this fix landed there, then re-verified the fix after it landed): same
+  ~20s+ stall reproduced pre-fix, confirming the same root cause applied; post-fix, the 400-mesh fill
+  is "quase instantâneo" (near-instant), matching the OpenGL ES and Metal results.
+- **macOS, Metal backend** (user-verified): confirmed working correctly after being ported by
+  code-reading/mirroring the DirectX9 refcounting approach (Metal's `MBMPSOPair` retain/release
+  semantics are structurally the same as D3D9 COM `AddRef`/`Release`) -- this session had no macOS
+  environment to compile or run it directly, so this was the first real build/execution of that
+  change.
 - **Linux**: not run in this session either (no compiler available); self-reviewed only. See
   `sleepy-cooking-brooks.md` (this session's plan file) for the originally-intended Linux verification
   checklist (fill-layer correctness, a second distinct mesh/FVF combination hitting a different cache
