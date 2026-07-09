@@ -847,6 +847,54 @@ function getOrCreateThumbnail(entry)
     return nil
 end
 
+-- `tObj:getAABB()` above is physics-driven, not geometry-driven (RENDERIZABLE::updateAABB(),
+-- src/core_mbm/renderizable.cpp, derives boundingAABB from INFO_PHYSICS::getBounds()) -- a
+-- hand-authored physics box (Physic Editor) left much smaller than the mesh's real vertex extents
+-- reports a bogus small size here. That starves fitDist below into framing the camera far tighter
+-- than the actual geometry, which then partially or fully clips past the render2texture camera's
+-- frustum and bakes a blank/white thumbnail (see the fitDist near/far comment further down for the
+-- companion failure mode). Meshes saved with no hand-authored physics don't hit this: the save-time
+-- auto-bound (MESH_MBM_DEBUG::fillAtLeastOneBound(), src/core_mbm/mesh-manager.cpp) already derives
+-- its cube from the true vertex min/max, so physics and geometry agree there.
+-- There is no physics-independent size query on the Lua RENDERIZABLE (getSize/getAABB/
+-- getWidthHeight all read INFO_PHYSICS), so the only way to get the real vertex extents from Lua is
+-- to rescan the raw mesh buffer via a throwaway meshDebug instance -- same approach mesh_debug.lua's
+-- computeMeshVertexBoundsFrame1 uses, reimplemented locally since that file's helpers aren't
+-- exported (see the orbit-camera comment above). Frame 1 only, matching the thumbnail bake itself.
+function computeMeshTrueVertexExtentFrame1(fileName)
+    local meshD = meshDebug:new()
+    local ok = meshD:load(fileName)
+    if not ok then
+        meshD:fakeRelease(fileName)
+        return nil
+    end
+    local minX, maxX = math.huge, -math.huge
+    local minY, maxY = math.huge, -math.huge
+    local minZ, maxZ = math.huge, -math.huge
+    local total = 0
+    local okScan = pcall(function()
+        local nSubsets = meshD:getTotalSubset(1)
+        for s = 1, nSubsets do
+            local nV = meshD:getTotalVertex(1, s)
+            for v = 1, nV do
+                local vd = meshD:getVertex(1, s, v)
+                if vd then
+                    local vz = vd.z or 0
+                    minX = math.min(minX, vd.x); maxX = math.max(maxX, vd.x)
+                    minY = math.min(minY, vd.y); maxY = math.max(maxY, vd.y)
+                    minZ = math.min(minZ, vz);   maxZ = math.max(maxZ, vz)
+                    total = total + 1
+                end
+            end
+        end
+    end)
+    meshD:fakeRelease(fileName)
+    if not okScan or total == 0 then
+        return nil
+    end
+    return maxX - minX, maxY - minY, maxZ - minZ
+end
+
 function processThumbnailQueue()
     if tThumbGenActive then
         return
@@ -890,6 +938,21 @@ function processThumbnailQueue()
     tThumbGenRt:add(tObj)
     local w, h, d = tObj:getAABB(true)
     local fitDist = math.max(w or 50, h or 50, d or 50) * 2.2
+    -- Flag (for the Mesh Set / Mesh Selector tooltip) rather than correct: a physics box less than
+    -- half the mesh's true largest extent means whatever framed fitDist above is unreliable, and the
+    -- right fix lives in the Physics tab (physic_editor.lua), not here -- silently widening fitDist
+    -- to the true geometry would hide the authoring bug instead of surfacing it.
+    entry.physicsBoundsSuspect = false
+    if entry.type == 'mesh' then
+        local tw, th, td = computeMeshTrueVertexExtentFrame1(entry.fileName)
+        if tw then
+            local trueMax = math.max(tw, th, td)
+            local physMax = math.max(w or 0, h or 0, d or 0)
+            if trueMax > 1e-4 and physMax < trueMax * 0.5 then
+                entry.physicsBoundsSuspect = true
+            end
+        end
+    end
     -- Frame the mesh's true visual center, not its pivot (obj:getAABBCenter(), MBM_VERSION
     -- 6.9.0) -- for a mesh anchored at its base (e.g. a building), focusing on the pivot (its
     -- floor) would frame the thumbnail on its feet instead of centering the whole asset.
@@ -2028,6 +2091,11 @@ function drawMeshSetTab(item_width)
         if tImGui.IsItemHovered(0) then
             tImGui.BeginTooltip()
             tImGui.Text(tUtil.getShortName(entry.fileName))
+            if entry.physicsBoundsSuspect then
+                tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.7, b = 0, a = 1})
+                tImGui.TextWrapped(tLang.L('thumb_physics_bounds_warning'))
+                tImGui.PopStyleColor(1)
+            end
             tImGui.EndTooltip()
         end
         xLast = xLast + size.x + 10
@@ -2181,6 +2249,11 @@ function drawMeshSelector(xStart)
                 if tImGui.IsItemHovered(0) then
                     tImGui.BeginTooltip()
                     tImGui.Text(tUtil.getShortName(entry.fileName))
+                    if entry.physicsBoundsSuspect then
+                        tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.7, b = 0, a = 1})
+                        tImGui.TextWrapped(tLang.L('thumb_physics_bounds_warning'))
+                        tImGui.PopStyleColor(1)
+                    end
                     tImGui.EndTooltip()
                 end
             else

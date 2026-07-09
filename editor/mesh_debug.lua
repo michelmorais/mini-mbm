@@ -2795,7 +2795,10 @@ function addMeshToTable(fileName)
         tNormalLineGood      = nil,
         tNormalLineBad       = nil,
         bNormalsVizDirty     = true,
-        sNormalVizCoordType  = nil
+        sNormalVizCoordType  = nil,
+        tPhysicsLine         = nil,
+        bPhysicsVizDirty     = true,
+        sPhysicsVizCoordType = nil
     })
     -- Auto-switch camera to 3D when a mesh (.msh) file is loaded
     if info.type == 'mesh' and not bCameraMode3D then
@@ -2894,7 +2897,10 @@ end
 
 function removeMeshFromTable(index)
     local removed = table.remove(tLoadedMeshes, index)
-    if removed then destroyNormalVisualization(removed) end
+    if removed then
+        destroyNormalVisualization(removed)
+        destroyPhysicsVisualization(removed)
+    end
     if iSelectedMeshIndex == index then
         iSelectedMeshIndex = 0
         iLastPreviewedIndex = 0
@@ -3169,6 +3175,47 @@ function computeMeshVertexBoundsFrame1(meshD)
         cx = (minX + maxX) * 0.5, cy = (minY + maxY) * 0.5, cz = (minZ + maxZ) * 0.5,
         width = maxX - minX, height = maxY - minY, depth = maxZ - minZ,
     }
+end
+
+-- Physics-only bounding extent, unioned across every shape kind in a meshD:getPhysics() list --
+-- the Lua-side equivalent of INFO_PHYSICS::getBoundsMinMax() (src/core_mbm/physics.cpp), which
+-- meshDebug has no direct binding for (getAABB/getSize/getWidthHeight only exist on a loaded
+-- RENDERIZABLE, and those are themselves physics-driven -- see scene_editor3d.lua's
+-- computeMeshTrueVertexExtentFrame1 comment for the underlying bug this mirrors). Used to compare
+-- against computeMeshVertexBoundsFrame1() so the Physics node can warn when a hand-authored shape
+-- is left much smaller than the mesh's real geometry. Returns width,height,depth or nil if the
+-- shape list is empty / has no usable fields.
+function computePhysicsExtent(tPhysics)
+    if not tPhysics or #tPhysics == 0 then return nil end
+    local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+    local function acc(x, y, z)
+        if not x or not y then return end
+        z = z or 0
+        minX = math.min(minX, x); maxX = math.max(maxX, x)
+        minY = math.min(minY, y); maxY = math.max(maxY, y)
+        minZ = math.min(minZ, z); maxZ = math.max(maxZ, z)
+    end
+    for _, shape in ipairs(tPhysics) do
+        if shape.type == 'cube' and shape.center and shape.half then
+            acc(shape.center.x - shape.half.x, shape.center.y - shape.half.y, shape.center.z - shape.half.z)
+            acc(shape.center.x + shape.half.x, shape.center.y + shape.half.y, shape.center.z + shape.half.z)
+        elseif shape.type == 'sphere' and shape.center and shape.ray then
+            acc(shape.center.x - shape.ray, shape.center.y - shape.ray, shape.center.z - shape.ray)
+            acc(shape.center.x + shape.ray, shape.center.y + shape.ray, shape.center.z + shape.ray)
+        elseif shape.type == 'triangle' then
+            for _, key in ipairs({'a', 'b', 'c'}) do
+                local p = shape[key]
+                if p then acc(p.x, p.y, p.z) end
+            end
+        elseif shape.type == 'complex' then
+            for _, key in ipairs({'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}) do
+                local p = shape[key]
+                if p then acc(p.x, p.y, p.z) end
+            end
+        end
+    end
+    if minX > maxX then return nil end
+    return maxX - minX, maxY - minY, maxZ - minZ
 end
 
 -- Normalizes a 3D vector. Returns nx,ny,nz,len or nil if the vector is (near) zero.
@@ -4874,6 +4921,105 @@ function showMeshOptions(tEntry, index)
         destroyNormalVisualization(tEntry)
     end
 
+    -- Visualization only (list the shape types present) plus a "Reset physics to" shortcut --
+    -- actually editing/authoring individual shapes stays in physic_editor.lua's own "Edit Physics"
+    -- window, which is the only place with the primitive-by-primitive editing UI.
+    if openNode(tEntry, 'physics', tLang.L("physics_label"), 0, 'physics-' .. index) then
+        local tPhysics = meshD:getPhysics() or {}
+        -- Same rebuild-on-mismatch pattern as showNormalsEditor/rebuildNormalVisualization: the
+        -- 2D/3D toggle (bCameraMode3D) changes the coord space the wireframe line must be created
+        -- in, so a stale line built under the previous mode has to be thrown away and redrawn.
+        local wantCoordType = bCameraMode3D and '3d' or '2dw'
+        if not tEntry.tPhysicsLine or tEntry.bPhysicsVizDirty or tEntry.sPhysicsVizCoordType ~= wantCoordType then
+            rebuildPhysicsVisualization(tEntry, meshD)
+        end
+        tImGui.HelpMarker(string.format(tLang.L('physics_edit_elsewhere_fmt'), tLang.L('physic_editor')))
+        tImGui.SameLine()
+        if #tPhysics == 0 then
+            tImGui.TextDisabled(tLang.L('no_physics_available'))
+        else
+            local counts = {}
+            for _, shape in ipairs(tPhysics) do
+                counts[shape.type] = (counts[shape.type] or 0) + 1
+            end
+            local tShapeLabels = {
+                {'cube',     tLang.L('physics_shape_cube')},
+                {'sphere',   tLang.L('physics_shape_sphere')},
+                {'triangle', tLang.L('triangle')},
+                {'complex',  tLang.L('physics_shape_complex')},
+            }
+            for _, pair in ipairs(tShapeLabels) do
+                if counts[pair[1]] then
+                    tImGui.Text(pair[2] .. ': ' .. counts[pair[1]])
+                end
+            end
+        end
+
+        -- Same check as Scene Editor 3D's Mesh Set thumbnail bake (scene_editor3d.lua,
+        -- computeMeshTrueVertexExtentFrame1): a hand-authored physics box much smaller than the
+        -- mesh's real frame-1 vertex extents means anything reading physics-derived size (physics
+        -- itself, but also getAABB/getSize/getWidthHeight on the loaded RENDERIZABLE) is unreliable.
+        local bounds = #tPhysics > 0 and computeMeshVertexBoundsFrame1(meshD) or nil
+        if bounds then
+            local pw2, ph2, pd2 = computePhysicsExtent(tPhysics)
+            if pw2 then
+                local trueMax = math.max(bounds.width, bounds.height, bounds.depth)
+                local physMax = math.max(pw2, ph2, pd2)
+                if trueMax > 1e-4 and physMax < trueMax * 0.5 then
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.65, b = 0.2, a = 1})
+                    tImGui.TextWrapped(tLang.L('physics_bounds_too_small_warning'))
+                    tImGui.PopStyleColor(1)
+                end
+            end
+        end
+
+        tImGui.Separator()
+        tEntry.tPhysicsResetUI = tEntry.tPhysicsResetUI or {primitiveType = 1, triCountRect = 2, triCountCircle = 5}
+        local pw = tEntry.tPhysicsResetUI
+        local idxSel = tImGui.RadioButton(tLang.L('rectangle') .. '##physReset' .. index, pw.primitiveType, 1)
+        idxSel       = tImGui.RadioButton(tLang.L('rectangle_triangle') .. '##physReset' .. index, idxSel, 2)
+        if idxSel == 2 then
+            tImGui.SameLine()
+            tUtil.pushResponsiveItemWidth(70)
+            local result, iValue = tImGui.InputInt('##physResetTriRect-' .. index, pw.triCountRect, 2, 2, 0)
+            if result and iValue > 1 and iValue < 1000 and iValue % 2 == 0 then
+                pw.triCountRect = iValue
+            end
+            tImGui.PopItemWidth()
+        end
+        idxSel = tImGui.RadioButton(tLang.L('circle') .. '##physReset' .. index, idxSel, 3)
+        idxSel = tImGui.RadioButton(tLang.L('circle_triangle') .. '##physReset' .. index, idxSel, 4)
+        if idxSel == 4 then
+            tImGui.SameLine()
+            tUtil.pushResponsiveItemWidth(70)
+            local result, iValue = tImGui.InputInt('##physResetTriCircle-' .. index, pw.triCountCircle, 1, 1, 0)
+            if result and iValue > 3 and iValue < 1000 then
+                pw.triCountCircle = iValue
+            end
+            tImGui.PopItemWidth()
+        end
+        idxSel = tImGui.RadioButton(tLang.L('triangle') .. '##physReset' .. index, idxSel, 5)
+        idxSel = tImGui.RadioButton(tLang.L('complex_cube') .. '##physReset' .. index, idxSel, 6)
+        pw.primitiveType = idxSel
+
+        if tImGui.Button(tLang.L('reset_physics_to') .. '##physResetBtn-' .. index) then
+            local ok, err = resetSingleMeshPhysics(tEntry, pw.primitiveType, pw.triCountRect, pw.triCountCircle)
+            if ok then
+                if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+                tEntry.bPhysicsVizDirty = true
+                tUtil.showMessage(string.format('%s: %s', tLang.L('reset_physics_to'), shortName), 4)
+            else
+                tUtil.showMessageWarn(err or tLang.L('an_error_occurred'))
+            end
+        end
+        tImGui.SameLine()
+        tImGui.HelpMarker(tLang.L('reset_physics_to_tooltip'))
+
+        tImGui.TreePop()
+    elseif tEntry.tPhysicsLine then
+        destroyPhysicsVisualization(tEntry)
+    end
+
     -- Auto-cancel transform preview when the Transform node is closed
     if tEntry.tXformPreviewMesh and tEntry.sOpenNode ~= 'transform' then
         tEntry.tXformPreviewMesh:destroy()
@@ -6393,6 +6539,151 @@ local function boxCornersPhys(hw,hh,hd)
     }
 end
 
+------------------------------------------------------------------------------------------------------------------
+-- Physics node visualization (wireframe of the mesh's own physics shapes, read-only) --------------
+------------------------------------------------------------------------------------------------------------------
+
+-- 12 edges of an axis-aligned box, indexing boxCornersPhys()'s corner order (front face
+-- 1,2,3,4 @ +halfDepth, back face 5,6,7,8 @ -halfDepth).
+local PHYSICS_BOX_EDGES = {
+    {1,2},{2,3},{3,4},{4,1},
+    {5,6},{6,7},{7,8},{8,5},
+    {1,5},{2,6},{3,7},{4,8},
+}
+
+-- Appends every edge of an axis-aligned box (8 corners, already absolute-positioned) to `ln`, one
+-- 3D segment per `line:add()` call (same one-segment-per-call convention as
+-- rebuildNormalVisualization above).
+local function addBoxWireframe3d(ln, corners)
+    for _, e in ipairs(PHYSICS_BOX_EDGES) do
+        local p1, p2 = corners[e[1]], corners[e[2]]
+        ln:add({p1.x, p1.y, p1.z, p2.x, p2.y, p2.z})
+    end
+end
+
+-- Appends one closed 2D polygon loop (array of {x,y}) to `ln`, one segment per edge.
+local function addLoop2d(ln, pts)
+    local n = #pts
+    for i = 1, n do
+        local a = pts[i]
+        local b = pts[(i % n) + 1]
+        ln:add({a.x, a.y, b.x, b.y})
+    end
+end
+
+-- Appends an nSeg-gon circle approximation to `ln` -- 2D only, there is no true sphere wireframe
+-- primitive in this codebase's Lua (same limitation physic_editor.lua's 3D sphere visualization
+-- works around by drawing a box instead, see the 3D 'sphere' branch below).
+local function addCircle2d(ln, cx, cy, r, nSeg)
+    local pts = {}
+    for i = 0, nSeg - 1 do
+        local a = (i / nSeg) * math.pi * 2
+        table.insert(pts, {x = cx + math.cos(a) * r, y = cy + math.sin(a) * r})
+    end
+    addLoop2d(ln, pts)
+end
+
+-- Appends a 3-great-circle wireframe sphere (XY/XZ/YZ planes) to `ln` -- 3D only. There is no true
+-- sphere mesh/line primitive in this codebase's Lua (physic_editor.lua's own 3D sphere
+-- visualization works around the same gap by drawing a box instead, per CLAUDE.md's "physic_editor
+-- .lua visualizes its own SPHERE physics shapes as boxes too" note), but a box reads as
+-- indistinguishable from an actual cube shape at a glance -- three orthogonal circles read
+-- unambiguously as "sphere" instead.
+local function addSphereWireframe3d(ln, cx, cy, cz, r, nSeg)
+    for i = 0, nSeg - 1 do
+        local a1 = (i / nSeg) * math.pi * 2
+        local a2 = ((i + 1) / nSeg) * math.pi * 2
+        local c1, s1 = math.cos(a1) * r, math.sin(a1) * r
+        local c2, s2 = math.cos(a2) * r, math.sin(a2) * r
+        ln:add({cx + c1, cy + s1, cz,      cx + c2, cy + s2, cz})      -- XY plane
+        ln:add({cx + c1, cy,      cz + s1, cx + c2, cy,      cz + s2}) -- XZ plane
+        ln:add({cx,      cy + c1, cz + s1, cx,      cy + c2, cz + s2}) -- YZ plane
+    end
+end
+
+-- Appends one meshD:getPhysics() shape to `ln`, in whichever coord space `ln` was created with.
+-- 3D: cube draws as an axis-aligned wireframe box, sphere as a 3-great-circle wireframe (see
+-- addSphereWireframe3d), triangle/complex draw their own exact edges since both already have real
+-- vertex data. 2D: cube/complex flatten to their xy bounding rectangle (z dropped), sphere draws a
+-- real circle, triangle draws its exact 3 edges.
+local function addPhysicsShapeWireframe(ln, shape, is3D)
+    if shape.type == 'cube' and shape.center and shape.half then
+        local c, h = shape.center, shape.half
+        if is3D then
+            local corners = boxCornersPhys(h.x, h.y, h.z)
+            for _, p in ipairs(corners) do p.x = p.x + c.x; p.y = p.y + c.y; p.z = p.z + c.z end
+            addBoxWireframe3d(ln, corners)
+        else
+            addLoop2d(ln, {
+                {x = c.x - h.x, y = c.y - h.y}, {x = c.x - h.x, y = c.y + h.y},
+                {x = c.x + h.x, y = c.y + h.y}, {x = c.x + h.x, y = c.y - h.y},
+            })
+        end
+    elseif shape.type == 'sphere' and shape.center and shape.ray then
+        local c, r = shape.center, shape.ray
+        if is3D then
+            addSphereWireframe3d(ln, c.x, c.y, c.z, r, 24)
+        else
+            addCircle2d(ln, c.x, c.y, r, 32)
+        end
+    elseif shape.type == 'triangle' and shape.a and shape.b and shape.c then
+        local a, b, c = shape.a, shape.b, shape.c
+        if is3D then
+            ln:add({a.x, a.y, a.z or 0, b.x, b.y, b.z or 0})
+            ln:add({b.x, b.y, b.z or 0, c.x, c.y, c.z or 0})
+            ln:add({c.x, c.y, c.z or 0, a.x, a.y, a.z or 0})
+        else
+            addLoop2d(ln, {a, b, c})
+        end
+    elseif shape.type == 'complex' then
+        local corners = {}
+        for _, key in ipairs(BOX_LETTERS_PHYS) do
+            if shape[key] then table.insert(corners, shape[key]) end
+        end
+        if #corners == 8 then
+            if is3D then
+                addBoxWireframe3d(ln, corners)
+            else
+                local minX,maxX,minY,maxY = math.huge,-math.huge,math.huge,-math.huge
+                for _, p in ipairs(corners) do
+                    minX = math.min(minX, p.x); maxX = math.max(maxX, p.x)
+                    minY = math.min(minY, p.y); maxY = math.max(maxY, p.y)
+                end
+                addLoop2d(ln, {
+                    {x=minX,y=minY}, {x=minX,y=maxY}, {x=maxX,y=maxY}, {x=maxX,y=minY},
+                })
+            end
+        end
+    end
+end
+
+-- Destroys tEntry's physics-visualization line (if any) and clears the field. Same shape as
+-- destroyNormalVisualization above.
+function destroyPhysicsVisualization(tEntry)
+    if tEntry.tPhysicsLine then tEntry.tPhysicsLine:destroy() end
+    tEntry.tPhysicsLine = nil
+end
+
+-- Rebuilds the wireframe line that visualizes every physics shape on frame 1. Drawn in whichever
+-- coord space the preview is currently using (2dw or 3d), matching bCameraMode3D -- same
+-- rebuild-on-mismatch pattern as rebuildNormalVisualization above.
+function rebuildPhysicsVisualization(tEntry, meshD)
+    destroyPhysicsVisualization(tEntry)
+    tEntry.bPhysicsVizDirty = false
+    local okP, tPhysics = dpCall(function() return meshD:getPhysics() end)
+    if not okP or not tPhysics or #tPhysics == 0 then return end
+
+    local coordType = bCameraMode3D and '3d' or '2dw'
+    tEntry.sPhysicsVizCoordType = coordType
+    local is3D = coordType == '3d'
+    local ln = line:new(coordType, 0, 0, 0)
+    ln:setColor(0, 1, 0)
+    for _, shape in ipairs(tPhysics) do
+        addPhysicsShapeWireframe(ln, shape, is3D)
+    end
+    tEntry.tPhysicsLine = ln
+end
+
 -- Builds physic table(s) for the given primitive kind, centered/sized from a
 -- computeMeshVertexBoundsFrame1() result. Mirrors the construction math in
 -- physic_editor.lua's "Add physic" button, driven by the mesh's own vertex bounds
@@ -6486,6 +6777,28 @@ local function applyAllResetPhysics(sType)
         tEntry.modified = true
         return 'success'
     end)
+end
+
+-- Single-mesh counterpart to applyAllResetPhysics above, for the per-mesh Physics node's own
+-- "Reset physics to" button (File > Apply to All's version targets every matching loaded mesh;
+-- this one only ever touches tEntry). Same buildPhysicsFromBounds construction math, just without
+-- runApplyAllOperation's multi-target iteration. Returns true, or false plus an error message.
+function resetSingleMeshPhysics(tEntry, primitiveType, triCountRect, triCountCircle)
+    local meshD  = tEntry.meshDebug
+    local bounds = computeMeshVertexBoundsFrame1(meshD)
+    if not bounds then
+        return false, tLang.L('apply_all_no_matching_targets')
+    end
+    local tPhysics = buildPhysicsFromBounds(primitiveType, bounds, triCountRect, triCountCircle)
+    if #tPhysics == 0 then
+        return false, tLang.L('apply_all_no_matching_targets')
+    end
+    local ok = dpCall(function() meshD:setPhysics(tPhysics) end)
+    if not ok then
+        return false, tLang.L('an_error_occurred')
+    end
+    tEntry.modified = true
+    return true
 end
 
 -- Overwrites each target mesh's whole material (setMaterial() applies to the entire mesh, not
@@ -7233,6 +7546,10 @@ function showMeshTreeWindow()
                     -- another mesh. Enforce it here unconditionally instead.
                     if tEntry.tNormalLineGood or tEntry.tNormalLineBad then
                         destroyNormalVisualization(tEntry)
+                    end
+                    -- Same leak class, same fix, for the Physics node's wireframe line.
+                    if tEntry.tPhysicsLine then
+                        destroyPhysicsVisualization(tEntry)
                     end
                     -- Same pre-existing leak class for the Transform tab's preview clone (its
                     -- own auto-cancel likewise only ran inside showMeshOptions, i.e. only while
