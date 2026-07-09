@@ -27,7 +27,6 @@
 #include <device.h>
 #include <util-interface.h>
 #include <shapes.h>
-#include <cr-static-local.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <header-mesh.h>
 #include "mesh-v8-io.h"
@@ -914,7 +913,9 @@ namespace mbm
     static unsigned int computeMeshWorkerCount()
     {
         const unsigned int hw = std::thread::hardware_concurrency();
-        return std::clamp(hw, 2u, 8u);
+        if (hw < 2u) return 2u;
+        if (hw > 8u) return 8u;
+        return hw;
     }
 
     void MESH_MANAGER::Impl::ensureWorkersStarted()
