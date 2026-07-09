@@ -6283,7 +6283,14 @@ local function copyMeshTexturesToFolder(tEntry, folder, copiedBasenames)
         local key = getBatchPathKey(baseName)
         if baseName ~= '' and not copiedBasenames[key] then
             copiedBasenames[key] = true
-            if copyFileBinary(texPath, joinFolderFile(folder, baseName)) then
+            -- Textures are commonly stored on the mesh as a bare filename or a path relative to
+            -- an engine search path (mbm.addPath), not a path the plain Lua io library can open
+            -- directly from the process's own working directory. Resolve it the same way the
+            -- engine itself would before reading the bytes. mbm.getFullPath echoes the input
+            -- back unresolved if no search path matches, so this is a no-op when texPath is
+            -- already a real filesystem path.
+            local resolvedPath = mbm.getFullPath(texPath) or texPath
+            if copyFileBinary(resolvedPath, joinFolderFile(folder, baseName)) then
                 copied = copied + 1
             else
                 failed = failed + 1
