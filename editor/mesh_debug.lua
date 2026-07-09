@@ -2896,15 +2896,24 @@ function onAddColoredCube()
 end
 
 function removeMeshFromTable(index)
+    local wasSelected = (iSelectedMeshIndex == index)
     local removed = table.remove(tLoadedMeshes, index)
     if removed then
         destroyNormalVisualization(removed)
         destroyPhysicsVisualization(removed)
     end
-    if iSelectedMeshIndex == index then
-        iSelectedMeshIndex = 0
+    if wasSelected then
         iLastPreviewedIndex = 0
         destroyPreviewMesh()
+        -- Select the neighboring entry that took this slot (the old "next"); if the removed
+        -- entry was last in the list, fall back to the new last entry (the old "previous").
+        if #tLoadedMeshes == 0 then
+            iSelectedMeshIndex = 0
+        elseif index <= #tLoadedMeshes then
+            iSelectedMeshIndex = index
+        else
+            iSelectedMeshIndex = #tLoadedMeshes
+        end
     elseif iSelectedMeshIndex > index then
         iSelectedMeshIndex = iSelectedMeshIndex - 1
         iLastPreviewedIndex = 0
@@ -2932,6 +2941,42 @@ function applyCam3d(c)
     local x, y, z = cam3dGetPos(c)
     camera3d:setPos(x, y, z)
     camera3d:setFocus(c.fx, c.fy, c.fz)
+end
+
+-- Each loaded mesh entry keeps its own cam3d (orbit position around the object), so switching
+-- the selected entry re-applies that entry's own (possibly still-default) camera instead of
+-- keeping the view the user just set up. Only 'mesh' (.msh) entries render in 3D world space;
+-- everything else (sprite/tile/particle/font/texture) renders flat in 2D world space regardless
+-- of the camera-mode toggle, so a mesh<->mesh switch is the only case where carrying over the
+-- 3D orbit camera is meaningful. 2D<->2D needs no action since camera2d is a single shared
+-- object that already keeps its position across selection changes.
+local function isMesh3DType(tEntry)
+    return tEntry ~= nil and tEntry.info ~= nil and tEntry.info.type == 'mesh'
+end
+
+-- Changes the selected mesh index, preserving the 3D orbit camera view when moving between two
+-- same-type (3D<->3D) entries instead of snapping to the new entry's own cam3d.
+function selectMeshIndex(newIndex)
+    if #tLoadedMeshes == 0 then
+        iSelectedMeshIndex = 0
+        return
+    end
+    if newIndex < 1 then newIndex = 1 end
+    if newIndex > #tLoadedMeshes then newIndex = #tLoadedMeshes end
+    if newIndex == iSelectedMeshIndex then return end
+
+    local tOld = tLoadedMeshes[iSelectedMeshIndex]
+    local tNew = tLoadedMeshes[newIndex]
+    if bCameraMode3D and isMesh3DType(tOld) and isMesh3DType(tNew) then
+        local c = tOld.cam3d
+        tNew.cam3d.azimuth   = c.azimuth
+        tNew.cam3d.elevation = c.elevation
+        tNew.cam3d.distance  = c.distance
+        tNew.cam3d.fx        = c.fx
+        tNew.cam3d.fy        = c.fy
+        tNew.cam3d.fz        = c.fz
+    end
+    iSelectedMeshIndex = newIndex
 end
 
 -- Returns map[origAnimIdx] = filteredAnimIdx (integer) if the animation survives the frame
@@ -8357,15 +8402,9 @@ end
 
 function onKeyDown(key)
     if mbm.getKeyName(key) == 'DOWN' then
-        iSelectedMeshIndex = iSelectedMeshIndex + 1
-        if iSelectedMeshIndex > #tLoadedMeshes then 
-            iSelectedMeshIndex = #tLoadedMeshes
-        end
+        selectMeshIndex(iSelectedMeshIndex + 1)
     elseif mbm.getKeyName(key) == 'UP' then
-        iSelectedMeshIndex = iSelectedMeshIndex - 1
-        if iSelectedMeshIndex < 1 then
-            iSelectedMeshIndex = 1
-        end
+        selectMeshIndex(iSelectedMeshIndex - 1)
     end
 end
 function onKeyUp() end
