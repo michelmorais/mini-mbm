@@ -6212,6 +6212,87 @@ local function saveMeshEntryToPath(tEntry, outFile)
     return tEntry.meshDebug:save(outFile, false, false)
 end
 
+-- Every texture path actually referenced by a mesh entry: primary + material-role
+-- (normal/specular/emissive/mask) textures per frame/subset, plus per-animation FX textures.
+-- Used by "Save All to Folder" to also copy each mesh's textures alongside the exported .msh --
+-- getMeshTextures() (used by the Info node's texture-remap UI) only looks at primary textures,
+-- which would silently skip normal/specular/emissive/mask/FX textures here.
+local function getMeshAllUsedTextures(tEntry)
+    local meshD = tEntry.meshDebug
+    local seen = {}
+    local list = {}
+    local function add(tex)
+        if tex and tex ~= '' and not seen[tex] then
+            seen[tex] = true
+            table.insert(list, tex)
+        end
+    end
+
+    local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    if okF and nFrames then
+        for f = 1, nFrames do
+            local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+            if okS and nSubsets then
+                for s = 1, nSubsets do
+                    local okP, primaryTex = dpCall(function() return meshD:getTexture(f, s) end)
+                    if okP then add(primaryTex) end
+                    for _, role in ipairs({'normal', 'specular', 'emissive', 'mask'}) do
+                        local okR, roleTex = dpCall(function() return meshD:getMaterialTexture(f, s, role) end)
+                        if okR then add(roleTex) end
+                    end
+                end
+            end
+        end
+    end
+
+    local nAnim = (tEntry.info and tEntry.info.animation) or 0
+    for i = 1, nAnim do
+        local okFx, fxTex = dpCall(function() return meshD:getFxTexture(i) end)
+        if okFx then add(fxTex) end
+    end
+
+    return list
+end
+
+-- Plain binary read/write copy (not tUtil.copyFile, which shells out to `cp` and is a no-op on
+-- Windows) so texture copying actually works on every platform this tool runs on.
+local function copyFileBinary(src, dst)
+    if getBatchPathKey(src) == getBatchPathKey(dst) then return true end
+    local fin = io.open(src, 'rb')
+    if not fin then return false end
+    local data = fin:read('*a')
+    fin:close()
+    if not data then return false end
+    local fout = io.open(dst, 'wb')
+    if not fout then return false end
+    fout:write(data)
+    fout:close()
+    return true
+end
+
+-- Copies every texture tEntry references into `folder`, next to its saved .msh, skipping any
+-- basename already copied by an earlier entry in this batch. The engine resolves texture
+-- references by searching known asset paths for a matching basename at load time (getFullPath,
+-- file-util.cpp) rather than requiring the mesh's stored path to still exist, so a same-named
+-- copy next to the .msh is enough for it to be found -- no need to rewrite the path stored
+-- inside the mesh itself.
+local function copyMeshTexturesToFolder(tEntry, folder, copiedBasenames)
+    local copied, failed = 0, 0
+    for _, texPath in ipairs(getMeshAllUsedTextures(tEntry)) do
+        local baseName = tUtil.getBaseFileName(texPath)
+        local key = getBatchPathKey(baseName)
+        if baseName ~= '' and not copiedBasenames[key] then
+            copiedBasenames[key] = true
+            if copyFileBinary(texPath, joinFolderFile(folder, baseName)) then
+                copied = copied + 1
+            else
+                failed = failed + 1
+            end
+        end
+    end
+    return copied, failed
+end
+
 function onSaveAllToFolder()
     if #tLoadedMeshes == 0 then
         tUtil.showMessageWarn(tLang.L('save_all_to_folder_no_meshes'))
@@ -6224,9 +6305,12 @@ function onSaveAllToFolder()
     sLastFolderPath = folder
 
     local usedPaths = {}
+    local copiedTextures = {}
     local success = 0
     local failed = 0
     local migrated = 0
+    local texturesCopied = 0
+    local texturesFailed = 0
     local details = {}
 
     for i, tEntry in ipairs(tLoadedMeshes) do
@@ -6238,6 +6322,9 @@ function onSaveAllToFolder()
             if wasLegacy then
                 migrated = migrated + 1
             end
+            local copied, failedTex = copyMeshTexturesToFolder(tEntry, folder, copiedTextures)
+            texturesCopied = texturesCopied + copied
+            texturesFailed = texturesFailed + failedTex
         else
             failed = failed + 1
             if #details < 6 then
@@ -6252,9 +6339,17 @@ function onSaveAllToFolder()
     if migrated > 0 then
         msg = msg .. '\n' .. string.format(tLang.L('save_all_to_folder_migrated_fmt'), migrated)
     end
+    if texturesCopied > 0 then
+        msg = msg .. '\n' .. string.format(tLang.L('save_all_to_folder_textures_fmt'), texturesCopied)
+    end
+    if texturesFailed > 0 then
+        msg = msg .. '\n' .. string.format(tLang.L('save_all_to_folder_textures_failed_fmt'), texturesFailed)
+    end
     if failed > 0 then
         msg = msg .. '\n' .. string.format(tLang.L('save_all_to_folder_failed_fmt'), failed)
         if #details > 0 then msg = msg .. '\n' .. table.concat(details, '\n') end
+    end
+    if failed > 0 or texturesFailed > 0 then
         tUtil.showMessageWarn(msg)
     else
         tUtil.showMessage(msg, 8)
