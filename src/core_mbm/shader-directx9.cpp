@@ -38,6 +38,45 @@
 
 namespace mbm
 {
+    // Process-lifetime cache of compiled "pure default shader pair" D3D9 shaders (no custom .cfg
+    // effect), keyed by the small set of flags that fully determine the generated HLSL source (see
+    // SHADER::compileShader below -- unlike the OpenGL ES backend, DX9's default source only varies
+    // with fvf/useReservedLightScaffolding, there is no canUsePointLight2D concept here). Mirrors
+    // the same cache in shader-opengl_es.cpp and fixes the same symptom: every placed instance of
+    // the same mesh type otherwise recompiles+relinks byte-identical HLSL from scratch via
+    // D3DXCompileShader, which is what made placing 400 copies of one mesh a 20+ second stall when
+    // running the DirectX9 backend (confirmed: switching to the OpenGL ES backend on the same
+    // Windows machine dropped the same operation to under half a second once that cache landed).
+    //
+    // D3D9 shader/constant-table objects are COM (IUnknown-derived), so -- unlike the raw GLuint
+    // case in the GL backend -- ownership can ride on ordinary AddRef/Release: the cache holds one
+    // dedicated reference of its own (added right after a successful compile) so the objects survive
+    // for the rest of the process lifetime regardless of which instances come and go, and every
+    // instance that shares a cached entry (including the one that originally compiled it) just
+    // AddRef()s its own share and Release()s it normally on destruction via D3D_PS_VS::release() --
+    // no extra "don't delete, I don't own this" flag needed.
+    struct DefaultProgramCacheEntryD3D9
+    {
+        IDirect3DPixelShader9 *pd3dPixelShader;
+        IDirect3DVertexShader9 *pd3dVertexShader;
+        ID3DXConstantTable *constantTablePS;
+        ID3DXConstantTable *constantTableVS;
+        D3DXHANDLE mvpMatrixHandle;
+        D3DXHANDLE mvMatrixHandle;
+        D3DXHANDLE samplerHandle0, samplerHandle1, samplerHandle2;
+    };
+
+    static int makeDefaultProgramCacheKeyD3D9(const FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding)
+    {
+        return (static_cast<int>(fvf) * 2) + (useReservedLightScaffolding ? 1 : 0);
+    }
+
+    static std::unordered_map<int, DefaultProgramCacheEntryD3D9> &getDefaultProgramCacheD3D9()
+    {
+        static std::unordered_map<int, DefaultProgramCacheEntryD3D9> cache;
+        return cache;
+    }
+
     static const MATRIX &getViewMatrixForLightTargetD3D(const LIGHT_TARGET target)
     {
         const CAMERA &camera = DEVICE::getInstance()->getCamera();
@@ -987,6 +1026,20 @@ namespace mbm
         this->vShader = nullptr;
     }
 
+    void SHADER::clearDefaultProgramCache() noexcept
+    {
+        auto &cache = getDefaultProgramCacheD3D9();
+        for (auto &kv : cache)
+        {
+            DefaultProgramCacheEntryD3D9 &entry = kv.second;
+            if (entry.pd3dPixelShader)  entry.pd3dPixelShader->Release();
+            if (entry.pd3dVertexShader) entry.pd3dVertexShader->Release();
+            if (entry.constantTablePS)  entry.constantTablePS->Release();
+            if (entry.constantTableVS)  entry.constantTableVS->Release();
+        }
+        cache.clear();
+    }
+
     void SHADER::releaseShader()
     {
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1004,6 +1057,39 @@ namespace mbm
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
+
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        D3D_PS_VS *d3dPsVs = static_cast<D3D_PS_VS *>(backendShaderSpecific);
+
+        // Fast path: an earlier instance already compiled+linked this exact (fvf,
+        // useReservedLightScaffolding) combination -- every placement of the same mesh type after
+        // the first hits this branch, skipping HLSL source generation and the real
+        // D3DXCompileShader/CreatePixelShader/CreateVertexShader calls entirely.
+        if (this->usesPureDefaultShaderPair())
+        {
+            const int key = makeDefaultProgramCacheKeyD3D9(fvf, useReservedLightScaffolding);
+            auto &cache = getDefaultProgramCacheD3D9();
+            const auto found = cache.find(key);
+            if (found != cache.end())
+            {
+                const DefaultProgramCacheEntryD3D9 &entry = found->second;
+                if (entry.pd3dPixelShader)  entry.pd3dPixelShader->AddRef();
+                if (entry.pd3dVertexShader) entry.pd3dVertexShader->AddRef();
+                if (entry.constantTablePS)  entry.constantTablePS->AddRef();
+                if (entry.constantTableVS)  entry.constantTableVS->AddRef();
+                d3dPsVs->pd3dPixelShader  = entry.pd3dPixelShader;
+                d3dPsVs->pd3dVertexShader = entry.pd3dVertexShader;
+                d3dPsVs->constantTablePS  = entry.constantTablePS;
+                d3dPsVs->constantTableVS  = entry.constantTableVS;
+                d3dPsVs->mvpMatrixHandle  = entry.mvpMatrixHandle;
+                d3dPsVs->mvMatrixHandle   = entry.mvMatrixHandle;
+                d3dPsVs->samplerHandle0   = entry.samplerHandle0;
+                d3dPsVs->samplerHandle1   = entry.samplerHandle1;
+                d3dPsVs->samplerHandle2   = entry.samplerHandle2;
+                return true;
+            }
+        }
+
         const char *textureDiffuseName =
             getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
         const char *textureNormalName =
@@ -1251,9 +1337,6 @@ namespace mbm
         ID3DXBuffer* bufferVS       = nullptr;
         ID3DXBuffer* errorBuffer    = nullptr;
 
-        void *backendShaderSpecific = getBackendShaderSpecific();
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
-
         const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs.c_str();
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs.c_str();
         const int sizeOfCodePS = strlen(codePS);
@@ -1367,6 +1450,30 @@ namespace mbm
             //    }
             //}
         }
+
+        if (this->usesPureDefaultShaderPair())
+        {
+            DefaultProgramCacheEntryD3D9 entry;
+            entry.pd3dPixelShader  = d3dPsVs->pd3dPixelShader;
+            entry.pd3dVertexShader = d3dPsVs->pd3dVertexShader;
+            entry.constantTablePS  = d3dPsVs->constantTablePS;
+            entry.constantTableVS  = d3dPsVs->constantTableVS;
+            entry.mvpMatrixHandle  = d3dPsVs->mvpMatrixHandle;
+            entry.mvMatrixHandle   = d3dPsVs->mvMatrixHandle;
+            entry.samplerHandle0   = d3dPsVs->samplerHandle0;
+            entry.samplerHandle1   = d3dPsVs->samplerHandle1;
+            entry.samplerHandle2   = d3dPsVs->samplerHandle2;
+            // The cache holds its own reference (separate from this instance's), so the compiled
+            // objects survive even after this instance -- the one that happened to trigger the
+            // compile -- is destroyed; every future placement AddRef()s its own share on a cache hit.
+            if (entry.pd3dPixelShader)  entry.pd3dPixelShader->AddRef();
+            if (entry.pd3dVertexShader) entry.pd3dVertexShader->AddRef();
+            if (entry.constantTablePS)  entry.constantTablePS->AddRef();
+            if (entry.constantTableVS)  entry.constantTableVS->AddRef();
+            const int key = makeDefaultProgramCacheKeyD3D9(fvf, useReservedLightScaffolding);
+            getDefaultProgramCacheD3D9()[key] = entry;
+        }
+
         return true;
     }
 

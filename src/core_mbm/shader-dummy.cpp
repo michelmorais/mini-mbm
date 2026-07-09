@@ -194,6 +194,10 @@ namespace mbm
         REMINDER_TODO
     }
 
+    void SHADER::clearDefaultProgramCache() noexcept
+    {
+    }
+
     void SHADER::releaseShader()
     {
         REMINDER_TODO

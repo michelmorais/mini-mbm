@@ -38,6 +38,42 @@ namespace mbm
     static uint32_t loadShaderProgram(BASE_SHADER* pShader, BASE_SHADER* vShader, void* ptrShaderSpecific, const char* vertShaderSrc, const char* fragShaderSrc);
     static uint32_t compileCodeShader(BASE_SHADER* ptrShader, const unsigned int type, const char* shaderSrc);
 
+    // Process-lifetime cache of compiled "pure default shader pair" programs (no custom .cfg
+    // effect), keyed by the small set of flags that fully determine the generated GLSL source
+    // (see SHADER::compileShader). Every placed instance of the same mesh type would otherwise
+    // recompile and relink byte-identical source from scratch -- cheap on a native GLSL driver,
+    // but tens of ms per compile through ANGLE (the Windows GLES backend), which is what turned
+    // placing 400 copies of one mesh into a multi-second stall on Windows only. Entries are never
+    // evicted during normal operation (same lifetime philosophy as MESH_MANAGER::Impl::lsMeshes /
+    // TEXTURE_MANAGER::Impl::lsTextures) and are only dropped wholesale on GL context loss/restore
+    // (SHADER::clearDefaultProgramCache, called from CORE_MANAGER::onLostDevice), since every
+    // previously compiled program id is invalid -- and may silently be reused for a *different*
+    // program -- once the context is recreated.
+    struct DefaultProgramCacheEntry
+    {
+        GLuint programObject;
+        GLint  positionHandle, texCoordHandle, normalHandle;
+        GLint  mvpMatrixHandle, mvMatrixHandle;
+        GLint  samplerHandle0, samplerHandle1, samplerHandle2, samplerHandle3, samplerHandle4, samplerHandle5;
+    };
+
+    static int makeDefaultProgramCacheKey(const FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding,
+                                           const bool canUsePointLight2D)
+    {
+        return (static_cast<int>(fvf) * 4) + (useReservedLightScaffolding ? 2 : 0) + (canUsePointLight2D ? 1 : 0);
+    }
+
+    static std::unordered_map<int, DefaultProgramCacheEntry> &getDefaultProgramCache()
+    {
+        static std::unordered_map<int, DefaultProgramCacheEntry> cache;
+        return cache;
+    }
+
+    void SHADER::clearDefaultProgramCache() noexcept
+    {
+        getDefaultProgramCache().clear();
+    }
+
     static const MATRIX &getViewMatrixForLightTarget(const LIGHT_TARGET target)
     {
         const CAMERA &camera = DEVICE::getInstance()->getCamera();
@@ -830,7 +866,8 @@ namespace mbm
           samplerHandle3(-1),
           samplerHandle4(-1),
           samplerHandle5(-1),
-          programObject(0)
+          programObject(0),
+          isSharedProgram(false)
     {
 	}
 
@@ -852,11 +889,15 @@ namespace mbm
         samplerHandle3  = -1;
         samplerHandle4  = -1;
         samplerHandle5  = -1;
-        if (programObject)
+        // A shared program is owned by SHADER's process-lifetime default-program cache (see
+        // getDefaultProgramCache()), not by this instance -- deleting it here would leave every
+        // other instance (and the cache itself) holding a dangling program id.
+        if (programObject && !isSharedProgram)
         {
             GLDeleteProgram(programObject);
         }
-        programObject  = 0;
+        programObject   = 0;
+        isSharedProgram = false;
     }
 
     SHADER::SHADER() :
@@ -906,6 +947,40 @@ namespace mbm
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault();
         const bool canUsePointLight2D = useReservedLightScaffolding && (this->vShader == nullptr);
+
+        void *backendShaderSpecific = getBackendShaderSpecific();
+        GLES_PS_VS *gles_shaderSpecific = static_cast<GLES_PS_VS *>(backendShaderSpecific);
+
+        // Fast path: an earlier instance already compiled+linked this exact (fvf,
+        // useReservedLightScaffolding, canUsePointLight2D) combination -- every placement of the
+        // same mesh type after the first hits this branch, skipping GLSL source generation and the
+        // real glCompileShader/glCreateProgram/glLinkProgram calls entirely (see comment on
+        // getDefaultProgramCache() for why this matters on Windows specifically).
+        if (this->usesPureDefaultShaderPair())
+        {
+            const int key = makeDefaultProgramCacheKey(fvf, useReservedLightScaffolding, canUsePointLight2D);
+            auto &cache = getDefaultProgramCache();
+            const auto found = cache.find(key);
+            if (found != cache.end())
+            {
+                const DefaultProgramCacheEntry &entry = found->second;
+                gles_shaderSpecific->programObject   = entry.programObject;
+                gles_shaderSpecific->positionHandle  = entry.positionHandle;
+                gles_shaderSpecific->texCoordHandle  = entry.texCoordHandle;
+                gles_shaderSpecific->normalHandle    = entry.normalHandle;
+                gles_shaderSpecific->mvpMatrixHandle = entry.mvpMatrixHandle;
+                gles_shaderSpecific->mvMatrixHandle  = entry.mvMatrixHandle;
+                gles_shaderSpecific->samplerHandle0  = entry.samplerHandle0;
+                gles_shaderSpecific->samplerHandle1  = entry.samplerHandle1;
+                gles_shaderSpecific->samplerHandle2  = entry.samplerHandle2;
+                gles_shaderSpecific->samplerHandle3  = entry.samplerHandle3;
+                gles_shaderSpecific->samplerHandle4  = entry.samplerHandle4;
+                gles_shaderSpecific->samplerHandle5  = entry.samplerHandle5;
+                gles_shaderSpecific->isSharedProgram = true;
+                return true;
+            }
+        }
+
         const std::string supportedMaxLights = std::to_string(DEFAULT_SUPPORTED_MAX_LIGHTS);
         const char *textureDiffuseName =
             getTextureRoleShaderName(TEXTURE_ROLE_DIFFUSE, SHADER_TEXTURE_NAMING_SEMANTIC_ROLE);
@@ -1155,8 +1230,6 @@ namespace mbm
         if (useReservedLightScaffolding && (hasNormal || hasUV)) defaultCodeVs += " vPositionView = (mvMatrix * aPosition).xyz;";
         if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
         defaultCodeVs += " }";
-        void *backendShaderSpecific = getBackendShaderSpecific();
-        GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(backendShaderSpecific);
         if (gles_shaderSpecific->programObject)
         {
             PRINT_IF_DEBUG("programObject already has a value [%d]", gles_shaderSpecific->programObject);
@@ -1255,6 +1328,30 @@ namespace mbm
             gles_shaderSpecific->samplerHandle5 = GLGetUniformLocation(
                 gles_shaderSpecific->programObject,
                 getTextureRoleShaderName(TEXTURE_ROLE_MASK, textureNaming));
+        }
+
+        if (this->usesPureDefaultShaderPair())
+        {
+            DefaultProgramCacheEntry entry;
+            entry.programObject   = gles_shaderSpecific->programObject;
+            entry.positionHandle  = gles_shaderSpecific->positionHandle;
+            entry.texCoordHandle  = gles_shaderSpecific->texCoordHandle;
+            entry.normalHandle    = gles_shaderSpecific->normalHandle;
+            entry.mvpMatrixHandle = gles_shaderSpecific->mvpMatrixHandle;
+            entry.mvMatrixHandle  = gles_shaderSpecific->mvMatrixHandle;
+            entry.samplerHandle0  = gles_shaderSpecific->samplerHandle0;
+            entry.samplerHandle1  = gles_shaderSpecific->samplerHandle1;
+            entry.samplerHandle2  = gles_shaderSpecific->samplerHandle2;
+            entry.samplerHandle3  = gles_shaderSpecific->samplerHandle3;
+            entry.samplerHandle4  = gles_shaderSpecific->samplerHandle4;
+            entry.samplerHandle5  = gles_shaderSpecific->samplerHandle5;
+            const int key = makeDefaultProgramCacheKey(fvf, useReservedLightScaffolding, canUsePointLight2D);
+            getDefaultProgramCache()[key] = entry;
+            // Ownership of programObject now belongs to the cache for the rest of the process
+            // lifetime -- this instance (the one that happened to trigger the compile) must not
+            // delete it on destruction/onRestore/releaseShader, or every other instance sharing
+            // this program (including future placements) would be left with a dangling id.
+            gles_shaderSpecific->isSharedProgram = true;
         }
 
         return true;
