@@ -213,6 +213,12 @@ namespace mbm
         API_IMPL static MATRIX mvMatrixLightSpace; // modelView x camera view - true view-space matrix uploaded as the "mvMatrix" shader uniform (drives vNormalView/vPositionView)
         API_IMPL static MATRIX mvpMatrix; // ModelView x projection
         API_IMPL static void updateMvpAndLightMatrices(const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix) noexcept;
+        // Clears the backend's process-lifetime cache of compiled default shader programs (see
+        // compileShader's default-shader-pair fast path). Must be called after a GL/device context
+        // is destroyed and recreated (CORE_MANAGER::onLostDevice) -- every previously compiled
+        // program id is invalid (and may be silently reused for a *different* program) once that
+        // happens. No-op on backends that don't cache (DirectX9, Metal, dummy).
+        API_IMPL static void clearDefaultProgramCache() noexcept;
         API_IMPL SHADER();
         API_IMPL virtual ~SHADER();
         API_IMPL void * getBackendShaderSpecific() const noexcept;

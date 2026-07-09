@@ -1047,6 +1047,32 @@ namespace mbm
     // (GLES_PS_VS is private to the OpenGL ES backend. Metal keeps its own
     // Obj-C pipeline holder in MetalShaderObjects.)
 
+    // Process-lifetime cache of compiled "pure default shader pair" Metal pipeline states (no
+    // custom .cfg effect), keyed by the flags that fully determine defaultMSLSource's output
+    // (fvf, useReservedLightScaffolding -- Metal has no canUsePointLight2D concept, same as
+    // DirectX9). Mirrors the caches in shader-opengl_es.cpp / shader-directx9.cpp and fixes the
+    // same symptom: every placed instance of the same mesh type otherwise recompiles+relinks
+    // byte-identical MSL from scratch.
+    //
+    // backendShaderSpecific here IS the compiled object (an MBMPSOPair*, toll-free bridged via
+    // __bridge_retained/CFRelease -- see SHADER::~SHADER() below), so the cache just stores one
+    // extra owned reference to that same object per key, taken right after a successful compile,
+    // separate from whichever instance happened to trigger it. Every instance that shares a cached
+    // entry -- including the one that originally compiled it -- takes its own __bridge_retained
+    // reference and releases it normally via the existing, unmodified CFRelease in
+    // SHADER::~SHADER()/releaseShader(). No new field or flag needed, same as the DirectX9 (COM
+    // refcounted) case and unlike the OpenGL ES backend's raw, non-refcounted GLuint.
+    static int makeDefaultProgramCacheKeyMetal(const FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding)
+    {
+        return (static_cast<int>(fvf) * 2) + (useReservedLightScaffolding ? 1 : 0);
+    }
+
+    static std::unordered_map<int, void*> &getDefaultProgramCacheMetal()
+    {
+        static std::unordered_map<int, void*> cache;
+        return cache;
+    }
+
     // ---- SHADER ----
 
     SHADER::SHADER() :
@@ -1069,6 +1095,17 @@ namespace mbm
     void SHADER::onRestore()
     {
         releaseShader();
+    }
+
+    void SHADER::clearDefaultProgramCache() noexcept
+    {
+        auto &cache = getDefaultProgramCacheMetal();
+        for (auto &kv : cache)
+        {
+            if (kv.second)
+                CFRelease(kv.second);
+        }
+        cache.clear();
     }
 
     void SHADER::releaseShader()
@@ -1101,6 +1138,23 @@ namespace mbm
 
         this->pShader = ptrPshader;
         this->vShader = ptrVshader;
+
+        // Fast path: an earlier instance already compiled+linked this exact (fvf,
+        // useReservedLightScaffolding) combination -- every placement of the same mesh type after
+        // the first hits this branch, skipping MSL source generation and the real
+        // newLibraryWithSource:/PSO-compile calls entirely.
+        if (this->usesPureDefaultShaderPair())
+        {
+            const int key = makeDefaultProgramCacheKeyMetal(fvf, this->shouldCompileReservedLightDefault());
+            auto &cache = getDefaultProgramCacheMetal();
+            const auto found = cache.find(key);
+            if (found != cache.end())
+            {
+                id cachedObj = (__bridge id)found->second;      // borrow, does not consume the cache's own reference
+                setBackendShaderSpecific((__bridge_retained void*)cachedObj); // this instance's own +1 share
+                return true;
+            }
+        }
 
         @autoreleasepool
         {
@@ -1170,6 +1224,17 @@ namespace mbm
             if (!pair.standardPSO || !pair.additivePSO)
                 return false;
             setBackendShaderSpecific((__bridge_retained void*)pair);
+
+            if (this->usesPureDefaultShaderPair())
+            {
+                // The cache takes its own independent +1 reference (separate from the one this
+                // instance just took above) so `pair` survives for the rest of the process lifetime
+                // regardless of which instances come and go; every future placement borrows it and
+                // takes its own +1 share on a cache hit (see the fast path near the top of this
+                // function).
+                const int key = makeDefaultProgramCacheKeyMetal(fvf, this->shouldCompileReservedLightDefault());
+                getDefaultProgramCacheMetal()[key] = (__bridge_retained void*)pair;
+            }
         }
         return true;
     }

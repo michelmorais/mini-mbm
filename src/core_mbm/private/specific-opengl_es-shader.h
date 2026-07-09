@@ -40,6 +40,10 @@ namespace mbm
 
         GLuint programObject;
 
+        // true when programObject is owned by SHADER's process-lifetime default-program cache
+        // (shader-opengl_es.cpp) rather than by this instance -- release() must not delete it.
+        bool isSharedProgram;
+
         GLES_PS_VS() noexcept;
         ~GLES_PS_VS();
         void release() noexcept;

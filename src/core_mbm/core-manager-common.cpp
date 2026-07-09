@@ -37,6 +37,7 @@
 #include <plugin-callback.h>
 #include <dynamic-var.h>
 #include <shader-resource.h>
+#include <shader.h>
 #include <util-interface.h>
 #include <list>
 #include <map>
@@ -1094,6 +1095,14 @@ namespace mbm
 
             constexpr bool wasLostDevice = true;
             this->ReleaseGraphics(wasLostDevice);
+
+            // The GL/device context just went away -- every previously compiled default-shader
+            // program id (see SHADER::compileShader's process-lifetime cache, shader-opengl_es.cpp)
+            // is now invalid, and a freshly created context is free to reuse the same numeric ids
+            // for *different* programs, so a stale cache entry would silently corrupt rendering
+            // rather than just fail. Every RENDERIZABLE already re-runs onRestoreDevice() below,
+            // which re-populates per-instance state; this clears the cross-instance cache itself.
+            SHADER::clearDefaultProgramCache();
 
             if (initGraphics(this->getNameApplication(), width, height, px, py, this->getWindowBorder(), this->getEnableResizeWindow()))
             {
