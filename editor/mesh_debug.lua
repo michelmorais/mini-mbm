@@ -6277,6 +6277,15 @@ end
 -- copy next to the .msh is enough for it to be found -- no need to rewrite the path stored
 -- inside the mesh itself.
 local function copyMeshTexturesToFolder(tEntry, folder, copiedBasenames)
+    -- mbm.getFullPath only finds a bare/relative texture filename if the mesh's own directory
+    -- was already registered as a search path -- which normally only happens lazily, the first
+    -- time this specific entry is previewed (updatePreviewMesh's mbm.addPath(dir) call). A mesh
+    -- loaded via "Load Mesh(s)"/"Load from folder" and never individually opened in the tree
+    -- never gets that registration, so its textures would fail to resolve here. Register it
+    -- explicitly so every entry resolves regardless of whether it was ever previewed.
+    local dir = tEntry.fileName and tEntry.fileName:match('^(.*)[/\\]')
+    if dir then mbm.addPath(dir) end
+
     local copied, failed = 0, 0
     for _, texPath in ipairs(getMeshAllUsedTextures(tEntry)) do
         local baseName = tUtil.getBaseFileName(texPath)
