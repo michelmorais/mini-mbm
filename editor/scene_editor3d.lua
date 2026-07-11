@@ -47,6 +47,11 @@ tWindowsTitle = {
     title_mesh_selector = "mesh_selector_title",
 }
 
+-- Initial width of the "Scene Editor Options" panel (main_tab_bar) -- also the left edge the
+-- Mesh Selector window (drawMeshSelector) is anchored against, so both stay in sync. 312 is the
+-- old 260 widened ~20% per a direct user report that several labels/fields were clipped at 260.
+iMainPanelWidth = 312
+
 sActiveTab            = 'map'  -- 'map' | 'mesh_set' | 'layer'
 bEnableMainTabBar      = true
 sFileNameScene3d       = ''
@@ -1131,7 +1136,10 @@ function updateHoverHighlight(sx, sy)
     end
     local bestIndex, bestDist = nil, math.huge
     for i, tPlaced in ipairs(tPlacedMeshes) do
-        if tPlaced.tObj and tPlaced.tObj:collide(sx, sy) then
+        -- Restricted to the active layer -- hovering (and therefore click/Ctrl+click selecting)
+        -- a mesh that belongs to a different layer would let Rotate/Delete act on it too, which
+        -- is exactly the cross-layer mistake this is meant to prevent.
+        if tPlaced.layerIndex == iSelectedLayer and tPlaced.tObj and tPlaced.tObj:collide(sx, sy) then
             local camPos = camera3d:getPos()
             local dx = tPlaced.tObj.x - camPos.x
             local dy = tPlaced.tObj.y - camPos.y
@@ -1254,7 +1262,10 @@ function finalizeRectSelection(xStart, yStart, xEnd, yEnd)
         return
     end
     for _, tPlaced in ipairs(tPlacedMeshes) do
-        tPlaced.isSelected = tPlaced.tObj ~= nil and isPointInScreenRectAtObjectDepth(
+        -- Restricted to the active layer, same reasoning as updateHoverHighlight above -- a
+        -- rectangle drawn on screen can enclose meshes from other layers too, but only the
+        -- active layer's should end up selected (and therefore actionable by Rotate/Delete).
+        tPlaced.isSelected = tPlaced.layerIndex == iSelectedLayer and tPlaced.tObj ~= nil and isPointInScreenRectAtObjectDepth(
             tPlaced.tObj.x, tPlaced.tObj.y, tPlaced.tObj.z, xStart, yStart, xEnd, yEnd)
     end
 end
@@ -1288,7 +1299,11 @@ end
 function rotateSelectedMeshes(sign)
     local step = math.pi * 0.5
     for _, tPlaced in ipairs(tPlacedMeshes) do
-        if tPlaced.isSelected then
+        -- Restricted to the active layer even though selection is already layer-scoped upstream
+        -- (updateHoverHighlight/finalizeRectSelection) -- the per-mesh "Selected" checkbox in the
+        -- Placed Meshes list (drawLayerTab) can still mark a mesh from another layer selected, and
+        -- this must not act on it.
+        if tPlaced.isSelected and tPlaced.layerIndex == iSelectedLayer then
             tPlaced.rotationY = (tPlaced.rotationY or 0) + sign * step
             syncPlacedMeshTransform(tPlaced)
         end
@@ -1303,7 +1318,7 @@ function showMeshTools()
     if sActiveTab ~= 'layer' then return end
     local iSelectedCount = 0
     for _, tPlaced in ipairs(tPlacedMeshes) do
-        if tPlaced.isSelected then iSelectedCount = iSelectedCount + 1 end
+        if tPlaced.isSelected and tPlaced.layerIndex == iSelectedLayer then iSelectedCount = iSelectedCount + 1 end
     end
     if iSelectedCount == 0 then return end
 
@@ -1326,7 +1341,7 @@ function showMeshTools()
     end
     if tImGui.Button(tLang.L('delete_btn'), tUtil.getResponsiveItemSize(item_width)) then
         for i = #tPlacedMeshes, 1, -1 do
-            if tPlacedMeshes[i].isSelected then removePlacedMesh(i) end
+            if tPlacedMeshes[i].isSelected and tPlacedMeshes[i].layerIndex == iSelectedLayer then removePlacedMesh(i) end
         end
     end
     tToolsMeshSize = tImGui.GetWindowSize()
@@ -2128,6 +2143,19 @@ function drawLayerTab(item_width)
     end
 
     for i, layer in ipairs(tLayers) do
+        -- Visibility toggle lives on the header row (not buried inside the expanded node) so a
+        -- layer can be hidden/shown without expanding it first, matching a typical layer-panel
+        -- eye-toggle convention.
+        local visHdr = tImGui.Checkbox('##layer_visible_hdr' .. i, layer.visible)
+        if visHdr ~= layer.visible then
+            layer.visible = visHdr
+            for _, tPlaced in ipairs(tPlacedMeshes) do
+                if tPlaced.layerIndex == i then
+                    applyPlacedMeshVisibility(tPlaced)
+                end
+            end
+        end
+        tImGui.SameLine()
         local isOpen = tImGui.TreeNodeEx(layer.name .. '##layer_tree' .. i)
         if i == iSelectedLayer then
             tImGui.SameLine()
@@ -2139,16 +2167,6 @@ function drawLayerTab(item_width)
             if tImGui.Button(tLang.L('select') .. '##select_layer' .. i) then
                 iSelectedLayer = i
                 rebuildGridVisual()
-            end
-
-            local vis = tImGui.Checkbox(tLang.L('visible') .. '##layer_visible' .. i, layer.visible)
-            if vis ~= layer.visible then
-                layer.visible = vis
-                for _, tPlaced in ipairs(tPlacedMeshes) do
-                    if tPlaced.layerIndex == i then
-                        applyPlacedMeshVisibility(tPlaced)
-                    end
-                end
             end
 
             local cY, y = tImGui.InputFloat(tLang.L('offset_y') .. '##layer_offset_y' .. i, layer.fY, 1, 10, '%.2f')
@@ -2378,7 +2396,9 @@ end
 
 function main_tab_bar()
     if not bEnableMainTabBar then return end
-    tUtil.setInitialWindowPositionLeft(tLang.L(tWindowsTitle.title_scene3d), 0, 0, 260, 260)
+    -- max_width used to equal the initial width (260, 260), which left the window unable to be
+    -- dragged any wider at all -- a direct user report. Now gives real resize headroom.
+    tUtil.setInitialWindowPositionLeft(tLang.L(tWindowsTitle.title_scene3d), 0, 0, iMainPanelWidth, iMainPanelWidth + 300)
     local isOpen = tImGui.Begin(tLang.L(tWindowsTitle.title_scene3d), true, 0)
     if isOpen then
         local item_width = tUtil.getResponsiveItemWidth(200)
@@ -2406,7 +2426,7 @@ function main_tab_bar()
     applyTabLighting()
 
     if (sActiveTab == 'layer' or sActiveTab == 'mesh_set') and bShowMeshSelector then
-        drawMeshSelector(260)
+        drawMeshSelector(iMainPanelWidth)
     end
 end
 
@@ -2447,18 +2467,24 @@ function main_menu_3d()
 
         if tImGui.BeginMenu(tLang.L('layer_options')) then
             if sActiveTab == 'layer' then
+                -- Select All / Invert are scoped to the active layer only (same reasoning as
+                -- updateHoverHighlight/finalizeRectSelection) -- replaces the whole selection, so
+                -- any stray selection left over in another layer is cleared as a side effect,
+                -- exactly like a plain click/drag-select already does.
                 if tImGui.MenuItem(tLang.L('select_all_meshes'), 'Ctrl+A') then
-                    for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = true end
+                    for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) end
                 end
                 if tImGui.MenuItem(tLang.L('invert_selected_meshes'), 'Ctrl+I') then
-                    for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = not tPlaced.isSelected end
+                    for _, tPlaced in ipairs(tPlacedMeshes) do
+                        tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) and not tPlaced.isSelected
+                    end
                 end
                 if tImGui.MenuItem(tLang.L('unselect_all_meshes'), 'Ctrl+U') then
                     for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = false end
                 end
                 if tImGui.MenuItem(tLang.L('delete_mesh_selected'), 'Delete') then
                     for i = #tPlacedMeshes, 1, -1 do
-                        if tPlacedMeshes[i].isSelected then removePlacedMesh(i) end
+                        if tPlacedMeshes[i].isSelected and tPlacedMeshes[i].layerIndex == iSelectedLayer then removePlacedMesh(i) end
                     end
                 end
             else
@@ -3522,7 +3548,7 @@ function onKeyDown(key)
         onPlay3d()
     elseif key == mbm.getKeyCode('Delete') and sActiveTab == 'layer' then
         for i = #tPlacedMeshes, 1, -1 do
-            if tPlacedMeshes[i].isSelected then removePlacedMesh(i) end
+            if tPlacedMeshes[i].isSelected and tPlacedMeshes[i].layerIndex == iSelectedLayer then removePlacedMesh(i) end
         end
     elseif key == mbm.getKeyCode('esc') and sActiveTab == 'layer' then
         unselectAllPlacedMeshes()
