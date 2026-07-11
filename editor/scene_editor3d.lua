@@ -937,6 +937,9 @@ function processThumbnailQueue()
     tObj:setAngle(0, 0, 0)
     tThumbGenRt:add(tObj)
     local w, h, d = tObj:getAABB(true)
+    -- Cached here (computed once per bake, angle already normalized to (0,0,0) above) so the Mesh
+    -- property tab can show a read-only Width/Height/Depth without loading a second live object.
+    entry.physWidth, entry.physHeight, entry.physDepth = w, h, d
     local fitDist = math.max(w or 50, h or 50, d or 50) * 2.2
     -- Flag (for the Mesh Set / Mesh Selector tooltip) rather than correct: a physics box less than
     -- half the mesh's true largest extent means whatever framed fitDist above is unreliable, and the
@@ -2063,46 +2066,27 @@ function drawMeshSetTab(item_width)
                     end
                 end
             end
-        end
-    end
 
-    tImGui.Separator()
-    local tFiltered = getFilteredMeshSetEntries()
-    local winWidth = tImGui.GetWindowWidth()
-    local xLast = tImGui.GetCursorPosX()
-    for n, entry in ipairs(tFiltered) do
-        local texInfo = getOrCreateThumbnail(entry)
-        local size = {x = 90, y = 90}
-        if texInfo then
-            local selected = (iPreviewedMeshSetIndex == n)
-            if selected then
-                tImGui.PushStyleColor('ImGuiCol_Button', {r = 0, g = 1, b = 0, a = 1})
+            tImGui.Separator()
+            tImGui.Text(tLang.L('mesh_dimensions_fmt'):format(tUtil.getShortName(entry.fileName)))
+            -- Width/Height/Depth are read-only here -- they come straight off the mesh's physics
+            -- box (INFO_PHYSICS::getBounds(), same value the Physics tab authors), not something
+            -- this tab computes or lets you edit. Baked once per entry alongside its thumbnail
+            -- (processThumbnailQueue); getOrCreateThumbnail keeps that bake queued even if the
+            -- Mesh Selector window happens to be hidden right now.
+            getOrCreateThumbnail(entry)
+            if entry.physWidth then
+                tImGui.Text(string.format('%s: %.2f', tLang.L('width'), entry.physWidth))
+                tImGui.Text(string.format('%s: %.2f', tLang.L('height'), entry.physHeight))
+                tImGui.Text(string.format('%s: %.2f', tLang.L('depth'), entry.physDepth))
+                if entry.physicsBoundsSuspect then
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.7, b = 0, a = 1})
+                    tImGui.TextWrapped(tLang.L('thumb_physics_bounds_warning'))
+                    tImGui.PopStyleColor(1)
+                end
+            else
+                tImGui.TextDisabled(tLang.L('dimensions_computing'))
             end
-            if tImGui.ImageButton('mesh_set_btn_' .. n, texInfo, size, {x = 0, y = 0}, {x = 1, y = 1}) then
-                iPreviewedMeshSetIndex = n
-                updatePreviewMesh3d(entry)
-            end
-            if selected then
-                tImGui.PopStyleColor(1)
-            end
-        else
-            tImGui.Button(tLang.L('generating') .. '##pending' .. n, size)
-        end
-        if tImGui.IsItemHovered(0) then
-            tImGui.BeginTooltip()
-            tImGui.Text(tUtil.getShortName(entry.fileName))
-            if entry.physicsBoundsSuspect then
-                tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.7, b = 0, a = 1})
-                tImGui.TextWrapped(tLang.L('thumb_physics_bounds_warning'))
-                tImGui.PopStyleColor(1)
-            end
-            tImGui.EndTooltip()
-        end
-        xLast = xLast + size.x + 10
-        if xLast < winWidth - size.x then
-            tImGui.SameLine()
-        else
-            xLast = tImGui.GetCursorPosX()
         end
     end
 end
@@ -2225,25 +2209,57 @@ function drawLayerTab(item_width)
     end
 end
 
+-- Placed meshes currently selected in the 3D view (Shift+drag rectangle, click, Ctrl+click)
+-- are tracked per-instance via tPlaced.isSelected; this collapses that into a fileName -> true
+-- lookup so drawMeshSelector can highlight every Mesh Selector entry that has at least one
+-- selected instance in the scene, independent of sMeshSelectedForPlacement (the separate
+-- "next mesh to place" selection).
+function getSceneSelectedFileNames()
+    local tSelected = {}
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.isSelected then tSelected[tPlaced.fileName] = true end
+    end
+    return tSelected
+end
+
 function drawMeshSelector(xStart)
     tUtil.setInitialWindowPositionDown(tLang.L(tWindowsTitle.title_mesh_selector), xStart + 25, 0.3, 180)
     local isOpen, closedClicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_selector), true, 0)
     if isOpen then
         local tFiltered = getFilteredMeshSetEntries()
+        local tSceneSelected = getSceneSelectedFileNames()
         local winWidth = tImGui.GetWindowWidth()
         local xLast = tImGui.GetCursorPosX()
         for n, entry in ipairs(tFiltered) do
             local texInfo = getOrCreateThumbnail(entry)
             local size = {x = iSizeMeshOnSelector, y = iSizeMeshOnSelector}
             if texInfo then
-                local selected = (sMeshSelectedForPlacement == entry.fileName)
-                if selected then
-                    tImGui.PushStyleColor('ImGuiCol_Button', {r = 0, g = 1, b = 0, a = 1})
+                -- On the Mesh property tab this window doubles as that tab's own inline picker
+                -- (iPreviewedMeshSetIndex / updatePreviewMesh3d) rather than the Layer tab's
+                -- click-to-place target, so both the highlight and the click handler track
+                -- whichever selection is meaningful for the active tab.
+                local activeForPlacement = (sMeshSelectedForPlacement == entry.fileName)
+                local activeForPreview = (sActiveTab == 'mesh_set' and iPreviewedMeshSetIndex == n)
+                local selectedInScene = tSceneSelected[entry.fileName] == true
+                local highlight = nil
+                if selectedInScene and (activeForPlacement or activeForPreview) then
+                    highlight = {r = 0, g = 1, b = 1, a = 1}
+                elseif activeForPlacement or activeForPreview then
+                    highlight = {r = 0, g = 1, b = 0, a = 1}
+                elseif selectedInScene then
+                    highlight = {r = 1, g = 0.55, b = 0, a = 1}
+                end
+                if highlight then
+                    tImGui.PushStyleColor('ImGuiCol_Button', highlight)
                 end
                 if tImGui.ImageButton('mesh_selector_btn_' .. n, texInfo, size, {x = 0, y = 0}, {x = 1, y = 1}) then
                     sMeshSelectedForPlacement = entry.fileName
+                    if sActiveTab == 'mesh_set' then
+                        iPreviewedMeshSetIndex = n
+                        updatePreviewMesh3d(entry)
+                    end
                 end
-                if selected then
+                if highlight then
                     tImGui.PopStyleColor(1)
                 end
                 if tImGui.IsItemHovered(0) then
@@ -2296,7 +2312,10 @@ function fillActiveLayerWithMesh(fileName)
 end
 
 function menuPopUpOptionToAddMesh()
-    if sMeshSelectedForPlacement then
+    -- "Fill layer" is a Map edition (Layer tab) action against the active grid -- keep it out of
+    -- reach while the Mesh Selector is showing on the Mesh property tab, where there's no grid in
+    -- view and a stray right-click shouldn't silently bulk-edit the layer the user isn't looking at.
+    if sActiveTab == 'layer' and sMeshSelectedForPlacement then
         if tImGui.BeginPopupContextVoid('##fill_layer_menu', ImGuiPopupFlags_MouseButtonRight) then
             if tMapOptions.sMapType ~= 'Free' then
                 if tImGui.Selectable(tLang.L('fill_layer_with_selected_mesh')) then
@@ -2355,7 +2374,7 @@ function main_tab_bar()
 
     applyTabLighting()
 
-    if sActiveTab == 'layer' and bShowMeshSelector then
+    if (sActiveTab == 'layer' or sActiveTab == 'mesh_set') and bShowMeshSelector then
         drawMeshSelector(260)
     end
 end
