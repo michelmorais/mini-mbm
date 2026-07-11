@@ -512,9 +512,21 @@ function getMapRotationRad()
     return tMapOptions.sMapType == 'Isometric' and (math.pi * 0.25) or 0
 end
 
+-- "Half X/Z offset for each odd line" staggers alternate rows/columns by half a cell -- the
+-- classic brick-wall pattern -- applied here in local (pre-rotation) grid space so Isometric's
+-- 45-degree rotation carries the stagger along with it, same as the base cell lattice itself.
+-- X staggers by row (odd cz, so an entire row of constant Z shifts sideways on X); Z staggers by
+-- column (odd cx, so an entire column of constant X shifts on Z) -- two independent perpendicular
+-- directions, matching Tiled's stagger-X vs stagger-Y convention, rather than one shared axis.
 function gridCellToWorld(cx, cz, layer)
     local lx = cx * tMapOptions.fGridCellWidthX
     local lz = cz * tMapOptions.fGridCellDepthZ
+    if layer.bHalfOffsetX and (cz % 2 ~= 0) then
+        lx = lx + tMapOptions.fGridCellWidthX * 0.5
+    end
+    if layer.bHalfOffsetZ and (cx % 2 ~= 0) then
+        lz = lz + tMapOptions.fGridCellDepthZ * 0.5
+    end
     local rot = getMapRotationRad()
     local cosr, sinr = math.cos(rot), math.sin(rot)
     local x = lx * cosr - lz * sinr + layer.offset.x
@@ -2103,7 +2115,10 @@ end
 ------------------------------------------------------------------------------------------------------------------
 
 function addLayer()
-    table.insert(tLayers, { name = 'Layer-' .. (#tLayers + 1), visible = true, fY = 0, offset = {x = 0, z = 0} })
+    table.insert(tLayers, {
+        name = 'Layer-' .. (#tLayers + 1), visible = true, fY = 0, offset = {x = 0, z = 0},
+        bHalfOffsetX = false, bHalfOffsetZ = false,
+    })
     iSelectedLayer = #tLayers
 end
 
@@ -2149,6 +2164,22 @@ function drawLayerTab(item_width)
                     end
                 end
                 rebuildGridVisual()
+            end
+
+            -- Brick-wall stagger only makes sense against the integer cell lattice (Orthogonal/
+            -- Isometric) -- Free mode has no cellX/cellZ "line" to key off of.
+            if tMapOptions.sMapType ~= 'Free' then
+                local hx = tImGui.Checkbox(tLang.L('half_offset_x_odd_line') .. '##layer_half_x' .. i, layer.bHalfOffsetX)
+                local hz = tImGui.Checkbox(tLang.L('half_offset_z_odd_line') .. '##layer_half_z' .. i, layer.bHalfOffsetZ)
+                if hx ~= layer.bHalfOffsetX or hz ~= layer.bHalfOffsetZ then
+                    layer.bHalfOffsetX = hx
+                    layer.bHalfOffsetZ = hz
+                    for _, tPlaced in ipairs(tPlacedMeshes) do
+                        if tPlaced.layerIndex == i then
+                            syncPlacedMeshTransform(tPlaced)
+                        end
+                    end
+                end
             end
 
             if tImGui.Button(tLang.L('delete_layer') .. '##layer_del' .. i) then
@@ -2990,6 +3021,7 @@ function applyLoadedScene3d(tLoaded)
             table.insert(tLayers, {
                 name = l.name, visible = l.visible, fY = l.fY,
                 offset = {x = l.offset.x, z = l.offset.z},
+                bHalfOffsetX = l.bHalfOffsetX or false, bHalfOffsetZ = l.bHalfOffsetZ or false,
             })
         end
     else
