@@ -231,6 +231,10 @@ function onInitScene()
         iLargeMeshMode = 1,
         tRunResults = {},
     }
+    tMixamoGuideState = {
+        bOpen = false,
+        bOpenPopup = false,
+    }
     tEditorLightUi = {}
 end
 
@@ -1728,6 +1732,12 @@ local function onOpenBlenderImportDialog()
     st.bStatusOk = true
 end
 
+local function onOpenMixamoGuideDialog()
+    local st = tMixamoGuideState
+    st.bOpen = true
+    st.bOpenPopup = true
+end
+
 getBlenderImportOptionsForRow = function(row)
     local anim = ensureBlenderAnimSettings(row)
     if anim.bEnableAnimation and canBakeBlenderAnimation(anim) then
@@ -2299,6 +2309,61 @@ local function showBlenderAnimationSettingsPopup(st)
     if tImGui.Button(tLang.L('blender_import_btn_close')) then
         tImGui.CloseCurrentPopup()
     end
+    tImGui.EndPopup()
+end
+
+local function openUrlInBrowser(url)
+    if mbm.is('windows') then
+        os.execute('start "" "' .. url .. '"')
+    elseif mbm.is('linux') then
+        os.execute('sensible-browser "' .. url .. '"')
+    elseif mbm.is('macos') then
+        os.execute('open "' .. url .. '"')
+    end
+end
+
+function showMixamoGuideDialog()
+    local st = tMixamoGuideState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup('mixamo_guide_modal')
+        st.bOpenPopup = false
+    end
+
+    local iW, iH = mbm.getRealSizeScreen()
+    local maxW = math.max(420, iW - 40)
+    local maxH = math.max(260, iH - 60)
+    local initialW = math.min(620, maxW)
+    local initialH = math.min(520, maxH)
+    tImGui.SetNextWindowSizeConstraints({x=420, y=260}, {x=maxW, y=maxH})
+    tImGui.SetNextWindowSize({x=initialW, y=initialH}, tImGui.Flags('ImGuiCond_Appearing'))
+    local isOpen, _ = tImGui.BeginPopupModal(tLang.L('mixamo_guide_title') .. '###mixamo_guide_modal', false, 0)
+    if not isOpen then return end
+
+    tImGui.TextWrapped(tLang.L('mixamo_guide_intro'))
+    tImGui.Separator()
+    tImGui.TextWrapped(tLang.L('mixamo_guide_step1'))
+    tImGui.TextWrapped(tLang.L('mixamo_guide_step2'))
+    tImGui.TextWrapped(tLang.L('mixamo_guide_step3'))
+    tImGui.TextWrapped(tLang.L('mixamo_guide_step4'))
+    tImGui.TextWrapped(tLang.L('mixamo_guide_step5'))
+    tImGui.TextWrapped(tLang.L('mixamo_guide_step6'))
+    tImGui.Separator()
+    tImGui.PushStyleColor('ImGuiCol_Text', {r=0.8, g=0.8, b=0.3, a=1})
+    tImGui.TextWrapped(tLang.L('mixamo_guide_note'))
+    tImGui.PopStyleColor()
+    tImGui.Separator()
+
+    if tImGui.Button(tLang.L('mixamo_guide_btn_open')) then
+        openUrlInBrowser('https://www.mixamo.com')
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('mixamo_guide_btn_close')) then
+        st.bOpen = false
+        tImGui.CloseCurrentPopup()
+    end
+
     tImGui.EndPopup()
 end
 
@@ -7535,6 +7600,9 @@ function main_menu_mesh_debug()
                 onSaveAllToFolder()
             end
             tImGui.Separator()
+            if tImGui.MenuItem(tLang.L('mixamo_guide_menu')) then
+                onOpenMixamoGuideDialog()
+            end
             if tImGui.MenuItem(tLang.L('import_via_blender')) then
                 onOpenBlenderImportDialog()
             end
@@ -8427,6 +8495,7 @@ end
 
 function onLoop(delta)
     main_menu_mesh_debug()
+    showMixamoGuideDialog()
     showBlenderImportDialog()
     showCameraWindow()
     showLightWindow()
