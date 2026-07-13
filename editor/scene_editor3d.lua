@@ -556,8 +556,24 @@ function worldToGridCell(wx, wz, layer)
     local cosr, sinr = math.cos(rot), math.sin(rot)
     local localX = lx * cosr - lz * sinr
     local localZ = lx * sinr + lz * cosr
-    local cx = math.floor(localX / tMapOptions.fGridCellWidthX + 0.5)
-    local cz = math.floor(localZ / tMapOptions.fGridCellDepthZ + 0.5)
+    local w, d = tMapOptions.fGridCellWidthX, tMapOptions.fGridCellDepthZ
+    -- gridCellToWorld's half-offset stagger is mutually dependent -- X's offset keys off cz's
+    -- parity, Z's keys off cx's parity -- so it can't be undone with a single division like the
+    -- unstaggered case above. This was the real bug behind the hover-highlight/click-placement
+    -- landing in the wrong cell whenever "Half X/Z offset for each odd line" was on: the forward
+    -- placement math (gridCellToWorld) staggered alternate rows/columns, but this inverse never
+    -- accounted for that shift at all. Fixed with a short fixed-point pass: start from the
+    -- unstaggered guess, then alternately re-derive each axis using the other's latest parity --
+    -- converges within a couple of iterations since the correction is a fixed +/- half cell, never
+    -- a moving target.
+    local cx = math.floor(localX / w + 0.5)
+    local cz = math.floor(localZ / d + 0.5)
+    for _ = 1, 3 do
+        local adjX = (layer.bHalfOffsetX and (cz % 2 ~= 0)) and (w * 0.5) or 0
+        local adjZ = (layer.bHalfOffsetZ and (cx % 2 ~= 0)) and (d * 0.5) or 0
+        cx = math.floor((localX - adjX) / w + 0.5)
+        cz = math.floor((localZ - adjZ) / d + 0.5)
+    end
     return cx, cz
 end
 
