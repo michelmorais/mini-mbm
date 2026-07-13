@@ -79,8 +79,12 @@ tMapOptions = {
     iGridCountX      = 20,
     iGridCountZ      = 20,
     sSnapScaleMode   = 'none',
-    bShowGrid        = true,
 }
+
+-- Grid visibility is per-tab, same pattern as tCamByTab -- Main Scene has no layer/mesh placement
+-- of its own to snap to, so it starts hidden there; Map edition/Mesh property keep the grid on
+-- like before.
+tShowGridByTab = { map = false, mesh_set = true, layer = true }
 
 -- ---- Layers ----
 tLayers        = {}
@@ -150,7 +154,9 @@ tToolsMeshSize     = { x = 0, y = 0 }
 
 -- ---- Origin lines ----
 tOriginLine3dX, tOriginLine3dY, tOriginLine3dZ = nil, nil, nil
-bEnableOriginLines = true
+-- Per-tab like tShowGridByTab/tCamByTab -- Main Scene starts hidden, Map edition/Mesh property
+-- keep the old always-on default.
+tShowOriginByTab = { map = false, mesh_set = true, layer = true }
 
 -- ---- Grid visual ----
 tGridLines = {}
@@ -159,7 +165,10 @@ tGridLines = {}
 -- Colors are 0.0-1.0 floats (ImGui ColorEdit4 range and what mbm.setAmbientLight/etc. actually
 -- expect/clamp to internally) -- NOT 0-255, despite some docs/lua-api.md examples suggesting otherwise.
 tLightConfig = {
-    bEnabled          = false,
+    -- On by default -- currentTabWantsLightOn() already ANDs this with sActiveTab == 'map', so
+    -- this only takes effect on the Main Scene tab (sActiveTab's own initial value); Mesh
+    -- property/Map edition stay unlit by default regardless, same as before.
+    bEnabled          = true,
     ambientColor      = {r = 0.12, g = 0.12, b = 0.16, a = 1},
     directionalColor  = {r = 1, g = 0.98, b = 0.9, a = 1},
     directionalDir    = {x = 0, y = -1, z = 0.3},
@@ -698,8 +707,8 @@ end
 function rebuildGridVisual()
     -- Free mode still shows the grid (it just skips snapping when placing) -- the grid also
     -- borders Free-mode placement now, so hiding it there would leave that border invisible.
-    -- Only the explicit "Show Grid" checkbox and having an active layer hide it.
-    if not tMapOptions.bShowGrid or iSelectedLayer == 0 then
+    -- Only the active tab's own "Show Grid" toggle and having an active layer hide it.
+    if not tShowGridByTab[sActiveTab] or iSelectedLayer == 0 then
         ensureGridLinePoolSize(0)
         return
     end
@@ -1534,6 +1543,46 @@ function onAddMeshDirect()
     end
 end
 
+-- Registers every recognized asset file directly inside `dir` (flat, non-recursive, same
+-- directory-listing approach as scanMeshSetFolder) into the Mesh Set inventory via
+-- registerMeshSetEntry. Unlike scanMeshSetFolder (which REPLACES the "Mesh Set Folder" browser's
+-- whole list with whatever the folder currently holds), this is purely additive -- dedup is
+-- registerMeshSetEntry's own job -- so it can be called repeatedly across several folders without
+-- losing anything already registered. Non-asset files are skipped silently (a folder routinely
+-- contains files that aren't meshes); returns the last entry successfully registered, or nil.
+function registerMeshesFromFolder(dir)
+    if not dir or dir == '' then return nil end
+    local sep = package.config:sub(1, 1)
+    local cmd = sep == '\\' and string.format('dir "%s" /b', dir) or string.format('ls -1 "%s"', dir)
+    local fp = io.popen(cmd)
+    if not fp then return nil end
+
+    local lastEntry = nil
+    for line in fp:lines() do
+        if line and #line > 0 then
+            local entry = registerMeshSetEntry(dir .. sep .. line)
+            if entry then lastEntry = entry end
+        end
+    end
+    fp:close()
+    return lastEntry
+end
+
+-- Folder counterpart to onAddMeshDirect: lets the user pick a folder directly (instead of
+-- individual files) and registers every recognized asset in it into the Mesh Set inventory.
+function onAddMeshFromFolder()
+    local chosen = mbm.openFolder(tLang.L('choose_folder'), sLastMeshAddDir ~= '' and sLastMeshAddDir or sMeshSetFolder)
+    if not chosen then return end
+    sLastMeshAddDir = chosen
+
+    local lastEntry = registerMeshesFromFolder(chosen)
+    if lastEntry then
+        sMeshSelectedForPlacement = lastEntry.fileName
+    else
+        tUtil.showMessageWarn(tLang.L('failed_to_add_mesh'))
+    end
+end
+
 ------------------------------------------------------------------------------------------------------------------
 -- Map-tab "Object Option" markers
 ------------------------------------------------------------------------------------------------------------------
@@ -1885,12 +1934,6 @@ function drawMapTab(item_width)
         applyPlacedMeshWorldPositions(tSnapshots) -- AFTER, so worldToGridCell uses the new mode's rotation
         rebuildGridVisual()
         resyncAllPlacedMeshes()
-    end
-
-    local showGrid = tImGui.Checkbox(tLang.L('show_grid') .. '##ShowGrid', tMapOptions.bShowGrid)
-    if showGrid ~= tMapOptions.bShowGrid then
-        tMapOptions.bShowGrid = showGrid
-        rebuildGridVisual()
     end
 
     -- Cell size of 0 (or negative) is not just meaningless, it's a division-by-zero hazard in
@@ -2392,6 +2435,14 @@ function setActiveTab(sTab)
         tPreviewMesh3d.visible = (sTab == 'mesh_set')
     end
     updateAllPlacedMeshVisibility()
+    -- Grid/origin-lines visibility is per-tab (tShowGridByTab/tShowOriginByTab) -- re-apply the
+    -- newly active tab's own flags, since these are real scene objects/line pools that keep
+    -- whatever visibility the previously active tab last left them at otherwise.
+    rebuildGridVisual()
+    local showOrigin = tShowOriginByTab[sTab]
+    if tOriginLine3dX then tOriginLine3dX.visible = showOrigin end
+    if tOriginLine3dY then tOriginLine3dY.visible = showOrigin end
+    if tOriginLine3dZ then tOriginLine3dZ.visible = showOrigin end
 end
 
 function main_tab_bar()
@@ -2459,6 +2510,9 @@ function main_menu_3d()
         end
 
         if tImGui.BeginMenu(tLang.L('menu_mesh')) then
+            if tImGui.MenuItem(tLang.L('add_mesh_from_folder')) then
+                onAddMeshFromFolder()
+            end
             if tImGui.MenuItem(tLang.L('add_mesh'), 'Ctrl+M') then
                 onAddMeshDirect()
             end
@@ -2605,9 +2659,17 @@ function main_menu_3d()
             if show ~= bEnableMainTabBar then bEnableMainTabBar = show end
 
             tImGui.Separator()
-            local origin = tImGui.Checkbox(tLang.L('enable_origin_lines'), bEnableOriginLines)
-            if origin ~= bEnableOriginLines then
-                bEnableOriginLines = origin
+            -- Grid/origin-lines visibility is per-tab (tShowGridByTab/tShowOriginByTab) -- this
+            -- menu is drawn every frame regardless of which tab is active, so it always reads/
+            -- writes whichever tab's own flag is current (sActiveTab), same as the orbit camera.
+            local showGrid = tImGui.Checkbox(tLang.L('show_grid') .. '##ShowGrid', tShowGridByTab[sActiveTab])
+            if showGrid ~= tShowGridByTab[sActiveTab] then
+                tShowGridByTab[sActiveTab] = showGrid
+                rebuildGridVisual()
+            end
+            local origin = tImGui.Checkbox(tLang.L('enable_origin_lines'), tShowOriginByTab[sActiveTab])
+            if origin ~= tShowOriginByTab[sActiveTab] then
+                tShowOriginByTab[sActiveTab] = origin
                 if tOriginLine3dX then tOriginLine3dX.visible = origin end
                 if tOriginLine3dY then tOriginLine3dY.visible = origin end
                 if tOriginLine3dZ then tOriginLine3dZ.visible = origin end
@@ -2974,6 +3036,9 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
     if not bIsExport then
         writeSavedTable('tScene3d.tMapOptions', tMapOptions)
         writeSavedTable('tScene3d.tLayers', tLayers)
+        -- Mesh Set tab's asset-browser root (Mesh Set Folder) -- editor-authoring-only, same as
+        -- tMapOptions/tLayers/tCamByTab above, so it has no place in an Export'd game-facing file.
+        writeSavedTable('tScene3d.sMeshSetFolder', sMeshSetFolder)
         writeSavedTable('tScene3d.tOptionsEditor', {
             iIndexResolution        = tOptionsEditor.iIndexResolution,
             bInvertResolution       = tOptionsEditor.bInvertResolution,
@@ -3056,6 +3121,32 @@ function applyLoadedScene3d(tLoaded)
     iSelectedLayer = #tLayers > 0 and 1 or 0
     rebuildGridVisual() -- grid must reflect the just-restored tMapOptions/tLayers before placing meshes
 
+    -- Mesh Set tab's asset-browser root -- old-format files have no such key, so this simply
+    -- leaves whatever the current session already has. Re-scan it now, BEFORE the placed-mesh
+    -- loop below (which registers additional entries straight from tPlacedMeshInfo), so the
+    -- Mesh Set / Mesh Selector panels start from the same folder listing the scene was saved
+    -- with, without losing that loop's own "still show placed meshes even if the folder isn't
+    -- reachable" guarantee (registerMeshSetEntry dedups, so entries from both sources merge).
+    sMeshSetFolder = tLoaded.sMeshSetFolder or sMeshSetFolder
+    scanMeshSetFolder(sMeshSetFolder)
+
+    -- Also treat every folder a placed mesh actually came from as "known" and register everything
+    -- in it, not just the placed file itself -- a scene may place only one or two assets out of a
+    -- whole pack (e.g. one hex tile repeated hundreds of times to fill a grid) while the rest of
+    -- that pack was still being actively browsed/used to build the scene, and should still be
+    -- there to keep building with after a reload, exactly as if it had just been browsed again.
+    -- Editor-only convenience: writeScene3d still only ever writes the placed instances themselves
+    -- (tPlacedMeshInfo below), never a whole-folder listing, so Export/the shipped game scene is
+    -- unaffected -- it keeps including only the meshes actually used.
+    local tScannedDirs = {}
+    for _, tInfo in ipairs(tLoaded.tPlacedMeshInfo or {}) do
+        local dir = dirOf(tInfo.fileName)
+        if dir ~= '' and not tScannedDirs[dir] then
+            tScannedDirs[dir] = true
+            registerMeshesFromFolder(dir)
+        end
+    end
+
     -- Synchronous on purpose: firing loadAsync for every placed mesh back-to-back (hundreds of
     -- concurrent in-flight requests, common for a large fill-the-grid scene) reproducibly crashes
     -- the process (SIGSEGV inside the Lua registry lookup in mesh-lua.cpp's async callback, hit
@@ -3072,9 +3163,10 @@ function applyLoadedScene3d(tLoaded)
         tPlaced.freeY = tInfo.freeY or tInfo.y
         tPlaced.rotationY = tInfo.rotationY
         tPlaced.scale = {x = tInfo.sx, y = tInfo.sy, z = tInfo.sz}
-        -- Mesh Set / Mesh Selector panels are populated by browsing a folder, which a load never
-        -- did -- register every placed mesh's file directly so both panels show what's actually
-        -- in the scene, independent of whether the original asset folder is even reachable.
+        -- Belt-and-suspenders on top of the per-folder registerMeshesFromFolder scan above (which
+        -- covers the common case): register this exact placed file directly too, so it still shows
+        -- up in the Mesh Set / Mesh Selector panels even if its folder listing failed/was partial
+        -- (e.g. a permissions issue) or its path doesn't resolve to a real directory at all.
         registerMeshSetEntry(tInfo.fileName)
         -- addPlacedMesh's synchronous path already positioned tObj using its own hardcoded
         -- defaults (bAttachedToLayer=true, freeY=0, rotationY=0, scale={1,1,1}) before returning --
@@ -3318,6 +3410,12 @@ function onInitScene()
     tOriginLine3dZ = line:new('3d', 0, 0, 0)
     tOriginLine3dZ:add({0, 0, -999999, 0, 0, 999999})
     tOriginLine3dZ:setColor(0, 0, 1, 1)
+    -- Origin lines default to visible=true (line:new) -- apply the active tab's own default
+    -- (tShowOriginByTab) right away, since sActiveTab is 'map' here and Main Scene now starts hidden.
+    local showOriginInit = tShowOriginByTab[sActiveTab]
+    tOriginLine3dX.visible = showOriginInit
+    tOriginLine3dY.visible = showOriginInit
+    tOriginLine3dZ.visible = showOriginInit
 
     lnRectSelection = line:new('2ds')
     lnRectSelection:add({0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
@@ -3588,6 +3686,18 @@ function onKeyDown(key)
         keyControlPressed = true
     elseif key == mbm.getKeyCode('F5') then
         onPlay3d()
+    elseif keyControlPressed and key == mbm.getKeyCode('S') then
+        onSaveScene3d()
+    -- Select All / Invert / Unselect All mirror the Layer Options menu items of the same name
+    -- (main_menu_3d) -- scoped to the active layer only, same reasoning as those menu actions.
+    elseif keyControlPressed and key == mbm.getKeyCode('A') and sActiveTab == 'layer' then
+        for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) end
+    elseif keyControlPressed and key == mbm.getKeyCode('I') and sActiveTab == 'layer' then
+        for _, tPlaced in ipairs(tPlacedMeshes) do
+            tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) and not tPlaced.isSelected
+        end
+    elseif keyControlPressed and key == mbm.getKeyCode('U') and sActiveTab == 'layer' then
+        unselectAllPlacedMeshes()
     elseif key == mbm.getKeyCode('Delete') and sActiveTab == 'layer' then
         for i = #tPlacedMeshes, 1, -1 do
             if tPlacedMeshes[i].isSelected and tPlacedMeshes[i].layerIndex == iSelectedLayer then removePlacedMesh(i) end
