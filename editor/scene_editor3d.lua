@@ -943,7 +943,18 @@ function processThumbnailQueue()
         tThumbGenRt = render2texture:new('3d', 0, -1000000, 0)
         tThumbGenRt.alwaysRender = true
     end
-    local ok = tThumbGenRt:create(160, 160, true, 'thumb_gen_' .. tostring(entry.fileName))
+    -- A fixed nickname, not one derived from entry.fileName: tThumbGenRt is a single scratch
+    -- render target reused for every bake (RENDER_2_TEXTURE::load only ever allocates its real
+    -- FBO/texture once per object -- every later :create() call here is a no-op that returns the
+    -- same one), so the nickname only ever matters for the very first bake of the session anyway.
+    -- A path-derived nickname was actively dangerous: TEXTURE_MANAGER::createTextureRenderTarget
+    -- caches by util::getBaseName(nickName), which returns only the text after the LAST path
+    -- separator -- since entry.fileName is a full path, that silently discarded the "thumb_gen_"
+    -- prefix and left just the mesh's bare filename (e.g. "hex_grass.msh") as the real cache key,
+    -- so two same-named meshes from different folders could collide and hand this render target
+    -- someone else's cached texture, leaving its own idTextureDynamic never actually set (the
+    -- "texture is not created!" failure later out of saveAsPNG).
+    local ok = tThumbGenRt:create(160, 160, true, 'scene3d_editor_thumb_gen_scratch')
     if not ok then
         entry.thumbState = 'failed'
         return
