@@ -1010,13 +1010,21 @@ function tickThumbnailBake()
     if tThumbGenActive.framesWaited < 3 then
         return
     end
-    local pngPath = sThumbnailCacheDir .. tUtil.getShortName(tThumbGenActive.entry.fileName) .. '.png'
+    -- Strip the asset's own extension first -- tUtil.getShortName keeps it (e.g. "hex_grass.msh"),
+    -- and any Mesh Set entry that's itself a plain texture file (scanMeshSetFolder registers every
+    -- recognized file in the folder, not just meshes) already ends in ".png"; appending another
+    -- ".png" on top of that produced "grass_top.png.png".
+    local baseName = tUtil.getShortName(tThumbGenActive.entry.fileName):gsub('%.[^.]*$', '')
+    local pngPath = sThumbnailCacheDir .. baseName .. '.png'
     tThumbGenRt:save(pngPath, 0, 0, 160, 160)
     tThumbGenRt:remove(tThumbGenActive.tObj)
     tThumbGenActive.tObj:destroy()
     local texInfo = mbm.loadTexture(pngPath)
     tThumbnailCache[tThumbGenActive.entry.fileName] = texInfo
-    tThumbGenActive.entry.thumbState = 'ready'
+    -- Marking 'ready' when texInfo is actually nil would permanently mask a real bake/load
+    -- failure as success (getOrCreateThumbnail only re-queues when thumbState == nil) -- the
+    -- entry would then silently show no thumbnail forever instead of surfacing the failure.
+    tThumbGenActive.entry.thumbState = texInfo and 'ready' or 'failed'
     tThumbGenActive = nil
 end
 
@@ -1514,7 +1522,7 @@ end
 -- the Layer tab's Mesh Selector (pick the asset there, then click in the scene to place it).
 function onAddMeshDirect()
     local fileName = mbm.openMultiFile(sLastMeshAddDir,
-        'tile', 'spt', 'ptl', 'png', 'msh', 'fnt', 'jpeg', 'jpg', 'bmp', 'gif', 'psd', 'pic', 'pnm', 'hdr', 'tga', 'tif')
+        'tile', 'spt', 'ptl', 'msh', 'fnt', 'gif')
     if not fileName then return end
 
     local lastEntry = nil
@@ -3189,6 +3197,17 @@ function applyLoadedScene3d(tLoaded)
     -- itself needs no re-aliasing here: main_tab_bar() re-derives `cam3d = tCamByTab[sTab]` every
     -- frame regardless.
     tCamByTab = tLoaded.tCamByTab or tCamByTab
+
+    -- Thumbnails otherwise only get (re)queued the first time drawMeshSelector/the Properties tab
+    -- actually draws an entry (getOrCreateThumbnail) -- and the tab this scene lands on right after
+    -- load is 'map', which shows neither. The on-disk PNG cache also lives under the OS temp dir
+    -- (onInitScene) and does not survive a reboot, so every entry here starts this session with
+    -- thumbState == nil regardless of whether it was baked before. Queue them all now so baking is
+    -- already under way by the time the user switches to a tab that displays them, instead of
+    -- looking like the thumbnails are simply gone.
+    for _, entry in ipairs(tMeshSetEntries) do
+        getOrCreateThumbnail(entry)
+    end
 end
 
 function onOpenScene3d()
