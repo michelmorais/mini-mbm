@@ -3358,10 +3358,52 @@ function onLoop(delta)
     -- already computes screenWidth - width internally) -- passing x = -width here (as before)
     -- double-shifted it an extra `width` in from the edge, which is why "almost its own width"
     -- was missing on the right. x = 0 sits it flush against the edge.
-    tUtil.setInitialWindowPositionRight(tLang.L('mesh_preview_orbit'), 0, 0, 160, 160, 160)
+    -- AlwaysAutoResize (instead of the old fixed NoResize square) since the position/focus/distance
+    -- fields below make the content height vary; NoResize would either clip them or leave dead space.
+    tUtil.setInitialWindowPositionRight(tLang.L('mesh_preview_orbit'), 0, 0, 200, 220, 460)
     tImGui.Begin(tLang.L('mesh_preview_orbit'), true,
-        tImGui.Flags({'ImGuiWindowFlags_NoTitleBar', 'ImGuiWindowFlags_NoResize'}))
+        tImGui.Flags({'ImGuiWindowFlags_NoTitleBar', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoCollapse'}))
     tUtil.drawOrbitGizmo(cam3d, {size = 110})
+    tImGui.Separator()
+
+    -- Position/focus/distance readout+edit -- same math and widget pattern as mesh_debug.lua's
+    -- camera panel (cam3dGetPos/applyCam3d are the same shared spherical-coordinate formulas,
+    -- re-implemented locally per the comment above since mesh_debug.lua doesn't export them).
+    local orbitPx, orbitPy, orbitPz = cam3dGetPos(cam3d)
+    tUtil.pushResponsiveItemWidth(72)
+
+    tImGui.Text(tLang.L('cam_position'))
+    local rpx, npx = tImGui.InputFloat('X##orbitCamPx', orbitPx, 0, 0, '%.1f', 0)
+    local rpy, npy = tImGui.InputFloat('Y##orbitCamPy', orbitPy, 0, 0, '%.1f', 0)
+    local rpz, npz = tImGui.InputFloat('Z##orbitCamPz', orbitPz, 0, 0, '%.1f', 0)
+    if rpx or rpy or rpz then
+        npx = rpx and npx or orbitPx
+        npy = rpy and npy or orbitPy
+        npz = rpz and npz or orbitPz
+        local dx, dy, dz = npx - cam3d.fx, npy - cam3d.fy, npz - cam3d.fz
+        local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if dist > 0 then
+            cam3d.distance  = dist
+            cam3d.elevation = math.asin(math.max(-1, math.min(1, dy / dist)))
+            cam3d.azimuth   = math.atan(dx, dz)
+        end
+        applyCam3d(cam3d)
+    end
+
+    tImGui.Text(tLang.L('cam_focus'))
+    local rfx, nfx = tImGui.DragFloat('X##orbitCamFx', cam3d.fx, 1.0, 0, 0, '%.1f', 0)
+    local rfy, nfy = tImGui.DragFloat('Y##orbitCamFy', cam3d.fy, 1.0, 0, 0, '%.1f', 0)
+    local rfz, nfz = tImGui.DragFloat('Z##orbitCamFz', cam3d.fz, 1.0, 0, 0, '%.1f', 0)
+    if rfx then cam3d.fx = nfx end
+    if rfy then cam3d.fy = nfy end
+    if rfz then cam3d.fz = nfz end
+    if rfx or rfy or rfz then applyCam3d(cam3d) end
+
+    local rd, ndist = tImGui.InputFloat(tLang.L('cam_distance') .. '##orbitCamDist',
+                                        cam3d.distance, 10, 100, '%.0f', 0)
+    if rd and ndist and ndist > 0 then cam3d.distance = ndist; applyCam3d(cam3d) end
+
+    tImGui.PopItemWidth()
     tImGui.End()
 
     -- Deciding "should this input reach the scene, or was it meant for the UI" is exactly what
