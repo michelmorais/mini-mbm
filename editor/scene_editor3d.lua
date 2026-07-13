@@ -103,7 +103,7 @@ bShowSceneObjectMarkers  = true -- manual show/hide toggle, ANDed with the "Main
 tMeshSetEntries      = {}
 tThumbnailCache      = {}
 sMeshSetFilterType   = 'All'
-tComboMeshSetFilter  = {'All', 'mesh', 'sprite', 'particle', 'texture', 'tile', 'gif'}
+tComboMeshSetFilter  = {'All', 'mesh', 'sprite', 'particle', 'tile', 'gif'}
 sMeshSetFolder       = ''
 sThumbnailCacheDir   = ''
 iPreviewedMeshSetIndex = 0
@@ -1039,8 +1039,9 @@ function tickThumbnailBake()
     tThumbGenActive = nil
 end
 
--- Lists every recognizable renderizable asset in `dir` (any type) using meshDebug:getInfo as the
--- authoritative type detector (mirrors tUtil.onAddMeshToEditor's own type-detection call).
+-- Lists every supported renderizable asset in `dir` (mesh/sprite/particle/tile/font/gif, see
+-- isSupportedMeshSetType3d) using meshDebug:getInfo as the authoritative type detector (mirrors
+-- tUtil.onAddMeshToEditor's own type-detection call).
 function scanMeshSetFolder(dir)
     tMeshSetEntries = {}
     if not dir or dir == '' then
@@ -1061,7 +1062,7 @@ function scanMeshSetFolder(dir)
         if line and #line > 0 then
             local fullPath = dir .. sep .. line
             local tInfo = meshDebug and meshDebug:getInfo(fullPath) or nil
-            if tInfo and tInfo.type then
+            if isSupportedMeshSetType3d(tInfo) then
                 table.insert(tMeshSetEntries, {
                     fileName   = fullPath,
                     type       = tInfo.type,
@@ -1504,6 +1505,17 @@ function removePlacedMesh(index)
     table.remove(tPlacedMeshes, index)
 end
 
+-- Scene Editor 3D only supports mesh/sprite/particle/tile/font placement, plus gif (an animated
+-- texture, kept as its own case) -- meshDebug:getInfo reports every other recognized image format
+-- (png/jpg/bmp/tga/psd/etc) as tInfo.type == 'texture' too, with no way to tell them apart from
+-- gif except tInfo.ext, so a plain (non-gif) texture is the one recognized type this editor must
+-- still reject. onAddMeshDirect's own file-picker filter already excludes those extensions, but
+-- scanMeshSetFolder/registerMeshSetEntry list whatever's actually in a folder on disk regardless
+-- of that filter, so the same rule has to be enforced here too, not just at the picker.
+function isSupportedMeshSetType3d(tInfo)
+    return tInfo ~= nil and tInfo.type ~= nil and not (tInfo.type == 'texture' and tInfo.ext ~= 'GIF')
+end
+
 -- Registers a single file into the Mesh Set list (if not already present) so it also
 -- becomes selectable later from the Mesh Set tab / Mesh Selector window.
 function registerMeshSetEntry(fileName)
@@ -1511,7 +1523,7 @@ function registerMeshSetEntry(fileName)
         if e.fileName == fileName then return e end
     end
     local tInfo = meshDebug and meshDebug:getInfo(fileName) or nil
-    if not tInfo or not tInfo.type then return nil end
+    if not isSupportedMeshSetType3d(tInfo) then return nil end
     local entry = { fileName = fileName, type = tInfo.type, ext = tInfo.ext, isSelected = false, thumbState = nil }
     table.insert(tMeshSetEntries, entry)
     return entry
