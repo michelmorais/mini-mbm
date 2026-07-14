@@ -824,10 +824,16 @@ function rebuildMeshPreview()
     local tVerts = buildExportMesh()
     if #tVerts == 0 then return end
 
+    -- buildExportMesh()'s v = wy/h matches Blender/OpenGL's v=0-at-bottom convention (correct for
+    -- the JSON export -> Blender/Mixamo pipeline, confirmed by the real round-trip test). mini-mbm's
+    -- OWN texture sampling is the opposite (v=0 at top) -- see fillVertexQuadTexture's default
+    -- uvOriginBottomLeft=true in primitives.h, which maps a quad's bottom position to uv.y=1 and its
+    -- top position to uv.y=0. So this LOCAL preview needs the v flipped back, independently of the
+    -- exported data.
     local vertsFlat, uvsFlat = {}, {}
     for _, v in ipairs(tVerts) do
         table.insert(vertsFlat, v.x); table.insert(vertsFlat, v.y); table.insert(vertsFlat, v.z)
-        table.insert(uvsFlat, v.u); table.insert(uvsFlat, v.v)
+        table.insert(uvsFlat, v.u); table.insert(uvsFlat, 1 - v.v)
     end
 
     -- Vertex data changes every rebuild -- unique nickname required (same shape:create() cache
