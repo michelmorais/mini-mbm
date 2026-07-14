@@ -78,6 +78,7 @@ int main(const int argc,const char **argv)
             {"Asset packager"        , STR_PT_BR_ASSET_PACKAGER,    "asset_packager.lua"},
             {"Font Maker"            , STR_PT_BR_FONT_MAKER,        "font_maker.lua"},
             {"Mesh Editor"           , STR_PT_BR_MESH_EDITOR,       "mesh_debug.lua"},
+            {"Mannequin Editor"      , STR_PT_BR_MANNEQUIN_EDITOR,   "mannequin_editor.lua"},
             {"Particle Editor"       , STR_PT_BR_PARTICLE_EDITOR,    "particle_editor.lua"},
             {"Physics Editor"        , STR_PT_BR_PHYSICS_EDITOR,    "physic_editor.lua"},
             {"Scene 2D Editor"       , STR_PT_BR_SCENE_2D_EDITOR,   "scene_editor2d.lua"},
