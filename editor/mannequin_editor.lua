@@ -5,12 +5,16 @@ tUtil  = require "editor_utils"
 -- State
 ------------------------------------------------------------------------------------------------------------------
 
+-- 'mark' (2D image + drag-to-adjust template) | 'preview' (3D primitive skeleton/camera) |
+-- 'mesh' (continuous exported-mesh geometry, untextured) | 'textured' (same mesh, front photo applied)
+sActiveTab = 'mark'
+
 camera3d = nil
 camera2d = nil
 cam3d = { azimuth = 0.3, elevation = 0.35, distance = 900, fx = 0, fy = 0, fz = 0 }
 tCam3dMove = { forward = 0, right = 0 }
 mouseLastX, mouseLastY = 0, 0
-isClickedMouseRight = false
+isOrbiting = false
 tDragKey = nil
 bCameraAutoFramed = false  -- true once the user manually orbits/zooms -- stops auto-framing after that
 
@@ -28,6 +32,7 @@ tImages = {
 }
 sLastImagePath = ''
 tMarkerDotHandles = {}   -- [key] = { front = handle|nil, side = handle|nil }
+tSkeletonLineHandles = {} -- one 2D line per bone segment, front-view projection only
 MAX_DISPLAY_UNITS = 800  -- longer axis of a loaded image is shrunk to fit within this many world units
 
 tMarkerDefs = {
@@ -45,6 +50,21 @@ tMarkerDefs = {
     {key='rHandTip',  label='Ponta Mao D',   defaultRadius=10, defaultDepthRatio=1.0},
     {key='lFootTip',  label='Ponta Pe E',    defaultRadius=14, defaultDepthRatio=1.0},
     {key='rFootTip',  label='Ponta Pe D',    defaultRadius=14, defaultDepthRatio=1.0},
+}
+
+-- Default T-pose template, as (xFrac, yFrac) of whatever front image gets loaded -- derived
+-- directly from a real marked photo (706x686, person filling ~80% of frame height, centered),
+-- so a brand-new image starts with a full plausible skeleton to DRAG into alignment instead of
+-- an empty one to click-place point by point. Not meant to be anatomically precise -- just a
+-- reasonable starting guess for a person centered and mostly filling a portrait-oriented photo.
+DEFAULT_TEMPLATE = {
+    chin      = {0.4966, 0.8222}, groin     = {0.5036, 0.4344},
+    lShoulder = {0.3775, 0.7712}, rShoulder = {0.6325, 0.7712},
+    lElbow    = {0.2472, 0.7551}, rElbow    = {0.7529, 0.7464},
+    lWrist    = {0.1651, 0.7566}, rWrist    = {0.8478, 0.7478},
+    lHandTip  = {0.0432, 0.7449}, rHandTip  = {0.9426, 0.7551},
+    lKnee     = {0.4257, 0.2872}, rKnee     = {0.5787, 0.2842},
+    lFootTip  = {0.3521, 0.0175}, rFootTip  = {0.6467, 0.0189},
 }
 
 -- child -> parent. Doubles as the bone list: iterating this table's pairs is iterating every
@@ -67,6 +87,10 @@ sArmedMarker = nil
 tJoints = {}         -- resolved (marked + synthetic) world positions, rebuilt by resolveJoints()
 iMannequinRebuildGen = 0
 tMannequinHandles = { spheres = {}, bones = {} }
+tMeshPreviewHandle = nil  -- one continuous shape built from buildExportMesh() -- shown untextured
+                          -- on 'mesh', with the front photo applied as texture on 'textured'
+iMeshPreviewRebuildGen = 0
+MESH_PREVIEW_COLOR = {0.85, 0.85, 0.9, 1.0}
 
 sStatusMessage = ''
 
@@ -148,8 +172,14 @@ local function unitCylinderVerts(radiusTop, radiusBottom, height, radialSegments
         local x2b, z2b = math.cos(a2) * radiusBottom, math.sin(a2) * radiusBottom
         local x1t, z1t = math.cos(a1) * radiusTop,    math.sin(a1) * radiusTop
         local x2t, z2t = math.cos(a2) * radiusTop,    math.sin(a2) * radiusTop
-        push(x1b, 0, z1b); push(x2b, 0, z2b); push(x2t, height, z2t)
-        push(x1b, 0, z1b); push(x2t, height, z2t); push(x1t, height, z1t)
+        -- Winding reversed from the first version: the cross-product of the original order
+        -- ((bottom-a1, bottom-a2, top-a2)) works out to point radially INWARD, not outward
+        -- (checked by hand: cross((bottom-a2)-(bottom-a1), (top-a2)-(bottom-a1)) faces -X at
+        -- angle~0, where the true outward normal is +X) -- confirmed visually too, textured
+        -- cylinders were rendering their inside surface. Swapping the last two vertices of each
+        -- triangle flips every normal to point outward.
+        push(x1b, 0, z1b); push(x2t, height, z2t); push(x2b, 0, z2b)
+        push(x1b, 0, z1b); push(x1t, height, z1t); push(x2t, height, z2t)
     end
     return verts
 end
@@ -268,7 +298,35 @@ end
 -- what the user actually clicks/drags)
 ------------------------------------------------------------------------------------------------------------------
 
-local MARKER_DOT_COLOR = {1, 1, 0, 0.9}
+local MARKER_DOT_COLOR = {1, 0, 1, 0.9}
+local SKELETON_LINE_COLOR = {1, 0, 1, 0.6}
+
+-- 2D skeleton lines (front-view projection only -- side-image depth doesn't have its own 2D
+-- panel to draw on) between resolved joints, so the marking tab shows the actual topology instead
+-- of disconnected dots (matches the reference-marker UIs this tool is modeled after, e.g. Mixamo's
+-- own point picker). Rebuilt alongside the dots every time markers change.
+local function rebuildSkeletonLines()
+    for _, ln in ipairs(tSkeletonLineHandles) do ln:destroy() end
+    tSkeletonLineHandles = {}
+    if not tImages.front.tex then return end
+
+    for childKey, parentKey in pairs(PARENT_OF) do
+        local a, b = tJoints[parentKey], tJoints[childKey]
+        if a and b then
+            local ax, ay = imagePixelsToWorld('front', a.x, a.y)
+            local bx, by = imagePixelsToWorld('front', b.x, b.y)
+            -- line:add()'s points are LOCAL to the object's own position (same convention as
+            -- every other render type here) -- creating at (ax,ay) and adding (ax,ay,bx,by) was
+            -- double-applying that offset, which is why the skeleton rendered ~2x too large and
+            -- shifted. Create at the origin and add the already-absolute coordinates directly.
+            local ln = line:new('2dw', 0, 0)
+            ln:add({ ax, ay, bx, by })
+            ln:setColor(SKELETON_LINE_COLOR[1], SKELETON_LINE_COLOR[2], SKELETON_LINE_COLOR[3], SKELETON_LINE_COLOR[4])
+            ln.visible = (sActiveTab == 'mark')
+            table.insert(tSkeletonLineHandles, ln)
+        end
+    end
+end
 
 local function rebuildMarkerDots()
     for _, pair in pairs(tMarkerDotHandles) do
@@ -276,6 +334,7 @@ local function rebuildMarkerDots()
         if pair.side then pair.side:destroy() end
     end
     tMarkerDotHandles = {}
+    rebuildSkeletonLines()
 
     for _, def in ipairs(tMarkerDefs) do
         local m = tMarkers[def.key]
@@ -293,6 +352,7 @@ local function rebuildMarkerDots()
                     local dotScale = math.max(0.3, (m.radius * tImages[which].scale) / 10)
                     h:setScale(dotScale, dotScale, 1)
                     h:setColor(MARKER_DOT_COLOR[1], MARKER_DOT_COLOR[2], MARKER_DOT_COLOR[3], MARKER_DOT_COLOR[4])
+                    h.visible = (sActiveTab == 'mark')
                     entry[which] = h
                 end
             end
@@ -338,6 +398,7 @@ function rebuildMannequinPreview()
     resolveJoints()
     destroyMannequinHandles()
     rebuildMarkerDots()
+    rebuildMeshPreview()
     autoFrameCamera()
 
     for _, j in pairs(tJoints) do
@@ -347,6 +408,7 @@ function rebuildMannequinPreview()
         h:create(unitSphereVerts(), nil, 'mannequin_marker_sphere_unit')
         h:setScale(j.radius, j.radius, j.radius)
         h:setColor(MARKER_COLOR[1], MARKER_COLOR[2], MARKER_COLOR[3], MARKER_COLOR[4])
+        h.visible = (sActiveTab == 'preview')
         table.insert(tMannequinHandles.spheres, h)
     end
 
@@ -373,8 +435,38 @@ function rebuildMannequinPreview()
                 h:setAngle(0, 0, theta)
                 h:setScale(1, 1, (a.depthRatio + b.depthRatio) / 2)
                 h:setColor(MARKER_COLOR[1], MARKER_COLOR[2], MARKER_COLOR[3], MARKER_COLOR[4])
+                h.visible = (sActiveTab == 'preview')
                 table.insert(tMannequinHandles.bones, h)
             end
+        end
+    end
+end
+
+-- Switches between the 4 tabs, toggling visibility of whichever objects belong to each so they
+-- never render simultaneously (2D always draws over 3D in this engine, which used to hide the
+-- mannequin behind the photo when both were visible at once).
+function setActiveTab(tab)
+    sActiveTab = tab
+    local markVisible = (tab == 'mark')
+    local skeletonVisible = (tab == 'preview')
+    local meshVisible = (tab == 'mesh' or tab == 'textured')
+
+    if tImages.front.tex then tImages.front.tex.visible = markVisible end
+    if tImages.side.tex then tImages.side.tex.visible = markVisible end
+    for _, pair in pairs(tMarkerDotHandles) do
+        if pair.front then pair.front.visible = markVisible end
+        if pair.side then pair.side.visible = markVisible end
+    end
+    for _, ln in ipairs(tSkeletonLineHandles) do ln.visible = markVisible end
+    for _, h in ipairs(tMannequinHandles.spheres) do h.visible = skeletonVisible end
+    for _, h in ipairs(tMannequinHandles.bones) do h.visible = skeletonVisible end
+
+    if tMeshPreviewHandle then
+        tMeshPreviewHandle.visible = meshVisible
+        if tab == 'textured' and tImages.front.path then
+            tMeshPreviewHandle:setColor(tImages.front.path)
+        elseif tab == 'mesh' then
+            tMeshPreviewHandle:setColor(MESH_PREVIEW_COLOR[1], MESH_PREVIEW_COLOR[2], MESH_PREVIEW_COLOR[3], MESH_PREVIEW_COLOR[4])
         end
     end
 end
@@ -404,7 +496,11 @@ local function findMarkerDotUnderWorldPoint(wx, wy)
     return bestKey
 end
 
-function tryPlaceMarkerAt(wx, wy, key)
+-- bLiveDrag: while true, skips the full rebuild (which destroys/recreates every 2D dot, every 2D
+-- skeleton line, every 3D primitive AND the ~1000-vertex mesh preview -- doing that on literally
+-- every mousemove event during a drag was the cause of the reported stutter/lag) and instead just
+-- repositions the dragged dot itself. The full rebuild still runs once, on release (onTouchUp).
+function tryPlaceMarkerAt(wx, wy, key, bLiveDrag)
     if not key then return false end
 
     local source, px, py = nil, nil, nil
@@ -424,7 +520,14 @@ function tryPlaceMarkerAt(wx, wy, key)
     end
     m[source] = { px = px, py = py }
 
-    rebuildMannequinPreview()
+    if bLiveDrag then
+        local pair = tMarkerDotHandles[key]
+        if pair and pair[source] then
+            pair[source]:setPos(wx, wy)
+        end
+    else
+        rebuildMannequinPreview()
+    end
     return true
 end
 
@@ -440,20 +543,21 @@ function advanceArmedMarker()
 end
 
 ------------------------------------------------------------------------------------------------------------------
--- Input: left-click marks/drags a 2D marker dot on the reference image(s); right-drag orbits the
--- 3D mannequin-preview camera (swapped from scene_editor3d.lua's left-orbit convention on purpose
--- -- left click is fully reserved for marker interaction here). WASD pans the 3D camera, wheel
--- dollies it.
+-- Input: on the "mark" tab, left-click marks/drags a 2D marker dot on the reference image(s). On
+-- the "preview" tab, left-drag orbits the 3D mannequin camera -- the standard editor convention
+-- (scene_editor3d.lua also uses left-orbit), safe to use here too since marking and orbiting now
+-- live on separate tabs and never compete for the same click. WASD pans, wheel dollies.
 ------------------------------------------------------------------------------------------------------------------
 
 function onTouchDown(key, x, y)
     if tImGui.GetWantCaptureMouse() then return end
     mouseLastX, mouseLastY = x, y
-    if key == 1 then
-        isClickedMouseRight = true
+    if key ~= 0 then return end
+
+    if sActiveTab ~= 'mark' then
+        isOrbiting = true
         return
     end
-    if key ~= 0 then return end
 
     local wx, wy = mbm.to2dw(x, y)
     local hitKey = findMarkerDotUnderWorldPoint(wx, wy)
@@ -473,25 +577,33 @@ function onTouchMove(key, x, y)
         mouseLastX, mouseLastY = x, y
         return
     end
-    if isClickedMouseRight then
+    if sActiveTab ~= 'mark' and isOrbiting then
         bCameraAutoFramed = true
         cam3d.azimuth   = cam3d.azimuth   - (x - mouseLastX) * 0.005
         cam3d.elevation = cam3d.elevation + (y - mouseLastY) * 0.005
         cam3d.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, cam3d.elevation))
-    elseif tDragKey then
+    elseif sActiveTab == 'mark' and tDragKey then
         local wx, wy = mbm.to2dw(x, y)
-        tryPlaceMarkerAt(wx, wy, tDragKey)
+        tryPlaceMarkerAt(wx, wy, tDragKey, true)
     end
     mouseLastX, mouseLastY = x, y
 end
 
 function onTouchUp(key, x, y)
-    if key == 1 then isClickedMouseRight = false end
-    if key == 0 then tDragKey = nil end
+    if key == 0 then
+        isOrbiting = false
+        if tDragKey then
+            -- Drag finished -- catch up the skeleton lines, 3D primitives and mesh preview with
+            -- one full rebuild now (skipped on every intermediate move for performance).
+            rebuildMannequinPreview()
+        end
+        tDragKey = nil
+    end
 end
 
 function onTouchZoom(zoom)
     if tImGui.GetWantCaptureMouse() then return end
+    if sActiveTab == 'mark' then return end
     bCameraAutoFramed = true
     local oldDistance = cam3d.distance
     local newDistance = math.max(10, oldDistance * (1.0 - zoom * 0.15))
@@ -515,6 +627,7 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if sActiveTab == 'mark' then return end
     if key == mbm.getKeyCode('W') or key == mbm.getKeyCode('up') then
         tCam3dMove.forward = 1
     elseif key == mbm.getKeyCode('S') or key == mbm.getKeyCode('down') then
@@ -567,9 +680,25 @@ function loadImage(which)
         tex:setScale(scale, scale, 1)
         tex:setPos(originX + w * scale * 0.5, originY + h * scale * 0.5)
         tImages.front = { path = f, tex = tex, w = w, h = h, scale = scale, originX = originX, originY = originY }
+        tex.visible = (sActiveTab == 'mark')
         -- The 2D camera does not default to framing whatever was just loaded -- center it on the
         -- image so it's actually visible without the user having to pan first.
         camera2d:setPos(originX + w * scale * 0.5, originY + h * scale * 0.5)
+
+        -- Auto-populate a full default T-pose skeleton (DEFAULT_TEMPLATE) so marking becomes
+        -- "drag each point onto the right spot" instead of "click 14 points from scratch" --
+        -- only if nothing is marked yet, so reloading a corrected photo doesn't clobber work.
+        local hasAnyMarker = next(tMarkers) ~= nil
+        if not hasAnyMarker then
+            for _, def in ipairs(tMarkerDefs) do
+                local frac = DEFAULT_TEMPLATE[def.key]
+                tMarkers[def.key] = {
+                    front = { px = frac[1] * w, py = frac[2] * h },
+                    radius = def.defaultRadius,
+                    depthRatio = def.defaultDepthRatio,
+                }
+            end
+        end
     else
         if tImages.side.tex then tImages.side.tex:destroy() end
         -- Placed to the right of the front image (in DISPLAY units) with a fixed gap, so the two
@@ -580,6 +709,20 @@ function loadImage(which)
         tex:setPos(originX + w * scale * 0.5, originY + h * scale * 0.5)
         tImages.side.path, tImages.side.tex, tImages.side.w, tImages.side.h = f, tex, w, h
         tImages.side.scale, tImages.side.originX, tImages.side.originY = scale, originX, originY
+        tex.visible = (sActiveTab == 'mark')
+
+        -- Side markers had no visible starting point at all (loading the side image alone did
+        -- nothing) -- auto-place them on the vertical centerline (a genuine unknown -- depth
+        -- can't be guessed -- so centered is the least-wrong default), at the SAME proportional
+        -- height as each marker's current front position (not the static template fraction, so
+        -- this respects any front adjustments already made) for at least a visible, draggable
+        -- starting point.
+        for _, def in ipairs(tMarkerDefs) do
+            local m = tMarkers[def.key]
+            if m and m.front and not m.side then
+                m.side = { px = w * 0.5, py = (m.front.py / tImages.front.h) * h }
+            end
+        end
     end
     rebuildMannequinPreview()
 end
@@ -643,6 +786,38 @@ local function buildExportMesh()
         end
     end
     return tVerts, tSubsets
+end
+
+-- Builds the "Mesh 3D"/"Mesh Texturizada" tabs' preview: the same continuous geometry+UVs that
+-- exportJson() writes out, as ONE shape (not the many small primitive spheres/cylinders of the
+-- "Manequim 3D" tab) -- a closer look at what the actual exported mesh will look like, in mini-mbm
+-- before ever touching Blender.
+function rebuildMeshPreview()
+    if tMeshPreviewHandle then
+        tMeshPreviewHandle:destroy()
+        tMeshPreviewHandle = nil
+    end
+    local tVerts = buildExportMesh()
+    if #tVerts == 0 then return end
+
+    local vertsFlat, uvsFlat = {}, {}
+    for _, v in ipairs(tVerts) do
+        table.insert(vertsFlat, v.x); table.insert(vertsFlat, v.y); table.insert(vertsFlat, v.z)
+        table.insert(uvsFlat, v.u); table.insert(uvsFlat, v.v)
+    end
+
+    -- Vertex data changes every rebuild -- unique nickname required (same shape:create() cache
+    -- pitfall as the bone cylinders in rebuildMannequinPreview).
+    iMeshPreviewRebuildGen = iMeshPreviewRebuildGen + 1
+    local h = shape:new('3d', 0, 0, 0)
+    h:create(vertsFlat, uvsFlat, 'mannequin_mesh_preview_' .. iMeshPreviewRebuildGen)
+    if sActiveTab == 'textured' and tImages.front.path then
+        h:setColor(tImages.front.path)
+    else
+        h:setColor(MESH_PREVIEW_COLOR[1], MESH_PREVIEW_COLOR[2], MESH_PREVIEW_COLOR[3], MESH_PREVIEW_COLOR[4])
+    end
+    h.visible = (sActiveTab == 'mesh' or sActiveTab == 'textured')
+    tMeshPreviewHandle = h
 end
 
 sLastExportPath = 'mannequin.json'
@@ -712,14 +887,7 @@ end
 -- GUI
 ------------------------------------------------------------------------------------------------------------------
 
-function drawMainPanel()
-    tUtil.setInitialWindowPositionLeft('Mannequin Editor', 0, 0, 300, 340, 900)
-    tImGui.Begin('Mannequin Editor', true, 0)
-
-    tImGui.Text('Camera 3D: botao direito = orbita, WASD = mover, roda = zoom')
-    tUtil.drawOrbitGizmo(cam3d, { size = 90 })
-
-    tImGui.Separator()
+function drawMarkTab()
     tImGui.Text('Imagens')
     if tImGui.Button('Carregar Imagem Frontal...') then loadImage('front') end
     tImGui.Text(tImages.front.path and tUtil.getShortName(tImages.front.path) or '(nenhuma)')
@@ -737,7 +905,9 @@ function drawMainPanel()
     end
 
     tImGui.Separator()
-    tImGui.TextWrapped('Marcadores: clique-esquerdo na imagem para marcar/arrastar.')
+    tImGui.TextWrapped('Um manequim padrao ja aparece assim que voce carrega a imagem frontal -- '
+        .. 'arraste cada ponto magenta ate a posicao certa. Clique-esquerdo arrasta; nao precisa '
+        .. 'clicar em "Marcar" a nao ser que tenha removido um ponto.')
     for _, def in ipairs(tMarkerDefs) do
         local m = tMarkers[def.key]
         local status = '-'
@@ -749,6 +919,14 @@ function drawMainPanel()
             sArmedMarker = def.key
         end
         if m then
+            -- Read-only, refreshed every frame from the actual data -- lets you see a drag
+            -- register immediately instead of only seeing the dot move on the image.
+            if m.front then
+                tImGui.Text(string.format('  Posicao (frontal): x=%.1f y=%.1f', m.front.px, m.front.py))
+            end
+            if m.side then
+                tImGui.Text(string.format('  Posicao (lateral): x=%.1f y=%.1f', m.side.px, m.side.py))
+            end
             tUtil.pushResponsiveItemWidth(120)
             local rc, rv = tImGui.DragFloat('Raio##radius_' .. def.key, m.radius, 0.5, 1, 300)
             if rc then m.radius = rv; rebuildMannequinPreview() end
@@ -763,10 +941,51 @@ function drawMainPanel()
         end
         tImGui.Separator()
     end
+end
+
+-- Shared by the 3 camera-driven tabs (preview/mesh/textured) -- they only differ in which
+-- geometry setActiveTab() makes visible, not in what controls are drawn here.
+function drawCameraPreviewTab(sHint)
+    tImGui.Text('Camera 3D: clique-esquerdo arrasta = orbita, WASD = mover, roda = zoom')
+    tUtil.drawOrbitGizmo(cam3d, { size = 90 })
+    if sHint then
+        tImGui.Separator()
+        tImGui.TextWrapped(sHint)
+    end
+    tImGui.Separator()
 
     if tImGui.Button('Exportar JSON...') then exportJson() end
     if sStatusMessage ~= '' then
         tImGui.TextWrapped(sStatusMessage)
+    end
+end
+
+function drawMainPanel()
+    tUtil.setInitialWindowPositionLeft('Mannequin Editor', 0, 0, 300, 340, 900)
+    tImGui.Begin('Mannequin Editor', true, 0)
+
+    if tImGui.BeginTabBar('##MannequinTabBar', 0) then
+        if tImGui.BeginTabItem('Marcacao (2D)') then
+            setActiveTab('mark')
+            drawMarkTab()
+            tImGui.EndTabItem()
+        end
+        if tImGui.BeginTabItem('Manequim 3D') then
+            setActiveTab('preview')
+            drawCameraPreviewTab('Esqueleto de primitivas (esferas+cilindros) -- rascunho rapido, nao e a mesh final.')
+            tImGui.EndTabItem()
+        end
+        if tImGui.BeginTabItem('Mesh 3D') then
+            setActiveTab('mesh')
+            drawCameraPreviewTab('Geometria continua real (a mesma que sera exportada no JSON), sem textura.')
+            tImGui.EndTabItem()
+        end
+        if tImGui.BeginTabItem('Mesh Texturizada') then
+            setActiveTab('textured')
+            drawCameraPreviewTab('Mesma mesh, com a foto frontal aplicada via UV.')
+            tImGui.EndTabItem()
+        end
+        tImGui.EndTabBar()
     end
 
     tImGui.End()
