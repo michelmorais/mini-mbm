@@ -1,5 +1,12 @@
 # Plano: `mannequin_editor.lua` (Marco 1) + roteiro dos Marcos 2-4
 
+**Status (2026-07-14): Marcos 1 e 3 validados ponta-a-ponta pelo usuário com uma foto real** —
+marcar → gerar mesh → exportar FBX via Blender → upload no mixamo.com → aceito → animação aplicada
+→ baixado → reimportado no `mesh_debug.lua` (Import via Blender) → frames estáticos gerados como
+esperado. Objetivo original do projeto alcançado. Malha ainda é low-poly (primitivas
+cilíndricas simples, 10 segmentos radiais) — aceitável pra essa primeira versão, possível
+melhoria futura. Marco 2 (persistência `.msh`) segue não implementado, não bloqueia o fluxo real.
+
 ## Contexto
 
 Objetivo final do usuário: carregar uma imagem de referência (foto ou textura/arte estilizada — não
@@ -298,10 +305,10 @@ marcador, derivação de juntas sintéticas, escritor do JSON.
 
 ## Riscos a validar empiricamente na primeira sessão de implementação (ordem de prioridade)
 
-1. `texture:new('3d',...):load(caminhoAbsoluto)` com caminho fora da pasta do projeto.
-2. `tex:getAABB(true)` após `:load()` — dimensão nativa confiável pra `texture` puro?
-3. Direção do flip de `v` na textura do preview (cosmético, resolver cedo).
-4. Ordem/sinais de composição de Euler em `handle:setAngle(ax,ay,az)`.
+1. ~~`texture:new('3d',...):load(caminhoAbsoluto)` com caminho fora da pasta do projeto.~~ **Resolvido**: funciona (depois migrado pra `'2dw'` de qualquer forma, ver bugfix log).
+2. ~~`tex:getAABB(true)` após `:load()` — dimensão nativa confiável pra `texture` puro?~~ **Resolvido**: confiável, usado como fonte primária sem fallback.
+3. ~~Direção do flip de `v` na textura do preview (cosmético, resolver cedo).~~ **Resolvido (2026-07-14, via teste real do usuário)**: a fórmula original (`v = 1 - wy/h`) estava invertida — Blender/OpenGL usam `v=0` embaixo, `v=1` em cima, e `wy` já cresce pra cima nesse espaço de mundo, então a fórmula certa é `v = wy/h`, sem inversão. Descoberto porque um mesh vindo do Mixamo precisava de "invert V" manual no `mesh_debug.lua` pra exibir certo — corrigido em `buildExportMesh()`.
+4. Ordem/sinais de composição de Euler em `handle:setAngle(ax,ay,az)` — ainda não validado pro caso geral (com foto lateral); o caso plano (sem lateral) já foi validado e está em uso.
 
 ## Verificação end-to-end (Marco 1)
 

@@ -784,17 +784,22 @@ local function buildExportMesh()
                     local axisZ = a.z + (ly / height) * (b.z - a.z)
                     local owner = (ly > height * 0.5) and childKey or parentKey
 
+                    -- v = wy/h, NOT 1-wy/h: Blender/OpenGL-style UV has v=0 at the BOTTOM of the
+                    -- image and v=1 at the top, which already matches this world space (wy
+                    -- increases upward). Confirmed inverted in practice (2026-07-14): a
+                    -- Mixamo-round-tripped mesh needed a manual "invert V" in mesh_debug.lua to
+                    -- display correctly -- this was the bug.
                     local u, v, uvSource
                     if wz >= axisZ or not tImages.side.tex then
                         uvSource = 'front'
                         u = clamp01(wx / math.max(1, tImages.front.w))
-                        v = clamp01(1 - wy / math.max(1, tImages.front.h))
+                        v = clamp01(wy / math.max(1, tImages.front.h))
                     else
                         uvSource = 'side'
                         local scx = sideCenterlineX() or 0
                         local sidePixelX = scx + wz / tImages.side.facing
                         u = clamp01(sidePixelX / math.max(1, tImages.side.w))
-                        v = clamp01(1 - wy / math.max(1, tImages.side.h))
+                        v = clamp01(wy / math.max(1, tImages.side.h))
                     end
 
                     table.insert(tVerts, { x = wx, y = wy, z = wz, u = u, v = v, uvSource = uvSource, owner = owner })
