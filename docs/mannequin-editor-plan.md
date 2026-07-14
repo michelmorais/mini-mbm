@@ -353,26 +353,52 @@ efetivamente planejado (fora do escopo de implementação agora).
 
 ---
 
-## Marco 3 — script Blender headless (constrói armature+mesh reais, exporta FBX)
+## Marco 3 — script Blender headless (constrói armature+mesh reais, exporta FBX) — IMPLEMENTADO
+
+`editor/blender_mannequin_build.py` (novo) + `tBlender.buildMannequinCmd(...)` (novo, em
+`blender_cli_wrapper.lua`) + `startBlenderBuild()`/`showBlenderBuildDialog()`/
+`blenderBuildCoroutine()` (novos, em `mannequin_editor.lua`, botão "Exportar via Blender (FBX)..."
+nas abas de câmera). Validado ponta-a-ponta: JSON real (18 joints, 1020 vértices, 17 subsets) →
+FBX (18 ossos, hierarquia correta, personagem em pé, 1.7m de altura, centralizado, pés no chão) —
+reimportado numa instância limpa do Blender e conferido por código (altura claramente a maior
+dimensão, não deitado).
 
 - Lê o **JSON do Marco 1** como entrada (confirmado — não o `.msh` do Marco 2, que é só para
   round-trip do editor; não existe parser Python de `.msh` v11 hoje e criar um seria redundante).
-- Constrói o armature do zero via `bpy.data.armatures.new()` + `edit_bones.new()` a partir da lista
-  de joints (nomes genéricos, não amarrados a convenção Mixamo).
-- Constrói a mesh a partir dos vértices/UV/subsets recebidos.
+- Constrói o armature do zero via `bpy.data.armatures.new()` + `edit_bones.new()`, um osso por
+  joint não-raiz (`head` = posição do pai, `tail` = posição do próprio joint — mesma convenção
+  `owner` que os vértices já usam). A raiz (`groin`) vira um osso-coto curto apontando pro seu
+  primeiro filho, só pra ter uma "raiz" (a maioria dos pipelines de rig espera uma). `use_connect`
+  fica desligado de propósito — é só uma conveniência de edição do Blender, sem efeito na
+  exportação, e evitaria ter que fazer o coto da raiz coincidir com a cabeça de todo filho direto.
+- **Achado importante: o JSON é Y-up (convenção do Marco 1) mas o espaço nativo do Blender é
+  Z-up.** O Blender não sabe o que os eixos "significam" — trata qualquer `(x,y,z)` que a gente
+  passa como (direita, profundidade, altura). É preciso trocar Y↔Z ao construir as posições dentro
+  do Blender (`joint_pos`/`positions` no script), senão o personagem importa deitado de lado. As
+  opções `axis_forward`/`axis_up` do exportador FBX não resolvem isso — elas só controlam a
+  convenção do arquivo de saída, não como a geometria já foi construída dentro da cena do Blender.
+- Constrói a mesh via `mesh.from_pydata()` a partir dos vértices/índices recebidos (índices do
+  JSON são 1-based, igual ao array Lua de origem — subtrai 1 pra virar 0-based) + uma UV layer
+  (`uv_layers.new()`), atribuída por loop (1:1 com os vértices já que o Marco 1 nunca solda
+  vértices compartilhados).
 - Vertex groups com peso 100% pro osso-dono (usando o campo `owner`), em vez de automatic weights
   do Blender — mais confiável já que a relação vértice→osso já é conhecida.
+- **Normalização de escala**: as coordenadas do JSON estão em pixels da imagem de origem (centenas
+  a milhares de unidades) — sem ajuste, o personagem importaria absurdamente grande. Escala
+  calculada a partir da altura real dos joints (`max(y) - min(y)`) pra bater ~1.7m (unidade padrão
+  do Blender/FBX), aplicada via `transform_apply` antes da exportação.
 - Reaproveita o bloco de limpeza de cena + centralização + export FBX já existente em
-  `blender_body_adjust.py` (`MIXAMO_OT_prepare_and_export`).
+  `blender_body_adjust.py` (`MIXAMO_OT_prepare_and_export`), adaptado pra convenção Z-up nativa do
+  Blender (o script original também já era Z-up — o comentário antigo deste plano que dizia
+  "Y-up" estava errado).
 - Invocação headless: reaproveita o padrão de `blender_cli_wrapper.lua` (detecção do executável,
-  `buildBakeCmd`-style command builder) + o padrão de coroutine/polling de progresso já usado em
-  `mesh_debug.lua`'s `blenderImportCoroutine` — precisa de uma nova função tipo
-  `M.buildMannequinCmd(...)` no wrapper.
+  `buildBakeCmd`-style command builder → nova `M.buildMannequinCmd(jsonInputPath, outputFbxPath,
+  exporterScriptPath, options)`, sempre `--factory-startup` já que não existe uma cena `.blend` de
+  origem) + uma versão simplificada do padrão de coroutine/polling de `mesh_debug.lua`'s
+  `blenderImportCoroutine` (sem o batch multi-arquivo/streaming/bake-de-animação, que não se
+  aplicam aqui — só um JSON de entrada, um FBX de saída).
 - Saída: FBX pronto pra upload manual num serviço de auto-rig (Mixamo hoje, qualquer outro no
   futuro — ver "Desacoplamento do Mixamo" acima).
-
-Detalhamento fino (assinatura exata do script Python, flags CLI) fica para quando este marco for
-efetivamente planejado.
 
 ---
 

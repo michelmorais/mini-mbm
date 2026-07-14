@@ -1,5 +1,6 @@
-tImGui = require "ImGui"
-tUtil  = require "editor_utils"
+tImGui   = require "ImGui"
+tUtil    = require "editor_utils"
+tBlender = require "blender_cli_wrapper"
 
 ------------------------------------------------------------------------------------------------------------------
 -- State
@@ -93,6 +94,24 @@ iMeshPreviewRebuildGen = 0
 MESH_PREVIEW_COLOR = {0.85, 0.85, 0.9, 1.0}
 
 sStatusMessage = ''
+
+-- Marco 3: headless Blender build (JSON -> real armature+mesh -> FBX), same coroutine/polling
+-- shape as mesh_debug.lua's blenderImportCoroutine, but much simpler (one file in, one file out,
+-- no batch/streaming/animation-bake options).
+tBlenderBuildState = {
+    bOpen = false,
+    bOpenPopup = false,
+    bBuilding = false,
+    co = nil,
+    sStatus = '',
+    bStatusOk = true,
+    iTimeoutSecs = 120,
+    bAbortRequested = false,
+    sCancelFile = '',
+    sOutputFbx = '',
+    bDebugSteps = false,
+}
+sLastFbxExportPath = 'character.fbx'
 
 ------------------------------------------------------------------------------------------------------------------
 -- Orbit camera (adapted from scene_editor3d.lua's cam3dGetPos/applyCam3d/updateCam3dKeyboardMovement --
@@ -822,28 +841,23 @@ end
 
 sLastExportPath = 'mannequin.json'
 
-function exportJson()
+-- Writes the current mannequin (joints + exported mesh) to `path` as JSON. Shared by the
+-- user-facing "Exportar JSON..." button and the internal Marco 3 Blender-build flow (which writes
+-- to its own temp path, no dialog). Returns ok, names, tVerts, tSubsets (counts for the status
+-- message) or ok=false, errMsg.
+function writeMannequinJson(path)
     resolveJoints()
 
     local names = {}
     for name in pairs(tJoints) do table.insert(names, name) end
     if #names == 0 then
-        tUtil.showMessage('Marque ao menos um ponto antes de exportar.')
-        return
+        return false, 'Marque ao menos um ponto antes de exportar.'
     end
     table.sort(names)
 
-    -- mbm.saveFile(defaultNameOrPath, extensionFilter) -- first arg is the SUGGESTED FILENAME
-    -- shown in the dialog (not a title), second is a bare extension or glob (see font_maker.lua/
-    -- particle_editor.lua call sites) -- passing a "title" string here previously produced a
-    -- literal file named "<title>.<filter>".
-    local path = mbm.saveFile(sLastExportPath, 'json')
-    if not path then return end
-    sLastExportPath = path
     local f = io.open(path, 'w')
     if not f then
-        tUtil.showMessage('Falha ao criar arquivo: ' .. path)
-        return
+        return false, 'Falha ao criar arquivo: ' .. path
     end
 
     f:write('{\n  "schemaVersion": 1,\n  "sourceImages": {\n')
@@ -878,9 +892,176 @@ function exportJson()
     f:write('    ]\n  }\n}\n')
     f:close()
 
-    sStatusMessage = string.format('Exportado: %d joints, %d vertices, %d subsets -> %s',
-        #names, #tVerts, #tSubsets, path)
+    return true, names, tVerts, tSubsets
+end
+
+function exportJson()
+    -- mbm.saveFile(defaultNameOrPath, extensionFilter) -- first arg is the SUGGESTED FILENAME
+    -- shown in the dialog (not a title), second is a bare extension or glob (see font_maker.lua/
+    -- particle_editor.lua call sites) -- passing a "title" string here previously produced a
+    -- literal file named "<title>.<filter>".
+    local path = mbm.saveFile(sLastExportPath, 'json')
+    if not path then return end
+
+    local ok, a, b, c = writeMannequinJson(path)
+    if not ok then
+        tUtil.showMessage(a)
+        return
+    end
+    sLastExportPath = path
+    sStatusMessage = string.format('Exportado: %d joints, %d vertices, %d subsets -> %s', #a, #b, #c, path)
     tUtil.showMessage(sStatusMessage)
+end
+
+------------------------------------------------------------------------------------------------------------------
+-- Marco 3: build a real FBX via headless Blender (editor/blender_mannequin_build.py)
+------------------------------------------------------------------------------------------------------------------
+
+-- Self-locating, same idiom as mesh_debug.lua's getEditorDir() -- works regardless of which
+-- script required/dofile'd this one, since it reads THIS file's own chunk source path.
+local function getEditorDir()
+    local src = debug.getinfo(1, 'S').source or ''
+    if src:sub(1, 1) == '@' then
+        local path = src:sub(2)
+        local dir = path:match('^(.*)[/\\]')
+        return dir or '.'
+    end
+    return '.'
+end
+
+local function getOSTempDir()
+    return os.getenv('TMPDIR') or os.getenv('TEMP') or os.getenv('TMP') or '/tmp'
+end
+
+local function blenderBuildCoroutine(jsonPath, outputFbx, dbgLog, cancelFile)
+    local st = tBlenderBuildState
+    local exporterPath = getEditorDir() .. '/blender_mannequin_build.py'
+    local cmd = tBlender.buildMannequinCmd(jsonPath, outputFbx, exporterPath,
+        { cancelFile = cancelFile, debugSteps = st.bDebugSteps })
+    if not cmd then
+        st.sStatus = 'Blender nao encontrado. Verifique se esta instalado e no PATH.'
+        st.bStatusOk = false
+        st.bBuilding = false
+        return
+    end
+
+    os.remove(outputFbx)
+    os.remove(dbgLog)
+    tBlender.launchCmdAsync(cmd, dbgLog)
+
+    local startTime = os.time()
+    local lastActivityTime = startTime
+    local lastLogSize = -1
+    while true do
+        if st.bAbortRequested then
+            if cancelFile ~= '' then
+                local f = io.open(cancelFile, 'w')
+                if f then f:write('cancel\n'); f:close() end
+            end
+            st.sStatus = 'Cancelado.'
+            st.bStatusOk = false
+            break
+        end
+
+        if tBlender.fileExists(outputFbx) then
+            st.sStatus = 'FBX gerado: ' .. outputFbx
+            st.bStatusOk = true
+            break
+        end
+
+        local logSize = 0
+        local lf = io.open(dbgLog, 'rb')
+        if lf then
+            logSize = lf:seek('end')
+            lf:close()
+        end
+        if logSize ~= lastLogSize then
+            lastLogSize = logSize
+            lastActivityTime = os.time()
+        end
+
+        if os.time() - lastActivityTime >= st.iTimeoutSecs then
+            local errLog = io.open(dbgLog, 'r')
+            local tail = ''
+            if errLog then tail = errLog:read('*a') or ''; errLog:close() end
+            st.sStatus = 'Tempo esgotado esperando o Blender.\n' .. tail:sub(-800)
+            st.bStatusOk = false
+            break
+        end
+
+        coroutine.yield()
+    end
+    st.bBuilding = false
+end
+
+function startBlenderBuild()
+    local st = tBlenderBuildState
+    if st.bBuilding then return end
+
+    local outputFbx = mbm.saveFile(sLastFbxExportPath, 'fbx')
+    if not outputFbx then return end
+    sLastFbxExportPath = outputFbx
+
+    local tmpDir = getOSTempDir()
+    local jsonPath = tmpDir .. '/mannequin_build_input.json'
+    local ok, err = writeMannequinJson(jsonPath)
+    if not ok then
+        tUtil.showMessage(err)
+        return
+    end
+
+    st.bOpen = true
+    st.bOpenPopup = true
+    st.bBuilding = true
+    st.bAbortRequested = false
+    st.sStatus = ''
+    st.bStatusOk = true
+    st.sOutputFbx = outputFbx
+
+    local dbgLog = tmpDir .. '/mannequin_build_debug.log'
+    local cancelFile = tmpDir .. '/mannequin_build_cancel'
+    os.remove(cancelFile)
+    st.sCancelFile = cancelFile
+    st.co = coroutine.create(function() blenderBuildCoroutine(jsonPath, outputFbx, dbgLog, cancelFile) end)
+end
+
+function showBlenderBuildDialog()
+    local st = tBlenderBuildState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup('mannequin_blender_build_modal')
+        st.bOpenPopup = false
+    end
+
+    local isOpen = tImGui.BeginPopupModal('Exportar via Blender###mannequin_blender_build_modal', false, 0)
+    if not isOpen then return end
+
+    if st.bBuilding then
+        if st.co and coroutine.status(st.co) == 'suspended' then
+            local ok, err = coroutine.resume(st.co)
+            if not ok then
+                st.bBuilding = false
+                st.sStatus = tostring(err)
+                st.bStatusOk = false
+            end
+        end
+        tImGui.Text('Construindo armature + mesh no Blender...')
+        if tImGui.Button('Cancelar') then
+            st.bAbortRequested = true
+        end
+    else
+        tImGui.TextWrapped(st.sStatus)
+        if st.bStatusOk then
+            sStatusMessage = st.sStatus
+        end
+        if tImGui.Button('Fechar') then
+            st.bOpen = false
+            tImGui.CloseCurrentPopup()
+        end
+    end
+
+    tImGui.EndPopup()
 end
 
 ------------------------------------------------------------------------------------------------------------------
@@ -955,6 +1136,8 @@ function drawCameraPreviewTab(sHint)
     tImGui.Separator()
 
     if tImGui.Button('Exportar JSON...') then exportJson() end
+    tImGui.SameLine()
+    if tImGui.Button('Exportar via Blender (FBX)...') then startBlenderBuild() end
     if sStatusMessage ~= '' then
         tImGui.TextWrapped(sStatusMessage)
     end
@@ -1007,6 +1190,7 @@ end
 
 function onLoop(delta)
     drawMainPanel()
+    showBlenderBuildDialog()
     updateCam3dKeyboardMovement(delta)
     applyCam3d(cam3d)
 end

@@ -340,6 +340,42 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     return cmd
 end
 
+-- Builds the headless command for blender_mannequin_build.py (Marco 3): jsonInputPath is the
+-- Marco 1 JSON handoff, outputFbxPath is where the built armature+mesh gets exported. Always
+-- --factory-startup since the script builds its scene from scratch (there is no source .blend
+-- to open, unlike buildBakeCmd's sourcePath).
+function M.buildMannequinCmd(jsonInputPath, outputFbxPath, exporterScriptPath, options)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+
+    options = options or {}
+    local args = {
+        shellQuote(b.path),
+        '-b',
+        '--factory-startup',
+        '--python',
+        shellQuote(exporterScriptPath),
+        '--',
+        '--input',
+        shellQuote(jsonInputPath),
+        '--output',
+        shellQuote(outputFbxPath),
+    }
+
+    if options.cancelFile and options.cancelFile ~= '' then
+        table.insert(args, '--cancel-file')
+        table.insert(args, shellQuote(options.cancelFile))
+    end
+
+    if options.debugSteps then
+        table.insert(args, '--debug-steps')
+    end
+
+    local cmd = table.concat(args, ' ')
+    debugPrint('build mannequin cmd: %s', cmd)
+    return cmd
+end
+
 function M.buildScanCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     local b = M.blender or M.detectBlender()
     if not b.found then return nil end
