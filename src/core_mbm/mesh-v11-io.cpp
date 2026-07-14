@@ -630,4 +630,28 @@ namespace util
         return readStringV11(fp, out.owner) && readStringV11(fp, out.name) &&
                readStringV11(fp, out.value) && readU16LE(fp, out.type);
     }
+
+    bool writeSkeletonHeaderV11(FILE *fp, const util::SKELETON_HEADER_V11 &in)
+    {
+        return writeU16LE(fp, in.jointCount);
+    }
+
+    bool readSkeletonHeaderV11(util::MEM_CURSOR_V11 &fp, util::SKELETON_HEADER_V11 &out)
+    {
+        return readU16LE(fp, out.jointCount);
+    }
+
+    bool writeJointV11(FILE *fp, const util::JOINT_V11 &in)
+    {
+        return writeStringV11(fp, in.name) && writeStringV11(fp, in.parentName) &&
+               writeF32LE(fp, in.x) && writeF32LE(fp, in.y) && writeF32LE(fp, in.z) &&
+               writeF32LE(fp, in.radius);
+    }
+
+    bool readJointV11(util::MEM_CURSOR_V11 &fp, util::JOINT_V11 &out)
+    {
+        return readStringV11(fp, out.name) && readStringV11(fp, out.parentName) &&
+               readF32LE(fp, out.x) && readF32LE(fp, out.y) && readF32LE(fp, out.z) &&
+               readF32LE(fp, out.radius);
+    }
 }

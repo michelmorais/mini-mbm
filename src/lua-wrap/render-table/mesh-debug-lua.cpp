@@ -1840,6 +1840,56 @@ namespace mbm
         return 5;
     }
 
+    // Skeleton bindings (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
+    // diagnostic round-trip only, follows the exact same flat-multi-return convention as
+    // addAnim/getAnim above rather than a table, to stay consistent within this native class.
+    int onAddBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *    name        = luaL_checkstring(lua, 2);
+        const char *    parentName  = lua_isnil(lua, 3) ? nullptr : luaL_checkstring(lua, 3);
+        const float     x           = static_cast<float>(luaL_checknumber(lua, 4));
+        const float     y           = static_cast<float>(luaL_checknumber(lua, 5));
+        const float     z           = static_cast<float>(luaL_checknumber(lua, 6));
+        const float     radius      = static_cast<float>(luaL_checknumber(lua, 7));
+        char            errorOut[255] = "";
+        const int       ret = meshDebug->mesh.addBone(name, parentName, x, y, z, radius, errorOut, (int)sizeof(errorOut));
+        if (ret == 0)
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onGetTotalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalBone()));
+        return 1;
+    }
+
+    int onGetBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       index     = luaL_checkinteger(lua, 2) - 1;
+        const util::JOINT_V11 *joint = index >= 0 ? meshDebug->mesh.getBone(static_cast<uint32_t>(index)) : nullptr;
+        if (joint == nullptr)
+        {
+            lua_print_line(lua, TYPE_LOG_ERROR, "invalid bone index");
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushstring(lua, joint->name.c_str());
+        lua_pushnumber(lua, joint->x);
+        lua_pushnumber(lua, joint->y);
+        lua_pushnumber(lua, joint->z);
+        lua_pushnumber(lua, joint->radius);
+        if (joint->parentName.empty())
+            lua_pushnil(lua);
+        else
+            lua_pushstring(lua, joint->parentName.c_str());
+        return 6;
+    }
+
     int onNewIndexMeshDebug(lua_State *lua) // escrita
     {
         /*
@@ -1937,6 +1987,9 @@ namespace mbm
                                           {"copyAnimationsFromMesh", onCopyAnimationsFromMeshLua},
                                           {"updateAnim", onUpdateAnimationDebugLua},
                                           {"getAnim", onGetDetailAnimationDebugLua},
+                                          {"addBone", onAddBoneDebugLua},
+                                          {"getTotalBone", onGetTotalBoneDebugLua},
+                                          {"getBone", onGetBoneDebugLua},
 										  {"getExt", onGetStaticExtensionLua},
                                           {"setDetail", onSetDetailLua},
                                           {nullptr, nullptr}};

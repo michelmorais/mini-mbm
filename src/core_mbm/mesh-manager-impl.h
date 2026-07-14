@@ -55,6 +55,9 @@ namespace mbm
         std::string fileName;
         std::vector<int> lsBlendOperation;
         void *extraInfo;
+        // SECTION_FRAME_SKINNED (docs/mesh-v11-format.md Sec. 6e) - editor/diagnostic round-trip
+        // only, never consulted by rendering. See MESH_MBM_DEBUG::addBone/getBone/getTotalBone.
+        std::vector<util::JOINT_V11> skeleton;
     };
 }
 

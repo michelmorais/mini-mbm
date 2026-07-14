@@ -117,6 +117,13 @@ namespace mbm
         util::INFO_ANIMATION     infoAnimation;
         std::vector<std::string> extraPaths;
         std::vector<IntermediateFrameV11> frames;
+        // Parsed but intentionally unused by MESH_MBM - no runtime skinning consumer exists in
+        // this engine. finishLoadFromIntermediate() never reads this; it exists purely so the
+        // shared parse loop below (parse_v11_intermediate) can succeed on ANY mesh carrying a
+        // SECTION_FRAME_SKINNED section, including one loaded through the normal game/runtime
+        // path, not just through MESH_MBM_DEBUG::loadV11 (which has its own separate read loop
+        // that actually stores this into Impl::skeleton for editing).
+        std::vector<util::JOINT_V11> skeleton;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -151,7 +158,8 @@ namespace mbm
         MESH_LOAD_INTERMEDIATE_V11(MESH_LOAD_INTERMEDIATE_V11 &&other) noexcept
             : typeMe(other.typeMe), material(other.material), positionOffset(other.positionOffset),
               angleDefault(other.angleDefault), info_mode(other.info_mode),
-              extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames))
+              extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
+              skeleton(std::move(other.skeleton))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -172,6 +180,7 @@ namespace mbm
             info_mode      = other.info_mode;
             extraPaths     = std::move(other.extraPaths);
             frames         = std::move(other.frames);
+            skeleton       = std::move(other.skeleton);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -575,6 +584,37 @@ namespace
         return tileInfo;
     }
 
+    // Parses one SECTION_FRAME_SKINNED payload (already staged as `tmp`) into `out`, shared by
+    // parse_v11_intermediate (MESH_MBM/async load path, which discards the result - no runtime
+    // skinning consumer exists) and MESH_MBM_DEBUG::loadV11 (which stores it for editing).
+    // Enforces parent-before-child ordering while reading: a non-empty parentName must match the
+    // `name` of a joint already read earlier in this same call, otherwise the file is rejected as
+    // malformed rather than silently accepted with a dangling/forward reference.
+    bool parse_skeleton_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<util::JOINT_V11> &out)
+    {
+        util::SKELETON_HEADER_V11 v11Header;
+        if (!util::readSkeletonHeaderV11(tmp, v11Header))
+            return false;
+
+        out.clear();
+        out.reserve(v11Header.jointCount);
+        for (uint16_t i = 0; i < v11Header.jointCount; ++i)
+        {
+            util::JOINT_V11 joint;
+            if (!util::readJointV11(tmp, joint))
+                return false;
+            if (!joint.parentName.empty())
+            {
+                const bool parentSeen = std::any_of(out.begin(), out.end(),
+                    [&joint](const util::JOINT_V11 &j) { return j.name == joint.parentName; });
+                if (!parentSeen)
+                    return false; // forward/dangling parent reference - malformed file
+            }
+            out.push_back(std::move(joint));
+        }
+        return true;
+    }
+
     // Worker-thread-safe equivalent of MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic,
     // takes INFO_PHYSICS directly instead of going through `this->impl` (parse_v11_intermediate has
     // no MESH_MBM_DEBUG instance).
@@ -846,6 +886,14 @@ namespace
                 {
                     frame0Uv      = out.frames[0].uv.get();
                     frame0UvCount = static_cast<int>(out.frames[0].vertexCount);
+                }
+            }
+            else if (staged.header.type == util::SECTION_FRAME_SKINNED)
+            {
+                if (!parse_skeleton_section_v11(tmp, out.skeleton))
+                {
+                    errorOut = "failed to parse SECTION_FRAME_SKINNED";
+                    return false;
                 }
             }
             else
@@ -1194,10 +1242,13 @@ namespace mbm
     // oversights.
     bool MESH_MBM_DEBUG::getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
                               util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut,
-                              std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut)
+                              std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut,
+                              bool *hasSkeletonOut, uint16_t *totalBonesOut)
     {
         (void)datailFontOut;
         (void)lsStageParticle;
+        if (hasSkeletonOut) *hasSkeletonOut = false;
+        if (totalBonesOut) *totalBonesOut = 0;
         bool isImage    = false;
         bool isMesh     = false;
         bool isUnknown  = false;
@@ -1283,6 +1334,17 @@ namespace mbm
                         headerMeshMbmOut.hasNorText[1] = !v11FrameHeader.hasUv ? HAS_TEX_NO
                                                         : (v11FrameHeader.uvSource == 0 ? HAS_TEX_EACH_FRAME : HAS_TEX_FIRST_FRAME);
                     }
+                }
+            }
+            else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
+            {
+                if (hasSkeletonOut) *hasSkeletonOut = true;
+                if (totalBonesOut)
+                {
+                    util::MEM_CURSOR_V11 tmpFp = stage_payload_as_cursor(payload);
+                    util::SKELETON_HEADER_V11 v11SkelHeader;
+                    if (util::readSkeletonHeaderV11(tmpFp, v11SkelHeader))
+                        *totalBonesOut = v11SkelHeader.jointCount;
                 }
             }
         }
@@ -1973,6 +2035,7 @@ namespace mbm
         fileHeader.backBufferWidth  = impl->backBufferWidth;
         fileHeader.backBufferHeight = impl->backBufferHeight;
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
+                                     + (impl->skeleton.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
                                      + this->getTotalAnimationHeaders()
                                      + ((impl->typeMe == util::TYPE_MESH_PARTICLE) ? 1u : 0u)
@@ -2091,6 +2154,29 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_DETAIL_PHYSICS [%s]", fileOut);
+        }
+
+        // SECTION_FRAME_SKINNED - optional joint hierarchy for mannequin_editor.lua's own round-trip
+        // diagnostic; independent of typeMe and independent of whether this mesh's SECTION_FRAME_STATIC
+        // geometry came from the mannequin editor or an ordinary Blender import ---------------------------
+        if (!impl->skeleton.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_FRAME_SKINNED;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                util::SKELETON_HEADER_V11 skelHeader;
+                skelHeader.jointCount = static_cast<uint16_t>(this->impl->skeleton.size());
+                if (!util::writeSkeletonHeaderV11(fp, skelHeader))
+                    return false;
+                for (const auto &joint : this->impl->skeleton)
+                    if (!util::writeJointV11(fp, joint))
+                        return false;
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_FRAME_SKINNED [%s]", fileOut);
         }
 
         // SECTION_ANIMATION, one per animation, including its FX block ---------------------------------------
@@ -2730,6 +2816,12 @@ namespace mbm
                                     : (v11FrameHeader.uvSource == 0 ? HAS_TEX_EACH_FRAME : HAS_TEX_FIRST_FRAME);
                 }
                 this->impl->buffer.push_back(pBuffer);
+            }
+            else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (!parse_skeleton_section_v11(tmp, impl->skeleton))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_FRAME_SKINNED [%s]", fileNamePath);
             }
             else
             {
@@ -3481,6 +3573,54 @@ namespace mbm
         return infoHead->effectShader->getTextureAnimationEffectFileName();
     }
 
+    int MESH_MBM_DEBUG::addBone(const char *name, const char *parentName, const float x, const float y, const float z,
+                                 const float radius, char *errorOut, const int errorOutLen)
+    {
+        if (!name || !name[0])
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "bone name must not be empty");
+            return 0;
+        }
+        for (const auto &j : impl->skeleton)
+        {
+            if (j.name == name)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "duplicate bone name [%s]", name);
+                return 0;
+            }
+        }
+        const bool hasParent = parentName && parentName[0];
+        if (hasParent)
+        {
+            const bool parentFound = std::any_of(impl->skeleton.begin(), impl->skeleton.end(),
+                [parentName](const util::JOINT_V11 &j) { return j.name == parentName; });
+            if (!parentFound)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "unknown parent bone [%s]", parentName);
+                return 0;
+            }
+        }
+        util::JOINT_V11 joint;
+        joint.name       = name;
+        joint.parentName = hasParent ? parentName : "";
+        joint.x = x; joint.y = y; joint.z = z;
+        joint.radius = radius;
+        impl->skeleton.push_back(std::move(joint));
+        return static_cast<int>(impl->skeleton.size());
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalBone() const noexcept
+    {
+        return static_cast<uint32_t>(impl->skeleton.size());
+    }
+
+    const util::JOINT_V11 *MESH_MBM_DEBUG::getBone(const uint32_t index) const noexcept
+    {
+        if (index < impl->skeleton.size())
+            return &impl->skeleton[index];
+        return nullptr;
+    }
+
     bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept
     {
         if (index >= this->impl->infoAnimation.lsHeaderAnim.size())
@@ -3597,6 +3737,7 @@ namespace mbm
         this->impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         this->impl->infoPhysics.release();
         this->impl->infoAnimation.release();
+        impl->skeleton.clear();
     }
 
     void MESH_MBM_DEBUG::fillAtLeastOneBound()

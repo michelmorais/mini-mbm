@@ -76,8 +76,9 @@ namespace mbm
         API_IMPL bool getInfo(util::HEADER_MESH &headerMeshMbmOut, util::TYPE_MESH &typeOut, INFO_BOUND_FONT **datailFontOut,
                      std::vector<util::STAGE_PARTICLE> &lsStageParticle);
         API_IMPL static bool getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
-                                  util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut, 
-                                  std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut = nullptr);
+                                  util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut,
+                                  std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut = nullptr,
+                                  bool *hasSkeletonOut = nullptr, uint16_t *totalBonesOut = nullptr);
         API_IMPL static const char* getValidExtension(const char* fileName,bool &isImage,bool &isMesh,bool &isUnknown);
         API_IMPL static std::string getExtension(const char* fileName);
         API_IMPL util::TYPE_MESH getMeshType() const noexcept;
@@ -155,6 +156,15 @@ namespace mbm
         API_IMPL const util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnim(const uint32_t index)const;
         API_IMPL const char *getAnimationEffectTexture(const uint32_t index) const noexcept;
         API_IMPL bool setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept;
+        // Skeleton accessors (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
+        // diagnostic round-trip only, never consulted by rendering. `parentName` must be nullptr/""
+        // (root) or already-added via a prior addBone call in this instance; addBone returns 0 and
+        // fills errorOut on any validation failure, else a 1-based joint index, mirroring
+        // addAnimation's contract.
+        API_IMPL int addBone(const char *name, const char *parentName, const float x, const float y, const float z,
+                              const float radius, char *errorOut, const int errorOutLen);
+        API_IMPL uint32_t getTotalBone() const noexcept;
+        API_IMPL const util::JOINT_V11 *getBone(const uint32_t index) const noexcept;
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();

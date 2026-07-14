@@ -713,4 +713,15 @@ namespace util
         type = 0;
     }
 
+    SKELETON_HEADER_V11::SKELETON_HEADER_V11() noexcept
+    {
+        jointCount = 0;
+    }
+
+    JOINT_V11::JOINT_V11() noexcept
+    {
+        x = y = z = 0.0f;
+        radius     = 0.0f;
+    }
+
 }

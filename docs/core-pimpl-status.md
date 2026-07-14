@@ -127,3 +127,5 @@ If the work is redesign-shaped, write the redesign plan first instead of treatin
 ## Historical Note
 
 The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the branch is no longer tracking active gap burn-down. The useful output now is the current boundary/status, not the chronological milestone log.
+
+`MESH_MBM_DEBUG::Impl::skeleton` (`std::vector<util::JOINT_V11>`, `SECTION_FRAME_SKINNED` persistence for `mannequin_editor.lua`'s round-trip, added alongside `addBone`/`getBone`/`getTotalBone`) follows the standard Impl-only rule from "Repo Rule For Future Core Work" below — noted here explicitly so a future reader doesn't have to re-derive that this was a deliberate, rule-compliant addition rather than an oversight. `MESH_MBM::Impl` was deliberately NOT given an equivalent field (no runtime skinning consumer exists); the shared parse path merely tolerates and discards the section for that class.

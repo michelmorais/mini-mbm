@@ -78,7 +78,8 @@ enum SECTION_TYPE : uint16_t
     SECTION_MATERIAL_TRANSFORM = 1,   // material + angle/pos + draw mode (replaces HEADER_MESH + INFO_DRAW_MODE)
     SECTION_ANIMATION          = 2,   // repeated: one per animation, in order, including its FX block
     SECTION_FRAME_STATIC       = 10,  // repeated: one per frame, in order
-    SECTION_FRAME_SKINNED      = 11,  // reserved type id — no v11.0 writer ever emits this
+    SECTION_FRAME_SKINNED      = 11,  // bundled joint hierarchy, see Sec. 6e — diagnostic/editor
+                                       // round-trip only, never consulted by rendering
     SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / cube-complex / triangle bounding volumes
     SECTION_DETAIL_FONT        = 21,
     SECTION_DETAIL_PARTICLE    = 22,
@@ -100,9 +101,11 @@ a tile map has `SECTION_DETAIL_TILE`, and no other mesh type has any of the thre
 carries physics bounding volumes now; FONT/PARTICLE/TILE detail data moved to their own top-level
 sections in milestones 12/13, it's never nested inside `SECTION_DETAIL_PHYSICS`.
 
-`SECTION_FRAME_SKINNED` is reserved *now* (the numeric id is spoken for) specifically so that when
-bones ship later, they get a new section type, not a new file-format version. No v11.0 code path
-reads or writes it.
+`SECTION_FRAME_SKINNED` (Sec. 6e) persists a joint hierarchy — one optional section per mesh,
+independent of `SECTION_FRAME_STATIC` geometry (a mesh can have real frame data with no skeleton,
+a skeleton with no special geometry origin, or both, e.g. a skeleton fitted onto a mesh imported
+from elsewhere). It is not runtime skeletal animation — the engine has no GPU/CPU skinning
+anywhere — purely a diagnostic round-trip mechanism for `editor/mannequin_editor.lua`.
 
 ## 5. Variable-length strings — replacing fixed char buffers
 
@@ -325,6 +328,40 @@ struct TILE_PROPERTY_V11
 };
 ```
 
+## 6e. `SECTION_FRAME_SKINNED` payload
+
+One optional section per mesh — present only when the editor (`editor/mannequin_editor.lua`, via
+`meshDebug:addBone(...)`) has explicitly added a skeleton. Independent of `typeMesh` and
+independent of whether this mesh's `SECTION_FRAME_STATIC` geometry came from the mannequin editor
+or an ordinary Blender import — a skeleton can be fitted onto any existing mesh's geometry.
+**Diagnostic/editor round-trip only — never consulted by rendering** (this engine has no GPU/CPU
+skinning anywhere).
+
+Bundled like `SECTION_DETAIL_TILE` (§6d): one section, an internal count prefix, followed by a
+flat run of entries — not repeated-per-item like `SECTION_ANIMATION`, since there is exactly one
+skeleton per file, not N.
+
+```cpp
+struct SKELETON_HEADER_V11
+{
+    uint16_t jointCount;  // count of JOINT_V11 entries that follow, in parent-before-child order
+};
+
+// then, jointCount entries:
+struct JOINT_V11
+{
+    // name, parentName: length-prefixed strings (§5). parentName == "" marks the root joint;
+    // otherwise it must equal the `name` of a JOINT_V11 already emitted earlier in this same
+    // section (root-first order) — a reader rejects the file if a parentName doesn't resolve to
+    // an already-seen joint, rather than silently accepting a dangling/forward reference.
+    float x, y, z;   // joint position, same coordinate convention as the caller's mesh
+    float radius;    // authoring-time joint radius (mannequin_editor.lua marker size)
+};
+```
+
+Same "no explicit index field" convention as every other repeated/bundled section (§4, Milestone 0
+Decision 3, §8 below): joint identity is by `name`, not by array position.
+
 ## 7. Index width (§6 `indexWidth`)
 
 Per-frame, not per-file: `16` is the default a writer should choose unless the frame's vertex count
@@ -334,7 +371,6 @@ where actually needed, keeping the common case small.
 
 ## 8. What stays out of this proposal on purpose
 
-- `SECTION_FRAME_SKINNED` payload layout — not designed yet, only the type id is reserved.
 - Vertex quantization (compact normal/UV encodings) — future optimization, not part of the v11.0
   layout lock.
 - `SECTION_DETAIL_*` payload bytes are intentionally not redesigned here — they can keep today's

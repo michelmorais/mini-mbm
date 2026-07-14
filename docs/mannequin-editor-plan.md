@@ -1,11 +1,13 @@
 # Plano: `mannequin_editor.lua` (Marco 1) + roteiro dos Marcos 2-4
 
-**Status (2026-07-14): Marcos 1 e 3 validados ponta-a-ponta pelo usuário com uma foto real** —
-marcar → gerar mesh → exportar FBX via Blender → upload no mixamo.com → aceito → animação aplicada
-→ baixado → reimportado no `mesh_debug.lua` (Import via Blender) → frames estáticos gerados como
-esperado. Objetivo original do projeto alcançado. Malha ainda é low-poly (primitivas
-cilíndricas simples, 10 segmentos radiais) — aceitável pra essa primeira versão, possível
-melhoria futura. Marco 2 (persistência `.msh`) segue não implementado, não bloqueia o fluxo real.
+**Status (2026-07-14): Marcos 1, 2 e 3 implementados.** Marcos 1 e 3 validados ponta-a-ponta pelo
+usuário com uma foto real — marcar → gerar mesh → exportar FBX via Blender → upload no
+mixamo.com → aceito → animação aplicada → baixado → reimportado no `mesh_debug.lua` (Import via
+Blender) → frames estáticos gerados como esperado. Objetivo original do projeto alcançado. Malha
+ainda é low-poly (primitivas cilíndricas simples, 10 segmentos radiais) — aceitável pra essa
+primeira versão, possível melhoria futura. Marco 2 (persistência `.msh` via `SECTION_FRAME_SKINNED`
++ `addBone`/`getBone`/`getTotalBone`) implementado e validado via script (round-trip + tolerância
+cross-loader), ainda não conectado à UI do editor.
 
 ## Contexto
 
@@ -326,37 +328,44 @@ marcador, derivação de juntas sintéticas, escritor do JSON.
 
 ---
 
-## Marco 2 — persistência de armature no formato nativo (`SECTION_FRAME_SKINNED`)
+## Marco 2 — persistência de armature no formato nativo (`SECTION_FRAME_SKINNED`) — IMPLEMENTADO
 
 **Não é runtime de animação por esqueleto.** Confirmado por exploração de código: não existe
 nenhum rastro de skinning/bone-matrix/skeleton em `src/render/`, `include/render/`, nem em
-`animation.h/.cpp` — a engine hoje é 100% frames estáticos pré-calculados. Este marco serve só pra
-dar ao **editor** um jeito de salvar/recarregar seu próprio estado de trabalho (joints + mesh) no
-formato nativo `.msh`, como diagnóstico de evolução — não pra fazer o `MESH` da engine animar por
-esqueleto em jogo.
+`animation.h/.cpp` — a engine é 100% frames estáticos pré-calculados. Esta seção serve só pra dar
+ao **editor** (`meshDebug`, `MESH_MBM_DEBUG`) um jeito de salvar/recarregar uma hierarquia de
+joints no formato nativo `.msh`, como diagnóstico — não pra fazer o `MESH` da engine animar por
+esqueleto em jogo. `MESH_MBM` (classe leve de runtime) não ganhou nenhum campo/accessor de
+esqueleto — só tolera o parse (descarta o conteúdo), confirmado carregando o mesmo arquivo com
+esqueleto via `testLib`/caminho normal de jogo sem erro.
 
-- `SECTION_FRAME_SKINNED = 11` **já está reservado** em `include/core_mbm/header-mesh.h:564` e
-  documentado em `docs/mesh-v11-format.md:103-105`: *"reserved now specifically so that when bones
-  ship later, they get a new section type, not a new file-format version"*. **Não é preciso
-  inventar um novo id** (`SECTION_FRAME_BONES`/`SECTION_FRAME_ARMATURE` não são necessários) — só
-  falta desenhar o payload (`docs/mesh-v11-format.md:337`: *"payload layout — not designed yet, only
-  the type id is reserved"*).
-- Payload proposto: espelha o schema JSON do Marco 1 (lista de joints com nome, posição, pai,
-  raio; vértices com posição+UV+owner; subsets com owner+índices), serializado no formato binário
-  de seção do v11 (mesmo padrão de `SECTION_ANIMATION`/`SECTION_FRAME_STATIC` em
-  `mesh-manager.cpp`).
-- Trabalho de C++: leitura/escrita em `src/core_mbm/mesh-manager.cpp`, respeitando a diretriz de
-  PIMPL/header-hygiene do `AGENTS.md`/`CLAUDE.md` (não vazar estado mutável novo em headers
-  públicos) e atualizando `docs/core-pimpl-status.md` quando o trabalho mudar essa fronteira.
-- Novo binding Lua em `meshDebug` (native class, `src/lua-wrap/render-table/mesh-debug-lua.cpp`),
-  algo como `addBone`/`getBone`/`getTotalBone`, espelhando o padrão já existente de
-  `addAnim`/`getAnim`.
-- No `mannequin_editor.lua`: botões "Exportar .msh (diagnóstico)" / "Recarregar do .msh" usando
-  esse novo binding.
+- `SECTION_FRAME_SKINNED = 11`, já reservado em `include/core_mbm/header-mesh.h`, agora tem
+  payload real: `SKELETON_HEADER_V11 { jointCount }` + N `JOINT_V11 { name, parentName, x, y, z,
+  radius }` (strings length-prefixed, `parentName` vazio = raiz). **Só a hierarquia de joints** —
+  a geometria continua exclusivamente nas seções de frame padrão (`SECTION_FRAME_STATIC`),
+  diferente da proposta original deste documento (que cogitava espelhar vértices/UV/subsets
+  também) — essa mudança de escopo é o que permite futuramente ajustar um esqueleto em cima de
+  uma mesh já existente (baixada da internet), não só em meshes geradas pelo editor de manequim.
+  Detalhes completos em `docs/mesh-v11-format.md` §6e.
+- C++: `src/core_mbm/header-mesh.h`/`.cpp` (structs), `src/core_mbm/mesh-v11-io.h`/`.cpp`
+  (serializadores), `src/core_mbm/mesh-manager.cpp` (leitura nos 3 loops de parse + escrita em
+  `saveV11` + accessors `addBone`/`getBone`/`getTotalBone` em `MESH_MBM_DEBUG`),
+  `src/core_mbm/mesh-manager-impl.h` (campo `skeleton` no `Impl`, seguindo a regra de
+  `docs/core-pimpl-status.md`).
+- Binding Lua em `meshDebug`: `addBone(name, parentName_ou_nil, x, y, z, radius) -> índice`,
+  `getTotalBone() -> count`, `getBone(index) -> name, x, y, z, radius, parentName_ou_nil`
+  (`src/lua-wrap/render-table/mesh-debug-lua.cpp`). `save`/`load` já levam o esqueleto junto
+  automaticamente — nenhuma mudança neles.
+- Validado: build limpo (`mini-mbm` + `testLib`, sem warnings nos arquivos tocados), round-trip
+  completo via script Lua headless (`addBone` × 3 incluindo joint não-raiz → `save` → `load` numa
+  instância nova → `getBone` bate exatamente), caminhos negativos (pai desconhecido, nome
+  duplicado — ambos rejeitados corretamente), e tolerância cross-loader (mesmo arquivo carrega sem
+  erro via `testLib`/`MESH_MBM`).
 
-Este marco só faz sentido depois que a geração do manequim (Marco 1) já existe — não há o que
-persistir antes disso. Detalhamento fino do payload binário fica para quando este marco for
-efetivamente planejado (fora do escopo de implementação agora).
+Ainda não conectado à UI do `mannequin_editor.lua` (botões "Exportar .msh (diagnóstico)"/
+"Recarregar do .msh") — os bindings existem e foram validados via script, mas a integração visual
+no editor fica para quando isso for necessário na prática (ex: quando o Marco de "carregar mesh
+existente" avançar).
 
 ---
 

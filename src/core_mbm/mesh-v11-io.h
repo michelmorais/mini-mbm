@@ -114,6 +114,13 @@ namespace util
 
     bool writeTilePropertyV11(FILE *fp, const util::TILE_PROPERTY_V11 &in);
     bool readTilePropertyV11(util::MEM_CURSOR_V11 &fp, util::TILE_PROPERTY_V11 &out);
+
+    // SECTION_FRAME_SKINNED payload serializers.
+    bool writeSkeletonHeaderV11(FILE *fp, const util::SKELETON_HEADER_V11 &in);
+    bool readSkeletonHeaderV11(util::MEM_CURSOR_V11 &fp, util::SKELETON_HEADER_V11 &out);
+
+    bool writeJointV11(FILE *fp, const util::JOINT_V11 &in);
+    bool readJointV11(util::MEM_CURSOR_V11 &fp, util::JOINT_V11 &out);
 }
 
 #endif
