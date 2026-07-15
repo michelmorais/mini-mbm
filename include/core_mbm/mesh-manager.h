@@ -165,6 +165,18 @@ namespace mbm
                               const float radius, char *errorOut, const int errorOutLen);
         API_IMPL uint32_t getTotalBone() const noexcept;
         API_IMPL const util::JOINT_V11 *getBone(const uint32_t index) const noexcept;
+        // Edits an existing bone in place (name/parent/position/radius). Rejects an empty/duplicate
+        // name, an unknown parent, self-parenting, and any reparent that would create a cycle (the
+        // candidate parent is a descendant of `index`). On success, re-sorts the internal joint list
+        // so parent-before-child order still holds (required by the on-disk format), which callers
+        // relying on stable indices across calls must account for.
+        API_IMPL bool updateBone(const uint32_t index, const char *name, const char *parentName,
+                                  const float x, const float y, const float z, const float radius,
+                                  char *errorOut, const int errorOutLen);
+        // Removes bone `index`. If other bones reference it as their parent, the call fails (errorOut
+        // explains how many) unless `cascadeChildren` is true, in which case the whole subtree rooted
+        // at `index` is removed.
+        API_IMPL bool removeBone(const uint32_t index, const bool cascadeChildren, char *errorOut, const int errorOutLen);
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();

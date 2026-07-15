@@ -310,6 +310,10 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, tostring(options.largeMeshMode))
     end
 
+    if options.includeBones then
+        table.insert(args, '--include-bones')
+    end
+
     if options.importPostProcess then
         table.insert(args, '--post-process')
         if options.importInvertU then
@@ -373,6 +377,42 @@ function M.buildMannequinCmd(jsonInputPath, outputFbxPath, exporterScriptPath, o
 
     local cmd = table.concat(args, ' ')
     debugPrint('build mannequin cmd: %s', cmd)
+    return cmd
+end
+
+-- Builds the headless command for blender_mesh_skeleton_export.py (Mesh Debug's "Export to FBX"):
+-- jsonInputPath is mesh_debug.lua's own geometry+bones dump, outputFbxPath is where the built
+-- mesh(+armature, if the JSON has bones) gets exported. Same shape as buildMannequinCmd -- always
+-- --factory-startup since the script builds its scene from scratch.
+function M.buildMeshSkeletonExportCmd(jsonInputPath, outputFbxPath, exporterScriptPath, options)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+
+    options = options or {}
+    local args = {
+        shellQuote(b.path),
+        '-b',
+        '--factory-startup',
+        '--python',
+        shellQuote(exporterScriptPath),
+        '--',
+        '--input',
+        shellQuote(jsonInputPath),
+        '--output',
+        shellQuote(outputFbxPath),
+    }
+
+    if options.cancelFile and options.cancelFile ~= '' then
+        table.insert(args, '--cancel-file')
+        table.insert(args, shellQuote(options.cancelFile))
+    end
+
+    if options.debugSteps then
+        table.insert(args, '--debug-steps')
+    end
+
+    local cmd = table.concat(args, ' ')
+    debugPrint('build mesh skeleton export cmd: %s', cmd)
     return cmd
 end
 

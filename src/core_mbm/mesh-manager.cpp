@@ -3621,6 +3621,191 @@ namespace mbm
         return nullptr;
     }
 
+    namespace
+    {
+        // Re-sorts a skeleton vector so every joint's parent appears earlier than the joint itself,
+        // required by parse_skeleton_section_v11's on-load ordering check. Stable multi-pass (Kahn's
+        // algorithm style) rather than a single std::sort, so joints that don't need to move keep
+        // their relative order -- skeletons are small (tens of joints), so the O(n^2) worst case is
+        // not a concern.
+        void resortSkeletonParentFirst(std::vector<util::JOINT_V11> &skeleton)
+        {
+            std::vector<util::JOINT_V11> sorted;
+            sorted.reserve(skeleton.size());
+            std::vector<bool> placed(skeleton.size(), false);
+            bool progress = true;
+            while (sorted.size() < skeleton.size() && progress)
+            {
+                progress = false;
+                for (uint32_t i = 0; i < skeleton.size(); ++i)
+                {
+                    if (placed[i])
+                        continue;
+                    const util::JOINT_V11 &j = skeleton[i];
+                    const bool parentReady = j.parentName.empty() ||
+                        std::any_of(sorted.begin(), sorted.end(),
+                                    [&j](const util::JOINT_V11 &s) { return s.name == j.parentName; });
+                    if (parentReady)
+                    {
+                        sorted.push_back(skeleton[i]);
+                        placed[i] = true;
+                        progress = true;
+                    }
+                }
+            }
+            // Leftover entries (should not happen given updateBone's cycle guard) are appended as-is
+            // rather than dropped, so a bug here loses ordering guarantees but never loses data.
+            for (uint32_t i = 0; i < skeleton.size(); ++i)
+                if (!placed[i])
+                    sorted.push_back(skeleton[i]);
+            skeleton.swap(sorted);
+        }
+    }
+
+    bool MESH_MBM_DEBUG::updateBone(const uint32_t index, const char *name, const char *parentName,
+                                     const float x, const float y, const float z, const float radius,
+                                     char *errorOut, const int errorOutLen)
+    {
+        if (index >= impl->skeleton.size())
+        {
+            if (errorOut)
+                snprintf(errorOut, errorOutLen, "bone index [%u] out of range -> total [%u]", index,
+                         static_cast<uint32_t>(impl->skeleton.size()));
+            return false;
+        }
+        if (!name || !name[0])
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "bone name must not be empty");
+            return false;
+        }
+        for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
+        {
+            if (i != index && impl->skeleton[i].name == name)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "duplicate bone name [%s]", name);
+                return false;
+            }
+        }
+        const std::string oldName = impl->skeleton[index].name;
+        const bool        hasParent = parentName && parentName[0];
+        std::string       newParentName;
+        if (hasParent)
+        {
+            // covers both "parent == the new name being assigned" and "parent == its own current
+            // name" (renaming and self-parenting in the same call)
+            if (std::string(name) == parentName || oldName == parentName)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "bone [%s] cannot be its own parent", name);
+                return false;
+            }
+            const util::JOINT_V11 *parentJoint = nullptr;
+            for (const auto &j : impl->skeleton)
+            {
+                if (j.name == parentName)
+                {
+                    parentJoint = &j;
+                    break;
+                }
+            }
+            if (parentJoint == nullptr)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "unknown parent bone [%s]", parentName);
+                return false;
+            }
+            // Cycle guard: walk up from the candidate parent toward the root. If this walk reaches
+            // this bone's current name, the candidate parent is a descendant of this bone, and
+            // reparenting would create a cycle.
+            std::string cursor = parentJoint->parentName;
+            uint32_t    guard  = 0;
+            while (!cursor.empty() && guard++ < impl->skeleton.size())
+            {
+                if (cursor == oldName)
+                {
+                    if (errorOut)
+                        snprintf(errorOut, errorOutLen, "reparenting [%s] under [%s] would create a cycle",
+                                 name, parentName);
+                    return false;
+                }
+                const util::JOINT_V11 *next = nullptr;
+                for (const auto &j : impl->skeleton)
+                {
+                    if (j.name == cursor)
+                    {
+                        next = &j;
+                        break;
+                    }
+                }
+                if (next == nullptr)
+                    break;
+                cursor = next->parentName;
+            }
+            newParentName = parentName;
+        }
+        util::JOINT_V11 &joint = impl->skeleton[index];
+        joint.name             = name;
+        joint.parentName       = newParentName;
+        joint.x                = x;
+        joint.y                = y;
+        joint.z                = z;
+        joint.radius            = radius;
+        // Any other joint that referenced this one by its old name must be repointed to the new one.
+        if (oldName != name)
+        {
+            for (auto &j : impl->skeleton)
+                if (j.parentName == oldName)
+                    j.parentName = name;
+        }
+        resortSkeletonParentFirst(impl->skeleton);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeBone(const uint32_t index, const bool cascadeChildren, char *errorOut, const int errorOutLen)
+    {
+        if (index >= impl->skeleton.size())
+        {
+            if (errorOut)
+                snprintf(errorOut, errorOutLen, "bone index [%u] out of range -> total [%u]", index,
+                         static_cast<uint32_t>(impl->skeleton.size()));
+            return false;
+        }
+        const std::string       name = impl->skeleton[index].name;
+        std::vector<std::string> children;
+        for (const auto &j : impl->skeleton)
+            if (j.parentName == name)
+                children.push_back(j.name);
+        if (!children.empty() && !cascadeChildren)
+        {
+            if (errorOut)
+                snprintf(errorOut, errorOutLen,
+                         "bone [%s] has %u child bone(s); pass cascadeChildren=true to remove them too",
+                         name.c_str(), static_cast<uint32_t>(children.size()));
+            return false;
+        }
+        if (cascadeChildren)
+        {
+            for (const auto &childName : children)
+            {
+                for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
+                {
+                    if (impl->skeleton[i].name == childName)
+                    {
+                        removeBone(i, true, nullptr, 0);
+                        break;
+                    }
+                }
+            }
+        }
+        for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
+        {
+            if (impl->skeleton[i].name == name)
+            {
+                impl->skeleton.erase(impl->skeleton.begin() + i);
+                break;
+            }
+        }
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept
     {
         if (index >= this->impl->infoAnimation.lsHeaderAnim.size())

@@ -1890,6 +1890,37 @@ namespace mbm
         return 6;
     }
 
+    int onUpdateBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t  index      = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *    name       = luaL_checkstring(lua, 3);
+        const char *    parentName = lua_isnil(lua, 4) ? nullptr : luaL_checkstring(lua, 4);
+        const float     x          = static_cast<float>(luaL_checknumber(lua, 5));
+        const float     y          = static_cast<float>(luaL_checknumber(lua, 6));
+        const float     z          = static_cast<float>(luaL_checknumber(lua, 7));
+        const float     radius     = static_cast<float>(luaL_checknumber(lua, 8));
+        char            errorOut[255] = "";
+        const bool ret = meshDebug->mesh.updateBone(index, name, parentName, x, y, z, radius, errorOut, (int)sizeof(errorOut));
+        if (!ret)
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onRemoveBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug       = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t  index           = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const bool      cascadeChildren = lua_gettop(lua) > 2 && lua_toboolean(lua, 3) != 0;
+        char            errorOut[255]   = "";
+        const bool ret = meshDebug->mesh.removeBone(index, cascadeChildren, errorOut, (int)sizeof(errorOut));
+        if (!ret)
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     int onNewIndexMeshDebug(lua_State *lua) // escrita
     {
         /*
@@ -1990,6 +2021,8 @@ namespace mbm
                                           {"addBone", onAddBoneDebugLua},
                                           {"getTotalBone", onGetTotalBoneDebugLua},
                                           {"getBone", onGetBoneDebugLua},
+                                          {"updateBone", onUpdateBoneDebugLua},
+                                          {"removeBone", onRemoveBoneDebugLua},
 										  {"getExt", onGetStaticExtensionLua},
                                           {"setDetail", onSetDetailLua},
                                           {nullptr, nullptr}};

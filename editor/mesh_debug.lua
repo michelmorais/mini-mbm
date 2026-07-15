@@ -229,11 +229,25 @@ function onInitScene()
         nImportAngleY = 0,
         nImportAngleZ = 0,
         iLargeMeshMode = 1,
+        bImportIncludeBones = true,
         tRunResults = {},
     }
     tMixamoGuideState = {
         bOpen = false,
         bOpenPopup = false,
+    }
+    tMeshExportBuildState = {
+        bOpen = false,
+        bOpenPopup = false,
+        bBuilding = false,
+        bAbortRequested = false,
+        sStatus = '',
+        bStatusOk = true,
+        co = nil,
+        sCancelFile = '',
+        iTimeoutSecs = 120,
+        bDebugSteps = false,
+        tRunResults = {}, -- {name=, ok=, msg=} per entry, populated for both single and "all" runs
     }
     tEditorLightUi = {}
 end
@@ -1854,6 +1868,7 @@ local function blenderImportCoroutine()
         importOptions.importAngleY = st.nImportAngleY
         importOptions.importAngleZ = st.nImportAngleZ
         importOptions.largeMeshMode = getBlenderLargeMeshModeArg()
+        importOptions.includeBones = st.bImportIncludeBones
         local cmd = tBlender.buildBakeCmd(src, modeIntermediateOnly and outDir or outMsh, exporterPath, importOptions)
         if cmd then
             tBlender.launchCmdAsync(cmd, dbgLog)
@@ -2530,6 +2545,9 @@ function showBlenderImportDialog()
     if (st.iLargeMeshMode or 1) == 2 then
         tImGui.TextDisabled(tLang.L('blender_import_large_mesh_vb_only_note'))
     end
+    st.bImportIncludeBones = tImGui.Checkbox(tLang.L('blender_import_include_bones'), st.bImportIncludeBones)
+    tImGui.SameLine()
+    tImGui.HelpMarker(tLang.L('blender_import_include_bones_help'))
     tImGui.Separator()
     st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
     tImGui.BeginDisabled(not st.bImportPostProcess)
@@ -4436,6 +4454,874 @@ function showFramePickWindow(tEntry, meshD, index)
 end
 
 -- ---------------------------------------------------------------------------
+-- Bones 3D gizmo + drag: world<->bone-space conversion, sphere/cylinder gizmo geometry, ray-sphere
+-- hit test, and camera-facing-plane drag math.
+-- ---------------------------------------------------------------------------
+
+-- Raw-vertex sphere/cylinder builders -- no named sphere/cylinder primitive exists in SHAPE_MESH's
+-- Lua binding, same situation and same code as editor/mannequin_editor.lua's own copies
+-- (unitSphereVerts/unitCylinderVerts, ~mannequin_editor.lua:155-204); duplicated here rather than
+-- shared since mannequin_editor.lua doesn't expose them as a requirable module.
+local function unitSphereVerts(latSegments, lonSegments)
+    latSegments = latSegments or 8
+    lonSegments = lonSegments or 12
+    local function toXYZ(theta, phi)
+        local s = math.sin(theta)
+        return s * math.cos(phi), math.cos(theta), s * math.sin(phi)
+    end
+    local verts = {}
+    local function push(x, y, z) table.insert(verts, x); table.insert(verts, y); table.insert(verts, z) end
+    for i = 0, latSegments - 1 do
+        local theta1 = (i / latSegments) * math.pi
+        local theta2 = ((i + 1) / latSegments) * math.pi
+        for j = 0, lonSegments - 1 do
+            local phi1 = (j / lonSegments) * math.pi * 2
+            local phi2 = ((j + 1) / lonSegments) * math.pi * 2
+            local x1, y1, z1 = toXYZ(theta1, phi1)
+            local x2, y2, z2 = toXYZ(theta1, phi2)
+            local x3, y3, z3 = toXYZ(theta2, phi1)
+            local x4, y4, z4 = toXYZ(theta2, phi2)
+            push(x1, y1, z1); push(x3, y3, z3); push(x4, y4, z4)
+            push(x1, y1, z1); push(x4, y4, z4); push(x2, y2, z2)
+        end
+    end
+    return verts
+end
+
+-- Built along local +Y from y=0 (radiusBottom) to y=height (radiusTop), same winding-fix as
+-- mannequin_editor.lua:183-204 (outward-facing normals confirmed there, copied verbatim).
+local function unitCylinderVerts(radiusTop, radiusBottom, height, radialSegments)
+    radialSegments = radialSegments or 10
+    local verts = {}
+    local function push(x, y, z) table.insert(verts, x); table.insert(verts, y); table.insert(verts, z) end
+    for i = 0, radialSegments - 1 do
+        local a1 = (i / radialSegments) * math.pi * 2
+        local a2 = ((i + 1) / radialSegments) * math.pi * 2
+        local x1b, z1b = math.cos(a1) * radiusBottom, math.sin(a1) * radiusBottom
+        local x2b, z2b = math.cos(a2) * radiusBottom, math.sin(a2) * radiusBottom
+        local x1t, z1t = math.cos(a1) * radiusTop,    math.sin(a1) * radiusTop
+        local x2t, z2t = math.cos(a2) * radiusTop,    math.sin(a2) * radiusTop
+        push(x1b, 0, z1b); push(x2t, height, z2t); push(x2b, 0, z2b)
+        push(x1b, 0, z1b); push(x1t, height, z1t); push(x2t, height, z2t)
+    end
+    return verts
+end
+
+-- Per-axis rotation of a row vector, derived directly from this engine's own matrix code (not
+-- guessed): MatrixRotationX/Y/Z (src/core_mbm/primitives.cpp:457-516) and MatrixMultiply's
+-- out=pm1*pm2 convention (same file:254-270) together mean, for a row vector v transformed as
+-- v'=v*M, that RotationX(a) maps (x,y,z) -> (x, y*cos(a)-z*sin(a), y*sin(a)+z*cos(a)), and
+-- similarly for Y/Z below (matching each matrix's exact entries, not a textbook default).
+local function rotateX(x, y, z, a)
+    local c, s = math.cos(a), math.sin(a)
+    return x, y * c - z * s, y * s + z * c
+end
+local function rotateY(x, y, z, a)
+    local c, s = math.cos(a), math.sin(a)
+    return x * c + z * s, y, -x * s + z * c
+end
+local function rotateZ(x, y, z, a)
+    local c, s = math.cos(a), math.sin(a)
+    return x * c - y * s, x * s + y * c, z
+end
+
+-- MatrixTranslationRotationScale (src/core_mbm/primitives.cpp:24-45) builds modelView =
+-- Scale*Rz*Ry*Rx (via out=pm1*pm2, applied left-to-right for a row vector) then adds position
+-- directly -- so with no persistent object scale (Mesh Info has no such field, see the Bones node's
+-- own help text above), a model-space point is rotated Z first, then Y, then X last, then
+-- translated. This is what meshD:getPosition()/getAngle() (Mesh Info's "Default position"/"Default
+-- angle") apply to every vertex at render time -- NOT the "Transform" node, which bakes rotate/
+-- scale/translate directly into vertex data instead of storing a persistent transform.
+local function boneToWorld(meshD, bx, by, bz)
+    local okA, ang = dpCall(function() return meshD:getAngle() end)
+    local okP, pos = dpCall(function() return meshD:getPosition() end)
+    local ax = (okA and ang and ang.x) or 0
+    local ay = (okA and ang and ang.y) or 0
+    local az = (okA and ang and ang.z) or 0
+    local px = (okP and pos and pos.x) or 0
+    local py = (okP and pos and pos.y) or 0
+    local pz = (okP and pos and pos.z) or 0
+    local x, y, z = bx, by, bz
+    x, y, z = rotateZ(x, y, z, az)
+    x, y, z = rotateY(x, y, z, ay)
+    x, y, z = rotateX(x, y, z, ax)
+    return x + px, y + py, z + pz
+end
+
+-- Inverse of boneToWorld: undo in reverse order with negated angles (valid since axis-rotation
+-- matrices are orthogonal, R(-a) = R(a)^-1).
+local function worldToBone(meshD, wx, wy, wz)
+    local okA, ang = dpCall(function() return meshD:getAngle() end)
+    local okP, pos = dpCall(function() return meshD:getPosition() end)
+    local ax = (okA and ang and ang.x) or 0
+    local ay = (okA and ang and ang.y) or 0
+    local az = (okA and ang and ang.z) or 0
+    local px = (okP and pos and pos.x) or 0
+    local py = (okP and pos and pos.y) or 0
+    local pz = (okP and pos and pos.z) or 0
+    local x, y, z = wx - px, wy - py, wz - pz
+    x, y, z = rotateX(x, y, z, -ax)
+    x, y, z = rotateY(x, y, z, -ay)
+    x, y, z = rotateZ(x, y, z, -az)
+    return x, y, z
+end
+
+local BONE_GIZMO_COLOR = {1, 0, 1, 0.85}
+
+local function destroyBoneGizmo(tEntry)
+    if tEntry.tBoneGizmo then
+        for _, h in pairs(tEntry.tBoneGizmo.spheres) do h:destroy() end
+        for _, h in ipairs(tEntry.tBoneGizmo.bones) do h:destroy() end
+    end
+    tEntry.tBoneGizmo = { spheres = {}, bones = {} }
+end
+
+-- Full gizmo rebuild: called whenever the bone list itself changes (add/remove/reparent/rename) or
+-- the Bones node opens/closes/selection changes -- NOT on every drag-move frame. During a live 3D
+-- drag, only the dragged bone's own sphere is repositioned directly (see onTouchMove), matching
+-- mannequin_editor.lua's own "reposition the dragged handle live, full rebuild only on release"
+-- pattern (mannequin_editor.lua:594-609) -- connecting cylinders stay visually stale for the
+-- duration of the drag, same accepted tradeoff as there.
+function rebuildBoneGizmo(tEntry, meshD, index)
+    destroyBoneGizmo(tEntry)
+    if tEntry.sOpenNode ~= 'bones' or index ~= iSelectedMeshIndex then return end
+
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    if nBones == 0 then return end
+
+    local tBones = {}
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            local wx, wy, wz = boneToWorld(meshD, x, y, z)
+            tBones[name] = { wx = wx, wy = wy, wz = wz, radius = radius or 1, parentName = parentName }
+        end
+    end
+
+    for name, b in pairs(tBones) do
+        local h = shape:new('3d', b.wx, b.wy, b.wz)
+        h:create(unitSphereVerts(), nil, 'mesh_debug_bone_sphere_unit')
+        h:setScale(b.radius, b.radius, b.radius)
+        h:setColor(BONE_GIZMO_COLOR[1], BONE_GIZMO_COLOR[2], BONE_GIZMO_COLOR[3], BONE_GIZMO_COLOR[4])
+        tEntry.tBoneGizmo.spheres[name] = h
+    end
+
+    for _, b in pairs(tBones) do
+        local parent = b.parentName and tBones[b.parentName]
+        if parent then
+            local dx, dy, dz = b.wx - parent.wx, b.wy - parent.wy, b.wz - parent.wz
+            local height = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if height > 0.001 then
+                local h = shape:new('3d', parent.wx, parent.wy, parent.wz)
+                -- Vertex data genuinely differs per link (radii, height) -- unique nickname each
+                -- rebuild, same documented pitfall/fix as mannequin_editor.lua:441-446.
+                tEntry.iBoneGizmoGen = (tEntry.iBoneGizmoGen or 0) + 1
+                local nick = 'mesh_debug_bone_link_' .. index .. '_' .. tEntry.iBoneGizmoGen
+                h:create(unitCylinderVerts(b.radius * 0.5, parent.radius * 0.5, height, 8), nil, nick)
+                -- Flat (XY-plane) angle only, same v1 limitation as mannequin_editor.lua:448-452
+                -- (accurate when dz==0, an approximation otherwise -- full 3-axis bone orientation
+                -- is a separate derivation this milestone deliberately doesn't take on).
+                local theta = math.atan(-dx, dy)
+                h:setAngle(0, 0, theta)
+                h:setColor(BONE_GIZMO_COLOR[1], BONE_GIZMO_COLOR[2], BONE_GIZMO_COLOR[3], BONE_GIZMO_COLOR[4])
+                table.insert(tEntry.tBoneGizmo.bones, h)
+            end
+        end
+    end
+end
+
+-- Standard analytic ray-sphere intersection (dir must be normalized, as mbm.getPickRay's is).
+-- Returns true + hit distance along the ray, or false.
+local function raySphereHit(ox, oy, oz, dx, dy, dz, cx, cy, cz, radius)
+    local lx, ly, lz = cx - ox, cy - oy, cz - oz
+    local tca = lx * dx + ly * dy + lz * dz
+    if tca < 0 then return false end
+    local d2 = lx * lx + ly * ly + lz * lz - tca * tca
+    local r2 = radius * radius
+    if d2 > r2 then return false end
+    local thc = math.sqrt(r2 - d2)
+    return true, tca - thc
+end
+
+-- Hit-tests every bone of the given (already-open, already-selected) entry against the pick ray
+-- through screen point (sx,sy); returns the nearest hit bone's name + world position, or nil.
+-- sx,sy must be in the same pixel space mbm.getPickRay expects -- confirmed empirically to be the
+-- same space onTouchDown/onTouchMove's own x,y already arrive in (mbm.getRealSizeScreen's real/
+-- physical pixels, not mbm.getSizeScreen's logical/scaled ones -- see scene_editor3d.lua's
+-- updateHoverHighlight, which feeds raw touch x,y into obj:collide with no conversion either).
+local function hitTestBone(tEntry, meshD, sx, sy)
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    if nBones == 0 then return nil end
+    local okRay, ox, oy, oz, dx, dy, dz = dpCall(function() return mbm.getPickRay(sx, sy) end)
+    if not okRay then return nil end
+    local bestName, bestDist, bestWx, bestWy, bestWz = nil, math.huge, nil, nil, nil
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            local wx, wy, wz = boneToWorld(meshD, x, y, z)
+            local pickRadius = math.max(radius or 1, 1.5) -- floor so tiny bones stay clickable
+            local hit, dist = raySphereHit(ox, oy, oz, dx, dy, dz, wx, wy, wz, pickRadius)
+            if hit and dist < bestDist then
+                bestName, bestDist, bestWx, bestWy, bestWz = name, dist, wx, wy, wz
+            end
+        end
+    end
+    return bestName, bestWx, bestWy, bestWz
+end
+
+-- Intersects the pick ray through (sx,sy) with a fixed plane (billboard-drag technique: the plane
+-- is computed once at drag-start, facing the camera, so the dragged point tracks the cursor
+-- regardless of camera orbit during the drag). planePt/planeNormal are {x,y,z} tables.
+local function rayPlaneHit(sx, sy, planePt, planeNormal)
+    local okRay, ox, oy, oz, dx, dy, dz = dpCall(function() return mbm.getPickRay(sx, sy) end)
+    if not okRay then return nil end
+    local denom = planeNormal[1] * dx + planeNormal[2] * dy + planeNormal[3] * dz
+    if math.abs(denom) < 1e-6 then return nil end
+    local t = ((planePt[1] - ox) * planeNormal[1] + (planePt[2] - oy) * planeNormal[2] + (planePt[3] - oz) * planeNormal[3]) / denom
+    if t < 0 then return nil end
+    return ox + dx * t, oy + dy * t, oz + dz * t
+end
+
+-- ---------------------------------------------------------------------------
+-- "Apply Humanoid Armature": fixed 18-joint biped preset, positioned from the mesh's own AABB
+-- instead of photo markers (unlike editor/mannequin_editor.lua's version of this same idea).
+-- ---------------------------------------------------------------------------
+
+-- Reads frame 1's raw vertex data across every subset -- not meshD:getPhysics(), whose configured
+-- bounds can be absent/stale -- to place joints relative to the mesh's actual current geometry.
+local function computeMeshAABB(meshD)
+    local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    nSubsets = (okS and nSubsets) or 0
+    local minX, minY, minZ, maxX, maxY, maxZ = nil, nil, nil, nil, nil, nil
+    for s = 1, nSubsets do
+        local okV, nVerts = dpCall(function() return meshD:getTotalVertex(1, s) end)
+        nVerts = (okV and nVerts) or 0
+        for v = 1, nVerts do
+            local okG, vert = dpCall(function() return meshD:getVertex(1, s, v) end)
+            if okG and vert then
+                local x, y, z = vert.x, vert.y, vert.z
+                minX = (not minX or x < minX) and x or minX
+                maxX = (not maxX or x > maxX) and x or maxX
+                minY = (not minY or y < minY) and y or minY
+                maxY = (not maxY or y > maxY) and y or maxY
+                minZ = (not minZ or z < minZ) and z or minZ
+                maxZ = (not maxZ or z > maxZ) and z or maxZ
+            end
+        end
+    end
+    if not minX then return nil end
+    return { minX = minX, minY = minY, minZ = minZ, maxX = maxX, maxY = maxY, maxZ = maxZ }
+end
+
+-- Same 18-joint hierarchy/topology as editor/mannequin_editor.lua's PARENT_OF + tMarkerDefs (14
+-- marked + 4 synthetic: spine1, shoulderCenter, lAnkle, rAnkle), but listed here in explicit
+-- root-first order (parent always precedes child, matching the on-disk ordering invariant
+-- addBone/updateBone enforce) with fixed (xFrac,yFrac) placement fractions instead of photo-marker
+-- positions. xFrac/yFrac are 0..1 fractions of the mesh's own AABB width/height (0,0 = bottom-left,
+-- 1,1 = top-right) -- the exact same numbers as mannequin_editor.lua's DEFAULT_TEMPLATE T-pose for
+-- the 14 marked joints (that table's y already runs bottom(0)-to-top(1), matching this one
+-- directly), with the 4 synthetic joints' fractions computed the same way resolveJoints() derives
+-- them there (shoulderCenter = midpoint(lShoulder,rShoulder), spine1 = lerp(groin,shoulderCenter,
+-- 0.5), ankle = lerp(knee,footTip,0.85)) so this is the same T-pose, not an independently-tuned one.
+-- Z is left at the AABB's center for every joint -- a reasonable front-facing starting point, not a
+-- claim of anatomical depth; the tool's own framing (drag afterward) covers the rest.
+local HUMANOID_TEMPLATE = {
+    { name = 'groin',          parent = nil,             xFrac = 0.5036, yFrac = 0.4344 },
+    { name = 'spine1',         parent = 'groin',         xFrac = 0.5043, yFrac = 0.6028 },
+    { name = 'shoulderCenter', parent = 'spine1',        xFrac = 0.5050, yFrac = 0.7712 },
+    { name = 'chin',           parent = 'shoulderCenter',xFrac = 0.4966, yFrac = 0.8222 },
+    { name = 'lShoulder',      parent = 'shoulderCenter',xFrac = 0.3775, yFrac = 0.7712 },
+    { name = 'rShoulder',      parent = 'shoulderCenter',xFrac = 0.6325, yFrac = 0.7712 },
+    { name = 'lElbow',         parent = 'lShoulder',     xFrac = 0.2472, yFrac = 0.7551 },
+    { name = 'rElbow',         parent = 'rShoulder',     xFrac = 0.7529, yFrac = 0.7464 },
+    { name = 'lWrist',         parent = 'lElbow',        xFrac = 0.1651, yFrac = 0.7566 },
+    { name = 'rWrist',         parent = 'rElbow',        xFrac = 0.8478, yFrac = 0.7478 },
+    { name = 'lHandTip',       parent = 'lWrist',        xFrac = 0.0432, yFrac = 0.7449 },
+    { name = 'rHandTip',       parent = 'rWrist',        xFrac = 0.9426, yFrac = 0.7551 },
+    { name = 'lKnee',          parent = 'groin',         xFrac = 0.4257, yFrac = 0.2872 },
+    { name = 'rKnee',          parent = 'groin',         xFrac = 0.5787, yFrac = 0.2842 },
+    { name = 'lAnkle',         parent = 'lKnee',         xFrac = 0.3631, yFrac = 0.0580 },
+    { name = 'rAnkle',         parent = 'rKnee',         xFrac = 0.6365, yFrac = 0.0587 },
+    { name = 'lFootTip',       parent = 'lAnkle',        xFrac = 0.3521, yFrac = 0.0175 },
+    { name = 'rFootTip',       parent = 'rAnkle',        xFrac = 0.6467, yFrac = 0.0189 },
+}
+
+-- Replaces the mesh's entire current skeleton (if any) with HUMANOID_TEMPLATE, positioned from its
+-- AABB. Clearing first is cheap and cascade-free by construction: since parent always precedes
+-- child in the stored vector (the same invariant updateBone's resort maintains), the *last* index
+-- always has zero children, so removing from the end never hits removeBone's cascade-refusal path.
+-- Returns true/false, err.
+-- Best-effort default for which axis is "up", when the caller doesn't pass an explicit override.
+-- NOT simply "largest AABB extent" -- tried that first, and it breaks for exactly the common case
+-- this feature targets: a T-pose character's arm-span width can be *larger* than its height (this
+-- was caught against a real user-downloaded Mixamo-style rig where width was 1.79 vs height 1.77,
+-- a hair's difference that "largest wins" gets backwards). Depth (chest/body thickness) IS
+-- reliably the smallest of the three extents even in a T-pose, so that part of the heuristic is
+-- trustworthy; between the two remaining axes there's no fully reliable geometric signal (width
+-- and height can be nearly equal), so this defaults to Y (this engine's own conventional up-axis)
+-- when Y survives the depth cut, otherwise picks the larger of the two remaining -- still a guess,
+-- but a labeled, user-overridable one (see the "Up axis" selector next to the Apply button in
+-- showBonesNode) rather than a silent wrong answer.
+local function detectHumanoidUpAxis(aabb)
+    local extents = {
+        x = aabb.maxX - aabb.minX,
+        y = aabb.maxY - aabb.minY,
+        z = aabb.maxZ - aabb.minZ,
+    }
+    local depthAxis = 'y'
+    if extents.x <= extents.y and extents.x <= extents.z then depthAxis = 'x'
+    elseif extents.z <= extents.y and extents.z <= extents.x then depthAxis = 'z' end
+
+    if depthAxis ~= 'y' then return 'y' end
+    return extents.x >= extents.z and 'x' or 'z'
+end
+
+-- heightAxisOverride: 'x'|'y'|'z', or nil to use detectHumanoidUpAxis's best-effort default.
+local function applyHumanoidArmature(meshD, heightAxisOverride)
+    local aabb = computeMeshAABB(meshD)
+    if not aabb then return false, tLang.L('bones_humanoid_no_geometry') end
+
+    local okTotal, nExisting = dpCall(function() return meshD:getTotalBone() end)
+    nExisting = (okTotal and nExisting) or 0
+    for i = nExisting, 1, -1 do
+        dpCall(function() return meshD:removeBone(i, false) end)
+    end
+
+    local extents = {
+        x = aabb.maxX - aabb.minX,
+        y = aabb.maxY - aabb.minY,
+        z = aabb.maxZ - aabb.minZ,
+    }
+    local heightAxis = heightAxisOverride or detectHumanoidUpAxis(aabb)
+
+    -- Width (shoulders/hips spread, xFrac) is the wider of the two remaining axes; the last one is
+    -- depth, fixed at its own center.
+    local otherAxes = {}
+    for _, a in ipairs({ 'x', 'y', 'z' }) do
+        if a ~= heightAxis then table.insert(otherAxes, a) end
+    end
+    local widthAxis, depthAxis = otherAxes[1], otherAxes[2]
+    if extents[otherAxes[2]] > extents[otherAxes[1]] then widthAxis, depthAxis = otherAxes[2], otherAxes[1] end
+
+    local function axisMinMax(axis)
+        if axis == 'x' then return aabb.minX, aabb.maxX end
+        if axis == 'y' then return aabb.minY, aabb.maxY end
+        return aabb.minZ, aabb.maxZ
+    end
+
+    local heightMin, heightMax = axisMinMax(heightAxis)
+    local widthMin, widthMax = axisMinMax(widthAxis)
+    local depthMin, depthMax = axisMinMax(depthAxis)
+    local heightExtent = heightMax - heightMin
+    local widthExtent = widthMax - widthMin
+    local depthCenter = (depthMin + depthMax) / 2
+    local radius = math.max(0.01, math.max(heightExtent, widthExtent) * 0.02)
+
+    for _, j in ipairs(HUMANOID_TEMPLATE) do
+        local coords = { x = 0, y = 0, z = 0 }
+        coords[heightAxis] = heightMin + j.yFrac * heightExtent
+        coords[widthAxis] = widthMin + j.xFrac * widthExtent
+        coords[depthAxis] = depthCenter
+        local okA, err = dpCall(function() return meshD:addBone(j.name, j.parent, coords.x, coords.y, coords.z, radius) end)
+        if not okA then return false, err end
+    end
+    return true, nil
+end
+
+-- ---------------------------------------------------------------------------
+-- FBX export (current/all): dump geometry+bones to JSON, hand off to headless Blender
+-- (editor/blender_mesh_skeleton_export.py) via editor/blender_cli_wrapper.lua, same
+-- write-JSON/launch/poll pattern as editor/mannequin_editor.lua's own Blender export
+-- (startBlenderBuild/blenderBuildCoroutine/showBlenderBuildDialog, mannequin_editor.lua:943-1076).
+-- ---------------------------------------------------------------------------
+
+local function jsonStr(s)
+    s = tostring(s or '')
+    s = s:gsub('\\', '\\\\')
+    s = s:gsub('"', '\\"')
+    s = s:gsub('\n', '\\n')
+    s = s:gsub('\r', '\\r')
+    s = s:gsub('\t', '\\t')
+    return '"' .. s .. '"'
+end
+
+-- Dumps frame 1's raw geometry (all subsets, pooled into one combined vertex list with globally-
+-- offset indices -- there's no per-subset material split to preserve for a skinning export, same
+-- simplification blender_mesh_skeleton_export.py's own comment documents) plus the mesh's current
+-- bone list (may be empty -- a mesh-only FBX is still a valid export) to jsonPath.
+local function writeMeshDebugJson(meshD, jsonPath)
+    local okTF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    nFrames = (okTF and nFrames) or 0
+    if nFrames < 1 then
+        return false, tLang.L('bones_export_no_geometry')
+    end
+
+    local f = io.open(jsonPath, 'w')
+    if not f then return false, 'Failed to create file: ' .. jsonPath end
+
+    f:write('{\n  "joints": [\n')
+    local okTB, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTB and nBones) or 0
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            f:write(string.format('    { "name": %s, "parent": %s, "x": %.6f, "y": %.6f, "z": %.6f, "radius": %.6f }',
+                jsonStr(name), parentName and jsonStr(parentName) or 'null', x, y, z, radius))
+            f:write(i < nBones and ',\n' or '\n')
+        end
+    end
+    f:write('  ],\n  "mesh": {\n    "vertices": [\n')
+
+    local okTS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    nSubsets = (okTS and nSubsets) or 0
+    local totalVerts = 0
+    local tSubsetIndexLists = {}
+    local firstVert = true
+    for s = 1, nSubsets do
+        local okV, nVerts = dpCall(function() return meshD:getTotalVertex(1, s) end)
+        nVerts = (okV and nVerts) or 0
+        for v = 1, nVerts do
+            local okG, vert = dpCall(function() return meshD:getVertex(1, s, v) end)
+            if okG and vert then
+                if not firstVert then f:write(',\n') end
+                firstVert = false
+                f:write(string.format('      { "x": %.6f, "y": %.6f, "z": %.6f, "u": %.6f, "v": %.6f }',
+                    vert.x, vert.y, vert.z, vert.u or 0, vert.v or 0))
+            end
+        end
+        -- getIndex returns subset-local 1-based indices -- offset by the running vertex total
+        -- (accumulated from prior subsets only, see below) to make them global across the single
+        -- combined vertex list this JSON writes.
+        local okI, idxList = dpCall(function() return meshD:getIndex(1, s) end)
+        local offsetIdx = {}
+        if okI and idxList then
+            for _, li in ipairs(idxList) do
+                table.insert(offsetIdx, li + totalVerts)
+            end
+        end
+        tSubsetIndexLists[s] = offsetIdx
+        totalVerts = totalVerts + nVerts
+    end
+    f:write('\n    ],\n    "subsets": [\n')
+    for s = 1, nSubsets do
+        local idx = tSubsetIndexLists[s] or {}
+        f:write(string.format('      { "indices": [%s] }', table.concat(idx, ', ')))
+        f:write(s < nSubsets and ',\n' or '\n')
+    end
+    f:write('    ]\n  }\n}\n')
+    f:close()
+
+    if totalVerts == 0 then
+        os.remove(jsonPath)
+        return false, tLang.L('bones_export_no_geometry')
+    end
+    return true, nil
+end
+
+local function getOSTempDirForExport()
+    return os.getenv('TMPDIR') or os.getenv('TEMP') or os.getenv('TMP') or '/tmp'
+end
+
+-- Self-contained unique ".fbx" path builder for "Export All Meshes": the file's own
+-- makeUniqueBatchOutputPath/joinFolderFile/getBatchPathKey (used by onSaveAllToFolder) are
+-- declared later in this same chunk (~line 6939+), after this point, so aren't visible here yet --
+-- this is a small, deliberately independent equivalent rather than reordering unrelated code.
+local function joinPathForFbxExport(folder, fileName)
+    local sep = folder:match('[/\\]$') and '' or (folder:find('\\') and '\\' or '/')
+    return folder .. sep .. fileName
+end
+
+local function makeUniqueFbxOutputPath(folder, sourceFile, usedNames, index)
+    local base = tUtil.getShortName(sourceFile or '') or ''
+    base = base:gsub('%.[^%.]+$', '')
+    if base == '' then base = string.format('mesh_%d', index or 1) end
+    local candidate = base
+    local suffix = 2
+    while usedNames[candidate] do
+        candidate = base .. '_' .. suffix
+        suffix = suffix + 1
+    end
+    usedNames[candidate] = true
+    return joinPathForFbxExport(folder, candidate .. '.fbx')
+end
+
+-- Processes `entries` ({name=, meshD=, outputFbx=}, one or many) sequentially -- one Blender
+-- process at a time, waiting for each to finish before starting the next, to avoid overlapping
+-- temp files/processes sharing the same fixed dbgLog/cancelFile paths. Populates
+-- tMeshExportBuildState.tRunResults with a per-entry {name, ok, msg} outcome, mirroring the
+-- results-list idiom already used elsewhere in this file for bulk operations (e.g. Blender import).
+local function meshExportBuildCoroutine(entries)
+    local st = tMeshExportBuildState
+    local exporterPath = getEditorDir() .. '/blender_mesh_skeleton_export.py'
+    local tmpDir = getOSTempDirForExport()
+    local dbgLog = tmpDir .. '/mesh_debug_skeleton_export.log'
+    local cancelFile = tmpDir .. '/mesh_debug_skeleton_export_cancel'
+    local jsonPath = tmpDir .. '/mesh_debug_skeleton_export_input.json'
+    st.sCancelFile = cancelFile
+
+    for _, entry in ipairs(entries) do
+        if st.bAbortRequested then
+            st.tRunResults[#st.tRunResults + 1] = { name = entry.name, ok = false, msg = tLang.L('cancel') }
+            goto continueEntry
+        end
+
+        os.remove(jsonPath)
+        local okJson, errJson = writeMeshDebugJson(entry.meshD, jsonPath)
+        if not okJson then
+            st.tRunResults[#st.tRunResults + 1] = { name = entry.name, ok = false, msg = errJson }
+            goto continueEntry
+        end
+
+        local cmd = tBlender.buildMeshSkeletonExportCmd(jsonPath, entry.outputFbx, exporterPath,
+            { cancelFile = cancelFile, debugSteps = st.bDebugSteps })
+        if not cmd then
+            st.tRunResults[#st.tRunResults + 1] = { name = entry.name, ok = false, msg = tLang.L('blender_not_found') }
+            goto continueEntry
+        end
+
+        os.remove(entry.outputFbx)
+        os.remove(dbgLog)
+        os.remove(cancelFile)
+        tBlender.launchCmdAsync(cmd, dbgLog)
+
+        do
+            local startTime = os.time()
+            local lastActivityTime = startTime
+            local lastLogSize = -1
+            local finished, ok, msg = false, false, ''
+            while not finished do
+                if st.bAbortRequested then
+                    local cf = io.open(cancelFile, 'w')
+                    if cf then cf:write('cancel\n'); cf:close() end
+                    ok, msg, finished = false, tLang.L('cancel'), true
+                elseif tBlender.fileExists(entry.outputFbx) then
+                    ok, msg, finished = true, entry.outputFbx, true
+                else
+                    local logSize = 0
+                    local lf = io.open(dbgLog, 'rb')
+                    if lf then logSize = lf:seek('end'); lf:close() end
+                    if logSize ~= lastLogSize then
+                        lastLogSize = logSize
+                        lastActivityTime = os.time()
+                    end
+                    if os.time() - lastActivityTime >= st.iTimeoutSecs then
+                        local errLog = io.open(dbgLog, 'r')
+                        local tail = ''
+                        if errLog then tail = errLog:read('*a') or ''; errLog:close() end
+                        ok, msg, finished = false, tail:sub(-400), true
+                    else
+                        coroutine.yield()
+                    end
+                end
+            end
+            st.tRunResults[#st.tRunResults + 1] = { name = entry.name, ok = ok, msg = msg }
+        end
+
+        ::continueEntry::
+    end
+
+    local okCount, total = 0, #entries
+    for _, r in ipairs(st.tRunResults) do
+        if r.ok then okCount = okCount + 1 end
+    end
+    st.sStatus = string.format(tLang.L('bones_export_summary_fmt'), okCount, total)
+    st.bStatusOk = okCount == total
+    st.bBuilding = false
+end
+
+-- Shared entry point for both "Export Current Mesh" and "Export All Meshes". `entries` is a list
+-- of {name=, meshD=, outputFbx=}; the caller resolves output paths before calling this (single
+-- mbm.saveFile prompt for one mesh, a folder pick + per-entry filename for "all").
+local function startMeshExportBuild(entries)
+    local st = tMeshExportBuildState
+    if st.bBuilding or #entries == 0 then return end
+
+    st.bOpen = true
+    st.bOpenPopup = true
+    st.bBuilding = true
+    st.bAbortRequested = false
+    st.sStatus = ''
+    st.bStatusOk = true
+    st.tRunResults = {}
+    st.co = coroutine.create(function() meshExportBuildCoroutine(entries) end)
+end
+
+function showMeshExportBuildDialog()
+    local st = tMeshExportBuildState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup('mesh_debug_skeleton_export_modal')
+        st.bOpenPopup = false
+    end
+
+    local isOpen = tImGui.BeginPopupModal(tLang.L('bones_export_dialog_title') .. '###mesh_debug_skeleton_export_modal', false, 0)
+    if not isOpen then return end
+
+    if st.bBuilding then
+        if st.co and coroutine.status(st.co) == 'suspended' then
+            local ok, err = coroutine.resume(st.co)
+            if not ok then
+                st.bBuilding = false
+                st.sStatus = tostring(err)
+                st.bStatusOk = false
+            end
+        end
+        tImGui.Text(tLang.L('bones_export_building'))
+        if tImGui.Button(tLang.L('cancel') .. '##meshExportCancel') then
+            st.bAbortRequested = true
+        end
+    else
+        for _, r in ipairs(st.tRunResults) do
+            local prefix = r.ok and '[OK] ' or '[FAIL] '
+            tImGui.TextWrapped(prefix .. tostring(r.name) .. ' -- ' .. tostring(r.msg))
+        end
+        tImGui.Separator()
+        tImGui.TextWrapped(st.sStatus)
+        if tImGui.Button(tLang.L('blender_import_btn_close') .. '##meshExportClose') then
+            st.bOpen = false
+            tImGui.CloseCurrentPopup()
+        end
+    end
+
+    tImGui.EndPopup()
+end
+
+-- ---------------------------------------------------------------------------
+-- Bones tree node: view/add/edit/remove the mesh's optional skeleton
+-- (SECTION_FRAME_SKINNED / meshDebug:addBone|getBone|updateBone|removeBone).
+-- Editor/diagnostic data only -- never consulted by rendering (docs/mesh-v11-format.md Sec 6e).
+-- ---------------------------------------------------------------------------
+function showBonesNode(tEntry, meshD, index)
+    local wantOpen = (tEntry.sOpenNode == 'bones')
+    tImGui.SetNextItemOpen(wantOpen, tImGui.Flags('ImGuiCond_Always'))
+    local isOpen = tImGui.TreeNodeEx(tLang.L('bones_node') .. '##bones-' .. index, 0)
+    if tImGui.IsItemClicked() then
+        tEntry.sOpenNode = wantOpen and nil or 'bones'
+    end
+
+    -- Dim the live preview mesh while this node is open (per the user's own request), restored to
+    -- full opacity the moment it closes. There is no meshDebug:getColor to read back whatever tint
+    -- was set before, so this always restores to plain opaque white rather than "whatever it was".
+    -- obj:setColor takes 0.0-1.0 per channel, NOT 0-255 (docs/lua-api.md:539) -- values above 1
+    -- just clamp to opaque white, a mistake this file's own Transform-preview code used to make
+    -- too (cloneRender:setColor(255,220,50,200), now fixed alongside this feature).
+    if index == iSelectedMeshIndex and tPreviewMesh then
+        if isOpen then
+            tPreviewMesh:setColor(1, 1, 1, 0.35)
+        elseif tEntry.bBonesWasOpen then
+            tPreviewMesh:setColor(1, 1, 1, 1)
+        end
+    end
+    -- Gizmo geometry is rebuilt only on open/close transitions and after mutations (via onEdit
+    -- below), never unconditionally every frame -- rebuilding involves shape:create() calls with
+    -- freshly-generated nicknames for the cylinder links (see rebuildBoneGizmo's own comment), so
+    -- doing that every single frame the node stays open would thrash the mesh-geometry cache for
+    -- no reason.
+    if isOpen and not tEntry.bBonesWasOpen then
+        rebuildBoneGizmo(tEntry, meshD, index)
+    elseif not isOpen and tEntry.bBonesWasOpen then
+        destroyBoneGizmo(tEntry)
+    end
+    tEntry.bBonesWasOpen = isOpen
+
+    if not isOpen then return end
+
+    local function onEdit()
+        tEntry.modified = true
+        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        rebuildBoneGizmo(tEntry, meshD, index)
+    end
+
+    tImGui.HelpMarker(tLang.L('bones_transform_warning'))
+
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+
+    -- Read the whole skeleton once per frame -- small (tens of joints at most), same idiom as
+    -- showFrameNode's per-frame subset read above. tBoneGuiOverride (set while a 3D drag is live,
+    -- see onTouchMove) substitutes the dragged bone's displayed position so the table tracks the
+    -- drag in real time without calling updateBone (and its topological re-sort) every single
+    -- mouse-move frame -- the real write happens once, on release (onTouchUp).
+    local tBones = {}
+    local tParentNames = { tLang.L('bones_root_label') }
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            if tEntry.tBoneGuiOverride and tEntry.tBoneGuiOverride.name == name then
+                x, y, z = tEntry.tBoneGuiOverride.x, tEntry.tBoneGuiOverride.y, tEntry.tBoneGuiOverride.z
+            end
+            table.insert(tBones, { idx = i, name = name, x = x, y = y, z = z, radius = radius, parentName = parentName })
+            table.insert(tParentNames, name)
+        end
+    end
+
+    if #tBones > 0 then
+        -- ScrollX + fixed-width columns (not the default stretch sizing) so a wide row (name +
+        -- parent combo + 3 drag floats + remove button) scrolls horizontally within the panel
+        -- instead of forcing the whole Mesh Tree window wider or clipping the rightmost columns.
+        local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
+            'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_ScrollX', 'ImGuiTableFlags_SizingFixedFit')
+        local listH = math.min(#tBones * 30 + 34, 320)
+        if tImGui.BeginTable('bonesTbl-' .. index, 6, tblFlags, {x = 0, y = listH}) then
+            tImGui.TableSetupScrollFreeze(1, 1)
+            tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
+            tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
+            tImGui.TableSetupColumn('X', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn('Y', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn('', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+            tImGui.TableHeadersRow()
+
+            for _, b in ipairs(tBones) do
+                tImGui.TableNextRow()
+
+                tImGui.TableNextColumn()
+                tUtil.pushResponsiveItemWidth(110)
+                local chgName, newName = tImGui.InputText('##boneName-' .. index .. '-' .. b.idx, b.name, 64, 0)
+                tImGui.PopItemWidth()
+                if chgName and newName ~= '' and newName ~= b.name then
+                    local okU = dpCall(function() return meshD:updateBone(b.idx, newName, b.parentName, b.x, b.y, b.z, b.radius) end)
+                    if okU then onEdit() end
+                end
+
+                tImGui.TableNextColumn()
+                local curParentPos = 1
+                for pi, pname in ipairs(tParentNames) do
+                    if pname == (b.parentName or tLang.L('bones_root_label')) then curParentPos = pi end
+                end
+                tUtil.pushResponsiveItemWidth(110)
+                local chgParent, newParentPos = tImGui.Combo('##boneParent-' .. index .. '-' .. b.idx, curParentPos, tParentNames, -1)
+                tImGui.PopItemWidth()
+                if chgParent and newParentPos and newParentPos ~= curParentPos then
+                    local newParentName = (newParentPos == 1) and nil or tParentNames[newParentPos]
+                    local okU, err = dpCall(function() return meshD:updateBone(b.idx, b.name, newParentName, b.x, b.y, b.z, b.radius) end)
+                    if okU then onEdit() else tUtil.showMessageWarn(err or tLang.L('an_error_occurred')) end
+                end
+
+                local function dragAxis(axisLabel, val)
+                    tUtil.pushResponsiveItemWidth(70)
+                    local chg, nv = tImGui.DragFloat(axisLabel .. '##bone' .. axisLabel .. '-' .. index .. '-' .. b.idx, val, 0.5, 0, 0, '%.2f')
+                    tImGui.PopItemWidth()
+                    return chg, nv
+                end
+                tImGui.TableNextColumn()
+                local chgX, nx = dragAxis('X', b.x)
+                tImGui.TableNextColumn()
+                local chgY, ny = dragAxis('Y', b.y)
+                tImGui.TableNextColumn()
+                local chgZ, nz = dragAxis('Z', b.z)
+                if chgX or chgY or chgZ then
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, b.parentName, nx or b.x, ny or b.y, nz or b.z, b.radius)
+                    end)
+                    if okU then onEdit() end
+                end
+
+                tImGui.TableNextColumn()
+                if tImGui.Button(tLang.L('bones_remove_button') .. '##boneRm-' .. index .. '-' .. b.idx) then
+                    local okR = dpCall(function() return meshD:removeBone(b.idx, false) end)
+                    if okR then
+                        onEdit()
+                        tEntry.tBonePendingRemove = nil
+                    else
+                        tEntry.tBonePendingRemove = { idx = b.idx, name = b.name }
+                    end
+                end
+            end
+            tImGui.EndTable()
+        end
+    else
+        tImGui.TextDisabled(tLang.L('bones_none_label'))
+    end
+
+    if tEntry.tBonePendingRemove then
+        local pend = tEntry.tBonePendingRemove
+        tImGui.TextColored({r = 1, g = 0.6, b = 0.2, a = 1}, string.format(tLang.L('bones_confirm_cascade_fmt'), pend.name))
+        if tImGui.Button(tLang.L('bones_confirm_cascade_button') .. '##boneRmCascade-' .. index) then
+            local okR = dpCall(function() return meshD:removeBone(pend.idx, true) end)
+            if okR then onEdit() end
+            tEntry.tBonePendingRemove = nil
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('cancel') .. '##boneRmCancel-' .. index) then
+            tEntry.tBonePendingRemove = nil
+        end
+    end
+
+    tImGui.Separator()
+    if not tEntry.sHumanoidUpAxis then
+        local aabbForAxis = computeMeshAABB(meshD)
+        tEntry.sHumanoidUpAxis = aabbForAxis and detectHumanoidUpAxis(aabbForAxis) or 'y'
+    end
+    -- Which AABB extent is actually "height" can't be fully auto-detected (a T-pose character's
+    -- own arm-span width can be as large as its height, confirmed against a real user file), so
+    -- this stays user-overridable rather than a silent guess -- see detectHumanoidUpAxis's comment.
+    tImGui.Text(tLang.L('bones_humanoid_up_axis_label'))
+    tImGui.SameLine()
+    local axisOpts = { 'X', 'Y', 'Z' }
+    local axisPos = ({ x = 1, y = 2, z = 3 })[tEntry.sHumanoidUpAxis] or 2
+    tUtil.pushResponsiveItemWidth(70)
+    local chgAxis, newAxisPos = tImGui.Combo('##boneHumanoidAxis-' .. index, axisPos, axisOpts, -1)
+    tImGui.PopItemWidth()
+    if chgAxis and newAxisPos then
+        tEntry.sHumanoidUpAxis = ({ 'x', 'y', 'z' })[newAxisPos]
+    end
+    if tEntry.bBonesHumanoidConfirmPending then
+        tImGui.TextColored({r = 1, g = 0.6, b = 0.2, a = 1}, string.format(tLang.L('bones_apply_humanoid_confirm_fmt'), nBones))
+        if tImGui.Button(tLang.L('bones_apply_humanoid_button') .. '##boneHumanoidConfirm-' .. index) then
+            local okH, errH = dpCall(function() return applyHumanoidArmature(meshD, tEntry.sHumanoidUpAxis) end)
+            if okH then onEdit() else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
+            tEntry.bBonesHumanoidConfirmPending = false
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('cancel') .. '##boneHumanoidCancel-' .. index) then
+            tEntry.bBonesHumanoidConfirmPending = false
+        end
+    else
+        if tImGui.Button(tLang.L('bones_apply_humanoid_button') .. '##boneHumanoid-' .. index) then
+            if nBones > 0 then
+                tEntry.bBonesHumanoidConfirmPending = true
+            else
+                local okH, errH = dpCall(function() return applyHumanoidArmature(meshD, tEntry.sHumanoidUpAxis) end)
+                if okH then onEdit() else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
+            end
+        end
+    end
+
+    tImGui.Separator()
+    tEntry.sBonesNewName = tEntry.sBonesNewName or ('Bone ' .. (nBones + 1))
+    tUtil.pushResponsiveItemWidth(150)
+    local _, newBoneName = tImGui.InputText('##boneNewName-' .. index, tEntry.sBonesNewName, 64, 0)
+    tImGui.PopItemWidth()
+    tEntry.sBonesNewName = newBoneName
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('bones_add_button') .. '##boneAdd-' .. index) then
+        local nameToAdd = (tEntry.sBonesNewName ~= '' and tEntry.sBonesNewName) or ('Bone ' .. (nBones + 1))
+        -- New bone starts at the viewport's current orbit focus point (converted from world space
+        -- back to the mesh's own model space), so it appears where the user is already looking
+        -- instead of always at the mesh origin.
+        local fx, fy, fz = tEntry.cam3d and tEntry.cam3d.fx or 0, tEntry.cam3d and tEntry.cam3d.fy or 0, tEntry.cam3d and tEntry.cam3d.fz or 0
+        local bx, by, bz = worldToBone(meshD, fx, fy, fz)
+        local defaultParent = (#tBones > 0) and tBones[#tBones].name or nil
+        local okA, err = dpCall(function() return meshD:addBone(nameToAdd, defaultParent, bx, by, bz, 2.0) end)
+        if okA then
+            onEdit()
+            tEntry.sBonesNewName = 'Bone ' .. (nBones + 2)
+        else
+            tUtil.showMessageWarn(err or tLang.L('an_error_occurred'))
+        end
+    end
+
+    -- Export to FBX moved to File menu (next to Import via Blender) -- it isn't specific to
+    -- bones (a bone-less mesh still exports fine), so it doesn't belong buried in this node.
+
+    tImGui.TreePop()
+end
+
+-- ---------------------------------------------------------------------------
 -- Frame tree node: view/queue removals, open Frame Pick
 -- ---------------------------------------------------------------------------
 function showFrameNode(tEntry, meshD, index)
@@ -5303,7 +6189,10 @@ function showMeshOptions(tEntry, index)
                             cloneRender = texture:new(coordType); rok = cloneRender:load(tEntry.xfPreviewPath)
                         end
                         if rok and cloneRender then
-                            cloneRender:setColor(255, 220, 50, 200)
+                            -- obj:setColor takes 0.0-1.0 per channel, not 0-255 (docs/lua-api.md:539)
+                            -- -- values above 1 clamp, so the previous (255,220,50,200) call silently
+                            -- rendered opaque white instead of the intended yellow/gold tint.
+                            cloneRender:setColor(1.0, 220/255, 50/255, 200/255)
                             dpCall(function() cloneRender:setAnim(tEntry.iSelectedAnim or 1) end)
                             tEntry.tXformPreviewMesh = cloneRender
                             if xf.hideOriginal and tPreviewMesh and index == iSelectedMeshIndex then
@@ -5858,6 +6747,9 @@ function showMeshOptions(tEntry, index)
 
     -- Frame node: view/queue frame+subset edits (outside Animations)
     showFrameNode(tEntry, meshD, index)
+
+    -- Bones node: view/add/edit/remove the mesh's optional skeleton (diagnostic-only)
+    showBonesNode(tEntry, meshD, index)
 
     if openNode(tEntry, 'shader', tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
@@ -7606,6 +8498,28 @@ function main_menu_mesh_debug()
             if tImGui.MenuItem(tLang.L('import_via_blender')) then
                 onOpenBlenderImportDialog()
             end
+            if tImGui.MenuItem(tLang.L('bones_export_current_button'), nil, false,
+                    iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes) then
+                local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+                local outputFbx = mbm.saveFile(sLastMeshExportFbxPath or tUtil.getShortName(tEntry.fileName), 'fbx')
+                if outputFbx then
+                    sLastMeshExportFbxPath = outputFbx
+                    startMeshExportBuild({ { name = tUtil.getShortName(tEntry.fileName), meshD = tEntry.meshDebug, outputFbx = outputFbx } })
+                end
+            end
+            if tImGui.MenuItem(tLang.L('bones_export_all_button'), nil, false, #tLoadedMeshes > 0) then
+                local folder = mbm.openFolder(tLang.L('bones_export_all_button'), sLastFolderPath)
+                if folder and folder ~= '' then
+                    sLastFolderPath = folder
+                    local usedNames = {}
+                    local entries = {}
+                    for i, e in ipairs(tLoadedMeshes) do
+                        local outputFbx = makeUniqueFbxOutputPath(folder, e.fileName, usedNames, i)
+                        table.insert(entries, { name = tUtil.getShortName(e.fileName), meshD = e.meshDebug, outputFbx = outputFbx })
+                    end
+                    startMeshExportBuild(entries)
+                end
+            end
             tImGui.Separator()
             if tImGui.MenuItem('Legacy: Load OBJ(s)') then
                 onLoadObj()
@@ -8497,6 +9411,7 @@ function onLoop(delta)
     main_menu_mesh_debug()
     showMixamoGuideDialog()
     showBlenderImportDialog()
+    showMeshExportBuildDialog()
     showCameraWindow()
     showLightWindow()
     showMeshTreeWindow()
@@ -8524,6 +9439,30 @@ end
 
 function onTouchDown(key, x, y)
     if not tImGui.IsAnyWindowHovered() then
+        -- Bone-drag hit-test takes priority over orbit, but only while the Bones node is the open
+        -- node for the currently-selected 3D mesh entry -- otherwise every ordinary orbit-drag
+        -- click would pay for a hit-test against nothing (Bones node not even open, no gizmo to
+        -- hit) and, worse, risk swallowing clicks meant for the camera.
+        if key == 0 and bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+            local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+            if tEntry.sOpenNode == 'bones' and tEntry.tBoneGizmo then
+                local hitName, wx, wy, wz = hitTestBone(tEntry, tEntry.meshDebug, x, y)
+                if hitName then
+                    tEntry.sDraggingBoneName = hitName
+                    local okRay, ox, oy, oz = dpCall(function() return mbm.getPickRay(x, y) end)
+                    if okRay then
+                        local nx, ny, nz = wx - ox, wy - oy, wz - oz
+                        local len = math.sqrt(nx * nx + ny * ny + nz * nz)
+                        if len > 0.0001 then nx, ny, nz = nx / len, ny / len, nz / len end
+                        tEntry.tDragPlaneNormal = { nx, ny, nz }
+                        tEntry.tDragPlanePoint  = { wx, wy, wz }
+                    end
+                    camera2d.mx = x
+                    camera2d.my = y
+                    return -- don't also start an orbit for this click
+                end
+            end
+        end
         isClickedMouseleft  = (key == 0)
         isClickedMouseRight = (key == 1)
         camera2d.mx = x
@@ -8534,7 +9473,20 @@ end
 function onTouchMove(key, x, y)
     if tImGui.IsAnyWindowHovered() then return end
     if bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
-        local c = tLoadedMeshes[iSelectedMeshIndex].cam3d
+        local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+        if tEntry.sDraggingBoneName and tEntry.tDragPlaneNormal and tEntry.tDragPlanePoint then
+            local wx, wy, wz = rayPlaneHit(x, y, tEntry.tDragPlanePoint, tEntry.tDragPlaneNormal)
+            if wx then
+                local sphere = tEntry.tBoneGizmo and tEntry.tBoneGizmo.spheres[tEntry.sDraggingBoneName]
+                if sphere then sphere:setPos(wx, wy, wz) end
+                local bx, by, bz = worldToBone(tEntry.meshDebug, wx, wy, wz)
+                tEntry.tBoneGuiOverride = { name = tEntry.sDraggingBoneName, x = bx, y = by, z = bz }
+            end
+            camera2d.mx = x
+            camera2d.my = y
+            return
+        end
+        local c = tEntry.cam3d
         if isClickedMouseleft then
             -- Orbit: rotate around focus point
             c.azimuth   = c.azimuth   - (x - camera2d.mx) * 0.005
@@ -8568,6 +9520,33 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+        local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+        if tEntry.sDraggingBoneName then
+            local ov = tEntry.tBoneGuiOverride
+            if ov and ov.name == tEntry.sDraggingBoneName and tEntry.meshDebug then
+                local meshD = tEntry.meshDebug
+                local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+                nBones = (okTotal and nBones) or 0
+                for i = 1, nBones do
+                    local okG, name, bx0, by0, bz0, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+                    if okG and name == ov.name then
+                        local okU = dpCall(function() return meshD:updateBone(i, name, parentName, ov.x, ov.y, ov.z, radius) end)
+                        if okU then
+                            tEntry.modified = true
+                            iLastPreviewedIndex = 0
+                        end
+                        break
+                    end
+                end
+            end
+            tEntry.sDraggingBoneName = nil
+            tEntry.tDragPlaneNormal  = nil
+            tEntry.tDragPlanePoint   = nil
+            tEntry.tBoneGuiOverride  = nil
+            rebuildBoneGizmo(tEntry, tEntry.meshDebug, iSelectedMeshIndex)
+        end
+    end
     isClickedMouseleft  = false
     isClickedMouseRight = false
     camera2d.mx = x

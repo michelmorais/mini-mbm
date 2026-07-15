@@ -31,6 +31,7 @@ TYPE_MESH_3D = 0
 SECTION_MATERIAL_TRANSFORM = 1
 SECTION_ANIMATION = 2
 SECTION_FRAME_STATIC = 10
+SECTION_FRAME_SKINNED = 11
 SECTION_DETAIL_PHYSICS = 20
 SECTION_EXTRA_PATHS = 30
 
@@ -56,6 +57,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--angle-y", type=float, default=0.0)
     parser.add_argument("--angle-z", type=float, default=0.0)
     parser.add_argument("--large-mesh-mode", choices=("fail", "vb_only"), default="fail")
+    parser.add_argument("--include-bones", action="store_true")
     parser.add_argument("--cancel-file", default="")
     parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
@@ -958,6 +960,90 @@ def build_extra_paths_payload_v11(paths: list[str]) -> bytes:
     return buf.getvalue()
 
 
+def extract_armature_joints(scene: Any) -> list[dict[str, Any]]:
+    """Reads the first ARMATURE object's rest-pose bones into a flat, parent-before-child list of
+    {name, parent, x, y, z, radius} dicts -- the same shape SECTION_FRAME_SKINNED expects (docs/
+    mesh-v11-format.md Sec. 6e). Diagnostic/editor round-trip data only, mirroring
+    MESH_MBM_DEBUG::addBone's own contract; never consulted by rendering.
+
+    Unlike editor/blender_mannequin_build.py's Y-up (photo-JSON) -> Z-up (Blender-native) axis
+    swap, this reads directly from an already-Blender-native scene the exact same way
+    export_frame_subsets() already reads mesh vertices above (eval_obj.matrix_world @ vert.co,
+    no axis conversion) -- both bones and vertices need to end up in the same space so gizmos
+    drawn over the imported geometry line up.
+    """
+    armature_obj = next((o for o in scene.objects if o.type == "ARMATURE"), None)
+    if armature_obj is None:
+        return []
+
+    bones = list(armature_obj.data.bones)
+    if not bones:
+        return []
+
+    by_name = {b.name: b for b in bones}
+    children_of: dict[str, list[str]] = {}
+    roots: list[str] = []
+    for b in bones:
+        parent_name = b.parent.name if b.parent else None
+        if parent_name is None:
+            roots.append(b.name)
+        else:
+            children_of.setdefault(parent_name, []).append(b.name)
+
+    # BFS from every root bone so a parent always precedes its children in the emitted list --
+    # required by parse_skeleton_section_v11's on-load ordering check (mesh-manager.cpp:593-616).
+    ordered: list[str] = []
+    queue = list(roots)
+    while queue:
+        name = queue.pop(0)
+        ordered.append(name)
+        queue.extend(children_of.get(name, []))
+
+    joints: list[dict[str, Any]] = []
+    for name in ordered:
+        bone = by_name[name]
+        world_head = armature_obj.matrix_world @ bone.head_local
+        world_tail = armature_obj.matrix_world @ bone.tail_local
+        parent_name = bone.parent.name if bone.parent else None
+        # No natural Blender source for an authoring-time marker radius -- derive from bone
+        # length (same intent as mannequin_editor.lua's own radius: a visible gizmo size, not a
+        # measurement that means anything to rendering). MUST use the world-space head/tail
+        # distance, not bone.length -- bone.length is measured in the armature's own unscaled rest
+        # space and ignores armature_obj's own object-level scale entirely (bug found via a real
+        # user-downloaded rig: armature_obj.scale == 0.01 there, so bone.length read ~100x too
+        # large relative to the already-correctly-world-scaled x/y/z position above, producing
+        # marker spheres bigger than the whole imported character).
+        radius = max(0.001, (world_tail - world_head).length * 0.15)
+        joints.append({
+            "name": name,
+            "parent": parent_name,
+            "x": float(world_head.x),
+            "y": float(world_head.y),
+            "z": float(world_head.z),
+            "radius": radius,
+        })
+    return joints
+
+
+def build_skeleton_payload_v11(joints: list[dict[str, Any]]) -> bytes:
+    """Payload for SECTION_FRAME_SKINNED: SKELETON_HEADER_V11{jointCount:u16} followed by
+    jointCount JOINT_V11 records (name, parentName length-prefixed strings + x,y,z,radius f32),
+    matching writeSkeletonHeaderV11/writeJointV11's exact byte layout
+    (src/core_mbm/mesh-v11-io.cpp:634-656) -- there is no shared serializer between this script and
+    the C++ side, so the layout is replicated by hand and must stay in lockstep with it.
+    """
+    buf = io.BytesIO()
+    write_u16(buf, len(joints))
+    for j in joints:
+        write_string_v11(buf, str(j["name"]))
+        write_string_v11(buf, str(j["parent"] or ""))
+        write_f32(buf, j["x"])
+        write_f32(buf, j["y"])
+        write_f32(buf, j["z"])
+        write_f32(buf, j["radius"])
+    return buf.getvalue()
+
+
 def build_animation_payload_v11(anim: dict[str, Any]) -> bytes:
     buf = io.BytesIO()
     write_string_v11(buf, str(anim.get("name", "default")))
@@ -1252,12 +1338,18 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         )
         texture_path_list = sorted(texture_paths)
 
+        joints = extract_armature_joints(scene) if args.include_bones else []
+        if joints:
+            debug_print(args.debug_steps, f"extracted armature: {len(joints)} bone(s)")
+
         section_count = 1  # SECTION_MATERIAL_TRANSFORM
         if texture_path_list:
             section_count += 1  # SECTION_EXTRA_PATHS
         section_count += 1  # SECTION_DETAIL_PHYSICS
         section_count += len(animations)
         section_count += len(frame_paths)
+        if joints:
+            section_count += 1  # SECTION_FRAME_SKINNED
 
         check_cancel_requested(args.cancel_file)
         debug_print(args.debug_steps, "writing output")
@@ -1280,6 +1372,9 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 with open(frame_path, "rb") as frame_fp:
                     frame_payload = frame_fp.read()
                 write_section_v11(fp, SECTION_FRAME_STATIC, 1, frame_payload, True)
+
+            if joints:
+                write_section_v11(fp, SECTION_FRAME_SKINNED, 1, build_skeleton_payload_v11(joints), False)
 
             fp.flush()
             os.fsync(fp.fileno())
