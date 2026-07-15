@@ -1565,12 +1565,21 @@ end
 local function applyGeneratedMeshOptions(meshD, options)
     if type(options) ~= 'table' then return end
     if options.importPostProcess ~= true then return end
-    local ax = tonumber(options.importAngleX or 0) or 0
-    local ay = tonumber(options.importAngleY or 0) or 0
-    local az = tonumber(options.importAngleZ or 0) or 0
+    -- The import UI's Rot X/Y/Z fields are degrees (a plain, user-typeable "-90" for the usual
+    -- Blender Z-up -> engine Y-up correction), but meshDebug:setAngle/getAngle -- like the
+    -- documented obj:setAngle/getAngle -- is contractually RADIANS (it flows unconverted into
+    -- RENDERIZABLE::setAngle, whose consumer MatrixRotationX/Y/Z calls cosf/sinf directly, no
+    -- conversion anywhere in that path). Confirmed empirically: setting angle.x=-90 (no
+    -- conversion) rendered as -90 RADIANS, not -90 degrees -- a real, silent bug in the live
+    -- preview's rotation for every import with post-process rotation enabled, not just something
+    -- that shows up in bone positioning (boneToWorld/worldToBone correctly assume radians, per
+    -- the documented contract, so they were never the bug -- this was).
+    local ax = (tonumber(options.importAngleX or 0) or 0) * math.pi / 180
+    local ay = (tonumber(options.importAngleY or 0) or 0) * math.pi / 180
+    local az = (tonumber(options.importAngleZ or 0) or 0) * math.pi / 180
     if ax ~= 0 or ay ~= 0 or az ~= 0 then
         meshD:setAngle(ax, ay, az)
-        blenderDebugPrint(tBlenderImportState, 'applied import rotation: %.3f %.3f %.3f', ax, ay, az)
+        blenderDebugPrint(tBlenderImportState, 'applied import rotation (rad): %.4f %.4f %.4f', ax, ay, az)
     end
 end
 
@@ -4587,6 +4596,98 @@ local function worldToBone(meshD, wx, wy, wz)
     return x, y, z
 end
 
+-- ---------------------------------------------------------------------------
+-- Bones-node Rotate/Scale/Translate: keeps the skeleton in sync with the Transform-style vertex
+-- bakes triggered from the Bones node itself (meshD:rotateFrame/scaleFrame/translateFrame). Bones
+-- are stored independently of vertex data (see bones_transform_warning) -- these helpers replay
+-- the identical operation against every joint's own x,y,z so the two never drift apart, instead of
+-- silently leaving old bone positions/orientations behind a freshly re-scaled/re-rotated mesh.
+-- All three always target every frame/subset (matching meshD:rotateFrame(0,...)'s "0 = all" default
+-- convention) since there is exactly one skeleton per mesh, not one per frame.
+-- Angles are DEGREES, applied X then Y then Z, matching rotateFrame's own exact per-axis formulas
+-- and order (src/core_mbm/mesh-manager.cpp:3128) -- rotateX/Y/Z here are the same helpers already
+-- verified against MatrixRotationX/Y/Z above, just invoked in rotateFrame's order rather than
+-- boneToWorld's Z-Y-X order (the two are unrelated conventions in this codebase; see boneToWorld's
+-- own comment).
+local function applyRotationToBonesDeg(meshD, angleXDeg, angleYDeg, angleZDeg)
+    local radX = angleXDeg * math.pi / 180
+    local radY = angleYDeg * math.pi / 180
+    local radZ = angleZDeg * math.pi / 180
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            local nx, ny, nz = x, y, z
+            if angleXDeg ~= 0 then nx, ny, nz = rotateX(nx, ny, nz, radX) end
+            if angleYDeg ~= 0 then nx, ny, nz = rotateY(nx, ny, nz, radY) end
+            if angleZDeg ~= 0 then nx, ny, nz = rotateZ(nx, ny, nz, radZ) end
+            dpCall(function() return meshD:updateBone(i, name, parentName, nx, ny, nz, radius) end)
+        end
+    end
+end
+
+-- Radius scales by the mean of |sx|,|sy|,|sz| -- bones are spheres, so a single non-uniform scale
+-- factor has no exact meaning; the mean is a reasonable stand-in and matches the common case of a
+-- uniform scale exactly (sx==sy==sz).
+local function applyScaleToBones(meshD, sx, sy, sz)
+    local radiusScale = (math.abs(sx) + math.abs(sy) + math.abs(sz)) / 3
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            dpCall(function()
+                return meshD:updateBone(i, name, parentName, x * sx, y * sy, z * sz, (radius or 0.05) * radiusScale)
+            end)
+        end
+    end
+end
+
+local function applyTranslateToBones(meshD, dx, dy, dz)
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            dpCall(function() return meshD:updateBone(i, name, parentName, x + dx, y + dy, z + dz, radius) end)
+        end
+    end
+end
+
+-- Captures every bone's current WORLD position (via boneToWorld, using meshD's CURRENT default
+-- position/angle). Pair with restoreBoneWorldPositionsAfter, called after the caller has changed
+-- meshD's default position/angle field(s) (e.g. Reset Default Angle/Position bakes the field into
+-- vertices then zeroes it), to re-solve each bone's LOCAL coordinates so its world position is
+-- unchanged -- via the already-verified boneToWorld/worldToBone round trip, which sidesteps having
+-- to hand-derive a compensating rotation formula (rotateFrame's own bake order, X-then-Y-then-Z,
+-- is NOT the same composition boneToWorld uses for the persistent default-angle field, Z-then-Y-
+-- then-X -- see boneToWorld's own comment -- so a hand-derived delta would need to track which
+-- convention applies to which operation; round-tripping through world space avoids that entirely).
+local function snapshotBoneWorldPositions(meshD)
+    local snapshot = {}
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    for i = 1, nBones do
+        local okG, name, x, y, z = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            local wx, wy, wz = boneToWorld(meshD, x, y, z)
+            table.insert(snapshot, { idx = i, wx = wx, wy = wy, wz = wz })
+        end
+    end
+    return snapshot
+end
+
+local function restoreBoneWorldPositionsAfter(meshD, snapshot)
+    for _, s in ipairs(snapshot) do
+        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(s.idx) end)
+        if okG and name then
+            local bx, by, bz = worldToBone(meshD, s.wx, s.wy, s.wz)
+            dpCall(function() return meshD:updateBone(s.idx, name, parentName, bx, by, bz, radius) end)
+        end
+    end
+end
+
 local BONE_GIZMO_COLOR = {1, 0, 1, 0.85}
 
 local function destroyBoneGizmo(tEntry)
@@ -4680,6 +4781,35 @@ local function computeMeshAABB(meshD)
     end
     if not minX then return nil end
     return { minX = minX, minY = minY, minZ = minZ, maxX = maxX, maxY = maxY, maxZ = maxZ }
+end
+
+-- Reproduces MESH_MBM_DEBUG::centralizeFrame's exact offset formula (src/core_mbm/mesh-manager.cpp:
+-- 2992-3097) given frame 1's AABB (computeMeshAABB's shape), so bones can be translated by the
+-- identical delta meshD:centralize() bakes into vertices (every vertex gets `pos -= offset`).
+-- Replicates centralizeFrame's near-zero-crossing tolerance heuristic verbatim (if an axis's min/max
+-- are already nearly symmetric about zero, treat that axis as already centered rather than
+-- re-deriving from dist*0.5) rather than approximating with a plain AABB-center formula -- including
+-- its 0/0 = NaN edge case when both min and max are exactly 0 on an axis (NaN < 0.001 is false in
+-- both C++ and Lua's IEEE-754 doubles, so that branch naturally falls through the same way without
+-- needing a special case here).
+local function computeCentralizeOffset(aabb)
+    local minX, minY, minZ = aabb.minX, aabb.minY, aabb.minZ
+    local maxX, maxY, maxZ = aabb.maxX, aabb.maxY, aabb.maxZ
+    local distX, distY, distZ = maxX - minX, maxY - minY, maxZ - minZ
+
+    local xDif, yDif, zDif = math.abs(maxX), math.abs(maxY), math.abs(maxZ)
+    local xDiff, yDiff, zDiff = math.abs(minX), math.abs(minY), math.abs(minZ)
+    local xMin, xMax = math.min(xDiff, xDif), math.max(xDiff, xDif)
+    local yMin, yMax = math.min(yDiff, yDif), math.max(yDiff, yDif)
+    local zMin, zMax = math.min(zDiff, zDif), math.max(zDiff, zDif)
+
+    local xDiv, yDiv, zDiv = xMin / xMax, yMin / yMax, zMin / zMax
+    if xDiv < 0.001 then distX = xMin; minX = 0 end
+    if yDiv < 0.001 then distY = yMin; minY = 0 end
+    if zDiv < 0.001 then distZ = zMin; minZ = 0 end
+
+    local midX, midY, midZ = distX * 0.5, distY * 0.5, distZ * 0.5
+    return minX + midX, minY + midY, minZ + midZ
 end
 
 -- Same 18-joint hierarchy/topology as editor/mannequin_editor.lua's PARENT_OF + tMarkerDefs (14
@@ -5252,6 +5382,52 @@ function showBonesNode(tEntry, meshD, index)
                 if okH then onEdit() else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
             end
         end
+    end
+
+    tImGui.Separator()
+    tImGui.HelpMarker(tLang.L('bones_bake_xform_help'))
+    tEntry.tBoneXformUI = tEntry.tBoneXformUI or { rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, dx = 0, dy = 0, dz = 0 }
+    local bxf = tEntry.tBoneXformUI
+
+    tImGui.Text(tLang.L('rotate_xyz'))
+    local chg_brx, brx = tImGui.DragFloat('X##bonesXfRx-' .. index, bxf.rx, 1.0, 0, 0, '%.1f')
+    local chg_bry, bry = tImGui.DragFloat('Y##bonesXfRy-' .. index, bxf.ry, 1.0, 0, 0, '%.1f')
+    local chg_brz, brz = tImGui.DragFloat('Z##bonesXfRz-' .. index, bxf.rz, 1.0, 0, 0, '%.1f')
+    if chg_brx then bxf.rx = brx end
+    if chg_bry then bxf.ry = bry end
+    if chg_brz then bxf.rz = brz end
+    if tImGui.Button(tLang.L('apply_rotation') .. '##bonesXfRotBtn-' .. index) then
+        applyRotationToBonesDeg(meshD, bxf.rx, bxf.ry, bxf.rz)
+        onEdit()
+        bxf.rx, bxf.ry, bxf.rz = 0, 0, 0
+    end
+
+    tImGui.Spacing()
+    tImGui.Text(tLang.L('scale_xyz'))
+    local chg_bsx, bsx = tImGui.DragFloat('X##bonesXfSx-' .. index, bxf.sx, 0.01, 0, 0, '%.3f')
+    local chg_bsy, bsy = tImGui.DragFloat('Y##bonesXfSy-' .. index, bxf.sy, 0.01, 0, 0, '%.3f')
+    local chg_bsz, bsz = tImGui.DragFloat('Z##bonesXfSz-' .. index, bxf.sz, 0.01, 0, 0, '%.3f')
+    if chg_bsx then bxf.sx = bsx end
+    if chg_bsy then bxf.sy = bsy end
+    if chg_bsz then bxf.sz = bsz end
+    if tImGui.Button(tLang.L('apply_scale') .. '##bonesXfScaleBtn-' .. index) then
+        applyScaleToBones(meshD, bxf.sx, bxf.sy, bxf.sz)
+        onEdit()
+        bxf.sx, bxf.sy, bxf.sz = 1, 1, 1
+    end
+
+    tImGui.Spacing()
+    tImGui.Text(tLang.L('translate_xyz'))
+    local chg_bdx, bdx = tImGui.DragFloat('X##bonesXfDx-' .. index, bxf.dx, 1.0, 0, 0, '%.1f')
+    local chg_bdy, bdy = tImGui.DragFloat('Y##bonesXfDy-' .. index, bxf.dy, 1.0, 0, 0, '%.1f')
+    local chg_bdz, bdz = tImGui.DragFloat('Z##bonesXfDz-' .. index, bxf.dz, 1.0, 0, 0, '%.1f')
+    if chg_bdx then bxf.dx = bdx end
+    if chg_bdy then bxf.dy = bdy end
+    if chg_bdz then bxf.dz = bdz end
+    if tImGui.Button(tLang.L('apply_translate') .. '##bonesXfTransBtn-' .. index) then
+        applyTranslateToBones(meshD, bxf.dx, bxf.dy, bxf.dz)
+        onEdit()
+        bxf.dx, bxf.dy, bxf.dz = 0, 0, 0
     end
 
     tImGui.Separator()
@@ -5999,7 +6175,16 @@ function showMeshOptions(tEntry, index)
 
     if openNode(tEntry, 'transform', tLang.L("transform"), 0, 'transform-' .. index) then
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
+            -- Compute the offset meshD:centralize() is about to bake into vertices BEFORE calling
+            -- it (it derives its own offset from the CURRENT vertex state; frame 1's AABB, read
+            -- here, is exactly what it will use), so bones can be translated by the same delta.
+            local aabb = computeMeshAABB(meshD)
             meshD:centralize()
+            if aabb then
+                local offX, offY, offZ = computeCentralizeOffset(aabb)
+                applyTranslateToBones(meshD, -offX, -offY, -offZ)
+                rebuildBoneGizmo(tEntry, meshD, index)
+            end
             tEntry.modified = true
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             tUtil.showMessage(string.format('Centralized: %s', shortName))
@@ -6055,6 +6240,10 @@ function showMeshOptions(tEntry, index)
         if tImGui.Button(tLang.L("apply_rotation") .. '##' .. index) then
             local ok = dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end)
             if ok then
+                -- Bones aren't per-frame/per-subset (one skeleton per mesh), so they always follow
+                -- the bake regardless of which frame/subset the vertex bake targeted.
+                applyRotationToBonesDeg(meshD, xf.rx, xf.ry, xf.rz)
+                rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
                 onEdit()
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
@@ -6075,6 +6264,8 @@ function showMeshOptions(tEntry, index)
         if tImGui.Button(tLang.L("apply_scale") .. '##' .. index) then
             local ok = dpCall(function() meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset) end)
             if ok then
+                applyScaleToBones(meshD, xf.sx, xf.sy, xf.sz)
+                rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
                 onEdit()
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
@@ -6095,6 +6286,8 @@ function showMeshOptions(tEntry, index)
         if tImGui.Button(tLang.L("apply_translate") .. '##' .. index) then
             local ok = dpCall(function() meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
             if ok then
+                applyTranslateToBones(meshD, xf.dx, xf.dy, xf.dz)
+                rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
                 onEdit()
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
@@ -7530,8 +7723,15 @@ local function applyAllRecomputeNormalsBulk(sType)
 end
 
 local function applyAllCentralize(sType)
-    return runApplyAllOperation(sType, tLang.L('centralize'), function(tEntry)
-        tEntry.meshDebug:centralize()
+    return runApplyAllOperation(sType, tLang.L('centralize'), function(tEntry, index)
+        local meshD = tEntry.meshDebug
+        local aabb = computeMeshAABB(meshD)
+        meshD:centralize()
+        if aabb then
+            local offX, offY, offZ = computeCentralizeOffset(aabb)
+            applyTranslateToBones(meshD, -offX, -offY, -offZ)
+            rebuildBoneGizmo(tEntry, meshD, index)
+        end
         tEntry.modified = true
         return 'success'
     end)
@@ -7547,16 +7747,23 @@ local function applyAllTransform(sType, sMode)
     elseif sMode == 'translate' then
         operationLabel = tLang.L('apply_translate')
     end
-    return runApplyAllOperation(sType, operationLabel, function(tEntry)
+    return runApplyAllOperation(sType, operationLabel, function(tEntry, index)
+        local meshD = tEntry.meshDebug
         local ok = false
         if sMode == 'rotate' then
-            ok = dpCall(function() tEntry.meshDebug:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end)
+            ok = dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end)
+            if ok then applyRotationToBonesDeg(meshD, xf.rx, xf.ry, xf.rz) end
         elseif sMode == 'scale' then
-            ok = dpCall(function() tEntry.meshDebug:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset) end)
+            ok = dpCall(function() meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset) end)
+            if ok then applyScaleToBones(meshD, xf.sx, xf.sy, xf.sz) end
         elseif sMode == 'translate' then
-            ok = dpCall(function() tEntry.meshDebug:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
+            ok = dpCall(function() meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
+            if ok then applyTranslateToBones(meshD, xf.dx, xf.dy, xf.dz) end
         end
         if ok then
+            -- Bones aren't per-frame/per-subset (one skeleton per mesh), so they always follow the
+            -- bake regardless of which frame/subset the vertex bake targeted.
+            rebuildBoneGizmo(tEntry, meshD, index)
             tEntry.modified = true
             return 'success'
         end
@@ -7566,8 +7773,13 @@ end
 
 -- Bakes each mesh's own current default angle into its geometry (same-sign rotateFrame,
 -- so the rendered appearance is unchanged) then zeroes the default angle. No-op if already 0,0,0.
+-- Bones are re-anchored around the setAngle(0,0,0) step (snapshotBoneWorldPositions /
+-- restoreBoneWorldPositionsAfter) rather than given the same rotateFrame delta directly, since what
+-- must be preserved here is each bone's WORLD position under boneToWorld's own rotation convention
+-- (Z-then-Y-then-X), not rotateFrame's bake convention (X-then-Y-then-Z) -- see
+-- snapshotBoneWorldPositions's own comment.
 local function applyAllResetDefaultAngle(sType)
-    return runApplyAllOperation(sType, tLang.L('reset_default_angle'), function(tEntry)
+    return runApplyAllOperation(sType, tLang.L('reset_default_angle'), function(tEntry, index)
         local meshD = tEntry.meshDebug
         local okGet, ang = dpCall(function() return meshD:getAngle() end)
         if not okGet or not ang then
@@ -7576,6 +7788,7 @@ local function applyAllResetDefaultAngle(sType)
         if (ang.x or 0) == 0 and (ang.y or 0) == 0 and (ang.z or 0) == 0 then
             return 'skipped', tLang.L('default_already_zero')
         end
+        local boneSnapshot = snapshotBoneWorldPositions(meshD)
         local okRotate = dpCall(function() meshD:rotateFrame(0, ang.x, ang.y, ang.z, 0) end)
         if not okRotate then
             return 'failed', tLang.L('an_error_occurred')
@@ -7584,15 +7797,18 @@ local function applyAllResetDefaultAngle(sType)
         if not okSet then
             return 'failed', tLang.L('an_error_occurred')
         end
+        restoreBoneWorldPositionsAfter(meshD, boneSnapshot)
+        rebuildBoneGizmo(tEntry, meshD, index)
         tEntry.modified = true
         return 'success'
     end)
 end
 
 -- Bakes each mesh's own current default position into its geometry (same-sign translateFrame,
--- so the rendered appearance is unchanged) then zeroes the default position. No-op if already 0,0,0.
+-- so the rendered appearance is unchanged) then zeroes the default position. Bones are re-anchored
+-- the same way as applyAllResetDefaultAngle (see its comment).
 local function applyAllResetDefaultPosition(sType)
-    return runApplyAllOperation(sType, tLang.L('reset_default_position'), function(tEntry)
+    return runApplyAllOperation(sType, tLang.L('reset_default_position'), function(tEntry, index)
         local meshD = tEntry.meshDebug
         local okGet, pos = dpCall(function() return meshD:getPosition() end)
         if not okGet or not pos then
@@ -7601,6 +7817,7 @@ local function applyAllResetDefaultPosition(sType)
         if (pos.x or 0) == 0 and (pos.y or 0) == 0 and (pos.z or 0) == 0 then
             return 'skipped', tLang.L('default_already_zero')
         end
+        local boneSnapshot = snapshotBoneWorldPositions(meshD)
         local okTranslate = dpCall(function() meshD:translateFrame(0, pos.x, pos.y, pos.z, 0) end)
         if not okTranslate then
             return 'failed', tLang.L('an_error_occurred')
@@ -7609,6 +7826,8 @@ local function applyAllResetDefaultPosition(sType)
         if not okSet then
             return 'failed', tLang.L('an_error_occurred')
         end
+        restoreBoneWorldPositionsAfter(meshD, boneSnapshot)
+        rebuildBoneGizmo(tEntry, meshD, index)
         tEntry.modified = true
         return 'success'
     end)
