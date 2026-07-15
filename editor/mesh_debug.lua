@@ -4571,17 +4571,16 @@ local BONE_GIZMO_COLOR = {1, 0, 1, 0.85}
 local function destroyBoneGizmo(tEntry)
     if tEntry.tBoneGizmo then
         for _, h in pairs(tEntry.tBoneGizmo.spheres) do h:destroy() end
-        for _, h in ipairs(tEntry.tBoneGizmo.bones) do h:destroy() end
+        for _, link in ipairs(tEntry.tBoneGizmo.bones) do link.handle:destroy() end
     end
     tEntry.tBoneGizmo = { spheres = {}, bones = {} }
 end
 
 -- Full gizmo rebuild: called whenever the bone list itself changes (add/remove/reparent/rename) or
--- the Bones node opens/closes/selection changes -- NOT on every drag-move frame. During a live 3D
--- drag, only the dragged bone's own sphere is repositioned directly (see onTouchMove), matching
--- mannequin_editor.lua's own "reposition the dragged handle live, full rebuild only on release"
--- pattern (mannequin_editor.lua:594-609) -- connecting cylinders stay visually stale for the
--- duration of the drag, same accepted tradeoff as there.
+-- the Bones node opens/closes/selection changes. Bone position/orientation is edited only via the
+-- DragFloat X/Y/Z fields in the Bones table (see showBonesNode) -- mouse click-drag picking in the
+-- 3D viewport was removed (screen<->world pick-ray coordinates were unreliable on at least one
+-- real desktop setup; see the mbm.getPickRay/camera.scaleScreen2d memory note for the diagnosis).
 function rebuildBoneGizmo(tEntry, meshD, index)
     destroyBoneGizmo(tEntry)
     if tEntry.sOpenNode ~= 'bones' or index ~= iSelectedMeshIndex then return end
@@ -4625,63 +4624,10 @@ function rebuildBoneGizmo(tEntry, meshD, index)
                 local theta = math.atan(-dx, dy)
                 h:setAngle(0, 0, theta)
                 h:setColor(BONE_GIZMO_COLOR[1], BONE_GIZMO_COLOR[2], BONE_GIZMO_COLOR[3], BONE_GIZMO_COLOR[4])
-                table.insert(tEntry.tBoneGizmo.bones, h)
+                table.insert(tEntry.tBoneGizmo.bones, { handle = h })
             end
         end
     end
-end
-
--- Standard analytic ray-sphere intersection (dir must be normalized, as mbm.getPickRay's is).
--- Returns true + hit distance along the ray, or false.
-local function raySphereHit(ox, oy, oz, dx, dy, dz, cx, cy, cz, radius)
-    local lx, ly, lz = cx - ox, cy - oy, cz - oz
-    local tca = lx * dx + ly * dy + lz * dz
-    if tca < 0 then return false end
-    local d2 = lx * lx + ly * ly + lz * lz - tca * tca
-    local r2 = radius * radius
-    if d2 > r2 then return false end
-    local thc = math.sqrt(r2 - d2)
-    return true, tca - thc
-end
-
--- Hit-tests every bone of the given (already-open, already-selected) entry against the pick ray
--- through screen point (sx,sy); returns the nearest hit bone's name + world position, or nil.
--- sx,sy must be in the same pixel space mbm.getPickRay expects -- confirmed empirically to be the
--- same space onTouchDown/onTouchMove's own x,y already arrive in (mbm.getRealSizeScreen's real/
--- physical pixels, not mbm.getSizeScreen's logical/scaled ones -- see scene_editor3d.lua's
--- updateHoverHighlight, which feeds raw touch x,y into obj:collide with no conversion either).
-local function hitTestBone(tEntry, meshD, sx, sy)
-    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
-    nBones = (okTotal and nBones) or 0
-    if nBones == 0 then return nil end
-    local okRay, ox, oy, oz, dx, dy, dz = dpCall(function() return mbm.getPickRay(sx, sy) end)
-    if not okRay then return nil end
-    local bestName, bestDist, bestWx, bestWy, bestWz = nil, math.huge, nil, nil, nil
-    for i = 1, nBones do
-        local okG, name, x, y, z, radius = dpCall(function() return meshD:getBone(i) end)
-        if okG and name then
-            local wx, wy, wz = boneToWorld(meshD, x, y, z)
-            local pickRadius = math.max(radius or 1, 1.5) -- floor so tiny bones stay clickable
-            local hit, dist = raySphereHit(ox, oy, oz, dx, dy, dz, wx, wy, wz, pickRadius)
-            if hit and dist < bestDist then
-                bestName, bestDist, bestWx, bestWy, bestWz = name, dist, wx, wy, wz
-            end
-        end
-    end
-    return bestName, bestWx, bestWy, bestWz
-end
-
--- Intersects the pick ray through (sx,sy) with a fixed plane (billboard-drag technique: the plane
--- is computed once at drag-start, facing the camera, so the dragged point tracks the cursor
--- regardless of camera orbit during the drag). planePt/planeNormal are {x,y,z} tables.
-local function rayPlaneHit(sx, sy, planePt, planeNormal)
-    local okRay, ox, oy, oz, dx, dy, dz = dpCall(function() return mbm.getPickRay(sx, sy) end)
-    if not okRay then return nil end
-    local denom = planeNormal[1] * dx + planeNormal[2] * dy + planeNormal[3] * dz
-    if math.abs(denom) < 1e-6 then return nil end
-    local t = ((planePt[1] - ox) * planeNormal[1] + (planePt[2] - oy) * planeNormal[2] + (planePt[3] - oz) * planeNormal[3]) / denom
-    if t < 0 then return nil end
-    return ox + dx * t, oy + dy * t, oz + dz * t
 end
 
 -- ---------------------------------------------------------------------------
@@ -5141,18 +5087,14 @@ function showBonesNode(tEntry, meshD, index)
     nBones = (okTotal and nBones) or 0
 
     -- Read the whole skeleton once per frame -- small (tens of joints at most), same idiom as
-    -- showFrameNode's per-frame subset read above. tBoneGuiOverride (set while a 3D drag is live,
-    -- see onTouchMove) substitutes the dragged bone's displayed position so the table tracks the
-    -- drag in real time without calling updateBone (and its topological re-sort) every single
-    -- mouse-move frame -- the real write happens once, on release (onTouchUp).
+    -- showFrameNode's per-frame subset read above. Position is edited only via the DragFloat X/Y/Z
+    -- fields below (mouse click-drag picking in the 3D viewport was removed -- see the
+    -- mbm.getPickRay/camera.scaleScreen2d memory note).
     local tBones = {}
     local tParentNames = { tLang.L('bones_root_label') }
     for i = 1, nBones do
         local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
         if okG and name then
-            if tEntry.tBoneGuiOverride and tEntry.tBoneGuiOverride.name == name then
-                x, y, z = tEntry.tBoneGuiOverride.x, tEntry.tBoneGuiOverride.y, tEntry.tBoneGuiOverride.z
-            end
             table.insert(tBones, { idx = i, name = name, x = x, y = y, z = z, radius = radius, parentName = parentName })
             table.insert(tParentNames, name)
         end
@@ -9439,30 +9381,6 @@ end
 
 function onTouchDown(key, x, y)
     if not tImGui.IsAnyWindowHovered() then
-        -- Bone-drag hit-test takes priority over orbit, but only while the Bones node is the open
-        -- node for the currently-selected 3D mesh entry -- otherwise every ordinary orbit-drag
-        -- click would pay for a hit-test against nothing (Bones node not even open, no gizmo to
-        -- hit) and, worse, risk swallowing clicks meant for the camera.
-        if key == 0 and bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
-            local tEntry = tLoadedMeshes[iSelectedMeshIndex]
-            if tEntry.sOpenNode == 'bones' and tEntry.tBoneGizmo then
-                local hitName, wx, wy, wz = hitTestBone(tEntry, tEntry.meshDebug, x, y)
-                if hitName then
-                    tEntry.sDraggingBoneName = hitName
-                    local okRay, ox, oy, oz = dpCall(function() return mbm.getPickRay(x, y) end)
-                    if okRay then
-                        local nx, ny, nz = wx - ox, wy - oy, wz - oz
-                        local len = math.sqrt(nx * nx + ny * ny + nz * nz)
-                        if len > 0.0001 then nx, ny, nz = nx / len, ny / len, nz / len end
-                        tEntry.tDragPlaneNormal = { nx, ny, nz }
-                        tEntry.tDragPlanePoint  = { wx, wy, wz }
-                    end
-                    camera2d.mx = x
-                    camera2d.my = y
-                    return -- don't also start an orbit for this click
-                end
-            end
-        end
         isClickedMouseleft  = (key == 0)
         isClickedMouseRight = (key == 1)
         camera2d.mx = x
@@ -9474,18 +9392,6 @@ function onTouchMove(key, x, y)
     if tImGui.IsAnyWindowHovered() then return end
     if bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tEntry = tLoadedMeshes[iSelectedMeshIndex]
-        if tEntry.sDraggingBoneName and tEntry.tDragPlaneNormal and tEntry.tDragPlanePoint then
-            local wx, wy, wz = rayPlaneHit(x, y, tEntry.tDragPlanePoint, tEntry.tDragPlaneNormal)
-            if wx then
-                local sphere = tEntry.tBoneGizmo and tEntry.tBoneGizmo.spheres[tEntry.sDraggingBoneName]
-                if sphere then sphere:setPos(wx, wy, wz) end
-                local bx, by, bz = worldToBone(tEntry.meshDebug, wx, wy, wz)
-                tEntry.tBoneGuiOverride = { name = tEntry.sDraggingBoneName, x = bx, y = by, z = bz }
-            end
-            camera2d.mx = x
-            camera2d.my = y
-            return
-        end
         local c = tEntry.cam3d
         if isClickedMouseleft then
             -- Orbit: rotate around focus point
@@ -9520,33 +9426,6 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
-    if bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
-        local tEntry = tLoadedMeshes[iSelectedMeshIndex]
-        if tEntry.sDraggingBoneName then
-            local ov = tEntry.tBoneGuiOverride
-            if ov and ov.name == tEntry.sDraggingBoneName and tEntry.meshDebug then
-                local meshD = tEntry.meshDebug
-                local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
-                nBones = (okTotal and nBones) or 0
-                for i = 1, nBones do
-                    local okG, name, bx0, by0, bz0, radius, parentName = dpCall(function() return meshD:getBone(i) end)
-                    if okG and name == ov.name then
-                        local okU = dpCall(function() return meshD:updateBone(i, name, parentName, ov.x, ov.y, ov.z, radius) end)
-                        if okU then
-                            tEntry.modified = true
-                            iLastPreviewedIndex = 0
-                        end
-                        break
-                    end
-                end
-            end
-            tEntry.sDraggingBoneName = nil
-            tEntry.tDragPlaneNormal  = nil
-            tEntry.tDragPlanePoint   = nil
-            tEntry.tBoneGuiOverride  = nil
-            rebuildBoneGizmo(tEntry, tEntry.meshDebug, iSelectedMeshIndex)
-        end
-    end
     isClickedMouseleft  = false
     isClickedMouseRight = false
     camera2d.mx = x
