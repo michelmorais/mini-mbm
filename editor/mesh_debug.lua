@@ -3139,6 +3139,27 @@ function updatePreviewMesh()
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new(coordType)
         ok = tPreviewMesh:load(loadPath)
+        -- Force the preview's position to meshD's own stored default position immediately after
+        -- load, overriding whatever DEVICE::addRenderizable's z-order auto-assign
+        -- (src/core_mbm/device-common.cpp:1173, `if (position.z == 0.0f) position.z =
+        -- getNextZOrderControl3d()`) plus MESH_MBM::load's ADDITIVE positionOffset application
+        -- (`renderizable->getPosition() += this->impl->positionOffset`,
+        -- src/core_mbm/mesh-manager.cpp:4349) produced. Every freshly-constructed 3D mesh starts
+        -- at z=0 and gets stamped with a small, globally-monotonic, never-resetting z-order nudge
+        -- the instant it's constructed (mesh.cpp's constructor calls addRenderizable before
+        -- :load() runs); load() then ADDS the file's own default position on top of that nudge
+        -- instead of replacing it. Since this function recreates tPreviewMesh from scratch on
+        -- every single edit (bone drag, frame removal, etc. -- anything that sets
+        -- iLastPreviewedIndex = 0), each recreation silently drifted the preview further along Z
+        -- forever, regardless of which field was actually being edited -- confirmed empirically:
+        -- 30 destroy+reload cycles with an untouched source position added exactly 30 * 0.01 to Z,
+        -- never converging back even when the edited value was reverted (user-reported: "the mesh
+        -- seems to go far from the bones" while the bone gizmos, positioned via shape:new with an
+        -- explicit non-zero z from construction, stayed correctly anchored).
+        if ok then
+            local okP, pos = dpCall(function() return meshD:getPosition() end)
+            if okP and pos then tPreviewMesh:setPos(pos.x, pos.y, pos.z) end
+        end
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new(coordType)
         ok = tPreviewMesh:load(loadPath)
