@@ -93,13 +93,16 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
         positions = [(v["x"], v["y"], v["z"]) for v in verts_data]
     # JSON indices are 1-based (written straight from Lua array indices); from_pydata expects
     # 0-based, and are already global across the whole vertex list (mesh_debug.lua's dumper
-    # offsets each subset's indices when writing, so subset boundaries don't matter here -- there's
-    # no per-subset material/vertex-group split to preserve).
+    # offsets each subset's indices when writing). Each face's originating subset index is kept
+    # alongside it (face_subset) so it can be assigned that subset's own material below -- subset
+    # boundaries no longer collapse away here now that each subset can carry its own texture.
     faces = []
-    for subset in subsets:
+    face_subset: list[int] = []
+    for subset_idx, subset in enumerate(subsets):
         idx = subset["indices"]
         for i in range(0, len(idx), 3):
             faces.append((idx[i] - 1, idx[i + 1] - 1, idx[i + 2] - 1))
+            face_subset.append(subset_idx)
 
     mesh_data = bpy.data.meshes.new("MeshDebugMesh")
     mesh_data.from_pydata(positions, [], faces)
@@ -121,9 +124,33 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
         v = verts_data[loop.vertex_index]
         uv_layer.data[loop.index].uv = (v.get("u", 0.0), v.get("v", 0.0))
 
+    # One material per subset, each wired to that subset's own texture (writeMeshDebugJson already
+    # resolved and existence-checked the path, so a missing file just means a plain untextured
+    # material here, not a load error). Without ANY material at all, the exported FBX's geometry
+    # carries zero material/texture data -- confirmed via direct user testing that Mixamo's viewer
+    # renders that as fully invisible (not a plain/gray fallback like Blender's own viewport would
+    # show), so a material is required even when no texture is available.
+    for subset_idx, subset in enumerate(subsets):
+        mat = bpy.data.materials.new(name=f"MeshDebugMat_{subset_idx}")
+        mat.use_nodes = True
+        tex_path = subset.get("texture")
+        if tex_path:
+            bsdf = mat.node_tree.nodes.get("Principled BSDF")
+            tex_node = mat.node_tree.nodes.new("ShaderNodeTexImage")
+            try:
+                tex_node.image = bpy.data.images.load(tex_path, check_existing=True)
+            except RuntimeError:
+                tex_node.image = None
+            if bsdf and tex_node.image:
+                mat.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+        mesh_data.materials.append(mat)
+
+    for poly, subset_idx in zip(mesh_data.polygons, face_subset):
+        poly.material_index = subset_idx
+
     mesh_obj = bpy.data.objects.new("MeshDebugMesh", mesh_data)
     bpy.context.collection.objects.link(mesh_obj)
-    debug_print(debug, f"mesh built: vertices={len(positions)} faces={len(faces)}")
+    debug_print(debug, f"mesh built: vertices={len(positions)} faces={len(faces)} materials={len(subsets)}")
     return mesh_obj
 
 
@@ -263,6 +290,12 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) ->
         add_leaf_bones=False,
         mesh_smooth_type='FACE',
         object_types=object_types,
+        # build_mesh's materials reference textures by their original on-disk path -- COPY +
+        # embed_textures bakes the actual image bytes into the FBX itself, so the file stays
+        # self-contained after being uploaded to a remote service (Mixamo) that has no access to
+        # this machine's filesystem.
+        path_mode='COPY',
+        embed_textures=True,
     )
     debug_print(debug, f"exported: {output_path}")
 

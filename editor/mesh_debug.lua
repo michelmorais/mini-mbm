@@ -4844,9 +4844,8 @@ local function jsonStr(s)
 end
 
 -- Dumps frame 1's raw geometry (all subsets, pooled into one combined vertex list with globally-
--- offset indices -- there's no per-subset material split to preserve for a skinning export, same
--- simplification blender_mesh_skeleton_export.py's own comment documents) plus the mesh's current
--- bone list (may be empty -- a mesh-only FBX is still a valid export) to jsonPath.
+-- offset indices, each subset keeping its own resolved texture path) plus the mesh's current bone
+-- list (may be empty -- a mesh-only FBX is still a valid export) to jsonPath.
 local function writeMeshDebugJson(meshD, jsonPath)
     local okTF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     nFrames = (okTF and nFrames) or 0
@@ -4922,7 +4921,21 @@ local function writeMeshDebugJson(meshD, jsonPath)
     f:write('\n    ],\n    "subsets": [\n')
     for s = 1, nSubsets do
         local idx = tSubsetIndexLists[s] or {}
-        f:write(string.format('      { "indices": [%s] }', table.concat(idx, ', ')))
+        -- Resolve+verify each subset's own texture so the exported FBX carries a real material
+        -- instead of none at all (confirmed: a totally material-less mesh renders as fully
+        -- invisible in Mixamo's viewer, not a plain/gray fallback). mbm.getFullPath echoes a
+        -- texture back unresolved if no search path matches (bare "texture.png"-style refs seen
+        -- before, see docs/future_investigation.md) -- verify with io.open before trusting it,
+        -- same defensive check as copyMeshTexturesToFolder.
+        local okTex, texPath = dpCall(function() return meshD:getTexture(1, s) end)
+        local resolvedTex = nil
+        if okTex and texPath and texPath ~= '' then
+            local candidate = mbm.getFullPath(texPath) or texPath
+            local fTex = io.open(candidate, 'rb')
+            if fTex then fTex:close(); resolvedTex = candidate end
+        end
+        f:write(string.format('      { "indices": [%s], "texture": %s }',
+            table.concat(idx, ', '), resolvedTex and jsonStr(resolvedTex) or 'null'))
         f:write(s < nSubsets and ',\n' or '\n')
     end
     f:write('    ]\n  }\n}\n')
@@ -4984,6 +4997,12 @@ local function meshExportBuildCoroutine(entries)
         end
 
         os.remove(jsonPath)
+        -- mbm.getFullPath (used below, inside writeMeshDebugJson, to resolve each subset's
+        -- texture) only finds a bare/relative filename if the mesh's own directory was already
+        -- registered as a search path -- same gap fixed for "Save All to Folder" in 6.26.4, not
+        -- guaranteed here since this entry may never have been individually previewed.
+        local dirForTex = entry.fileName and entry.fileName:match('^(.*)[/\\]')
+        if dirForTex then mbm.addPath(dirForTex) end
         local okJson, errJson = writeMeshDebugJson(entry.meshD, jsonPath)
         if not okJson then
             st.tRunResults[#st.tRunResults + 1] = { name = entry.name, ok = false, msg = errJson }
@@ -8539,7 +8558,7 @@ function main_menu_mesh_debug()
                 local outputFbx = mbm.saveFile(sLastMeshExportFbxPath or tUtil.getShortName(tEntry.fileName), 'fbx')
                 if outputFbx then
                     sLastMeshExportFbxPath = outputFbx
-                    startMeshExportBuild({ { name = tUtil.getShortName(tEntry.fileName), meshD = tEntry.meshDebug, outputFbx = outputFbx } })
+                    startMeshExportBuild({ { name = tUtil.getShortName(tEntry.fileName), meshD = tEntry.meshDebug, outputFbx = outputFbx, fileName = tEntry.fileName } })
                 end
             end
             if tImGui.MenuItem(tLang.L('bones_export_all_button'), nil, false, #tLoadedMeshes > 0) then
@@ -8550,7 +8569,7 @@ function main_menu_mesh_debug()
                     local entries = {}
                     for i, e in ipairs(tLoadedMeshes) do
                         local outputFbx = makeUniqueFbxOutputPath(folder, e.fileName, usedNames, i)
-                        table.insert(entries, { name = tUtil.getShortName(e.fileName), meshD = e.meshDebug, outputFbx = outputFbx })
+                        table.insert(entries, { name = tUtil.getShortName(e.fileName), meshD = e.meshDebug, outputFbx = outputFbx, fileName = e.fileName })
                     end
                     startMeshExportBuild(entries)
                 end
