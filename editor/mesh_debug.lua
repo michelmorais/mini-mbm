@@ -4990,8 +4990,16 @@ local function meshExportBuildCoroutine(entries)
             goto continueEntry
         end
 
+        -- Exact inverse of the Blender-import dialog's own default (Rot X -90, see
+        -- applyGeneratedMeshOptions) -- mesh_debug's stored geometry is in the engine's Y-up
+        -- convention (baked in at import time), so undo that before writing an FBX meant for
+        -- Blender/Mixamo or for being re-imported later. There is no per-mesh record of what
+        -- rotation was actually used at import time (it's baked into vertex data, not tracked as
+        -- metadata), so this assumes the standard default was used, same as the import dialog's
+        -- own default assumption.
         local cmd = tBlender.buildMeshSkeletonExportCmd(jsonPath, entry.outputFbx, exporterPath,
-            { cancelFile = cancelFile, debugSteps = st.bDebugSteps })
+            { cancelFile = cancelFile, debugSteps = st.bDebugSteps,
+              exportAngleX = 90, exportAngleY = 0, exportAngleZ = 0 })
         if not cmd then
             st.tRunResults[#st.tRunResults + 1] = { name = entry.name, ok = false, msg = tLang.L('blender_not_found') }
             goto continueEntry

@@ -367,6 +367,17 @@ function M.buildMeshSkeletonExportCmd(jsonInputPath, outputFbxPath, exporterScri
         shellQuote(outputFbxPath),
     }
 
+    -- Undoes the import side's own Z-up -> Y-up bake (editor/blender_mesh_export.py's
+    -- --angle-x/y/z) so the exported FBX comes out correctly oriented for Blender/Mixamo and for
+    -- being re-imported later -- see blender_mesh_skeleton_export.py's own module docstring.
+    -- Caller (mesh_debug.lua) defaults these to the exact inverse of the import default.
+    table.insert(args, '--angle-x')
+    table.insert(args, tostring(options.exportAngleX or 0))
+    table.insert(args, '--angle-y')
+    table.insert(args, tostring(options.exportAngleY or 0))
+    table.insert(args, '--angle-z')
+    table.insert(args, tostring(options.exportAngleZ or 0))
+
     if options.cancelFile and options.cancelFile ~= '' then
         table.insert(args, '--cancel-file')
         table.insert(args, shellQuote(options.cancelFile))

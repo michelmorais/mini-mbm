@@ -5,21 +5,27 @@ geometry (and, optionally, its editor-authored/imported bone hierarchy) and prod
 with a skinned armature, ready for upload to an auto-rigging/animation service (Mixamo or
 similar).
 
-This script's input comes from editor/mesh_debug.lua's own already-Blender-native geometry -- no
-Y-up/Z-up axis swap needed here, same reasoning as editor/blender_mesh_export.py's import-side
-vertex reading (both directions of this round trip use Blender's own coordinate convention
-unchanged) -- and has NO per-vertex bone ownership, so this script uses Blender's built-in
+This script's input comes from editor/mesh_debug.lua's own geometry -- which is in the ENGINE's
+own coordinate convention (Y-up), not Blender's native Z-up, ever since editor/blender_mesh_export.py's
+import side started baking its Z-up -> Y-up correction directly into vertex/bone data (rather than
+into a separate, since-removed "Default Angle" field that never touched the actual stored
+position/normal/bone values). So this script's own output would come out wrongly oriented in
+Blender/Mixamo without an inverse rotation applied first -- see --angle-x/y/z below, defaulted by
+the caller to the exact inverse of the import side's own default (90 degrees on X, undoing that
+side's default -90). Has NO per-vertex bone ownership, so this script uses Blender's built-in
 automatic (heat-map) weight painting instead of exact vertex groups.
 
 Invoked headlessly:
     blender -b --factory-startup --python blender_mesh_skeleton_export.py -- \
-        --input mesh_dump.json --output character.fbx [--cancel-file F] [--debug-steps]
+        --input mesh_dump.json --output character.fbx [--angle-x X] [--angle-y Y] [--angle-z Z] \
+        [--cancel-file F] [--debug-steps]
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import traceback
@@ -29,9 +35,33 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--angle-x", type=float, default=0.0)
+    parser.add_argument("--angle-y", type=float, default=0.0)
+    parser.add_argument("--angle-z", type=float, default=0.0)
     parser.add_argument("--cancel-file", default="")
     parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
+
+
+def rotate_point_deg(x: float, y: float, z: float, angle_x_deg: float, angle_y_deg: float, angle_z_deg: float) -> tuple[float, float, float]:
+    """Rotates a point by degrees around X, then Y, then Z. Kept in lockstep by hand with the
+    identical helper of the same name in editor/blender_mesh_export.py (which is in turn kept in
+    lockstep with editor/mesh_debug.lua's rotateX/Y/Z + applyRotationToBonesDeg) -- there is no
+    shared module between the two standalone headless-Blender scripts.
+    """
+    if angle_x_deg:
+        a = math.radians(angle_x_deg)
+        c, s = math.cos(a), math.sin(a)
+        y, z = y * c - z * s, y * s + z * c
+    if angle_y_deg:
+        a = math.radians(angle_y_deg)
+        c, s = math.cos(a), math.sin(a)
+        x, z = x * c + z * s, -x * s + z * c
+    if angle_z_deg:
+        a = math.radians(angle_z_deg)
+        c, s = math.cos(a), math.sin(a)
+        x, y = x * c - y * s, x * s + y * c
+    return x, y, z
 
 
 def debug_print(enabled: bool, message: str) -> None:
@@ -49,14 +79,18 @@ def load_json(input_path: str) -> dict:
         return json.load(f)
 
 
-def build_mesh(data: dict, debug: bool):
+def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None):
     import bpy
 
     verts_data = data["mesh"]["vertices"]
     subsets = data["mesh"]["subsets"]
 
-    # No axis swap -- see module docstring.
-    positions = [(v["x"], v["y"], v["z"]) for v in verts_data]
+    # rotation_deg undoes the import side's own Z-up -> Y-up bake (see module docstring) so this
+    # exported FBX comes out correctly oriented for Blender/Mixamo and for being re-imported later.
+    if rotation_deg:
+        positions = [rotate_point_deg(v["x"], v["y"], v["z"], *rotation_deg) for v in verts_data]
+    else:
+        positions = [(v["x"], v["y"], v["z"]) for v in verts_data]
     # JSON indices are 1-based (written straight from Lua array indices); from_pydata expects
     # 0-based, and are already global across the whole vertex list (mesh_debug.lua's dumper
     # offsets each subset's indices when writing, so subset boundaries don't matter here -- there's
@@ -93,7 +127,7 @@ def build_mesh(data: dict, debug: bool):
     return mesh_obj
 
 
-def build_armature(data: dict, debug: bool):
+def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None):
     import bpy
 
     joints = {j["name"]: j for j in data.get("joints", [])}
@@ -110,8 +144,11 @@ def build_armature(data: dict, debug: bool):
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='EDIT')
 
+    # Same rotation as build_mesh's positions -- bones and vertices must land in the same space.
     def joint_pos(name):
         j = joints[name]
+        if rotation_deg:
+            return rotate_point_deg(j["x"], j["y"], j["z"], *rotation_deg)
         return (j["x"], j["y"], j["z"])
 
     def dist(a, b):
@@ -228,10 +265,16 @@ def main() -> int:
     if not data.get("mesh", {}).get("vertices"):
         raise RuntimeError("Input JSON has no mesh vertices -- nothing to export.")
 
+    rotation_deg = (args.angle_x, args.angle_y, args.angle_z)
+    if rotation_deg != (0.0, 0.0, 0.0):
+        debug_print(args.debug_steps, f"applying export rotation (deg): {rotation_deg}")
+    else:
+        rotation_deg = None
+
     check_cancel_requested(args.cancel_file)
-    mesh_obj = build_mesh(data, args.debug_steps)
+    mesh_obj = build_mesh(data, args.debug_steps, rotation_deg)
     check_cancel_requested(args.cancel_file)
-    armature_obj = build_armature(data, args.debug_steps)
+    armature_obj = build_armature(data, args.debug_steps, rotation_deg)
     if armature_obj:
         check_cancel_requested(args.cancel_file)
         bind_mesh_to_armature(mesh_obj, armature_obj, args.debug_steps)
