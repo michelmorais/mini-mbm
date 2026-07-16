@@ -246,16 +246,31 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
 def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
     import bpy
 
-    # mesh_debug's bones carry no per-vertex ownership -- automatic (heat-map) weight painting is
-    # the only option here. First use of ARMATURE_AUTO in this codebase; the
-    # verification step for this milestone includes a manual sanity check (pose-mode bone rotate)
-    # rather than trusting this call blindly.
+    # mesh_debug's bones carry no per-vertex ownership, so some form of automatic weighting is
+    # required. ARMATURE_AUTO (heat-map, "Automatic Weights") was tried first and found, via direct
+    # testing, to fail COMPLETELY (100% of vertices left with zero weight in every vertex group, not
+    # a partial/edge-case failure) despite only printing a mild "failed to find solution for one or
+    # more bones" warning -- reproduced on both a 65-bone and a 112-bone real character, so this
+    # isn't specific to unusually complex rigs. Heat mapping needs a watertight-ish manifold mesh to
+    # diffuse through; build_mesh's single combined mesh_data merges what the source file often has
+    # as several separate objects (body, teeth, eyelashes, eyes, a flat "head mask" overlay...),
+    # several of which are inherently open/thin surfaces, and the solver appears to bail out for the
+    # whole mesh rather than degrading gracefully per-island. ARMATURE_ENVELOPE (distance-based, not
+    # heat-diffusion) has no such requirement and was verified to weight 100% of vertices on both
+    # test rigs. Its raw per-bone weights aren't normalized (multiple overlapping bone envelopes can
+    # each assign a vertex weight 1.0 independently, which would double/triple-count influence at
+    # deform time), so vertex_group_limit_total(4) + vertex_group_normalize_all bring it in line with
+    # the standard FBX/game-engine convention of <=4 normalized influences per vertex.
     bpy.ops.object.select_all(action='DESELECT')
     mesh_obj.select_set(True)
     armature_obj.select_set(True)
     bpy.context.view_layer.objects.active = armature_obj
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-    debug_print(debug, "bound mesh to armature via automatic (heat-map) weights")
+    bpy.ops.object.parent_set(type='ARMATURE_ENVELOPE')
+
+    bpy.context.view_layer.objects.active = mesh_obj
+    bpy.ops.object.vertex_group_limit_total(limit=4)
+    bpy.ops.object.vertex_group_normalize_all(lock_active=False)
+    debug_print(debug, "bound mesh to armature via envelope weights (normalized, <=4 influences/vertex)")
 
 
 def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) -> None:
