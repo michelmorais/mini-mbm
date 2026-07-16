@@ -727,54 +727,6 @@ namespace mbm
         return 1;
     }
 
-    int onGetAngleMeshDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const VEC3 angle = meshDebug->mesh.getAngleDefault();
-        lua_newtable(lua);
-        lua_pushnumber(lua, angle.x);
-        lua_setfield(lua, -2, "x");
-        lua_pushnumber(lua, angle.y);
-        lua_setfield(lua, -2, "y");
-        lua_pushnumber(lua, angle.z);
-        lua_setfield(lua, -2, "z");
-        return 1;
-    }
-
-    int onSetAngleMeshDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const float x = static_cast<float>(luaL_checknumber(lua, 2));
-        const float y = static_cast<float>(luaL_checknumber(lua, 3));
-        const float z = static_cast<float>(luaL_checknumber(lua, 4));
-        meshDebug->mesh.setAngleDefault(VEC3(x, y, z));
-        return 0;
-    }
-
-    int onGetPositionMeshDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const VEC3 position = meshDebug->mesh.getPositionOffset();
-        lua_newtable(lua);
-        lua_pushnumber(lua, position.x);
-        lua_setfield(lua, -2, "x");
-        lua_pushnumber(lua, position.y);
-        lua_setfield(lua, -2, "y");
-        lua_pushnumber(lua, position.z);
-        lua_setfield(lua, -2, "z");
-        return 1;
-    }
-
-    int onSetPositionMeshDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const float x = static_cast<float>(luaL_checknumber(lua, 2));
-        const float y = static_cast<float>(luaL_checknumber(lua, 3));
-        const float z = static_cast<float>(luaL_checknumber(lua, 4));
-        meshDebug->mesh.setPositionOffset(VEC3(x, y, z));
-        return 0;
-    }
-
     int onGetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1972,10 +1924,6 @@ namespace mbm
 										  {"setModeFrontFace", onSetMode_FrontFaceMeshDebugLua},
 			                              {"getModeFrontFace", onGetMode_FrontFaceMeshDebugLua},
                                           {"getVersion", onGetVersionMeshDebugLua},
-                                          {"getAngle", onGetAngleMeshDebugLua},
-                                          {"setAngle", onSetAngleMeshDebugLua},
-                                          {"getPosition", onGetPositionMeshDebugLua},
-                                          {"setPosition", onSetPositionMeshDebugLua},
                                           {"getMaterial", onGetMaterialMeshDebugLua},
                                           {"setMaterial", onSetMaterialMeshDebugLua},
                                           {"setPhysics", onSetPhysicsMeshDebugLua},

@@ -110,8 +110,11 @@ namespace mbm
     {
         util::TYPE_MESH          typeMe = util::TYPE_MESH_UNKNOWN;
         util::MATERIAL           material;
-        VEC3                     positionOffset;
-        VEC3                     angleDefault;
+        // Deprecated -- see MESH_MBM::Impl::positionOffset_deprecated (mesh-manager-impl.h) for
+        // the rationale. Kept only so the shared parse loop can populate SECTION_MATERIAL_TRANSFORM's
+        // full payload for round-trip fidelity; never applied to a loaded renderizable.
+        VEC3                     positionOffset_deprecated;
+        VEC3                     angleDefault_deprecated;
         util::INFO_DRAW_MODE     info_mode;
         mbm::INFO_PHYSICS        infoPhysics;
         util::INFO_ANIMATION     infoAnimation;
@@ -156,8 +159,9 @@ namespace mbm
         // rather than move the whole thing, and that fails outright since IntermediateFrameV11 holds
         // unique_ptr's and genuinely can't be copied.
         MESH_LOAD_INTERMEDIATE_V11(MESH_LOAD_INTERMEDIATE_V11 &&other) noexcept
-            : typeMe(other.typeMe), material(other.material), positionOffset(other.positionOffset),
-              angleDefault(other.angleDefault), info_mode(other.info_mode),
+            : typeMe(other.typeMe), material(other.material),
+              positionOffset_deprecated(other.positionOffset_deprecated),
+              angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
               extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
               skeleton(std::move(other.skeleton))
         {
@@ -175,8 +179,8 @@ namespace mbm
                 return *this;
             typeMe         = other.typeMe;
             material       = other.material;
-            positionOffset = other.positionOffset;
-            angleDefault   = other.angleDefault;
+            positionOffset_deprecated = other.positionOffset_deprecated;
+            angleDefault_deprecated   = other.angleDefault_deprecated;
             info_mode      = other.info_mode;
             extraPaths     = std::move(other.extraPaths);
             frames         = std::move(other.frames);
@@ -796,8 +800,8 @@ namespace
                     return false;
                 }
                 out.material        = materialTransform.material;
-                out.positionOffset  = mbm::VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
-                out.angleDefault    = mbm::VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
+                out.positionOffset_deprecated  = mbm::VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
+                out.angleDefault_deprecated    = mbm::VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
                 out.info_mode.mode_draw                 = materialTransform.mode_draw;
                 out.info_mode.mode_cull_face            = materialTransform.mode_cull_face;
                 out.info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
@@ -1082,8 +1086,8 @@ namespace mbm
     MESH_MBM_DEBUG::MESH_MBM_DEBUG()
         : impl(std::make_unique<Impl>())
     {
-        impl->positionOffset      = VEC3(0, 0, 0);
-        impl->angleDefault        = VEC3(0, 0, 0);
+        impl->positionOffset_deprecated = VEC3(0, 0, 0);
+        impl->angleDefault_deprecated   = VEC3(0, 0, 0);
         impl->coordTexFrame_0     = nullptr;
         impl->sizeCoordTexFrame_0 = 0;
         impl->typeMe              = util::TYPE_MESH_UNKNOWN;
@@ -1360,31 +1364,6 @@ namespace mbm
         return util::TYPE_MESH_UNKNOWN;
     }
 
-    VEC3 MESH_MBM_DEBUG::getAngleDefault() const noexcept
-    {
-        return this->impl->angleDefault;
-    }
-
-    void MESH_MBM_DEBUG::setAngleDefault(const VEC3 &angle) noexcept
-    {
-        this->impl->angleDefault = angle;
-        this->impl->headerMesh.angleX = angle.x;
-        this->impl->headerMesh.angleY = angle.y;
-        this->impl->headerMesh.angleZ = angle.z;
-    }
-
-    VEC3 MESH_MBM_DEBUG::getPositionOffset() const noexcept
-    {
-        return this->impl->positionOffset;
-    }
-
-    void MESH_MBM_DEBUG::setPositionOffset(const VEC3 &position) noexcept
-    {
-        this->impl->positionOffset = position;
-        this->impl->headerMesh.posX = position.x;
-        this->impl->headerMesh.posY = position.y;
-        this->impl->headerMesh.posZ = position.z;
-    }
 
     INFO_PHYSICS & MESH_MBM_DEBUG::getPhysicsInfo() noexcept
     {
@@ -2728,11 +2707,11 @@ namespace mbm
                 impl->headerMesh.posX     = materialTransform.posX;
                 impl->headerMesh.posY     = materialTransform.posY;
                 impl->headerMesh.posZ     = materialTransform.posZ;
-                // setAngleDefault/setPositionOffset keep impl->angleDefault/positionOffset in sync with
-                // headerMesh.angle*/pos* - loadV11 must mirror that, since getAngleDefault/
-                // getPositionOffset read the impl-> copies, not headerMesh directly.
-                impl->angleDefault = VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
-                impl->positionOffset = VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
+                // Deprecated fields (see MESH_MBM::Impl's own comment) - mirrored here purely so a
+                // load-then-save round trip preserves a legacy file's stored bytes unchanged; there
+                // is no public getter/setter left, so nothing else ever writes these two.
+                impl->angleDefault_deprecated = VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
+                impl->positionOffset_deprecated = VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
                 impl->info_mode.mode_draw = materialTransform.mode_draw;
                 impl->info_mode.mode_cull_face = materialTransform.mode_cull_face;
                 impl->info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
@@ -3907,8 +3886,8 @@ namespace mbm
             meshBuffer = nullptr;
         }
         impl->buffer.clear();
-        impl->angleDefault        = VEC3(0, 0, 0);
-        impl->positionOffset      = VEC3(0, 0, 0);
+        impl->angleDefault_deprecated   = VEC3(0, 0, 0);
+        impl->positionOffset_deprecated = VEC3(0, 0, 0);
         impl->sizeCoordTexFrame_0 = 0;
         impl->typeMe              = util::TYPE_MESH_UNKNOWN;
         impl->backBufferWidth     = 0;
@@ -3993,26 +3972,6 @@ namespace mbm
     
 
 
-
-    VEC3 MESH_MBM::getPositionOffset() const noexcept
-    {
-        return impl->positionOffset;
-    }
-
-    void MESH_MBM::setPositionOffset(const VEC3 &position) noexcept
-    {
-        impl->positionOffset = position;
-    }
-
-    VEC3 MESH_MBM::getAngleDefault() const noexcept
-    {
-        return impl->angleDefault;
-    }
-
-    void MESH_MBM::setAngleDefault(const VEC3 &angle) noexcept
-    {
-        impl->angleDefault = angle;
-    }
 
     BUFFER_MESH * MESH_MBM::getBuffer(const uint32_t index) const
     {
@@ -4341,16 +4300,12 @@ namespace mbm
         return this->load(fileNamePath, nullptr);
     }
 
-    bool MESH_MBM::load(const char *fileNamePath, RENDERIZABLE *renderizable)
+    bool MESH_MBM::load(const char *fileNamePath, RENDERIZABLE * /*renderizable*/)
     {
-        if (!this->loadV11(fileNamePath))
-            return false;
-        if (renderizable)
-        {
-            renderizable->getPosition() += this->impl->positionOffset;
-            renderizable->setAngle(this->impl->angleDefault);
-        }
-        return true;
+        // `renderizable` used to receive positionOffset_deprecated/angleDefault_deprecated here;
+        // no longer applied (see MESH_MBM::Impl's own comment on those fields). Parameter kept for
+        // ABI/call-site compatibility.
+        return this->loadV11(fileNamePath);
     }
 
     // Main-thread-only GPU-finish half of loading a v11 mesh (async loading). Consumes
@@ -4364,8 +4319,8 @@ namespace mbm
         impl->fileName       = fileNamePath;
         impl->typeMe         = in.typeMe;
         impl->material       = in.material;
-        impl->positionOffset = in.positionOffset;
-        impl->angleDefault   = in.angleDefault;
+        impl->positionOffset_deprecated = in.positionOffset_deprecated;
+        impl->angleDefault_deprecated   = in.angleDefault_deprecated;
         impl->info_mode      = in.info_mode;
         impl->infoPhysics.lsCube        = std::move(in.infoPhysics.lsCube);
         impl->infoPhysics.lsCubeComplex = std::move(in.infoPhysics.lsCubeComplex);
@@ -4564,11 +4519,6 @@ namespace mbm
         auto mesh = this->impl->lsMeshes[fileNameBase];
         if(mesh)
         {
-            if (renderizable)
-            {
-                renderizable->getPosition() += mesh->impl->positionOffset;
-                renderizable->setAngle(mesh->impl->angleDefault);
-            }
             return mesh;
         }
         mesh = new MESH_MBM();
@@ -4864,8 +4814,8 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->impl->positionOffset                    = VEC3(0, 0, 0);
-            mesh->impl->angleDefault                      = VEC3(0, 0, 0);
+            mesh->impl->positionOffset_deprecated                    = VEC3(0, 0, 0);
+            mesh->impl->angleDefault_deprecated                      = VEC3(0, 0, 0);
             mesh->impl->typeMe                            = util::TYPE_MESH_FONT;
             auto header = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
             mesh->impl->infoAnimation.lsHeaderAnim.push_back(header);
@@ -4929,8 +4879,8 @@ namespace mbm
             return nullptr;
         }
 
-        mesh->impl->positionOffset = VEC3(0, 0, 0);
-        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->positionOffset_deprecated = VEC3(0, 0, 0);
+        mesh->impl->angleDefault_deprecated   = VEC3(0, 0, 0);
         mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         if(info_mode)
         {
@@ -4977,8 +4927,8 @@ namespace mbm
             return nullptr;
         }
 
-        mesh->impl->positionOffset = VEC3(0, 0, 0);
-        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->positionOffset_deprecated = VEC3(0, 0, 0);
+        mesh->impl->angleDefault_deprecated   = VEC3(0, 0, 0);
         mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         if(info_draw_mode)
         {
@@ -5025,8 +4975,8 @@ namespace mbm
             delete mesh;
             return nullptr;
         }
-        mesh->impl->positionOffset = VEC3(0, 0, 0);
-        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->positionOffset_deprecated = VEC3(0, 0, 0);
+        mesh->impl->angleDefault_deprecated   = VEC3(0, 0, 0);
         mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         util::DYNAMIC_SHAPE * extra_info_shape = new util::DYNAMIC_SHAPE(dynamic_shape_info.dynamicVertex,dynamic_shape_info.dynamicNormal,dynamic_shape_info.dynamicUV,dynamic_shape_info.size_vertex,dynamic_shape_info.size_normal,dynamic_shape_info.size_uv);
         mesh->impl->extraInfo      = extra_info_shape;
@@ -5356,8 +5306,8 @@ namespace mbm
             // moved to MESH_MBM_DEBUG::fillInSubsetDebug
             // 
         }
-        impl->positionOffset = VEC3(impl->headerMesh.posX, impl->headerMesh.posY, impl->headerMesh.posZ);
-        impl->angleDefault = VEC3(impl->headerMesh.angleX, impl->headerMesh.angleY, impl->headerMesh.angleZ);
+        impl->positionOffset_deprecated = VEC3(impl->headerMesh.posX, impl->headerMesh.posY, impl->headerMesh.posZ);
+        impl->angleDefault_deprecated = VEC3(impl->headerMesh.angleX, impl->headerMesh.angleY, impl->headerMesh.angleZ);
         this->impl->sizeCoordTexFrame_0 = 0;
         if (this->impl->coordTexFrame_0)
             delete[] this->impl->coordTexFrame_0;

@@ -85,10 +85,6 @@ namespace mbm
         API_IMPL void setMeshType(const util::TYPE_MESH type) noexcept;
         API_IMPL util::TYPE_MESH getType() noexcept;
         API_IMPL util::TYPE_MESH getType(const char *fileNamePath);
-        API_IMPL VEC3 getAngleDefault() const noexcept;
-        API_IMPL void setAngleDefault(const VEC3 &angle) noexcept;
-        API_IMPL VEC3 getPositionOffset() const noexcept;
-        API_IMPL void setPositionOffset(const VEC3 &position) noexcept;
         API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
         API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
         API_IMPL int getFileVersion() const noexcept;
@@ -202,10 +198,6 @@ namespace mbm
     {
         friend class MESH_MANAGER;
       public:
-        API_IMPL VEC3 getPositionOffset() const noexcept;
-        API_IMPL void setPositionOffset(const VEC3 &position) noexcept;
-        API_IMPL VEC3 getAngleDefault() const noexcept;
-        API_IMPL void setAngleDefault(const VEC3 &angle) noexcept;
         API_IMPL BUFFER_MESH *getBuffer(const uint32_t index) const;
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
         API_IMPL bool setTexture(const uint32_t indexFrame, const uint32_t indexSubset, const char *fileNameTexture,

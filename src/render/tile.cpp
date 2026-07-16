@@ -108,8 +108,6 @@ namespace mbm
                 return;
             }
             this->mesh = mesh;
-            this->getPosition() += mesh->getPositionOffset();
-            this->setAngle(mesh->getAngleDefault());
             const util::TYPE_MESH expectedType = util::TYPE_MESH_TILE_MAP;
             const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, &expectedType, "tile");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)

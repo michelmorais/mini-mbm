@@ -40,6 +40,48 @@ local function dpCall(fn, ...)
     return table.unpack(res, 1, res.n)
 end
 
+-- Per-axis rotation of a row vector, derived directly from this engine's own matrix code (not
+-- guessed): MatrixRotationX/Y/Z (src/core_mbm/primitives.cpp:457-516) and MatrixMultiply's
+-- out=pm1*pm2 convention (same file:254-270) together mean, for a row vector v transformed as
+-- v'=v*M, that RotationX(a) maps (x,y,z) -> (x, y*cos(a)-z*sin(a), y*sin(a)+z*cos(a)), and
+-- similarly for Y/Z below (matching each matrix's exact entries, not a textbook default).
+local function rotateX(x, y, z, a)
+    local c, s = math.cos(a), math.sin(a)
+    return x, y * c - z * s, y * s + z * c
+end
+local function rotateY(x, y, z, a)
+    local c, s = math.cos(a), math.sin(a)
+    return x * c + z * s, y, -x * s + z * c
+end
+local function rotateZ(x, y, z, a)
+    local c, s = math.cos(a), math.sin(a)
+    return x * c - y * s, x * s + y * c, z
+end
+
+-- Bakes a rotation into every bone's own x,y,z (degrees, applied X then Y then Z), matching
+-- meshDebug:rotateFrame's exact per-axis formulas and order (src/core_mbm/mesh-manager.cpp:3128)
+-- -- rotateX/Y/Z above are the same helpers verified against MatrixRotationX/Y/Z. Used to keep the
+-- skeleton in sync whenever mesh_debug.lua bakes a rotation into vertex data via rotateFrame
+-- (Bones-node Rotate, Transform-node Rotate, Apply-All Transform, and the Blender-import
+-- post-process rotation), since bones are stored independently of vertex data.
+local function applyRotationToBonesDeg(meshD, angleXDeg, angleYDeg, angleZDeg)
+    local radX = angleXDeg * math.pi / 180
+    local radY = angleYDeg * math.pi / 180
+    local radZ = angleZDeg * math.pi / 180
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            local nx, ny, nz = x, y, z
+            if angleXDeg ~= 0 then nx, ny, nz = rotateX(nx, ny, nz, radX) end
+            if angleYDeg ~= 0 then nx, ny, nz = rotateY(nx, ny, nz, radY) end
+            if angleZDeg ~= 0 then nx, ny, nz = rotateZ(nx, ny, nz, radZ) end
+            dpCall(function() return meshD:updateBone(i, name, parentName, nx, ny, nz, radius) end)
+        end
+    end
+end
+
 -- Mutual-exclusion tree node: only one top-level node per mesh can be open at a time.
 -- Uses SetNextItemOpen to enforce state; IsItemClicked detects toggle intent.
 local function openNode(tEntry, nodeKey, label, flags, id)
@@ -1565,21 +1607,19 @@ end
 local function applyGeneratedMeshOptions(meshD, options)
     if type(options) ~= 'table' then return end
     if options.importPostProcess ~= true then return end
-    -- The import UI's Rot X/Y/Z fields are degrees (a plain, user-typeable "-90" for the usual
-    -- Blender Z-up -> engine Y-up correction), but meshDebug:setAngle/getAngle -- like the
-    -- documented obj:setAngle/getAngle -- is contractually RADIANS (it flows unconverted into
-    -- RENDERIZABLE::setAngle, whose consumer MatrixRotationX/Y/Z calls cosf/sinf directly, no
-    -- conversion anywhere in that path). Confirmed empirically: setting angle.x=-90 (no
-    -- conversion) rendered as -90 RADIANS, not -90 degrees -- a real, silent bug in the live
-    -- preview's rotation for every import with post-process rotation enabled, not just something
-    -- that shows up in bone positioning (boneToWorld/worldToBone correctly assume radians, per
-    -- the documented contract, so they were never the bug -- this was).
-    local ax = (tonumber(options.importAngleX or 0) or 0) * math.pi / 180
-    local ay = (tonumber(options.importAngleY or 0) or 0) * math.pi / 180
-    local az = (tonumber(options.importAngleZ or 0) or 0) * math.pi / 180
+    -- Bakes the import UI's Rot X/Y/Z (degrees -- a plain, user-typeable "-90" for the usual
+    -- Blender Z-up -> engine Y-up correction) directly into vertices + bones, via the same
+    -- rotateFrame/applyRotationToBonesDeg pair every other rotate-bake in this file uses --
+    -- instead of the old meshDebug:setAngle/getAngle ("Default angle") mechanism, which has been
+    -- removed entirely (confusing, effectively unused, and the source of a real degrees-vs-radians
+    -- bug: setAngle expected radians but this UI's value was always degrees).
+    local ax = tonumber(options.importAngleX or 0) or 0
+    local ay = tonumber(options.importAngleY or 0) or 0
+    local az = tonumber(options.importAngleZ or 0) or 0
     if ax ~= 0 or ay ~= 0 or az ~= 0 then
-        meshD:setAngle(ax, ay, az)
-        blenderDebugPrint(tBlenderImportState, 'applied import rotation (rad): %.4f %.4f %.4f', ax, ay, az)
+        dpCall(function() return meshD:rotateFrame(0, ax, ay, az, 0) end)
+        applyRotationToBonesDeg(meshD, ax, ay, az)
+        blenderDebugPrint(tBlenderImportState, 'applied import rotation (deg): %.4f %.4f %.4f', ax, ay, az)
     end
 end
 
@@ -3148,26 +3188,21 @@ function updatePreviewMesh()
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new(coordType)
         ok = tPreviewMesh:load(loadPath)
-        -- Force the preview's position to meshD's own stored default position immediately after
-        -- load, overriding whatever DEVICE::addRenderizable's z-order auto-assign
-        -- (src/core_mbm/device-common.cpp:1173, `if (position.z == 0.0f) position.z =
-        -- getNextZOrderControl3d()`) plus MESH_MBM::load's ADDITIVE positionOffset application
-        -- (`renderizable->getPosition() += this->impl->positionOffset`,
-        -- src/core_mbm/mesh-manager.cpp:4349) produced. Every freshly-constructed 3D mesh starts
-        -- at z=0 and gets stamped with a small, globally-monotonic, never-resetting z-order nudge
-        -- the instant it's constructed (mesh.cpp's constructor calls addRenderizable before
-        -- :load() runs); load() then ADDS the file's own default position on top of that nudge
-        -- instead of replacing it. Since this function recreates tPreviewMesh from scratch on
-        -- every single edit (bone drag, frame removal, etc. -- anything that sets
-        -- iLastPreviewedIndex = 0), each recreation silently drifted the preview further along Z
-        -- forever, regardless of which field was actually being edited -- confirmed empirically:
-        -- 30 destroy+reload cycles with an untouched source position added exactly 30 * 0.01 to Z,
-        -- never converging back even when the edited value was reverted (user-reported: "the mesh
-        -- seems to go far from the bones" while the bone gizmos, positioned via shape:new with an
-        -- explicit non-zero z from construction, stayed correctly anchored).
+        -- Force the preview's position back to the origin immediately after load, overriding
+        -- DEVICE::addRenderizable's z-order auto-assign (src/core_mbm/device-common.cpp:1173,
+        -- `if (position.z == 0.0f) position.z = getNextZOrderControl3d()`). Every freshly
+        -- constructed 3D mesh starts at z=0 and gets stamped with a small, globally-monotonic,
+        -- never-resetting z-order nudge the instant it's constructed. Since this function
+        -- recreates tPreviewMesh from scratch on every single edit (bone drag, frame removal,
+        -- etc. -- anything that sets iLastPreviewedIndex = 0), each recreation would otherwise
+        -- land at a different tiny nonzero Z depending on how many other 3D objects happened to be
+        -- created elsewhere in the session -- confirmed empirically and previously compounded by
+        -- MESH_MBM::load's now-removed additive "Default position" application (30 destroy+reload
+        -- cycles used to add 30 * 0.01 to Z, never converging back even when the edited field was
+        -- reverted). With that field gone, only this residual z-order nudge remains, so resetting
+        -- straight to the origin is the correct fix rather than reading any stored value.
         if ok then
-            local okP, pos = dpCall(function() return meshD:getPosition() end)
-            if okP and pos then tPreviewMesh:setPos(pos.x, pos.y, pos.z) end
+            tPreviewMesh:setPos(0, 0, 0)
         end
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new(coordType)
@@ -3989,8 +4024,6 @@ end
 function showMeshInfoTable(tEntry, index)
     local meshD = tEntry.meshDebug
     local info = tEntry.info or {}
-    local step, stepFast, fmt = 0.01, 0.1, '%.3f'
-    local flags = 0
 
     local function onEdit()
         tEntry.modified = true
@@ -4111,38 +4144,6 @@ function showMeshInfoTable(tEntry, index)
             local ret, newIdx = tImGui.Combo('##modeFront-' .. index, idx, tModeFrontOpts, -1)
             if ret and newIdx and newIdx ~= idx then
                 local okSet = dpCall(function() meshD:setModeFrontFace(tModeFrontOpts[newIdx]) end)
-                if okSet then onEdit() end
-            end
-        end
-    end
-
-    -- Editable: Default angle
-    tImGui.Text(tLang.L("default_angle_xyz"))
-    do
-        local ok, ang = dpCall(function() return meshD:getAngle() end)
-        if ok and ang then
-            local v = {ang.x or 0, ang.y or 0, ang.z or 0}
-            local r1, n1 = tImGui.InputFloat('##angX-' .. index, v[1], step, stepFast, fmt, flags)
-            local r2, n2 = tImGui.InputFloat('##angY-' .. index, v[2], step, stepFast, fmt, flags)
-            local r3, n3 = tImGui.InputFloat('##angZ-' .. index, v[3], step, stepFast, fmt, flags)
-            if (r1 or r2 or r3) then
-                local okSet = dpCall(function() meshD:setAngle(n1 or v[1], n2 or v[2], n3 or v[3]) end)
-                if okSet then onEdit() end
-            end
-        end
-    end
-
-    -- Editable: Default position
-    tImGui.Text(tLang.L("default_position_xyz"))
-    do
-        local ok, pos = dpCall(function() return meshD:getPosition() end)
-        if ok and pos then
-            local v = {pos.x or 0, pos.y or 0, pos.z or 0}
-            local r1, n1 = tImGui.InputFloat('##posX-' .. index, v[1], step, stepFast, fmt, flags)
-            local r2, n2 = tImGui.InputFloat('##posY-' .. index, v[2], step, stepFast, fmt, flags)
-            local r3, n3 = tImGui.InputFloat('##posZ-' .. index, v[3], step, stepFast, fmt, flags)
-            if (r1 or r2 or r3) then
-                local okSet = dpCall(function() meshD:setPosition(n1 or v[1], n2 or v[2], n3 or v[3]) end)
                 if okSet then onEdit() end
             end
         end
@@ -4534,63 +4535,19 @@ local function unitCylinderVerts(radiusTop, radiusBottom, height, radialSegments
     return verts
 end
 
--- Per-axis rotation of a row vector, derived directly from this engine's own matrix code (not
--- guessed): MatrixRotationX/Y/Z (src/core_mbm/primitives.cpp:457-516) and MatrixMultiply's
--- out=pm1*pm2 convention (same file:254-270) together mean, for a row vector v transformed as
--- v'=v*M, that RotationX(a) maps (x,y,z) -> (x, y*cos(a)-z*sin(a), y*sin(a)+z*cos(a)), and
--- similarly for Y/Z below (matching each matrix's exact entries, not a textbook default).
-local function rotateX(x, y, z, a)
-    local c, s = math.cos(a), math.sin(a)
-    return x, y * c - z * s, y * s + z * c
-end
-local function rotateY(x, y, z, a)
-    local c, s = math.cos(a), math.sin(a)
-    return x * c + z * s, y, -x * s + z * c
-end
-local function rotateZ(x, y, z, a)
-    local c, s = math.cos(a), math.sin(a)
-    return x * c - y * s, x * s + y * c, z
-end
-
--- MatrixTranslationRotationScale (src/core_mbm/primitives.cpp:24-45) builds modelView =
--- Scale*Rz*Ry*Rx (via out=pm1*pm2, applied left-to-right for a row vector) then adds position
--- directly -- so with no persistent object scale (Mesh Info has no such field, see the Bones node's
--- own help text above), a model-space point is rotated Z first, then Y, then X last, then
--- translated. This is what meshD:getPosition()/getAngle() (Mesh Info's "Default position"/"Default
--- angle") apply to every vertex at render time -- NOT the "Transform" node, which bakes rotate/
--- scale/translate directly into vertex data instead of storing a persistent transform.
+-- Bones are stored in the same raw coordinate space as vertex data -- there is no persistent
+-- object-level position/angle applied on top anymore (that mechanism, "Default position"/"Default
+-- angle", was removed: it was confusing and effectively unused, and every rotate/scale/translate
+-- of a mesh now bakes directly into vertices + bones together instead, see
+-- applyRotationToBonesDeg/applyScaleToBones/applyTranslateToBones below). So bone-local coordinates
+-- already ARE world coordinates; these two are trivial passthroughs, kept only so call sites don't
+-- need to care whether a conversion is needed.
 local function boneToWorld(meshD, bx, by, bz)
-    local okA, ang = dpCall(function() return meshD:getAngle() end)
-    local okP, pos = dpCall(function() return meshD:getPosition() end)
-    local ax = (okA and ang and ang.x) or 0
-    local ay = (okA and ang and ang.y) or 0
-    local az = (okA and ang and ang.z) or 0
-    local px = (okP and pos and pos.x) or 0
-    local py = (okP and pos and pos.y) or 0
-    local pz = (okP and pos and pos.z) or 0
-    local x, y, z = bx, by, bz
-    x, y, z = rotateZ(x, y, z, az)
-    x, y, z = rotateY(x, y, z, ay)
-    x, y, z = rotateX(x, y, z, ax)
-    return x + px, y + py, z + pz
+    return bx, by, bz
 end
 
--- Inverse of boneToWorld: undo in reverse order with negated angles (valid since axis-rotation
--- matrices are orthogonal, R(-a) = R(a)^-1).
 local function worldToBone(meshD, wx, wy, wz)
-    local okA, ang = dpCall(function() return meshD:getAngle() end)
-    local okP, pos = dpCall(function() return meshD:getPosition() end)
-    local ax = (okA and ang and ang.x) or 0
-    local ay = (okA and ang and ang.y) or 0
-    local az = (okA and ang and ang.z) or 0
-    local px = (okP and pos and pos.x) or 0
-    local py = (okP and pos and pos.y) or 0
-    local pz = (okP and pos and pos.z) or 0
-    local x, y, z = wx - px, wy - py, wz - pz
-    x, y, z = rotateX(x, y, z, -ax)
-    x, y, z = rotateY(x, y, z, -ay)
-    x, y, z = rotateZ(x, y, z, -az)
-    return x, y, z
+    return wx, wy, wz
 end
 
 -- ---------------------------------------------------------------------------
@@ -4601,28 +4558,8 @@ end
 -- silently leaving old bone positions/orientations behind a freshly re-scaled/re-rotated mesh.
 -- All three always target every frame/subset (matching meshD:rotateFrame(0,...)'s "0 = all" default
 -- convention) since there is exactly one skeleton per mesh, not one per frame.
--- Angles are DEGREES, applied X then Y then Z, matching rotateFrame's own exact per-axis formulas
--- and order (src/core_mbm/mesh-manager.cpp:3128) -- rotateX/Y/Z here are the same helpers already
--- verified against MatrixRotationX/Y/Z above, just invoked in rotateFrame's order rather than
--- boneToWorld's Z-Y-X order (the two are unrelated conventions in this codebase; see boneToWorld's
--- own comment).
-local function applyRotationToBonesDeg(meshD, angleXDeg, angleYDeg, angleZDeg)
-    local radX = angleXDeg * math.pi / 180
-    local radY = angleYDeg * math.pi / 180
-    local radZ = angleZDeg * math.pi / 180
-    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
-    nBones = (okTotal and nBones) or 0
-    for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
-        if okG and name then
-            local nx, ny, nz = x, y, z
-            if angleXDeg ~= 0 then nx, ny, nz = rotateX(nx, ny, nz, radX) end
-            if angleYDeg ~= 0 then nx, ny, nz = rotateY(nx, ny, nz, radY) end
-            if angleZDeg ~= 0 then nx, ny, nz = rotateZ(nx, ny, nz, radZ) end
-            dpCall(function() return meshD:updateBone(i, name, parentName, nx, ny, nz, radius) end)
-        end
-    end
-end
+-- (applyRotationToBonesDeg itself now lives near the top of the file, alongside rotateX/Y/Z, since
+-- the Blender-import post-process rotation needs it long before this point in the file.)
 
 -- Radius scales by the mean of |sx|,|sy|,|sz| -- bones are spheres, so a single non-uniform scale
 -- factor has no exact meaning; the mean is a reasonable stand-in and matches the common case of a
@@ -4648,39 +4585,6 @@ local function applyTranslateToBones(meshD, dx, dy, dz)
         local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
         if okG and name then
             dpCall(function() return meshD:updateBone(i, name, parentName, x + dx, y + dy, z + dz, radius) end)
-        end
-    end
-end
-
--- Captures every bone's current WORLD position (via boneToWorld, using meshD's CURRENT default
--- position/angle). Pair with restoreBoneWorldPositionsAfter, called after the caller has changed
--- meshD's default position/angle field(s) (e.g. Reset Default Angle/Position bakes the field into
--- vertices then zeroes it), to re-solve each bone's LOCAL coordinates so its world position is
--- unchanged -- via the already-verified boneToWorld/worldToBone round trip, which sidesteps having
--- to hand-derive a compensating rotation formula (rotateFrame's own bake order, X-then-Y-then-Z,
--- is NOT the same composition boneToWorld uses for the persistent default-angle field, Z-then-Y-
--- then-X -- see boneToWorld's own comment -- so a hand-derived delta would need to track which
--- convention applies to which operation; round-tripping through world space avoids that entirely).
-local function snapshotBoneWorldPositions(meshD)
-    local snapshot = {}
-    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
-    nBones = (okTotal and nBones) or 0
-    for i = 1, nBones do
-        local okG, name, x, y, z = dpCall(function() return meshD:getBone(i) end)
-        if okG and name then
-            local wx, wy, wz = boneToWorld(meshD, x, y, z)
-            table.insert(snapshot, { idx = i, wx = wx, wy = wy, wz = wz })
-        end
-    end
-    return snapshot
-end
-
-local function restoreBoneWorldPositionsAfter(meshD, snapshot)
-    for _, s in ipairs(snapshot) do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(s.idx) end)
-        if okG and name then
-            local bx, by, bz = worldToBone(meshD, s.wx, s.wy, s.wz)
-            dpCall(function() return meshD:updateBone(s.idx, name, parentName, bx, by, bz, radius) end)
         end
     end
 end
@@ -7766,68 +7670,6 @@ local function applyAllTransform(sType, sMode)
     end)
 end
 
--- Bakes each mesh's own current default angle into its geometry (same-sign rotateFrame,
--- so the rendered appearance is unchanged) then zeroes the default angle. No-op if already 0,0,0.
--- Bones are re-anchored around the setAngle(0,0,0) step (snapshotBoneWorldPositions /
--- restoreBoneWorldPositionsAfter) rather than given the same rotateFrame delta directly, since what
--- must be preserved here is each bone's WORLD position under boneToWorld's own rotation convention
--- (Z-then-Y-then-X), not rotateFrame's bake convention (X-then-Y-then-Z) -- see
--- snapshotBoneWorldPositions's own comment.
-local function applyAllResetDefaultAngle(sType)
-    return runApplyAllOperation(sType, tLang.L('reset_default_angle'), function(tEntry, index)
-        local meshD = tEntry.meshDebug
-        local okGet, ang = dpCall(function() return meshD:getAngle() end)
-        if not okGet or not ang then
-            return 'failed', tLang.L('an_error_occurred')
-        end
-        if (ang.x or 0) == 0 and (ang.y or 0) == 0 and (ang.z or 0) == 0 then
-            return 'skipped', tLang.L('default_already_zero')
-        end
-        local boneSnapshot = snapshotBoneWorldPositions(meshD)
-        local okRotate = dpCall(function() meshD:rotateFrame(0, ang.x, ang.y, ang.z, 0) end)
-        if not okRotate then
-            return 'failed', tLang.L('an_error_occurred')
-        end
-        local okSet = dpCall(function() meshD:setAngle(0, 0, 0) end)
-        if not okSet then
-            return 'failed', tLang.L('an_error_occurred')
-        end
-        restoreBoneWorldPositionsAfter(meshD, boneSnapshot)
-        rebuildBoneGizmo(tEntry, meshD, index)
-        tEntry.modified = true
-        return 'success'
-    end)
-end
-
--- Bakes each mesh's own current default position into its geometry (same-sign translateFrame,
--- so the rendered appearance is unchanged) then zeroes the default position. Bones are re-anchored
--- the same way as applyAllResetDefaultAngle (see its comment).
-local function applyAllResetDefaultPosition(sType)
-    return runApplyAllOperation(sType, tLang.L('reset_default_position'), function(tEntry, index)
-        local meshD = tEntry.meshDebug
-        local okGet, pos = dpCall(function() return meshD:getPosition() end)
-        if not okGet or not pos then
-            return 'failed', tLang.L('an_error_occurred')
-        end
-        if (pos.x or 0) == 0 and (pos.y or 0) == 0 and (pos.z or 0) == 0 then
-            return 'skipped', tLang.L('default_already_zero')
-        end
-        local boneSnapshot = snapshotBoneWorldPositions(meshD)
-        local okTranslate = dpCall(function() meshD:translateFrame(0, pos.x, pos.y, pos.z, 0) end)
-        if not okTranslate then
-            return 'failed', tLang.L('an_error_occurred')
-        end
-        local okSet = dpCall(function() meshD:setPosition(0, 0, 0) end)
-        if not okSet then
-            return 'failed', tLang.L('an_error_occurred')
-        end
-        restoreBoneWorldPositionsAfter(meshD, boneSnapshot)
-        rebuildBoneGizmo(tEntry, meshD, index)
-        tEntry.modified = true
-        return 'success'
-    end)
-end
-
 local BOX_LETTERS_PHYS = {'a','b','c','d','e','f','g','h'}
 
 -- 8 corners of an axis-aligned box, same CUBE_COMPLEX convention as physic_editor.lua
@@ -8057,7 +7899,7 @@ end
 -- Replaces each mesh's physics with one primitive computed from that mesh's own
 -- frame-1 vertex bounds (not mesh:getSize()). setPhysics() fully releases the prior
 -- INFO_PHYSICS before rebuilding (plugins/plugin-helper/plugin-helper.cpp), so this is
--- a true reset, matching applyAllResetDefaultAngle/applyAllResetDefaultPosition above.
+-- a true reset.
 local function applyAllResetPhysics(sType)
     local opt = tApplyAllWin.physics
     return runApplyAllOperation(sType, tLang.L('reset_physics_to'), function(tEntry)
@@ -8422,18 +8264,6 @@ function showApplyAllWindow()
                 if tImGui.Button(tLang.L('apply_translate') .. '##applyAllTranslate') then
                     applyAllTransform(win.selectedType, 'translate')
                 end
-                tImGui.Spacing()
-                tImGui.Separator()
-                if tImGui.Button(tLang.L('reset_default_angle') .. '##applyAllResetDefaultAngle') then
-                    applyAllResetDefaultAngle(win.selectedType)
-                end
-                tImGui.SameLine()
-                tImGui.HelpMarker(tLang.L('reset_default_angle_tooltip'))
-                if tImGui.Button(tLang.L('reset_default_position') .. '##applyAllResetDefaultPosition') then
-                    applyAllResetDefaultPosition(win.selectedType)
-                end
-                tImGui.SameLine()
-                tImGui.HelpMarker(tLang.L('reset_default_position_tooltip'))
                 tImGui.TreePop()
             end
 

@@ -18,8 +18,14 @@ namespace mbm
 {
     struct MESH_MBM::Impl
     {
-        VEC3 positionOffset;
-        VEC3 angleDefault;
+        // Deprecated: no longer applied to a loaded renderizable's position/angle at load time
+        // (previously "Default position"/"Default angle" -- confusing, unused in practice, editing
+        // it back to 0 visibly misaligned meshes that silently depended on a nonzero value). Field
+        // kept only so existing .msh files' SECTION_MATERIAL_TRANSFORM payload still round-trips
+        // byte-for-byte; there is no public getter/setter left, deliberately, so nothing new can
+        // start relying on it again.
+        VEC3 positionOffset_deprecated;
+        VEC3 angleDefault_deprecated;
         util::MATERIAL material;
         INFO_PHYSICS infoPhysics;
         util::INFO_ANIMATION infoAnimation;
@@ -49,8 +55,11 @@ namespace mbm
         util::TYPE_MESH typeMe;
         int sizeCoordTexFrame_0;
         VEC2 *coordTexFrame_0;
-        VEC3 positionOffset;
-        VEC3 angleDefault;
+        // Deprecated: see MESH_MBM::Impl's positionOffset_deprecated/angleDefault_deprecated above
+        // for the full rationale. Kept only for SECTION_MATERIAL_TRANSFORM round-trip fidelity;
+        // no public getter/setter exists anymore.
+        VEC3 positionOffset_deprecated;
+        VEC3 angleDefault_deprecated;
         std::vector<util::BUFFER_MESH_DEBUG *> buffer;
         std::string fileName;
         std::vector<int> lsBlendOperation;
