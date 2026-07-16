@@ -213,7 +213,39 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
                 return (pos[0] + dx / dlen * stub_len,
                         pos[1] + dy / dlen * stub_len,
                         pos[2] + dz / dlen * stub_len)
-        return (pos[0], pos[1] + 0.01, pos[2])
+        # Only reachable for a rootless leaf (no parent, no children) or a degenerate coincident
+        # parent -- both rare. Z is "up" here, not Y: joint_pos already applied rotation_deg, which
+        # for the standard export undoes the Y-up bake back to Blender's own Z-up space.
+        return (pos[0], pos[1], pos[2] + 0.01)
+
+    # Envelope-based binding (see bind_mesh_to_armature) sizes each bone's influence region from
+    # head_radius/tail_radius, which Blender defaults to a small fixed value with no relation to
+    # this character's actual scale or any individual bone's own thickness. Left at that default,
+    # thick limbs (arms/legs) get an undersized envelope relative to the mesh's real cross-section
+    # -- skin polygons away from the bone's own axis but still within the limb get weak/no weight
+    # from the correct bone, which is what produces a "bellows"/pinching fold at each joint once
+    # bent, most visible at the elbow/knee. joints[name]["radius"] already carries a real,
+    # per-bone, scale-appropriate size (extract_armature_joints in blender_mesh_export.py derives
+    # it from each source bone's own head-to-tail length), previously computed only for an editor
+    # gizmo's display size and otherwise unused here -- reused directly as the envelope radius.
+    #
+    # envelope_distance (an ADDITIONAL smooth falloff zone beyond head/tail_radius, also part of
+    # Blender's envelope weight calculation) also needs setting -- its own default, 0.25 (25cm), is
+    # sized for typical hand-authored rigs and dwarfs this character's own scale: found via direct
+    # testing that with radius fixed but envelope_distance left at 0.25, a left-knee vertex still
+    # picked up real weight (0.17-0.22) from the RIGHT leg's bones, since 0.25 comfortably reaches
+    # all the way across the ~0.19-unit gap between the two legs. Scaled down to a small fraction of
+    # the bone's own radius so the falloff stays local to that specific limb.
+    def set_envelope_radius(bone, name):
+        # joints[name]["radius"] alone (radius_scale=1.0) left some inner-thigh/groin vertices with
+        # zero total weight -- outside every nearby bone's envelope+falloff entirely, which leaves
+        # them rigidly stuck at the bind pose while their neighbors deform, a tearing artifact
+        # rather than a fix. 1.8x closes that gap on the same real character without reintroducing
+        # the opposite-leg cross-talk envelope_distance=0.25 caused.
+        radius = float(joints[name].get("radius", 0.02)) * 1.8
+        bone.head_radius = radius
+        bone.tail_radius = radius
+        bone.envelope_distance = radius * 0.3
 
     edit_bones = arm_data.edit_bones
     created = {}
@@ -223,6 +255,7 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         root_bone = edit_bones.new(root_name)
         root_bone.head = root_pos
         root_bone.tail = compute_tail(root_name, root_pos, None)
+        set_envelope_radius(root_bone, root_name)
         created[root_name] = root_bone
 
     queue = list(roots)
@@ -235,6 +268,7 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
             child_bone.head = child_pos
             child_bone.tail = compute_tail(child_name, child_pos, parent_pos)
             child_bone.parent = created[parent_name]
+            set_envelope_radius(child_bone, child_name)
             created[child_name] = child_bone
             queue.append(child_name)
 
@@ -271,6 +305,48 @@ def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
     bpy.ops.object.vertex_group_limit_total(limit=4)
     bpy.ops.object.vertex_group_normalize_all(lock_active=False)
     debug_print(debug, "bound mesh to armature via envelope weights (normalized, <=4 influences/vertex)")
+
+    filled = _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj)
+    if filled:
+        debug_print(debug, f"nearest-bone fallback filled {filled} vertices envelope weighting missed entirely")
+
+
+def _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj) -> int:
+    """Envelope weighting (see bind_mesh_to_armature) can still leave some vertices with zero
+    total weight even with a per-bone radius scaled to this character: a bone's envelope radius is
+    derived from its own length, which is a poor proxy for wide-but-short bones (found via direct
+    testing that this concentrates almost entirely in the shoulder/chest/neck region, where Spine2/
+    shoulder bones are short relative to how wide the torso actually is). Tuning the radius scale
+    higher to cover this would just reintroduce cross-talk between other close-together bones
+    (fingers, facial detail) that the current scale was tuned to avoid -- a uniform scale can't
+    solve both at once. A completely unweighted vertex doesn't deform with the skeleton at all,
+    which reads as the mesh tearing away from its neighbors during animation -- worse than a rough
+    but present weight -- so any vertex envelope weighting missed entirely gets rigidly assigned
+    (weight 1.0) to whichever bone's head-to-tail segment it's geometrically closest to.
+    """
+    import bpy
+    from mathutils.geometry import intersect_point_line
+
+    me = mesh_obj.data
+    bone_segs = [(b.name, b.head_local, b.tail_local) for b in armature_obj.data.bones]
+
+    filled = 0
+    for v in me.vertices:
+        if sum(g.weight for g in v.groups) > 1e-6:
+            continue
+        best_name, best_dist = None, None
+        for name, head, tail in bone_segs:
+            closest, factor = intersect_point_line(v.co, head, tail)
+            factor = max(0.0, min(1.0, factor))
+            closest = head + (tail - head) * factor
+            d = (v.co - closest).length
+            if best_dist is None or d < best_dist:
+                best_dist, best_name = d, name
+        if best_name is not None:
+            vg = mesh_obj.vertex_groups.get(best_name) or mesh_obj.vertex_groups.new(name=best_name)
+            vg.add([v.index], 1.0, 'REPLACE')
+            filled += 1
+    return filled
 
 
 def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) -> None:
