@@ -4854,8 +4854,27 @@ local function writeMeshDebugJson(meshD, jsonPath)
         return false, tLang.L('bones_export_no_geometry')
     end
 
+    -- JSON numbers must use '.' as decimal separator, but string.format('%f', ...) follows
+    -- the C runtime's LC_NUMERIC locale -- on locales such as pt_BR/de_DE this produces ','
+    -- instead, corrupting the JSON (see editor_utils.lua's tUtil.save locale note). Force the
+    -- "C" locale for the duration of the write, same pattern as texture_packer.lua/
+    -- particle_editor.lua/scene_editor3d.lua/scene_editor2d.lua.
+    local prevNumericLocale = nil
+    if os and os.setlocale then
+        prevNumericLocale = os.setlocale(nil, 'numeric')
+        os.setlocale('C', 'numeric')
+    end
+    local function restoreLocale()
+        if os and os.setlocale and prevNumericLocale then
+            os.setlocale(prevNumericLocale, 'numeric')
+        end
+    end
+
     local f = io.open(jsonPath, 'w')
-    if not f then return false, 'Failed to create file: ' .. jsonPath end
+    if not f then
+        restoreLocale()
+        return false, 'Failed to create file: ' .. jsonPath
+    end
 
     f:write('{\n  "joints": [\n')
     local okTB, nBones = dpCall(function() return meshD:getTotalBone() end)
@@ -4908,6 +4927,7 @@ local function writeMeshDebugJson(meshD, jsonPath)
     end
     f:write('    ]\n  }\n}\n')
     f:close()
+    restoreLocale()
 
     if totalVerts == 0 then
         os.remove(jsonPath)
