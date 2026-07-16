@@ -70,6 +70,17 @@ def build_mesh(data: dict, debug: bool):
     mesh_data = bpy.data.meshes.new("MeshDebugMesh")
     mesh_data.from_pydata(positions, [], faces)
     mesh_data.update()
+    # Without this, Blender defaults to flat shading -- every loop gets its own per-face normal,
+    # so re-exporting this mesh later (editor/blender_mesh_export.py's export_frame_subsets, whose
+    # vertex-dedup key includes the normal) finds almost no shared vertices even though the
+    # topology hasn't changed: a real round-tripped character mesh went from 15882 vertices to
+    # 86640 (== face_count * 3, i.e. zero sharing) without this call, blowing past the 65535
+    # per-frame index-buffer limit on re-import even though the original import was well under it.
+    # mesh_debug's own vertex data has no stored normals to restore exactly (writeMeshDebugJson
+    # only dumps position/uv), so this recomputes smooth normals from topology instead -- not
+    # byte-identical to whatever the source mesh's normals were, but restores the vertex sharing
+    # that smooth shading is expected to have.
+    mesh_data.shade_smooth()
 
     uv_layer = mesh_data.uv_layers.new(name="UVMap")
     for loop in mesh_data.loops:
