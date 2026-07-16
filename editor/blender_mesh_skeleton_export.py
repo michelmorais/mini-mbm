@@ -160,39 +160,53 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         if parent:
             children_by_parent.setdefault(parent, []).append(name)
 
+    # Every bone represents the joint of the SAME name: head = that joint's own position, tail =
+    # toward its first child (the real anatomical span for a single-child chain like an arm/leg) or,
+    # for a leaf/multi-child joint, a stub continuing the direction the bone arrived from (or
+    # straight up for a rootless leaf). This must match the source rig's own head=self/tail=child
+    # convention -- verified against a real 112-bone Mixamo FBX (mixamorig:L_Ear/L_Temple/etc. each
+    # have their own distinct head_local in the original file). An earlier version of this function
+    # set child_bone.head = joint_pos(parent_name) instead of the joint's own position, shifting
+    # every bone in the hierarchy by one level: any joint with multiple children (Head's ~40 facial
+    # bones, Hips' 3 children) collapsed to a single shared head position, and single-child chains
+    # (arms/legs/spine) got the wrong length/orientation throughout -- confirmed as the cause of
+    # severe Mixamo retargeting artifacts (arms crossing, deformed shoulders/groin) on a real
+    # round-tripped character.
+    def compute_tail(name, pos, parent_pos):
+        children = children_by_parent.get(name, [])
+        if children:
+            target = joint_pos(children[0])
+            if dist(pos, target) >= 1e-6:
+                return target
+        if parent_pos is not None:
+            dx, dy, dz = (pos[i] - parent_pos[i] for i in range(3))
+            dlen = (dx * dx + dy * dy + dz * dz) ** 0.5
+            if dlen >= 1e-6:
+                stub_len = max(0.01, dlen)
+                return (pos[0] + dx / dlen * stub_len,
+                        pos[1] + dy / dlen * stub_len,
+                        pos[2] + dz / dlen * stub_len)
+        return (pos[0], pos[1] + 0.01, pos[2])
+
     edit_bones = arm_data.edit_bones
     created = {}
 
-    # Root joints are a point with no natural direction, so each gets a short stub bone (toward its
-    # first child, or straight up if it has none) -- generalized to handle multiple roots, since
-    # parse_skeleton_section_v11/JOINT_V11 don't constrain a mesh_debug skeleton to a single
-    # always-one-root humanoid hierarchy.
     for root_name in roots:
         root_pos = joint_pos(root_name)
-        root_children = children_by_parent.get(root_name, [])
-        if root_children:
-            stub_len = max(0.01, dist(root_pos, joint_pos(root_children[0])))
-            target = joint_pos(root_children[0])
-            dx, dy, dz = (target[i] - root_pos[i] for i in range(3))
-            dlen = max(1e-6, (dx * dx + dy * dy + dz * dz) ** 0.5)
-            stub_tail = (root_pos[0] + dx / dlen * stub_len,
-                         root_pos[1] + dy / dlen * stub_len,
-                         root_pos[2] + dz / dlen * stub_len)
-        else:
-            stub_tail = (root_pos[0], root_pos[1] + 1.0, root_pos[2])
-
         root_bone = edit_bones.new(root_name)
         root_bone.head = root_pos
-        root_bone.tail = stub_tail
+        root_bone.tail = compute_tail(root_name, root_pos, None)
         created[root_name] = root_bone
 
     queue = list(roots)
     while queue:
         parent_name = queue.pop(0)
+        parent_pos = joint_pos(parent_name)
         for child_name in children_by_parent.get(parent_name, []):
+            child_pos = joint_pos(child_name)
             child_bone = edit_bones.new(child_name)
-            child_bone.head = joint_pos(parent_name)
-            child_bone.tail = joint_pos(child_name)
+            child_bone.head = child_pos
+            child_bone.tail = compute_tail(child_name, child_pos, parent_pos)
             child_bone.parent = created[parent_name]
             created[child_name] = child_bone
             queue.append(child_name)
