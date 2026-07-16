@@ -173,9 +173,8 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) ->
     import bpy
     from mathutils import Vector
 
-    # Same cleanup block as blender_body_adjust.py's MIXAMO_OT_prepare_and_export: center X/Y, feet
-    # at Z=0. No rescale to a target height here -- mesh_debug's geometry is already in the mesh's
-    # own real/intended scale, not raw photo-pixel units.
+    # Center X/Y, feet at Z=0. No rescale to a target height here -- mesh_debug's geometry is
+    # already in the mesh's own real/intended scale, not raw photo-pixel units.
     world_corners = [mesh_obj.matrix_world @ Vector(c) for c in mesh_obj.bound_box]
     min_x = min(c.x for c in world_corners)
     max_x = max(c.x for c in world_corners)
