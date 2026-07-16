@@ -105,7 +105,7 @@ sections in milestones 12/13, it's never nested inside `SECTION_DETAIL_PHYSICS`.
 independent of `SECTION_FRAME_STATIC` geometry (a mesh can have real frame data with no skeleton,
 a skeleton with no special geometry origin, or both, e.g. a skeleton fitted onto a mesh imported
 from elsewhere). It is not runtime skeletal animation — the engine has no GPU/CPU skinning
-anywhere — purely a diagnostic round-trip mechanism for `editor/mannequin_editor.lua`.
+anywhere — purely a diagnostic round-trip mechanism for `editor/mesh_debug.lua`'s Bones node.
 
 ## 5. Variable-length strings — replacing fixed char buffers
 
@@ -330,10 +330,10 @@ struct TILE_PROPERTY_V11
 
 ## 6e. `SECTION_FRAME_SKINNED` payload
 
-One optional section per mesh — present only when the editor (`editor/mannequin_editor.lua`, via
-`meshDebug:addBone(...)`) has explicitly added a skeleton. Independent of `typeMesh` and
-independent of whether this mesh's `SECTION_FRAME_STATIC` geometry came from the mannequin editor
-or an ordinary Blender import — a skeleton can be fitted onto any existing mesh's geometry.
+One optional section per mesh — present only when the editor (`editor/mesh_debug.lua`'s Bones
+node, via `meshDebug:addBone(...)`) has explicitly added a skeleton. Independent of `typeMesh` and
+independent of whether this mesh's `SECTION_FRAME_STATIC` geometry came from a hand-authored
+skeleton or an ordinary Blender import — a skeleton can be fitted onto any existing mesh's geometry.
 **Diagnostic/editor round-trip only — never consulted by rendering** (this engine has no GPU/CPU
 skinning anywhere).
 
@@ -355,7 +355,7 @@ struct JOINT_V11
     // section (root-first order) — a reader rejects the file if a parentName doesn't resolve to
     // an already-seen joint, rather than silently accepting a dangling/forward reference.
     float x, y, z;   // joint position, same coordinate convention as the caller's mesh
-    float radius;    // authoring-time joint radius (mannequin_editor.lua marker size)
+    float radius;    // authoring-time joint radius (bone gizmo marker size)
 };
 ```
 

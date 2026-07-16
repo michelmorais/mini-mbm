@@ -2156,9 +2156,10 @@ namespace mbm
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_DETAIL_PHYSICS [%s]", fileOut);
         }
 
-        // SECTION_FRAME_SKINNED - optional joint hierarchy for mannequin_editor.lua's own round-trip
-        // diagnostic; independent of typeMe and independent of whether this mesh's SECTION_FRAME_STATIC
-        // geometry came from the mannequin editor or an ordinary Blender import ---------------------------
+        // SECTION_FRAME_SKINNED - optional joint hierarchy for editor/mesh_debug.lua's Bones node
+        // round-trip diagnostic; independent of typeMe and independent of whether this mesh's
+        // SECTION_FRAME_STATIC geometry came from a hand-authored skeleton or an ordinary Blender
+        // import ---------------------------
         if (!impl->skeleton.empty())
         {
             util::SECTION_HEADER_V11 sectionHeader;

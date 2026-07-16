@@ -5,17 +5,13 @@ geometry (and, optionally, its editor-authored/imported bone hierarchy) and prod
 with a skinned armature, ready for upload to an auto-rigging/animation service (Mixamo or
 similar).
 
-Unlike editor/blender_mannequin_build.py's JSON (photo-pixel-space, Y-up, and already knows the
-exact bone that generated each vertex), this script's input comes from editor/mesh_debug.lua's own
-already-Blender-native geometry -- no Y-up/Z-up axis swap needed here, same reasoning as
-editor/blender_mesh_export.py's import-side vertex reading (both directions of this round trip use
-Blender's own coordinate convention unchanged) -- and has NO per-vertex bone ownership, so this
-script uses Blender's built-in automatic (heat-map) weight painting instead of exact vertex
-groups. This is a new file rather than an extension of blender_mannequin_build.py specifically
-because that weighting strategy differs fundamentally (exact vs. automatic); conflating the two
-risked a silent wrong-path bug.
+This script's input comes from editor/mesh_debug.lua's own already-Blender-native geometry -- no
+Y-up/Z-up axis swap needed here, same reasoning as editor/blender_mesh_export.py's import-side
+vertex reading (both directions of this round trip use Blender's own coordinate convention
+unchanged) -- and has NO per-vertex bone ownership, so this script uses Blender's built-in
+automatic (heat-map) weight painting instead of exact vertex groups.
 
-Invoked headlessly, same convention as blender_mannequin_build.py:
+Invoked headlessly:
     blender -b --factory-startup --python blender_mesh_skeleton_export.py -- \
         --input mesh_dump.json --output character.fbx [--cancel-file F] [--debug-steps]
 """
@@ -63,8 +59,8 @@ def build_mesh(data: dict, debug: bool):
     positions = [(v["x"], v["y"], v["z"]) for v in verts_data]
     # JSON indices are 1-based (written straight from Lua array indices); from_pydata expects
     # 0-based, and are already global across the whole vertex list (mesh_debug.lua's dumper
-    # offsets each subset's indices when writing, so subset boundaries don't matter here -- unlike
-    # blender_mannequin_build.py, there's no per-subset material/vertex-group split to preserve).
+    # offsets each subset's indices when writing, so subset boundaries don't matter here -- there's
+    # no per-subset material/vertex-group split to preserve).
     faces = []
     for subset in subsets:
         idx = subset["indices"]
@@ -119,10 +115,10 @@ def build_armature(data: dict, debug: bool):
     edit_bones = arm_data.edit_bones
     created = {}
 
-    # Same "root joint is a point, give it a short stub bone" convention as
-    # blender_mannequin_build.py's build_armature -- generalized to handle multiple roots, since
+    # Root joints are a point with no natural direction, so each gets a short stub bone (toward its
+    # first child, or straight up if it has none) -- generalized to handle multiple roots, since
     # parse_skeleton_section_v11/JOINT_V11 don't constrain a mesh_debug skeleton to a single
-    # humanoid hierarchy the way the mannequin editor's always-one-root rig is.
+    # always-one-root humanoid hierarchy.
     for root_name in roots:
         root_pos = joint_pos(root_name)
         root_children = children_by_parent.get(root_name, [])
@@ -161,9 +157,8 @@ def build_armature(data: dict, debug: bool):
 def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
     import bpy
 
-    # mesh_debug's bones carry no per-vertex ownership (unlike blender_mannequin_build.py's JSON,
-    # which always knows exactly which joint generated each vertex) -- automatic (heat-map) weight
-    # painting is the only option here. First use of ARMATURE_AUTO in this codebase; the
+    # mesh_debug's bones carry no per-vertex ownership -- automatic (heat-map) weight painting is
+    # the only option here. First use of ARMATURE_AUTO in this codebase; the
     # verification step for this milestone includes a manual sanity check (pose-mode bone rotate)
     # rather than trusting this call blindly.
     bpy.ops.object.select_all(action='DESELECT')
@@ -178,10 +173,9 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) ->
     import bpy
     from mathutils import Vector
 
-    # Same cleanup block as blender_mannequin_build.py's prepare_and_export /
-    # blender_body_adjust.py's MIXAMO_OT_prepare_and_export: center X/Y, feet at Z=0. No rescale to
-    # a target height here (unlike blender_mannequin_build.py) -- mesh_debug's geometry is already
-    # in the mesh's own real/intended scale, not raw photo-pixel units.
+    # Same cleanup block as blender_body_adjust.py's MIXAMO_OT_prepare_and_export: center X/Y, feet
+    # at Z=0. No rescale to a target height here -- mesh_debug's geometry is already in the mesh's
+    # own real/intended scale, not raw photo-pixel units.
     world_corners = [mesh_obj.matrix_world @ Vector(c) for c in mesh_obj.bound_box]
     min_x = min(c.x for c in world_corners)
     max_x = max(c.x for c in world_corners)

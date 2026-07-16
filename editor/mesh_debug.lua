@@ -4484,14 +4484,11 @@ function showFramePickWindow(tEntry, meshD, index)
 end
 
 -- ---------------------------------------------------------------------------
--- Bones 3D gizmo + drag: world<->bone-space conversion, sphere/cylinder gizmo geometry, ray-sphere
--- hit test, and camera-facing-plane drag math.
+-- Bones 3D gizmo: world<->bone-space conversion and sphere/cylinder gizmo geometry.
 -- ---------------------------------------------------------------------------
 
 -- Raw-vertex sphere/cylinder builders -- no named sphere/cylinder primitive exists in SHAPE_MESH's
--- Lua binding, same situation and same code as editor/mannequin_editor.lua's own copies
--- (unitSphereVerts/unitCylinderVerts, ~mannequin_editor.lua:155-204); duplicated here rather than
--- shared since mannequin_editor.lua doesn't expose them as a requirable module.
+-- Lua binding.
 local function unitSphereVerts(latSegments, lonSegments)
     latSegments = latSegments or 8
     lonSegments = lonSegments or 12
@@ -4518,8 +4515,8 @@ local function unitSphereVerts(latSegments, lonSegments)
     return verts
 end
 
--- Built along local +Y from y=0 (radiusBottom) to y=height (radiusTop), same winding-fix as
--- mannequin_editor.lua:183-204 (outward-facing normals confirmed there, copied verbatim).
+-- Built along local +Y from y=0 (radiusBottom) to y=height (radiusTop), with outward-facing
+-- normals (winding confirmed by direct render testing).
 local function unitCylinderVerts(radiusTop, radiusBottom, height, radialSegments)
     radialSegments = radialSegments or 10
     local verts = {}
@@ -4736,13 +4733,14 @@ function rebuildBoneGizmo(tEntry, meshD, index)
             if height > 0.001 then
                 local h = shape:new('3d', parent.wx, parent.wy, parent.wz)
                 -- Vertex data genuinely differs per link (radii, height) -- unique nickname each
-                -- rebuild, same documented pitfall/fix as mannequin_editor.lua:441-446.
+                -- rebuild, since shape:create()'s nickName is a shared MESH_MANAGER cache key, not
+                -- a per-instance reload guard (reused names silently serve stale geometry).
                 tEntry.iBoneGizmoGen = (tEntry.iBoneGizmoGen or 0) + 1
                 local nick = 'mesh_debug_bone_link_' .. index .. '_' .. tEntry.iBoneGizmoGen
                 h:create(unitCylinderVerts(b.radius * 0.5, parent.radius * 0.5, height, 8), nil, nick)
-                -- Flat (XY-plane) angle only, same v1 limitation as mannequin_editor.lua:448-452
-                -- (accurate when dz==0, an approximation otherwise -- full 3-axis bone orientation
-                -- is a separate derivation this milestone deliberately doesn't take on).
+                -- Flat (XY-plane) angle only (accurate when dz==0, an approximation otherwise --
+                -- full 3-axis bone orientation is a separate derivation this feature deliberately
+                -- doesn't take on).
                 local theta = math.atan(-dx, dy)
                 h:setAngle(0, 0, theta)
                 h:setColor(BONE_GIZMO_COLOR[1], BONE_GIZMO_COLOR[2], BONE_GIZMO_COLOR[3], BONE_GIZMO_COLOR[4])
@@ -4753,8 +4751,7 @@ function rebuildBoneGizmo(tEntry, meshD, index)
 end
 
 -- ---------------------------------------------------------------------------
--- "Apply Humanoid Armature": fixed 18-joint biped preset, positioned from the mesh's own AABB
--- instead of photo markers (unlike editor/mannequin_editor.lua's version of this same idea).
+-- "Apply Humanoid Armature": fixed 18-joint biped preset, positioned from the mesh's own AABB.
 -- ---------------------------------------------------------------------------
 
 -- Reads frame 1's raw vertex data across every subset -- not meshD:getPhysics(), whose configured
@@ -4812,18 +4809,16 @@ local function computeCentralizeOffset(aabb)
     return minX + midX, minY + midY, minZ + midZ
 end
 
--- Same 18-joint hierarchy/topology as editor/mannequin_editor.lua's PARENT_OF + tMarkerDefs (14
--- marked + 4 synthetic: spine1, shoulderCenter, lAnkle, rAnkle), but listed here in explicit
--- root-first order (parent always precedes child, matching the on-disk ordering invariant
--- addBone/updateBone enforce) with fixed (xFrac,yFrac) placement fractions instead of photo-marker
--- positions. xFrac/yFrac are 0..1 fractions of the mesh's own AABB width/height (0,0 = bottom-left,
--- 1,1 = top-right) -- the exact same numbers as mannequin_editor.lua's DEFAULT_TEMPLATE T-pose for
--- the 14 marked joints (that table's y already runs bottom(0)-to-top(1), matching this one
--- directly), with the 4 synthetic joints' fractions computed the same way resolveJoints() derives
--- them there (shoulderCenter = midpoint(lShoulder,rShoulder), spine1 = lerp(groin,shoulderCenter,
--- 0.5), ankle = lerp(knee,footTip,0.85)) so this is the same T-pose, not an independently-tuned one.
--- Z is left at the AABB's center for every joint -- a reasonable front-facing starting point, not a
--- claim of anatomical depth; the tool's own framing (drag afterward) covers the rest.
+-- Standard 18-joint humanoid T-pose hierarchy/topology (14 anatomically-marked joints + 4
+-- synthetic: spine1, shoulderCenter, lAnkle, rAnkle), listed here in explicit root-first order
+-- (parent always precedes child, matching the on-disk ordering invariant addBone/updateBone
+-- enforce), with fixed (xFrac,yFrac) placement fractions. xFrac/yFrac are 0..1 fractions of the
+-- mesh's own AABB width/height (0,0 = bottom-left, 1,1 = top-right). The 4 synthetic joints'
+-- fractions are derived the same way from the 14 marked ones (shoulderCenter =
+-- midpoint(lShoulder,rShoulder), spine1 = lerp(groin,shoulderCenter,0.5), ankle =
+-- lerp(knee,footTip,0.85)). Z is left at the AABB's center for every joint -- a reasonable
+-- front-facing starting point, not a claim of anatomical depth; the tool's own X/Y/Z fields
+-- (Bones node table) cover fine adjustment afterward.
 local HUMANOID_TEMPLATE = {
     { name = 'groin',          parent = nil,             xFrac = 0.5036, yFrac = 0.4344 },
     { name = 'spine1',         parent = 'groin',         xFrac = 0.5043, yFrac = 0.6028 },
@@ -4929,9 +4924,9 @@ end
 
 -- ---------------------------------------------------------------------------
 -- FBX export (current/all): dump geometry+bones to JSON, hand off to headless Blender
--- (editor/blender_mesh_skeleton_export.py) via editor/blender_cli_wrapper.lua, same
--- write-JSON/launch/poll pattern as editor/mannequin_editor.lua's own Blender export
--- (startBlenderBuild/blenderBuildCoroutine/showBlenderBuildDialog, mannequin_editor.lua:943-1076).
+-- (editor/blender_mesh_skeleton_export.py) via editor/blender_cli_wrapper.lua using a
+-- write-JSON/launch/poll pattern (see startBlenderBuild/blenderBuildCoroutine/
+-- showBlenderBuildDialog below).
 -- ---------------------------------------------------------------------------
 
 local function jsonStr(s)

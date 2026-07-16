@@ -966,11 +966,10 @@ def extract_armature_joints(scene: Any) -> list[dict[str, Any]]:
     mesh-v11-format.md Sec. 6e). Diagnostic/editor round-trip data only, mirroring
     MESH_MBM_DEBUG::addBone's own contract; never consulted by rendering.
 
-    Unlike editor/blender_mannequin_build.py's Y-up (photo-JSON) -> Z-up (Blender-native) axis
-    swap, this reads directly from an already-Blender-native scene the exact same way
-    export_frame_subsets() already reads mesh vertices above (eval_obj.matrix_world @ vert.co,
-    no axis conversion) -- both bones and vertices need to end up in the same space so gizmos
-    drawn over the imported geometry line up.
+    No Y-up/Z-up axis swap here -- this reads directly from an already-Blender-native scene the
+    exact same way export_frame_subsets() already reads mesh vertices above (eval_obj.matrix_world
+    @ vert.co, no axis conversion) -- both bones and vertices need to end up in the same space so
+    gizmos drawn over the imported geometry line up.
     """
     armature_obj = next((o for o in scene.objects if o.type == "ARMATURE"), None)
     if armature_obj is None:
@@ -1006,8 +1005,8 @@ def extract_armature_joints(scene: Any) -> list[dict[str, Any]]:
         world_tail = armature_obj.matrix_world @ bone.tail_local
         parent_name = bone.parent.name if bone.parent else None
         # No natural Blender source for an authoring-time marker radius -- derive from bone
-        # length (same intent as mannequin_editor.lua's own radius: a visible gizmo size, not a
-        # measurement that means anything to rendering). MUST use the world-space head/tail
+        # length (a visible gizmo size, not a measurement that means anything to rendering).
+        # MUST use the world-space head/tail
         # distance, not bone.length -- bone.length is measured in the armature's own unscaled rest
         # space and ignores armature_obj's own object-level scale entirely (bug found via a real
         # user-downloaded rig: armature_obj.scale == 0.01 there, so bone.length read ~100x too

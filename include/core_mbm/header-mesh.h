@@ -561,8 +561,8 @@ namespace util
         SECTION_MATERIAL_TRANSFORM = 1,  // material + angle/pos + draw mode (replaces HEADER_MESH + INFO_DRAW_MODE)
         SECTION_ANIMATION          = 2,  // repeated: one per animation, in order, including its FX block
         SECTION_FRAME_STATIC       = 10, // repeated: one per frame, in order
-        SECTION_FRAME_SKINNED      = 11, // bundled joint hierarchy for mannequin_editor.lua's
-                                          // round-trip diagnostic - never runtime skinning
+        SECTION_FRAME_SKINNED      = 11, // bundled joint hierarchy for editor/mesh_debug.lua's
+                                          // Bones node round-trip diagnostic - never runtime skinning
         SECTION_DETAIL_PHYSICS     = 20,
         SECTION_DETAIL_FONT        = 21,
         SECTION_DETAIL_PARTICLE    = 22,
@@ -781,10 +781,11 @@ namespace util
     // -----------------------------------------------------------------------------------------
     // SECTION_FRAME_SKINNED payload (docs/mesh-v11-format.md Sec. 6e) - NOT runtime skeletal
     // animation (the engine has no GPU/CPU skinning anywhere). This is exclusively a diagnostic
-    // round-trip mechanism for editor/mannequin_editor.lua: one optional joint hierarchy per
-    // mesh file, independent of and coexisting with any SECTION_FRAME_STATIC geometry the same
-    // file already has. Bundled like SECTION_DETAIL_TILE (one section, internal count prefix),
-    // not repeated-per-item like SECTION_ANIMATION - there is exactly one skeleton per file.
+    // round-trip mechanism for editor/mesh_debug.lua's Bones node: one optional joint hierarchy
+    // per mesh file, independent of and coexisting with any SECTION_FRAME_STATIC geometry the
+    // same file already has. Bundled like SECTION_DETAIL_TILE (one section, internal count
+    // prefix), not repeated-per-item like SECTION_ANIMATION - there is exactly one skeleton per
+    // file.
     // -----------------------------------------------------------------------------------------
 
     struct API_IMPL SKELETON_HEADER_V11 // payload header for SECTION_FRAME_SKINNED
@@ -799,7 +800,7 @@ namespace util
         std::string parentName; // must equal the `name` of a JOINT_V11 already emitted earlier in
                                  // this same section (root-first order) - empty = root joint
         float       x, y, z;    // joint position, same coordinate convention as the caller's mesh
-        float       radius;     // authoring-time joint radius (mannequin_editor.lua marker size)
+        float       radius;     // authoring-time joint radius (bone gizmo marker size)
         API_IMPL JOINT_V11() noexcept;
     };
 
