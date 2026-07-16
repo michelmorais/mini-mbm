@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import math
 import os
 import re
 import shutil
@@ -193,6 +194,32 @@ def get_loop_normal(loop: Any, vert: Any) -> Any:
     if loop_normal is not None:
         return loop_normal
     return vert.normal
+
+
+def rotate_point_deg(x: float, y: float, z: float, angle_x_deg: float, angle_y_deg: float, angle_z_deg: float) -> tuple[float, float, float]:
+    """Rotates a point (or, equally, a direction vector -- this is a pure rotation, no
+    translation) by degrees around X, then Y, then Z. Formulas and order match
+    editor/mesh_debug.lua's rotateX/Y/Z + applyRotationToBonesDeg exactly, which in turn match
+    MESH_MBM_DEBUG::rotateFrame's own per-axis math (src/core_mbm/mesh-manager.cpp:3128) -- kept
+    in lockstep by hand since there is no shared implementation between the Python and Lua/C++
+    sides. Used for the Blender-import post-process rotation (the usual Z-up -> Y-up correction,
+    "Rot X/Y/Z" in the import dialog, default -90 on X): baked directly into vertex/normal/bone
+    data at export time instead of being written into the file's now-deprecated
+    SECTION_MATERIAL_TRANSFORM angle field, which the engine no longer applies at load.
+    """
+    if angle_x_deg:
+        a = math.radians(angle_x_deg)
+        c, s = math.cos(a), math.sin(a)
+        y, z = y * c - z * s, y * s + z * c
+    if angle_y_deg:
+        a = math.radians(angle_y_deg)
+        c, s = math.cos(a), math.sin(a)
+        x, z = x * c + z * s, -x * s + z * c
+    if angle_z_deg:
+        a = math.radians(angle_z_deg)
+        c, s = math.cos(a), math.sin(a)
+        x, y = x * c - y * s, x * s + y * c
+    return x, y, z
 
 
 def get_scene_fps(scene: Any) -> float:
@@ -534,7 +561,7 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
+def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | None = None) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
     scene_frame = int(scene.frame_current)
@@ -582,6 +609,11 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
 
                     world_pos = eval_obj.matrix_world @ vert.co
                     world_no = (eval_obj.matrix_world.to_3x3() @ loop_no).normalized()
+                    pos_x, pos_y, pos_z = float(world_pos.x), float(world_pos.y), float(world_pos.z)
+                    no_x, no_y, no_z = float(world_no.x), float(world_no.y), float(world_no.z)
+                    if rotation_deg:
+                        pos_x, pos_y, pos_z = rotate_point_deg(pos_x, pos_y, pos_z, *rotation_deg)
+                        no_x, no_y, no_z = rotate_point_deg(no_x, no_y, no_z, *rotation_deg)
 
                     if uv_data is not None:
                         uv = uv_data[loop_index].uv
@@ -597,9 +629,9 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                         int(loop.vertex_index),
                         float(u),
                         float(v),
-                        float(world_no.x),
-                        float(world_no.y),
-                        float(world_no.z),
+                        no_x,
+                        no_y,
+                        no_z,
                     )
 
                     idx = vmap.get(key)
@@ -608,14 +640,14 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                         vmap[key] = idx
                         bucket["vertices"].append(
                             {
-                                "x": float(world_pos.x),
-                                "y": float(world_pos.y),
-                                "z": float(world_pos.z),
+                                "x": pos_x,
+                                "y": pos_y,
+                                "z": pos_z,
                                 "u": u,
                                 "v": v,
-                                "nx": float(world_no.x),
-                                "ny": float(world_no.y),
-                                "nz": float(world_no.z),
+                                "nx": no_x,
+                                "ny": no_y,
+                                "nz": no_z,
                             }
                         )
 
@@ -960,7 +992,7 @@ def build_extra_paths_payload_v11(paths: list[str]) -> bytes:
     return buf.getvalue()
 
 
-def extract_armature_joints(scene: Any) -> list[dict[str, Any]]:
+def extract_armature_joints(scene: Any, rotation_deg: tuple[float, float, float] | None = None) -> list[dict[str, Any]]:
     """Reads the first ARMATURE object's rest-pose bones into a flat, parent-before-child list of
     {name, parent, x, y, z, radius} dicts -- the same shape SECTION_FRAME_SKINNED expects (docs/
     mesh-v11-format.md Sec. 6e). Diagnostic/editor round-trip data only, mirroring
@@ -969,7 +1001,9 @@ def extract_armature_joints(scene: Any) -> list[dict[str, Any]]:
     No Y-up/Z-up axis swap here -- this reads directly from an already-Blender-native scene the
     exact same way export_frame_subsets() already reads mesh vertices above (eval_obj.matrix_world
     @ vert.co, no axis conversion) -- both bones and vertices need to end up in the same space so
-    gizmos drawn over the imported geometry line up.
+    gizmos drawn over the imported geometry line up. rotation_deg, when given, must be the exact
+    same post-process rotation passed to export_frame_subsets() for the same reason -- bones and
+    vertices have to end up in the same space after rotation too.
     """
     armature_obj = next((o for o in scene.objects if o.type == "ARMATURE"), None)
     if armature_obj is None:
@@ -1013,12 +1047,15 @@ def extract_armature_joints(scene: Any) -> list[dict[str, Any]]:
         # large relative to the already-correctly-world-scaled x/y/z position above, producing
         # marker spheres bigger than the whole imported character).
         radius = max(0.001, (world_tail - world_head).length * 0.15)
+        head_x, head_y, head_z = float(world_head.x), float(world_head.y), float(world_head.z)
+        if rotation_deg:
+            head_x, head_y, head_z = rotate_point_deg(head_x, head_y, head_z, *rotation_deg)
         joints.append({
             "name": name,
             "parent": parent_name,
-            "x": float(world_head.x),
-            "y": float(world_head.y),
-            "z": float(world_head.z),
+            "x": head_x,
+            "y": head_y,
+            "z": head_z,
             "radius": radius,
         })
     return joints
@@ -1283,12 +1320,16 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     bounds = {"min": [float("inf"), float("inf"), float("inf")], "max": [-float("inf"), -float("inf"), -float("inf")]}
     try:
         fps = get_scene_fps(scene)
+        # Baked directly into vertex/normal/bone data below (rotate_point_deg) instead of being
+        # written into SECTION_MATERIAL_TRANSFORM's angle field, which the engine no longer applies
+        # at load time (see rotate_point_deg's own docstring).
+        import_rotation_deg = (float(args.angle_x), float(args.angle_y), float(args.angle_z)) if args.post_process else None
 
         def export_frame_to_chunk(frame: int) -> None:
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
-            subsets = export_frame_subsets(scene)
+            subsets = export_frame_subsets(scene, import_rotation_deg)
             if args.large_mesh_mode == "vb_only":
                 debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
             else:
@@ -1330,14 +1371,12 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 }
             ]
 
-        angles = (
-            float(args.angle_x) if args.post_process else 0.0,
-            float(args.angle_y) if args.post_process else 0.0,
-            float(args.angle_z) if args.post_process else 0.0,
-        )
+        # Always zero -- the rotation is baked into vertex/normal/bone data above now, not stored
+        # in this field (see import_rotation_deg's own comment).
+        angles = (0.0, 0.0, 0.0)
         texture_path_list = sorted(texture_paths)
 
-        joints = extract_armature_joints(scene) if args.include_bones else []
+        joints = extract_armature_joints(scene, import_rotation_deg) if args.include_bones else []
         if joints:
             debug_print(args.debug_steps, f"extracted armature: {len(joints)} bone(s)")
 
