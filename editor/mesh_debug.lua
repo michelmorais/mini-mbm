@@ -5188,7 +5188,8 @@ function showMeshExportBuildDialog()
         st.bOpenPopup = false
     end
 
-    local isOpen = tImGui.BeginPopupModal(tLang.L('bones_export_dialog_title') .. '###mesh_debug_skeleton_export_modal', false, 0)
+    local pFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
+    local isOpen = tImGui.BeginPopupModal(tLang.L('bones_export_dialog_title') .. '###mesh_debug_skeleton_export_modal', false, pFlags)
     if not isOpen then return end
 
     if st.bBuilding then
