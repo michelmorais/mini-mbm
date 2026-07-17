@@ -5269,7 +5269,14 @@ function showBonesNode(tEntry, meshD, index)
 
     local function onEdit()
         tEntry.modified = true
-        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        -- No iLastPreviewedIndex=0 here (unlike every other onEdit in this file) -- that forces
+        -- updatePreviewMesh to fully destroy+recreate tPreviewMesh, which resets it to
+        -- visible=true. SECTION_FRAME_SKINNED (bones) is stored completely independently of
+        -- SECTION_FRAME_STATIC (the actual mesh geometry) -- a bone edit never changes anything
+        -- updatePreviewMesh would need to re-render. With it, dragging a bone's X/Y/Z fires many
+        -- edits per second, each briefly resurrecting tPreviewMesh as visible for one frame before
+        -- this node's own per-frame hide logic re-hides it -- a rapid show/hide flicker, confirmed
+        -- via direct user testing. rebuildBoneGizmo below is the only refresh actually needed.
         rebuildBoneGizmo(tEntry, meshD, index)
     end
 

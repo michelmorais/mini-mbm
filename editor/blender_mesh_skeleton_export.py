@@ -360,13 +360,70 @@ def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
     bpy.ops.object.vertex_group_normalize_all(lock_active=False)
     debug_print(debug, "bound mesh to armature via envelope weights (normalized, <=4 influences/vertex)")
 
-    filled = _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj)
+    non_deforming = _compute_non_deforming_bone_names(armature_obj)
+    if non_deforming:
+        stripped = _strip_bone_weight(mesh_obj, non_deforming)
+        debug_print(debug, f"stripped weight from {sorted(non_deforming)} (root-motion bone(s)), "
+                            f"affected {stripped} vertices")
+
+    filled = _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj, exclude_names=non_deforming)
     if filled:
         debug_print(debug, f"nearest-bone fallback filled {filled} vertices envelope weighting missed entirely")
 
     fixed = _resolve_left_right_crosstalk(mesh_obj)
     if fixed:
         debug_print(debug, f"resolved left/right envelope overlap on {fixed} vertices near the body midline")
+
+
+def _compute_non_deforming_bone_names(armature_obj) -> set:
+    """Identifies "root-motion"/"pass-through" bones that should never receive real vertex weight:
+    a top-level root (no parent) whose ONLY purpose is connecting the world origin to the first
+    real body joint, recognized by the classic convention of having exactly one child. Confirmed via
+    direct testing on a real character (Lorekeeper) that this bone spans floor level up to hip
+    height and, left eligible for normal envelope/nearest-bone weighting like any other bone, picks
+    up real weight on 276 vertices (some at full weight 1.0) -- purely because it geometrically
+    overlaps the hip/pelvis region, not because it's meant to deform anything there. A vertex
+    weighted to this bone doesn't move the way its neighbors do during animation (root-motion bones
+    commonly translate independently of the rest of the skeleton), which is a plausible direct cause
+    of the "melting"/detached-vertex deformation the user reported depending on the animation. Only
+    checked at the TOP level (roots), not recursively down the hierarchy -- a single-child CHAIN
+    elsewhere (e.g. upperleg->lowerleg->foot->toes) is a normal sequence of real deforming joints,
+    not a root-motion artifact; the "exactly one child" signature only means "non-deforming
+    pass-through" when it's also the very top of the hierarchy with nothing above it. A root with
+    multiple children (e.g. a Mixamo body-only rig where Hips IS the root, branching directly into
+    Spine/LeftUpLeg/RightUpLeg) is a real joint and is correctly left alone by this same check.
+    """
+    names = set()
+    for b in armature_obj.data.bones:
+        if b.parent is None and len(b.children) == 1:
+            names.add(b.name)
+    return names
+
+
+def _strip_bone_weight(mesh_obj, names) -> int:
+    """Zeroes out any weight assigned to the given bone names (by vertex-group name) and
+    renormalizes each affected vertex's remaining weights back to sum to 1.0. A vertex left with
+    zero total weight afterward (it was ONLY weighted to an excluded bone) is intentionally left
+    that way here -- the caller's subsequent _assign_nearest_bone_to_unweighted pass (with these
+    same names excluded) picks it up and assigns it to the nearest real bone instead.
+    """
+    group_indices = {g.index for g in mesh_obj.vertex_groups if g.name in names}
+    if not group_indices:
+        return 0
+    changed = 0
+    for v in mesh_obj.data.vertices:
+        stripped = [g for g in v.groups if g.group in group_indices and g.weight > 1e-6]
+        if not stripped:
+            continue
+        changed += 1
+        keep = [g for g in v.groups if g.group not in group_indices]
+        for g in stripped:
+            g.weight = 0.0
+        total = sum(g.weight for g in keep)
+        if total > 1e-6:
+            for g in keep:
+                g.weight /= total
+    return changed
 
 
 def _resolve_left_right_crosstalk(mesh_obj) -> int:
@@ -410,7 +467,7 @@ def _is_right_bone(name: str) -> bool:
     return 'Right' in name or ':R_' in name
 
 
-def _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj) -> int:
+def _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj, exclude_names=frozenset()) -> int:
     """Envelope weighting (see bind_mesh_to_armature) can still leave some vertices with zero
     total weight even with a per-bone radius scaled to this character: a bone's envelope radius is
     derived from its own length, which is a poor proxy for wide-but-short bones (found via direct
@@ -422,12 +479,17 @@ def _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj) -> int:
     which reads as the mesh tearing away from its neighbors during animation -- worse than a rough
     but present weight -- so any vertex envelope weighting missed entirely gets rigidly assigned
     (weight 1.0) to whichever bone's head-to-tail segment it's geometrically closest to.
+
+    exclude_names (root-motion/pass-through bones, see _compute_non_deforming_bone_names) are left
+    out of the candidate list entirely -- a vertex stripped of root-motion weight by
+    _strip_bone_weight must never land right back on that same bone here as its "nearest" fallback.
     """
     import bpy
     from mathutils.geometry import intersect_point_line
 
     me = mesh_obj.data
-    bone_segs = [(b.name, b.head_local, b.tail_local) for b in armature_obj.data.bones]
+    bone_segs = [(b.name, b.head_local, b.tail_local) for b in armature_obj.data.bones
+                 if b.name not in exclude_names]
 
     filled = 0
     for v in me.vertices:
