@@ -378,6 +378,18 @@ function M.buildMeshSkeletonExportCmd(jsonInputPath, outputFbxPath, exporterScri
     table.insert(args, '--angle-z')
     table.insert(args, tostring(options.exportAngleZ or 0))
 
+    -- Undoes the import side's own U/V inversion (editor/blender_mesh_export.py's own
+    -- --invert-u/v, applied via invertMeshUV before this mesh's data was ever saved) -- inverting
+    -- is self-cancelling, so applying the same flip again here is what restores the original UVs
+    -- for Blender/Mixamo. Caller defaults these to the same flags as the import dialog's own
+    -- defaults (not negated, unlike the rotation above).
+    if options.exportInvertU then
+        table.insert(args, '--invert-u')
+    end
+    if options.exportInvertV then
+        table.insert(args, '--invert-v')
+    end
+
     if options.cancelFile and options.cancelFile ~= '' then
         table.insert(args, '--cancel-file')
         table.insert(args, shellQuote(options.cancelFile))

@@ -38,6 +38,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--angle-x", type=float, default=0.0)
     parser.add_argument("--angle-y", type=float, default=0.0)
     parser.add_argument("--angle-z", type=float, default=0.0)
+    # Undoes editor/blender_mesh_export.py's own --invert-u/v (applied at import time via
+    # invertMeshUV before this mesh's UVs were ever saved) -- inverting is self-cancelling, so
+    # applying the same flip again here restores the original UVs for Blender/Mixamo.
+    parser.add_argument("--invert-u", action="store_true")
+    parser.add_argument("--invert-v", action="store_true")
     parser.add_argument("--cancel-file", default="")
     parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
@@ -79,7 +84,8 @@ def load_json(input_path: str) -> dict:
         return json.load(f)
 
 
-def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None):
+def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None,
+                invert_u: bool = False, invert_v: bool = False):
     import bpy
 
     verts_data = data["mesh"]["vertices"]
@@ -122,7 +128,15 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
     uv_layer = mesh_data.uv_layers.new(name="UVMap")
     for loop in mesh_data.loops:
         v = verts_data[loop.vertex_index]
-        uv_layer.data[loop.index].uv = (v.get("u", 0.0), v.get("v", 0.0))
+        u = v.get("u", 0.0)
+        vv = v.get("v", 0.0)
+        # Undoes editor/blender_mesh_export.py's own --invert-u/v, applied at import time before
+        # this mesh's UVs were ever saved (see this script's --invert-u/v argparse comment).
+        if invert_u:
+            u = 1.0 - u
+        if invert_v:
+            vv = 1.0 - vv
+        uv_layer.data[loop.index].uv = (u, vv)
 
     # One material per subset, each wired to that subset's own texture (writeMeshDebugJson already
     # resolved and existence-checked the path, so a missing file just means a plain untextured
@@ -571,7 +585,7 @@ def main() -> int:
         rotation_deg = None
 
     check_cancel_requested(args.cancel_file)
-    mesh_obj = build_mesh(data, args.debug_steps, rotation_deg)
+    mesh_obj = build_mesh(data, args.debug_steps, rotation_deg, args.invert_u, args.invert_v)
     check_cancel_requested(args.cancel_file)
     armature_obj = build_armature(data, args.debug_steps, rotation_deg)
     if armature_obj:

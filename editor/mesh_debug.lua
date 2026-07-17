@@ -365,6 +365,23 @@ function onInitScene()
         bDebugSteps = false,
         tRunResults = {}, -- {name=, ok=, msg=} per entry, populated for both single and "all" runs
     }
+    -- Shown before meshExportBuildCoroutine actually runs (triggered by "Export Current Mesh"/
+    -- "Export All Meshes"), mirroring the Blender-import dialog's own "Post-processing" block.
+    -- Rotation defaults (90,0,0) are the exact negation of the import dialog's own default
+    -- (nImportAngleX = -90 above) -- rotation isn't self-cancelling, so undoing it needs the
+    -- opposite angle. Invert U/V defaults (false, true) are instead the *same* flags as import's
+    -- own defaults (bImportInvertU/V above) -- inverting is self-cancelling, so applying the same
+    -- flip again on export is what undoes import's own flip.
+    tMeshExportOptionsState = {
+        bOpen = false,
+        bOpenPopup = false,
+        nAngleX = 90,
+        nAngleY = 0,
+        nAngleZ = 0,
+        bInvertU = false,
+        bInvertV = true,
+        tEntries = nil, -- resolved by the menu handler before opening this dialog
+    }
     tEditorLightUi = {}
 end
 
@@ -4674,6 +4691,7 @@ local function applyTranslateToBones(meshD, dx, dy, dz)
 end
 
 local BONE_GIZMO_COLOR = {1, 0, 1, 0.85}
+local BONE_HIGHLIGHT_COLOR = {1, 1, 0, 0.95}
 
 local function destroyBoneGizmo(tEntry)
     if tEntry.tBoneGizmo then
@@ -4705,15 +4723,18 @@ function rebuildBoneGizmo(tEntry, meshD, index)
         end
     end
 
+    local tHighlight = tEntry.tBoneHighlight or {}
+
     for name, b in pairs(tBones) do
         local h = shape:new('3d', b.wx, b.wy, b.wz)
         h:create(unitSphereVerts(), nil, 'mesh_debug_bone_sphere_unit')
         h:setScale(b.radius, b.radius, b.radius)
-        h:setColor(BONE_GIZMO_COLOR[1], BONE_GIZMO_COLOR[2], BONE_GIZMO_COLOR[3], BONE_GIZMO_COLOR[4])
+        local c = tHighlight[name] and BONE_HIGHLIGHT_COLOR or BONE_GIZMO_COLOR
+        h:setColor(c[1], c[2], c[3], c[4])
         tEntry.tBoneGizmo.spheres[name] = h
     end
 
-    for _, b in pairs(tBones) do
+    for name, b in pairs(tBones) do
         local parent = b.parentName and tBones[b.parentName]
         if parent then
             local dx, dy, dz = b.wx - parent.wx, b.wy - parent.wy, b.wz - parent.wz
@@ -4731,8 +4752,11 @@ function rebuildBoneGizmo(tEntry, meshD, index)
                 -- doesn't take on).
                 local theta = math.atan(-dx, dy)
                 h:setAngle(0, 0, theta)
-                h:setColor(BONE_GIZMO_COLOR[1], BONE_GIZMO_COLOR[2], BONE_GIZMO_COLOR[3], BONE_GIZMO_COLOR[4])
-                table.insert(tEntry.tBoneGizmo.bones, { handle = h })
+                -- Colored by the CHILD bone's own highlight state (name here) -- this link visually
+                -- represents "the bone ending at this joint," not its parent.
+                local c = tHighlight[name] and BONE_HIGHLIGHT_COLOR or BONE_GIZMO_COLOR
+                h:setColor(c[1], c[2], c[3], c[4])
+                table.insert(tEntry.tBoneGizmo.bones, { handle = h, childName = name })
             end
         end
     end
@@ -5097,16 +5121,19 @@ local function meshExportBuildCoroutine(entries)
             goto continueEntry
         end
 
-        -- Exact inverse of the Blender-import dialog's own default (Rot X -90, see
-        -- applyGeneratedMeshOptions) -- mesh_debug's stored geometry is in the engine's Y-up
-        -- convention (baked in at import time), so undo that before writing an FBX meant for
-        -- Blender/Mixamo or for being re-imported later. There is no per-mesh record of what
-        -- rotation was actually used at import time (it's baked into vertex data, not tracked as
-        -- metadata), so this assumes the standard default was used, same as the import dialog's
-        -- own default assumption.
+        -- Rotation/invert values come from tMeshExportOptionsState, edited by the user in
+        -- showMeshExportOptionsDialog right before this coroutine starts -- defaulted there to the
+        -- exact inverse of the Blender-import dialog's own defaults (Rot X -90 -> 90, and the same
+        -- Invert U/V flags, since inverting is self-cancelling but rotation isn't). There is no
+        -- per-mesh record of what rotation/invert was actually used at import time (it's baked
+        -- into vertex data, not tracked as metadata), so the defaults assume the standard import
+        -- settings were used -- the whole point of exposing this dialog is letting the user
+        -- override that assumption when it doesn't hold.
+        local xo = tMeshExportOptionsState
         local cmd = tBlender.buildMeshSkeletonExportCmd(jsonPath, entry.outputFbx, exporterPath,
             { cancelFile = cancelFile, debugSteps = st.bDebugSteps,
-              exportAngleX = 90, exportAngleY = 0, exportAngleZ = 0 })
+              exportAngleX = xo.nAngleX, exportAngleY = xo.nAngleY, exportAngleZ = xo.nAngleZ,
+              exportInvertU = xo.bInvertU, exportInvertV = xo.bInvertV })
         if not cmd then
             st.tRunResults[#st.tRunResults + 1] = { name = entry.name, ok = false, msg = tLang.L('blender_not_found') }
             goto continueEntry
@@ -5177,6 +5204,60 @@ local function startMeshExportBuild(entries)
     st.bStatusOk = true
     st.tRunResults = {}
     st.co = coroutine.create(function() meshExportBuildCoroutine(entries) end)
+end
+
+-- Shown before startMeshExportBuild actually runs -- opened by the "Export Current Mesh"/"Export
+-- All Meshes" menu handlers once they've already resolved `entries` (output path(s) picked via the
+-- existing mbm.saveFile/mbm.openFolder flow, unchanged). Mirrors showBlenderImportDialog's own
+-- "Post-processing" block, in reverse: same Invert U/V + Rot X/Y/Z widgets, reusing those exact
+-- language keys since the wording ("Invert U", "Rot X"...) is generic, not import-specific.
+function showMeshExportOptionsDialog()
+    local st = tMeshExportOptionsState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup('mesh_export_options_modal')
+        st.bOpenPopup = false
+    end
+
+    local pFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
+    local isOpen = tImGui.BeginPopupModal(tLang.L('mesh_export_options_title') .. '###mesh_export_options_modal', false, pFlags)
+    if not isOpen then return end
+
+    tImGui.TextWrapped(tLang.L('mesh_export_options_help'))
+    tImGui.Separator()
+
+    st.bInvertU = tImGui.Checkbox(tLang.L('blender_import_invert_u') .. '##exportInvU', st.bInvertU)
+    tImGui.SameLine()
+    st.bInvertV = tImGui.Checkbox(tLang.L('blender_import_invert_v') .. '##exportInvV', st.bInvertV)
+
+    tImGui.PushItemWidth(120)
+    local rxChanged, newRx = tImGui.InputFloat(tLang.L('blender_import_rotation_x') .. '##exportRx', st.nAngleX, 1, 15, '%.1f', 0)
+    if rxChanged and newRx then st.nAngleX = newRx end
+    tImGui.SameLine()
+    local ryChanged, newRy = tImGui.InputFloat(tLang.L('blender_import_rotation_y') .. '##exportRy', st.nAngleY, 1, 15, '%.1f', 0)
+    if ryChanged and newRy then st.nAngleY = newRy end
+    tImGui.SameLine()
+    local rzChanged, newRz = tImGui.InputFloat(tLang.L('blender_import_rotation_z') .. '##exportRz', st.nAngleZ, 1, 15, '%.1f', 0)
+    if rzChanged and newRz then st.nAngleZ = newRz end
+    tImGui.PopItemWidth()
+
+    tImGui.Separator()
+    if tImGui.Button(tLang.L('start_export_button') .. '##meshExportOptionsStart') then
+        local entries = st.tEntries
+        st.bOpen = false
+        st.tEntries = nil
+        tImGui.CloseCurrentPopup()
+        if entries then startMeshExportBuild(entries) end
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('cancel') .. '##meshExportOptionsCancel') then
+        st.bOpen = false
+        st.tEntries = nil
+        tImGui.CloseCurrentPopup()
+    end
+
+    tImGui.EndPopup()
 end
 
 function showMeshExportBuildDialog()
@@ -5265,7 +5346,28 @@ function showBonesNode(tEntry, meshD, index)
     end
     tEntry.bBonesWasOpen = isOpen
 
-    if not isOpen then return end
+    if isOpen then
+        tImGui.TextDisabled(tLang.L('bones_moved_to_window_label'))
+        tImGui.TreePop()
+    end
+end
+
+-- Everything the Bones node used to draw inline (table, humanoid armature, bake Rotate/Scale/
+-- Translate, add-bone form) now lives in its own bottom-docked window instead -- the inline table
+-- was too cramped in the "Loaded Meshes" tree panel to read comfortably once it grew to 8+ columns.
+-- Called once per frame from onLoop (unlike showBonesNode, which runs once per loaded-mesh entry as
+-- part of the tree) -- only ever shows the CURRENTLY SELECTED mesh's bones, matching the scope the
+-- mesh-hide/gizmo logic in showBonesNode already uses (tPreviewMesh only ever reflects
+-- iSelectedMeshIndex, so showing any other entry's bones here would have nothing to hide/gizmo
+-- against). Closing this window (its own titlebar X) clears tEntry.sOpenNode -- showBonesNode's own
+-- per-frame open/close-transition logic (mesh restore, gizmo destroy) then runs on the very next
+-- frame exactly as if the tree item itself had been clicked closed, so there's only one real
+-- "closed" state to keep in sync, not two.
+function showBonesWindow()
+    local index = iSelectedMeshIndex
+    local tEntry = tLoadedMeshes[index]
+    if not tEntry or tEntry.sOpenNode ~= 'bones' then return end
+    local meshD = tEntry.meshDebug
 
     local function onEdit()
         tEntry.modified = true
@@ -5278,6 +5380,24 @@ function showBonesNode(tEntry, meshD, index)
         -- this node's own per-frame hide logic re-hides it -- a rapid show/hide flicker, confirmed
         -- via direct user testing. rebuildBoneGizmo below is the only refresh actually needed.
         rebuildBoneGizmo(tEntry, meshD, index)
+    end
+
+    -- Bottom-anchored, wide on first appearance (ImGuiCond_Once -- movable/resizable by the user
+    -- afterward), following showCameraWindow's "real utility window" pattern rather than
+    -- showMeshTools's minimal undecorated HUD style, since this holds a data-heavy table rather
+    -- than a few buttons.
+    local iW, iH = mbm.getRealSizeScreen()
+    local winW, winH = iW - 40, 300
+    tImGui.SetNextWindowPos({x = 20, y = iH - winH - 20}, tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSize({x = winW, y = winH}, tImGui.Flags('ImGuiCond_Once'))
+    local wFlags = tImGui.Flags('ImGuiWindowFlags_NoCollapse')
+    local isWinOpen, closedClicked = tImGui.Begin(tLang.L('bones_node') .. ' - ' .. tUtil.getShortName(tEntry.fileName) .. '##bonesWin', true, wFlags)
+    if closedClicked then
+        tEntry.sOpenNode = nil
+    end
+    if not isWinOpen then
+        tImGui.End()
+        return
     end
 
     tImGui.HelpMarker(tLang.L('bones_transform_warning'))
@@ -5301,14 +5421,18 @@ function showBonesNode(tEntry, meshD, index)
         end
     end
 
+    tEntry.tBoneHighlight = tEntry.tBoneHighlight or {}
+
     if #tBones > 0 then
         -- ScrollX + fixed-width columns (not the default stretch sizing) so a wide row (name +
         -- parent combo + 3 drag floats + remove button) scrolls horizontally within the panel
         -- instead of forcing the whole Mesh Tree window wider or clipping the rightmost columns.
+        -- Now that this table has the whole bottom window's width to work with instead of the
+        -- narrow "Loaded Meshes" tree panel, horizontal scroll should rarely be needed in practice.
         local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
             'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_ScrollX', 'ImGuiTableFlags_SizingFixedFit')
         local listH = math.min(#tBones * 30 + 34, 320)
-        if tImGui.BeginTable('bonesTbl-' .. index, 8, tblFlags, {x = 0, y = listH}) then
+        if tImGui.BeginTable('bonesTbl-' .. index, 9, tblFlags, {x = 0, y = listH}) then
             tImGui.TableSetupScrollFreeze(1, 1)
             tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
             tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
@@ -5317,6 +5441,7 @@ function showBonesNode(tEntry, meshD, index)
             tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn(tLang.L('bones_radius_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn(tLang.L('bones_highlight_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn('', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
             tImGui.TableHeadersRow()
 
@@ -5398,6 +5523,16 @@ function showBonesNode(tEntry, meshD, index)
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, nLength)
                     end)
                     if okU then onEdit() end
+                end
+
+                tImGui.TableNextColumn()
+                -- Pure view preference (which bone renders yellow in the 3D gizmo view), not a mesh
+                -- edit -- no onEdit()/tEntry.modified, just a gizmo recolor. Multiple bones can be
+                -- highlighted at once (independent per-row checkboxes, not a radio selection).
+                local newHighlight = tImGui.Checkbox('##boneHighlight-' .. index .. '-' .. b.idx, tEntry.tBoneHighlight[b.name] or false)
+                if newHighlight ~= (tEntry.tBoneHighlight[b.name] or false) then
+                    tEntry.tBoneHighlight[b.name] = newHighlight or nil
+                    rebuildBoneGizmo(tEntry, meshD, index)
                 end
 
                 tImGui.TableNextColumn()
@@ -5544,7 +5679,7 @@ function showBonesNode(tEntry, meshD, index)
     -- Export to FBX moved to File menu (next to Import via Blender) -- it isn't specific to
     -- bones (a bone-less mesh still exports fine), so it doesn't belong buried in this node.
 
-    tImGui.TreePop()
+    tImGui.End()
 end
 
 -- ---------------------------------------------------------------------------
@@ -8699,7 +8834,9 @@ function main_menu_mesh_debug()
                 local outputFbx = mbm.saveFile(sLastMeshExportFbxPath or tUtil.getShortName(tEntry.fileName), 'fbx')
                 if outputFbx then
                     sLastMeshExportFbxPath = outputFbx
-                    startMeshExportBuild({ { name = tUtil.getShortName(tEntry.fileName), meshD = tEntry.meshDebug, outputFbx = outputFbx, fileName = tEntry.fileName } })
+                    tMeshExportOptionsState.tEntries = { { name = tUtil.getShortName(tEntry.fileName), meshD = tEntry.meshDebug, outputFbx = outputFbx, fileName = tEntry.fileName } }
+                    tMeshExportOptionsState.bOpen = true
+                    tMeshExportOptionsState.bOpenPopup = true
                 end
             end
             if tImGui.MenuItem(tLang.L('bones_export_all_button'), nil, false, #tLoadedMeshes > 0) then
@@ -8712,7 +8849,9 @@ function main_menu_mesh_debug()
                         local outputFbx = makeUniqueFbxOutputPath(folder, e.fileName, usedNames, i)
                         table.insert(entries, { name = tUtil.getShortName(e.fileName), meshD = e.meshDebug, outputFbx = outputFbx, fileName = e.fileName })
                     end
-                    startMeshExportBuild(entries)
+                    tMeshExportOptionsState.tEntries = entries
+                    tMeshExportOptionsState.bOpen = true
+                    tMeshExportOptionsState.bOpenPopup = true
                 end
             end
             tImGui.Separator()
@@ -9606,10 +9745,12 @@ function onLoop(delta)
     main_menu_mesh_debug()
     showMixamoGuideDialog()
     showBlenderImportDialog()
+    showMeshExportOptionsDialog()
     showMeshExportBuildDialog()
     showCameraWindow()
     showLightWindow()
     showMeshTreeWindow()
+    showBonesWindow()
     showApplyAllWindow()
     showListTexturesWindow()
     showListMeshesWindow()
