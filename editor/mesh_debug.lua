@@ -4742,7 +4742,21 @@ function rebuildBoneGizmo(tEntry, meshD, index)
 
     for name, b in pairs(tBones) do
         local h = shape:new('3d', b.wx, b.wy, dodgeAutoZOrder(b.wz))
-        h:create(unitSphereVerts(), nil, 'mesh_debug_bone_sphere_unit')
+        -- Unique nickname per instance, NOT a fixed shared one, despite every sphere using
+        -- byte-identical unitSphereVerts() data. shape:create()'s nickName is a MESH_MANAGER cache
+        -- key for the underlying MESH_MBM resource itself (SHAPE_MESH::load, shape-mesh.cpp:859) --
+        -- every SHAPE_MESH instance loaded with the SAME nickname shares that ONE MESH_MBM object,
+        -- and setColor() (onSetTextureAnimationLua, animation-lua.cpp:273) sets the DIFFUSE TEXTURE
+        -- on renderizable->getMesh(), i.e. on that SAME shared object -- not a per-instance
+        -- material/uniform. Confirmed by a real headless reproduction: two shape spheres created
+        -- with a shared nickname and different setColor() calls both read back the SAME (the
+        -- LAST-set) texture via getMaterialTexture(); with unique nicknames each kept its own. This
+        -- was invisible before Highlight existed (every sphere always set the identical magenta), and
+        -- was exactly the "checking one bone highlights every joint" bug reported by the user --
+        -- whichever bone's setColor() happened to run last in this pairs() iteration silently
+        -- determined the color of the whole shared mesh, hence all 23 spheres.
+        tEntry.iBoneGizmoGen = (tEntry.iBoneGizmoGen or 0) + 1
+        h:create(unitSphereVerts(), nil, 'mesh_debug_bone_sphere_' .. index .. '_' .. tEntry.iBoneGizmoGen)
         h:setScale(b.radius, b.radius, b.radius)
         local c = tHighlight[name] and BONE_HIGHLIGHT_COLOR or BONE_GIZMO_COLOR
         h:setColor(c[1], c[2], c[3], c[4])
@@ -4756,9 +4770,8 @@ function rebuildBoneGizmo(tEntry, meshD, index)
             local height = math.sqrt(dx * dx + dy * dy + dz * dz)
             if height > 0.001 then
                 local h = shape:new('3d', parent.wx, parent.wy, dodgeAutoZOrder(parent.wz))
-                -- Vertex data genuinely differs per link (radii, height) -- unique nickname each
-                -- rebuild, since shape:create()'s nickName is a shared MESH_MANAGER cache key, not
-                -- a per-instance reload guard (reused names silently serve stale geometry).
+                -- Unique nickname each rebuild for the same reason as the spheres above (color
+                -- isolation, not just avoiding stale geometry reuse as originally noted here).
                 tEntry.iBoneGizmoGen = (tEntry.iBoneGizmoGen or 0) + 1
                 local nick = 'mesh_debug_bone_link_' .. index .. '_' .. tEntry.iBoneGizmoGen
                 h:create(unitCylinderVerts(b.radius * 0.5, parent.radius * 0.5, height, 8), nil, nick)
@@ -5348,6 +5361,27 @@ local function onBonesEdit(tEntry, meshD, index)
     rebuildBoneGizmo(tEntry, meshD, index)
 end
 
+-- Smooth-drag speed scaled to this specific skeleton's own data, instead of one fixed value that's
+-- either way too coarse (a small stylized character, every value under ~1.5) or way too fine (a
+-- large-scale import), confirmed by direct user testing of the previous fixed 0.5 speed on
+-- Lorekeeper (values roughly -0.9..1.24). Speed = full observed range / 200, so a full-width mouse
+-- drag roughly spans that whole range; floored at `fallback` so a single-bone or perfectly flat
+-- skeleton (range 0) doesn't end up with a zero-speed, un-draggable field.
+local function computeFieldDragSpeed(tBones, fields, fallback)
+    local minV, maxV = nil, nil
+    for _, b in ipairs(tBones) do
+        for _, f in ipairs(fields) do
+            local v = b[f]
+            if v then
+                minV = (minV == nil or v < minV) and v or minV
+                maxV = (maxV == nil or v > maxV) and v or maxV
+            end
+        end
+    end
+    if minV == nil or maxV <= minV then return fallback end
+    return math.max((maxV - minV) / 200, fallback)
+end
+
 -- ---------------------------------------------------------------------------
 -- Bones tree node: view/add/edit/remove the mesh's optional skeleton
 -- (SECTION_FRAME_SKINNED / meshDebug:addBone|getBone|updateBone|removeBone).
@@ -5561,6 +5595,9 @@ function showBonesWindow()
 
     tEntry.tBoneHighlight = tEntry.tBoneHighlight or {}
 
+    local posDragSpeed = computeFieldDragSpeed(tBones, {'x', 'y', 'z'}, 0.001)
+    local sizeDragSpeed = computeFieldDragSpeed(tBones, {'radius', 'length'}, 0.0005)
+
     if #tBones > 0 then
         -- ScrollX + fixed-width columns (not the default stretch sizing) so a wide row (name +
         -- parent combo + 3 drag floats + remove button) scrolls horizontally within the panel
@@ -5623,7 +5660,7 @@ function showBonesWindow()
 
                 local function dragAxis(axisLabel, val)
                     tUtil.pushResponsiveItemWidth(80)
-                    local chg, nv = tImGui.DragFloat(axisLabel .. '##bone' .. axisLabel .. '-' .. index .. '-' .. b.idx, val, 0.5, 0, 0, '%.2f')
+                    local chg, nv = tImGui.DragFloat(axisLabel .. '##bone' .. axisLabel .. '-' .. index .. '-' .. b.idx, val, posDragSpeed, 0, 0, '%.3f')
                     tImGui.PopItemWidth()
                     return chg, nv
                 end
@@ -5643,7 +5680,7 @@ function showBonesWindow()
 
                 tImGui.TableNextColumn()
                 tUtil.pushResponsiveItemWidth(80)
-                local chgRadius, nRadius = tImGui.DragFloat('Radius##boneRadius-' .. index .. '-' .. b.idx, b.radius, 0.01, 0, 0, '%.3f')
+                local chgRadius, nRadius = tImGui.DragFloat('Radius##boneRadius-' .. index .. '-' .. b.idx, b.radius, sizeDragSpeed, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
                 if chgRadius then
                     local okU = dpCall(function()
@@ -5655,7 +5692,7 @@ function showBonesWindow()
 
                 tImGui.TableNextColumn()
                 tUtil.pushResponsiveItemWidth(80)
-                local chgLength, nLength = tImGui.DragFloat('Length##boneLength-' .. index .. '-' .. b.idx, b.length, 0.01, 0, 0, '%.3f')
+                local chgLength, nLength = tImGui.DragFloat('Length##boneLength-' .. index .. '-' .. b.idx, b.length, sizeDragSpeed, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
                 if chgLength then
                     local okU = dpCall(function()
