@@ -187,21 +187,32 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         if parent:
             children_by_parent.setdefault(parent, []).append(name)
 
-    # Every bone represents the joint of the SAME name: head = that joint's own position, tail =
-    # toward its first child (the real anatomical span for a single-child chain like an arm/leg) or,
-    # for a leaf/multi-child joint, a stub continuing the direction the bone arrived from (or
-    # straight up for a rootless leaf). This must match the source rig's own head=self/tail=child
-    # convention -- verified against a real 112-bone Mixamo FBX (mixamorig:L_Ear/L_Temple/etc. each
-    # have their own distinct head_local in the original file). An earlier version of this function
-    # set child_bone.head = joint_pos(parent_name) instead of the joint's own position, shifting
-    # every bone in the hierarchy by one level: any joint with multiple children (Head's ~40 facial
-    # bones, Hips' 3 children) collapsed to a single shared head position, and single-child chains
-    # (arms/legs/spine) got the wrong length/orientation throughout -- confirmed as the cause of
-    # severe Mixamo retargeting artifacts (arms crossing, deformed shoulders/groin) on a real
-    # round-tripped character.
+    # Every bone represents the joint of the SAME name: head = that joint's own position. A single,
+    # unambiguous child (the normal case through most of the skeleton -- spine/neck/limb chains)
+    # gets tail = that child's own position, a real anatomical span. This must match the source
+    # rig's own head=self/tail=child convention -- verified against a real 112-bone Mixamo FBX
+    # (mixamorig:L_Ear/L_Temple/etc. each have their own distinct head_local in the original file).
+    # An earlier version of this function set child_bone.head = joint_pos(parent_name) instead of
+    # the joint's own position, shifting every bone in the hierarchy by one level -- confirmed as
+    # the cause of severe Mixamo retargeting artifacts (arms crossing, deformed shoulders/groin) on
+    # a real round-tripped character.
+    #
+    # A bone with SEVERAL children (Hand's 5 fingers, Head's ~40 facial bones) has no single
+    # unambiguous child to point toward -- "first child" (this function's own earlier approach) is
+    # order-dependent and was confirmed, via direct user comparison against a real Mixamo FBX loaded
+    # side by side in Blender, to visibly misrepresent these joints (LeftHand's tail pointing
+    # straight at LeftHandThumb1 instead of a neutral hand direction; Head's ~40 facial bones all
+    # skewed toward whichever one happened to be listed first). The source rig's own convention for
+    # these, confirmed directly against the same real FBX, is instead to continue the direction the
+    # bone arrived from at its own length (e.g. LeftHand's own tail is a plain continuation of the
+    # incoming LeftForeArm->LeftHand direction, not aimed at any specific finger) -- same formula
+    # already used below for genuine leaves (no children at all). A multi-child ROOT (Hips' 3
+    # children) has no incoming direction to continue, so it's the one remaining case that still
+    # points toward its first child -- verified separately to already closely match the source rig's
+    # own Hips bone (both point toward Spine, proportionally similar length).
     def compute_tail(name, pos, parent_pos):
         children = children_by_parent.get(name, [])
-        if children:
+        if len(children) == 1 or (children and parent_pos is None):
             target = joint_pos(children[0])
             if dist(pos, target) >= 1e-6:
                 return target
@@ -309,6 +320,51 @@ def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
     filled = _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj)
     if filled:
         debug_print(debug, f"nearest-bone fallback filled {filled} vertices envelope weighting missed entirely")
+
+    fixed = _resolve_left_right_crosstalk(mesh_obj)
+    if fixed:
+        debug_print(debug, f"resolved left/right envelope overlap on {fixed} vertices near the body midline")
+
+
+def _resolve_left_right_crosstalk(mesh_obj) -> int:
+    """Envelope weighting still leaves a thin sliver of vertices near the body midline (measured
+    via direct testing: ~0.6% of vertices, all within ~4cm of center, concentrated in the inner-
+    thigh/groin) with real weight on BOTH a Left-side and a Right-side bone at once, since both
+    legs' envelopes reach a little past the midline there. In bind pose the two sides move together
+    so this is invisible, but reported directly by the user as a deformation "below the groin" when
+    a pose actually spreads the legs apart -- a vertex weighted to both sides gets pulled toward two
+    increasingly distant targets, a webbing/tearing artifact between the legs. Keeps only the
+    dominant side's weights per vertex and renormalizes, rather than trying to further tune envelope
+    radius/distance to eliminate the overlap without reintroducing the zero-weight gaps the
+    nearest-bone fallback above already fixed.
+    """
+    changed = 0
+    for v in mesh_obj.data.vertices:
+        groups = [g for g in v.groups if g.weight > 1e-6]
+        left = [g for g in groups if _is_left_bone(mesh_obj.vertex_groups[g.group].name)]
+        right = [g for g in groups if _is_right_bone(mesh_obj.vertex_groups[g.group].name)]
+        if not left or not right:
+            continue
+        left_w = sum(g.weight for g in left)
+        right_w = sum(g.weight for g in right)
+        drop = left if left_w < right_w else right
+        keep = [g for g in groups if g not in drop]
+        for g in drop:
+            g.weight = 0.0
+        total = sum(g.weight for g in keep)
+        if total > 1e-6:
+            for g in keep:
+                g.weight /= total
+        changed += 1
+    return changed
+
+
+def _is_left_bone(name: str) -> bool:
+    return 'Left' in name or ':L_' in name
+
+
+def _is_right_bone(name: str) -> bool:
+    return 'Right' in name or ':R_' in name
 
 
 def _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj) -> int:

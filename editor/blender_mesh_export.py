@@ -158,7 +158,44 @@ def resolve_image_sequence_path(image: Any, image_user: Any, scene_frame: int) -
     return bpy.path.abspath(seq_path)
 
 
-def get_first_texture_path(material: Any, scene_frame: int) -> str:
+_EXTRACTED_IMAGE_PATHS: dict[int, str] = {}
+
+
+def _extract_embedded_image(image: Any, output_dir: str) -> str:
+    """Mixamo (and other) FBX downloads commonly embed textures directly in the binary rather than
+    shipping them as loose files -- Blender's importer unpacks these into memory fine
+    (image.packed_file is set, real pixel data available), but image.filepath still holds whatever
+    path the ORIGINAL AUTHOR's machine recorded at export time (confirmed via direct testing on a
+    real Mixamo download: "/home/app/mixamo-mini/tmp/skins_<uuid>.fbm/Ch36_1001_Diffuse.png", a path
+    that obviously doesn't exist on this machine). Returning that recorded path unchanged, as this
+    function used to, meant the .msh's own texture reference -- and the SECTION_EXTRA_PATHS search
+    directory built from it -- pointed nowhere, so the texture could never resolve even though the
+    actual image bytes were sitting right there in Blender's memory the whole time. Saves the image
+    to a real file next to the output .msh instead, and returns that path; cached by image identity
+    so a texture shared by several subsets (the common case) is only written once.
+    """
+    cache_key = image.as_pointer()
+    cached = _EXTRACTED_IMAGE_PATHS.get(cache_key)
+    if cached and os.path.isfile(cached):
+        return cached
+    base_name = os.path.basename(image.filepath) if image.filepath else ""
+    if not base_name or "." not in base_name:
+        base_name = re.sub(r"[^A-Za-z0-9_.-]", "_", image.name) + ".png"
+    out_path = os.path.join(output_dir, base_name)
+    orig_filepath_raw = image.filepath_raw
+    orig_format = image.file_format
+    try:
+        image.filepath_raw = out_path
+        image.file_format = "PNG"
+        image.save()
+    finally:
+        image.filepath_raw = orig_filepath_raw
+        image.file_format = orig_format
+    _EXTRACTED_IMAGE_PATHS[cache_key] = out_path
+    return out_path
+
+
+def get_first_texture_path(material: Any, scene_frame: int, output_dir: str | None = None) -> str:
     if material is None or not getattr(material, "use_nodes", False):
         return ""
     ntree = material.node_tree
@@ -170,7 +207,11 @@ def get_first_texture_path(material: Any, scene_frame: int) -> str:
                 image = node.image
                 if getattr(image, "source", "") == "SEQUENCE":
                     return resolve_image_sequence_path(image, getattr(node, "image_user", None), scene_frame)
-                return bpy.path.abspath(node.image.filepath)
+                recorded_path = bpy.path.abspath(node.image.filepath)
+                needs_extraction = image.packed_file is not None or not os.path.isfile(recorded_path)
+                if needs_extraction and output_dir:
+                    return _extract_embedded_image(image, output_dir)
+                return recorded_path
             except Exception:
                 return str(node.image.filepath or "")
     return ""
@@ -561,7 +602,7 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | None = None) -> list[dict[str, Any]]:
+def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | None = None, output_dir: str | None = None) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
     scene_frame = int(scene.frame_current)
@@ -593,7 +634,7 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                     mat_name = mat.name if mat else f"Material_{mat_idx}"
                     buckets[mat_idx] = {
                         "name": f"{obj.name}:{mat_name}",
-                        "texture": get_first_texture_path(mat, scene_frame),
+                        "texture": get_first_texture_path(mat, scene_frame, output_dir),
                         "vertices": [],
                         "indices": [],
                         "_vmap": {},
@@ -1324,12 +1365,17 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # written into SECTION_MATERIAL_TRANSFORM's angle field, which the engine no longer applies
         # at load time (see rotate_point_deg's own docstring).
         import_rotation_deg = (float(args.angle_x), float(args.angle_y), float(args.angle_z)) if args.post_process else None
+        # Embedded/packed textures (common in Mixamo downloads) get unpacked next to the output
+        # .msh -- see get_first_texture_path/_extract_embedded_image -- rather than trusting the
+        # FBX's own recorded source path, which points at wherever the original author's machine
+        # had the file and is otherwise meaningless on this one.
+        output_dir = os.path.dirname(os.path.abspath(out_path))
 
         def export_frame_to_chunk(frame: int) -> None:
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
-            subsets = export_frame_subsets(scene, import_rotation_deg)
+            subsets = export_frame_subsets(scene, import_rotation_deg, output_dir)
             if args.large_mesh_mode == "vb_only":
                 debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
             else:
