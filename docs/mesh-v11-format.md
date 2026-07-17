@@ -85,6 +85,14 @@ enum SECTION_TYPE : uint16_t
     SECTION_DETAIL_PARTICLE    = 22,
     SECTION_DETAIL_TILE        = 23,
     SECTION_EXTRA_PATHS        = 30,  // replaces legacy EXTRA_HEADER type==1 path-registration hint
+    SECTION_VERTEX_SKIN_WEIGHTS = 40, // RESERVED, not implemented — no struct, no read/write code
+                                       // anywhere. Reserved for a future per-vertex bone weight/
+                                       // index section (real GPU/CPU skinning, which this engine
+                                       // does not have) to sit alongside SECTION_FRAME_STATIC — do
+                                       // not reuse this value. Safe to reserve with zero risk today:
+                                       // an unrecognized/never-written type is always a structural
+                                       // no-op, since every reader consumes a section's full
+                                       // length-prefixed envelope before dispatching on `type`.
 };
 ```
 
@@ -341,26 +349,49 @@ Bundled like `SECTION_DETAIL_TILE` (§6d): one section, an internal count prefix
 flat run of entries — not repeated-per-item like `SECTION_ANIMATION`, since there is exactly one
 skeleton per file, not N.
 
+`sectionVersion` (§3) distinguishes two on-disk layouts. **`1`** (legacy): only the first 6 fields
+below (`name`..`radius`) are present — a reader defaults `rotX=rotY=rotZ=0`, `scaleX=scaleY=scaleZ=1`,
+`length=0` (the struct's own constructor defaults). **`2`** (current writer, always emitted): all 13
+fields are present. The two layouts share a byte-identical 6-field prefix — reading is "read 6
+fields, then if `sectionVersion >= 2` read 7 more," nothing else branches.
+
 ```cpp
 struct SKELETON_HEADER_V11
 {
-    uint16_t jointCount;  // count of JOINT_V11 entries that follow, in parent-before-child order
+    uint16_t jointCount;  // count of SKELETON_BONE_V11 entries that follow, in parent-before-child order
 };
 
 // then, jointCount entries:
-struct JOINT_V11
+struct SKELETON_BONE_V11
 {
-    // name, parentName: length-prefixed strings (§5). parentName == "" marks the root joint;
-    // otherwise it must equal the `name` of a JOINT_V11 already emitted earlier in this same
-    // section (root-first order) — a reader rejects the file if a parentName doesn't resolve to
-    // an already-seen joint, rather than silently accepting a dangling/forward reference.
-    float x, y, z;   // joint position, same coordinate convention as the caller's mesh
-    float radius;    // authoring-time joint radius (bone gizmo marker size)
+    // name, parentName: length-prefixed strings (§5). parentName == "" marks the root bone;
+    // otherwise it must equal the `name` of a SKELETON_BONE_V11 already emitted earlier in this
+    // same section (root-first order) — a reader rejects the file if a parentName doesn't resolve
+    // to an already-seen bone, rather than silently accepting a dangling/forward reference.
+    float x, y, z;   // bone position, same coordinate convention as the caller's mesh
+    float radius;    // authoring-time bone radius (envelope/gizmo marker size) — orthogonal to
+                      // rotation/scale/length below
+
+    // sectionVersion 2 only:
+    float rotX, rotY, rotZ;      // bone orientation, Euler degrees, same non-parent-relative
+                                  // world/armature-space convention as x,y,z above. Engine's own
+                                  // X-then-Y-then-Z composition order (MatrixRotationX/Y/Z,
+                                  // src/core_mbm/primitives.cpp), matching editor/mesh_debug.lua's
+                                  // rotateX/Y/Z and MESH_MBM_DEBUG::rotateFrame exactly.
+    float scaleX, scaleY, scaleZ; // bone-local scale, default 1,1,1
+    float length;                 // bone extent along its own local +Y axis (Blender's own
+                                  // head→tail convention): tail = head + Rotate(rotX,rotY,rotZ)
+                                  // applied to Vector(0, length, 0). `0` means "no orientation
+                                  // data available" (a sectionVersion 1 file, or a synthesized/
+                                  // hand-authored bone with no Blender-import provenance) —
+                                  // consumers needing a tail direction should fall back to
+                                  // inferring it from position topology in that case, not trust
+                                  // rotX/Y/Z.
 };
 ```
 
 Same "no explicit index field" convention as every other repeated/bundled section (§4, Milestone 0
-Decision 3, §8 below): joint identity is by `name`, not by array position.
+Decision 3, §8 below): bone identity is by `name`, not by array position.
 
 ## 7. Index width (§6 `indexWidth`)
 

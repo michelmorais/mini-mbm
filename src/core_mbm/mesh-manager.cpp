@@ -126,7 +126,7 @@ namespace mbm
         // SECTION_FRAME_SKINNED section, including one loaded through the normal game/runtime
         // path, not just through MESH_MBM_DEBUG::loadV11 (which has its own separate read loop
         // that actually stores this into Impl::skeleton for editing).
-        std::vector<util::JOINT_V11> skeleton;
+        std::vector<util::SKELETON_BONE_V11> skeleton;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -594,7 +594,8 @@ namespace
     // Enforces parent-before-child ordering while reading: a non-empty parentName must match the
     // `name` of a joint already read earlier in this same call, otherwise the file is rejected as
     // malformed rather than silently accepted with a dangling/forward reference.
-    bool parse_skeleton_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<util::JOINT_V11> &out)
+    bool parse_skeleton_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<util::SKELETON_BONE_V11> &out,
+                                     const uint16_t sectionVersion)
     {
         util::SKELETON_HEADER_V11 v11Header;
         if (!util::readSkeletonHeaderV11(tmp, v11Header))
@@ -604,13 +605,13 @@ namespace
         out.reserve(v11Header.jointCount);
         for (uint16_t i = 0; i < v11Header.jointCount; ++i)
         {
-            util::JOINT_V11 joint;
-            if (!util::readJointV11(tmp, joint))
+            util::SKELETON_BONE_V11 joint;
+            if (!util::readSkeletonBoneV11(tmp, joint, sectionVersion))
                 return false;
             if (!joint.parentName.empty())
             {
                 const bool parentSeen = std::any_of(out.begin(), out.end(),
-                    [&joint](const util::JOINT_V11 &j) { return j.name == joint.parentName; });
+                    [&joint](const util::SKELETON_BONE_V11 &j) { return j.name == joint.parentName; });
                 if (!parentSeen)
                     return false; // forward/dangling parent reference - malformed file
             }
@@ -894,7 +895,7 @@ namespace
             }
             else if (staged.header.type == util::SECTION_FRAME_SKINNED)
             {
-                if (!parse_skeleton_section_v11(tmp, out.skeleton))
+                if (!parse_skeleton_section_v11(tmp, out.skeleton, staged.header.sectionVersion))
                 {
                     errorOut = "failed to parse SECTION_FRAME_SKINNED";
                     return false;
@@ -2143,7 +2144,7 @@ namespace mbm
         {
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_FRAME_SKINNED;
-            sectionHeader.sectionVersion = 1;
+            sectionHeader.sectionVersion = 2; // adds rotX/Y/Z, scaleX/Y/Z, length - see SKELETON_BONE_V11
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
                 util::SKELETON_HEADER_V11 skelHeader;
@@ -2151,7 +2152,7 @@ namespace mbm
                 if (!util::writeSkeletonHeaderV11(fp, skelHeader))
                     return false;
                 for (const auto &joint : this->impl->skeleton)
-                    if (!util::writeJointV11(fp, joint))
+                    if (!util::writeSkeletonBoneV11(fp, joint))
                         return false;
                 return true;
             });
@@ -2800,7 +2801,7 @@ namespace mbm
             else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
             {
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (!parse_skeleton_section_v11(tmp, impl->skeleton))
+                if (!parse_skeleton_section_v11(tmp, impl->skeleton, sectionHeader.sectionVersion))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_FRAME_SKINNED [%s]", fileNamePath);
             }
             else
@@ -3554,7 +3555,9 @@ namespace mbm
     }
 
     int MESH_MBM_DEBUG::addBone(const char *name, const char *parentName, const float x, const float y, const float z,
-                                 const float radius, char *errorOut, const int errorOutLen)
+                                 const float radius, const float rotX, const float rotY, const float rotZ,
+                                 const float scaleX, const float scaleY, const float scaleZ, const float length,
+                                 char *errorOut, const int errorOutLen)
     {
         if (!name || !name[0])
         {
@@ -3573,18 +3576,21 @@ namespace mbm
         if (hasParent)
         {
             const bool parentFound = std::any_of(impl->skeleton.begin(), impl->skeleton.end(),
-                [parentName](const util::JOINT_V11 &j) { return j.name == parentName; });
+                [parentName](const util::SKELETON_BONE_V11 &j) { return j.name == parentName; });
             if (!parentFound)
             {
                 if (errorOut) snprintf(errorOut, errorOutLen, "unknown parent bone [%s]", parentName);
                 return 0;
             }
         }
-        util::JOINT_V11 joint;
+        util::SKELETON_BONE_V11 joint;
         joint.name       = name;
         joint.parentName = hasParent ? parentName : "";
         joint.x = x; joint.y = y; joint.z = z;
         joint.radius = radius;
+        joint.rotX = rotX; joint.rotY = rotY; joint.rotZ = rotZ;
+        joint.scaleX = scaleX; joint.scaleY = scaleY; joint.scaleZ = scaleZ;
+        joint.length = length;
         impl->skeleton.push_back(std::move(joint));
         return static_cast<int>(impl->skeleton.size());
     }
@@ -3594,7 +3600,7 @@ namespace mbm
         return static_cast<uint32_t>(impl->skeleton.size());
     }
 
-    const util::JOINT_V11 *MESH_MBM_DEBUG::getBone(const uint32_t index) const noexcept
+    const util::SKELETON_BONE_V11 *MESH_MBM_DEBUG::getBone(const uint32_t index) const noexcept
     {
         if (index < impl->skeleton.size())
             return &impl->skeleton[index];
@@ -3608,9 +3614,9 @@ namespace mbm
         // algorithm style) rather than a single std::sort, so joints that don't need to move keep
         // their relative order -- skeletons are small (tens of joints), so the O(n^2) worst case is
         // not a concern.
-        void resortSkeletonParentFirst(std::vector<util::JOINT_V11> &skeleton)
+        void resortSkeletonParentFirst(std::vector<util::SKELETON_BONE_V11> &skeleton)
         {
-            std::vector<util::JOINT_V11> sorted;
+            std::vector<util::SKELETON_BONE_V11> sorted;
             sorted.reserve(skeleton.size());
             std::vector<bool> placed(skeleton.size(), false);
             bool progress = true;
@@ -3621,10 +3627,10 @@ namespace mbm
                 {
                     if (placed[i])
                         continue;
-                    const util::JOINT_V11 &j = skeleton[i];
+                    const util::SKELETON_BONE_V11 &j = skeleton[i];
                     const bool parentReady = j.parentName.empty() ||
                         std::any_of(sorted.begin(), sorted.end(),
-                                    [&j](const util::JOINT_V11 &s) { return s.name == j.parentName; });
+                                    [&j](const util::SKELETON_BONE_V11 &s) { return s.name == j.parentName; });
                     if (parentReady)
                     {
                         sorted.push_back(skeleton[i]);
@@ -3644,6 +3650,8 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::updateBone(const uint32_t index, const char *name, const char *parentName,
                                      const float x, const float y, const float z, const float radius,
+                                     const float rotX, const float rotY, const float rotZ,
+                                     const float scaleX, const float scaleY, const float scaleZ, const float length,
                                      char *errorOut, const int errorOutLen)
     {
         if (index >= impl->skeleton.size())
@@ -3678,7 +3686,7 @@ namespace mbm
                 if (errorOut) snprintf(errorOut, errorOutLen, "bone [%s] cannot be its own parent", name);
                 return false;
             }
-            const util::JOINT_V11 *parentJoint = nullptr;
+            const util::SKELETON_BONE_V11 *parentJoint = nullptr;
             for (const auto &j : impl->skeleton)
             {
                 if (j.name == parentName)
@@ -3706,7 +3714,7 @@ namespace mbm
                                  name, parentName);
                     return false;
                 }
-                const util::JOINT_V11 *next = nullptr;
+                const util::SKELETON_BONE_V11 *next = nullptr;
                 for (const auto &j : impl->skeleton)
                 {
                     if (j.name == cursor)
@@ -3721,13 +3729,20 @@ namespace mbm
             }
             newParentName = parentName;
         }
-        util::JOINT_V11 &joint = impl->skeleton[index];
+        util::SKELETON_BONE_V11 &joint = impl->skeleton[index];
         joint.name             = name;
         joint.parentName       = newParentName;
         joint.x                = x;
         joint.y                = y;
         joint.z                = z;
         joint.radius            = radius;
+        joint.rotX              = rotX;
+        joint.rotY              = rotY;
+        joint.rotZ              = rotZ;
+        joint.scaleX            = scaleX;
+        joint.scaleY            = scaleY;
+        joint.scaleZ            = scaleZ;
+        joint.length            = length;
         // Any other joint that referenced this one by its old name must be repointed to the new one.
         if (oldName != name)
         {

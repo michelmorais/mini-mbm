@@ -1804,8 +1804,19 @@ namespace mbm
         const float     y           = static_cast<float>(luaL_checknumber(lua, 5));
         const float     z           = static_cast<float>(luaL_checknumber(lua, 6));
         const float     radius      = static_cast<float>(luaL_checknumber(lua, 7));
+        // rotX/Y/Z, scaleX/Y/Z, length: optional trailing args (SECTION_FRAME_SKINNED sectionVersion
+        // 2), defaulting to "no orientation data" so older 7-arg Lua call sites keep working.
+        const float     rotX        = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float     rotY        = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float     rotZ        = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float     scaleX      = static_cast<float>(luaL_optnumber(lua, 11, 1.0));
+        const float     scaleY      = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const float     scaleZ      = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
+        const float     length      = static_cast<float>(luaL_optnumber(lua, 14, 0.0));
         char            errorOut[255] = "";
-        const int       ret = meshDebug->mesh.addBone(name, parentName, x, y, z, radius, errorOut, (int)sizeof(errorOut));
+        const int       ret = meshDebug->mesh.addBone(name, parentName, x, y, z, radius,
+                                                        rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length,
+                                                        errorOut, (int)sizeof(errorOut));
         if (ret == 0)
             return lua_error_debug(lua, errorOut);
         lua_pushinteger(lua, ret);
@@ -1823,7 +1834,7 @@ namespace mbm
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
         const int       index     = luaL_checkinteger(lua, 2) - 1;
-        const util::JOINT_V11 *joint = index >= 0 ? meshDebug->mesh.getBone(static_cast<uint32_t>(index)) : nullptr;
+        const util::SKELETON_BONE_V11 *joint = index >= 0 ? meshDebug->mesh.getBone(static_cast<uint32_t>(index)) : nullptr;
         if (joint == nullptr)
         {
             lua_print_line(lua, TYPE_LOG_ERROR, "invalid bone index");
@@ -1839,7 +1850,17 @@ namespace mbm
             lua_pushnil(lua);
         else
             lua_pushstring(lua, joint->parentName.c_str());
-        return 6;
+        // Appended after parentName (sectionVersion 2) so every existing 6-value destructure
+        // (`name, x, y, z, radius, parentName = meshD:getBone(i)`) keeps working unchanged - Lua
+        // silently drops trailing return values a caller doesn't capture.
+        lua_pushnumber(lua, joint->rotX);
+        lua_pushnumber(lua, joint->rotY);
+        lua_pushnumber(lua, joint->rotZ);
+        lua_pushnumber(lua, joint->scaleX);
+        lua_pushnumber(lua, joint->scaleY);
+        lua_pushnumber(lua, joint->scaleZ);
+        lua_pushnumber(lua, joint->length);
+        return 13;
     }
 
     int onUpdateBoneDebugLua(lua_State *lua)
@@ -1852,8 +1873,20 @@ namespace mbm
         const float     y          = static_cast<float>(luaL_checknumber(lua, 6));
         const float     z          = static_cast<float>(luaL_checknumber(lua, 7));
         const float     radius     = static_cast<float>(luaL_checknumber(lua, 8));
+        // Optional trailing args, same convention/defaults as onAddBoneDebugLua. This is only a
+        // safety net for callers outside this repo -- every in-repo caller forwards the full tuple
+        // it read from getBone, since omitting these would silently reset a bone's orientation.
+        const float     rotX       = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float     rotY       = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float     rotZ       = static_cast<float>(luaL_optnumber(lua, 11, 0.0));
+        const float     scaleX     = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const float     scaleY     = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
+        const float     scaleZ     = static_cast<float>(luaL_optnumber(lua, 14, 1.0));
+        const float     length     = static_cast<float>(luaL_optnumber(lua, 15, 0.0));
         char            errorOut[255] = "";
-        const bool ret = meshDebug->mesh.updateBone(index, name, parentName, x, y, z, radius, errorOut, (int)sizeof(errorOut));
+        const bool ret = meshDebug->mesh.updateBone(index, name, parentName, x, y, z, radius,
+                                                      rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length,
+                                                      errorOut, (int)sizeof(errorOut));
         if (!ret)
             return lua_error_debug(lua, errorOut);
         lua_pushboolean(lua, 1);

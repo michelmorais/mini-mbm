@@ -156,6 +156,7 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
 
 def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, float] | None = None):
     import bpy
+    from mathutils import Vector
 
     joints = {j["name"]: j for j in data.get("joints", [])}
     if not joints:
@@ -229,6 +230,38 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         # for the standard export undoes the Y-up bake back to Blender's own Z-up space.
         return (pos[0], pos[1], pos[2] + 0.01)
 
+    # sectionVersion 2 (editor/mesh_debug.lua, header-mesh.h SKELETON_BONE_V11) added real bone
+    # orientation (rotX/Y/Z, Euler degrees) + length, captured directly from Blender's own bone
+    # axis/roll at import time (extract_armature_joints in blender_mesh_export.py) -- when present,
+    # this replaces compute_tail's guesswork entirely with the source rig's actual data, including
+    # ROLL (twist around the bone's own axis), which position-only data could never provide no
+    # matter how good the tail-direction heuristic got. length > EPS is the "real data present"
+    # signal, not rotX==rotY==rotZ==0 -- an axis-aligned real bone legitimately has all-zero Euler
+    # angles, so length (only ever nonzero when this import path set it) is the reliable sentinel.
+    # A bone with no orientation data (old sectionVersion 1 files, or synthesized/hand-authored
+    # bones with no Blender-import provenance, e.g. "Apply Humanoid Armature") falls back to
+    # compute_tail exactly as before -- this preserves this session's already-verified-working
+    # behavior for legacy content.
+    EPS = 1e-6
+
+    def has_orientation(name):
+        return float(joints[name].get("length", 0.0)) > EPS
+
+    def reconstruct_tail_and_roll(name, pos):
+        j = joints[name]
+        length = float(j["length"])
+        rot = (float(j.get("rotX", 0.0)), float(j.get("rotY", 0.0)), float(j.get("rotZ", 0.0)))
+        # Decode the bone's local Y (axis) and Z (roll) directions in the stored space, then apply
+        # the same rotation_deg the export already applies to positions, so orientation lands in
+        # the identical space as head/tail.
+        d_stored = rotate_point_deg(0.0, length, 0.0, *rot)
+        z_stored = rotate_point_deg(0.0, 0.0, 1.0, *rot)
+        if rotation_deg:
+            d_stored = rotate_point_deg(*d_stored, *rotation_deg)
+            z_stored = rotate_point_deg(*z_stored, *rotation_deg)
+        tail = (pos[0] + d_stored[0], pos[1] + d_stored[1], pos[2] + d_stored[2])
+        return tail, z_stored
+
     # Envelope-based binding (see bind_mesh_to_armature) sizes each bone's influence region from
     # head_radius/tail_radius, which Blender defaults to a small fixed value with no relation to
     # this character's actual scale or any individual bone's own thickness. Left at that default,
@@ -265,7 +298,12 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         root_pos = joint_pos(root_name)
         root_bone = edit_bones.new(root_name)
         root_bone.head = root_pos
-        root_bone.tail = compute_tail(root_name, root_pos, None)
+        if has_orientation(root_name):
+            tail, z_dir = reconstruct_tail_and_roll(root_name, root_pos)
+            root_bone.tail = tail
+            root_bone.align_roll(Vector(z_dir))
+        else:
+            root_bone.tail = compute_tail(root_name, root_pos, None)
         set_envelope_radius(root_bone, root_name)
         created[root_name] = root_bone
 
@@ -277,7 +315,12 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
             child_pos = joint_pos(child_name)
             child_bone = edit_bones.new(child_name)
             child_bone.head = child_pos
-            child_bone.tail = compute_tail(child_name, child_pos, parent_pos)
+            if has_orientation(child_name):
+                tail, z_dir = reconstruct_tail_and_roll(child_name, child_pos)
+                child_bone.tail = tail
+                child_bone.align_roll(Vector(z_dir))
+            else:
+                child_bone.tail = compute_tail(child_name, child_pos, parent_pos)
             child_bone.parent = created[parent_name]
             set_envelope_radius(child_bone, child_name)
             created[child_name] = child_bone

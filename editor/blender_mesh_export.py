@@ -263,6 +263,32 @@ def rotate_point_deg(x: float, y: float, z: float, angle_x_deg: float, angle_y_d
     return x, y, z
 
 
+def frame_to_euler_xyz(ydir: tuple[float, float, float], zdir: tuple[float, float, float]) -> tuple[float, float, float]:
+    """Inverse of rotate_point_deg applied to (0,1,0)/(0,0,1): given a bone's local Y (axis
+    direction, head->tail) and Z (roll axis) basis vectors already expressed in the space rotX/Y/Z
+    are stored in, extracts the equivalent Euler XYZ degrees. Closed-form from M = Rx*Ry*Rz (this
+    engine's row-vector convention -- matrix rows are the images of the X/Y/Z basis vectors, X
+    derived here as cross(Y,Z) since only Y/Z are ever needed). Must stay in lockstep, by hand,
+    with editor/mesh_debug.lua's identical boneFrameToEuler -- there is no shared implementation
+    between Python and Lua.
+    """
+    yx, yy, yz = ydir
+    zx, zy, zz = zdir
+    xx = yy * zz - yz * zy
+    xy = yz * zx - yx * zz
+    xz = yx * zy - yy * zx
+    clamped = max(-1.0, min(1.0, -xz))
+    rot_y = math.asin(clamped)
+    if abs(xz) > 0.999999:
+        # gimbal lock: X and Z rotation become indistinguishable, collapse to rot_x=0
+        rot_x = 0.0
+        rot_z = math.atan2(-yx, yy)
+    else:
+        rot_x = math.atan2(yz, zz)
+        rot_z = math.atan2(xy, xx)
+    return math.degrees(rot_x), math.degrees(rot_y), math.degrees(rot_z)
+
+
 def get_scene_fps(scene: Any) -> float:
     fps_base = float(scene.render.fps_base) if scene.render.fps_base else 1.0
     fps = float(scene.render.fps) / fps_base if fps_base > 0 else 24.0
@@ -1089,6 +1115,34 @@ def extract_armature_joints(scene: Any, rotation_deg: tuple[float, float, float]
         # marker spheres bigger than the whole imported character).
         radius = max(0.001, (world_tail - world_head).length * 0.15)
         head_x, head_y, head_z = float(world_head.x), float(world_head.y), float(world_head.z)
+
+        # Real orientation, captured here for the first time (SECTION_FRAME_SKINNED sectionVersion
+        # 2): world_head/world_tail already give the exact bone axis (no ambiguity, unlike
+        # editor/blender_mesh_skeleton_export.py's build_armature, which has to guess this from
+        # nothing but a scatter of positions when this data is absent). matrix_local is armature-
+        # space (not parent-relative), matching this function's own position convention above.
+        length = (world_tail - world_head).length
+        if length > 1e-6:
+            ydir_world = ((world_tail - world_head) / length)
+            zdir_raw = (armature_obj.matrix_world @ bone.matrix_local).to_3x3() @ Vector((0.0, 0.0, 1.0))
+            # Gram-Schmidt: orthonormalize the roll axis against the bone axis before extraction,
+            # guaranteeing a clean orthonormal frame even if matrix_local's own Z isn't exactly
+            # perpendicular to head->tail (it always should be, this is defensive).
+            zdir_raw = zdir_raw - ydir_world * zdir_raw.dot(ydir_world)
+            zdir_len = zdir_raw.length
+            zdir_world = zdir_raw / zdir_len if zdir_len > 1e-6 else Vector((1.0, 0.0, 0.0))
+            ydir = tuple(ydir_world)
+            zdir = tuple(zdir_world)
+            if rotation_deg:
+                ydir = rotate_point_deg(*ydir, *rotation_deg)
+                zdir = rotate_point_deg(*zdir, *rotation_deg)
+            rot_x, rot_y, rot_z = frame_to_euler_xyz(ydir, zdir)
+        else:
+            # Degenerate zero-length bone (head==tail) -- no orientation to extract. length stays
+            # 0, which is exactly the sentinel build_armature uses to fall back to its own
+            # position-topology heuristic for this bone.
+            rot_x, rot_y, rot_z = 0.0, 0.0, 0.0
+
         if rotation_deg:
             head_x, head_y, head_z = rotate_point_deg(head_x, head_y, head_z, *rotation_deg)
         joints.append({
@@ -1098,16 +1152,29 @@ def extract_armature_joints(scene: Any, rotation_deg: tuple[float, float, float]
             "y": head_y,
             "z": head_z,
             "radius": radius,
+            "rotX": rot_x,
+            "rotY": rot_y,
+            "rotZ": rot_z,
+            # Blender rest/edit bones carry no meaningful per-bone scale (real scale only exists on
+            # pose bones, out of scope for a rest-pose skeleton dump) -- stored as identity purely
+            # for round-trip completeness with the engine's own scaleX/Y/Z fields.
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "scaleZ": 1.0,
+            "length": length,
         })
     return joints
 
 
 def build_skeleton_payload_v11(joints: list[dict[str, Any]]) -> bytes:
-    """Payload for SECTION_FRAME_SKINNED: SKELETON_HEADER_V11{jointCount:u16} followed by
-    jointCount JOINT_V11 records (name, parentName length-prefixed strings + x,y,z,radius f32),
-    matching writeSkeletonHeaderV11/writeJointV11's exact byte layout
-    (src/core_mbm/mesh-v11-io.cpp:634-656) -- there is no shared serializer between this script and
-    the C++ side, so the layout is replicated by hand and must stay in lockstep with it.
+    """Payload for SECTION_FRAME_SKINNED sectionVersion 2: SKELETON_HEADER_V11{jointCount:u16}
+    followed by jointCount SKELETON_BONE_V11 records (name, parentName length-prefixed strings +
+    x,y,z,radius,rotX,rotY,rotZ,scaleX,scaleY,scaleZ,length f32 -- 11 floats total), matching
+    writeSkeletonHeaderV11/writeSkeletonBoneV11's exact byte layout
+    (src/core_mbm/mesh-v11-io.cpp:634-657) -- there is no shared serializer between this script and
+    the C++ side, so the layout is replicated by hand and must stay in lockstep with it. This
+    script always writes the full v2 layout (the SECTION_FRAME_SKINNED section header this payload
+    is wrapped in must be stamped sectionVersion=2 by the caller, see build_direct_msh_output).
     """
     buf = io.BytesIO()
     write_u16(buf, len(joints))
@@ -1118,6 +1185,13 @@ def build_skeleton_payload_v11(joints: list[dict[str, Any]]) -> bytes:
         write_f32(buf, j["y"])
         write_f32(buf, j["z"])
         write_f32(buf, j["radius"])
+        write_f32(buf, j.get("rotX", 0.0))
+        write_f32(buf, j.get("rotY", 0.0))
+        write_f32(buf, j.get("rotZ", 0.0))
+        write_f32(buf, j.get("scaleX", 1.0))
+        write_f32(buf, j.get("scaleY", 1.0))
+        write_f32(buf, j.get("scaleZ", 1.0))
+        write_f32(buf, j.get("length", 0.0))
     return buf.getvalue()
 
 
@@ -1458,7 +1532,9 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 write_section_v11(fp, SECTION_FRAME_STATIC, 1, frame_payload, True)
 
             if joints:
-                write_section_v11(fp, SECTION_FRAME_SKINNED, 1, build_skeleton_payload_v11(joints), False)
+                # sectionVersion 2: adds rotX/Y/Z, scaleX/Y/Z, length - see SKELETON_BONE_V11 and
+                # build_skeleton_payload_v11's own docstring.
+                write_section_v11(fp, SECTION_FRAME_SKINNED, 2, build_skeleton_payload_v11(joints), False)
 
             fp.flush()
             os.fsync(fp.fileno())
@@ -1528,6 +1604,7 @@ def debug_requested_from_argv(argv: list[str]) -> bool:
 if __name__ == "__main__":
     try:
         import bpy  # type: ignore
+        from mathutils import Vector  # type: ignore
     except Exception as exc:
         sys.stderr.write(f"Failed to import bpy: {exc}\n")
         sys.exit(2)

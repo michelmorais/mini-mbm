@@ -718,10 +718,13 @@ namespace util
         jointCount = 0;
     }
 
-    JOINT_V11::JOINT_V11() noexcept
+    SKELETON_BONE_V11::SKELETON_BONE_V11() noexcept
     {
         x = y = z = 0.0f;
         radius     = 0.0f;
+        rotX = rotY = rotZ = 0.0f;
+        scaleX = scaleY = scaleZ = 1.0f;
+        length = 0.0f;
     }
 
 }

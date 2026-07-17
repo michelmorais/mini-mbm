@@ -66,7 +66,7 @@ namespace mbm
         void *extraInfo;
         // SECTION_FRAME_SKINNED (docs/mesh-v11-format.md Sec. 6e) - editor/diagnostic round-trip
         // only, never consulted by rendering. See MESH_MBM_DEBUG::addBone/getBone/getTotalBone.
-        std::vector<util::JOINT_V11> skeleton;
+        std::vector<util::SKELETON_BONE_V11> skeleton;
     };
 }
 

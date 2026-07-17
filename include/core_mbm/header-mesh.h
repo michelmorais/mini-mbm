@@ -568,6 +568,16 @@ namespace util
         SECTION_DETAIL_PARTICLE    = 22,
         SECTION_DETAIL_TILE        = 23,
         SECTION_EXTRA_PATHS        = 30, // replaces legacy EXTRA_HEADER type==1 path-registration hint
+        SECTION_VERTEX_SKIN_WEIGHTS = 40, // RESERVED, not implemented - no struct, no read/write
+                                          // code anywhere. Reserved for a future per-vertex bone
+                                          // weight/index section (real GPU/CPU skinning, which this
+                                          // engine does not have) to sit alongside SECTION_FRAME_STATIC.
+                                          // Do not reuse this value. Safe to reserve now with zero
+                                          // risk: readSectionV11 always consumes a section's full
+                                          // length-prefixed envelope before dispatching on `type`,
+                                          // so an unrecognized/never-written type is a structural
+                                          // no-op for every reader, old and new (docs/mesh-v11-format.md
+                                          // Sec. 6e).
     };
 
     enum SECTION_COMPRESSION : uint8_t
@@ -790,18 +800,35 @@ namespace util
 
     struct API_IMPL SKELETON_HEADER_V11 // payload header for SECTION_FRAME_SKINNED
     {
-        uint16_t jointCount; // count of JOINT_V11 entries that follow, in parent-before-child order
+        uint16_t jointCount; // count of SKELETON_BONE_V11 entries that follow, in parent-before-child order
         SKELETON_HEADER_V11() noexcept;
     };
 
-    struct JOINT_V11 // one per joint; parentName empty ("") marks the root
+    // sectionVersion 1: only the first 6 fields below (name..radius) are present on disk.
+    // sectionVersion 2: all 13 fields are present. readSkeletonBoneV11 is handed the section's own
+    // sectionVersion and defaults rotX/Y/Z=0, scaleX/Y/Z=1, length=0 (this struct's own ctor
+    // defaults) when reading a v1 file - see docs/mesh-v11-format.md Sec. 6e.
+    struct SKELETON_BONE_V11 // one per bone; parentName empty ("") marks the root
     {
         std::string name;
-        std::string parentName; // must equal the `name` of a JOINT_V11 already emitted earlier in
-                                 // this same section (root-first order) - empty = root joint
-        float       x, y, z;    // joint position, same coordinate convention as the caller's mesh
-        float       radius;     // authoring-time joint radius (bone gizmo marker size)
-        API_IMPL JOINT_V11() noexcept;
+        std::string parentName; // must equal the `name` of a SKELETON_BONE_V11 already emitted
+                                 // earlier in this same section (root-first order) - empty = root bone
+        float       x, y, z;    // bone position, same coordinate convention as the caller's mesh
+        float       radius;     // authoring-time bone radius (envelope/gizmo marker size) -
+                                 // orthogonal to rotation/scale/length below
+        float       rotX, rotY, rotZ; // bone orientation, Euler degrees, same non-parent-relative
+                                 // world/armature-space convention as x,y,z above. Engine's own
+                                 // X-then-Y-then-Z composition order (MatrixRotationX/Y/Z,
+                                 // src/core_mbm/primitives.cpp), matching mesh_debug.lua's
+                                 // rotateX/Y/Z and MESH_MBM_DEBUG::rotateFrame exactly.
+        float       scaleX, scaleY, scaleZ; // bone-local scale, default 1,1,1
+        float       length;     // bone extent along its own local +Y axis (Blender's own
+                                 // head->tail convention): tail = head + Rotate(rotX,rotY,rotZ)
+                                 // applied to Vector(0, length, 0). 0 means "no orientation data
+                                 // available" (v1 file, or a synthesized/hand-authored bone) -
+                                 // consumers needing a tail direction should fall back to inferring
+                                 // it from position topology in that case, not trust rotX/Y/Z.
+        API_IMPL SKELETON_BONE_V11() noexcept;
     };
 
 }

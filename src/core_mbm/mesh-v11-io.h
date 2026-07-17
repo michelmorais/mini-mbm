@@ -119,8 +119,10 @@ namespace util
     bool writeSkeletonHeaderV11(FILE *fp, const util::SKELETON_HEADER_V11 &in);
     bool readSkeletonHeaderV11(util::MEM_CURSOR_V11 &fp, util::SKELETON_HEADER_V11 &out);
 
-    bool writeJointV11(FILE *fp, const util::JOINT_V11 &in);
-    bool readJointV11(util::MEM_CURSOR_V11 &fp, util::JOINT_V11 &out);
+    // readSkeletonBoneV11 needs the section's own sectionVersion: v1 files only have the first 6
+    // fields on disk (name..radius), v2 files have all 13 (see SKELETON_BONE_V11's own comment).
+    bool writeSkeletonBoneV11(FILE *fp, const util::SKELETON_BONE_V11 &in);
+    bool readSkeletonBoneV11(util::MEM_CURSOR_V11 &fp, util::SKELETON_BONE_V11 &out, uint16_t sectionVersion);
 }
 
 #endif

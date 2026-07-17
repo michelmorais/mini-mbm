@@ -641,17 +641,28 @@ namespace util
         return readU16LE(fp, out.jointCount);
     }
 
-    bool writeJointV11(FILE *fp, const util::JOINT_V11 &in)
+    bool writeSkeletonBoneV11(FILE *fp, const util::SKELETON_BONE_V11 &in)
     {
+        // Always emits the full v2 layout - the writer never produces v1 files, only readers need
+        // to handle both (see readSkeletonBoneV11 below and SECTION_FRAME_SKINNED's sectionVersion).
         return writeStringV11(fp, in.name) && writeStringV11(fp, in.parentName) &&
                writeF32LE(fp, in.x) && writeF32LE(fp, in.y) && writeF32LE(fp, in.z) &&
-               writeF32LE(fp, in.radius);
+               writeF32LE(fp, in.radius) &&
+               writeF32LE(fp, in.rotX) && writeF32LE(fp, in.rotY) && writeF32LE(fp, in.rotZ) &&
+               writeF32LE(fp, in.scaleX) && writeF32LE(fp, in.scaleY) && writeF32LE(fp, in.scaleZ) &&
+               writeF32LE(fp, in.length);
     }
 
-    bool readJointV11(util::MEM_CURSOR_V11 &fp, util::JOINT_V11 &out)
+    bool readSkeletonBoneV11(util::MEM_CURSOR_V11 &fp, util::SKELETON_BONE_V11 &out, uint16_t sectionVersion)
     {
-        return readStringV11(fp, out.name) && readStringV11(fp, out.parentName) &&
-               readF32LE(fp, out.x) && readF32LE(fp, out.y) && readF32LE(fp, out.z) &&
-               readF32LE(fp, out.radius);
+        if (!readStringV11(fp, out.name) || !readStringV11(fp, out.parentName) ||
+            !readF32LE(fp, out.x) || !readF32LE(fp, out.y) || !readF32LE(fp, out.z) ||
+            !readF32LE(fp, out.radius))
+            return false;
+        if (sectionVersion < 2)
+            return true; // v1 file - out already carries the ctor's rot=0/scale=1/length=0 defaults
+        return readF32LE(fp, out.rotX) && readF32LE(fp, out.rotY) && readF32LE(fp, out.rotZ) &&
+               readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ) &&
+               readF32LE(fp, out.length);
     }
 }

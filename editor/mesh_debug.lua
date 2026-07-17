@@ -58,12 +58,65 @@ local function rotateZ(x, y, z, a)
     return x * c - y * s, x * s + y * c, z
 end
 
+-- Decodes a bone's stored orientation (rotX/Y/Z, Euler XYZ degrees) into its local Y (bone axis,
+-- head->tail direction) and Z (roll axis) basis vectors, both in the same space rotX/Y/Z are
+-- stored in (world/armature space, same convention as x,y,z). Inverse of boneFrameToEuler below --
+-- together these let the bake helpers compose a rotation into a bone's stored orientation instead
+-- of only rotating its position, matching how editor/blender_mesh_skeleton_export.py reconstructs
+-- a bone's tail/roll from the identical rotX/Y/Z + length fields (kept in lockstep by hand, no
+-- shared implementation between Lua and Python).
+function eulerToBoneFrame(rotXdeg, rotYdeg, rotZdeg)
+    local radX = rotXdeg * math.pi / 180
+    local radY = rotYdeg * math.pi / 180
+    local radZ = rotZdeg * math.pi / 180
+    local yx, yy, yz = 0, 1, 0
+    local zx, zy, zz = 0, 0, 1
+    if rotXdeg ~= 0 then
+        yx, yy, yz = rotateX(yx, yy, yz, radX)
+        zx, zy, zz = rotateX(zx, zy, zz, radX)
+    end
+    if rotYdeg ~= 0 then
+        yx, yy, yz = rotateY(yx, yy, yz, radY)
+        zx, zy, zz = rotateY(zx, zy, zz, radY)
+    end
+    if rotZdeg ~= 0 then
+        yx, yy, yz = rotateZ(yx, yy, yz, radZ)
+        zx, zy, zz = rotateZ(zx, zy, zz, radZ)
+    end
+    return yx, yy, yz, zx, zy, zz
+end
+
+-- Encodes a bone's local Y (bone axis) and Z (roll axis) basis vectors back into Euler XYZ
+-- degrees, inverse of eulerToBoneFrame above. Closed-form extraction from M = Rx*Ry*Rz (this
+-- engine's own row-vector rotation convention -- matrix rows are the images of the X/Y/Z basis
+-- vectors, X derived here as cross(Y,Z) since only Y/Z are ever stored/needed).
+function boneFrameToEuler(yx, yy, yz, zx, zy, zz)
+    local xx = yy * zz - yz * zy
+    local xy = yz * zx - yx * zz
+    local xz = yx * zy - yy * zx
+    local clamped = math.max(-1, math.min(1, -xz))
+    local rotY = math.asin(clamped)
+    local rotX, rotZ
+    if math.abs(xz) > 0.999999 then
+        -- gimbal lock: X and Z rotation become indistinguishable, collapse to rotX=0
+        rotX = 0
+        rotZ = math.atan(-yx, yy)
+    else
+        rotX = math.atan(yz, zz)
+        rotZ = math.atan(xy, xx)
+    end
+    return rotX * 180 / math.pi, rotY * 180 / math.pi, rotZ * 180 / math.pi
+end
+
 -- Bakes a rotation into every bone's own x,y,z (degrees, applied X then Y then Z), matching
 -- meshDebug:rotateFrame's exact per-axis formulas and order (src/core_mbm/mesh-manager.cpp:3128)
 -- -- rotateX/Y/Z above are the same helpers verified against MatrixRotationX/Y/Z. Used to keep the
 -- skeleton in sync whenever mesh_debug.lua bakes a rotation into vertex data via rotateFrame
 -- (Bones-node Rotate, Transform-node Rotate, Apply-All Transform, and the Blender-import
--- post-process rotation), since bones are stored independently of vertex data.
+-- post-process rotation), since bones are stored independently of vertex data. Also composes the
+-- same bake rotation into each bone's own stored orientation (rotX/Y/Z), not just its position --
+-- otherwise a rotated skeleton would keep pointing/rolled the old way. scaleX/Y/Z and length pass
+-- through unchanged: length is a scalar (rotation-invariant), scale isn't touched by a rotation.
 local function applyRotationToBonesDeg(meshD, angleXDeg, angleYDeg, angleZDeg)
     local radX = angleXDeg * math.pi / 180
     local radY = angleYDeg * math.pi / 180
@@ -71,13 +124,34 @@ local function applyRotationToBonesDeg(meshD, angleXDeg, angleYDeg, angleZDeg)
     local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
     nBones = (okTotal and nBones) or 0
     for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
+            dpCall(function() return meshD:getBone(i) end)
         if okG and name then
             local nx, ny, nz = x, y, z
             if angleXDeg ~= 0 then nx, ny, nz = rotateX(nx, ny, nz, radX) end
             if angleYDeg ~= 0 then nx, ny, nz = rotateY(nx, ny, nz, radY) end
             if angleZDeg ~= 0 then nx, ny, nz = rotateZ(nx, ny, nz, radZ) end
-            dpCall(function() return meshD:updateBone(i, name, parentName, nx, ny, nz, radius) end)
+            local nRotX, nRotY, nRotZ = rotX, rotY, rotZ
+            if angleXDeg ~= 0 or angleYDeg ~= 0 or angleZDeg ~= 0 then
+                local yx, yy, yz, zx, zy, zz = eulerToBoneFrame(rotX, rotY, rotZ)
+                if angleXDeg ~= 0 then
+                    yx, yy, yz = rotateX(yx, yy, yz, radX)
+                    zx, zy, zz = rotateX(zx, zy, zz, radX)
+                end
+                if angleYDeg ~= 0 then
+                    yx, yy, yz = rotateY(yx, yy, yz, radY)
+                    zx, zy, zz = rotateY(zx, zy, zz, radY)
+                end
+                if angleZDeg ~= 0 then
+                    yx, yy, yz = rotateZ(yx, yy, yz, radZ)
+                    zx, zy, zz = rotateZ(zx, zy, zz, radZ)
+                end
+                nRotX, nRotY, nRotZ = boneFrameToEuler(yx, yy, yz, zx, zy, zz)
+            end
+            dpCall(function()
+                return meshD:updateBone(i, name, parentName, nx, ny, nz, radius,
+                    nRotX, nRotY, nRotZ, scaleX, scaleY, scaleZ, length)
+            end)
         end
     end
 end
@@ -4563,16 +4637,22 @@ end
 
 -- Radius scales by the mean of |sx|,|sy|,|sz| -- bones are spheres, so a single non-uniform scale
 -- factor has no exact meaning; the mean is a reasonable stand-in and matches the common case of a
--- uniform scale exactly (sx==sy==sz).
+-- uniform scale exactly (sx==sy==sz). `length` (feeds tail reconstruction on export) scales by the
+-- same mean factor for the same reason -- exact anisotropic tracking isn't possible for an
+-- arbitrarily-oriented bone. Stored scaleX/Y/Z compose the real per-axis factors (round-trip
+-- metadata only -- Blender edit bones have no scale concept to reconstruct against). rotX/Y/Z pass
+-- through unchanged: a scale doesn't change a bone's orientation.
 local function applyScaleToBones(meshD, sx, sy, sz)
     local radiusScale = (math.abs(sx) + math.abs(sy) + math.abs(sz)) / 3
     local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
     nBones = (okTotal and nBones) or 0
     for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
+            dpCall(function() return meshD:getBone(i) end)
         if okG and name then
             dpCall(function()
-                return meshD:updateBone(i, name, parentName, x * sx, y * sy, z * sz, (radius or 0.05) * radiusScale)
+                return meshD:updateBone(i, name, parentName, x * sx, y * sy, z * sz, (radius or 0.05) * radiusScale,
+                    rotX, rotY, rotZ, scaleX * sx, scaleY * sy, scaleZ * sz, length * radiusScale)
             end)
         end
     end
@@ -4582,9 +4662,13 @@ local function applyTranslateToBones(meshD, dx, dy, dz)
     local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
     nBones = (okTotal and nBones) or 0
     for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
+            dpCall(function() return meshD:getBone(i) end)
         if okG and name then
-            dpCall(function() return meshD:updateBone(i, name, parentName, x + dx, y + dy, z + dz, radius) end)
+            dpCall(function()
+                return meshD:updateBone(i, name, parentName, x + dx, y + dy, z + dz, radius,
+                    rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length)
+            end)
         end
     end
 end
@@ -4879,10 +4963,14 @@ local function writeMeshDebugJson(meshD, jsonPath)
     local okTB, nBones = dpCall(function() return meshD:getTotalBone() end)
     nBones = (okTB and nBones) or 0
     for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
+            dpCall(function() return meshD:getBone(i) end)
         if okG and name then
-            f:write(string.format('    { "name": %s, "parent": %s, "x": %.6f, "y": %.6f, "z": %.6f, "radius": %.6f }',
-                jsonStr(name), parentName and jsonStr(parentName) or 'null', x, y, z, radius))
+            f:write(string.format(
+                '    { "name": %s, "parent": %s, "x": %.6f, "y": %.6f, "z": %.6f, "radius": %.6f, ' ..
+                '"rotX": %.6f, "rotY": %.6f, "rotZ": %.6f, "scaleX": %.6f, "scaleY": %.6f, "scaleZ": %.6f, "length": %.6f }',
+                jsonStr(name), parentName and jsonStr(parentName) or 'null', x, y, z, radius,
+                rotX or 0, rotY or 0, rotZ or 0, scaleX or 1, scaleY or 1, scaleZ or 1, length or 0))
             f:write(i < nBones and ',\n' or '\n')
         end
     end
@@ -5190,9 +5278,11 @@ function showBonesNode(tEntry, meshD, index)
     local tBones = {}
     local tParentNames = { tLang.L('bones_root_label') }
     for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
+            dpCall(function() return meshD:getBone(i) end)
         if okG and name then
-            table.insert(tBones, { idx = i, name = name, x = x, y = y, z = z, radius = radius, parentName = parentName })
+            table.insert(tBones, { idx = i, name = name, x = x, y = y, z = z, radius = radius, parentName = parentName,
+                rotX = rotX, rotY = rotY, rotZ = rotZ, scaleX = scaleX, scaleY = scaleY, scaleZ = scaleZ, length = length })
             table.insert(tParentNames, name)
         end
     end
@@ -5204,25 +5294,34 @@ function showBonesNode(tEntry, meshD, index)
         local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
             'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_ScrollX', 'ImGuiTableFlags_SizingFixedFit')
         local listH = math.min(#tBones * 30 + 34, 320)
-        if tImGui.BeginTable('bonesTbl-' .. index, 6, tblFlags, {x = 0, y = listH}) then
+        if tImGui.BeginTable('bonesTbl-' .. index, 8, tblFlags, {x = 0, y = listH}) then
             tImGui.TableSetupScrollFreeze(1, 1)
             tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
             tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
             tImGui.TableSetupColumn('X', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn('Y', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn(tLang.L('bones_radius_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn('', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
             tImGui.TableHeadersRow()
 
             for _, b in ipairs(tBones) do
                 tImGui.TableNextRow()
 
+                -- Every updateBone call below forwards b.rotX/Y/Z, b.scaleX/Y/Z, b.length unchanged
+                -- alongside whichever field this row's widget actually edited -- otherwise editing a
+                -- bone's name/parent/position/radius/length here would silently reset its stored
+                -- orientation (set by Blender import, not hand-authored here).
                 tImGui.TableNextColumn()
                 tUtil.pushResponsiveItemWidth(110)
                 local chgName, newName = tImGui.InputText('##boneName-' .. index .. '-' .. b.idx, b.name, 64, 0)
                 tImGui.PopItemWidth()
                 if chgName and newName ~= '' and newName ~= b.name then
-                    local okU = dpCall(function() return meshD:updateBone(b.idx, newName, b.parentName, b.x, b.y, b.z, b.radius) end)
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, newName, b.parentName, b.x, b.y, b.z, b.radius,
+                            b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
+                    end)
                     if okU then onEdit() end
                 end
 
@@ -5236,7 +5335,10 @@ function showBonesNode(tEntry, meshD, index)
                 tImGui.PopItemWidth()
                 if chgParent and newParentPos and newParentPos ~= curParentPos then
                     local newParentName = (newParentPos == 1) and nil or tParentNames[newParentPos]
-                    local okU, err = dpCall(function() return meshD:updateBone(b.idx, b.name, newParentName, b.x, b.y, b.z, b.radius) end)
+                    local okU, err = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, newParentName, b.x, b.y, b.z, b.radius,
+                            b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
+                    end)
                     if okU then onEdit() else tUtil.showMessageWarn(err or tLang.L('an_error_occurred')) end
                 end
 
@@ -5254,7 +5356,32 @@ function showBonesNode(tEntry, meshD, index)
                 local chgZ, nz = dragAxis('Z', b.z)
                 if chgX or chgY or chgZ then
                     local okU = dpCall(function()
-                        return meshD:updateBone(b.idx, b.name, b.parentName, nx or b.x, ny or b.y, nz or b.z, b.radius)
+                        return meshD:updateBone(b.idx, b.name, b.parentName, nx or b.x, ny or b.y, nz or b.z, b.radius,
+                            b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
+                    end)
+                    if okU then onEdit() end
+                end
+
+                tImGui.TableNextColumn()
+                tUtil.pushResponsiveItemWidth(70)
+                local chgRadius, nRadius = tImGui.DragFloat('Radius##boneRadius-' .. index .. '-' .. b.idx, b.radius, 0.01, 0, 0, '%.3f')
+                tImGui.PopItemWidth()
+                if chgRadius then
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, nRadius,
+                            b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
+                    end)
+                    if okU then onEdit() end
+                end
+
+                tImGui.TableNextColumn()
+                tUtil.pushResponsiveItemWidth(70)
+                local chgLength, nLength = tImGui.DragFloat('Length##boneLength-' .. index .. '-' .. b.idx, b.length, 0.01, 0, 0, '%.3f')
+                tImGui.PopItemWidth()
+                if chgLength then
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
+                            b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, nLength)
                     end)
                     if okU then onEdit() end
                 end

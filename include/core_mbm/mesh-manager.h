@@ -156,18 +156,25 @@ namespace mbm
         // diagnostic round-trip only, never consulted by rendering. `parentName` must be nullptr/""
         // (root) or already-added via a prior addBone call in this instance; addBone returns 0 and
         // fills errorOut on any validation failure, else a 1-based joint index, mirroring
-        // addAnimation's contract.
+        // addAnimation's contract. rotX/Y/Z (Euler degrees, world/armature space, engine's own
+        // X-then-Y-then-Z order) and scaleX/Y/Z (default 1,1,1) and length (default 0, meaning "no
+        // orientation data") are the fields SECTION_FRAME_SKINNED's sectionVersion 2 added - see
+        // SKELETON_BONE_V11's own comment in header-mesh.h.
         API_IMPL int addBone(const char *name, const char *parentName, const float x, const float y, const float z,
-                              const float radius, char *errorOut, const int errorOutLen);
+                              const float radius, const float rotX, const float rotY, const float rotZ,
+                              const float scaleX, const float scaleY, const float scaleZ, const float length,
+                              char *errorOut, const int errorOutLen);
         API_IMPL uint32_t getTotalBone() const noexcept;
-        API_IMPL const util::JOINT_V11 *getBone(const uint32_t index) const noexcept;
-        // Edits an existing bone in place (name/parent/position/radius). Rejects an empty/duplicate
-        // name, an unknown parent, self-parenting, and any reparent that would create a cycle (the
-        // candidate parent is a descendant of `index`). On success, re-sorts the internal joint list
-        // so parent-before-child order still holds (required by the on-disk format), which callers
-        // relying on stable indices across calls must account for.
+        API_IMPL const util::SKELETON_BONE_V11 *getBone(const uint32_t index) const noexcept;
+        // Edits an existing bone in place (name/parent/position/radius/rotation/scale/length).
+        // Rejects an empty/duplicate name, an unknown parent, self-parenting, and any reparent that
+        // would create a cycle (the candidate parent is a descendant of `index`). On success,
+        // re-sorts the internal joint list so parent-before-child order still holds (required by
+        // the on-disk format), which callers relying on stable indices across calls must account for.
         API_IMPL bool updateBone(const uint32_t index, const char *name, const char *parentName,
                                   const float x, const float y, const float z, const float radius,
+                                  const float rotX, const float rotY, const float rotZ,
+                                  const float scaleX, const float scaleY, const float scaleZ, const float length,
                                   char *errorOut, const int errorOutLen);
         // Removes bone `index`. If other bones reference it as their parent, the call fails (errorOut
         // explains how many) unless `cascadeChildren` is true, in which case the whole subtree rooted
