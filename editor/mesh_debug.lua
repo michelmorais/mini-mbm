@@ -2518,7 +2518,7 @@ function showBlenderImportDialog()
     local maxW = math.max(420, iW - 40)
     local maxH = math.max(260, iH - 60)
     local initialW = math.min(720, maxW)
-    local initialH = math.min(560, maxH)
+    local initialH = math.min(600, maxH)
     tImGui.SetNextWindowSizeConstraints({x=420, y=260}, {x=maxW, y=maxH})
     tImGui.SetNextWindowSize({x=initialW, y=initialH}, tImGui.Flags('ImGuiCond_Appearing'))
     local flags = 0
@@ -5233,17 +5233,23 @@ function showBonesNode(tEntry, meshD, index)
         tEntry.sOpenNode = wantOpen and nil or 'bones'
     end
 
-    -- Dim the live preview mesh while this node is open (per the user's own request), restored to
-    -- full opacity the moment it closes. There is no meshDebug:getColor to read back whatever tint
-    -- was set before, so this always restores to plain opaque white rather than "whatever it was".
-    -- obj:setColor takes 0.0-1.0 per channel, NOT 0-255 (docs/lua-api.md:539) -- values above 1
-    -- just clamp to opaque white, a mistake this file's own Transform-preview code used to make
-    -- too (cloneRender:setColor(255,220,50,200), now fixed alongside this feature).
+    -- Hide the live preview mesh entirely while this node is open (per the user's own request),
+    -- restored the moment it closes. Uses ONLY obj.visible/setEnableRender -- NEVER obj:setColor
+    -- with numeric args here, confirmed via direct user testing (and by reading
+    -- onSetTextureAnimationLua, src/lua-wrap/render-table/animation-lua.cpp:240) to be the actual
+    -- root cause of a real, longstanding bug: obj:setColor(r,g,b,a) is not a multiplicative tint on
+    -- top of the existing texture -- it converts the RGBA into a hex string and calls the *same*
+    -- code path as obj:setTexture(), replacing the mesh's real diffuse texture with a synthetic
+    -- solid-color one. setColor(1,1,1,1) does not mean "clear the tint," it means "swap in a plain
+    -- solid white texture" -- the original texture reference is gone for good, not just multiplied
+    -- by white. This bug predates this whole feature (the original 35%-alpha dim, which also called
+    -- setColor with numbers, had it too) and independently affects anything else in this file that
+    -- calls obj:setColor(number,...) on a real (non-placeholder) textured preview mesh.
     if index == iSelectedMeshIndex and tPreviewMesh then
         if isOpen then
-            tPreviewMesh:setColor(1, 1, 1, 0.35)
+            tPreviewMesh.visible = false
         elseif tEntry.bBonesWasOpen then
-            tPreviewMesh:setColor(1, 1, 1, 1)
+            tPreviewMesh.visible = true
         end
     end
     -- Gizmo geometry is rebuilt only on open/close transitions and after mutations (via onEdit
