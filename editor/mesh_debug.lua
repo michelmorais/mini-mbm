@@ -4693,6 +4693,21 @@ end
 local BONE_GIZMO_COLOR = {1, 0, 1, 0.85}
 local BONE_HIGHLIGHT_COLOR = {1, 1, 0, 0.95}
 
+-- DEVICE::addRenderizable (device-common.cpp) silently overwrites a 3D object's own position.z with
+-- an ever-incrementing internal "z order control" counter whenever that object is created with z
+-- exactly 0.0 -- a convenience for objects that don't care about their own depth, not something a
+-- deliberately-positioned 3D gizmo wants. Humanoid rigs routinely have several bones sitting exactly
+-- on the character's own sagittal (z=0) plane (root, hips, spine, chest, head...), so without this
+-- guard those spheres/links silently drift further along +Z on every single gizmo rebuild --
+-- confirmed via a real headless test: repeated rebuilds of the same static skeleton data moved
+-- root->hips by +0.01 world units per call, with nothing in this file's own logic touching position
+-- at all. This is exactly the "tail keeps moving toward +Z" reported once Highlight started
+-- triggering a full rebuild on every checkbox click. Nudging any exactly-zero Z off of 0.0 by a
+-- visually negligible epsilon keeps the auto-order path from ever firing.
+local function dodgeAutoZOrder(z)
+    return (z == 0) and 0.0001 or z
+end
+
 local function destroyBoneGizmo(tEntry)
     if tEntry.tBoneGizmo then
         for _, h in pairs(tEntry.tBoneGizmo.spheres) do h:destroy() end
@@ -4726,7 +4741,7 @@ function rebuildBoneGizmo(tEntry, meshD, index)
     local tHighlight = tEntry.tBoneHighlight or {}
 
     for name, b in pairs(tBones) do
-        local h = shape:new('3d', b.wx, b.wy, b.wz)
+        local h = shape:new('3d', b.wx, b.wy, dodgeAutoZOrder(b.wz))
         h:create(unitSphereVerts(), nil, 'mesh_debug_bone_sphere_unit')
         h:setScale(b.radius, b.radius, b.radius)
         local c = tHighlight[name] and BONE_HIGHLIGHT_COLOR or BONE_GIZMO_COLOR
@@ -4740,7 +4755,7 @@ function rebuildBoneGizmo(tEntry, meshD, index)
             local dx, dy, dz = b.wx - parent.wx, b.wy - parent.wy, b.wz - parent.wz
             local height = math.sqrt(dx * dx + dy * dy + dz * dz)
             if height > 0.001 then
-                local h = shape:new('3d', parent.wx, parent.wy, parent.wz)
+                local h = shape:new('3d', parent.wx, parent.wy, dodgeAutoZOrder(parent.wz))
                 -- Vertex data genuinely differs per link (radii, height) -- unique nickname each
                 -- rebuild, since shape:create()'s nickName is a shared MESH_MANAGER cache key, not
                 -- a per-instance reload guard (reused names silently serve stale geometry).
@@ -5307,6 +5322,41 @@ end
 -- (SECTION_FRAME_SKINNED / meshDebug:addBone|getBone|updateBone|removeBone).
 -- Editor/diagnostic data only -- never consulted by rendering (docs/mesh-v11-format.md Sec 6e).
 -- ---------------------------------------------------------------------------
+-- Shared by showBonesNode (Up axis/Humanoid/bake/add-bone) and showBonesWindow (the table) -- both
+-- need the current skeleton's bone list read fresh every frame (tens of joints at most, same idiom
+-- as showFrameNode's per-frame subset read).
+local function getBoneList(meshD)
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    local tBones = {}
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
+            dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            table.insert(tBones, { idx = i, name = name, x = x, y = y, z = z, radius = radius, parentName = parentName,
+                rotX = rotX, rotY = rotY, rotZ = rotZ, scaleX = scaleX, scaleY = scaleY, scaleZ = scaleZ, length = length })
+        end
+    end
+    return tBones, nBones
+end
+
+-- Shared by every bone-mutating action in showBonesNode/showBonesWindow -- keeps the "no
+-- iLastPreviewedIndex reset" fix for the preview-mesh show/hide flicker (see rebuildBoneGizmo's
+-- caller history) in exactly one place instead of two independently-maintained copies.
+local function onBonesEdit(tEntry, meshD, index)
+    tEntry.modified = true
+    rebuildBoneGizmo(tEntry, meshD, index)
+end
+
+-- ---------------------------------------------------------------------------
+-- Bones tree node: view/add/edit/remove the mesh's optional skeleton
+-- (SECTION_FRAME_SKINNED / meshDebug:addBone|getBone|updateBone|removeBone).
+-- Editor/diagnostic data only -- never consulted by rendering (docs/mesh-v11-format.md Sec 6e).
+-- Holds everything except the per-bone table itself (name/parent/position/radius/length/highlight),
+-- which lives in the dedicated showBonesWindow instead -- that table alone is wide enough to want
+-- the whole window's width, but Up axis/Apply Humanoid Armature/bake Rotate-Scale-Translate/Add
+-- Bone are one-line-or-so controls that read naturally as a tree node, per direct user request.
+-- ---------------------------------------------------------------------------
 function showBonesNode(tEntry, meshD, index)
     local wantOpen = (tEntry.sOpenNode == 'bones')
     tImGui.SetNextItemOpen(wantOpen, tImGui.Flags('ImGuiCond_Always'))
@@ -5334,10 +5384,10 @@ function showBonesNode(tEntry, meshD, index)
             tPreviewMesh.visible = true
         end
     end
-    -- Gizmo geometry is rebuilt only on open/close transitions and after mutations (via onEdit
-    -- below), never unconditionally every frame -- rebuilding involves shape:create() calls with
-    -- freshly-generated nicknames for the cylinder links (see rebuildBoneGizmo's own comment), so
-    -- doing that every single frame the node stays open would thrash the mesh-geometry cache for
+    -- Gizmo geometry is rebuilt only on open/close transitions and after mutations (via
+    -- onBonesEdit), never unconditionally every frame -- rebuilding involves shape:create() calls
+    -- with freshly-generated nicknames for the cylinder links (see rebuildBoneGizmo's own comment),
+    -- so doing that every single frame the node stays open would thrash the mesh-geometry cache for
     -- no reason.
     if isOpen and not tEntry.bBonesWasOpen then
         rebuildBoneGizmo(tEntry, meshD, index)
@@ -5348,39 +5398,144 @@ function showBonesNode(tEntry, meshD, index)
 
     if isOpen then
         tImGui.TextDisabled(tLang.L('bones_moved_to_window_label'))
+        tImGui.HelpMarker(tLang.L('bones_transform_warning'))
+
+        local tBones, nBones = getBoneList(meshD)
+
+        tImGui.Separator()
+        if not tEntry.sHumanoidUpAxis then
+            local aabbForAxis = computeMeshAABB(meshD)
+            tEntry.sHumanoidUpAxis = aabbForAxis and detectHumanoidUpAxis(aabbForAxis) or 'y'
+        end
+        -- Which AABB extent is actually "height" can't be fully auto-detected (a T-pose character's
+        -- own arm-span width can be as large as its height, confirmed against a real user file), so
+        -- this stays user-overridable rather than a silent guess -- see detectHumanoidUpAxis's comment.
+        tImGui.Text(tLang.L('bones_humanoid_up_axis_label'))
+        tImGui.SameLine()
+        local axisOpts = { 'X', 'Y', 'Z' }
+        local axisPos = ({ x = 1, y = 2, z = 3 })[tEntry.sHumanoidUpAxis] or 2
+        tUtil.pushResponsiveItemWidth(70)
+        local chgAxis, newAxisPos = tImGui.Combo('##boneHumanoidAxis-' .. index, axisPos, axisOpts, -1)
+        tImGui.PopItemWidth()
+        if chgAxis and newAxisPos then
+            tEntry.sHumanoidUpAxis = ({ 'x', 'y', 'z' })[newAxisPos]
+        end
+        if tEntry.bBonesHumanoidConfirmPending then
+            tImGui.TextColored({r = 1, g = 0.6, b = 0.2, a = 1}, string.format(tLang.L('bones_apply_humanoid_confirm_fmt'), nBones))
+            if tImGui.Button(tLang.L('bones_apply_humanoid_button') .. '##boneHumanoidConfirm-' .. index) then
+                local okH, errH = dpCall(function() return applyHumanoidArmature(meshD, tEntry.sHumanoidUpAxis) end)
+                if okH then onBonesEdit(tEntry, meshD, index) else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
+                tEntry.bBonesHumanoidConfirmPending = false
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('cancel') .. '##boneHumanoidCancel-' .. index) then
+                tEntry.bBonesHumanoidConfirmPending = false
+            end
+        else
+            if tImGui.Button(tLang.L('bones_apply_humanoid_button') .. '##boneHumanoid-' .. index) then
+                if nBones > 0 then
+                    tEntry.bBonesHumanoidConfirmPending = true
+                else
+                    local okH, errH = dpCall(function() return applyHumanoidArmature(meshD, tEntry.sHumanoidUpAxis) end)
+                    if okH then onBonesEdit(tEntry, meshD, index) else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
+                end
+            end
+        end
+
+        tImGui.Separator()
+        tImGui.HelpMarker(tLang.L('bones_bake_xform_help'))
+        tEntry.tBoneXformUI = tEntry.tBoneXformUI or { rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, dx = 0, dy = 0, dz = 0 }
+        local bxf = tEntry.tBoneXformUI
+
+        tImGui.Text(tLang.L('rotate_xyz'))
+        local chg_brx, brx = tImGui.DragFloat('X##bonesXfRx-' .. index, bxf.rx, 1.0, 0, 0, '%.1f')
+        local chg_bry, bry = tImGui.DragFloat('Y##bonesXfRy-' .. index, bxf.ry, 1.0, 0, 0, '%.1f')
+        local chg_brz, brz = tImGui.DragFloat('Z##bonesXfRz-' .. index, bxf.rz, 1.0, 0, 0, '%.1f')
+        if chg_brx then bxf.rx = brx end
+        if chg_bry then bxf.ry = bry end
+        if chg_brz then bxf.rz = brz end
+        if tImGui.Button(tLang.L('apply_rotation') .. '##bonesXfRotBtn-' .. index) then
+            applyRotationToBonesDeg(meshD, bxf.rx, bxf.ry, bxf.rz)
+            onBonesEdit(tEntry, meshD, index)
+            bxf.rx, bxf.ry, bxf.rz = 0, 0, 0
+        end
+
+        tImGui.Spacing()
+        tImGui.Text(tLang.L('scale_xyz'))
+        local chg_bsx, bsx = tImGui.DragFloat('X##bonesXfSx-' .. index, bxf.sx, 0.01, 0, 0, '%.3f')
+        local chg_bsy, bsy = tImGui.DragFloat('Y##bonesXfSy-' .. index, bxf.sy, 0.01, 0, 0, '%.3f')
+        local chg_bsz, bsz = tImGui.DragFloat('Z##bonesXfSz-' .. index, bxf.sz, 0.01, 0, 0, '%.3f')
+        if chg_bsx then bxf.sx = bsx end
+        if chg_bsy then bxf.sy = bsy end
+        if chg_bsz then bxf.sz = bsz end
+        if tImGui.Button(tLang.L('apply_scale') .. '##bonesXfScaleBtn-' .. index) then
+            applyScaleToBones(meshD, bxf.sx, bxf.sy, bxf.sz)
+            onBonesEdit(tEntry, meshD, index)
+            bxf.sx, bxf.sy, bxf.sz = 1, 1, 1
+        end
+
+        tImGui.Spacing()
+        tImGui.Text(tLang.L('translate_xyz'))
+        local chg_bdx, bdx = tImGui.DragFloat('X##bonesXfDx-' .. index, bxf.dx, 1.0, 0, 0, '%.1f')
+        local chg_bdy, bdy = tImGui.DragFloat('Y##bonesXfDy-' .. index, bxf.dy, 1.0, 0, 0, '%.1f')
+        local chg_bdz, bdz = tImGui.DragFloat('Z##bonesXfDz-' .. index, bxf.dz, 1.0, 0, 0, '%.1f')
+        if chg_bdx then bxf.dx = bdx end
+        if chg_bdy then bxf.dy = bdy end
+        if chg_bdz then bxf.dz = bdz end
+        if tImGui.Button(tLang.L('apply_translate') .. '##bonesXfTransBtn-' .. index) then
+            applyTranslateToBones(meshD, bxf.dx, bxf.dy, bxf.dz)
+            onBonesEdit(tEntry, meshD, index)
+            bxf.dx, bxf.dy, bxf.dz = 0, 0, 0
+        end
+
+        tImGui.Separator()
+        tEntry.sBonesNewName = tEntry.sBonesNewName or ('Bone ' .. (nBones + 1))
+        tUtil.pushResponsiveItemWidth(150)
+        local _, newBoneName = tImGui.InputText('##boneNewName-' .. index, tEntry.sBonesNewName, 64, 0)
+        tImGui.PopItemWidth()
+        tEntry.sBonesNewName = newBoneName
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('bones_add_button') .. '##boneAdd-' .. index) then
+            local nameToAdd = (tEntry.sBonesNewName ~= '' and tEntry.sBonesNewName) or ('Bone ' .. (nBones + 1))
+            -- New bone starts at the viewport's current orbit focus point (converted from world space
+            -- back to the mesh's own model space), so it appears where the user is already looking
+            -- instead of always at the mesh origin.
+            local fx, fy, fz = tEntry.cam3d and tEntry.cam3d.fx or 0, tEntry.cam3d and tEntry.cam3d.fy or 0, tEntry.cam3d and tEntry.cam3d.fz or 0
+            local bx, by, bz = worldToBone(meshD, fx, fy, fz)
+            local defaultParent = (#tBones > 0) and tBones[#tBones].name or nil
+            local okA, err = dpCall(function() return meshD:addBone(nameToAdd, defaultParent, bx, by, bz, 2.0) end)
+            if okA then
+                onBonesEdit(tEntry, meshD, index)
+                tEntry.sBonesNewName = 'Bone ' .. (nBones + 2)
+            else
+                tUtil.showMessageWarn(err or tLang.L('an_error_occurred'))
+            end
+        end
+
+        -- Export to FBX moved to File menu (next to Import via Blender) -- it isn't specific to
+        -- bones (a bone-less mesh still exports fine), so it doesn't belong buried in this node.
+
         tImGui.TreePop()
     end
 end
 
--- Everything the Bones node used to draw inline (table, humanoid armature, bake Rotate/Scale/
--- Translate, add-bone form) now lives in its own bottom-docked window instead -- the inline table
--- was too cramped in the "Loaded Meshes" tree panel to read comfortably once it grew to 8+ columns.
--- Called once per frame from onLoop (unlike showBonesNode, which runs once per loaded-mesh entry as
--- part of the tree) -- only ever shows the CURRENTLY SELECTED mesh's bones, matching the scope the
--- mesh-hide/gizmo logic in showBonesNode already uses (tPreviewMesh only ever reflects
--- iSelectedMeshIndex, so showing any other entry's bones here would have nothing to hide/gizmo
--- against). Closing this window (its own titlebar X) clears tEntry.sOpenNode -- showBonesNode's own
--- per-frame open/close-transition logic (mesh restore, gizmo destroy) then runs on the very next
--- frame exactly as if the tree item itself had been clicked closed, so there's only one real
--- "closed" state to keep in sync, not two.
+-- Just the per-bone table (name/parent/x/y/z/radius/length/highlight/remove) in its own
+-- bottom-docked window -- too wide to read comfortably inside the narrow "Loaded Meshes" tree panel
+-- once it grew past a handful of columns. Everything else the Bones node used to draw inline (Up
+-- axis, Apply Humanoid Armature, bake Rotate/Scale/Translate, Add Bone) stayed in showBonesNode
+-- itself, per direct user request -- only the table moved out. Called once per frame from onLoop
+-- (unlike showBonesNode, which runs once per loaded-mesh entry as part of the tree) -- only ever
+-- shows the CURRENTLY SELECTED mesh's bones, matching the scope the mesh-hide/gizmo logic in
+-- showBonesNode already uses (tPreviewMesh only ever reflects iSelectedMeshIndex, so showing any
+-- other entry's bones here would have nothing to hide/gizmo against). Closing this window (its own
+-- titlebar X) clears tEntry.sOpenNode -- showBonesNode's own per-frame open/close-transition logic
+-- (mesh restore, gizmo destroy) then runs on the very next frame exactly as if the tree item itself
+-- had been clicked closed, so there's only one real "closed" state to keep in sync, not two.
 function showBonesWindow()
     local index = iSelectedMeshIndex
     local tEntry = tLoadedMeshes[index]
     if not tEntry or tEntry.sOpenNode ~= 'bones' then return end
     local meshD = tEntry.meshDebug
-
-    local function onEdit()
-        tEntry.modified = true
-        -- No iLastPreviewedIndex=0 here (unlike every other onEdit in this file) -- that forces
-        -- updatePreviewMesh to fully destroy+recreate tPreviewMesh, which resets it to
-        -- visible=true. SECTION_FRAME_SKINNED (bones) is stored completely independently of
-        -- SECTION_FRAME_STATIC (the actual mesh geometry) -- a bone edit never changes anything
-        -- updatePreviewMesh would need to re-render. With it, dragging a bone's X/Y/Z fires many
-        -- edits per second, each briefly resurrecting tPreviewMesh as visible for one frame before
-        -- this node's own per-frame hide logic re-hides it -- a rapid show/hide flicker, confirmed
-        -- via direct user testing. rebuildBoneGizmo below is the only refresh actually needed.
-        rebuildBoneGizmo(tEntry, meshD, index)
-    end
 
     -- Bottom-anchored, wide on first appearance (ImGuiCond_Once -- movable/resizable by the user
     -- afterward), following showCameraWindow's "real utility window" pattern rather than
@@ -5400,26 +5555,9 @@ function showBonesWindow()
         return
     end
 
-    tImGui.HelpMarker(tLang.L('bones_transform_warning'))
-
-    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
-    nBones = (okTotal and nBones) or 0
-
-    -- Read the whole skeleton once per frame -- small (tens of joints at most), same idiom as
-    -- showFrameNode's per-frame subset read above. Position is edited only via the DragFloat X/Y/Z
-    -- fields below (mouse click-drag picking in the 3D viewport was removed -- see the
-    -- mbm.getPickRay/camera.scaleScreen2d memory note).
-    local tBones = {}
+    local tBones = getBoneList(meshD)
     local tParentNames = { tLang.L('bones_root_label') }
-    for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
-            dpCall(function() return meshD:getBone(i) end)
-        if okG and name then
-            table.insert(tBones, { idx = i, name = name, x = x, y = y, z = z, radius = radius, parentName = parentName,
-                rotX = rotX, rotY = rotY, rotZ = rotZ, scaleX = scaleX, scaleY = scaleY, scaleZ = scaleZ, length = length })
-            table.insert(tParentNames, name)
-        end
-    end
+    for _, b in ipairs(tBones) do table.insert(tParentNames, b.name) end
 
     tEntry.tBoneHighlight = tEntry.tBoneHighlight or {}
 
@@ -5427,22 +5565,24 @@ function showBonesWindow()
         -- ScrollX + fixed-width columns (not the default stretch sizing) so a wide row (name +
         -- parent combo + 3 drag floats + remove button) scrolls horizontally within the panel
         -- instead of forcing the whole Mesh Tree window wider or clipping the rightmost columns.
-        -- Now that this table has the whole bottom window's width to work with instead of the
-        -- narrow "Loaded Meshes" tree panel, horizontal scroll should rarely be needed in practice.
+        -- Columns widened from their original inline-tree-panel sizing (per direct user testing
+        -- feedback that several were clipping their own header/value text) now that this table has
+        -- the whole bottom window's width to work with instead of the narrow "Loaded Meshes" tree
+        -- panel -- horizontal scroll should rarely be needed in practice.
         local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
             'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_ScrollX', 'ImGuiTableFlags_SizingFixedFit')
         local listH = math.min(#tBones * 30 + 34, 320)
         if tImGui.BeginTable('bonesTbl-' .. index, 9, tblFlags, {x = 0, y = listH}) then
             tImGui.TableSetupScrollFreeze(1, 1)
-            tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
-            tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
-            tImGui.TableSetupColumn('X', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
-            tImGui.TableSetupColumn('Y', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
-            tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
-            tImGui.TableSetupColumn(tLang.L('bones_radius_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
-            tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
-            tImGui.TableSetupColumn(tLang.L('bones_highlight_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
-            tImGui.TableSetupColumn('', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+            tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 160)
+            tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 160)
+            tImGui.TableSetupColumn('X', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+            tImGui.TableSetupColumn('Y', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+            tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+            tImGui.TableSetupColumn(tLang.L('bones_radius_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+            tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 110)
+            tImGui.TableSetupColumn(tLang.L('bones_highlight_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 100)
+            tImGui.TableSetupColumn('', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 130)
             tImGui.TableHeadersRow()
 
             for _, b in ipairs(tBones) do
@@ -5453,7 +5593,7 @@ function showBonesWindow()
                 -- bone's name/parent/position/radius/length here would silently reset its stored
                 -- orientation (set by Blender import, not hand-authored here).
                 tImGui.TableNextColumn()
-                tUtil.pushResponsiveItemWidth(110)
+                tUtil.pushResponsiveItemWidth(140)
                 local chgName, newName = tImGui.InputText('##boneName-' .. index .. '-' .. b.idx, b.name, 64, 0)
                 tImGui.PopItemWidth()
                 if chgName and newName ~= '' and newName ~= b.name then
@@ -5461,7 +5601,7 @@ function showBonesWindow()
                         return meshD:updateBone(b.idx, newName, b.parentName, b.x, b.y, b.z, b.radius,
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
                     end)
-                    if okU then onEdit() end
+                    if okU then onBonesEdit(tEntry, meshD, index) end
                 end
 
                 tImGui.TableNextColumn()
@@ -5469,7 +5609,7 @@ function showBonesWindow()
                 for pi, pname in ipairs(tParentNames) do
                     if pname == (b.parentName or tLang.L('bones_root_label')) then curParentPos = pi end
                 end
-                tUtil.pushResponsiveItemWidth(110)
+                tUtil.pushResponsiveItemWidth(140)
                 local chgParent, newParentPos = tImGui.Combo('##boneParent-' .. index .. '-' .. b.idx, curParentPos, tParentNames, -1)
                 tImGui.PopItemWidth()
                 if chgParent and newParentPos and newParentPos ~= curParentPos then
@@ -5478,11 +5618,11 @@ function showBonesWindow()
                         return meshD:updateBone(b.idx, b.name, newParentName, b.x, b.y, b.z, b.radius,
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
                     end)
-                    if okU then onEdit() else tUtil.showMessageWarn(err or tLang.L('an_error_occurred')) end
+                    if okU then onBonesEdit(tEntry, meshD, index) else tUtil.showMessageWarn(err or tLang.L('an_error_occurred')) end
                 end
 
                 local function dragAxis(axisLabel, val)
-                    tUtil.pushResponsiveItemWidth(70)
+                    tUtil.pushResponsiveItemWidth(80)
                     local chg, nv = tImGui.DragFloat(axisLabel .. '##bone' .. axisLabel .. '-' .. index .. '-' .. b.idx, val, 0.5, 0, 0, '%.2f')
                     tImGui.PopItemWidth()
                     return chg, nv
@@ -5498,11 +5638,11 @@ function showBonesWindow()
                         return meshD:updateBone(b.idx, b.name, b.parentName, nx or b.x, ny or b.y, nz or b.z, b.radius,
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
                     end)
-                    if okU then onEdit() end
+                    if okU then onBonesEdit(tEntry, meshD, index) end
                 end
 
                 tImGui.TableNextColumn()
-                tUtil.pushResponsiveItemWidth(70)
+                tUtil.pushResponsiveItemWidth(80)
                 local chgRadius, nRadius = tImGui.DragFloat('Radius##boneRadius-' .. index .. '-' .. b.idx, b.radius, 0.01, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
                 if chgRadius then
@@ -5510,11 +5650,11 @@ function showBonesWindow()
                         return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, nRadius,
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
                     end)
-                    if okU then onEdit() end
+                    if okU then onBonesEdit(tEntry, meshD, index) end
                 end
 
                 tImGui.TableNextColumn()
-                tUtil.pushResponsiveItemWidth(70)
+                tUtil.pushResponsiveItemWidth(80)
                 local chgLength, nLength = tImGui.DragFloat('Length##boneLength-' .. index .. '-' .. b.idx, b.length, 0.01, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
                 if chgLength then
@@ -5522,13 +5662,13 @@ function showBonesWindow()
                         return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, nLength)
                     end)
-                    if okU then onEdit() end
+                    if okU then onBonesEdit(tEntry, meshD, index) end
                 end
 
                 tImGui.TableNextColumn()
                 -- Pure view preference (which bone renders yellow in the 3D gizmo view), not a mesh
-                -- edit -- no onEdit()/tEntry.modified, just a gizmo recolor. Multiple bones can be
-                -- highlighted at once (independent per-row checkboxes, not a radio selection).
+                -- edit -- no onBonesEdit()/tEntry.modified, just a gizmo recolor. Multiple bones can
+                -- be highlighted at once (independent per-row checkboxes, not a radio selection).
                 local newHighlight = tImGui.Checkbox('##boneHighlight-' .. index .. '-' .. b.idx, tEntry.tBoneHighlight[b.name] or false)
                 if newHighlight ~= (tEntry.tBoneHighlight[b.name] or false) then
                     tEntry.tBoneHighlight[b.name] = newHighlight or nil
@@ -5539,7 +5679,7 @@ function showBonesWindow()
                 if tImGui.Button(tLang.L('bones_remove_button') .. '##boneRm-' .. index .. '-' .. b.idx) then
                     local okR = dpCall(function() return meshD:removeBone(b.idx, false) end)
                     if okR then
-                        onEdit()
+                        onBonesEdit(tEntry, meshD, index)
                         tEntry.tBonePendingRemove = nil
                     else
                         tEntry.tBonePendingRemove = { idx = b.idx, name = b.name }
@@ -5557,7 +5697,7 @@ function showBonesWindow()
         tImGui.TextColored({r = 1, g = 0.6, b = 0.2, a = 1}, string.format(tLang.L('bones_confirm_cascade_fmt'), pend.name))
         if tImGui.Button(tLang.L('bones_confirm_cascade_button') .. '##boneRmCascade-' .. index) then
             local okR = dpCall(function() return meshD:removeBone(pend.idx, true) end)
-            if okR then onEdit() end
+            if okR then onBonesEdit(tEntry, meshD, index) end
             tEntry.tBonePendingRemove = nil
         end
         tImGui.SameLine()
@@ -5565,119 +5705,6 @@ function showBonesWindow()
             tEntry.tBonePendingRemove = nil
         end
     end
-
-    tImGui.Separator()
-    if not tEntry.sHumanoidUpAxis then
-        local aabbForAxis = computeMeshAABB(meshD)
-        tEntry.sHumanoidUpAxis = aabbForAxis and detectHumanoidUpAxis(aabbForAxis) or 'y'
-    end
-    -- Which AABB extent is actually "height" can't be fully auto-detected (a T-pose character's
-    -- own arm-span width can be as large as its height, confirmed against a real user file), so
-    -- this stays user-overridable rather than a silent guess -- see detectHumanoidUpAxis's comment.
-    tImGui.Text(tLang.L('bones_humanoid_up_axis_label'))
-    tImGui.SameLine()
-    local axisOpts = { 'X', 'Y', 'Z' }
-    local axisPos = ({ x = 1, y = 2, z = 3 })[tEntry.sHumanoidUpAxis] or 2
-    tUtil.pushResponsiveItemWidth(70)
-    local chgAxis, newAxisPos = tImGui.Combo('##boneHumanoidAxis-' .. index, axisPos, axisOpts, -1)
-    tImGui.PopItemWidth()
-    if chgAxis and newAxisPos then
-        tEntry.sHumanoidUpAxis = ({ 'x', 'y', 'z' })[newAxisPos]
-    end
-    if tEntry.bBonesHumanoidConfirmPending then
-        tImGui.TextColored({r = 1, g = 0.6, b = 0.2, a = 1}, string.format(tLang.L('bones_apply_humanoid_confirm_fmt'), nBones))
-        if tImGui.Button(tLang.L('bones_apply_humanoid_button') .. '##boneHumanoidConfirm-' .. index) then
-            local okH, errH = dpCall(function() return applyHumanoidArmature(meshD, tEntry.sHumanoidUpAxis) end)
-            if okH then onEdit() else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
-            tEntry.bBonesHumanoidConfirmPending = false
-        end
-        tImGui.SameLine()
-        if tImGui.Button(tLang.L('cancel') .. '##boneHumanoidCancel-' .. index) then
-            tEntry.bBonesHumanoidConfirmPending = false
-        end
-    else
-        if tImGui.Button(tLang.L('bones_apply_humanoid_button') .. '##boneHumanoid-' .. index) then
-            if nBones > 0 then
-                tEntry.bBonesHumanoidConfirmPending = true
-            else
-                local okH, errH = dpCall(function() return applyHumanoidArmature(meshD, tEntry.sHumanoidUpAxis) end)
-                if okH then onEdit() else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
-            end
-        end
-    end
-
-    tImGui.Separator()
-    tImGui.HelpMarker(tLang.L('bones_bake_xform_help'))
-    tEntry.tBoneXformUI = tEntry.tBoneXformUI or { rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, dx = 0, dy = 0, dz = 0 }
-    local bxf = tEntry.tBoneXformUI
-
-    tImGui.Text(tLang.L('rotate_xyz'))
-    local chg_brx, brx = tImGui.DragFloat('X##bonesXfRx-' .. index, bxf.rx, 1.0, 0, 0, '%.1f')
-    local chg_bry, bry = tImGui.DragFloat('Y##bonesXfRy-' .. index, bxf.ry, 1.0, 0, 0, '%.1f')
-    local chg_brz, brz = tImGui.DragFloat('Z##bonesXfRz-' .. index, bxf.rz, 1.0, 0, 0, '%.1f')
-    if chg_brx then bxf.rx = brx end
-    if chg_bry then bxf.ry = bry end
-    if chg_brz then bxf.rz = brz end
-    if tImGui.Button(tLang.L('apply_rotation') .. '##bonesXfRotBtn-' .. index) then
-        applyRotationToBonesDeg(meshD, bxf.rx, bxf.ry, bxf.rz)
-        onEdit()
-        bxf.rx, bxf.ry, bxf.rz = 0, 0, 0
-    end
-
-    tImGui.Spacing()
-    tImGui.Text(tLang.L('scale_xyz'))
-    local chg_bsx, bsx = tImGui.DragFloat('X##bonesXfSx-' .. index, bxf.sx, 0.01, 0, 0, '%.3f')
-    local chg_bsy, bsy = tImGui.DragFloat('Y##bonesXfSy-' .. index, bxf.sy, 0.01, 0, 0, '%.3f')
-    local chg_bsz, bsz = tImGui.DragFloat('Z##bonesXfSz-' .. index, bxf.sz, 0.01, 0, 0, '%.3f')
-    if chg_bsx then bxf.sx = bsx end
-    if chg_bsy then bxf.sy = bsy end
-    if chg_bsz then bxf.sz = bsz end
-    if tImGui.Button(tLang.L('apply_scale') .. '##bonesXfScaleBtn-' .. index) then
-        applyScaleToBones(meshD, bxf.sx, bxf.sy, bxf.sz)
-        onEdit()
-        bxf.sx, bxf.sy, bxf.sz = 1, 1, 1
-    end
-
-    tImGui.Spacing()
-    tImGui.Text(tLang.L('translate_xyz'))
-    local chg_bdx, bdx = tImGui.DragFloat('X##bonesXfDx-' .. index, bxf.dx, 1.0, 0, 0, '%.1f')
-    local chg_bdy, bdy = tImGui.DragFloat('Y##bonesXfDy-' .. index, bxf.dy, 1.0, 0, 0, '%.1f')
-    local chg_bdz, bdz = tImGui.DragFloat('Z##bonesXfDz-' .. index, bxf.dz, 1.0, 0, 0, '%.1f')
-    if chg_bdx then bxf.dx = bdx end
-    if chg_bdy then bxf.dy = bdy end
-    if chg_bdz then bxf.dz = bdz end
-    if tImGui.Button(tLang.L('apply_translate') .. '##bonesXfTransBtn-' .. index) then
-        applyTranslateToBones(meshD, bxf.dx, bxf.dy, bxf.dz)
-        onEdit()
-        bxf.dx, bxf.dy, bxf.dz = 0, 0, 0
-    end
-
-    tImGui.Separator()
-    tEntry.sBonesNewName = tEntry.sBonesNewName or ('Bone ' .. (nBones + 1))
-    tUtil.pushResponsiveItemWidth(150)
-    local _, newBoneName = tImGui.InputText('##boneNewName-' .. index, tEntry.sBonesNewName, 64, 0)
-    tImGui.PopItemWidth()
-    tEntry.sBonesNewName = newBoneName
-    tImGui.SameLine()
-    if tImGui.Button(tLang.L('bones_add_button') .. '##boneAdd-' .. index) then
-        local nameToAdd = (tEntry.sBonesNewName ~= '' and tEntry.sBonesNewName) or ('Bone ' .. (nBones + 1))
-        -- New bone starts at the viewport's current orbit focus point (converted from world space
-        -- back to the mesh's own model space), so it appears where the user is already looking
-        -- instead of always at the mesh origin.
-        local fx, fy, fz = tEntry.cam3d and tEntry.cam3d.fx or 0, tEntry.cam3d and tEntry.cam3d.fy or 0, tEntry.cam3d and tEntry.cam3d.fz or 0
-        local bx, by, bz = worldToBone(meshD, fx, fy, fz)
-        local defaultParent = (#tBones > 0) and tBones[#tBones].name or nil
-        local okA, err = dpCall(function() return meshD:addBone(nameToAdd, defaultParent, bx, by, bz, 2.0) end)
-        if okA then
-            onEdit()
-            tEntry.sBonesNewName = 'Bone ' .. (nBones + 2)
-        else
-            tUtil.showMessageWarn(err or tLang.L('an_error_occurred'))
-        end
-    end
-
-    -- Export to FBX moved to File menu (next to Import via Blender) -- it isn't specific to
-    -- bones (a bone-less mesh still exports fine), so it doesn't belong buried in this node.
 
     tImGui.End()
 end
