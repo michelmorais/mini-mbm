@@ -67,6 +67,13 @@ namespace mbm
         // SECTION_FRAME_SKINNED (docs/mesh-v11-format.md Sec. 6e) - editor/diagnostic round-trip
         // only, never consulted by rendering. See MESH_MBM_DEBUG::addBone/getBone/getTotalBone.
         std::vector<util::SKELETON_BONE_V11> skeleton;
+        // SECTION_VERTEX_SKIN_WEIGHTS (docs/mesh-v11-format.md Sec. 6f) - editor/diagnostic + FBX
+        // re-export round-trip only, never consulted by rendering. weightPalette holds the unique
+        // bone names referenced by any entry in vertexWeights; vertexWeights[i].paletteIndex values
+        // index into weightPalette, not into `skeleton` above. Empty (both) means "no stored weight
+        // data" - see MESH_MBM_DEBUG::hasVertexWeights/setVertexWeight/getVertexWeight.
+        std::vector<std::string> weightPalette;
+        std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
     };
 }
 

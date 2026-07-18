@@ -345,6 +345,51 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
     return arm_obj
 
 
+def apply_stored_vertex_weights(mesh_obj, armature_obj, verts_data: list[dict], debug: bool) -> None:
+    """Writes the mesh's own REAL, originally-authored per-vertex bone weights -- captured at
+    import time by editor/blender_mesh_export.py's export_frame_subsets (SECTION_VERTEX_SKIN_WEIGHTS,
+    docs/mesh-v11-format.md Sec. 6f) and round-tripped here via writeMeshDebugJson's "boneNames"/
+    "weights" per-vertex fields -- directly into mesh_obj's vertex groups. No ARMATURE_ENVELOPE
+    geometric approximation, and none of bind_mesh_to_armature's cleanup passes (root-motion
+    stripping, nearest-bone fallback, left/right crosstalk resolution): all of those exist purely to
+    fix pathologies of envelope binding (a distance-based *guess*) and have nothing to correct when
+    the weights are real to begin with -- running them anyway would risk distorting genuinely-
+    authored data to fix a problem it doesn't have. A vertex with no stored weight data is left with
+    no vertex group assignment at all, a faithful round-trip of "the original mesh genuinely left
+    this vertex unweighted," not something to paper over.
+    """
+    import bpy
+
+    bpy.ops.object.select_all(action='DESELECT')
+    mesh_obj.select_set(True)
+    armature_obj.select_set(True)
+    bpy.context.view_layer.objects.active = armature_obj
+    # Bare parent+modifier only (no 'ARMATURE_AUTO'/'ARMATURE_ENVELOPE' auto-weight generation) --
+    # this still sets up the parent relationship + Armature modifier the FBX exporter needs to
+    # recognize mesh_obj as skinned to armature_obj; the vertex group weights populated below are
+    # what actually carries the real per-vertex data.
+    bpy.ops.object.parent_set(type='ARMATURE')
+
+    vgroups: dict[str, Any] = {}
+    weighted_count = 0
+    for vertex_index, v in enumerate(verts_data):
+        names = v.get("boneNames") or []
+        weights = v.get("weights") or []
+        if not names:
+            continue
+        weighted_count += 1
+        for name, weight in zip(names, weights):
+            if not name:
+                continue
+            vg = vgroups.get(name)
+            if vg is None:
+                vg = mesh_obj.vertex_groups.get(name) or mesh_obj.vertex_groups.new(name=name)
+                vgroups[name] = vg
+            vg.add([vertex_index], float(weight), 'REPLACE')
+    debug_print(debug, f"applied stored vertex weights: {weighted_count}/{len(verts_data)} vertices, "
+                        f"{len(vgroups)} bone(s) referenced")
+
+
 def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
     import bpy
 
@@ -590,7 +635,15 @@ def main() -> int:
     armature_obj = build_armature(data, args.debug_steps, rotation_deg)
     if armature_obj:
         check_cancel_requested(args.cancel_file)
-        bind_mesh_to_armature(mesh_obj, armature_obj, args.debug_steps)
+        verts_data = data["mesh"]["vertices"]
+        # SECTION_VERTEX_SKIN_WEIGHTS data (docs/mesh-v11-format.md Sec. 6f), when present, replaces
+        # ARMATURE_ENVELOPE's geometric guesswork entirely -- see apply_stored_vertex_weights' own
+        # docstring for why its cleanup passes don't apply to real, originally-authored weights.
+        if any(v.get("boneNames") for v in verts_data):
+            debug_print(args.debug_steps, "using real stored per-vertex weights (no envelope binding)")
+            apply_stored_vertex_weights(mesh_obj, armature_obj, verts_data, args.debug_steps)
+        else:
+            bind_mesh_to_armature(mesh_obj, armature_obj, args.debug_steps)
     else:
         debug_print(args.debug_steps, "no bones in input -- exporting mesh-only FBX")
 

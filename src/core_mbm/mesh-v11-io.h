@@ -123,6 +123,13 @@ namespace util
     // fields on disk (name..radius), v2 files have all 13 (see SKELETON_BONE_V11's own comment).
     bool writeSkeletonBoneV11(FILE *fp, const util::SKELETON_BONE_V11 &in);
     bool readSkeletonBoneV11(util::MEM_CURSOR_V11 &fp, util::SKELETON_BONE_V11 &out, uint16_t sectionVersion);
+
+    // SECTION_VERTEX_SKIN_WEIGHTS payload serializers.
+    bool writeVertexSkinWeightsHeaderV11(FILE *fp, const util::VERTEX_SKIN_WEIGHTS_HEADER_V11 &in);
+    bool readVertexSkinWeightsHeaderV11(util::MEM_CURSOR_V11 &fp, util::VERTEX_SKIN_WEIGHTS_HEADER_V11 &out);
+
+    bool writeVertexBoneWeightV11(FILE *fp, const util::VERTEX_BONE_WEIGHT_V11 &in);
+    bool readVertexBoneWeightV11(util::MEM_CURSOR_V11 &fp, util::VERTEX_BONE_WEIGHT_V11 &out);
 }
 
 #endif

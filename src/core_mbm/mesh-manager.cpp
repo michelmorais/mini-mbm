@@ -127,6 +127,11 @@ namespace mbm
         // path, not just through MESH_MBM_DEBUG::loadV11 (which has its own separate read loop
         // that actually stores this into Impl::skeleton for editing).
         std::vector<util::SKELETON_BONE_V11> skeleton;
+        // Same "parsed but intentionally unused by MESH_MBM" rationale as `skeleton` above, for
+        // SECTION_VERTEX_SKIN_WEIGHTS - see MESH_MBM_DEBUG::Impl::weightPalette/vertexWeights
+        // (mesh-manager-impl.h) for where a debug-path load actually keeps this.
+        std::vector<std::string> weightPalette;
+        std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -163,7 +168,8 @@ namespace mbm
               positionOffset_deprecated(other.positionOffset_deprecated),
               angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
               extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
-              skeleton(std::move(other.skeleton))
+              skeleton(std::move(other.skeleton)), weightPalette(std::move(other.weightPalette)),
+              vertexWeights(std::move(other.vertexWeights))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -185,6 +191,8 @@ namespace mbm
             extraPaths     = std::move(other.extraPaths);
             frames         = std::move(other.frames);
             skeleton       = std::move(other.skeleton);
+            weightPalette  = std::move(other.weightPalette);
+            vertexWeights  = std::move(other.vertexWeights);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -620,6 +628,47 @@ namespace
         return true;
     }
 
+    // Parses one SECTION_VERTEX_SKIN_WEIGHTS payload (already staged as `tmp`) into `outPalette`/
+    // `outWeights`, shared by parse_v11_intermediate (MESH_MBM/async load path, which discards the
+    // result - no runtime skinning consumer exists) and MESH_MBM_DEBUG::loadV11 (which stores it
+    // for editing/re-export). sectionVersion is accepted for symmetry with
+    // parse_skeleton_section_v11 and future-proofing, but this section has only ever had version 1
+    // so far - nothing branches on it yet.
+    bool parse_vertex_skin_weights_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<std::string> &outPalette,
+                                                std::vector<util::VERTEX_BONE_WEIGHT_V11> &outWeights,
+                                                const uint16_t /*sectionVersion*/)
+    {
+        util::VERTEX_SKIN_WEIGHTS_HEADER_V11 v11Header;
+        if (!util::readVertexSkinWeightsHeaderV11(tmp, v11Header))
+            return false;
+
+        outPalette.clear();
+        outPalette.reserve(v11Header.paletteCount);
+        for (uint32_t i = 0; i < v11Header.paletteCount; ++i)
+        {
+            std::string name;
+            if (!util::readStringV11(tmp, name))
+                return false;
+            outPalette.push_back(std::move(name));
+        }
+
+        outWeights.clear();
+        outWeights.reserve(v11Header.vertexCount);
+        for (uint32_t i = 0; i < v11Header.vertexCount; ++i)
+        {
+            util::VERTEX_BONE_WEIGHT_V11 entry;
+            if (!util::readVertexBoneWeightV11(tmp, entry))
+                return false;
+            for (int slot = 0; slot < 4; ++slot)
+            {
+                if (entry.paletteIndex[slot] != 0xFF && entry.paletteIndex[slot] >= outPalette.size())
+                    return false; // malformed file - palette index out of range
+            }
+            outWeights.push_back(entry);
+        }
+        return true;
+    }
+
     // Worker-thread-safe equivalent of MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic,
     // takes INFO_PHYSICS directly instead of going through `this->impl` (parse_v11_intermediate has
     // no MESH_MBM_DEBUG instance).
@@ -898,6 +947,18 @@ namespace
                 if (!parse_skeleton_section_v11(tmp, out.skeleton, staged.header.sectionVersion))
                 {
                     errorOut = "failed to parse SECTION_FRAME_SKINNED";
+                    return false;
+                }
+            }
+            else if (staged.header.type == util::SECTION_VERTEX_SKIN_WEIGHTS)
+            {
+                // Parsed but intentionally unused by MESH_MBM (see out.weightPalette/vertexWeights'
+                // own comment above) - purely so this shared parse loop can succeed on a mesh
+                // carrying this section through the normal game/runtime load path too, not just
+                // through MESH_MBM_DEBUG::loadV11.
+                if (!parse_vertex_skin_weights_section_v11(tmp, out.weightPalette, out.vertexWeights, staged.header.sectionVersion))
+                {
+                    errorOut = "failed to parse SECTION_VERTEX_SKIN_WEIGHTS";
                     return false;
                 }
             }
@@ -2016,6 +2077,7 @@ namespace mbm
         fileHeader.backBufferHeight = impl->backBufferHeight;
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
                                      + (impl->skeleton.empty() ? 0u : 1u)
+                                     + (impl->vertexWeights.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
                                      + this->getTotalAnimationHeaders()
                                      + ((impl->typeMe == util::TYPE_MESH_PARTICLE) ? 1u : 0u)
@@ -2158,6 +2220,34 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_FRAME_SKINNED [%s]", fileOut);
+        }
+
+        // SECTION_VERTEX_SKIN_WEIGHTS - optional real per-vertex bone weight palette (bind-pose,
+        // frame 1 topology only) for editor/mesh_debug.lua's Mesh Info node + "Export to FBX", so
+        // export can use the mesh's own originally-authored weights instead of inventing new ones
+        // via Blender's ARMATURE_ENVELOPE approximation -------------------------------------------
+        if (!impl->vertexWeights.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_VERTEX_SKIN_WEIGHTS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                util::VERTEX_SKIN_WEIGHTS_HEADER_V11 weightsHeader;
+                weightsHeader.paletteCount = static_cast<uint32_t>(this->impl->weightPalette.size());
+                weightsHeader.vertexCount  = static_cast<uint32_t>(this->impl->vertexWeights.size());
+                if (!util::writeVertexSkinWeightsHeaderV11(fp, weightsHeader))
+                    return false;
+                for (const auto &boneName : this->impl->weightPalette)
+                    if (!util::writeStringV11(fp, boneName))
+                        return false;
+                for (const auto &entry : this->impl->vertexWeights)
+                    if (!util::writeVertexBoneWeightV11(fp, entry))
+                        return false;
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileOut);
         }
 
         // SECTION_ANIMATION, one per animation, including its FX block ---------------------------------------
@@ -2803,6 +2893,12 @@ namespace mbm
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
                 if (!parse_skeleton_section_v11(tmp, impl->skeleton, sectionHeader.sectionVersion))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_FRAME_SKINNED [%s]", fileNamePath);
+            }
+            else if (sectionHeader.type == util::SECTION_VERTEX_SKIN_WEIGHTS)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (!parse_vertex_skin_weights_section_v11(tmp, impl->weightPalette, impl->vertexWeights, sectionHeader.sectionVersion))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileNamePath);
             }
             else
             {
@@ -3799,6 +3895,122 @@ namespace mbm
             }
         }
         return true;
+    }
+
+    namespace
+    {
+        // Frame 1's own vertex count (sum of its subsets' vertexCount) - SECTION_VERTEX_SKIN_WEIGHTS
+        // always describes frame 1's topology only (skin weights are a bind-pose property, they
+        // don't vary per animation frame the way position/normal/uv per SECTION_FRAME_STATIC do).
+        // Returns 0 if there is no frame 0 buffer at all.
+        uint32_t computeFrame1VertexCountForWeights(const std::vector<util::BUFFER_MESH_DEBUG *> &buffer)
+        {
+            if (buffer.empty() || buffer[0] == nullptr)
+                return 0;
+            uint32_t total = 0;
+            for (const auto *sub : buffer[0]->subset)
+                total += static_cast<uint32_t>(sub->vertexCount);
+            return total;
+        }
+    }
+
+    bool MESH_MBM_DEBUG::setVertexWeight(const uint32_t vertexIndex,
+                                          const char *boneName0, const float weight0,
+                                          const char *boneName1, const float weight1,
+                                          const char *boneName2, const float weight2,
+                                          const char *boneName3, const float weight3,
+                                          char *errorOut, const int errorOutLen)
+    {
+        const uint32_t frame1VertexCount = computeFrame1VertexCountForWeights(impl->buffer);
+        if (frame1VertexCount == 0)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "mesh has no frame 1 geometry to attach weights to");
+            return false;
+        }
+        if (vertexIndex >= frame1VertexCount)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "vertex index [%u] out of range -> frame 1 total [%u]",
+                                    vertexIndex, frame1VertexCount);
+            return false;
+        }
+        // Grows/shrinks to match frame 1's current vertex count on first touch (or if the mesh's
+        // own geometry changed since); existing entries within the overlap are preserved.
+        if (impl->vertexWeights.size() != frame1VertexCount)
+            impl->vertexWeights.resize(frame1VertexCount);
+
+        const char *names[4]   = { boneName0, boneName1, boneName2, boneName3 };
+        const float weights[4] = { weight0, weight1, weight2, weight3 };
+        util::VERTEX_BONE_WEIGHT_V11 entry;
+        for (int slot = 0; slot < 4; ++slot)
+        {
+            if (!names[slot] || !names[slot][0])
+            {
+                entry.paletteIndex[slot] = 0xFF;
+                entry.weight[slot]       = 0.0f;
+                continue;
+            }
+            uint32_t paletteIdx = static_cast<uint32_t>(impl->weightPalette.size());
+            for (uint32_t i = 0; i < impl->weightPalette.size(); ++i)
+            {
+                if (impl->weightPalette[i] == names[slot])
+                {
+                    paletteIdx = i;
+                    break;
+                }
+            }
+            if (paletteIdx == impl->weightPalette.size())
+            {
+                if (impl->weightPalette.size() >= 0xFFu)
+                {
+                    if (errorOut) snprintf(errorOut, errorOutLen, "weight palette full (255 unique bones already referenced)");
+                    return false;
+                }
+                impl->weightPalette.push_back(names[slot]);
+            }
+            entry.paletteIndex[slot] = static_cast<uint8_t>(paletteIdx);
+            entry.weight[slot]       = weights[slot];
+        }
+        impl->vertexWeights[vertexIndex] = entry;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getVertexWeight(const uint32_t vertexIndex,
+                                          const char **boneName0, float *weight0,
+                                          const char **boneName1, float *weight1,
+                                          const char **boneName2, float *weight2,
+                                          const char **boneName3, float *weight3) const noexcept
+    {
+        if (vertexIndex >= impl->vertexWeights.size())
+            return false;
+        const util::VERTEX_BONE_WEIGHT_V11 &entry = impl->vertexWeights[vertexIndex];
+        const char **outNames[4] = { boneName0, boneName1, boneName2, boneName3 };
+        float *      outWeights[4] = { weight0, weight1, weight2, weight3 };
+        for (int slot = 0; slot < 4; ++slot)
+        {
+            const bool used = entry.paletteIndex[slot] != 0xFF &&
+                               entry.paletteIndex[slot] < impl->weightPalette.size();
+            if (outNames[slot])
+                *outNames[slot] = used ? impl->weightPalette[entry.paletteIndex[slot]].c_str() : nullptr;
+            if (outWeights[slot])
+                *outWeights[slot] = used ? entry.weight[slot] : 0.0f;
+        }
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::hasVertexWeights() const noexcept
+    {
+        return !impl->vertexWeights.empty();
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalVertexWeightBones() const noexcept
+    {
+        return static_cast<uint32_t>(impl->weightPalette.size());
+    }
+
+    void MESH_MBM_DEBUG::removeVertexWeights() noexcept
+    {
+        impl->weightPalette.clear();
+        impl->vertexWeights.clear();
     }
 
     bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept

@@ -180,6 +180,35 @@ namespace mbm
         // explains how many) unless `cascadeChildren` is true, in which case the whole subtree rooted
         // at `index` is removed.
         API_IMPL bool removeBone(const uint32_t index, const bool cascadeChildren, char *errorOut, const int errorOutLen);
+        // Vertex skin weight accessors (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec.
+        // 6f) - editor/diagnostic + FBX re-export round-trip only, never consulted by rendering.
+        // vertexIndex is 0-based, against frame 1's own vertex order (this section always describes
+        // frame 1's topology, never any other frame's). Each of the 4 slots is independent: pass a
+        // nullptr/empty boneNameN to leave that slot unused. Bone names are resolved against (or
+        // added to) this instance's own weight palette - NOT SECTION_FRAME_SKINNED's bone list, so
+        // this works even for a mesh with no SECTION_FRAME_SKINNED data at all. Growing the vertex
+        // array itself only happens implicitly the first time any slot is set for a given
+        // vertexIndex; setVertexWeight fails (returns false, fills errorOut) if vertexIndex is out
+        // of range for frame 1's current vertex count.
+        API_IMPL bool setVertexWeight(const uint32_t vertexIndex,
+                                       const char *boneName0, const float weight0,
+                                       const char *boneName1, const float weight1,
+                                       const char *boneName2, const float weight2,
+                                       const char *boneName3, const float weight3,
+                                       char *errorOut, const int errorOutLen);
+        // Returns false if vertexIndex is out of range or no weight data has been set for it yet.
+        // On success, fills up to 4 (boneName, weight) out-pairs - boneNameN is set to nullptr (not
+        // an empty string) for an unused slot, so a caller can tell "no 4th influence" apart from
+        // "4th influence is an empty-named bone" (which addBone's own empty-name rejection makes
+        // impossible anyway, but the distinction is kept for symmetry/clarity).
+        API_IMPL bool getVertexWeight(const uint32_t vertexIndex,
+                                       const char **boneName0, float *weight0,
+                                       const char **boneName1, float *weight1,
+                                       const char **boneName2, float *weight2,
+                                       const char **boneName3, float *weight3) const noexcept;
+        API_IMPL bool hasVertexWeights() const noexcept;
+        API_IMPL uint32_t getTotalVertexWeightBones() const noexcept; // weight palette size (unique bones referenced)
+        API_IMPL void removeVertexWeights() noexcept; // clears palette + all per-vertex weight data
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();

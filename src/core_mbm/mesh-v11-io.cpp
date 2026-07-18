@@ -665,4 +665,28 @@ namespace util
                readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ) &&
                readF32LE(fp, out.length);
     }
+
+    bool writeVertexSkinWeightsHeaderV11(FILE *fp, const util::VERTEX_SKIN_WEIGHTS_HEADER_V11 &in)
+    {
+        return writeU32LE(fp, in.paletteCount) && writeU32LE(fp, in.vertexCount);
+    }
+
+    bool readVertexSkinWeightsHeaderV11(util::MEM_CURSOR_V11 &fp, util::VERTEX_SKIN_WEIGHTS_HEADER_V11 &out)
+    {
+        return readU32LE(fp, out.paletteCount) && readU32LE(fp, out.vertexCount);
+    }
+
+    bool writeVertexBoneWeightV11(FILE *fp, const util::VERTEX_BONE_WEIGHT_V11 &in)
+    {
+        return writeBytes(fp, in.paletteIndex, sizeof(in.paletteIndex)) &&
+               writeF32LE(fp, in.weight[0]) && writeF32LE(fp, in.weight[1]) &&
+               writeF32LE(fp, in.weight[2]) && writeF32LE(fp, in.weight[3]);
+    }
+
+    bool readVertexBoneWeightV11(util::MEM_CURSOR_V11 &fp, util::VERTEX_BONE_WEIGHT_V11 &out)
+    {
+        return readBytes(fp, out.paletteIndex, sizeof(out.paletteIndex)) &&
+               readF32LE(fp, out.weight[0]) && readF32LE(fp, out.weight[1]) &&
+               readF32LE(fp, out.weight[2]) && readF32LE(fp, out.weight[3]);
+    }
 }

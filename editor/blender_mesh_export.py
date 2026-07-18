@@ -35,6 +35,7 @@ SECTION_FRAME_STATIC = 10
 SECTION_FRAME_SKINNED = 11
 SECTION_DETAIL_PHYSICS = 20
 SECTION_EXTRA_PATHS = 30
+SECTION_VERTEX_SKIN_WEIGHTS = 40
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -628,7 +629,8 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | None = None, output_dir: str | None = None) -> list[dict[str, Any]]:
+def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | None = None,
+                          output_dir: str | None = None, capture_weights: bool = False) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
     scene_frame = int(scene.frame_current)
@@ -637,6 +639,22 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
     mesh_objects.sort(key=lambda o: o.name)
 
     for obj in mesh_objects:
+        # Real per-vertex bone weights (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec.
+        # 6f), captured here -- before evaluated_get()/to_mesh() below -- so the depsgraph
+        # evaluation picks up the now-capped/normalized weights. Capped at 4 influences + summed to
+        # ~1.0 via the exact same Blender ops (vertex_group_limit_total/vertex_group_normalize_all)
+        # editor/blender_mesh_skeleton_export.py's bind_mesh_to_armature already applies to its own
+        # ARMATURE_ENVELOPE fallback weights -- keeps the on-disk representation identical either
+        # way, real or invented. Only meaningful for an object that already has real vertex groups
+        # (a rigged Mixamo/Blender source) -- an object with none is left alone entirely (no groups
+        # to select 4 out of).
+        if capture_weights and obj.vertex_groups:
+            bpy.ops.object.select_all(action="DESELECT")
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.vertex_group_limit_total(limit=4)
+            bpy.ops.object.vertex_group_normalize_all(lock_active=False)
+
         eval_obj = obj.evaluated_get(depsgraph)
         mesh = eval_obj.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
         if mesh is None:
@@ -705,18 +723,25 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                     if idx is None:
                         idx = len(bucket["vertices"]) + 1
                         vmap[key] = idx
-                        bucket["vertices"].append(
-                            {
-                                "x": pos_x,
-                                "y": pos_y,
-                                "z": pos_z,
-                                "u": u,
-                                "v": v,
-                                "nx": no_x,
-                                "ny": no_y,
-                                "nz": no_z,
-                            }
-                        )
+                        vertex_dict: dict[str, Any] = {
+                            "x": pos_x,
+                            "y": pos_y,
+                            "z": pos_z,
+                            "u": u,
+                            "v": v,
+                            "nx": no_x,
+                            "ny": no_y,
+                            "nz": no_z,
+                        }
+                        if capture_weights and obj.vertex_groups:
+                            # Already capped to <=4 influences summing to ~1.0 by the
+                            # vertex_group_limit_total/vertex_group_normalize_all ops applied
+                            # above, before evaluated_get() -- sort defensively anyway rather than
+                            # trusting group iteration order.
+                            top_groups = sorted(vert.groups, key=lambda g: g.weight, reverse=True)[:4]
+                            vertex_dict["boneNames"] = [obj.vertex_groups[g.group].name for g in top_groups]
+                            vertex_dict["weights"] = [float(g.weight) for g in top_groups]
+                        bucket["vertices"].append(vertex_dict)
 
                     bucket["indices"].append(idx)
 
@@ -950,6 +975,10 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
         "frames": frames_manifest,
         "animations": animations,
     }
+
+
+def write_u8(fp: Any, value: int) -> None:
+    fp.write(struct.pack("<B", int(value)))
 
 
 def write_u16(fp: Any, value: int) -> None:
@@ -1192,6 +1221,65 @@ def build_skeleton_payload_v11(joints: list[dict[str, Any]]) -> bytes:
         write_f32(buf, j.get("scaleY", 1.0))
         write_f32(buf, j.get("scaleZ", 1.0))
         write_f32(buf, j.get("length", 0.0))
+    return buf.getvalue()
+
+
+def build_vertex_skin_weights_payload_v11(subsets: list[dict[str, Any]]) -> bytes | None:
+    """Payload for SECTION_VERTEX_SKIN_WEIGHTS sectionVersion 1: VERTEX_SKIN_WEIGHTS_HEADER_V11
+    {paletteCount:u32, vertexCount:u32} followed by paletteCount length-prefixed bone-name strings,
+    then vertexCount VERTEX_BONE_WEIGHT_V11 records (4x u8 paletteIndex, 0xFF = unused slot, then
+    4x f32 weight), matching writeVertexSkinWeightsHeaderV11/writeVertexBoneWeightV11's exact byte
+    layout (src/core_mbm/mesh-v11-io.cpp) -- replicated by hand, must stay in lockstep with it,
+    mirroring build_skeleton_payload_v11's own precedent.
+
+    Vertex order here MUST exactly match write_direct_frame_chunk_indexed's own position/normal/uv
+    ordering (subset order, then each subset's own `vertices` list order) -- `subsets` must be the
+    very same list frame 1's SECTION_FRAME_STATIC was written from, unmodified in count/order since
+    (u/v-invert mutation in place is fine; that doesn't change vertex count or order). Only correct
+    for the default indexed write path -- callers must not use this when large_mesh_mode=="vb_only"
+    (that mode duplicates vertices per triangle-corner instead of deduplicating them, a different
+    vertex order this function does not account for).
+
+    Returns None (write nothing) if no vertex anywhere in `subsets` actually carries real weight
+    data (capture_weights was off, or none of the source objects had vertex groups).
+    """
+    palette: list[str] = []
+    palette_index: dict[str, int] = {}
+    any_weighted = False
+    entries: list[tuple[list[int], list[float]]] = []
+
+    for subset in subsets:
+        for vertex in (subset.get("vertices") or []):
+            names = vertex.get("boneNames") or []
+            weights = vertex.get("weights") or []
+            slot_indices: list[int] = []
+            slot_weights: list[float] = []
+            for name, weight in list(zip(names, weights))[:4]:
+                if not name:
+                    continue
+                if name not in palette_index:
+                    if len(palette) >= 0xFF:
+                        continue  # palette full (255 unique bones already referenced) -- drop overflow
+                    palette_index[name] = len(palette)
+                    palette.append(name)
+                slot_indices.append(palette_index[name])
+                slot_weights.append(float(weight))
+                any_weighted = True
+            entries.append((slot_indices, slot_weights))
+
+    if not any_weighted:
+        return None
+
+    buf = io.BytesIO()
+    write_u32(buf, len(palette))
+    write_u32(buf, len(entries))
+    for name in palette:
+        write_string_v11(buf, name)
+    for slot_indices, slot_weights in entries:
+        for slot in range(4):
+            write_u8(buf, slot_indices[slot] if slot < len(slot_indices) else 0xFF)
+        for slot in range(4):
+            write_f32(buf, slot_weights[slot] if slot < len(slot_weights) else 0.0)
     return buf.getvalue()
 
 
@@ -1444,12 +1532,21 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # FBX's own recorded source path, which points at wherever the original author's machine
         # had the file and is otherwise meaningless on this one.
         output_dir = os.path.dirname(os.path.abspath(out_path))
+        # Real per-vertex weights only make sense alongside a real skeleton (--include-bones), and
+        # only for the default indexed write path -- see build_vertex_skin_weights_payload_v11's
+        # own docstring for why vb_only mode is excluded.
+        capture_weights = bool(args.include_bones) and args.large_mesh_mode != "vb_only"
+        # SECTION_VERTEX_SKIN_WEIGHTS is a bind-pose property (docs/mesh-v11-format.md Sec. 6f) --
+        # tied to frame 1's topology only, so only the very first exported frame's subsets are kept
+        # around for build_vertex_skin_weights_payload_v11 below.
+        first_frame_subsets: list[dict[str, Any]] | None = None
 
         def export_frame_to_chunk(frame: int) -> None:
+            nonlocal first_frame_subsets
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
-            subsets = export_frame_subsets(scene, import_rotation_deg, output_dir)
+            subsets = export_frame_subsets(scene, import_rotation_deg, output_dir, capture_weights)
             if args.large_mesh_mode == "vb_only":
                 debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
             else:
@@ -1460,6 +1557,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             frame_path = os.path.join(temp_root, f"frame_{out_index:06d}.bin")
             write_direct_frame_chunk(frame_path, subsets, args)
             frame_paths.append(frame_path)
+            if first_frame_subsets is None:
+                first_frame_subsets = subsets
             check_cancel_requested(args.cancel_file)
 
         out_index = 0
@@ -1500,6 +1599,10 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         if joints:
             debug_print(args.debug_steps, f"extracted armature: {len(joints)} bone(s)")
 
+        weights_payload = build_vertex_skin_weights_payload_v11(first_frame_subsets) if first_frame_subsets else None
+        if weights_payload is not None:
+            debug_print(args.debug_steps, "captured real per-vertex skin weights")
+
         section_count = 1  # SECTION_MATERIAL_TRANSFORM
         if texture_path_list:
             section_count += 1  # SECTION_EXTRA_PATHS
@@ -1508,6 +1611,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         section_count += len(frame_paths)
         if joints:
             section_count += 1  # SECTION_FRAME_SKINNED
+        if weights_payload is not None:
+            section_count += 1  # SECTION_VERTEX_SKIN_WEIGHTS
 
         check_cancel_requested(args.cancel_file)
         debug_print(args.debug_steps, "writing output")
@@ -1535,6 +1640,9 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 # sectionVersion 2: adds rotX/Y/Z, scaleX/Y/Z, length - see SKELETON_BONE_V11 and
                 # build_skeleton_payload_v11's own docstring.
                 write_section_v11(fp, SECTION_FRAME_SKINNED, 2, build_skeleton_payload_v11(joints), False)
+
+            if weights_payload is not None:
+                write_section_v11(fp, SECTION_VERTEX_SKIN_WEIGHTS, 1, weights_payload, False)
 
             fp.flush()
             os.fsync(fp.fileno())

@@ -568,16 +568,19 @@ namespace util
         SECTION_DETAIL_PARTICLE    = 22,
         SECTION_DETAIL_TILE        = 23,
         SECTION_EXTRA_PATHS        = 30, // replaces legacy EXTRA_HEADER type==1 path-registration hint
-        SECTION_VERTEX_SKIN_WEIGHTS = 40, // RESERVED, not implemented - no struct, no read/write
-                                          // code anywhere. Reserved for a future per-vertex bone
-                                          // weight/index section (real GPU/CPU skinning, which this
-                                          // engine does not have) to sit alongside SECTION_FRAME_STATIC.
-                                          // Do not reuse this value. Safe to reserve now with zero
-                                          // risk: readSectionV11 always consumes a section's full
-                                          // length-prefixed envelope before dispatching on `type`,
-                                          // so an unrecognized/never-written type is a structural
-                                          // no-op for every reader, old and new (docs/mesh-v11-format.md
-                                          // Sec. 6e).
+        SECTION_VERTEX_SKIN_WEIGHTS = 40, // bundled per-vertex bone weight palette, one entry per
+                                          // SECTION_FRAME_STATIC frame-1 vertex - editor/diagnostic +
+                                          // FBX re-export round-trip data only, same scope as
+                                          // SECTION_FRAME_SKINNED (the engine has no GPU/CPU skinning
+                                          // anywhere). See VERTEX_SKIN_WEIGHTS_HEADER_V11/
+                                          // VERTEX_BONE_WEIGHT_V11 below and docs/mesh-v11-format.md
+                                          // Sec. 6f. NOTE: unlike the comment that used to sit here,
+                                          // an unrecognized section type is NOT actually a safe no-op
+                                          // for parse_v11_intermediate or MESH_MBM_DEBUG::loadV11 (both
+                                          // hard-fail on an unknown `type` - only the lightweight
+                                          // MESH_MBM_DEBUG::getInfo probe truly skips unknown types) -
+                                          // this section type has explicit handling in both real
+                                          // loaders precisely because of that.
     };
 
     enum SECTION_COMPRESSION : uint8_t
@@ -829,6 +832,47 @@ namespace util
                                  // consumers needing a tail direction should fall back to inferring
                                  // it from position topology in that case, not trust rotX/Y/Z.
         API_IMPL SKELETON_BONE_V11() noexcept;
+    };
+
+    // -----------------------------------------------------------------------------------------
+    // SECTION_VERTEX_SKIN_WEIGHTS payload (docs/mesh-v11-format.md Sec. 6f) - NOT runtime skeletal
+    // animation (the engine has no GPU/CPU skinning anywhere), same scope as SECTION_FRAME_SKINNED:
+    // a diagnostic/editor round-trip mechanism, here specifically so editor/mesh_debug.lua's
+    // "Export to FBX" can write the mesh's REAL, originally-authored per-vertex bone weights
+    // instead of inventing new ones from scratch via Blender's ARMATURE_ENVELOPE geometric
+    // approximation. Bundled like SECTION_FRAME_SKINNED (one section, internal count prefix), not
+    // repeated-per-frame - skin weights are a bind-pose property (they don't vary per animation
+    // frame, only bone transforms would, and this engine doesn't even apply those), so this
+    // section's vertexCount must equal SECTION_FRAME_STATIC frame 1's own FRAME_HEADER_V11.vertexCount;
+    // it has nothing to say about any other frame's geometry.
+    //
+    // Bones are referenced by a small per-section name palette (VERTEX_SKIN_WEIGHTS_HEADER_V11's
+    // own bone-name list, written once), not by raw index into SECTION_FRAME_SKINNED's own bone
+    // array - that array can be resorted/renamed/have entries removed later via
+    // updateBone/removeBone/addBone, which would silently invalidate a raw index but leaves a
+    // name-based reference correct (or gives a clean "unknown bone" lookup miss instead of quietly
+    // pointing at the wrong bone).
+    // -----------------------------------------------------------------------------------------
+
+    struct API_IMPL VERTEX_SKIN_WEIGHTS_HEADER_V11 // payload header for SECTION_VERTEX_SKIN_WEIGHTS
+    {
+        uint32_t paletteCount; // count of bone-name strings that follow (unique bones referenced by any vertex)
+        uint32_t vertexCount;  // count of VERTEX_BONE_WEIGHT_V11 entries that follow; must equal
+                                // SECTION_FRAME_STATIC frame 1's own vertexCount
+        VERTEX_SKIN_WEIGHTS_HEADER_V11() noexcept;
+    };
+
+    // One per vertex (frame-1 vertex order), fixed at 4 influences - matches this codebase's own
+    // existing convention (blender_mesh_skeleton_export.py's vertex_group_limit_total(4) +
+    // vertex_group_normalize_all, already applied to its envelope-weight fallback path before this
+    // section existed). An unused slot has paletteIndex == 0xFF and weight == 0.0f; used slots'
+    // weights should sum to ~1.0 (not enforced on read - a caller that wrote unnormalized weights
+    // gets them back exactly as given).
+    struct VERTEX_BONE_WEIGHT_V11
+    {
+        uint8_t paletteIndex[4]; // index into this section's own VERTEX_SKIN_WEIGHTS_HEADER_V11 palette; 0xFF = unused slot
+        float   weight[4];
+        API_IMPL VERTEX_BONE_WEIGHT_V11() noexcept;
     };
 
 }
