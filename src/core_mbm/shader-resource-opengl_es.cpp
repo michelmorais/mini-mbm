@@ -166,6 +166,8 @@ namespace mbm
     "pie.ps",
 
     "precision mediump float;\n"
+    "uniform sampler2D TextureDiffuse;\n"
+    "varying vec2 vTexCoord;\n"
     "uniform float clockwise;\n"
     "uniform float angle_start_in_deg;\n"
     "uniform float percent;\n"
