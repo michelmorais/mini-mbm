@@ -5974,15 +5974,15 @@ function showBonesWindow()
         local listH = math.min(#tBones * 30 + 34, 320)
         if tImGui.BeginTable('bonesTbl-' .. index, 9, tblFlags, {x = 0, y = listH}) then
             tImGui.TableSetupScrollFreeze(1, 1)
-            tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 160)
-            tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 160)
-            tImGui.TableSetupColumn('X', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
-            tImGui.TableSetupColumn('Y', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
-            tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
-            tImGui.TableSetupColumn(tLang.L('bones_radius_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
-            tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 110)
-            tImGui.TableSetupColumn(tLang.L('bones_highlight_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 100)
-            tImGui.TableSetupColumn('', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 130)
+            tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 160)
+            tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 160)
+            tImGui.TableSetupColumn('X', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 110)
+            tImGui.TableSetupColumn('Y', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 110)
+            tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 110)
+            tImGui.TableSetupColumn(tLang.L('bones_radius_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
+            tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
+            tImGui.TableSetupColumn(tLang.L('bones_highlight_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 50)
+            tImGui.TableSetupColumn('Remove?', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
             tImGui.TableHeadersRow()
 
             for _, b in ipairs(tBones) do
@@ -6022,7 +6022,7 @@ function showBonesWindow()
                 end
 
                 local function dragAxis(axisLabel, val)
-                    tUtil.pushResponsiveItemWidth(80)
+                    tUtil.pushResponsiveItemWidth(100)
                     local chg, nv = tImGui.DragFloat(axisLabel .. '##bone' .. axisLabel .. '-' .. index .. '-' .. b.idx, val, posDragSpeed, 0, 0, '%.3f')
                     tImGui.PopItemWidth()
                     return chg, nv
@@ -6042,7 +6042,7 @@ function showBonesWindow()
                 end
 
                 tImGui.TableNextColumn()
-                tUtil.pushResponsiveItemWidth(80)
+                tUtil.pushResponsiveItemWidth(120)
                 local chgRadius, nRadius = tImGui.DragFloat('Radius##boneRadius-' .. index .. '-' .. b.idx, b.radius, sizeDragSpeed, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
                 if chgRadius then
@@ -6054,7 +6054,7 @@ function showBonesWindow()
                 end
 
                 tImGui.TableNextColumn()
-                tUtil.pushResponsiveItemWidth(80)
+                tUtil.pushResponsiveItemWidth(140)
                 local chgLength, nLength = tImGui.DragFloat('Length##boneLength-' .. index .. '-' .. b.idx, b.length, sizeDragSpeed, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
                 if chgLength then
@@ -7371,6 +7371,13 @@ function showMeshOptions(tEntry, index)
     if openNode(tEntry, 'anims', tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
         -- Frame-filter preview refresh controls (only for the currently selected mesh)
         if index == iSelectedMeshIndex then
+            if tPreviewMesh then
+                local okFr, iFrame = dpCall(function() return tPreviewMesh:getIndexFrame() end)
+                if okFr and iFrame then
+                    local okTotFr, iTotFr = dpCall(function() return tPreviewMesh:getTotalFrame() end)
+                    tImGui.Text(string.format(tLang.L('current_frame_fmt'), iFrame, (okTotFr and iTotFr) or 0))
+                end
+            end
             if tEntry.modified then
                 tImGui.BeginDisabled(true)
                 tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
