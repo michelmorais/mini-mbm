@@ -5565,6 +5565,27 @@ local function computeFieldDragSpeed(tBones, fields, fallback)
 end
 
 -- ---------------------------------------------------------------------------
+-- Per-frame safety sweep, called unconditionally from onLoop (unlike showBonesNode below). A
+-- loaded mesh's own top-level tree entry only stays expanded while it's the selected mesh
+-- (showMeshTreeWindow's SetNextItemOpen(isSelected, ...)) -- the instant a DIFFERENT mesh becomes
+-- selected, that entry's top-level TreeNodeEx collapses and everything nested inside it, including
+-- showBonesNode, simply stops being called at all. showBonesNode's own open/close-transition logic
+-- (destroying the gizmo, restoring preview visibility) therefore never gets a chance to run for a
+-- mesh the user just switched away from, even though its tEntry.sOpenNode/bBonesWasOpen are still
+-- 'bones'/true -- confirmed via direct user testing (both meshes' bone gizmos visible at once after
+-- switching selection while the first mesh's Bones node was left open). This sweep independently
+-- catches that: any entry whose gizmo is still marked open but is no longer the selected mesh gets
+-- cleaned up here instead, regardless of whether showBonesNode itself ran this frame.
+function sweepStaleBoneGizmos()
+    for i, tEntry in ipairs(tLoadedMeshes) do
+        if tEntry.bBonesWasOpen and i ~= iSelectedMeshIndex then
+            destroyBoneGizmo(tEntry)
+            tEntry.bBonesWasOpen = false
+        end
+    end
+end
+
+-- ---------------------------------------------------------------------------
 -- Bones tree node: view/add/edit/remove the mesh's optional skeleton
 -- (SECTION_FRAME_SKINNED / meshDebug:addBone|getBone|updateBone|removeBone).
 -- Editor/diagnostic data only -- never consulted by rendering (docs/mesh-v11-format.md Sec 6e).
@@ -5581,6 +5602,19 @@ function showBonesNode(tEntry, meshD, index)
         tEntry.sOpenNode = wantOpen and nil or 'bones'
     end
 
+    -- sOpenNode (and therefore isOpen, this tree node's own visual open/collapsed state) is tracked
+    -- PER ENTRY and persists across a selection change -- selecting a different mesh does not
+    -- implicitly collapse a previous mesh's still-expanded Bones node. But the 3D gizmo and the
+    -- hidden-preview-mesh state must only ever exist for the currently SELECTED mesh (matching
+    -- rebuildBoneGizmo's own `index ~= iSelectedMeshIndex` guard and tPreviewMesh always reflecting
+    -- iSelectedMeshIndex) -- so gizmo/preview lifecycle below is driven by isOpen AND index ==
+    -- iSelectedMeshIndex together, not isOpen alone. Without this, switching to a different mesh
+    -- while an earlier mesh's Bones node was left open (never explicitly re-clicked closed) leaked
+    -- that earlier mesh's gizmo forever: this function still runs (and still sees isOpen==true) for
+    -- every loaded entry every frame, not just the selected one, confirmed via direct user testing
+    -- (both meshes' bone gizmos visible simultaneously after switching selection).
+    local gizmoShouldBeOpen = isOpen and (index == iSelectedMeshIndex)
+
     -- Hide the live preview mesh entirely while this node is open (per the user's own request),
     -- restored the moment it closes. Uses ONLY obj.visible/setEnableRender -- NEVER obj:setColor
     -- with numeric args here, confirmed via direct user testing (and by reading
@@ -5594,7 +5628,7 @@ function showBonesNode(tEntry, meshD, index)
     -- setColor with numbers, had it too) and independently affects anything else in this file that
     -- calls obj:setColor(number,...) on a real (non-placeholder) textured preview mesh.
     if index == iSelectedMeshIndex and tPreviewMesh then
-        if isOpen then
+        if gizmoShouldBeOpen then
             tPreviewMesh.visible = false
         elseif tEntry.bBonesWasOpen then
             tPreviewMesh.visible = true
@@ -5605,12 +5639,12 @@ function showBonesNode(tEntry, meshD, index)
     -- with freshly-generated nicknames for the cylinder links (see rebuildBoneGizmo's own comment),
     -- so doing that every single frame the node stays open would thrash the mesh-geometry cache for
     -- no reason.
-    if isOpen and not tEntry.bBonesWasOpen then
+    if gizmoShouldBeOpen and not tEntry.bBonesWasOpen then
         rebuildBoneGizmo(tEntry, meshD, index)
-    elseif not isOpen and tEntry.bBonesWasOpen then
+    elseif not gizmoShouldBeOpen and tEntry.bBonesWasOpen then
         destroyBoneGizmo(tEntry)
     end
-    tEntry.bBonesWasOpen = isOpen
+    tEntry.bBonesWasOpen = gizmoShouldBeOpen
 
     if isOpen then
         tImGui.TextDisabled(tLang.L('bones_moved_to_window_label'))
@@ -10081,6 +10115,7 @@ function onLoop(delta)
     showCameraWindow()
     showLightWindow()
     showMeshTreeWindow()
+    sweepStaleBoneGizmos()
     showBonesWindow()
     showApplyAllWindow()
     showListTexturesWindow()
