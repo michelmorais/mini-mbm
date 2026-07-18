@@ -235,6 +235,7 @@ function onInitScene()
     tPreviewMesh         = nil    -- mesh/sprite/tile shown on screen when selected
     tPreviewFont         = nil    -- font object when preview is a font (tPreviewMesh.tFont)
     iLastPreviewedIndex  = 0      -- track which mesh we last previewed
+    tGhostMesh           = nil    -- separate translucent mesh instance shown while Bones node is open
     isClickedMouseleft   = false
     isClickedMouseRight  = false
     -- Origin lines: 2D (X red, Y green) and 3D (X red, Y green, Z blue)
@@ -3145,6 +3146,7 @@ function removeMeshFromTable(index)
     if wasSelected then
         iLastPreviewedIndex = 0
         destroyPreviewMesh()
+        destroyGhostMesh()
         -- Select the neighboring entry that took this slot (the old "next"); if the removed
         -- entry was last in the list, fall back to the new last entry (the old "previous").
         if #tLoadedMeshes == 0 then
@@ -4867,6 +4869,51 @@ function rebuildBoneGizmo(tEntry, meshD, index)
     end
 end
 
+-- Translucent "ghost" preview of the mesh being rigged, shown alongside the bone gizmo (per direct
+-- user request -- with tPreviewMesh hidden while Bones is open, the armature had nothing to align
+-- against). Deliberately a SEPARATE mesh instance from tPreviewMesh, never the same object: applying
+-- a shader that discards alpha is a real (if reversible) mutation of the object's FX state, and the
+-- user explicitly asked for a dedicated ghost object rather than reusing/toggling the live preview's
+-- own shader. Uses the engine's built-in "transparent.ps" (shipped on every backend --
+-- shader-resource-opengl_es.cpp/-directx9.cpp/-metal.mm -- `color.a -= alpha`), NOT obj:setColor():
+-- setColor(r,g,b,a) with numeric args replaces the mesh's real diffuse texture with a synthetic
+-- solid-color one (see showBonesNode's own comment on tPreviewMesh above) -- destructive on any
+-- real textured mesh, which is exactly what the ghost mesh is.
+function destroyGhostMesh()
+    if tGhostMesh then
+        tGhostMesh.tFont = nil
+        tGhostMesh:destroy()
+        tGhostMesh = nil
+    end
+end
+
+-- Only meaningful for 'mesh' (.msh) entries -- the type this Bones/armature feature targets and the
+-- only one that renders in 3D world space (isMesh3DType). Mirrors updatePreviewMesh's own mesh:new +
+-- load + setPos(0,0,0) pattern (same z-order-auto-nudge counteraction, see updatePreviewMesh's
+-- comment) so the ghost lines up with the gizmo exactly like the hidden live preview would have.
+function rebuildGhostMesh(tEntry, index)
+    destroyGhostMesh()
+    if index ~= iSelectedMeshIndex or not isMesh3DType(tEntry) then return end
+
+    local loadPath = tEntry.previewPath or tEntry.fileName
+    local dir = tEntry.fileName:match('^(.*)[/\\]')
+    if dir then mbm.addPath(dir) end
+
+    local coordType = bCameraMode3D and '3d' or '2dw'
+    local newGhost = mesh:new(coordType)
+    if not newGhost:load(loadPath) then
+        newGhost:destroy()
+        return
+    end
+    newGhost:setPos(0, 0, 0)
+
+    local okSh, fx = pcall(function() return newGhost:getShader() end)
+    if okSh and fx and fx:load('transparent.ps') then
+        fx:setPS('alpha', 1.0 - (tEntry.fGhostOpacity or 0.35))
+    end
+    tGhostMesh = newGhost
+end
+
 -- ---------------------------------------------------------------------------
 -- "Apply Humanoid Armature": fixed 18-joint biped preset, positioned from the mesh's own AABB.
 -- ---------------------------------------------------------------------------
@@ -5582,6 +5629,14 @@ function sweepStaleBoneGizmos()
             destroyBoneGizmo(tEntry)
             tEntry.bBonesWasOpen = false
         end
+        -- Same leak, same fix, for the ghost mesh: it's a single global (only ever exists for the
+        -- currently selected mesh), so this only ever actually destroys something for the one entry
+        -- that owned it, but every entry needs the flag cleared so a later reselect properly rebuilds
+        -- rather than being skipped by the transition check in showBonesNode.
+        if tEntry.bGhostWasShown and i ~= iSelectedMeshIndex then
+            destroyGhostMesh()
+            tEntry.bGhostWasShown = false
+        end
     end
 end
 
@@ -5645,6 +5700,41 @@ function showBonesNode(tEntry, meshD, index)
         destroyBoneGizmo(tEntry)
     end
     tEntry.bBonesWasOpen = gizmoShouldBeOpen
+
+    -- "Show mesh" checkbox: an opt-in translucent ghost of the mesh alongside the bone gizmo (only
+    -- for 'mesh'/.msh entries -- isMesh3DType -- since sprites/tiles/etc render flat in 2D and this
+    -- Bones/armature workflow targets 3D skeletal meshes). Drawn BEFORE the ghostShouldBeOpen check
+    -- below (rather than down among the rest of this node's isOpen content) so a checkbox toggle
+    -- this same frame is reflected immediately -- computing ghostShouldBeOpen from tEntry.bShowGhostMesh
+    -- before the checkbox had a chance to update it would lag the create/destroy transition by one
+    -- frame relative to what the user just clicked.
+    tEntry.fGhostOpacity = tEntry.fGhostOpacity or 0.35
+    if isOpen and isMesh3DType(tEntry) then
+        tEntry.bShowGhostMesh = tImGui.Checkbox(tLang.L('bones_show_mesh_checkbox') .. '##showGhost-' .. index, tEntry.bShowGhostMesh or false)
+        if tEntry.bShowGhostMesh then
+            tUtil.pushResponsiveItemWidth(160)
+            local chgOp, newOp = tImGui.SliderFloat(tLang.L('bones_mesh_opacity_slider') .. '##ghostOpacity-' .. index, tEntry.fGhostOpacity, 0.0, 1.0, '%.2f')
+            tImGui.PopItemWidth()
+            if chgOp then
+                tEntry.fGhostOpacity = newOp
+                if tGhostMesh then
+                    local okSh, fx = pcall(function() return tGhostMesh:getShader() end)
+                    if okSh and fx then fx:setPS('alpha', 1.0 - newOp) end
+                end
+            end
+        end
+    end
+
+    -- Same open/selected gating as the gizmo itself (gizmoShouldBeOpen), ANDed with the checkbox
+    -- just read above, so the ghost disappears the instant the node closes or a different mesh is
+    -- selected -- exactly per the user's own request.
+    local ghostShouldBeOpen = gizmoShouldBeOpen and tEntry.bShowGhostMesh and isMesh3DType(tEntry)
+    if ghostShouldBeOpen and not tEntry.bGhostWasShown then
+        rebuildGhostMesh(tEntry, index)
+    elseif not ghostShouldBeOpen and tEntry.bGhostWasShown then
+        destroyGhostMesh()
+    end
+    tEntry.bGhostWasShown = ghostShouldBeOpen
 
     if isOpen then
         tImGui.TextDisabled(tLang.L('bones_moved_to_window_label'))
@@ -10137,6 +10227,74 @@ function onLoop(delta)
         end
     end
     tUtil.showOverlayMessage()
+    if mbm.getGlobal('TEST_GHOST_MESH') then runGhostMeshTest() end
+end
+
+-- TEMP TEST HOOK -- ghost-mesh feature verification, remove before shipping.
+function runGhostMeshTest()
+    gTestStep = gTestStep or 0
+    local function log(s) print('TESTLOG', 'yellow', s) end
+    if gTestStep == 0 then
+        mbm.addPath('tests')
+        addMeshToTable('tests/mike-rig-from-mixamo.msh')
+        addMeshToTable('tests/mike-rig-from-mixamo.msh')
+        iSelectedMeshIndex = 1
+        log('loaded=' .. tostring(#tLoadedMeshes))
+        gTestStep = 1
+    elseif gTestStep == 1 then
+        gTestStep = 2 -- let updatePreviewMesh create tPreviewMesh
+    elseif gTestStep == 2 then
+        local tEntry = tLoadedMeshes[1]
+        tEntry.sOpenNode = 'bones'
+        tEntry.bShowGhostMesh = true
+        gTestStep = 3
+    elseif gTestStep == 3 then
+        gTestStep = 4 -- let showBonesNode's transition create the ghost this frame
+    elseif gTestStep == 4 then
+        log('after-enable tGhostMesh=' .. tostring(tGhostMesh ~= nil))
+        if tGhostMesh then
+            local okSh, fx = pcall(function() return tGhostMesh:getShader() end)
+            log('getShader ok=' .. tostring(okSh) .. ' fx=' .. tostring(fx ~= nil))
+            if okSh and fx then
+                local okA, a = pcall(function() return fx:getPS('alpha') end)
+                log('alpha ok=' .. tostring(okA) .. ' value=' .. tostring(a) .. ' expected=' .. tostring(1.0 - 0.35))
+            end
+        end
+        -- Close the tree node -- ghost must be destroyed
+        tLoadedMeshes[1].sOpenNode = nil
+        gTestStep = 5
+    elseif gTestStep == 5 then
+        gTestStep = 6
+    elseif gTestStep == 6 then
+        log('after-close tGhostMesh=' .. tostring(tGhostMesh ~= nil) .. ' (expect false)')
+        -- Reopen, re-show, then switch selected mesh -- sweepStaleBoneGizmos must destroy it
+        tLoadedMeshes[1].sOpenNode = 'bones'
+        tLoadedMeshes[1].bShowGhostMesh = true
+        gTestStep = 7
+    elseif gTestStep == 7 then
+        gTestStep = 8
+    elseif gTestStep == 8 then
+        log('reopened tGhostMesh=' .. tostring(tGhostMesh ~= nil) .. ' (expect true)')
+        iSelectedMeshIndex = 2 -- switch selection while mesh1's Bones node stays open
+        gTestStep = 9
+    elseif gTestStep == 9 then
+        gTestStep = 10 -- let sweepStaleBoneGizmos (called at top of onLoop) run with new selection
+    elseif gTestStep == 10 then
+        log('after-switch tGhostMesh=' .. tostring(tGhostMesh ~= nil) .. ' (expect false) bGhostWasShown=' .. tostring(tLoadedMeshes[1].bGhostWasShown))
+        -- Now test removeMeshFromTable cleanup: reselect mesh1, show ghost, then remove it
+        iSelectedMeshIndex = 1
+        tLoadedMeshes[1].sOpenNode = 'bones'
+        tLoadedMeshes[1].bShowGhostMesh = true
+        gTestStep = 11
+    elseif gTestStep == 11 then
+        gTestStep = 12
+    elseif gTestStep == 12 then
+        log('before-remove tGhostMesh=' .. tostring(tGhostMesh ~= nil) .. ' (expect true)')
+        removeMeshFromTable(1)
+        log('after-remove tGhostMesh=' .. tostring(tGhostMesh ~= nil) .. ' (expect false)')
+        print('info', 'green', 'GHOSTMESH TEST DONE')
+        mbm.quit()
+    end
 end
 
 function onTouchDown(key, x, y)
