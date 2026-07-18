@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import math
 import os
 import re
 import shutil
@@ -31,8 +32,10 @@ TYPE_MESH_3D = 0
 SECTION_MATERIAL_TRANSFORM = 1
 SECTION_ANIMATION = 2
 SECTION_FRAME_STATIC = 10
+SECTION_FRAME_SKINNED = 11
 SECTION_DETAIL_PHYSICS = 20
 SECTION_EXTRA_PATHS = 30
+SECTION_VERTEX_SKIN_WEIGHTS = 40
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -56,6 +59,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--angle-y", type=float, default=0.0)
     parser.add_argument("--angle-z", type=float, default=0.0)
     parser.add_argument("--large-mesh-mode", choices=("fail", "vb_only"), default="fail")
+    parser.add_argument("--include-bones", action="store_true")
     parser.add_argument("--cancel-file", default="")
     parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
@@ -155,7 +159,44 @@ def resolve_image_sequence_path(image: Any, image_user: Any, scene_frame: int) -
     return bpy.path.abspath(seq_path)
 
 
-def get_first_texture_path(material: Any, scene_frame: int) -> str:
+_EXTRACTED_IMAGE_PATHS: dict[int, str] = {}
+
+
+def _extract_embedded_image(image: Any, output_dir: str) -> str:
+    """Mixamo (and other) FBX downloads commonly embed textures directly in the binary rather than
+    shipping them as loose files -- Blender's importer unpacks these into memory fine
+    (image.packed_file is set, real pixel data available), but image.filepath still holds whatever
+    path the ORIGINAL AUTHOR's machine recorded at export time (confirmed via direct testing on a
+    real Mixamo download: "/home/app/mixamo-mini/tmp/skins_<uuid>.fbm/Ch36_1001_Diffuse.png", a path
+    that obviously doesn't exist on this machine). Returning that recorded path unchanged, as this
+    function used to, meant the .msh's own texture reference -- and the SECTION_EXTRA_PATHS search
+    directory built from it -- pointed nowhere, so the texture could never resolve even though the
+    actual image bytes were sitting right there in Blender's memory the whole time. Saves the image
+    to a real file next to the output .msh instead, and returns that path; cached by image identity
+    so a texture shared by several subsets (the common case) is only written once.
+    """
+    cache_key = image.as_pointer()
+    cached = _EXTRACTED_IMAGE_PATHS.get(cache_key)
+    if cached and os.path.isfile(cached):
+        return cached
+    base_name = os.path.basename(image.filepath) if image.filepath else ""
+    if not base_name or "." not in base_name:
+        base_name = re.sub(r"[^A-Za-z0-9_.-]", "_", image.name) + ".png"
+    out_path = os.path.join(output_dir, base_name)
+    orig_filepath_raw = image.filepath_raw
+    orig_format = image.file_format
+    try:
+        image.filepath_raw = out_path
+        image.file_format = "PNG"
+        image.save()
+    finally:
+        image.filepath_raw = orig_filepath_raw
+        image.file_format = orig_format
+    _EXTRACTED_IMAGE_PATHS[cache_key] = out_path
+    return out_path
+
+
+def get_first_texture_path(material: Any, scene_frame: int, output_dir: str | None = None) -> str:
     if material is None or not getattr(material, "use_nodes", False):
         return ""
     ntree = material.node_tree
@@ -167,7 +208,11 @@ def get_first_texture_path(material: Any, scene_frame: int) -> str:
                 image = node.image
                 if getattr(image, "source", "") == "SEQUENCE":
                     return resolve_image_sequence_path(image, getattr(node, "image_user", None), scene_frame)
-                return bpy.path.abspath(node.image.filepath)
+                recorded_path = bpy.path.abspath(node.image.filepath)
+                needs_extraction = image.packed_file is not None or not os.path.isfile(recorded_path)
+                if needs_extraction and output_dir:
+                    return _extract_embedded_image(image, output_dir)
+                return recorded_path
             except Exception:
                 return str(node.image.filepath or "")
     return ""
@@ -191,6 +236,58 @@ def get_loop_normal(loop: Any, vert: Any) -> Any:
     if loop_normal is not None:
         return loop_normal
     return vert.normal
+
+
+def rotate_point_deg(x: float, y: float, z: float, angle_x_deg: float, angle_y_deg: float, angle_z_deg: float) -> tuple[float, float, float]:
+    """Rotates a point (or, equally, a direction vector -- this is a pure rotation, no
+    translation) by degrees around X, then Y, then Z. Formulas and order match
+    editor/mesh_debug.lua's rotateX/Y/Z + applyRotationToBonesDeg exactly, which in turn match
+    MESH_MBM_DEBUG::rotateFrame's own per-axis math (src/core_mbm/mesh-manager.cpp:3128) -- kept
+    in lockstep by hand since there is no shared implementation between the Python and Lua/C++
+    sides. Used for the Blender-import post-process rotation (the usual Z-up -> Y-up correction,
+    "Rot X/Y/Z" in the import dialog, default -90 on X): baked directly into vertex/normal/bone
+    data at export time instead of being written into the file's now-deprecated
+    SECTION_MATERIAL_TRANSFORM angle field, which the engine no longer applies at load.
+    """
+    if angle_x_deg:
+        a = math.radians(angle_x_deg)
+        c, s = math.cos(a), math.sin(a)
+        y, z = y * c - z * s, y * s + z * c
+    if angle_y_deg:
+        a = math.radians(angle_y_deg)
+        c, s = math.cos(a), math.sin(a)
+        x, z = x * c + z * s, -x * s + z * c
+    if angle_z_deg:
+        a = math.radians(angle_z_deg)
+        c, s = math.cos(a), math.sin(a)
+        x, y = x * c - y * s, x * s + y * c
+    return x, y, z
+
+
+def frame_to_euler_xyz(ydir: tuple[float, float, float], zdir: tuple[float, float, float]) -> tuple[float, float, float]:
+    """Inverse of rotate_point_deg applied to (0,1,0)/(0,0,1): given a bone's local Y (axis
+    direction, head->tail) and Z (roll axis) basis vectors already expressed in the space rotX/Y/Z
+    are stored in, extracts the equivalent Euler XYZ degrees. Closed-form from M = Rx*Ry*Rz (this
+    engine's row-vector convention -- matrix rows are the images of the X/Y/Z basis vectors, X
+    derived here as cross(Y,Z) since only Y/Z are ever needed). Must stay in lockstep, by hand,
+    with editor/mesh_debug.lua's identical boneFrameToEuler -- there is no shared implementation
+    between Python and Lua.
+    """
+    yx, yy, yz = ydir
+    zx, zy, zz = zdir
+    xx = yy * zz - yz * zy
+    xy = yz * zx - yx * zz
+    xz = yx * zy - yy * zx
+    clamped = max(-1.0, min(1.0, -xz))
+    rot_y = math.asin(clamped)
+    if abs(xz) > 0.999999:
+        # gimbal lock: X and Z rotation become indistinguishable, collapse to rot_x=0
+        rot_x = 0.0
+        rot_z = math.atan2(-yx, yy)
+    else:
+        rot_x = math.atan2(yz, zz)
+        rot_z = math.atan2(xy, xx)
+    return math.degrees(rot_x), math.degrees(rot_y), math.degrees(rot_z)
 
 
 def get_scene_fps(scene: Any) -> float:
@@ -532,7 +629,8 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
+def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | None = None,
+                          output_dir: str | None = None, capture_weights: bool = False) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
     scene_frame = int(scene.frame_current)
@@ -541,6 +639,22 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
     mesh_objects.sort(key=lambda o: o.name)
 
     for obj in mesh_objects:
+        # Real per-vertex bone weights (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec.
+        # 6f), captured here -- before evaluated_get()/to_mesh() below -- so the depsgraph
+        # evaluation picks up the now-capped/normalized weights. Capped at 4 influences + summed to
+        # ~1.0 via the exact same Blender ops (vertex_group_limit_total/vertex_group_normalize_all)
+        # editor/blender_mesh_skeleton_export.py's bind_mesh_to_armature already applies to its own
+        # ARMATURE_ENVELOPE fallback weights -- keeps the on-disk representation identical either
+        # way, real or invented. Only meaningful for an object that already has real vertex groups
+        # (a rigged Mixamo/Blender source) -- an object with none is left alone entirely (no groups
+        # to select 4 out of).
+        if capture_weights and obj.vertex_groups:
+            bpy.ops.object.select_all(action="DESELECT")
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.vertex_group_limit_total(limit=4)
+            bpy.ops.object.vertex_group_normalize_all(lock_active=False)
+
         eval_obj = obj.evaluated_get(depsgraph)
         mesh = eval_obj.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
         if mesh is None:
@@ -564,7 +678,7 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                     mat_name = mat.name if mat else f"Material_{mat_idx}"
                     buckets[mat_idx] = {
                         "name": f"{obj.name}:{mat_name}",
-                        "texture": get_first_texture_path(mat, scene_frame),
+                        "texture": get_first_texture_path(mat, scene_frame, output_dir),
                         "vertices": [],
                         "indices": [],
                         "_vmap": {},
@@ -580,6 +694,11 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
 
                     world_pos = eval_obj.matrix_world @ vert.co
                     world_no = (eval_obj.matrix_world.to_3x3() @ loop_no).normalized()
+                    pos_x, pos_y, pos_z = float(world_pos.x), float(world_pos.y), float(world_pos.z)
+                    no_x, no_y, no_z = float(world_no.x), float(world_no.y), float(world_no.z)
+                    if rotation_deg:
+                        pos_x, pos_y, pos_z = rotate_point_deg(pos_x, pos_y, pos_z, *rotation_deg)
+                        no_x, no_y, no_z = rotate_point_deg(no_x, no_y, no_z, *rotation_deg)
 
                     if uv_data is not None:
                         uv = uv_data[loop_index].uv
@@ -595,27 +714,34 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                         int(loop.vertex_index),
                         float(u),
                         float(v),
-                        float(world_no.x),
-                        float(world_no.y),
-                        float(world_no.z),
+                        no_x,
+                        no_y,
+                        no_z,
                     )
 
                     idx = vmap.get(key)
                     if idx is None:
                         idx = len(bucket["vertices"]) + 1
                         vmap[key] = idx
-                        bucket["vertices"].append(
-                            {
-                                "x": float(world_pos.x),
-                                "y": float(world_pos.y),
-                                "z": float(world_pos.z),
-                                "u": u,
-                                "v": v,
-                                "nx": float(world_no.x),
-                                "ny": float(world_no.y),
-                                "nz": float(world_no.z),
-                            }
-                        )
+                        vertex_dict: dict[str, Any] = {
+                            "x": pos_x,
+                            "y": pos_y,
+                            "z": pos_z,
+                            "u": u,
+                            "v": v,
+                            "nx": no_x,
+                            "ny": no_y,
+                            "nz": no_z,
+                        }
+                        if capture_weights and obj.vertex_groups:
+                            # Already capped to <=4 influences summing to ~1.0 by the
+                            # vertex_group_limit_total/vertex_group_normalize_all ops applied
+                            # above, before evaluated_get() -- sort defensively anyway rather than
+                            # trusting group iteration order.
+                            top_groups = sorted(vert.groups, key=lambda g: g.weight, reverse=True)[:4]
+                            vertex_dict["boneNames"] = [obj.vertex_groups[g.group].name for g in top_groups]
+                            vertex_dict["weights"] = [float(g.weight) for g in top_groups]
+                        bucket["vertices"].append(vertex_dict)
 
                     bucket["indices"].append(idx)
 
@@ -851,6 +977,10 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
     }
 
 
+def write_u8(fp: Any, value: int) -> None:
+    fp.write(struct.pack("<B", int(value)))
+
+
 def write_u16(fp: Any, value: int) -> None:
     fp.write(struct.pack("<H", int(value)))
 
@@ -955,6 +1085,201 @@ def build_extra_paths_payload_v11(paths: list[str]) -> bytes:
     write_u32(buf, len(paths))
     for path in paths:
         write_string_v11(buf, path)
+    return buf.getvalue()
+
+
+def extract_armature_joints(scene: Any, rotation_deg: tuple[float, float, float] | None = None) -> list[dict[str, Any]]:
+    """Reads the first ARMATURE object's rest-pose bones into a flat, parent-before-child list of
+    {name, parent, x, y, z, radius} dicts -- the same shape SECTION_FRAME_SKINNED expects (docs/
+    mesh-v11-format.md Sec. 6e). Diagnostic/editor round-trip data only, mirroring
+    MESH_MBM_DEBUG::addBone's own contract; never consulted by rendering.
+
+    No Y-up/Z-up axis swap here -- this reads directly from an already-Blender-native scene the
+    exact same way export_frame_subsets() already reads mesh vertices above (eval_obj.matrix_world
+    @ vert.co, no axis conversion) -- both bones and vertices need to end up in the same space so
+    gizmos drawn over the imported geometry line up. rotation_deg, when given, must be the exact
+    same post-process rotation passed to export_frame_subsets() for the same reason -- bones and
+    vertices have to end up in the same space after rotation too.
+    """
+    armature_obj = next((o for o in scene.objects if o.type == "ARMATURE"), None)
+    if armature_obj is None:
+        return []
+
+    bones = list(armature_obj.data.bones)
+    if not bones:
+        return []
+
+    by_name = {b.name: b for b in bones}
+    children_of: dict[str, list[str]] = {}
+    roots: list[str] = []
+    for b in bones:
+        parent_name = b.parent.name if b.parent else None
+        if parent_name is None:
+            roots.append(b.name)
+        else:
+            children_of.setdefault(parent_name, []).append(b.name)
+
+    # BFS from every root bone so a parent always precedes its children in the emitted list --
+    # required by parse_skeleton_section_v11's on-load ordering check (mesh-manager.cpp:593-616).
+    ordered: list[str] = []
+    queue = list(roots)
+    while queue:
+        name = queue.pop(0)
+        ordered.append(name)
+        queue.extend(children_of.get(name, []))
+
+    joints: list[dict[str, Any]] = []
+    for name in ordered:
+        bone = by_name[name]
+        world_head = armature_obj.matrix_world @ bone.head_local
+        world_tail = armature_obj.matrix_world @ bone.tail_local
+        parent_name = bone.parent.name if bone.parent else None
+        # No natural Blender source for an authoring-time marker radius -- derive from bone
+        # length (a visible gizmo size, not a measurement that means anything to rendering).
+        # MUST use the world-space head/tail
+        # distance, not bone.length -- bone.length is measured in the armature's own unscaled rest
+        # space and ignores armature_obj's own object-level scale entirely (bug found via a real
+        # user-downloaded rig: armature_obj.scale == 0.01 there, so bone.length read ~100x too
+        # large relative to the already-correctly-world-scaled x/y/z position above, producing
+        # marker spheres bigger than the whole imported character).
+        radius = max(0.001, (world_tail - world_head).length * 0.15)
+        head_x, head_y, head_z = float(world_head.x), float(world_head.y), float(world_head.z)
+
+        # Real orientation, captured here for the first time (SECTION_FRAME_SKINNED sectionVersion
+        # 2): world_head/world_tail already give the exact bone axis (no ambiguity, unlike
+        # editor/blender_mesh_skeleton_export.py's build_armature, which has to guess this from
+        # nothing but a scatter of positions when this data is absent). matrix_local is armature-
+        # space (not parent-relative), matching this function's own position convention above.
+        length = (world_tail - world_head).length
+        if length > 1e-6:
+            ydir_world = ((world_tail - world_head) / length)
+            zdir_raw = (armature_obj.matrix_world @ bone.matrix_local).to_3x3() @ Vector((0.0, 0.0, 1.0))
+            # Gram-Schmidt: orthonormalize the roll axis against the bone axis before extraction,
+            # guaranteeing a clean orthonormal frame even if matrix_local's own Z isn't exactly
+            # perpendicular to head->tail (it always should be, this is defensive).
+            zdir_raw = zdir_raw - ydir_world * zdir_raw.dot(ydir_world)
+            zdir_len = zdir_raw.length
+            zdir_world = zdir_raw / zdir_len if zdir_len > 1e-6 else Vector((1.0, 0.0, 0.0))
+            ydir = tuple(ydir_world)
+            zdir = tuple(zdir_world)
+            if rotation_deg:
+                ydir = rotate_point_deg(*ydir, *rotation_deg)
+                zdir = rotate_point_deg(*zdir, *rotation_deg)
+            rot_x, rot_y, rot_z = frame_to_euler_xyz(ydir, zdir)
+        else:
+            # Degenerate zero-length bone (head==tail) -- no orientation to extract. length stays
+            # 0, which is exactly the sentinel build_armature uses to fall back to its own
+            # position-topology heuristic for this bone.
+            rot_x, rot_y, rot_z = 0.0, 0.0, 0.0
+
+        if rotation_deg:
+            head_x, head_y, head_z = rotate_point_deg(head_x, head_y, head_z, *rotation_deg)
+        joints.append({
+            "name": name,
+            "parent": parent_name,
+            "x": head_x,
+            "y": head_y,
+            "z": head_z,
+            "radius": radius,
+            "rotX": rot_x,
+            "rotY": rot_y,
+            "rotZ": rot_z,
+            # Blender rest/edit bones carry no meaningful per-bone scale (real scale only exists on
+            # pose bones, out of scope for a rest-pose skeleton dump) -- stored as identity purely
+            # for round-trip completeness with the engine's own scaleX/Y/Z fields.
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "scaleZ": 1.0,
+            "length": length,
+        })
+    return joints
+
+
+def build_skeleton_payload_v11(joints: list[dict[str, Any]]) -> bytes:
+    """Payload for SECTION_FRAME_SKINNED sectionVersion 2: SKELETON_HEADER_V11{jointCount:u16}
+    followed by jointCount SKELETON_BONE_V11 records (name, parentName length-prefixed strings +
+    x,y,z,radius,rotX,rotY,rotZ,scaleX,scaleY,scaleZ,length f32 -- 11 floats total), matching
+    writeSkeletonHeaderV11/writeSkeletonBoneV11's exact byte layout
+    (src/core_mbm/mesh-v11-io.cpp:634-657) -- there is no shared serializer between this script and
+    the C++ side, so the layout is replicated by hand and must stay in lockstep with it. This
+    script always writes the full v2 layout (the SECTION_FRAME_SKINNED section header this payload
+    is wrapped in must be stamped sectionVersion=2 by the caller, see build_direct_msh_output).
+    """
+    buf = io.BytesIO()
+    write_u16(buf, len(joints))
+    for j in joints:
+        write_string_v11(buf, str(j["name"]))
+        write_string_v11(buf, str(j["parent"] or ""))
+        write_f32(buf, j["x"])
+        write_f32(buf, j["y"])
+        write_f32(buf, j["z"])
+        write_f32(buf, j["radius"])
+        write_f32(buf, j.get("rotX", 0.0))
+        write_f32(buf, j.get("rotY", 0.0))
+        write_f32(buf, j.get("rotZ", 0.0))
+        write_f32(buf, j.get("scaleX", 1.0))
+        write_f32(buf, j.get("scaleY", 1.0))
+        write_f32(buf, j.get("scaleZ", 1.0))
+        write_f32(buf, j.get("length", 0.0))
+    return buf.getvalue()
+
+
+def build_vertex_skin_weights_payload_v11(subsets: list[dict[str, Any]]) -> bytes | None:
+    """Payload for SECTION_VERTEX_SKIN_WEIGHTS sectionVersion 1: VERTEX_SKIN_WEIGHTS_HEADER_V11
+    {paletteCount:u32, vertexCount:u32} followed by paletteCount length-prefixed bone-name strings,
+    then vertexCount VERTEX_BONE_WEIGHT_V11 records (4x u8 paletteIndex, 0xFF = unused slot, then
+    4x f32 weight), matching writeVertexSkinWeightsHeaderV11/writeVertexBoneWeightV11's exact byte
+    layout (src/core_mbm/mesh-v11-io.cpp) -- replicated by hand, must stay in lockstep with it,
+    mirroring build_skeleton_payload_v11's own precedent.
+
+    Vertex order here MUST exactly match write_direct_frame_chunk_indexed's own position/normal/uv
+    ordering (subset order, then each subset's own `vertices` list order) -- `subsets` must be the
+    very same list frame 1's SECTION_FRAME_STATIC was written from, unmodified in count/order since
+    (u/v-invert mutation in place is fine; that doesn't change vertex count or order). Only correct
+    for the default indexed write path -- callers must not use this when large_mesh_mode=="vb_only"
+    (that mode duplicates vertices per triangle-corner instead of deduplicating them, a different
+    vertex order this function does not account for).
+
+    Returns None (write nothing) if no vertex anywhere in `subsets` actually carries real weight
+    data (capture_weights was off, or none of the source objects had vertex groups).
+    """
+    palette: list[str] = []
+    palette_index: dict[str, int] = {}
+    any_weighted = False
+    entries: list[tuple[list[int], list[float]]] = []
+
+    for subset in subsets:
+        for vertex in (subset.get("vertices") or []):
+            names = vertex.get("boneNames") or []
+            weights = vertex.get("weights") or []
+            slot_indices: list[int] = []
+            slot_weights: list[float] = []
+            for name, weight in list(zip(names, weights))[:4]:
+                if not name:
+                    continue
+                if name not in palette_index:
+                    if len(palette) >= 0xFF:
+                        continue  # palette full (255 unique bones already referenced) -- drop overflow
+                    palette_index[name] = len(palette)
+                    palette.append(name)
+                slot_indices.append(palette_index[name])
+                slot_weights.append(float(weight))
+                any_weighted = True
+            entries.append((slot_indices, slot_weights))
+
+    if not any_weighted:
+        return None
+
+    buf = io.BytesIO()
+    write_u32(buf, len(palette))
+    write_u32(buf, len(entries))
+    for name in palette:
+        write_string_v11(buf, name)
+    for slot_indices, slot_weights in entries:
+        for slot in range(4):
+            write_u8(buf, slot_indices[slot] if slot < len(slot_indices) else 0xFF)
+        for slot in range(4):
+            write_f32(buf, slot_weights[slot] if slot < len(slot_weights) else 0.0)
     return buf.getvalue()
 
 
@@ -1198,12 +1523,30 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     bounds = {"min": [float("inf"), float("inf"), float("inf")], "max": [-float("inf"), -float("inf"), -float("inf")]}
     try:
         fps = get_scene_fps(scene)
+        # Baked directly into vertex/normal/bone data below (rotate_point_deg) instead of being
+        # written into SECTION_MATERIAL_TRANSFORM's angle field, which the engine no longer applies
+        # at load time (see rotate_point_deg's own docstring).
+        import_rotation_deg = (float(args.angle_x), float(args.angle_y), float(args.angle_z)) if args.post_process else None
+        # Embedded/packed textures (common in Mixamo downloads) get unpacked next to the output
+        # .msh -- see get_first_texture_path/_extract_embedded_image -- rather than trusting the
+        # FBX's own recorded source path, which points at wherever the original author's machine
+        # had the file and is otherwise meaningless on this one.
+        output_dir = os.path.dirname(os.path.abspath(out_path))
+        # Real per-vertex weights only make sense alongside a real skeleton (--include-bones), and
+        # only for the default indexed write path -- see build_vertex_skin_weights_payload_v11's
+        # own docstring for why vb_only mode is excluded.
+        capture_weights = bool(args.include_bones) and args.large_mesh_mode != "vb_only"
+        # SECTION_VERTEX_SKIN_WEIGHTS is a bind-pose property (docs/mesh-v11-format.md Sec. 6f) --
+        # tied to frame 1's topology only, so only the very first exported frame's subsets are kept
+        # around for build_vertex_skin_weights_payload_v11 below.
+        first_frame_subsets: list[dict[str, Any]] | None = None
 
         def export_frame_to_chunk(frame: int) -> None:
+            nonlocal first_frame_subsets
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
-            subsets = export_frame_subsets(scene)
+            subsets = export_frame_subsets(scene, import_rotation_deg, output_dir, capture_weights)
             if args.large_mesh_mode == "vb_only":
                 debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
             else:
@@ -1214,6 +1557,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             frame_path = os.path.join(temp_root, f"frame_{out_index:06d}.bin")
             write_direct_frame_chunk(frame_path, subsets, args)
             frame_paths.append(frame_path)
+            if first_frame_subsets is None:
+                first_frame_subsets = subsets
             check_cancel_requested(args.cancel_file)
 
         out_index = 0
@@ -1245,12 +1590,18 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 }
             ]
 
-        angles = (
-            float(args.angle_x) if args.post_process else 0.0,
-            float(args.angle_y) if args.post_process else 0.0,
-            float(args.angle_z) if args.post_process else 0.0,
-        )
+        # Always zero -- the rotation is baked into vertex/normal/bone data above now, not stored
+        # in this field (see import_rotation_deg's own comment).
+        angles = (0.0, 0.0, 0.0)
         texture_path_list = sorted(texture_paths)
+
+        joints = extract_armature_joints(scene, import_rotation_deg) if args.include_bones else []
+        if joints:
+            debug_print(args.debug_steps, f"extracted armature: {len(joints)} bone(s)")
+
+        weights_payload = build_vertex_skin_weights_payload_v11(first_frame_subsets) if first_frame_subsets else None
+        if weights_payload is not None:
+            debug_print(args.debug_steps, "captured real per-vertex skin weights")
 
         section_count = 1  # SECTION_MATERIAL_TRANSFORM
         if texture_path_list:
@@ -1258,6 +1609,10 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         section_count += 1  # SECTION_DETAIL_PHYSICS
         section_count += len(animations)
         section_count += len(frame_paths)
+        if joints:
+            section_count += 1  # SECTION_FRAME_SKINNED
+        if weights_payload is not None:
+            section_count += 1  # SECTION_VERTEX_SKIN_WEIGHTS
 
         check_cancel_requested(args.cancel_file)
         debug_print(args.debug_steps, "writing output")
@@ -1280,6 +1635,14 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 with open(frame_path, "rb") as frame_fp:
                     frame_payload = frame_fp.read()
                 write_section_v11(fp, SECTION_FRAME_STATIC, 1, frame_payload, True)
+
+            if joints:
+                # sectionVersion 2: adds rotX/Y/Z, scaleX/Y/Z, length - see SKELETON_BONE_V11 and
+                # build_skeleton_payload_v11's own docstring.
+                write_section_v11(fp, SECTION_FRAME_SKINNED, 2, build_skeleton_payload_v11(joints), False)
+
+            if weights_payload is not None:
+                write_section_v11(fp, SECTION_VERTEX_SKIN_WEIGHTS, 1, weights_payload, False)
 
             fp.flush()
             os.fsync(fp.fileno())
@@ -1349,6 +1712,7 @@ def debug_requested_from_argv(argv: list[str]) -> bool:
 if __name__ == "__main__":
     try:
         import bpy  # type: ignore
+        from mathutils import Vector  # type: ignore
     except Exception as exc:
         sys.stderr.write(f"Failed to import bpy: {exc}\n")
         sys.exit(2)

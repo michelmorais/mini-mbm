@@ -110,13 +110,28 @@ namespace mbm
     {
         util::TYPE_MESH          typeMe = util::TYPE_MESH_UNKNOWN;
         util::MATERIAL           material;
-        VEC3                     positionOffset;
-        VEC3                     angleDefault;
+        // Deprecated -- see MESH_MBM::Impl::positionOffset_deprecated (mesh-manager-impl.h) for
+        // the rationale. Kept only so the shared parse loop can populate SECTION_MATERIAL_TRANSFORM's
+        // full payload for round-trip fidelity; never applied to a loaded renderizable.
+        VEC3                     positionOffset_deprecated;
+        VEC3                     angleDefault_deprecated;
         util::INFO_DRAW_MODE     info_mode;
         mbm::INFO_PHYSICS        infoPhysics;
         util::INFO_ANIMATION     infoAnimation;
         std::vector<std::string> extraPaths;
         std::vector<IntermediateFrameV11> frames;
+        // Parsed but intentionally unused by MESH_MBM - no runtime skinning consumer exists in
+        // this engine. finishLoadFromIntermediate() never reads this; it exists purely so the
+        // shared parse loop below (parse_v11_intermediate) can succeed on ANY mesh carrying a
+        // SECTION_FRAME_SKINNED section, including one loaded through the normal game/runtime
+        // path, not just through MESH_MBM_DEBUG::loadV11 (which has its own separate read loop
+        // that actually stores this into Impl::skeleton for editing).
+        std::vector<util::SKELETON_BONE_V11> skeleton;
+        // Same "parsed but intentionally unused by MESH_MBM" rationale as `skeleton` above, for
+        // SECTION_VERTEX_SKIN_WEIGHTS - see MESH_MBM_DEBUG::Impl::weightPalette/vertexWeights
+        // (mesh-manager-impl.h) for where a debug-path load actually keeps this.
+        std::vector<std::string> weightPalette;
+        std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -149,9 +164,12 @@ namespace mbm
         // rather than move the whole thing, and that fails outright since IntermediateFrameV11 holds
         // unique_ptr's and genuinely can't be copied.
         MESH_LOAD_INTERMEDIATE_V11(MESH_LOAD_INTERMEDIATE_V11 &&other) noexcept
-            : typeMe(other.typeMe), material(other.material), positionOffset(other.positionOffset),
-              angleDefault(other.angleDefault), info_mode(other.info_mode),
-              extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames))
+            : typeMe(other.typeMe), material(other.material),
+              positionOffset_deprecated(other.positionOffset_deprecated),
+              angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
+              extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
+              skeleton(std::move(other.skeleton)), weightPalette(std::move(other.weightPalette)),
+              vertexWeights(std::move(other.vertexWeights))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -167,11 +185,14 @@ namespace mbm
                 return *this;
             typeMe         = other.typeMe;
             material       = other.material;
-            positionOffset = other.positionOffset;
-            angleDefault   = other.angleDefault;
+            positionOffset_deprecated = other.positionOffset_deprecated;
+            angleDefault_deprecated   = other.angleDefault_deprecated;
             info_mode      = other.info_mode;
             extraPaths     = std::move(other.extraPaths);
             frames         = std::move(other.frames);
+            skeleton       = std::move(other.skeleton);
+            weightPalette  = std::move(other.weightPalette);
+            vertexWeights  = std::move(other.vertexWeights);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -575,6 +596,79 @@ namespace
         return tileInfo;
     }
 
+    // Parses one SECTION_FRAME_SKINNED payload (already staged as `tmp`) into `out`, shared by
+    // parse_v11_intermediate (MESH_MBM/async load path, which discards the result - no runtime
+    // skinning consumer exists) and MESH_MBM_DEBUG::loadV11 (which stores it for editing).
+    // Enforces parent-before-child ordering while reading: a non-empty parentName must match the
+    // `name` of a joint already read earlier in this same call, otherwise the file is rejected as
+    // malformed rather than silently accepted with a dangling/forward reference.
+    bool parse_skeleton_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<util::SKELETON_BONE_V11> &out,
+                                     const uint16_t sectionVersion)
+    {
+        util::SKELETON_HEADER_V11 v11Header;
+        if (!util::readSkeletonHeaderV11(tmp, v11Header))
+            return false;
+
+        out.clear();
+        out.reserve(v11Header.jointCount);
+        for (uint16_t i = 0; i < v11Header.jointCount; ++i)
+        {
+            util::SKELETON_BONE_V11 joint;
+            if (!util::readSkeletonBoneV11(tmp, joint, sectionVersion))
+                return false;
+            if (!joint.parentName.empty())
+            {
+                const bool parentSeen = std::any_of(out.begin(), out.end(),
+                    [&joint](const util::SKELETON_BONE_V11 &j) { return j.name == joint.parentName; });
+                if (!parentSeen)
+                    return false; // forward/dangling parent reference - malformed file
+            }
+            out.push_back(std::move(joint));
+        }
+        return true;
+    }
+
+    // Parses one SECTION_VERTEX_SKIN_WEIGHTS payload (already staged as `tmp`) into `outPalette`/
+    // `outWeights`, shared by parse_v11_intermediate (MESH_MBM/async load path, which discards the
+    // result - no runtime skinning consumer exists) and MESH_MBM_DEBUG::loadV11 (which stores it
+    // for editing/re-export). sectionVersion is accepted for symmetry with
+    // parse_skeleton_section_v11 and future-proofing, but this section has only ever had version 1
+    // so far - nothing branches on it yet.
+    bool parse_vertex_skin_weights_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<std::string> &outPalette,
+                                                std::vector<util::VERTEX_BONE_WEIGHT_V11> &outWeights,
+                                                const uint16_t /*sectionVersion*/)
+    {
+        util::VERTEX_SKIN_WEIGHTS_HEADER_V11 v11Header;
+        if (!util::readVertexSkinWeightsHeaderV11(tmp, v11Header))
+            return false;
+
+        outPalette.clear();
+        outPalette.reserve(v11Header.paletteCount);
+        for (uint32_t i = 0; i < v11Header.paletteCount; ++i)
+        {
+            std::string name;
+            if (!util::readStringV11(tmp, name))
+                return false;
+            outPalette.push_back(std::move(name));
+        }
+
+        outWeights.clear();
+        outWeights.reserve(v11Header.vertexCount);
+        for (uint32_t i = 0; i < v11Header.vertexCount; ++i)
+        {
+            util::VERTEX_BONE_WEIGHT_V11 entry;
+            if (!util::readVertexBoneWeightV11(tmp, entry))
+                return false;
+            for (int slot = 0; slot < 4; ++slot)
+            {
+                if (entry.paletteIndex[slot] != 0xFF && entry.paletteIndex[slot] >= outPalette.size())
+                    return false; // malformed file - palette index out of range
+            }
+            outWeights.push_back(entry);
+        }
+        return true;
+    }
+
     // Worker-thread-safe equivalent of MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic,
     // takes INFO_PHYSICS directly instead of going through `this->impl` (parse_v11_intermediate has
     // no MESH_MBM_DEBUG instance).
@@ -756,8 +850,8 @@ namespace
                     return false;
                 }
                 out.material        = materialTransform.material;
-                out.positionOffset  = mbm::VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
-                out.angleDefault    = mbm::VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
+                out.positionOffset_deprecated  = mbm::VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
+                out.angleDefault_deprecated    = mbm::VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
                 out.info_mode.mode_draw                 = materialTransform.mode_draw;
                 out.info_mode.mode_cull_face            = materialTransform.mode_cull_face;
                 out.info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
@@ -846,6 +940,26 @@ namespace
                 {
                     frame0Uv      = out.frames[0].uv.get();
                     frame0UvCount = static_cast<int>(out.frames[0].vertexCount);
+                }
+            }
+            else if (staged.header.type == util::SECTION_FRAME_SKINNED)
+            {
+                if (!parse_skeleton_section_v11(tmp, out.skeleton, staged.header.sectionVersion))
+                {
+                    errorOut = "failed to parse SECTION_FRAME_SKINNED";
+                    return false;
+                }
+            }
+            else if (staged.header.type == util::SECTION_VERTEX_SKIN_WEIGHTS)
+            {
+                // Parsed but intentionally unused by MESH_MBM (see out.weightPalette/vertexWeights'
+                // own comment above) - purely so this shared parse loop can succeed on a mesh
+                // carrying this section through the normal game/runtime load path too, not just
+                // through MESH_MBM_DEBUG::loadV11.
+                if (!parse_vertex_skin_weights_section_v11(tmp, out.weightPalette, out.vertexWeights, staged.header.sectionVersion))
+                {
+                    errorOut = "failed to parse SECTION_VERTEX_SKIN_WEIGHTS";
+                    return false;
                 }
             }
             else
@@ -1034,8 +1148,8 @@ namespace mbm
     MESH_MBM_DEBUG::MESH_MBM_DEBUG()
         : impl(std::make_unique<Impl>())
     {
-        impl->positionOffset      = VEC3(0, 0, 0);
-        impl->angleDefault        = VEC3(0, 0, 0);
+        impl->positionOffset_deprecated = VEC3(0, 0, 0);
+        impl->angleDefault_deprecated   = VEC3(0, 0, 0);
         impl->coordTexFrame_0     = nullptr;
         impl->sizeCoordTexFrame_0 = 0;
         impl->typeMe              = util::TYPE_MESH_UNKNOWN;
@@ -1194,10 +1308,13 @@ namespace mbm
     // oversights.
     bool MESH_MBM_DEBUG::getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
                               util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut,
-                              std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut)
+                              std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut,
+                              bool *hasSkeletonOut, uint16_t *totalBonesOut)
     {
         (void)datailFontOut;
         (void)lsStageParticle;
+        if (hasSkeletonOut) *hasSkeletonOut = false;
+        if (totalBonesOut) *totalBonesOut = 0;
         bool isImage    = false;
         bool isMesh     = false;
         bool isUnknown  = false;
@@ -1285,6 +1402,17 @@ namespace mbm
                     }
                 }
             }
+            else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
+            {
+                if (hasSkeletonOut) *hasSkeletonOut = true;
+                if (totalBonesOut)
+                {
+                    util::MEM_CURSOR_V11 tmpFp = stage_payload_as_cursor(payload);
+                    util::SKELETON_HEADER_V11 v11SkelHeader;
+                    if (util::readSkeletonHeaderV11(tmpFp, v11SkelHeader))
+                        *totalBonesOut = v11SkelHeader.jointCount;
+                }
+            }
         }
         fclose(fp);
         if (versionOut) *versionOut = 11;
@@ -1298,31 +1426,6 @@ namespace mbm
         return util::TYPE_MESH_UNKNOWN;
     }
 
-    VEC3 MESH_MBM_DEBUG::getAngleDefault() const noexcept
-    {
-        return this->impl->angleDefault;
-    }
-
-    void MESH_MBM_DEBUG::setAngleDefault(const VEC3 &angle) noexcept
-    {
-        this->impl->angleDefault = angle;
-        this->impl->headerMesh.angleX = angle.x;
-        this->impl->headerMesh.angleY = angle.y;
-        this->impl->headerMesh.angleZ = angle.z;
-    }
-
-    VEC3 MESH_MBM_DEBUG::getPositionOffset() const noexcept
-    {
-        return this->impl->positionOffset;
-    }
-
-    void MESH_MBM_DEBUG::setPositionOffset(const VEC3 &position) noexcept
-    {
-        this->impl->positionOffset = position;
-        this->impl->headerMesh.posX = position.x;
-        this->impl->headerMesh.posY = position.y;
-        this->impl->headerMesh.posZ = position.z;
-    }
 
     INFO_PHYSICS & MESH_MBM_DEBUG::getPhysicsInfo() noexcept
     {
@@ -1973,6 +2076,8 @@ namespace mbm
         fileHeader.backBufferWidth  = impl->backBufferWidth;
         fileHeader.backBufferHeight = impl->backBufferHeight;
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
+                                     + (impl->skeleton.empty() ? 0u : 1u)
+                                     + (impl->vertexWeights.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
                                      + this->getTotalAnimationHeaders()
                                      + ((impl->typeMe == util::TYPE_MESH_PARTICLE) ? 1u : 0u)
@@ -2091,6 +2196,58 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_DETAIL_PHYSICS [%s]", fileOut);
+        }
+
+        // SECTION_FRAME_SKINNED - optional joint hierarchy for editor/mesh_debug.lua's Bones node
+        // round-trip diagnostic; independent of typeMe and independent of whether this mesh's
+        // SECTION_FRAME_STATIC geometry came from a hand-authored skeleton or an ordinary Blender
+        // import ---------------------------
+        if (!impl->skeleton.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_FRAME_SKINNED;
+            sectionHeader.sectionVersion = 2; // adds rotX/Y/Z, scaleX/Y/Z, length - see SKELETON_BONE_V11
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                util::SKELETON_HEADER_V11 skelHeader;
+                skelHeader.jointCount = static_cast<uint16_t>(this->impl->skeleton.size());
+                if (!util::writeSkeletonHeaderV11(fp, skelHeader))
+                    return false;
+                for (const auto &joint : this->impl->skeleton)
+                    if (!util::writeSkeletonBoneV11(fp, joint))
+                        return false;
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_FRAME_SKINNED [%s]", fileOut);
+        }
+
+        // SECTION_VERTEX_SKIN_WEIGHTS - optional real per-vertex bone weight palette (bind-pose,
+        // frame 1 topology only) for editor/mesh_debug.lua's Mesh Info node + "Export to FBX", so
+        // export can use the mesh's own originally-authored weights instead of inventing new ones
+        // via Blender's ARMATURE_ENVELOPE approximation -------------------------------------------
+        if (!impl->vertexWeights.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_VERTEX_SKIN_WEIGHTS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                util::VERTEX_SKIN_WEIGHTS_HEADER_V11 weightsHeader;
+                weightsHeader.paletteCount = static_cast<uint32_t>(this->impl->weightPalette.size());
+                weightsHeader.vertexCount  = static_cast<uint32_t>(this->impl->vertexWeights.size());
+                if (!util::writeVertexSkinWeightsHeaderV11(fp, weightsHeader))
+                    return false;
+                for (const auto &boneName : this->impl->weightPalette)
+                    if (!util::writeStringV11(fp, boneName))
+                        return false;
+                for (const auto &entry : this->impl->vertexWeights)
+                    if (!util::writeVertexBoneWeightV11(fp, entry))
+                        return false;
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileOut);
         }
 
         // SECTION_ANIMATION, one per animation, including its FX block ---------------------------------------
@@ -2641,11 +2798,11 @@ namespace mbm
                 impl->headerMesh.posX     = materialTransform.posX;
                 impl->headerMesh.posY     = materialTransform.posY;
                 impl->headerMesh.posZ     = materialTransform.posZ;
-                // setAngleDefault/setPositionOffset keep impl->angleDefault/positionOffset in sync with
-                // headerMesh.angle*/pos* - loadV11 must mirror that, since getAngleDefault/
-                // getPositionOffset read the impl-> copies, not headerMesh directly.
-                impl->angleDefault = VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
-                impl->positionOffset = VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
+                // Deprecated fields (see MESH_MBM::Impl's own comment) - mirrored here purely so a
+                // load-then-save round trip preserves a legacy file's stored bytes unchanged; there
+                // is no public getter/setter left, so nothing else ever writes these two.
+                impl->angleDefault_deprecated = VEC3(materialTransform.angleX, materialTransform.angleY, materialTransform.angleZ);
+                impl->positionOffset_deprecated = VEC3(materialTransform.posX, materialTransform.posY, materialTransform.posZ);
                 impl->info_mode.mode_draw = materialTransform.mode_draw;
                 impl->info_mode.mode_cull_face = materialTransform.mode_cull_face;
                 impl->info_mode.mode_front_face_direction = materialTransform.mode_front_face_direction;
@@ -2730,6 +2887,18 @@ namespace mbm
                                     : (v11FrameHeader.uvSource == 0 ? HAS_TEX_EACH_FRAME : HAS_TEX_FIRST_FRAME);
                 }
                 this->impl->buffer.push_back(pBuffer);
+            }
+            else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (!parse_skeleton_section_v11(tmp, impl->skeleton, sectionHeader.sectionVersion))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_FRAME_SKINNED [%s]", fileNamePath);
+            }
+            else if (sectionHeader.type == util::SECTION_VERTEX_SKIN_WEIGHTS)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (!parse_vertex_skin_weights_section_v11(tmp, impl->weightPalette, impl->vertexWeights, sectionHeader.sectionVersion))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileNamePath);
             }
             else
             {
@@ -3481,6 +3650,369 @@ namespace mbm
         return infoHead->effectShader->getTextureAnimationEffectFileName();
     }
 
+    int MESH_MBM_DEBUG::addBone(const char *name, const char *parentName, const float x, const float y, const float z,
+                                 const float radius, const float rotX, const float rotY, const float rotZ,
+                                 const float scaleX, const float scaleY, const float scaleZ, const float length,
+                                 char *errorOut, const int errorOutLen)
+    {
+        if (!name || !name[0])
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "bone name must not be empty");
+            return 0;
+        }
+        for (const auto &j : impl->skeleton)
+        {
+            if (j.name == name)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "duplicate bone name [%s]", name);
+                return 0;
+            }
+        }
+        const bool hasParent = parentName && parentName[0];
+        if (hasParent)
+        {
+            const bool parentFound = std::any_of(impl->skeleton.begin(), impl->skeleton.end(),
+                [parentName](const util::SKELETON_BONE_V11 &j) { return j.name == parentName; });
+            if (!parentFound)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "unknown parent bone [%s]", parentName);
+                return 0;
+            }
+        }
+        util::SKELETON_BONE_V11 joint;
+        joint.name       = name;
+        joint.parentName = hasParent ? parentName : "";
+        joint.x = x; joint.y = y; joint.z = z;
+        joint.radius = radius;
+        joint.rotX = rotX; joint.rotY = rotY; joint.rotZ = rotZ;
+        joint.scaleX = scaleX; joint.scaleY = scaleY; joint.scaleZ = scaleZ;
+        joint.length = length;
+        impl->skeleton.push_back(std::move(joint));
+        return static_cast<int>(impl->skeleton.size());
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalBone() const noexcept
+    {
+        return static_cast<uint32_t>(impl->skeleton.size());
+    }
+
+    const util::SKELETON_BONE_V11 *MESH_MBM_DEBUG::getBone(const uint32_t index) const noexcept
+    {
+        if (index < impl->skeleton.size())
+            return &impl->skeleton[index];
+        return nullptr;
+    }
+
+    namespace
+    {
+        // Re-sorts a skeleton vector so every joint's parent appears earlier than the joint itself,
+        // required by parse_skeleton_section_v11's on-load ordering check. Stable multi-pass (Kahn's
+        // algorithm style) rather than a single std::sort, so joints that don't need to move keep
+        // their relative order -- skeletons are small (tens of joints), so the O(n^2) worst case is
+        // not a concern.
+        void resortSkeletonParentFirst(std::vector<util::SKELETON_BONE_V11> &skeleton)
+        {
+            std::vector<util::SKELETON_BONE_V11> sorted;
+            sorted.reserve(skeleton.size());
+            std::vector<bool> placed(skeleton.size(), false);
+            bool progress = true;
+            while (sorted.size() < skeleton.size() && progress)
+            {
+                progress = false;
+                for (uint32_t i = 0; i < skeleton.size(); ++i)
+                {
+                    if (placed[i])
+                        continue;
+                    const util::SKELETON_BONE_V11 &j = skeleton[i];
+                    const bool parentReady = j.parentName.empty() ||
+                        std::any_of(sorted.begin(), sorted.end(),
+                                    [&j](const util::SKELETON_BONE_V11 &s) { return s.name == j.parentName; });
+                    if (parentReady)
+                    {
+                        sorted.push_back(skeleton[i]);
+                        placed[i] = true;
+                        progress = true;
+                    }
+                }
+            }
+            // Leftover entries (should not happen given updateBone's cycle guard) are appended as-is
+            // rather than dropped, so a bug here loses ordering guarantees but never loses data.
+            for (uint32_t i = 0; i < skeleton.size(); ++i)
+                if (!placed[i])
+                    sorted.push_back(skeleton[i]);
+            skeleton.swap(sorted);
+        }
+    }
+
+    bool MESH_MBM_DEBUG::updateBone(const uint32_t index, const char *name, const char *parentName,
+                                     const float x, const float y, const float z, const float radius,
+                                     const float rotX, const float rotY, const float rotZ,
+                                     const float scaleX, const float scaleY, const float scaleZ, const float length,
+                                     char *errorOut, const int errorOutLen)
+    {
+        if (index >= impl->skeleton.size())
+        {
+            if (errorOut)
+                snprintf(errorOut, errorOutLen, "bone index [%u] out of range -> total [%u]", index,
+                         static_cast<uint32_t>(impl->skeleton.size()));
+            return false;
+        }
+        if (!name || !name[0])
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "bone name must not be empty");
+            return false;
+        }
+        for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
+        {
+            if (i != index && impl->skeleton[i].name == name)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "duplicate bone name [%s]", name);
+                return false;
+            }
+        }
+        const std::string oldName = impl->skeleton[index].name;
+        const bool        hasParent = parentName && parentName[0];
+        std::string       newParentName;
+        if (hasParent)
+        {
+            // covers both "parent == the new name being assigned" and "parent == its own current
+            // name" (renaming and self-parenting in the same call)
+            if (std::string(name) == parentName || oldName == parentName)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "bone [%s] cannot be its own parent", name);
+                return false;
+            }
+            const util::SKELETON_BONE_V11 *parentJoint = nullptr;
+            for (const auto &j : impl->skeleton)
+            {
+                if (j.name == parentName)
+                {
+                    parentJoint = &j;
+                    break;
+                }
+            }
+            if (parentJoint == nullptr)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "unknown parent bone [%s]", parentName);
+                return false;
+            }
+            // Cycle guard: walk up from the candidate parent toward the root. If this walk reaches
+            // this bone's current name, the candidate parent is a descendant of this bone, and
+            // reparenting would create a cycle.
+            std::string cursor = parentJoint->parentName;
+            uint32_t    guard  = 0;
+            while (!cursor.empty() && guard++ < impl->skeleton.size())
+            {
+                if (cursor == oldName)
+                {
+                    if (errorOut)
+                        snprintf(errorOut, errorOutLen, "reparenting [%s] under [%s] would create a cycle",
+                                 name, parentName);
+                    return false;
+                }
+                const util::SKELETON_BONE_V11 *next = nullptr;
+                for (const auto &j : impl->skeleton)
+                {
+                    if (j.name == cursor)
+                    {
+                        next = &j;
+                        break;
+                    }
+                }
+                if (next == nullptr)
+                    break;
+                cursor = next->parentName;
+            }
+            newParentName = parentName;
+        }
+        util::SKELETON_BONE_V11 &joint = impl->skeleton[index];
+        joint.name             = name;
+        joint.parentName       = newParentName;
+        joint.x                = x;
+        joint.y                = y;
+        joint.z                = z;
+        joint.radius            = radius;
+        joint.rotX              = rotX;
+        joint.rotY              = rotY;
+        joint.rotZ              = rotZ;
+        joint.scaleX            = scaleX;
+        joint.scaleY            = scaleY;
+        joint.scaleZ            = scaleZ;
+        joint.length            = length;
+        // Any other joint that referenced this one by its old name must be repointed to the new one.
+        if (oldName != name)
+        {
+            for (auto &j : impl->skeleton)
+                if (j.parentName == oldName)
+                    j.parentName = name;
+        }
+        resortSkeletonParentFirst(impl->skeleton);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeBone(const uint32_t index, const bool cascadeChildren, char *errorOut, const int errorOutLen)
+    {
+        if (index >= impl->skeleton.size())
+        {
+            if (errorOut)
+                snprintf(errorOut, errorOutLen, "bone index [%u] out of range -> total [%u]", index,
+                         static_cast<uint32_t>(impl->skeleton.size()));
+            return false;
+        }
+        const std::string       name = impl->skeleton[index].name;
+        std::vector<std::string> children;
+        for (const auto &j : impl->skeleton)
+            if (j.parentName == name)
+                children.push_back(j.name);
+        if (!children.empty() && !cascadeChildren)
+        {
+            if (errorOut)
+                snprintf(errorOut, errorOutLen,
+                         "bone [%s] has %u child bone(s); pass cascadeChildren=true to remove them too",
+                         name.c_str(), static_cast<uint32_t>(children.size()));
+            return false;
+        }
+        if (cascadeChildren)
+        {
+            for (const auto &childName : children)
+            {
+                for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
+                {
+                    if (impl->skeleton[i].name == childName)
+                    {
+                        removeBone(i, true, nullptr, 0);
+                        break;
+                    }
+                }
+            }
+        }
+        for (uint32_t i = 0; i < impl->skeleton.size(); ++i)
+        {
+            if (impl->skeleton[i].name == name)
+            {
+                impl->skeleton.erase(impl->skeleton.begin() + i);
+                break;
+            }
+        }
+        return true;
+    }
+
+    namespace
+    {
+        // Frame 1's own vertex count (sum of its subsets' vertexCount) - SECTION_VERTEX_SKIN_WEIGHTS
+        // always describes frame 1's topology only (skin weights are a bind-pose property, they
+        // don't vary per animation frame the way position/normal/uv per SECTION_FRAME_STATIC do).
+        // Returns 0 if there is no frame 0 buffer at all.
+        uint32_t computeFrame1VertexCountForWeights(const std::vector<util::BUFFER_MESH_DEBUG *> &buffer)
+        {
+            if (buffer.empty() || buffer[0] == nullptr)
+                return 0;
+            uint32_t total = 0;
+            for (const auto *sub : buffer[0]->subset)
+                total += static_cast<uint32_t>(sub->vertexCount);
+            return total;
+        }
+    }
+
+    bool MESH_MBM_DEBUG::setVertexWeight(const uint32_t vertexIndex,
+                                          const char *boneName0, const float weight0,
+                                          const char *boneName1, const float weight1,
+                                          const char *boneName2, const float weight2,
+                                          const char *boneName3, const float weight3,
+                                          char *errorOut, const int errorOutLen)
+    {
+        const uint32_t frame1VertexCount = computeFrame1VertexCountForWeights(impl->buffer);
+        if (frame1VertexCount == 0)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "mesh has no frame 1 geometry to attach weights to");
+            return false;
+        }
+        if (vertexIndex >= frame1VertexCount)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "vertex index [%u] out of range -> frame 1 total [%u]",
+                                    vertexIndex, frame1VertexCount);
+            return false;
+        }
+        // Grows/shrinks to match frame 1's current vertex count on first touch (or if the mesh's
+        // own geometry changed since); existing entries within the overlap are preserved.
+        if (impl->vertexWeights.size() != frame1VertexCount)
+            impl->vertexWeights.resize(frame1VertexCount);
+
+        const char *names[4]   = { boneName0, boneName1, boneName2, boneName3 };
+        const float weights[4] = { weight0, weight1, weight2, weight3 };
+        util::VERTEX_BONE_WEIGHT_V11 entry;
+        for (int slot = 0; slot < 4; ++slot)
+        {
+            if (!names[slot] || !names[slot][0])
+            {
+                entry.paletteIndex[slot] = 0xFF;
+                entry.weight[slot]       = 0.0f;
+                continue;
+            }
+            uint32_t paletteIdx = static_cast<uint32_t>(impl->weightPalette.size());
+            for (uint32_t i = 0; i < impl->weightPalette.size(); ++i)
+            {
+                if (impl->weightPalette[i] == names[slot])
+                {
+                    paletteIdx = i;
+                    break;
+                }
+            }
+            if (paletteIdx == impl->weightPalette.size())
+            {
+                if (impl->weightPalette.size() >= 0xFFu)
+                {
+                    if (errorOut) snprintf(errorOut, errorOutLen, "weight palette full (255 unique bones already referenced)");
+                    return false;
+                }
+                impl->weightPalette.push_back(names[slot]);
+            }
+            entry.paletteIndex[slot] = static_cast<uint8_t>(paletteIdx);
+            entry.weight[slot]       = weights[slot];
+        }
+        impl->vertexWeights[vertexIndex] = entry;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getVertexWeight(const uint32_t vertexIndex,
+                                          const char **boneName0, float *weight0,
+                                          const char **boneName1, float *weight1,
+                                          const char **boneName2, float *weight2,
+                                          const char **boneName3, float *weight3) const noexcept
+    {
+        if (vertexIndex >= impl->vertexWeights.size())
+            return false;
+        const util::VERTEX_BONE_WEIGHT_V11 &entry = impl->vertexWeights[vertexIndex];
+        const char **outNames[4] = { boneName0, boneName1, boneName2, boneName3 };
+        float *      outWeights[4] = { weight0, weight1, weight2, weight3 };
+        for (int slot = 0; slot < 4; ++slot)
+        {
+            const bool used = entry.paletteIndex[slot] != 0xFF &&
+                               entry.paletteIndex[slot] < impl->weightPalette.size();
+            if (outNames[slot])
+                *outNames[slot] = used ? impl->weightPalette[entry.paletteIndex[slot]].c_str() : nullptr;
+            if (outWeights[slot])
+                *outWeights[slot] = used ? entry.weight[slot] : 0.0f;
+        }
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::hasVertexWeights() const noexcept
+    {
+        return !impl->vertexWeights.empty();
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalVertexWeightBones() const noexcept
+    {
+        return static_cast<uint32_t>(impl->weightPalette.size());
+    }
+
+    void MESH_MBM_DEBUG::removeVertexWeights() noexcept
+    {
+        impl->weightPalette.clear();
+        impl->vertexWeights.clear();
+    }
+
     bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept
     {
         if (index >= this->impl->infoAnimation.lsHeaderAnim.size())
@@ -3581,8 +4113,8 @@ namespace mbm
             meshBuffer = nullptr;
         }
         impl->buffer.clear();
-        impl->angleDefault        = VEC3(0, 0, 0);
-        impl->positionOffset      = VEC3(0, 0, 0);
+        impl->angleDefault_deprecated   = VEC3(0, 0, 0);
+        impl->positionOffset_deprecated = VEC3(0, 0, 0);
         impl->sizeCoordTexFrame_0 = 0;
         impl->typeMe              = util::TYPE_MESH_UNKNOWN;
         impl->backBufferWidth     = 0;
@@ -3597,6 +4129,7 @@ namespace mbm
         this->impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         this->impl->infoPhysics.release();
         this->impl->infoAnimation.release();
+        impl->skeleton.clear();
     }
 
     void MESH_MBM_DEBUG::fillAtLeastOneBound()
@@ -3666,26 +4199,6 @@ namespace mbm
     
 
 
-
-    VEC3 MESH_MBM::getPositionOffset() const noexcept
-    {
-        return impl->positionOffset;
-    }
-
-    void MESH_MBM::setPositionOffset(const VEC3 &position) noexcept
-    {
-        impl->positionOffset = position;
-    }
-
-    VEC3 MESH_MBM::getAngleDefault() const noexcept
-    {
-        return impl->angleDefault;
-    }
-
-    void MESH_MBM::setAngleDefault(const VEC3 &angle) noexcept
-    {
-        impl->angleDefault = angle;
-    }
 
     BUFFER_MESH * MESH_MBM::getBuffer(const uint32_t index) const
     {
@@ -4014,16 +4527,12 @@ namespace mbm
         return this->load(fileNamePath, nullptr);
     }
 
-    bool MESH_MBM::load(const char *fileNamePath, RENDERIZABLE *renderizable)
+    bool MESH_MBM::load(const char *fileNamePath, RENDERIZABLE * /*renderizable*/)
     {
-        if (!this->loadV11(fileNamePath))
-            return false;
-        if (renderizable)
-        {
-            renderizable->getPosition() += this->impl->positionOffset;
-            renderizable->setAngle(this->impl->angleDefault);
-        }
-        return true;
+        // `renderizable` used to receive positionOffset_deprecated/angleDefault_deprecated here;
+        // no longer applied (see MESH_MBM::Impl's own comment on those fields). Parameter kept for
+        // ABI/call-site compatibility.
+        return this->loadV11(fileNamePath);
     }
 
     // Main-thread-only GPU-finish half of loading a v11 mesh (async loading). Consumes
@@ -4037,8 +4546,8 @@ namespace mbm
         impl->fileName       = fileNamePath;
         impl->typeMe         = in.typeMe;
         impl->material       = in.material;
-        impl->positionOffset = in.positionOffset;
-        impl->angleDefault   = in.angleDefault;
+        impl->positionOffset_deprecated = in.positionOffset_deprecated;
+        impl->angleDefault_deprecated   = in.angleDefault_deprecated;
         impl->info_mode      = in.info_mode;
         impl->infoPhysics.lsCube        = std::move(in.infoPhysics.lsCube);
         impl->infoPhysics.lsCubeComplex = std::move(in.infoPhysics.lsCubeComplex);
@@ -4237,11 +4746,6 @@ namespace mbm
         auto mesh = this->impl->lsMeshes[fileNameBase];
         if(mesh)
         {
-            if (renderizable)
-            {
-                renderizable->getPosition() += mesh->impl->positionOffset;
-                renderizable->setAngle(mesh->impl->angleDefault);
-            }
             return mesh;
         }
         mesh = new MESH_MBM();
@@ -4537,8 +5041,8 @@ namespace mbm
         }
         if (mesh)
         {
-            mesh->impl->positionOffset                    = VEC3(0, 0, 0);
-            mesh->impl->angleDefault                      = VEC3(0, 0, 0);
+            mesh->impl->positionOffset_deprecated                    = VEC3(0, 0, 0);
+            mesh->impl->angleDefault_deprecated                      = VEC3(0, 0, 0);
             mesh->impl->typeMe                            = util::TYPE_MESH_FONT;
             auto header = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
             mesh->impl->infoAnimation.lsHeaderAnim.push_back(header);
@@ -4602,8 +5106,8 @@ namespace mbm
             return nullptr;
         }
 
-        mesh->impl->positionOffset = VEC3(0, 0, 0);
-        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->positionOffset_deprecated = VEC3(0, 0, 0);
+        mesh->impl->angleDefault_deprecated   = VEC3(0, 0, 0);
         mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         if(info_mode)
         {
@@ -4650,8 +5154,8 @@ namespace mbm
             return nullptr;
         }
 
-        mesh->impl->positionOffset = VEC3(0, 0, 0);
-        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->positionOffset_deprecated = VEC3(0, 0, 0);
+        mesh->impl->angleDefault_deprecated   = VEC3(0, 0, 0);
         mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         if(info_draw_mode)
         {
@@ -4698,8 +5202,8 @@ namespace mbm
             delete mesh;
             return nullptr;
         }
-        mesh->impl->positionOffset = VEC3(0, 0, 0);
-        mesh->impl->angleDefault   = VEC3(0, 0, 0);
+        mesh->impl->positionOffset_deprecated = VEC3(0, 0, 0);
+        mesh->impl->angleDefault_deprecated   = VEC3(0, 0, 0);
         mesh->impl->typeMe         = util::TYPE_MESH_SHAPE;
         util::DYNAMIC_SHAPE * extra_info_shape = new util::DYNAMIC_SHAPE(dynamic_shape_info.dynamicVertex,dynamic_shape_info.dynamicNormal,dynamic_shape_info.dynamicUV,dynamic_shape_info.size_vertex,dynamic_shape_info.size_normal,dynamic_shape_info.size_uv);
         mesh->impl->extraInfo      = extra_info_shape;
@@ -5029,8 +5533,8 @@ namespace mbm
             // moved to MESH_MBM_DEBUG::fillInSubsetDebug
             // 
         }
-        impl->positionOffset = VEC3(impl->headerMesh.posX, impl->headerMesh.posY, impl->headerMesh.posZ);
-        impl->angleDefault = VEC3(impl->headerMesh.angleX, impl->headerMesh.angleY, impl->headerMesh.angleZ);
+        impl->positionOffset_deprecated = VEC3(impl->headerMesh.posX, impl->headerMesh.posY, impl->headerMesh.posZ);
+        impl->angleDefault_deprecated = VEC3(impl->headerMesh.angleX, impl->headerMesh.angleY, impl->headerMesh.angleZ);
         this->impl->sizeCoordTexFrame_0 = 0;
         if (this->impl->coordTexFrame_0)
             delete[] this->impl->coordTexFrame_0;

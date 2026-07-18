@@ -488,6 +488,27 @@ namespace mbm
     "[ps-transparent.ps][float][alpha]                = min 0.0              max 1.0              default 0.7\n",
     // transparent *********************
 
+    // outline *************************
+    "outline.ps",
+
+    "precision mediump float;\n"
+    "uniform vec3 color;\n"
+    "uniform float thickness;\n"
+    "varying vec3 vNormalView;\n"
+    "varying vec3 vPositionView;\n"
+    "void main()\n"
+    "{\n"
+    "    float facing = abs(dot(normalize(vNormalView), normalize(-vPositionView)));\n"
+    "    if (facing > thickness) discard;\n"
+    "    gl_FragColor = vec4(color, 1.0);\n"
+    "}\n"
+    "\n",
+
+    "[ps-outline.ps] = outline.ps\n"
+    "[ps-outline.ps][rgb][color] = min 0.0 0.0 0.0 max 1.0 1.0 1.0 default 1.0 0.9 0.1\n"
+    "[ps-outline.ps][float][thickness] = min 0.01 max 0.5 default 0.12\n",
+    // outline *************************
+
     // saturate *********************
     "saturate.ps",
 
@@ -2494,6 +2515,27 @@ namespace mbm
 
     /* VERTEX SHADER
        -----------------------------------------------------------------------------------------------------*/
+
+    // Outline *************************
+    "outline.vs",
+
+    "precision highp float;\n"
+    "uniform mat4 mvpMatrix;\n"
+    "uniform mat4 mvMatrix;\n"
+    "attribute vec4 aPosition;\n"
+    "attribute vec3 aNormal;\n"
+    "varying vec3 vNormalView;\n"
+    "varying vec3 vPositionView;\n"
+    "void main()\n"
+    "{\n"
+    "    gl_Position = mvpMatrix * aPosition;\n"
+    "    vNormalView = (mvMatrix * vec4(aNormal, 0.0)).xyz;\n"
+    "    vPositionView = (mvMatrix * aPosition).xyz;\n"
+    "}\n"
+    "\n",
+
+    "[vs-outline.vs] = outline.vs\n",
+    // Outline *************************
 
     // Textura Simples **********************
     "simple texture.vs",

@@ -340,8 +340,6 @@ namespace mbm
                     return;
                 }
                 this->impl->mesh = mesh;
-                this->getPosition() += mesh->getPositionOffset();
-                this->setAngle(mesh->getAngleDefault());
                 this->impl->type = this->impl->mesh->getTypeMesh();
                 if (!this->setScale(majorScale))
                 {

@@ -727,54 +727,6 @@ namespace mbm
         return 1;
     }
 
-    int onGetAngleMeshDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const VEC3 angle = meshDebug->mesh.getAngleDefault();
-        lua_newtable(lua);
-        lua_pushnumber(lua, angle.x);
-        lua_setfield(lua, -2, "x");
-        lua_pushnumber(lua, angle.y);
-        lua_setfield(lua, -2, "y");
-        lua_pushnumber(lua, angle.z);
-        lua_setfield(lua, -2, "z");
-        return 1;
-    }
-
-    int onSetAngleMeshDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const float x = static_cast<float>(luaL_checknumber(lua, 2));
-        const float y = static_cast<float>(luaL_checknumber(lua, 3));
-        const float z = static_cast<float>(luaL_checknumber(lua, 4));
-        meshDebug->mesh.setAngleDefault(VEC3(x, y, z));
-        return 0;
-    }
-
-    int onGetPositionMeshDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const VEC3 position = meshDebug->mesh.getPositionOffset();
-        lua_newtable(lua);
-        lua_pushnumber(lua, position.x);
-        lua_setfield(lua, -2, "x");
-        lua_pushnumber(lua, position.y);
-        lua_setfield(lua, -2, "y");
-        lua_pushnumber(lua, position.z);
-        lua_setfield(lua, -2, "z");
-        return 1;
-    }
-
-    int onSetPositionMeshDebugLua(lua_State *lua)
-    {
-        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const float x = static_cast<float>(luaL_checknumber(lua, 2));
-        const float y = static_cast<float>(luaL_checknumber(lua, 3));
-        const float z = static_cast<float>(luaL_checknumber(lua, 4));
-        meshDebug->mesh.setPositionOffset(VEC3(x, y, z));
-        return 0;
-    }
-
     int onGetMaterialMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1840,6 +1792,200 @@ namespace mbm
         return 5;
     }
 
+    // Skeleton bindings (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
+    // diagnostic round-trip only, follows the exact same flat-multi-return convention as
+    // addAnim/getAnim above rather than a table, to stay consistent within this native class.
+    int onAddBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *    name        = luaL_checkstring(lua, 2);
+        const char *    parentName  = lua_isnil(lua, 3) ? nullptr : luaL_checkstring(lua, 3);
+        const float     x           = static_cast<float>(luaL_checknumber(lua, 4));
+        const float     y           = static_cast<float>(luaL_checknumber(lua, 5));
+        const float     z           = static_cast<float>(luaL_checknumber(lua, 6));
+        const float     radius      = static_cast<float>(luaL_checknumber(lua, 7));
+        // rotX/Y/Z, scaleX/Y/Z, length: optional trailing args (SECTION_FRAME_SKINNED sectionVersion
+        // 2), defaulting to "no orientation data" so older 7-arg Lua call sites keep working.
+        const float     rotX        = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float     rotY        = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float     rotZ        = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float     scaleX      = static_cast<float>(luaL_optnumber(lua, 11, 1.0));
+        const float     scaleY      = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const float     scaleZ      = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
+        const float     length      = static_cast<float>(luaL_optnumber(lua, 14, 0.0));
+        char            errorOut[255] = "";
+        const int       ret = meshDebug->mesh.addBone(name, parentName, x, y, z, radius,
+                                                        rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length,
+                                                        errorOut, (int)sizeof(errorOut));
+        if (ret == 0)
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onGetTotalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalBone()));
+        return 1;
+    }
+
+    int onGetBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       index     = luaL_checkinteger(lua, 2) - 1;
+        const util::SKELETON_BONE_V11 *joint = index >= 0 ? meshDebug->mesh.getBone(static_cast<uint32_t>(index)) : nullptr;
+        if (joint == nullptr)
+        {
+            lua_print_line(lua, TYPE_LOG_ERROR, "invalid bone index");
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushstring(lua, joint->name.c_str());
+        lua_pushnumber(lua, joint->x);
+        lua_pushnumber(lua, joint->y);
+        lua_pushnumber(lua, joint->z);
+        lua_pushnumber(lua, joint->radius);
+        if (joint->parentName.empty())
+            lua_pushnil(lua);
+        else
+            lua_pushstring(lua, joint->parentName.c_str());
+        // Appended after parentName (sectionVersion 2) so every existing 6-value destructure
+        // (`name, x, y, z, radius, parentName = meshD:getBone(i)`) keeps working unchanged - Lua
+        // silently drops trailing return values a caller doesn't capture.
+        lua_pushnumber(lua, joint->rotX);
+        lua_pushnumber(lua, joint->rotY);
+        lua_pushnumber(lua, joint->rotZ);
+        lua_pushnumber(lua, joint->scaleX);
+        lua_pushnumber(lua, joint->scaleY);
+        lua_pushnumber(lua, joint->scaleZ);
+        lua_pushnumber(lua, joint->length);
+        return 13;
+    }
+
+    int onUpdateBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t  index      = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *    name       = luaL_checkstring(lua, 3);
+        const char *    parentName = lua_isnil(lua, 4) ? nullptr : luaL_checkstring(lua, 4);
+        const float     x          = static_cast<float>(luaL_checknumber(lua, 5));
+        const float     y          = static_cast<float>(luaL_checknumber(lua, 6));
+        const float     z          = static_cast<float>(luaL_checknumber(lua, 7));
+        const float     radius     = static_cast<float>(luaL_checknumber(lua, 8));
+        // Optional trailing args, same convention/defaults as onAddBoneDebugLua. This is only a
+        // safety net for callers outside this repo -- every in-repo caller forwards the full tuple
+        // it read from getBone, since omitting these would silently reset a bone's orientation.
+        const float     rotX       = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float     rotY       = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float     rotZ       = static_cast<float>(luaL_optnumber(lua, 11, 0.0));
+        const float     scaleX     = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const float     scaleY     = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
+        const float     scaleZ     = static_cast<float>(luaL_optnumber(lua, 14, 1.0));
+        const float     length     = static_cast<float>(luaL_optnumber(lua, 15, 0.0));
+        char            errorOut[255] = "";
+        const bool ret = meshDebug->mesh.updateBone(index, name, parentName, x, y, z, radius,
+                                                      rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length,
+                                                      errorOut, (int)sizeof(errorOut));
+        if (!ret)
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onRemoveBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug       = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t  index           = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const bool      cascadeChildren = lua_gettop(lua) > 2 && lua_toboolean(lua, 3) != 0;
+        char            errorOut[255]   = "";
+        const bool ret = meshDebug->mesh.removeBone(index, cascadeChildren, errorOut, (int)sizeof(errorOut));
+        if (!ret)
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    // Vertex skin weight bindings (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec. 6f) -
+    // editor/diagnostic + FBX re-export round-trip only, same scope as addBone/getBone above.
+    // vertexIndex is 1-based here (matching every other index in this file's Lua surface),
+    // converted to the 0-based convention MESH_MBM_DEBUG::setVertexWeight/getVertexWeight use
+    // internally. Each of the 4 (name, weight) slots must pass an explicit nil for "unused" - same
+    // convention as addBone's parentName - omitting a trailing argument entirely is not supported.
+    int onSetVertexWeightDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug    = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t  vertexIndex  = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *    name0        = lua_isnil(lua, 3) ? nullptr : luaL_checkstring(lua, 3);
+        const float     w0           = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
+        const char *    name1        = lua_isnil(lua, 5) ? nullptr : luaL_checkstring(lua, 5);
+        const float     w1           = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const char *    name2        = lua_isnil(lua, 7) ? nullptr : luaL_checkstring(lua, 7);
+        const float     w2           = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const char *    name3        = lua_isnil(lua, 9) ? nullptr : luaL_checkstring(lua, 9);
+        const float     w3           = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        char            errorOut[255] = "";
+        const bool ret = meshDebug->mesh.setVertexWeight(vertexIndex, name0, w0, name1, w1, name2, w2, name3, w3,
+                                                           errorOut, (int)sizeof(errorOut));
+        if (!ret)
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    // Returns 8 values (name1, w1, name2, w2, name3, w3, name4, w4), nil name for an unused slot -
+    // or a single nil if vertexIndex is out of range / has no weight data set at all (distinguish
+    // "no data anywhere" from "this specific vertex has zero influences" via hasVertexWeights()).
+    int onGetVertexWeightDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       indexArg  = static_cast<int>(luaL_checkinteger(lua, 2)) - 1;
+        if (indexArg < 0)
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        const char *name0 = nullptr, *name1 = nullptr, *name2 = nullptr, *name3 = nullptr;
+        float       w0 = 0.0f, w1 = 0.0f, w2 = 0.0f, w3 = 0.0f;
+        const bool ok = meshDebug->mesh.getVertexWeight(static_cast<uint32_t>(indexArg),
+                                                          &name0, &w0, &name1, &w1, &name2, &w2, &name3, &w3);
+        if (!ok)
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        if (name0) lua_pushstring(lua, name0); else lua_pushnil(lua);
+        lua_pushnumber(lua, w0);
+        if (name1) lua_pushstring(lua, name1); else lua_pushnil(lua);
+        lua_pushnumber(lua, w1);
+        if (name2) lua_pushstring(lua, name2); else lua_pushnil(lua);
+        lua_pushnumber(lua, w2);
+        if (name3) lua_pushstring(lua, name3); else lua_pushnil(lua);
+        lua_pushnumber(lua, w3);
+        return 8;
+    }
+
+    int onHasVertexWeightsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, meshDebug->mesh.hasVertexWeights() ? 1 : 0);
+        return 1;
+    }
+
+    int onGetTotalVertexWeightBonesDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalVertexWeightBones()));
+        return 1;
+    }
+
+    int onRemoveVertexWeightsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        meshDebug->mesh.removeVertexWeights();
+        return 0;
+    }
+
     int onNewIndexMeshDebug(lua_State *lua) // escrita
     {
         /*
@@ -1891,10 +2037,6 @@ namespace mbm
 										  {"setModeFrontFace", onSetMode_FrontFaceMeshDebugLua},
 			                              {"getModeFrontFace", onGetMode_FrontFaceMeshDebugLua},
                                           {"getVersion", onGetVersionMeshDebugLua},
-                                          {"getAngle", onGetAngleMeshDebugLua},
-                                          {"setAngle", onSetAngleMeshDebugLua},
-                                          {"getPosition", onGetPositionMeshDebugLua},
-                                          {"setPosition", onSetPositionMeshDebugLua},
                                           {"getMaterial", onGetMaterialMeshDebugLua},
                                           {"setMaterial", onSetMaterialMeshDebugLua},
                                           {"setPhysics", onSetPhysicsMeshDebugLua},
@@ -1937,6 +2079,16 @@ namespace mbm
                                           {"copyAnimationsFromMesh", onCopyAnimationsFromMeshLua},
                                           {"updateAnim", onUpdateAnimationDebugLua},
                                           {"getAnim", onGetDetailAnimationDebugLua},
+                                          {"addBone", onAddBoneDebugLua},
+                                          {"getTotalBone", onGetTotalBoneDebugLua},
+                                          {"getBone", onGetBoneDebugLua},
+                                          {"updateBone", onUpdateBoneDebugLua},
+                                          {"removeBone", onRemoveBoneDebugLua},
+                                          {"setVertexWeight", onSetVertexWeightDebugLua},
+                                          {"getVertexWeight", onGetVertexWeightDebugLua},
+                                          {"hasVertexWeights", onHasVertexWeightsDebugLua},
+                                          {"getTotalVertexWeightBones", onGetTotalVertexWeightBonesDebugLua},
+                                          {"removeVertexWeights", onRemoveVertexWeightsDebugLua},
 										  {"getExt", onGetStaticExtensionLua},
                                           {"setDetail", onSetDetailLua},
                                           {nullptr, nullptr}};

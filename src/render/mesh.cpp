@@ -94,8 +94,6 @@ namespace mbm
                 return;
             }
             this->mesh = mesh;
-            this->getPosition() += mesh->getPositionOffset();
-            this->setAngle(mesh->getAngleDefault());
             const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {

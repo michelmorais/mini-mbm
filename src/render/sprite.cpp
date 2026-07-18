@@ -90,8 +90,6 @@ namespace mbm
                 return;
             }
             this->mesh = mesh;
-            this->getPosition() += mesh->getPositionOffset();
-            this->setAngle(mesh->getAngleDefault());
             const util::TYPE_MESH expectedType = util::TYPE_MESH_SPRITE;
             const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, &expectedType, "sprite");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)

@@ -859,8 +859,6 @@ namespace mbm
         mesh = mehManager->load(nickName, vertex.ls_xyz, nullptr, vertex.ls_uv, sizeVertexBuffer,info_draw_mode);
         if (mesh)
         {
-            this->getPosition() += mesh->getPositionOffset();
-            this->setAngle(mesh->getAngleDefault());
             this->mesh->resetPhysicsInfo();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
@@ -1007,8 +1005,6 @@ namespace mbm
         mesh = mehManager->loadIndex(nickName, vertex.ls_xyz, nullptr, vertex.ls_uv, sizeVertexBuffer, index,autoVertex->sizeIndex,info_draw_mode);
         if (mesh)
         {
-            this->getPosition() += mesh->getPositionOffset();
-            this->setAngle(mesh->getAngleDefault());
             this->mesh->resetPhysicsInfo();
             auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;

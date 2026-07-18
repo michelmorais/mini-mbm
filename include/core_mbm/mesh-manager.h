@@ -76,18 +76,15 @@ namespace mbm
         API_IMPL bool getInfo(util::HEADER_MESH &headerMeshMbmOut, util::TYPE_MESH &typeOut, INFO_BOUND_FONT **datailFontOut,
                      std::vector<util::STAGE_PARTICLE> &lsStageParticle);
         API_IMPL static bool getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
-                                  util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut, 
-                                  std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut = nullptr);
+                                  util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut,
+                                  std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut = nullptr,
+                                  bool *hasSkeletonOut = nullptr, uint16_t *totalBonesOut = nullptr);
         API_IMPL static const char* getValidExtension(const char* fileName,bool &isImage,bool &isMesh,bool &isUnknown);
         API_IMPL static std::string getExtension(const char* fileName);
         API_IMPL util::TYPE_MESH getMeshType() const noexcept;
         API_IMPL void setMeshType(const util::TYPE_MESH type) noexcept;
         API_IMPL util::TYPE_MESH getType() noexcept;
         API_IMPL util::TYPE_MESH getType(const char *fileNamePath);
-        API_IMPL VEC3 getAngleDefault() const noexcept;
-        API_IMPL void setAngleDefault(const VEC3 &angle) noexcept;
-        API_IMPL VEC3 getPositionOffset() const noexcept;
-        API_IMPL void setPositionOffset(const VEC3 &position) noexcept;
         API_IMPL INFO_PHYSICS &getPhysicsInfo() noexcept;
         API_IMPL const INFO_PHYSICS &getPhysicsInfo() const noexcept;
         API_IMPL int getFileVersion() const noexcept;
@@ -155,6 +152,63 @@ namespace mbm
         API_IMPL const util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnim(const uint32_t index)const;
         API_IMPL const char *getAnimationEffectTexture(const uint32_t index) const noexcept;
         API_IMPL bool setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept;
+        // Skeleton accessors (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
+        // diagnostic round-trip only, never consulted by rendering. `parentName` must be nullptr/""
+        // (root) or already-added via a prior addBone call in this instance; addBone returns 0 and
+        // fills errorOut on any validation failure, else a 1-based joint index, mirroring
+        // addAnimation's contract. rotX/Y/Z (Euler degrees, world/armature space, engine's own
+        // X-then-Y-then-Z order) and scaleX/Y/Z (default 1,1,1) and length (default 0, meaning "no
+        // orientation data") are the fields SECTION_FRAME_SKINNED's sectionVersion 2 added - see
+        // SKELETON_BONE_V11's own comment in header-mesh.h.
+        API_IMPL int addBone(const char *name, const char *parentName, const float x, const float y, const float z,
+                              const float radius, const float rotX, const float rotY, const float rotZ,
+                              const float scaleX, const float scaleY, const float scaleZ, const float length,
+                              char *errorOut, const int errorOutLen);
+        API_IMPL uint32_t getTotalBone() const noexcept;
+        API_IMPL const util::SKELETON_BONE_V11 *getBone(const uint32_t index) const noexcept;
+        // Edits an existing bone in place (name/parent/position/radius/rotation/scale/length).
+        // Rejects an empty/duplicate name, an unknown parent, self-parenting, and any reparent that
+        // would create a cycle (the candidate parent is a descendant of `index`). On success,
+        // re-sorts the internal joint list so parent-before-child order still holds (required by
+        // the on-disk format), which callers relying on stable indices across calls must account for.
+        API_IMPL bool updateBone(const uint32_t index, const char *name, const char *parentName,
+                                  const float x, const float y, const float z, const float radius,
+                                  const float rotX, const float rotY, const float rotZ,
+                                  const float scaleX, const float scaleY, const float scaleZ, const float length,
+                                  char *errorOut, const int errorOutLen);
+        // Removes bone `index`. If other bones reference it as their parent, the call fails (errorOut
+        // explains how many) unless `cascadeChildren` is true, in which case the whole subtree rooted
+        // at `index` is removed.
+        API_IMPL bool removeBone(const uint32_t index, const bool cascadeChildren, char *errorOut, const int errorOutLen);
+        // Vertex skin weight accessors (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec.
+        // 6f) - editor/diagnostic + FBX re-export round-trip only, never consulted by rendering.
+        // vertexIndex is 0-based, against frame 1's own vertex order (this section always describes
+        // frame 1's topology, never any other frame's). Each of the 4 slots is independent: pass a
+        // nullptr/empty boneNameN to leave that slot unused. Bone names are resolved against (or
+        // added to) this instance's own weight palette - NOT SECTION_FRAME_SKINNED's bone list, so
+        // this works even for a mesh with no SECTION_FRAME_SKINNED data at all. Growing the vertex
+        // array itself only happens implicitly the first time any slot is set for a given
+        // vertexIndex; setVertexWeight fails (returns false, fills errorOut) if vertexIndex is out
+        // of range for frame 1's current vertex count.
+        API_IMPL bool setVertexWeight(const uint32_t vertexIndex,
+                                       const char *boneName0, const float weight0,
+                                       const char *boneName1, const float weight1,
+                                       const char *boneName2, const float weight2,
+                                       const char *boneName3, const float weight3,
+                                       char *errorOut, const int errorOutLen);
+        // Returns false if vertexIndex is out of range or no weight data has been set for it yet.
+        // On success, fills up to 4 (boneName, weight) out-pairs - boneNameN is set to nullptr (not
+        // an empty string) for an unused slot, so a caller can tell "no 4th influence" apart from
+        // "4th influence is an empty-named bone" (which addBone's own empty-name rejection makes
+        // impossible anyway, but the distinction is kept for symmetry/clarity).
+        API_IMPL bool getVertexWeight(const uint32_t vertexIndex,
+                                       const char **boneName0, float *weight0,
+                                       const char **boneName1, float *weight1,
+                                       const char **boneName2, float *weight2,
+                                       const char **boneName3, float *weight3) const noexcept;
+        API_IMPL bool hasVertexWeights() const noexcept;
+        API_IMPL uint32_t getTotalVertexWeightBones() const noexcept; // weight palette size (unique bones referenced)
+        API_IMPL void removeVertexWeights() noexcept; // clears palette + all per-vertex weight data
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
@@ -180,10 +234,6 @@ namespace mbm
     {
         friend class MESH_MANAGER;
       public:
-        API_IMPL VEC3 getPositionOffset() const noexcept;
-        API_IMPL void setPositionOffset(const VEC3 &position) noexcept;
-        API_IMPL VEC3 getAngleDefault() const noexcept;
-        API_IMPL void setAngleDefault(const VEC3 &angle) noexcept;
         API_IMPL BUFFER_MESH *getBuffer(const uint32_t index) const;
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
         API_IMPL bool setTexture(const uint32_t indexFrame, const uint32_t indexSubset, const char *fileNameTexture,

@@ -310,6 +310,10 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, tostring(options.largeMeshMode))
     end
 
+    if options.includeBones then
+        table.insert(args, '--include-bones')
+    end
+
     if options.importPostProcess then
         table.insert(args, '--post-process')
         if options.importInvertU then
@@ -337,6 +341,66 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
 
     local cmd = table.concat(args, ' ')
     debugPrint('build cmd: %s', cmd)
+    return cmd
+end
+
+-- Builds the headless command for blender_mesh_skeleton_export.py (Mesh Debug's "Export to FBX"):
+-- jsonInputPath is mesh_debug.lua's own geometry+bones dump, outputFbxPath is where the built
+-- mesh(+armature, if the JSON has bones) gets exported. Always --factory-startup since the script
+-- builds its scene from scratch (there is no source .blend to open, unlike buildBakeCmd's
+-- sourcePath).
+function M.buildMeshSkeletonExportCmd(jsonInputPath, outputFbxPath, exporterScriptPath, options)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+
+    options = options or {}
+    local args = {
+        shellQuote(b.path),
+        '-b',
+        '--factory-startup',
+        '--python',
+        shellQuote(exporterScriptPath),
+        '--',
+        '--input',
+        shellQuote(jsonInputPath),
+        '--output',
+        shellQuote(outputFbxPath),
+    }
+
+    -- Undoes the import side's own Z-up -> Y-up bake (editor/blender_mesh_export.py's
+    -- --angle-x/y/z) so the exported FBX comes out correctly oriented for Blender/Mixamo and for
+    -- being re-imported later -- see blender_mesh_skeleton_export.py's own module docstring.
+    -- Caller (mesh_debug.lua) defaults these to the exact inverse of the import default.
+    table.insert(args, '--angle-x')
+    table.insert(args, tostring(options.exportAngleX or 0))
+    table.insert(args, '--angle-y')
+    table.insert(args, tostring(options.exportAngleY or 0))
+    table.insert(args, '--angle-z')
+    table.insert(args, tostring(options.exportAngleZ or 0))
+
+    -- Undoes the import side's own U/V inversion (editor/blender_mesh_export.py's own
+    -- --invert-u/v, applied via invertMeshUV before this mesh's data was ever saved) -- inverting
+    -- is self-cancelling, so applying the same flip again here is what restores the original UVs
+    -- for Blender/Mixamo. Caller defaults these to the same flags as the import dialog's own
+    -- defaults (not negated, unlike the rotation above).
+    if options.exportInvertU then
+        table.insert(args, '--invert-u')
+    end
+    if options.exportInvertV then
+        table.insert(args, '--invert-v')
+    end
+
+    if options.cancelFile and options.cancelFile ~= '' then
+        table.insert(args, '--cancel-file')
+        table.insert(args, shellQuote(options.cancelFile))
+    end
+
+    if options.debugSteps then
+        table.insert(args, '--debug-steps')
+    end
+
+    local cmd = table.concat(args, ' ')
+    debugPrint('build mesh skeleton export cmd: %s', cmd)
     return cmd
 end
 
