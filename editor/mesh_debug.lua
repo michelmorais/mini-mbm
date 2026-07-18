@@ -217,6 +217,13 @@ function onInitScene()
     sLastMeshPath         = mbm.get('user_home') or mbm.get('HOME') or '~'
     sLastFolderPath       = sLastMeshPath
     bShowMeshTree         = true
+    -- Live current width of the "Loaded Meshes" tree window, captured each frame by
+    -- showMeshTreeWindow (via tImGui.GetWindowWidth, only valid while that window is the current
+    -- ImGui context) -- read by showBonesWindow so the bottom Bones window's own X origin always
+    -- starts right where the tree panel ends, even after the user resizes it, matching a live query
+    -- instead of scene_editor3d.lua's separate fixed-constant convention (iMainPanelWidth), since
+    -- this tree panel is user-resizable and a fixed constant would drift out of sync.
+    iLoadedMeshesWindowWidth = 350
     tWindowsTitle         = {
         title_mesh_tree   = "title_mesh_tree",
         title_apply_all   = "title_apply_all"
@@ -4919,69 +4926,78 @@ local function computeCentralizeOffset(aabb)
     return minX + midX, minY + midY, minZ + midZ
 end
 
--- Standard 18-joint humanoid T-pose hierarchy/topology (14 anatomically-marked joints + 4
--- synthetic: spine1, shoulderCenter, lAnkle, rAnkle), listed here in explicit root-first order
--- (parent always precedes child, matching the on-disk ordering invariant addBone/updateBone
--- enforce), with fixed (xFrac,yFrac) placement fractions. xFrac/yFrac are 0..1 fractions of the
--- mesh's own AABB width/height (0,0 = bottom-left, 1,1 = top-right). The 4 synthetic joints'
--- fractions are derived the same way from the 14 marked ones (shoulderCenter =
--- midpoint(lShoulder,rShoulder), spine1 = lerp(groin,shoulderCenter,0.5), ankle =
--- lerp(knee,footTip,0.85)). Z is left at the AABB's center for every joint -- a reasonable
--- front-facing starting point, not a claim of anatomical depth; the tool's own X/Y/Z fields
--- (Bones node table) cover fine adjustment afterward.
-local HUMANOID_TEMPLATE = {
-    { name = 'groin',          parent = nil,             xFrac = 0.5036, yFrac = 0.4344 },
-    { name = 'spine1',         parent = 'groin',         xFrac = 0.5043, yFrac = 0.6028 },
-    { name = 'shoulderCenter', parent = 'spine1',        xFrac = 0.5050, yFrac = 0.7712 },
-    { name = 'chin',           parent = 'shoulderCenter',xFrac = 0.4966, yFrac = 0.8222 },
-    { name = 'lShoulder',      parent = 'shoulderCenter',xFrac = 0.3775, yFrac = 0.7712 },
-    { name = 'rShoulder',      parent = 'shoulderCenter',xFrac = 0.6325, yFrac = 0.7712 },
-    { name = 'lElbow',         parent = 'lShoulder',     xFrac = 0.2472, yFrac = 0.7551 },
-    { name = 'rElbow',         parent = 'rShoulder',     xFrac = 0.7529, yFrac = 0.7464 },
-    { name = 'lWrist',         parent = 'lElbow',        xFrac = 0.1651, yFrac = 0.7566 },
-    { name = 'rWrist',         parent = 'rElbow',        xFrac = 0.8478, yFrac = 0.7478 },
-    { name = 'lHandTip',       parent = 'lWrist',        xFrac = 0.0432, yFrac = 0.7449 },
-    { name = 'rHandTip',       parent = 'rWrist',        xFrac = 0.9426, yFrac = 0.7551 },
-    { name = 'lKnee',          parent = 'groin',         xFrac = 0.4257, yFrac = 0.2872 },
-    { name = 'rKnee',          parent = 'groin',         xFrac = 0.5787, yFrac = 0.2842 },
-    { name = 'lAnkle',         parent = 'lKnee',         xFrac = 0.3631, yFrac = 0.0580 },
-    { name = 'rAnkle',         parent = 'rKnee',         xFrac = 0.6365, yFrac = 0.0587 },
-    { name = 'lFootTip',       parent = 'lAnkle',        xFrac = 0.3521, yFrac = 0.0175 },
-    { name = 'rFootTip',       parent = 'rAnkle',        xFrac = 0.6467, yFrac = 0.0189 },
+-- Real armature templates, each a full bone hierarchy (name/parent/x,y,z/radius/rotX,Y,Z/
+-- scaleX,Y,Z/length -- the complete SKELETON_BONE_V11 field set, see header-mesh.h) extracted
+-- verbatim from a real, working rig -- not a hand-approximated fraction-based placement like the
+-- 18-joint HUMANOID_TEMPLATE this replaces. referenceAABB is that same source mesh's own frame-1
+-- AABB (computeMeshAABB's shape), captured alongside the bones so applyArmatureTemplate can fit
+-- this real rig onto an arbitrary target mesh by UNIFORM scale + reposition only -- never
+-- anisotropic (per-axis) stretching, which would corrupt rotX/Y/Z (a real 3D direction, not
+-- meaningful under non-uniform scaling) the way it never could for the old fraction template
+-- (which carried no orientation data to begin with).
+--
+-- ARMATURE_STANDARD_SKELETON_65 was extracted from tests/mike-rig-from-mixamo.msh: a real
+-- character auto-rigged by Mixamo's own web tool (chin/wrists/elbows/knees/groin markers +
+-- "Standard Skeleton (65)" preset), downloaded in T-pose, and round-tripped through this engine's
+-- own Blender import. Only 33 bones came through (Mixamo's own web UI still calls the preset
+-- "Standard Skeleton (65)" regardless of how many of those 65 the specific download actually
+-- populates -- this rig has no per-finger detail past the index finger) -- the label below matches
+-- Mixamo's own preset name, not a literal bone count.
+local ARMATURE_STANDARD_SKELETON_65 = {
+    label = 'Standard Skeleton (65)',
+    referenceAABB = { minX=-0.953590, minY=-0.000157, minZ=-0.163369, maxX=0.952638, maxY=1.913079, maxZ=0.239427 },
+    bones = {
+        { name = 'mixamorig:Hips', parent = nil, x=0.001954, y=1.018964, z=-0.027472, radius=0.017810, rotX=-0.000004, rotY=-0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.118735 },
+        { name = 'mixamorig:Spine', parent = 'mixamorig:Hips', x=0.001954, y=1.126944, z=-0.036337, radius=0.018960, rotX=-4.693449, rotY=-0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.126400 },
+        { name = 'mixamorig:LeftUpLeg', parent = 'mixamorig:Hips', x=0.110291, y=0.958871, z=-0.030830, radius=0.062366, rotX=-3.047297, rotY=0.360019, rotZ=-173.265015, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.415772 },
+        { name = 'mixamorig:RightUpLeg', parent = 'mixamorig:Hips', x=-0.106384, y=0.958871, z=-0.030655, radius=0.062368, rotX=-3.077373, rotY=-0.363550, rotZ=173.265381, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.415784 },
+        { name = 'mixamorig:Spine1', parent = 'mixamorig:Spine', x=0.001954, y=1.252921, z=-0.046680, radius=0.021669, rotX=-4.693448, rotY=-0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.144458 },
+        { name = 'mixamorig:LeftLeg', parent = 'mixamorig:LeftUpLeg', x=0.159121, y=0.546568, z=-0.052932, radius=0.060870, rotX=-2.687390, rotY=0.407074, rotZ=-172.385559, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.405798 },
+        { name = 'mixamorig:RightLeg', parent = 'mixamorig:RightUpLeg', x=-0.155213, y=0.546568, z=-0.052976, radius=0.060875, rotX=-2.792445, rotY=-0.410901, rotZ=172.386490, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.405834 },
+        { name = 'mixamorig:Spine2', parent = 'mixamorig:Spine1', x=0.001954, y=1.396894, z=-0.058500, radius=0.024393, rotX=-4.693454, rotY=-0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.162619 },
+        { name = 'mixamorig:LeftFoot', parent = 'mixamorig:LeftLeg', x=0.212967, y=0.144808, z=-0.071958, radius=0.032511, rotX=51.206329, rotY=-9.083311, rotZ=-171.936569, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.216739 },
+        { name = 'mixamorig:RightFoot', parent = 'mixamorig:RightLeg', x=-0.209059, y=0.144808, z=-0.072746, radius=0.032943, rotX=51.806446, rotY=8.882802, rotZ=171.929749, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.219620 },
+        { name = 'mixamorig:Neck', parent = 'mixamorig:Spine2', x=0.001954, y=1.558864, z=-0.071798, radius=0.008050, rotX=0.000000, rotY=0.000000, rotZ=0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.053668 },
+        { name = 'mixamorig:LeftShoulder', parent = 'mixamorig:Spine2', x=0.075299, y=1.541482, z=-0.071794, radius=0.022655, rotX=0.029381, rotY=85.177055, rotZ=-103.269150, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.151035 },
+        { name = 'mixamorig:RightShoulder', parent = 'mixamorig:Spine2', x=-0.071392, y=1.541482, z=-0.071801, radius=0.022655, rotX=-0.029374, rotY=-85.175842, rotZ=103.327698, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.151035 },
+        { name = 'mixamorig:LeftToeBase', parent = 'mixamorig:LeftFoot', x=0.258419, y=0.014100, z=0.094852, radius=0.013121, rotX=91.257622, rotY=-13.754485, rotZ=-177.986542, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.087472 },
+        { name = 'mixamorig:RightToeBase', parent = 'mixamorig:RightFoot', x=-0.254512, y=0.014099, z=0.097788, radius=0.013472, rotX=91.201202, rotY=13.391500, rotZ=177.886215, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.089811 },
+        { name = 'mixamorig:Head', parent = 'mixamorig:Neck', x=0.001954, y=1.609482, z=-0.053962, radius=0.046270, rotX=-0.000004, rotY=-0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.308468 },
+        { name = 'mixamorig:LeftArm', parent = 'mixamorig:LeftShoulder', x=0.222285, y=1.506740, z=-0.071788, radius=0.040572, rotX=9.747616, rotY=84.915649, rotZ=-84.800674, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.270482 },
+        { name = 'mixamorig:RightArm', parent = 'mixamorig:RightShoulder', x=-0.218377, y=1.506740, z=-0.071807, radius=0.040571, rotX=7.950571, rotY=-84.964287, rotZ=86.590340, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.270472 },
+        { name = 'mixamorig:LeftToe_End', parent = 'mixamorig:LeftToeBase', x=0.279131, y=0.016750, z=0.179795, radius=0.013121, rotX=91.257614, rotY=-13.754465, rotZ=-177.986481, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.087472 },
+        { name = 'mixamorig:RightToe_End', parent = 'mixamorig:RightToeBase', x=-0.275224, y=0.016748, z=0.185138, radius=0.013472, rotX=91.201180, rotY=13.391499, rotZ=177.886154, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.089811 },
+        { name = 'mixamorig:HeadTop_End', parent = 'mixamorig:Head', x=0.001954, y=1.900418, z=0.048550, radius=0.046270, rotX=-0.000004, rotY=-0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.308468 },
+        { name = 'mixamorig:LeftForeArm', parent = 'mixamorig:LeftArm', x=0.491899, y=1.485470, z=-0.067729, radius=0.033055, rotX=1.181309, rotY=84.945183, rotZ=-86.996162, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.220369 },
+        { name = 'mixamorig:RightForeArm', parent = 'mixamorig:RightArm', x=-0.487991, y=1.485471, z=-0.068524, radius=0.033057, rotX=-5.899307, rotY=-85.012611, rotZ=94.050064, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.220377 },
+        { name = 'mixamorig:LeftHand', parent = 'mixamorig:LeftForeArm', x=0.712155, y=1.492497, z=-0.067329, radius=0.020135, rotX=53.151276, rotY=82.267815, rotZ=-38.823112, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.134235 },
+        { name = 'mixamorig:RightHand', parent = 'mixamorig:RightForeArm', x=-0.708247, y=1.492497, z=-0.070493, radius=0.023043, rotX=62.126709, rotY=-80.576805, rotZ=29.662706, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.153618 },
+        { name = 'mixamorig:LeftHandIndex1', parent = 'mixamorig:LeftHand', x=0.845549, y=1.488484, z=-0.052877, radius=0.004506, rotX=-75.147537, rotY=75.644257, rotZ=-163.785980, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.030040 },
+        { name = 'mixamorig:RightHandIndex1', parent = 'mixamorig:RightHand', x=-0.860198, y=1.488607, z=-0.048260, radius=0.003849, rotX=7.909595, rotY=-85.458687, rotZ=77.243103, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.025658 },
+        { name = 'mixamorig:LeftHandIndex2', parent = 'mixamorig:LeftHandIndex1', x=0.874710, y=1.488945, z=-0.060076, radius=0.006490, rotX=-75.147240, rotY=75.644264, rotZ=-163.786072, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.043267 },
+        { name = 'mixamorig:RightHandIndex2', parent = 'mixamorig:RightHandIndex1', x=-0.885762, y=1.490785, z=-0.047980, radius=0.005510, rotX=7.908145, rotY=-85.458572, rotZ=77.243698, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.036731 },
+        { name = 'mixamorig:LeftHandIndex3', parent = 'mixamorig:LeftHandIndex2', x=0.916940, y=1.486856, z=-0.050896, radius=0.004576, rotX=-75.147484, rotY=75.644241, rotZ=-163.786026, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.030509 },
+        { name = 'mixamorig:RightHandIndex3', parent = 'mixamorig:RightHandIndex2', x=-0.920641, y=1.483321, z=-0.039209, radius=0.003606, rotX=7.908519, rotY=-85.458641, rotZ=77.243500, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.024040 },
+        { name = 'mixamorig:LeftHandIndex4', parent = 'mixamorig:LeftHandIndex3', x=0.945577, y=1.482247, z=-0.041434, radius=0.004576, rotX=-75.147255, rotY=75.644241, rotZ=-163.786026, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.030510 },
+        { name = 'mixamorig:RightHandIndex4', parent = 'mixamorig:RightHandIndex3', x=-0.944469, y=1.481889, z=-0.036367, radius=0.003606, rotX=7.908629, rotY=-85.458641, rotZ=77.243385, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.024040 },
+    },
 }
 
--- Replaces the mesh's entire current skeleton (if any) with HUMANOID_TEMPLATE, positioned from its
--- AABB. Clearing first is cheap and cascade-free by construction: since parent always precedes
--- child in the stored vector (the same invariant updateBone's resort maintains), the *last* index
--- always has zero children, so removing from the end never hits removeBone's cascade-refusal path.
--- Returns true/false, err.
--- Best-effort default for which axis is "up", when the caller doesn't pass an explicit override.
--- NOT simply "largest AABB extent" -- tried that first, and it breaks for exactly the common case
--- this feature targets: a T-pose character's arm-span width can be *larger* than its height (this
--- was caught against a real user-downloaded Mixamo-style rig where width was 1.79 vs height 1.77,
--- a hair's difference that "largest wins" gets backwards). Depth (chest/body thickness) IS
--- reliably the smallest of the three extents even in a T-pose, so that part of the heuristic is
--- trustworthy; between the two remaining axes there's no fully reliable geometric signal (width
--- and height can be nearly equal), so this defaults to Y (this engine's own conventional up-axis)
--- when Y survives the depth cut, otherwise picks the larger of the two remaining -- still a guess,
--- but a labeled, user-overridable one (see the "Up axis" selector next to the Apply button in
--- showBonesNode) rather than a silent wrong answer.
-local function detectHumanoidUpAxis(aabb)
-    local extents = {
-        x = aabb.maxX - aabb.minX,
-        y = aabb.maxY - aabb.minY,
-        z = aabb.maxZ - aabb.minZ,
-    }
-    local depthAxis = 'y'
-    if extents.x <= extents.y and extents.x <= extents.z then depthAxis = 'x'
-    elseif extents.z <= extents.y and extents.z <= extents.x then depthAxis = 'z' end
+-- Extend with more named rigs here as they're captured (see this session's extraction method:
+-- load a real rigged .msh in mesh_debug, dump meshD:getBone(i) for every bone plus computeMeshAABB
+-- as Lua literals). showBonesNode's combo lists these by `label`, in order.
+local ARMATURE_TEMPLATES = { ARMATURE_STANDARD_SKELETON_65 }
 
-    if depthAxis ~= 'y' then return 'y' end
-    return extents.x >= extents.z and 'x' or 'z'
-end
-
--- heightAxisOverride: 'x'|'y'|'z', or nil to use detectHumanoidUpAxis's best-effort default.
-local function applyHumanoidArmature(meshD, heightAxisOverride)
+-- Replaces the mesh's entire current skeleton (if any) with `template`'s real bone hierarchy,
+-- uniformly scaled (never stretched per-axis -- see ARMATURE_TEMPLATES' own comment on why) from
+-- template.referenceAABB's own height to the target mesh's own current height, and repositioned so
+-- the scaled skeleton's own bottom-center lands on the target's own AABB bottom-center (its floor,
+-- centered on width/depth) -- the same "stands on its own floor, centered" placement convention the
+-- old fraction-based template used. Clearing existing bones first is cheap and cascade-free by
+-- construction: since parent always precedes child in the stored vector (the same invariant
+-- updateBone's resort maintains), the *last* index always has zero children, so removing from the
+-- end never hits removeBone's cascade-refusal path. Returns true/false, err.
+local function applyArmatureTemplate(meshD, template)
     local aabb = computeMeshAABB(meshD)
     if not aabb then return false, tLang.L('bones_humanoid_no_geometry') end
 
@@ -4991,45 +5007,112 @@ local function applyHumanoidArmature(meshD, heightAxisOverride)
         dpCall(function() return meshD:removeBone(i, false) end)
     end
 
-    local extents = {
-        x = aabb.maxX - aabb.minX,
-        y = aabb.maxY - aabb.minY,
-        z = aabb.maxZ - aabb.minZ,
-    }
-    local heightAxis = heightAxisOverride or detectHumanoidUpAxis(aabb)
+    -- Any existing SECTION_VERTEX_SKIN_WEIGHTS data (docs/mesh-v11-format.md Sec. 6f) references
+    -- the OLD skeleton's own bone names by its own separate palette -- deliberately independent of
+    -- SECTION_FRAME_SKINNED so ordinary bone edits (rename/reorder/add/remove a bone or two) don't
+    -- silently corrupt it. Replacing the WHOLE skeleton with a different rig's bone names is not an
+    -- ordinary edit: none of the old weight palette's names exist in the new skeleton at all, so
+    -- every one of those weights is now orphaned. Confirmed via real user testing to cause a
+    -- concrete, silent export failure if left alone: build_mesh's export sees hasVertexWeights()
+    -- still true and trusts the (now-meaningless) old data completely, skipping
+    -- bind_mesh_to_armature's envelope-binding fallback entirely -- the exported FBX ends up with
+    -- vertex groups named after bones that don't exist in its own armature, so every vertex gets
+    -- zero real deform weight (mesh invisible in Mixamo) while the armature itself, being
+    -- structurally valid on its own, still animates fine. Clearing here forces export to correctly
+    -- fall back to fresh envelope binding for the newly-applied skeleton instead.
+    dpCall(function() meshD:removeVertexWeights() end)
 
-    -- Width (shoulders/hips spread, xFrac) is the wider of the two remaining axes; the last one is
-    -- depth, fixed at its own center.
-    local otherAxes = {}
-    for _, a in ipairs({ 'x', 'y', 'z' }) do
-        if a ~= heightAxis then table.insert(otherAxes, a) end
-    end
-    local widthAxis, depthAxis = otherAxes[1], otherAxes[2]
-    if extents[otherAxes[2]] > extents[otherAxes[1]] then widthAxis, depthAxis = otherAxes[2], otherAxes[1] end
+    local ref = template.referenceAABB
+    local refHeight = ref.maxY - ref.minY
+    local targetHeight = aabb.maxY - aabb.minY
+    local scale = (refHeight > 0.0001) and (targetHeight / refHeight) or 1.0
 
-    local function axisMinMax(axis)
-        if axis == 'x' then return aabb.minX, aabb.maxX end
-        if axis == 'y' then return aabb.minY, aabb.maxY end
-        return aabb.minZ, aabb.maxZ
-    end
+    local refAnchorX, refAnchorY, refAnchorZ = (ref.minX + ref.maxX) / 2, ref.minY, (ref.minZ + ref.maxZ) / 2
+    local targetAnchorX, targetAnchorY, targetAnchorZ = (aabb.minX + aabb.maxX) / 2, aabb.minY, (aabb.minZ + aabb.maxZ) / 2
 
-    local heightMin, heightMax = axisMinMax(heightAxis)
-    local widthMin, widthMax = axisMinMax(widthAxis)
-    local depthMin, depthMax = axisMinMax(depthAxis)
-    local heightExtent = heightMax - heightMin
-    local widthExtent = widthMax - widthMin
-    local depthCenter = (depthMin + depthMax) / 2
-    local radius = math.max(0.01, math.max(heightExtent, widthExtent) * 0.02)
-
-    for _, j in ipairs(HUMANOID_TEMPLATE) do
-        local coords = { x = 0, y = 0, z = 0 }
-        coords[heightAxis] = heightMin + j.yFrac * heightExtent
-        coords[widthAxis] = widthMin + j.xFrac * widthExtent
-        coords[depthAxis] = depthCenter
-        local okA, err = dpCall(function() return meshD:addBone(j.name, j.parent, coords.x, coords.y, coords.z, radius) end)
+    for _, j in ipairs(template.bones) do
+        local x = targetAnchorX + (j.x - refAnchorX) * scale
+        local y = targetAnchorY + (j.y - refAnchorY) * scale
+        local z = targetAnchorZ + (j.z - refAnchorZ) * scale
+        local okA, err = dpCall(function()
+            return meshD:addBone(j.name, j.parent, x, y, z, j.radius * scale,
+                j.rotX, j.rotY, j.rotZ, j.scaleX, j.scaleY, j.scaleZ, j.length * scale)
+        end)
         if not okA then return false, err end
     end
     return true, nil
+end
+
+-- Dumps the CURRENT mesh's own skeleton as a standalone Lua chunk in exactly
+-- ARMATURE_STANDARD_SKELETON_65's own shape (`return { label=, referenceAABB=, bones={...} }`) --
+-- loadArmatureFromFile below reads it back with loadfile(), and this is also the same by-hand
+-- format used to embed a new template directly into this file's own ARMATURE_TEMPLATES (see that
+-- table's own comment) if the user wants to promote an experiment to a permanent entry later.
+-- Lets the user capture a skeleton they've hand-fitted to one mesh (per applyArmatureTemplate's own
+-- "adapt the bones to the mesh" caveat -- a uniform scale-fit alone doesn't know a target mesh's
+-- own limb proportions) and reapply it to other meshes via Import Armature below, without needing
+-- a source-code change for every experiment.
+local function exportArmatureToFile(meshD, path)
+    local aabb = computeMeshAABB(meshD)
+    if not aabb then return false, tLang.L('bones_humanoid_no_geometry') end
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    nBones = (okTotal and nBones) or 0
+    if nBones == 0 then return false, tLang.L('bones_export_armature_no_bones') end
+
+    -- string.format('%.6f', ...) is locale-sensitive (LC_NUMERIC) the same way writeMeshDebugJson's
+    -- own JSON numbers are -- a ',' decimal separator here wouldn't just be ugly, it would make the
+    -- exported chunk invalid Lua syntax on load. Same C-locale-for-the-duration pattern.
+    local prevNumericLocale = nil
+    if os and os.setlocale then
+        prevNumericLocale = os.setlocale(nil, 'numeric')
+        os.setlocale('C', 'numeric')
+    end
+
+    local f = io.open(path, 'w')
+    if not f then
+        if os and os.setlocale and prevNumericLocale then os.setlocale(prevNumericLocale, 'numeric') end
+        return false, 'Failed to create file: ' .. path
+    end
+
+    f:write('-- Armature exported from mesh_debug.lua -- return-value chunk, load with loadfile()\n')
+    f:write('-- (see loadArmatureFromFile) or paste into ARMATURE_TEMPLATES to make it permanent.\n')
+    f:write('return {\n')
+    f:write(string.format('    label = %q,\n', tUtil.getShortName(path):gsub('%.[^%.]+$', '')))
+    f:write(string.format('    referenceAABB = { minX=%.6f, minY=%.6f, minZ=%.6f, maxX=%.6f, maxY=%.6f, maxZ=%.6f },\n',
+        aabb.minX, aabb.minY, aabb.minZ, aabb.maxX, aabb.maxY, aabb.maxZ))
+    f:write('    bones = {\n')
+    for i = 1, nBones do
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
+            dpCall(function() return meshD:getBone(i) end)
+        if okG and name then
+            f:write(string.format(
+                '        { name = %q, parent = %s, x=%.6f, y=%.6f, z=%.6f, radius=%.6f, rotX=%.6f, rotY=%.6f, rotZ=%.6f, scaleX=%.6f, scaleY=%.6f, scaleZ=%.6f, length=%.6f },\n',
+                name, parentName and string.format('%q', parentName) or 'nil', x, y, z, radius,
+                rotX or 0, rotY or 0, rotZ or 0, scaleX or 1, scaleY or 1, scaleZ or 1, length or 0))
+        end
+    end
+    f:write('    },\n}\n')
+    f:close()
+
+    if os and os.setlocale and prevNumericLocale then os.setlocale(prevNumericLocale, 'numeric') end
+    return true, nil
+end
+
+-- Reads back a file exportArmatureToFile wrote (or a hand-authored one following the same shape)
+-- as a real armature template, suitable for applyArmatureTemplate exactly like a built-in
+-- ARMATURE_TEMPLATES entry -- executes it as trusted Lua (the same dofile/loadfile-as-data-format
+-- convention this whole codebase already uses, e.g. editor/lang/language.lua), since this file is
+-- always either something the user exported from this same tool or something they hand-authored
+-- themselves, never untrusted external input.
+local function loadArmatureFromFile(path)
+    local chunk, errLoad = loadfile(path)
+    if not chunk then return nil, errLoad end
+    local okRun, result = pcall(chunk)
+    if not okRun then return nil, tostring(result) end
+    if type(result) ~= 'table' or type(result.bones) ~= 'table' or type(result.referenceAABB) ~= 'table' then
+        return nil, tLang.L('bones_import_armature_invalid')
+    end
+    return result, nil
 end
 
 -- ---------------------------------------------------------------------------
@@ -5452,6 +5535,11 @@ end
 -- caller history) in exactly one place instead of two independently-maintained copies.
 local function onBonesEdit(tEntry, meshD, index)
     tEntry.modified = true
+    -- A bone edit can indirectly invalidate SECTION_VERTEX_SKIN_WEIGHTS data too (most notably
+    -- applyArmatureTemplate replacing the whole skeleton, which also clears weights itself -- see
+    -- its own comment) -- Mesh Info's cached stats (showMeshInfoTable's tEntry.weightStats) must
+    -- not keep showing stale numbers after that.
+    tEntry.weightStats = nil
     rebuildBoneGizmo(tEntry, meshD, index)
 end
 
@@ -5531,41 +5619,80 @@ function showBonesNode(tEntry, meshD, index)
         local tBones, nBones = getBoneList(meshD)
 
         tImGui.Separator()
-        if not tEntry.sHumanoidUpAxis then
-            local aabbForAxis = computeMeshAABB(meshD)
-            tEntry.sHumanoidUpAxis = aabbForAxis and detectHumanoidUpAxis(aabbForAxis) or 'y'
-        end
-        -- Which AABB extent is actually "height" can't be fully auto-detected (a T-pose character's
-        -- own arm-span width can be as large as its height, confirmed against a real user file), so
-        -- this stays user-overridable rather than a silent guess -- see detectHumanoidUpAxis's comment.
-        tImGui.Text(tLang.L('bones_humanoid_up_axis_label'))
-        tImGui.SameLine()
-        local axisOpts = { 'X', 'Y', 'Z' }
-        local axisPos = ({ x = 1, y = 2, z = 3 })[tEntry.sHumanoidUpAxis] or 2
-        tUtil.pushResponsiveItemWidth(70)
-        local chgAxis, newAxisPos = tImGui.Combo('##boneHumanoidAxis-' .. index, axisPos, axisOpts, -1)
+        tEntry.iArmatureTemplateIndex = tEntry.iArmatureTemplateIndex or 1
+        tImGui.TextDisabled(tLang.L('bones_armature_overwrite_label'))
+        local armatureLabels = {}
+        for i, t in ipairs(ARMATURE_TEMPLATES) do armatureLabels[i] = t.label end
+        tUtil.pushResponsiveItemWidth(220)
+        local chgArm, newArmIdx = tImGui.Combo('##armatureTemplate-' .. index, tEntry.iArmatureTemplateIndex, armatureLabels, -1)
         tImGui.PopItemWidth()
-        if chgAxis and newAxisPos then
-            tEntry.sHumanoidUpAxis = ({ 'x', 'y', 'z' })[newAxisPos]
+        if chgArm and newArmIdx then
+            tEntry.iArmatureTemplateIndex = newArmIdx
         end
-        if tEntry.bBonesHumanoidConfirmPending then
-            tImGui.TextColored({r = 1, g = 0.6, b = 0.2, a = 1}, string.format(tLang.L('bones_apply_humanoid_confirm_fmt'), nBones))
-            if tImGui.Button(tLang.L('bones_apply_humanoid_button') .. '##boneHumanoidConfirm-' .. index) then
-                local okH, errH = dpCall(function() return applyHumanoidArmature(meshD, tEntry.sHumanoidUpAxis) end)
+        -- Shared by the combo-selected "Apply Armature" button and "Import Armature" below -- both
+        -- destructively replace the whole skeleton, so both go through the same existing-bones
+        -- confirmation gate instead of each keeping their own copy of it.
+        local function requestApplyArmature(tmpl)
+            if nBones > 0 then
+                tEntry.tPendingArmatureApply = tmpl
+                tEntry.bBonesHumanoidConfirmPending = true
+            else
+                local okH, errH = dpCall(function() return applyArmatureTemplate(meshD, tmpl) end)
                 if okH then onBonesEdit(tEntry, meshD, index) else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
+            end
+        end
+
+        if tEntry.bBonesHumanoidConfirmPending then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.6, b = 0.2, a = 1})
+            tImGui.TextWrapped(string.format(tLang.L('bones_apply_armature_confirm_fmt'), nBones))
+            tImGui.PopStyleColor()
+            if tImGui.Button(tLang.L('bones_apply_armature_button') .. '##boneArmatureConfirm-' .. index) then
+                local tmpl = tEntry.tPendingArmatureApply
                 tEntry.bBonesHumanoidConfirmPending = false
+                tEntry.tPendingArmatureApply = nil
+                if tmpl then
+                    local okH, errH = dpCall(function() return applyArmatureTemplate(meshD, tmpl) end)
+                    if okH then onBonesEdit(tEntry, meshD, index) else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
+                end
             end
             tImGui.SameLine()
-            if tImGui.Button(tLang.L('cancel') .. '##boneHumanoidCancel-' .. index) then
+            if tImGui.Button(tLang.L('cancel') .. '##boneArmatureCancel-' .. index) then
                 tEntry.bBonesHumanoidConfirmPending = false
+                tEntry.tPendingArmatureApply = nil
             end
         else
-            if tImGui.Button(tLang.L('bones_apply_humanoid_button') .. '##boneHumanoid-' .. index) then
-                if nBones > 0 then
-                    tEntry.bBonesHumanoidConfirmPending = true
+            if tImGui.Button(tLang.L('bones_apply_armature_button') .. '##boneArmature-' .. index) then
+                requestApplyArmature(ARMATURE_TEMPLATES[tEntry.iArmatureTemplateIndex])
+            end
+        end
+
+        -- Export/Import let the user capture a skeleton they've hand-fitted to one mesh (per
+        -- applyArmatureTemplate's own "uniform scale only" caveat -- it doesn't know a target
+        -- mesh's own limb proportions, only the reference's) and reapply it to other meshes, without
+        -- needing a source-code change (ARMATURE_TEMPLATES) for every experiment.
+        tImGui.Spacing()
+        if tImGui.Button(tLang.L('bones_export_armature_button') .. '##boneArmatureExport-' .. index) then
+            local defaultName = tUtil.getShortName(tEntry.fileName):gsub('%.[^%.]+$', '') .. '_armature.lua'
+            local savePath = mbm.saveFile(defaultName, 'lua')
+            if savePath then
+                local okExp, errExp = exportArmatureToFile(meshD, savePath)
+                if okExp then
+                    tUtil.showMessage(string.format('%s: %s', tLang.L('bones_export_armature_button'), tUtil.getShortName(savePath)))
                 else
-                    local okH, errH = dpCall(function() return applyHumanoidArmature(meshD, tEntry.sHumanoidUpAxis) end)
-                    if okH then onBonesEdit(tEntry, meshD, index) else tUtil.showMessageWarn(errH or tLang.L('an_error_occurred')) end
+                    tUtil.showMessageWarn(errExp or tLang.L('an_error_occurred'))
+                end
+            end
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('bones_import_armature_button') .. '##boneArmatureImport-' .. index) then
+            local loadPath = mbm.openFile(sLastMeshPath, 'lua')
+            if loadPath then
+                if type(loadPath) == 'table' then loadPath = loadPath[1] end
+                local tmpl, errImp = loadArmatureFromFile(loadPath)
+                if tmpl then
+                    requestApplyArmature(tmpl)
+                else
+                    tUtil.showMessageWarn(errImp or tLang.L('an_error_occurred'))
                 end
             end
         end
@@ -5668,10 +5795,13 @@ function showBonesWindow()
     -- Bottom-anchored, wide on first appearance (ImGuiCond_Once -- movable/resizable by the user
     -- afterward), following showCameraWindow's "real utility window" pattern rather than
     -- showMeshTools's minimal undecorated HUD style, since this holds a data-heavy table rather
-    -- than a few buttons.
+    -- than a few buttons. X origin starts right where the "Loaded Meshes" tree window ends (its
+    -- own live current width, per direct user request), not a fixed left margin -- avoids
+    -- overlapping that panel regardless of how wide the user has resized it.
     local iW, iH = mbm.getRealSizeScreen()
-    local winW, winH = iW - 40, 300
-    tImGui.SetNextWindowPos({x = 20, y = iH - winH - 20}, tImGui.Flags('ImGuiCond_Once'))
+    local winX = (iLoadedMeshesWindowWidth or 350) + 10
+    local winW, winH = math.max(iW - winX - 20, 200), 300
+    tImGui.SetNextWindowPos({x = winX, y = iH - winH - 20}, tImGui.Flags('ImGuiCond_Once'))
     tImGui.SetNextWindowSize({x = winW, y = winH}, tImGui.Flags('ImGuiCond_Once'))
     local wFlags = tImGui.Flags('ImGuiWindowFlags_NoCollapse')
     local isWinOpen, closedClicked = tImGui.Begin(tLang.L('bones_node') .. ' - ' .. tUtil.getShortName(tEntry.fileName) .. '##bonesWin', true, wFlags)
@@ -9025,7 +9155,13 @@ function main_menu_mesh_debug()
             if tImGui.MenuItem(tLang.L('bones_export_current_button'), nil, false,
                     iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes) then
                 local tEntry = tLoadedMeshes[iSelectedMeshIndex]
-                local outputFbx = mbm.saveFile(sLastMeshExportFbxPath or tUtil.getShortName(tEntry.fileName), 'fbx')
+                -- Default filename must end in .fbx, not carry the source mesh's own .msh extension
+                -- forward -- same extension-swap makeUniqueFbxOutputPath already does for "Export
+                -- All Meshes", applied here only on first use (sLastMeshExportFbxPath, once set,
+                -- already ends in .fbx from a prior export and is reused as-is).
+                local defaultFbxName = sLastMeshExportFbxPath or
+                    (tUtil.getShortName(tEntry.fileName):gsub('%.[^%.]+$', '') .. '.fbx')
+                local outputFbx = mbm.saveFile(defaultFbxName, 'fbx')
                 if outputFbx then
                     sLastMeshExportFbxPath = outputFbx
                     tMeshExportOptionsState.tEntries = { { name = tUtil.getShortName(tEntry.fileName), meshD = tEntry.meshDebug, outputFbx = outputFbx, fileName = tEntry.fileName } }
@@ -9169,6 +9305,7 @@ function showMeshTreeWindow()
     local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_tree), true, 0)
 
     if is_opened then
+        iLoadedMeshesWindowWidth = tImGui.GetWindowWidth()
         if tImGui.BeginMenuBar() then
             if tImGui.MenuItem('Load Mesh(s)') then
                 onLoadMeshFromFile()
