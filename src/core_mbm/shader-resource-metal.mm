@@ -378,6 +378,25 @@ fragment float4 frag_main(VOut in [[stage_in]],
     "[ps-transparent.ps] = transparent.ps\n"
     "[ps-transparent.ps][float][alpha]                = min 0.0              max 1.0              default 0.7\n",
 
+    // ---- outline ------------------------------------------------------------
+    "outline.ps",
+    R"msl(
+fragment float4 frag_main(VOut in [[stage_in]],
+    texture2d<float> TextureDiffuse [[texture(0)]],
+    sampler          samp    [[sampler(0)]],
+    constant float*  f       [[buffer(2)]])
+{
+    float3 color = float3(f[0], f[1], f[2]);
+    float thickness = f[3];
+    float facing = abs(dot(normalize(in.normalView), normalize(-in.positionView)));
+    if (facing > thickness) discard_fragment();
+    return float4(color, 1.0f);
+}
+)msl",
+    "[ps-outline.ps] = outline.ps\n"
+    "[ps-outline.ps][rgb][color] = min 0.0 0.0 0.0 max 1.0 1.0 1.0 default 1.0 0.9 0.1\n"
+    "[ps-outline.ps][float][thickness] = min 0.01 max 0.5 default 0.12\n",
+
     // ---- saturate -----------------------------------------------------------
     "saturate.ps",
     R"msl(
@@ -1511,6 +1530,27 @@ fragment float4 frag_main(VOut in [[stage_in]],
     /* =========================================================
        VERTEX SHADERS  (complete MSL programs: vertex + fragment)
        ========================================================= */
+
+    // ---- outline (VS entry — paired with outline.ps) -----------------------
+    "outline.vs",
+    R"msl(
+#include <metal_stdlib>
+using namespace metal;
+struct MbmUniforms { float4x4 mvp; float4x4 mv; float4 color; };
+struct VIn  { float3 pos [[attribute(0)]]; float3 normal [[attribute(1)]]; };
+struct VOut { float4 pos [[position]]; float3 normalView; float3 positionView; };
+
+vertex VOut vert_main(VIn in [[stage_in]],
+    constant MbmUniforms& u [[buffer(1)]])
+{
+    VOut o;
+    o.pos = u.mvp * float4(in.pos, 1.0f);
+    o.normalView = (u.mv * float4(in.normal, 0.0f)).xyz;
+    o.positionView = (u.mv * float4(in.pos, 1.0f)).xyz;
+    return o;
+}
+)msl",
+    "[vs-outline.vs] = outline.vs\n",
 
     // ---- simple texture (VS entry — complete MSL program) -------------------
     "simple texture.vs",

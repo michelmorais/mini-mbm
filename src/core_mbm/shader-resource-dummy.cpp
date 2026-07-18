@@ -102,6 +102,16 @@ namespace mbm
     "[ps-transparent.ps][float][alpha]                = min 0.0              max 1.0              default 1.0\n",
     //transparent *********************
 
+    //outline *********************
+    "outline.ps",
+
+    "TODO",
+
+    "[ps-outline.ps] = outline.ps\n"
+    "[ps-outline.ps][rgb][color] = min 0.0 0.0 0.0 max 1.0 1.0 1.0 default 1.0 0.9 0.1\n"
+    "[ps-outline.ps][float][thickness] = min 0.01 max 0.5 default 0.12\n",
+    //outline *********************
+
     //saturate *********************
     "saturate.ps",
 
@@ -515,6 +525,14 @@ namespace mbm
 
 
 
+
+    //Outline **********************
+    "outline.vs",
+
+    "TODO",
+
+    "[vs-outline.vs] = outline.vs\n",
+    //Outline **********************
 
     //Textura Simples **********************
     "simple texture.vs",

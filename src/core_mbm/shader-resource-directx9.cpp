@@ -428,6 +428,23 @@ namespace mbm
         "[ps-transparent.ps][float][alpha]                = min 0.0              max 1.0              default 1.0\n",
         //transparent *********************
 
+        //outline *************************
+        "outline.ps",
+
+        "float3 color : register(C0);\n"
+        "float thickness : register(C1);\n"
+        "float4 main(float3 normalView : TEXCOORD0, float3 positionView : TEXCOORD1) : COLOR\n"
+        "{\n"
+        "    float facing = abs(dot(normalize(normalView), normalize(-positionView)));\n"
+        "    if (facing > thickness) discard;\n"
+        "    return float4(color, 1.0);\n"
+        "}\n",
+
+        "[ps-outline.ps] = outline.ps\n"
+        "[ps-outline.ps][rgb][color] = min 0.0 0.0 0.0 max 1.0 1.0 1.0 default 1.0 0.9 0.1\n"
+        "[ps-outline.ps][float][thickness] = min 0.01 max 0.5 default 0.12\n",
+        //outline *************************
+
         //saturate *********************
         "saturate.ps",
 
@@ -1722,6 +1739,34 @@ kLitTexturedPixelShaderD3D9.c_str(),
 
 
 
+
+//Outline **********************
+"outline.vs",
+
+"float4x4 mvpMatrix : register(c0);\n"
+"float4x4 mvMatrix;\n"
+"struct VS_INPUT\n"
+"{\n"
+"    float4 position : POSITION;\n"
+"    float3 normal : NORMAL;\n"
+"};\n"
+"struct VS_OUTPUT\n"
+"{\n"
+"    float4 position : POSITION;\n"
+"    float3 normalView : TEXCOORD0;\n"
+"    float3 positionView : TEXCOORD1;\n"
+"};\n"
+"VS_OUTPUT main(VS_INPUT input)\n"
+"{\n"
+"    VS_OUTPUT output;\n"
+"    output.position = mul(input.position, mvpMatrix);\n"
+"    output.normalView = mul(float4(input.normal, 0.0), mvMatrix).xyz;\n"
+"    output.positionView = mul(input.position, mvMatrix).xyz;\n"
+"    return output;\n"
+"}\n",
+
+"[vs-outline.vs] = outline.vs\n",
+//Outline **********************
 
 //Textura Simples **********************
 "simple texture.vs",

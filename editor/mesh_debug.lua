@@ -4869,13 +4869,13 @@ function rebuildBoneGizmo(tEntry, meshD, index)
     end
 end
 
--- Translucent "ghost" preview of the mesh being rigged, shown alongside the bone gizmo (per direct
--- user request -- with tPreviewMesh hidden while Bones is open, the armature had nothing to align
+-- Outlined preview of the mesh being rigged, shown alongside the bone gizmo (per direct user
+-- request -- with tPreviewMesh hidden while Bones is open, the armature had nothing to align
 -- against). Deliberately a SEPARATE mesh instance from tPreviewMesh, never the same object: applying
--- a shader that discards alpha is a real (if reversible) mutation of the object's FX state, and the
--- user explicitly asked for a dedicated ghost object rather than reusing/toggling the live preview's
--- own shader. Uses the engine's built-in "transparent.ps" (shipped on every backend --
--- shader-resource-opengl_es.cpp/-directx9.cpp/-metal.mm -- `color.a -= alpha`), NOT obj:setColor():
+-- a shader is a real (if reversible) mutation of the object's FX state, and the user explicitly
+-- asked for a dedicated outline object rather than reusing/toggling the live preview's own shader.
+-- Uses the engine's built-in opaque outline.ps/outline.vs pair (shipped on every backend). The
+-- pair discards all fragments except surfaces nearly tangent to the camera, NOT obj:setColor():
 -- setColor(r,g,b,a) with numeric args replaces the mesh's real diffuse texture with a synthetic
 -- solid-color one (see showBonesNode's own comment on tPreviewMesh above) -- destructive on any
 -- real textured mesh, which is exactly what the ghost mesh is.
@@ -4885,6 +4885,14 @@ function destroyGhostMesh()
         tGhostMesh:destroy()
         tGhostMesh = nil
     end
+end
+
+local function applyGhostOutlineSettings(ghost, tEntry)
+    local okSh, fx = pcall(function() return ghost:getShader() end)
+    if not okSh or not fx then return end
+    local color = tEntry.tGhostOutlineColor or {r = 1.0, g = 0.9, b = 0.1}
+    fx:setPS('color', color.r, color.g, color.b)
+    fx:setPS('thickness', tEntry.fGhostOutlineThickness or 0.12)
 end
 
 -- Only meaningful for 'mesh' (.msh) entries -- the type this Bones/armature feature targets and the
@@ -4908,8 +4916,12 @@ function rebuildGhostMesh(tEntry, index)
     newGhost:setPos(0, 0, 0)
 
     local okSh, fx = pcall(function() return newGhost:getShader() end)
-    if okSh and fx and fx:load('transparent.ps') then
-        fx:setPS('alpha', 1.0 - (tEntry.fGhostOpacity or 0.35))
+    if okSh and fx then
+        if fx:load('outline.ps', 'outline.vs') then
+            applyGhostOutlineSettings(newGhost, tEntry)
+        else
+            print('mesh_debug: ghost mesh shader failed to load')
+        end
     end
     tGhostMesh = newGhost
 end
@@ -5701,26 +5713,29 @@ function showBonesNode(tEntry, meshD, index)
     end
     tEntry.bBonesWasOpen = gizmoShouldBeOpen
 
-    -- "Show mesh" checkbox: an opt-in translucent ghost of the mesh alongside the bone gizmo (only
+    -- "Show mesh" checkbox: an opt-in outlined mesh alongside the bone gizmo (only
     -- for 'mesh'/.msh entries -- isMesh3DType -- since sprites/tiles/etc render flat in 2D and this
     -- Bones/armature workflow targets 3D skeletal meshes). Drawn BEFORE the ghostShouldBeOpen check
     -- below (rather than down among the rest of this node's isOpen content) so a checkbox toggle
     -- this same frame is reflected immediately -- computing ghostShouldBeOpen from tEntry.bShowGhostMesh
     -- before the checkbox had a chance to update it would lag the create/destroy transition by one
     -- frame relative to what the user just clicked.
-    tEntry.fGhostOpacity = tEntry.fGhostOpacity or 0.35
     if isOpen and isMesh3DType(tEntry) then
         tEntry.bShowGhostMesh = tImGui.Checkbox(tLang.L('bones_show_mesh_checkbox') .. '##showGhost-' .. index, tEntry.bShowGhostMesh or false)
         if tEntry.bShowGhostMesh then
+            tEntry.tGhostOutlineColor = tEntry.tGhostOutlineColor or {r = 1.0, g = 0.9, b = 0.1}
+            tEntry.fGhostOutlineThickness = tEntry.fGhostOutlineThickness or 0.12
+            local colorChanged, color = tImGui.ColorEdit3(tLang.L('bones_mesh_outline_color') .. '##ghostOutlineColor-' .. index, tEntry.tGhostOutlineColor, 0)
+            if colorChanged then
+                tEntry.tGhostOutlineColor = color
+                if tGhostMesh then applyGhostOutlineSettings(tGhostMesh, tEntry) end
+            end
             tUtil.pushResponsiveItemWidth(160)
-            local chgOp, newOp = tImGui.SliderFloat(tLang.L('bones_mesh_opacity_slider') .. '##ghostOpacity-' .. index, tEntry.fGhostOpacity, 0.0, 1.0, '%.2f')
+            local thicknessChanged, thickness = tImGui.SliderFloat(tLang.L('bones_mesh_outline_thickness') .. '##ghostOutlineThickness-' .. index, tEntry.fGhostOutlineThickness, 0.01, 0.5, '%.2f')
             tImGui.PopItemWidth()
-            if chgOp then
-                tEntry.fGhostOpacity = newOp
-                if tGhostMesh then
-                    local okSh, fx = pcall(function() return tGhostMesh:getShader() end)
-                    if okSh and fx then fx:setPS('alpha', 1.0 - newOp) end
-                end
+            if thicknessChanged then
+                tEntry.fGhostOutlineThickness = thickness
+                if tGhostMesh then applyGhostOutlineSettings(tGhostMesh, tEntry) end
             end
         end
     end
