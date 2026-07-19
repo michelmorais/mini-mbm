@@ -5151,10 +5151,41 @@ local ARMATURE_NO_FINGERS_25 = {
         { name = "mixamorig:RightHand", parent = "mixamorig:RightForeArm", x=-0.609467, y=1.398744, z=-0.049962, radius=0.029016, rotX=-105.569382, rotY=-81.288940, rotZ=-166.170380, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.193440 },
     },
 }
+
+local ARMATURE_NO_FINGERS_23 = {
+    label = 'No Fingers (23)',
+    referenceAABB = { minX=-0.971253, minY=-0.000000, minZ=-0.829249, maxX=0.971253, maxY=2.136544, maxZ=0.566499 },
+    bones = {
+        { name = "root", parent = nil, x=0.000000, y=0.000000, z=0.000000, radius=0.060850, rotX=-0.000007, rotY=0.000014, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.405663 },
+        { name = "hips", parent = "root", x=0.000000, y=0.405663, z=-0.000000, radius=0.030123, rotX=-0.000007, rotY=-0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.200821 },
+        { name = "spine", parent = "hips", x=0.000000, y=0.597641, z=-0.000000, radius=0.056248, rotX=-0.000007, rotY=0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.374988 },
+        { name = "upperleg.l", parent = "hips", x=0.170945, y=0.519251, z=-0.000000, radius=0.034062, rotX=178.008987, rotY=0.000009, rotZ=-0.000008, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.227077 },
+        { name = "upperleg.r", parent = "hips", x=-0.170945, y=0.519251, z=-0.000000, radius=0.034062, rotX=178.008987, rotY=-0.000009, rotZ=0.000008, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.227077 },
+        { name = "chest", parent = "spine", x=0.000000, y=0.972629, z=-0.000000, radius=0.038527, rotX=-0.000007, rotY=0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.256849 },
+        { name = "lowerleg.l", parent = "upperleg.l", x=0.170945, y=0.292310, z=0.007889, radius=0.022416, rotX=-169.795273, rotY=-0.000064, rotZ=-0.000006, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.149437 },
+        { name = "lowerleg.r", parent = "upperleg.r", x=-0.170945, y=0.292310, z=0.007889, radius=0.022416, rotX=-169.795273, rotY=0.000064, rotZ=0.000006, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.149437 },
+        { name = "upperarm.l", parent = "chest", x=0.212007, y=1.106761, z=-0.000000, radius=0.036285, rotX=-90.000000, rotY=-86.715446, rotZ=-0.000001, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.241897 },
+        { name = "upperarm.r", parent = "chest", x=-0.212007, y=1.106761, z=-0.000000, radius=0.036285, rotX=-90.000000, rotY=86.715446, rotZ=0.000001, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.241897 },
+        { name = "head", parent = "chest", x=0.000000, y=1.241426, z=-0.000000, radius=0.038527, rotX=-0.000007, rotY=0.000000, rotZ=-0.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.256849 },
+        { name = "foot.l", parent = "lowerleg.l", x=0.170945, y=0.145237, z=-0.018586, radius=0.024848, rotX=136.043976, rotY=-0.000025, rotZ=0.000010, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.165650 },
+        { name = "foot.r", parent = "lowerleg.r", x=-0.170945, y=0.145237, z=-0.018586, radius=0.024848, rotX=136.043976, rotY=0.000025, rotZ=-0.000010, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.165650 },
+        { name = "lowerarm.l", parent = "upperarm.l", x=0.453507, y=1.106761, z=-0.013860, radius=0.039007, rotX=90.000313, rotY=-86.944817, rotZ=179.999695, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.260044 },
+        { name = "lowerarm.r", parent = "upperarm.r", x=-0.453507, y=1.106761, z=-0.013860, radius=0.039007, rotX=90.000313, rotY=86.944817, rotZ=-179.999695, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.260044 },
+        { name = "toes.l", parent = "foot.l", x=0.170945, y=0.025990, z=0.096393, radius=0.024848, rotX=90.000000, rotY=-0.000010, rotZ=179.999969, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.165650 },
+        { name = "toes.r", parent = "foot.r", x=-0.170945, y=0.025990, z=0.096393, radius=0.024848, rotX=90.000000, rotY=0.000010, rotZ=-179.999969, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.165650 },
+        { name = "wrist.l", parent = "lowerarm.l", x=0.713182, y=1.106761, z=-0.000000, radius=0.011074, rotX=0.000000, rotY=-90.000000, rotZ=-90.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.073826 },
+        { name = "wrist.r", parent = "lowerarm.r", x=-0.713182, y=1.106761, z=-0.000000, radius=0.011074, rotX=0.000000, rotY=90.000000, rotZ=90.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.073826 },
+        { name = "hand.l", parent = "wrist.l", x=0.787008, y=1.106761, z=-0.000000, radius=0.016802, rotX=0.000000, rotY=-90.000000, rotZ=-90.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.112010 },
+        { name = "hand.r", parent = "wrist.r", x=-0.787008, y=1.106761, z=-0.000000, radius=0.016802, rotX=0.000000, rotY=90.000000, rotZ=90.000000, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.112010 },
+        { name = "handslot.l", parent = "hand.l", x=0.883133, y=1.049261, z=-0.000000, radius=0.016802, rotX=90.000000, rotY=-0.000000, rotZ=179.999985, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.112010 },
+        { name = "handslot.r", parent = "hand.r", x=-0.883133, y=1.049261, z=-0.000000, radius=0.016802, rotX=90.000000, rotY=0.000000, rotZ=-179.999985, scaleX=1.000000, scaleY=1.000000, scaleZ=1.000000, length=0.112010 },
+    },
+}
 -- Extend with more named rigs here as they're captured (see this session's extraction method:
 -- load a real rigged .msh in mesh_debug, dump meshD:getBone(i) for every bone plus computeMeshAABB
 -- as Lua literals). showBonesNode's combo lists these by `label`, in order.
-local ARMATURE_TEMPLATES = { 
+local ARMATURE_TEMPLATES = {
+    ARMATURE_NO_FINGERS_23,
     ARMATURE_NO_FINGERS_25,
     ARMATURE_2_CHAIN_FINGERS , 
     ARMATURE_3_CHAIN_FINGERS,
