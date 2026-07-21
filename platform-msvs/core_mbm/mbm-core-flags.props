@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="UserMacros">
-    <MbmCoreFeatureDefines>AUDIO_ENGINE_PORT_AUDIO</MbmCoreFeatureDefines>
+    <!-- USE_TEXTURE_MISSING_DIALOG makes a texture the engine can't resolve (mesh/sprite/gif/font)
+         open a blocking native "where is this file?" file-picker dialog
+         (src/core_mbm/texture-manager.cpp, TEXTURE_MANAGER::getFilePathTexture). Enabled by default
+         below, matching the engine's long-standing interactive-desktop behavior. Remove it from
+         MbmCoreFeatureDefines for a headless/CI/test build config: there's no human to click the
+         dialog there, so left enabled it hangs forever with no timeout able to catch it (see
+         .agents/skills/engine-testing/SKILL.md); with it removed, unresolved textures instead fall
+         back to a solid white texture ("#FFFFFFFF"). -->
+    <MbmCoreFeatureDefines>AUDIO_ENGINE_PORT_AUDIO;USE_TEXTURE_MISSING_DIALOG</MbmCoreFeatureDefines>
   </PropertyGroup>
 </Project>

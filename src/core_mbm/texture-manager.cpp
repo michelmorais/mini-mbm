@@ -1011,6 +1011,7 @@ namespace mbm
                      }
                 }
     #if (defined(_WIN32) || ((defined(__linux__) || defined(__APPLE__))) && !defined(ANDROID))
+        #if defined(USE_TEXTURE_MISSING_DIALOG)
                 const char * filters[] = { "*.png","*.jpeg","*.jpg","*.bmp","*.gif","*.psd","*.pic","*.pnm","*.hdr","*.tga","*.tif"};
                 constexpr int sizeFilters = sizeof(filters) / sizeof(char*);
                 std::string where_str("where:");
@@ -1021,6 +1022,12 @@ namespace mbm
                     util::addPath(result);
                     fileName = result;
                 }
+        #else
+                // No USE_TEXTURE_MISSING_DIALOG: never block on a native file picker (hangs headless/test
+                // runs, see .agents/skills/engine-testing/SKILL.md). Fall back to a solid white texture;
+                // TEXTURE::load()/loadSolidColor() recognize the '#RRGGBBAA' prefix (texture-manager.cpp:318).
+                fileName = "#FFFFFFFF";
+        #endif
         #endif
             }
         }
