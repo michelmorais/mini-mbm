@@ -222,7 +222,8 @@ function setupPhysics2d(tInfoPhysic)
                 local height = (vertex[2].y - vertex[1].y)
                 self.width  = width  / scale
                 self.height = height / scale
-
+                self.x = self.x + x_diff / scale
+                self.y = self.y - y_diff / scale
             end
     
             tInfoPhysic.editByCirclePosition = function(self,x,y,index_circle,tCircles)
@@ -369,31 +370,14 @@ function setupPhysics2d(tInfoPhysic)
                     tPoints[index_line+1] = vertex[i].y
                     index_line = index_line + 2
                 end
-                if not self.isMovingFrame then
-                    self.x_diff = x_diff
-                    self.y_diff = y_diff
-                    self.isMovingFrame = true
-                end
+                self.x = self.x + x_diff / scale
+                self.y = self.y - y_diff / scale
             end
 
-            tInfoPhysic.finishMoveFrame = function(self,x,y)
-                if self.isMovingFrame then
-                    --local xx,yy = mbm.to2dw(self.xMoving + self.x_diff,self.yMoving - self.y_diff)
-                    local x,y  = mbm.to2dw(x,y)
-                    -- TODO
-                    --self.x = x - ((xx - self.x) * scale)
-                    --self.y = y - ((yy - self.y) * scale)
-
-                    self.x = x
-                    self.y = y
-                end
-                self.isMovingFrame = false
-            end
-    
             tInfoPhysic.editByCirclePosition = function(self,x,y,index_circle,tCircles)
                 local x,y = mbm.to2dw(x,y)
                 vector_aux:set(x / scale,y / scale)
-                vector_aux:sub(self.x / scale,self.y / scale)
+                vector_aux:sub(self.x,self.y)
                 self.ray = vector_aux.len
                 local tPointsLine = self:getCircleLine()
                 self.tLine:set(tPointsLine,1)
@@ -401,8 +385,8 @@ function setupPhysics2d(tInfoPhysic)
                 local j = 1
                 local tPoints = {}
                 for i=1, 360, 90 do
-                    local x = ((math.sin(math.rad(i)) * self.ray) * scale) + self.x ;
-                    local y = ((math.cos(math.rad(i)) * self.ray) * scale) + self.y ;
+                    local x = ((math.sin(math.rad(i)) * self.ray) * scale) + (self.x * scale) ;
+                    local y = ((math.cos(math.rad(i)) * self.ray) * scale) + (self.y * scale) ;
 
                     tCircles[j]:setPos(x,y)
                     j = j +1
@@ -859,6 +843,8 @@ function onLoadMesh()
                             end
                         else
                             if tInfoPhysic.type_info == 'rectangle' then
+                                tHighLightPoint:setPos(tInfoPhysic.x * scale,tInfoPhysic.y * scale)
+                            elseif tInfoPhysic.type_info == 'circle' then
                                 tHighLightPoint:setPos(tInfoPhysic.x * scale,tInfoPhysic.y * scale)
                             elseif tInfoPhysic.type_info == 'triangle' then
                                 if value == 0 then
@@ -1626,26 +1612,11 @@ function showEditPhysics()
                         end
 
                     elseif tPhysic.type == 'triangle' then
-                        local label    = tLang.L("axis_x") .. string.format('##triangle_%d_x', i)
-                        local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
-                        if result then
-                            tPhysic.x = fValue
-                            updatePhysics(tPhysic)
-                        end
-                        if tImGui.IsItemHovered(0) then
-                            tInfoPhysics:highLightPoint(i,0)
-                        end
-
-                        local label    = tLang.L("axis_y") .. string.format('##triangle_%d_y', i)
-                        local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
-                        if result then
-                            tPhysic.y = fValue
-                            updatePhysics(tPhysic)
-                        end
-                        if tImGui.IsItemHovered(0) then
-                            tInfoPhysics:highLightPoint(i,0)
-                        end
-
+                        -- No separate pivot x/y field here: triangle geometry is fully defined by
+                        -- points a/b/c below. A pivot field existed in the GUI here previously but
+                        -- was dead (every triangle is created with a fixed x=0,y=0,z=0 placeholder
+                        -- that setupPhysics2d's triangle rebuild never reads) -- removed rather than
+                        -- wired up, matching how 'complex' also has no separate pivot field.
                         local label    = string.format('#%dX##triangle_%d_x',1,i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.a.x, step, step_fast, format, flags)
                         if result then
