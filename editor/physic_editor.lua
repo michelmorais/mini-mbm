@@ -759,7 +759,26 @@ function onLoadMesh()
         if tMesh then
             tMesh:destroy()
             tMesh = nil
+        end
+        if tInfoPhysics then
+            -- Previously just dropped the reference (tInfoPhysics = nil) without destroying each
+            -- entry's own tShape/tLine -- those visual objects were never removed from the scene,
+            -- so switching to a different mesh left the old one's physics shapes/lines still
+            -- visible on screen indefinitely (reported by direct user testing).
+            for i = 1, #tInfoPhysics do
+                if tInfoPhysics[i].destroy then
+                    tInfoPhysics[i]:destroy()
+                end
+            end
             tInfoPhysics = nil
+        end
+        if tHighLightPoint then
+            tHighLightPoint:destroy()
+            tHighLightPoint = nil
+        end
+        if tAABBCenterMarker then
+            tAABBCenterMarker:destroy()
+            tAABBCenterMarker = nil
         end
         if file_name:lower():match('%.spt$') then
             setupPhysics = setupPhysics2d
@@ -1259,6 +1278,21 @@ function showEditPhysics()
         return
     end
 
+    -- Primitive index 7 ("Complex (Cube)/Triangle") no longer has a radio button in either mode
+    -- (removed entirely, not just restricted) -- fall back to the single-shape Complex(6) it
+    -- decomposed from, so a stale stored value never leaves nothing selected.
+    if tPhysicsOptions.iIndexPrimitiveType == 7 then
+        tPhysicsOptions.iIndexPrimitiveType = 6
+    end
+
+    -- 3D objects only ever creatable-shape into Complex(6) or Sphere(3) (Bullet3D has no usable
+    -- 'triangle' shape, and box2d-only decomposed variants don't apply to a 3D body) -- if a
+    -- previous 2D-only selection (rectangle/triangle/etc.) is still stored when switching to a
+    -- 3D mesh, none of the visible radio buttons would show as selected. Default to Complex.
+    if bIs3d and tPhysicsOptions.iIndexPrimitiveType ~= 3 and tPhysicsOptions.iIndexPrimitiveType ~= 6 then
+        tPhysicsOptions.iIndexPrimitiveType = 6
+    end
+
     local width = 250
     local x_pos, y_pos = 0, 0
     local max_width = 250
@@ -1269,34 +1303,46 @@ function showEditPhysics()
     if is_opened then
         
         tImGui.Text(tLang.L("primitive_type"))
-        local indexPrimitive = tImGui.RadioButton(tLang.L("rectangle"), tPhysicsOptions.iIndexPrimitiveType, 1)
-        indexPrimitive       = tImGui.RadioButton(tLang.L("rectangle_triangle"), indexPrimitive, 2)
-        if indexPrimitive == 2 then
-            tImGui.SameLine()
-            tUtil.pushResponsiveItemWidth(70)
-            local step,step_fast,flags = 2,2,0
-            local result, iValue = tImGui.InputInt('##PrimitivesRect',tPhysicsOptions.iPrimitivesRectangle,step,step_fast,flags)
-            if result  and iValue > 1 and iValue < 1000 and iValue % 2 == 0 then
-                tPhysicsOptions.iPrimitivesRectangle = iValue
+        local indexPrimitive = tPhysicsOptions.iIndexPrimitiveType
+        -- 3D objects only ever get Complex+Sphere as creatable primitives (Bullet3D has no usable
+        -- 'triangle' shape -- completeBody's else-if chain simply never builds a body for one --
+        -- and the box2d-only decomposed variants don't apply to a 3D body at all); 2D keeps every
+        -- option, unchanged from before.
+        if not bIs3d then
+            indexPrimitive       = tImGui.RadioButton(tLang.L("rectangle"), indexPrimitive, 1)
+            indexPrimitive       = tImGui.RadioButton(tLang.L("rectangle_triangle"), indexPrimitive, 2)
+            if indexPrimitive == 2 then
+                tImGui.SameLine()
+                tUtil.pushResponsiveItemWidth(70)
+                local step,step_fast,flags = 2,2,0
+                local result, iValue = tImGui.InputInt('##PrimitivesRect',tPhysicsOptions.iPrimitivesRectangle,step,step_fast,flags)
+                if result  and iValue > 1 and iValue < 1000 and iValue % 2 == 0 then
+                    tPhysicsOptions.iPrimitivesRectangle = iValue
+                end
+                tImGui.PopItemWidth()
             end
-            tImGui.PopItemWidth()
         end
 
-        indexPrimitive       = tImGui.RadioButton(tLang.L("circle"),          indexPrimitive, 3)
-        indexPrimitive       = tImGui.RadioButton(tLang.L("circle_triangle"), indexPrimitive, 4)
-        if indexPrimitive == 4 then
-            tImGui.SameLine()
-            tUtil.pushResponsiveItemWidth(70)
-            local step,step_fast,flags = 1,1,0
-            local result, iValue = tImGui.InputInt('##PrimitivesCircle',tPhysicsOptions.iPrimitivesCircle,step,step_fast,flags)
-            if result  and iValue > 3 and iValue < 1000 then
-                tPhysicsOptions.iPrimitivesCircle = iValue
+        -- Same underlying type='sphere' data either way -- relabeled for 3D since "Circle" reads
+        -- as a 2D-only concept even though this has always been a true analytic 3D sphere.
+        indexPrimitive       = tImGui.RadioButton(tLang.L(bIs3d and "sphere" or "circle"), indexPrimitive, 3)
+
+        if not bIs3d then
+            indexPrimitive       = tImGui.RadioButton(tLang.L("circle_triangle"), indexPrimitive, 4)
+            if indexPrimitive == 4 then
+                tImGui.SameLine()
+                tUtil.pushResponsiveItemWidth(70)
+                local step,step_fast,flags = 1,1,0
+                local result, iValue = tImGui.InputInt('##PrimitivesCircle',tPhysicsOptions.iPrimitivesCircle,step,step_fast,flags)
+                if result  and iValue > 3 and iValue < 1000 then
+                    tPhysicsOptions.iPrimitivesCircle = iValue
+                end
+                tImGui.PopItemWidth()
             end
-            tImGui.PopItemWidth()
+            indexPrimitive       = tImGui.RadioButton(tLang.L("triangle"), indexPrimitive, 5)
         end
-        indexPrimitive       = tImGui.RadioButton(tLang.L("triangle"), indexPrimitive, 5)
+
         indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
-        indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube_triangle"), indexPrimitive, 7)
         local tSizeBtn       = {x=width - 20,y=0} -- size button
 
         local color             = {r=1,g=1,b=0.4,a=1}
@@ -1336,7 +1382,7 @@ function showEditPhysics()
             local p2     = {x=25 + winPos.x + 75,y=0  + winPos.y + 15}
             local p3     = {x=50 + winPos.x + 75,y=50 + winPos.y + 15}
             tImGui.AddTriangle(p1, p2, p3, color, thickness + 5)
-        elseif indexPrimitive == 6 or indexPrimitive == 7 then
+        elseif indexPrimitive == 6 then
             -- simple isometric-cube icon: two offset squares joined by 4 diagonals
             local off  = 18
             local p_min = {x = winPos.x + 75,       y = winPos.y + 15 + off}
@@ -1349,9 +1395,6 @@ function showEditPhysics()
             tImGui.AddLine({x=p_max.x,y=p_min.y}, {x=q_max.x,y=q_min.y}, color, thickness)
             tImGui.AddLine({x=p_min.x,y=p_max.y}, {x=q_min.x,y=q_max.y}, color, thickness)
             tImGui.AddLine({x=p_max.x,y=p_max.y}, {x=q_max.x,y=q_max.y}, color, thickness)
-            if indexPrimitive == 7 then
-                tImGui.AddLine({x=p_min.x,y=p_min.y}, {x=p_max.x,y=p_max.y}, color, thickness)
-            end
         end
 
         tPhysicsOptions.iIndexPrimitiveType = indexPrimitive
@@ -1439,17 +1482,6 @@ function showEditPhysics()
                 for i,l in ipairs(BOX_LETTERS) do
                     tInfoPhysicsInner[l] = {x=corners[i].x, y=corners[i].y, z=corners[i].z}
                 end
-            elseif indexPrimitive == 7 then --complex (box decomposed into 12 triangles)
-                local corners = boxCorners(width * 0.5, height * 0.5, depth * 0.5)
-                local faces   = boxTriangleFaces(corners)
-                for _,tri in ipairs(faces) do
-                    local tInfoPhysicsTriangle = {x=0,y=0,z=0,type='triangle'}
-                    tInfoPhysicsTriangle.a = {x=tri[1].x, y=tri[1].y, z=tri[1].z}
-                    tInfoPhysicsTriangle.b = {x=tri[2].x, y=tri[2].y, z=tri[2].z}
-                    tInfoPhysicsTriangle.c = {x=tri[3].x, y=tri[3].y, z=tri[3].z}
-                    addPhysics(tInfoPhysicsTriangle)
-                end
-                tInfoPhysicsInner = nil
             end
             if tInfoPhysicsInner then
                 addPhysics(tInfoPhysicsInner)
