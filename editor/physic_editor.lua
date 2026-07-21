@@ -1307,7 +1307,8 @@ function showEditPhysics()
         -- 3D objects only ever get Complex+Sphere as creatable primitives (Bullet3D has no usable
         -- 'triangle' shape -- completeBody's else-if chain simply never builds a body for one --
         -- and the box2d-only decomposed variants don't apply to a 3D body at all); 2D keeps every
-        -- option, unchanged from before.
+        -- native option, unchanged from before, plus its own Sphere/Complex pair grouped
+        -- separately at the end (see "promote_physic_to_3d" below).
         if not bIs3d then
             indexPrimitive       = tImGui.RadioButton(tLang.L("rectangle"), indexPrimitive, 1)
             indexPrimitive       = tImGui.RadioButton(tLang.L("rectangle_triangle"), indexPrimitive, 2)
@@ -1321,13 +1322,10 @@ function showEditPhysics()
                 end
                 tImGui.PopItemWidth()
             end
-        end
 
-        -- Same underlying type='sphere' data either way -- relabeled for 3D since "Circle" reads
-        -- as a 2D-only concept even though this has always been a true analytic 3D sphere.
-        indexPrimitive       = tImGui.RadioButton(tLang.L(bIs3d and "sphere" or "circle"), indexPrimitive, 3)
-
-        if not bIs3d then
+            -- Same underlying type='sphere' data as 3D's "Sphere" (index 3) -- kept as the quick,
+            -- 2D-flavored "Circle" entry point here among the native 2D options.
+            indexPrimitive       = tImGui.RadioButton(tLang.L("circle"), indexPrimitive, 3)
             indexPrimitive       = tImGui.RadioButton(tLang.L("circle_triangle"), indexPrimitive, 4)
             if indexPrimitive == 4 then
                 tImGui.SameLine()
@@ -1340,9 +1338,18 @@ function showEditPhysics()
                 tImGui.PopItemWidth()
             end
             indexPrimitive       = tImGui.RadioButton(tLang.L("triangle"), indexPrimitive, 5)
-        end
 
-        indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
+            tImGui.Separator()
+            tImGui.TextDisabled(tLang.L("promote_physic_to_3d"))
+            -- A second, explicitly-labeled entry point to the identical type='sphere' data as
+            -- "Circle" above (editor-side only, see req from direct user feedback) -- grouped
+            -- with Complex(Cube) since both are the same pair 3D objects get.
+            indexPrimitive       = tImGui.RadioButton(tLang.L("sphere"), indexPrimitive, 8)
+            indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
+        else
+            indexPrimitive       = tImGui.RadioButton(tLang.L("sphere"), indexPrimitive, 3)
+            indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
+        end
         local tSizeBtn       = {x=width - 20,y=0} -- size button
 
         local color             = {r=1,g=1,b=0.4,a=1}
@@ -1368,10 +1375,16 @@ function showEditPhysics()
                 tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
                 tImGui.AddLine(p_min,p_max,color,thickness)
             end
-        elseif indexPrimitive == 3 then
+        elseif indexPrimitive == 3 or indexPrimitive == 8 then
             local center        = {x=winPos.x + 100,y=winPos.y + 25 + 7.5}
             local radius        = 25
             tImGui.AddCircle(center, radius, color, 18, thickness)
+            if indexPrimitive == 8 then
+                -- distinguish the 2D "Sphere" entry point from plain "Circle" with a latitude line
+                local p1 = {x = center.x - radius, y = center.y}
+                local p2 = {x = center.x + radius, y = center.y}
+                tImGui.AddLine(p1, p2, color, thickness * 0.5)
+            end
         elseif indexPrimitive == 4 then
             local center        = {x=winPos.x + 100,y=winPos.y + 25 + 7.5}
             local radius        = 25
@@ -1445,7 +1458,7 @@ function showEditPhysics()
                 end
                 tInfoPhysicsInner = nil
                 
-            elseif indexPrimitive == 3 then --sphere
+            elseif indexPrimitive == 3 or indexPrimitive == 8 then --sphere (3 = 2D "Circle" entry point, 8 = 2D "Sphere" entry point, identical data)
                 tInfoPhysicsInner.type = 'sphere'
                 tInfoPhysicsInner.ray  = width * 0.5
             elseif indexPrimitive == 4 then --Triangle/Circle
