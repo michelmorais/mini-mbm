@@ -163,8 +163,18 @@ does not skip the dialog itself.
 
 Full flag list: `./mini-mbm --help` (implemented in `src/core_mbm/usage-help.cpp`). Notable ones:
 `-s/--scene`, `-w/-h` (width/height), `-ew/-eh` (expected width/height), `-x/-y` (window
-position), `--nosplash`, `--noborder`, `-a/--addpath`, and `--disable_select_monitor`. Any
-bare `name=value` argument becomes a Lua global readable via `mbm.getGlobal("name")`.
+position), `--nosplash`, `--noborder`, `-a/--addpath`, and `--disable_select_monitor`.
+
+**A bare `name=value` argument does NOT become a Lua global on this binary** — confirmed
+empirically (2026-07-21): `mbm.getGlobal("name")` came back `nil` for a `name=value` passed on the
+`mini-mbm --scene ...` command line. The `name=value` → `mbm.getGlobal` mechanism only exists in
+`LUA_MANAGER::parserArgs` (`src/lua-wrap/manager-lua.cpp`), which is reached only by
+`LUA_MANAGER`'s own `(argc, argv)` constructor — a different entry point than the one
+`platform-linux/main-lua.cpp`/`platform-macos/main-lua.cpp` use (`PARSE_launcher_ARGS` +
+`SCENE_SCRIPT`, `src/core_mbm/parse-launcher-args.cpp`), which recognizes `=` in an arg only to
+avoid misparsing it as a flag value and otherwise discards it. For an in-script auto-exit
+deadline on this binary, use `mbm.getTimeRun()` unconditionally (see the pattern below) rather
+than gating it on a CLI-passed global.
 
 ### Making the Lua process exit on its own
 

@@ -1361,8 +1361,15 @@ namespace mbm
     {
         // two ways to do it ...
         const CAMERA &camera = impl->camera;
-        const float vx = (sx /  impl->backBufferWidth - 0.5f) * 2.0f / camera.matrixProj._11;
-        const float vy = -(sy / impl->backBufferHeight - 0.5f) * 2.0f / camera.matrixProj._22;
+        // sx,sy come in as raw touch/mouse screen pixels (onTouchDown/onTouchMove space), which
+        // only matches this->backBufferWidth/Height 1:1 when camera.scaleScreen2d is 1.0 -- see
+        // transformeScreen2dToWorld3d_scaled below and docs/future_investigation.md. Applying the
+        // correction here (once, at the shared primitive) rather than at each caller keeps
+        // mbm.to3d, mbm.getPickRay, and obj:collide's 3D ray/AABB path consistent by construction.
+        const float scaledSx = sx * camera.scaleScreen2d.x;
+        const float scaledSy = sy * camera.scaleScreen2d.y;
+        const float vx = (scaledSx /  impl->backBufferWidth - 0.5f) * 2.0f / camera.matrixProj._11;
+        const float vy = -(scaledSy / impl->backBufferHeight - 0.5f) * 2.0f / camera.matrixProj._22;
         const float vz = 1.0f;
         MATRIX      m;
         if (MatrixInverse(&m, nullptr, &camera.matrixView) == nullptr)
@@ -1445,11 +1452,10 @@ namespace mbm
     bool DEVICE::transformeScreen2dToWorld3d_scaled(const float x, const float y, VEC3 *out,
                                                          const float howFarZFromCamera) const
     {
+        // rayCast() itself now applies camera.scaleScreen2d (see above) -- x,y are passed through
+        // unscaled here to avoid applying the correction twice.
         VEC3        rayOriginOut, rayDirOut;
-        const CAMERA &camera = impl->camera;
-        const float newX = x * camera.scaleScreen2d.x;
-        const float newY = y * camera.scaleScreen2d.y;
-        if (this->rayCast(newX, newY, &rayOriginOut, &rayDirOut))
+        if (this->rayCast(x, y, &rayOriginOut, &rayDirOut))
         {
             out->x = rayDirOut.x * howFarZFromCamera + rayOriginOut.x;
             out->y = rayDirOut.y * howFarZFromCamera + rayOriginOut.y;

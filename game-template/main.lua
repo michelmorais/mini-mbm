@@ -71,8 +71,12 @@ function onInitScene()
     -- player:setScale(1.5, 1.5)
 
     -- --- HUD font (screen-space so it is not affected by camera movement) ---
+    -- score_font must stay referenced for as long as score_text is used (a top-level `local`,
+    -- same as here) -- once nothing in Lua references the font object anymore, its __gc deletes
+    -- it AND every text object it created, even ones still referenced elsewhere (real crash,
+    -- see docs/lua-api.md section 7.4).
     -- score_font = font:new("font.fnt")
-    -- score_text = score_font:add("Score: 0", -300, 250)   -- top-left area
+    -- score_text = score_font:add("Score: 0", "2ds", -300, 250)   -- top-left area
     -- score_text.visible = true
 
     print("info", "green", "onInitScene complete")

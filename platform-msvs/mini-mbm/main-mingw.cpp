@@ -103,8 +103,13 @@ int main(const int /*argc*/, const char** /*argv*/)
 
         util::addPath("assets/");
         unsigned int width = 0, height = 0;
+        unsigned int requested_width = 0, requested_height = 0;
         if (parser.getWidthHeight(width, height))
+        {
+            requested_width  = width;
+            requested_height = height;
             mbm::set_window_size(static_cast<int>(width), static_cast<int>(height));
+        }
         else
             mbm::set_window_size(1920, 1080);
 
@@ -112,7 +117,13 @@ int main(const int /*argc*/, const char** /*argv*/)
         if (parser.getExpectedWidthHeight(expected_width, expected_height))
             mbm::set_expected_window_size(static_cast<int>(expected_width), static_cast<int>(expected_height));
         else
-            mbm::set_expected_window_size(1920, 1080);
+            // Default the "expected" (design) resolution to the actual requested window size so
+            // camera.scaleScreen2d (device-common.cpp) comes out to 1.0 unless the caller
+            // explicitly opts into design-resolution scaling via -ew/-eh. This used to hardcode
+            // 1920x1080 here regardless of -w/-h -- see docs/future_investigation.md.
+            mbm::set_expected_window_size(
+                static_cast<int>(requested_width  > 0 ? requested_width  : 1920),
+                static_cast<int>(requested_height > 0 ? requested_height : 1080));
 
         mbm::set_verbose(false);
 

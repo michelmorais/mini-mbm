@@ -111,6 +111,10 @@ position on its own).
 (`device-common.cpp`), previously used only internally to back `mbm.to3d`. Use this instead of
 guessing a `depth` for `mbm.to3d` when you actually need real ray-vs-object math (e.g. testing
 against a known bounding box) — `obj:collide(x, y)` (§6.4) now does exactly this internally.
+`DEVICE::rayCast` applies the `camera.scaleScreen2d` correction internally (since MBM_VERSION
+6.32.0), so `mbm.getPickRay`, `mbm.to3d`, and `obj:collide`'s 3D ray/AABB path all agree on the
+same screen point even when a game opts into design-resolution scaling via `-ew`/`-eh` — they
+previously diverged whenever `scaleScreen2d != 1.0` (see `docs/future_investigation.md`).
 
 ---
 
@@ -614,7 +618,8 @@ local fnt = font:new("roboto.fnt", height?, spaceW?, spaceH?, savePng?)
 -- spaceH     number  optional line height
 -- savePng    bool    debug: save generated texture atlas to PNG
 
-local label = fnt:add("Hello World", x, y, z?)   -- returns a text object
+local label = fnt:add("Hello World", coordType?, x?, y?, z?)   -- returns a text object
+-- coordType  string  "2dw"/"2ds"/"3d" (§2) -- REQUIRED to pass x/y/z at all; see warning below
 -- label.x, label.y, label.z, label.visible, label.sx ...  (all common props)
 label.text = "new text"       -- update text content
 
@@ -628,6 +633,28 @@ fnt:getSizeLetter()
 fnt:getTexture()              -- returns texture name string
 fnt:getTotal()                -- count of text objects created from this font
 ```
+
+**`fnt:add`'s 2nd argument is a coordinate-type string, not `x`** (`onAddTextFontLua`,
+`font-lua.cpp`): the C++ binding reads argument position 3 (the 2nd argument after `text`) via
+`getTypeWordRenderizableLua` and only reads positions 4/5/6 as `x`/`y`/`z` if that 3rd Lua argument
+was present — `fnt:add("score", -300, 250)` (2 numbers, no coord-type string, matching a pattern
+copy-pasted from `game-template/main.lua`'s own comments) does **not** error, but silently drops
+both numbers: `getTypeWordRenderizableLua` coerces `-300` to the string `"-300.0"` via Lua's
+number-to-string rule, that doesn't match `"2ds"`, so it silently defaults to `is2dw = true` and
+the label lands at `2dw` `(0,0)`, not at your intended position. Always pass the coordinate type:
+`fnt:add("score", "2ds", -300, 250)`.
+
+**A `font` object's child text objects (`fnt:add()`'s return value) do not keep their own parent
+`font` alive, and become dangling the instant nothing in Lua references the parent anymore** —
+confirmed with gdb (SIGSEGV in `TEXT_DRAW::setText` → `renderText` →
+`ANIMATION_MANAGER::getIndexAnimation` on a freed `this`) after `fnt:add()`'s font was only a
+`local` scoped inside `onInitScene()`; Lua's GC eventually collected it mid-session (not
+immediately — this is why the crash looks delayed/nondeterministic), and `font`'s `__gc`
+(`onDestroyFontLua`, `font-lua.cpp`) `delete`s the `FONT_DRAW` **and every `TEXT_DRAW` it created**
+unconditionally. Keep the `font` object itself referenced (e.g. a top-level `local`, not one
+scoped to `onInitScene()`) for as long as any text object it created is still in use — the
+game-template's own `score_font`/`score_text` pattern already does this correctly; the trap is
+specifically re-declaring the font as a function-local "just for setup."
 
 ### 7.5 gif
 

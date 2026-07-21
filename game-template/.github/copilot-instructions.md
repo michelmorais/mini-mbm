@@ -676,7 +676,7 @@ local hud_font, hud_label
 
 function onInitScene()
     hud_font  = font:new("ui.fnt")
-    hud_label = hud_font:add("Score: 0", -300, 250)  -- "2ds" position
+    hud_label = hud_font:add("Score: 0", "2ds", -300, 250)  -- 2nd arg is the coord type, required
 end
 
 function onLoop(delta)
