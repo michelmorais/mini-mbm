@@ -49,6 +49,7 @@ function onInitScene()
     tInfoPhysics         = nil
     bShowEditPhysics     = false
     bIs3d                = false
+    bSpriteBackedObject  = false
     setupPhysics         = nil
     scale                = 1
     tSimulate            = {}
@@ -138,6 +139,23 @@ function applyCam3d(c)
     local x,y,z = cam3dGetPos(c)
     camera3d:setPos(x,y,z)
     camera3d:setFocus(c.fx,c.fy,c.fz)
+end
+
+-- Frames tCam3d around the currently loaded tMesh's own size. Originally inline in onLoadMesh's
+-- bIs3d branch (real .msh load); now also called whenever the live view switches to 3D for a
+-- sprite-backed object -- either via the manual Camera 2D/3D toggle or automatically (physics
+-- promoted to Complex/Sphere, or a Complex shape detected on load) -- since a sprite's own
+-- tMesh:getSize() only ever returns w,h (no depth), the same nil/0 fallback that already handled
+-- an unloaded mesh's degenerate 0-distance case covers this too.
+function initCam3dFraming()
+    local w,h,d = tMesh:getSize()
+    if not w or w == 0 then w = 300 end
+    if not h or h == 0 then h = 300 end
+    if not d or d == 0 then d = 0 end
+    tCam3d.fx, tCam3d.fy, tCam3d.fz = 0,0,0
+    tCam3d.distance = math.max(w,h,d) * 2.5
+    tCam3d.azimuth, tCam3d.elevation = 0, 0.4
+    applyCam3d(tCam3d)
 end
 
 function onRender(tShape, vertex, uv, index_read_only)
@@ -755,11 +773,33 @@ function hitTestPhysicsHandles3d(tInfoPhysic, sx, sy)
             test('corner', l, h)
         end
     end
+    if tHandles.resizeAxes then
+        for axis, h in pairs(tHandles.resizeAxes) do
+            test('resizeAxis', axis, h)
+        end
+    end
 
     if bestKind then
         return bestKind, bestLetter, bestX, bestY, bestZ
     end
     return nil
+end
+
+-- Flat XYZ point list for one great circle of a sphere, lying in the given plane ('xy'/'xz'/'yz').
+function greatCirclePoints(cx,cy,cz,radius,segments,plane)
+    local pts = {}
+    for i=0,segments do
+        local t = (i/segments) * math.pi * 2
+        local ca, cb = math.cos(t)*radius, math.sin(t)*radius
+        if plane == 'xy' then
+            table.insert(pts, cx+ca); table.insert(pts, cy+cb); table.insert(pts, cz)
+        elseif plane == 'xz' then
+            table.insert(pts, cx+ca); table.insert(pts, cy); table.insert(pts, cz+cb)
+        else -- 'yz'
+            table.insert(pts, cx); table.insert(pts, cy+ca); table.insert(pts, cz+cb)
+        end
+    end
+    return pts
 end
 
 function setupPhysics3d(tInfoPhysic)
@@ -774,6 +814,9 @@ function setupPhysics3d(tInfoPhysic)
                 if self.tHandles.resize then self.tHandles.resize:destroy() end
                 if self.tHandles.corners then
                     for _,h in pairs(self.tHandles.corners) do h:destroy() end
+                end
+                if self.tHandles.resizeAxes then
+                    for _,h in pairs(self.tHandles.resizeAxes) do h:destroy() end
                 end
             end
         end
@@ -837,16 +880,42 @@ function setupPhysics3d(tInfoPhysic)
         if tInfoPhysic.tLine == nil then
             tInfoPhysic.tLine = line:new('3d')
         end
-        tInfoPhysic.tLine:drawBounding(tInfoPhysic.tShape,false)
+        if tInfoPhysic.type == 'sphere' then
+            -- A box wireframe (drawBounding, used for every other type) reads as "this is a
+            -- cube" for a shape whose actual physics is a sphere -- draw a 3-great-circle globe
+            -- instead (direct user feedback: "it should have the wireframe as globe or sphere").
+            local segs = 24
+            local ptsXY = greatCirclePoints(cx,cy,cz,tInfoPhysic.ray,segs,'xy')
+            local ptsXZ = greatCirclePoints(cx,cy,cz,tInfoPhysic.ray,segs,'xz')
+            local ptsYZ = greatCirclePoints(cx,cy,cz,tInfoPhysic.ray,segs,'yz')
+            if tInfoPhysic.lineCircleIdx == nil then
+                tInfoPhysic.lineCircleIdx = {
+                    tInfoPhysic.tLine:add(ptsXY),
+                    tInfoPhysic.tLine:add(ptsXZ),
+                    tInfoPhysic.tLine:add(ptsYZ),
+                }
+            else
+                tInfoPhysic.tLine:set(ptsXY, tInfoPhysic.lineCircleIdx[1])
+                tInfoPhysic.tLine:set(ptsXZ, tInfoPhysic.lineCircleIdx[2])
+                tInfoPhysic.tLine:set(ptsYZ, tInfoPhysic.lineCircleIdx[3])
+            end
+        else
+            tInfoPhysic.tLine:drawBounding(tInfoPhysic.tShape,false)
+        end
         tInfoPhysic.tLine:setColor(0,1,0)
 
-        -- Move/resize drag handles (req #10) -- only for the two Bullet3D-eligible 3D primitives
-        -- (Complex/Sphere, see the primitive-type restriction above). Created once, repositioned
-        -- (not recreated) on every rebuild -- including the live rebuild every drag-move frame,
-        -- see onTouchMove -- so a drag doesn't churn through new shape objects each frame. Visible
-        -- only while this shape is selected; tInfoPhysics.setSelected keeps this in sync on plain
-        -- selection changes that don't call setupPhysics3d themselves.
-        if tInfoPhysic.type == 'complex' or tInfoPhysic.type == 'sphere' then
+        -- Move/resize drag handles (req #10) -- only for the three Bullet3D-eligible 3D primitives
+        -- (Cube/Complex/Sphere, see the primitive-type restriction above). Created once,
+        -- repositioned (not recreated) on every rebuild -- including the live rebuild every
+        -- drag-move frame, see onTouchMove -- so a drag doesn't churn through new shape objects
+        -- each frame. Visible only while this shape is selected; tInfoPhysics.setSelected keeps
+        -- this in sync on plain selection changes that don't call setupPhysics3d themselves.
+        -- Cube gets a move handle plus 3 single-sided axis-resize handles (+X/+Y/+Z from center,
+        -- one per dimension, per direct user request) instead of Complex's 8 free corners -- it
+        -- must stay a rigid, axis-aligned box, so dragging one handle resizes only that dimension
+        -- (width/height/depth independently), symmetric about the unmoved center -- same
+        -- distance-from-center convention as Sphere's own resize handle, just one axis at a time.
+        if tInfoPhysic.type == 'complex' or tInfoPhysic.type == 'sphere' or tInfoPhysic.type == 'cube' then
             local maxExtent  = math.max(w,h,d)
             local handleSize = math.max(maxExtent * 0.08, 5)
             tInfoPhysic.handleRadius = handleSize -- hit-test radius, matches the visual size
@@ -885,6 +954,24 @@ function setupPhysics3d(tInfoPhysic)
                     tHandles.resize:setPos(rx,cy,cz)
                 end
                 tHandles.resize.visible = bVisible
+            elseif tInfoPhysic.type == 'cube' then
+                if tHandles.resizeAxes == nil then
+                    tHandles.resizeAxes = {}
+                end
+                local axisPos = {
+                    x = {cx + tInfoPhysic.width * 0.5,  cy, cz},
+                    y = {cx, cy + tInfoPhysic.height * 0.5, cz},
+                    z = {cx, cy, cz + (tInfoPhysic.depth or tInfoPhysic.width) * 0.5},
+                }
+                for _,axis in ipairs({'x','y','z'}) do
+                    local p = axisPos[axis]
+                    if tHandles.resizeAxes[axis] == nil then
+                        tHandles.resizeAxes[axis] = makeHandleMarker(p[1],p[2],p[3], handleSize, 0,1,1,1) -- cyan: resize
+                    else
+                        tHandles.resizeAxes[axis]:setPos(p[1],p[2],p[3])
+                    end
+                    tHandles.resizeAxes[axis].visible = bVisible
+                end
             end
         end
     end
@@ -897,6 +984,10 @@ end
 function onLoadMesh()
     local file_name = mbm.openFile(sLastEditorFileName,'*.spt','*.msh')
     if file_name then
+        if tPhysicsOptions then
+            tPhysicsOptions.bPromoteConfirmPending = false
+            tPhysicsOptions.iPendingPrimitive = nil
+        end
         if tMesh then
             tMesh:destroy()
             tMesh = nil
@@ -931,6 +1022,11 @@ function onLoadMesh()
             tAABBCenterMarker:create('circle',15,15,12,false,string.format('tAABBCenterMarker_%d',os.time()))
             tAABBCenterMarker.z = -100
             bIs3d = false
+            -- Distinct from the live bIs3d (which can flip to true for this same object once its
+            -- physics is "promoted" to Cube/Complex/Sphere, see showEditPhysics's Camera toggle
+            -- and the promote-confirm gate) -- this tracks what the file actually is, so the
+            -- toggle only ever shows for a sprite and 3D detection on load only runs for one.
+            bSpriteBackedObject = true
         elseif file_name:lower():match('%.msh$') then
             tMesh = mesh:new('3d')
             setupPhysics = setupPhysics3d
@@ -939,6 +1035,7 @@ function onLoadMesh()
             tAABBCenterMarker = shape:new('3d')
             tAABBCenterMarker:create('circle',15,15,12,false,string.format('tAABBCenterMarker_%d',os.time()))
             bIs3d = true
+            bSpriteBackedObject = false
         end
         tHighLightPoint:setColor(0,1,0)
         tHighLightPoint.visible = false
@@ -955,18 +1052,27 @@ function onLoadMesh()
             sLastEditorFileName = file_name
             tInfoPhysics = tMesh:getPhysics()
             camera2d:setPos(-150,0)
+
+            -- Auto-detect a promoted sprite on load: type='complex' is an unambiguous signal (2D
+            -- never creates it any other way), unlike type='sphere' which is identical whether it
+            -- came from "Circle" or the promoted "Sphere" button -- a sphere-only promotion can't
+            -- be told apart from an ordinary 2D circle from saved data alone (shapes.h's CUBE/
+            -- SPHERE/CUBE_COMPLEX have no spare field to persist that distinction to disk). Known,
+            -- accepted gap -- the Camera 2D/3D toggle below is the manual fallback for that case.
+            if bSpriteBackedObject and not bIs3d then
+                for i=1, #tInfoPhysics do
+                    if tInfoPhysics[i].type == 'complex' then
+                        bIs3d = true
+                        break
+                    end
+                end
+            end
+
             if bIs3d then
-                -- tMesh:getSize() only returns real dimensions once the mesh has
-                -- actually loaded geometry -- computing this before load() left
-                -- distance at 0 (a degenerate, same-position camera/focus).
-                local w,h,d = tMesh:getSize()
-                if not w or w == 0 then w = 300 end
-                if not h or h == 0 then h = 300 end
-                if not d or d == 0 then d = 0 end
-                tCam3d.fx, tCam3d.fy, tCam3d.fz = 0,0,0
-                tCam3d.distance = math.max(w,h,d) * 2.5
-                tCam3d.azimuth, tCam3d.elevation = 0, 0.4
-                applyCam3d(tCam3d)
+                -- tMesh:getSize() only returns real dimensions once the mesh has actually loaded
+                -- geometry -- computing this before load() left distance at 0 (a degenerate,
+                -- same-position camera/focus).
+                initCam3dFraming()
             end
 
             for i=1, #tInfoPhysics do
@@ -1101,6 +1207,9 @@ function onLoadMesh()
                             if tHandles.resize then tHandles.resize.visible = j == index end
                             if tHandles.corners then
                                 for _,h in pairs(tHandles.corners) do h.visible = j == index end
+                            end
+                            if tHandles.resizeAxes then
+                                for _,h in pairs(tHandles.resizeAxes) do h.visible = j == index end
                             end
                         end
                     end
@@ -1434,12 +1543,16 @@ function showEditPhysics()
         tPhysicsOptions.iIndexPrimitiveType = 6
     end
 
-    -- 3D objects only ever creatable-shape into Complex(6) or Sphere(3) (Bullet3D has no usable
+    -- 3D objects only ever creatable-shape into Cube(1), Complex(6), or Sphere(3) -- the three
+    -- shapes completeBody's else-if chain actually builds a body for (Bullet3D has no usable
     -- 'triangle' shape, and box2d-only decomposed variants don't apply to a 3D body) -- if a
-    -- previous 2D-only selection (rectangle/triangle/etc.) is still stored when switching to a
-    -- 3D mesh, none of the visible radio buttons would show as selected. Default to Complex.
-    if bIs3d and tPhysicsOptions.iIndexPrimitiveType ~= 3 and tPhysicsOptions.iIndexPrimitiveType ~= 6 then
-        tPhysicsOptions.iIndexPrimitiveType = 6
+    -- previous 2D-only selection (rectangle_triangle/circle_triangle/triangle/etc.) is still
+    -- stored when switching to a 3D mesh, none of the visible radio buttons would show as
+    -- selected. Default to Cube.
+    if bIs3d and tPhysicsOptions.iIndexPrimitiveType ~= 1
+             and tPhysicsOptions.iIndexPrimitiveType ~= 3
+             and tPhysicsOptions.iIndexPrimitiveType ~= 6 then
+        tPhysicsOptions.iIndexPrimitiveType = 1
     end
 
     local width = 250
@@ -1450,7 +1563,30 @@ function showEditPhysics()
     local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_edit_physics), true, 0)
     
     if is_opened then
-        
+
+        -- Manual view-mode override for a sprite-backed object (direct user request): promoting
+        -- physics to Cube/Complex/Sphere needs the 3D drag tools to actually edit it, and the
+        -- auto-detect-on-load above only catches Complex reliably (Sphere-only promotions can't
+        -- be told apart from an ordinary 2D Circle once saved -- see the comment in onLoadMesh).
+        -- This toggle is the general fallback: force the view either way, same
+        -- camera_2d/camera_3d radio pattern mesh_debug.lua's own camera panel already uses.
+        if bSpriteBackedObject then
+            tImGui.Text(tLang.L("camera_panel"))
+            local camMode = bIs3d and 1 or 0
+            local newCamMode = tImGui.RadioButton(tLang.L('camera_2d') .. '##physicCamMode', camMode, 0)
+            tImGui.SameLine()
+            newCamMode = tImGui.RadioButton(tLang.L('camera_3d') .. '##physicCamMode', newCamMode, 1)
+            if newCamMode ~= camMode then
+                if newCamMode == 1 then
+                    bIs3d = true
+                    initCam3dFraming()
+                else
+                    bIs3d = false
+                end
+            end
+            tImGui.Separator()
+        end
+
         tImGui.Text(tLang.L("primitive_type"))
         local indexPrimitive = tPhysicsOptions.iIndexPrimitiveType
         -- 3D objects only ever get Complex+Sphere as creatable primitives (Bullet3D has no usable
@@ -1496,15 +1632,21 @@ function showEditPhysics()
             indexPrimitive       = tImGui.RadioButton(tLang.L("sphere"), indexPrimitive, 8)
             indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
         else
-            indexPrimitive       = tImGui.RadioButton(tLang.L("sphere"), indexPrimitive, 3)
+            -- Three real Bullet3D-supported shapes (completeBody's else-if chain: lsCube first,
+            -- lsSphere, then lsCubeComplex -- confirmed all three actually build a body). "Cube"
+            -- (simple axis-aligned box, width/height/depth, type='cube' -- shapes.h's CUBE struct)
+            -- is distinct from "Complex (Cube)" (free 8-corner hull, CUBE_COMPLEX struct) -- moving
+            -- one corner of the latter makes it no longer a cube; "Cube" always stays a rigid box.
+            indexPrimitive       = tImGui.RadioButton(tLang.L("cube"), indexPrimitive, 1)
             indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
+            indexPrimitive       = tImGui.RadioButton(tLang.L("sphere"), indexPrimitive, 3)
         end
         local tSizeBtn       = {x=width - 20,y=0} -- size button
 
         local color             = {r=1,g=1,b=0.4,a=1}
         local thickness         =  5.0
         local winPos            = tImGui.GetCursorScreenPos()
-        if indexPrimitive == 1 then
+        if indexPrimitive == 1 and not bIs3d then
             local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
             local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
             local rounding          =  2.0
@@ -1544,8 +1686,9 @@ function showEditPhysics()
             local p2     = {x=25 + winPos.x + 75,y=0  + winPos.y + 15}
             local p3     = {x=50 + winPos.x + 75,y=50 + winPos.y + 15}
             tImGui.AddTriangle(p1, p2, p3, color, thickness + 5)
-        elseif indexPrimitive == 6 then
-            -- simple isometric-cube icon: two offset squares joined by 4 diagonals
+        elseif indexPrimitive == 6 or (indexPrimitive == 1 and bIs3d) then
+            -- simple isometric-cube icon: two offset squares joined by 4 diagonals -- shared by
+            -- Complex(Cube) and 3D's "Cube" alike, they're both "a box" at a glance
             local off  = 18
             local p_min = {x = winPos.x + 75,       y = winPos.y + 15 + off}
             local p_max = {x = winPos.x + 125,      y = winPos.y + 65 + off}
@@ -1568,85 +1711,64 @@ function showEditPhysics()
         tImGui.SetCursorScreenPos(winPos)
         
         if tImGui.Button(tLang.L("add_physic_btn"), tSizeBtn) then
-            local width,height,depth = tMesh:getSize()
-            if depth == nil then
-                depth = 1
-            end
-            -- Defaults to the mesh's true AABB center (obj:getAABBCenter(), MBM_VERSION 6.9.0)
-            -- instead of the hardcoded local origin -- for a mesh pivoted at its floor/base (e.g.
-            -- a building), the origin is an awkward starting point for a new hitbox; this lands
-            -- new shapes at the mesh's actual visual middle instead. Naturally still (0,0,0) for
-            -- a mesh with no physics shapes yet (nothing to compute a center from) or one that's
-            -- genuinely centered on its own pivot already.
-            local cx, cy, cz = tMesh:getAABBCenter(true)
-            local tInfoPhysicsInner = {x = cx or 0, y = cy or 0, z = cz or 0}
-            if indexPrimitive == 1 then --cube
-                
-                tInfoPhysicsInner.type = 'cube'
-                tInfoPhysicsInner.width  = width
-                tInfoPhysicsInner.height = height
-            elseif indexPrimitive == 2 then --Triangle/Rectangle
-                local half_width = width / 2
-                local half_height = height / 2
-                local step_div = width / (tPhysicsOptions.iPrimitivesRectangle / 2.0);
-                local step = -half_width
-                for i=1, tPhysicsOptions.iPrimitivesRectangle / 2 do
-                    local tInfoPhysicsTriangle = {x=0,y=0,z=0,type = 'triangle'}
-                    tInfoPhysicsTriangle.a = {x = step,            y = -half_height}
-                    tInfoPhysicsTriangle.b = {x = step,            y =  half_height}
-                    tInfoPhysicsTriangle.c = {x = step + step_div, y = -half_height}
-                    addPhysics(tInfoPhysicsTriangle)
-                    step = step + step_div
-                    local tOld = tInfoPhysicsTriangle
-                    tInfoPhysicsTriangle = {x=0,y=0,z=0,type = 'triangle'}
-
-                    tInfoPhysicsTriangle.a = {x = tOld.c.x, y = tOld.c.y}
-                    tInfoPhysicsTriangle.b = {x = tOld.b.x, y = tOld.b.y}
-                    tInfoPhysicsTriangle.c = {x = step,     y = half_height}
-                    addPhysics(tInfoPhysicsTriangle)
-                end
-                tInfoPhysicsInner = nil
-                
-            elseif indexPrimitive == 3 or indexPrimitive == 8 then --sphere (3 = 2D "Circle" entry point, 8 = 2D "Sphere" entry point, identical data)
-                tInfoPhysicsInner.type = 'sphere'
-                tInfoPhysicsInner.ray  = width * 0.5
-            elseif indexPrimitive == 4 then --Triangle/Circle
-                local index      = 1
-                local degree     = math.rad(360) / tPhysicsOptions.iPrimitivesCircle;
-                local ray_width  = width * 0.5;
-			    local ray_height = height * 0.5;
-                local pVertex = {[1]=math.sin(0) * ray_width,[2]=math.cos(0) * ray_height}
-                for i=1, tPhysicsOptions.iPrimitivesCircle do
-                    table.insert(pVertex,math.sin(degree * i) * ray_width)
-                    table.insert(pVertex,math.cos(degree * i) * ray_height)
-                end
-
-                local index = 3
-                for i=1, tPhysicsOptions.iPrimitivesCircle do
-                    local tInfoPhysicsTriangle = {x=0,y=0,z=0,type = 'triangle'}
-
-                    tInfoPhysicsTriangle.a = {x = 0, y = 0}
-                    tInfoPhysicsTriangle.b = {x = pVertex[index-2], y = pVertex[index-1]}
-                    tInfoPhysicsTriangle.c = {x = pVertex[index+0], y = pVertex[index+1]}
-                    index = index + 2
-                    addPhysics(tInfoPhysicsTriangle)
-                end
-
-                tInfoPhysicsInner = nil
-            elseif indexPrimitive == 5 then --triangle
-                tInfoPhysicsInner.type = 'triangle'
-                tInfoPhysicsInner.a = {x = width * -0.25, y = height * -0.25}
-                tInfoPhysicsInner.b = {x = 0, y = height * 0.25}
-                tInfoPhysicsInner.c = {x = width * 0.25, y = height * -0.25}
-            elseif indexPrimitive == 6 then --complex (single 8-point box)
-                local corners = boxCorners(width * 0.5, height * 0.5, depth * 0.5)
-                tInfoPhysicsInner.type = 'complex'
-                for i,l in ipairs(BOX_LETTERS) do
-                    tInfoPhysicsInner[l] = {x=corners[i].x, y=corners[i].y, z=corners[i].z}
+            -- Complex(6)/2D-Sphere(8) are the "promote physics to 3D" pair (see
+            -- promote_physic_to_3d above); every other 2D primitive is native-2D (Box2D-only).
+            -- Circle(3) and 2D-Sphere(8) produce the exact same type='sphere' data with no field
+            -- to tell them apart later, so mixing native-2D and promoted-3D shapes on one object
+            -- would make that data genuinely ambiguous -- gate it with a confirm instead of
+            -- allowing it silently (direct user request).
+            local bWantsPromoted = (indexPrimitive == 6 or indexPrimitive == 8)
+            local bConflict = false
+            if not bIs3d then
+                for i=1, #tInfoPhysics do
+                    if (tInfoPhysics[i].promoted3d == true) ~= bWantsPromoted then
+                        bConflict = true
+                        break
+                    end
                 end
             end
-            if tInfoPhysicsInner then
-                addPhysics(tInfoPhysicsInner)
+            if bConflict then
+                tPhysicsOptions.bPromoteConfirmPending = true
+                tPhysicsOptions.iPendingPrimitive = indexPrimitive
+            else
+                createPhysicsPrimitive(indexPrimitive)
+                -- Promoting needs the 3D drag tools to actually edit the new shape (direct user
+                -- request) -- switch the view automatically instead of making the user find the
+                -- Camera toggle themselves right after adding it.
+                if bWantsPromoted and bSpriteBackedObject and not bIs3d then
+                    bIs3d = true
+                    initCam3dFraming()
+                end
+            end
+        end
+
+        if tPhysicsOptions.bPromoteConfirmPending then
+            local bWantsPromoted = (tPhysicsOptions.iPendingPrimitive == 6 or tPhysicsOptions.iPendingPrimitive == 8)
+            tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.6, b = 0.2, a = 1})
+            tImGui.TextWrapped(tLang.L(bWantsPromoted and "physics_promote_confirm" or "physics_demote_confirm"))
+            tImGui.PopStyleColor()
+            if tImGui.Button(tLang.L("ok") .. "##physicsPromoteConfirmOk") then
+                for i = #tInfoPhysics, 1, -1 do
+                    local isPromoted = tInfoPhysics[i].promoted3d == true
+                    if isPromoted ~= bWantsPromoted then
+                        if tInfoPhysics[i].destroy then tInfoPhysics[i]:destroy() end
+                        table.remove(tInfoPhysics, i)
+                    end
+                end
+                tInfoPhysics.iIndexSelected = 0
+                tInfoPhysics:updateCircles()
+                createPhysicsPrimitive(tPhysicsOptions.iPendingPrimitive)
+                if bWantsPromoted and bSpriteBackedObject and not bIs3d then
+                    bIs3d = true
+                    initCam3dFraming()
+                end
+                tPhysicsOptions.bPromoteConfirmPending = false
+                tPhysicsOptions.iPendingPrimitive = nil
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L("cancel") .. "##physicsPromoteConfirmCancel") then
+                tPhysicsOptions.bPromoteConfirmPending = false
+                tPhysicsOptions.iPendingPrimitive = nil
             end
         end
 
@@ -1738,20 +1860,31 @@ function showEditPhysics()
                         end
                         
                     elseif tPhysic.type_info == 'cube' then
+                            -- Only ever reached for 3D (setupPhysics3d sets type_info='cube';
+                            -- setupPhysics2d's 'cube' branch sets type_info='rectangle' instead
+                            -- and has its own GUI section above) -- so z/depth are always relevant
+                            -- here, unlike the 2D 'rectangle' section which has neither.
                             local label    = tLang.L("axis_x") .. string.format('##cube_%d_x', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
                             if result then
                                 tPhysic.x = fValue
                                 updatePhysics(tPhysic)
                             end
-                            
+
                             local label    = tLang.L("axis_y") .. string.format('##cube_%d_y', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
                             if result then
                                 tPhysic.y = fValue
                                 updatePhysics(tPhysic)
                             end
-                            
+
+                            local label    = tLang.L("axis_z") .. string.format('##cube_%d_z', i)
+                            local result, fValue = tImGui.InputFloat(label, tPhysic.z, step, step_fast, format, flags)
+                            if result then
+                                tPhysic.z = fValue
+                                updatePhysics(tPhysic)
+                            end
+
                             local label    = tLang.L("width") .. string.format('##cube_%d_width', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.width, step, step_fast, format, flags)
                             if result then
@@ -1760,12 +1893,21 @@ function showEditPhysics()
                                     updatePhysics(tPhysic)
                                 end
                             end
-                            
+
                             local label    = tLang.L("height") .. string.format('##cube_%d_height', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.height, step, step_fast, format, flags)
                             if result then
                                 if fValue > 0 then
                                     tPhysic.height = fValue
+                                    updatePhysics(tPhysic)
+                                end
+                            end
+
+                            local label    = tLang.L("depth") .. string.format('##cube_%d_depth', i)
+                            local result, fValue = tImGui.InputFloat(label, tPhysic.depth or tPhysic.width, step, step_fast, format, flags)
+                            if result then
+                                if fValue > 0 then
+                                    tPhysic.depth = fValue
                                     updatePhysics(tPhysic)
                                 end
                             end
@@ -2064,7 +2206,7 @@ function onTouchMove(key,x,y)
                             local p = tSelected[l]
                             p.x, p.y, p.z = p.x + dxm, p.y + dym, p.z + dzm
                         end
-                    elseif tSelected.type == 'sphere' then
+                    elseif tSelected.type == 'sphere' or tSelected.type == 'cube' then
                         tSelected.x = tSelected.x + dxm
                         tSelected.y = tSelected.y + dym
                         tSelected.z = tSelected.z + dzm
@@ -2080,6 +2222,20 @@ function onTouchMove(key,x,y)
                 elseif tSelected.draggingHandle == 'resize' then
                     local dxr, dyr, dzr = wx - tSelected.x, wy - tSelected.y, wz - tSelected.z
                     tSelected.ray = math.sqrt(dxr*dxr + dyr*dyr + dzr*dzr)
+                elseif tSelected.draggingHandle == 'resizeAxis' and tSelected.draggingCorner then
+                    -- draggingCorner doubles as the axis letter here ('x'/'y'/'z') -- same field
+                    -- 'corner' drag uses for a box-hull's corner letter, just reused generically.
+                    -- Symmetric about center (confirmed convention): only the dragged axis' own
+                    -- coordinate matters, same distance-from-center idea as Sphere's resize.
+                    local axis = tSelected.draggingCorner
+                    local newHalf
+                    if axis == 'x' then newHalf = math.abs(wx - tSelected.x)
+                    elseif axis == 'y' then newHalf = math.abs(wy - tSelected.y)
+                    else newHalf = math.abs(wz - tSelected.z) end
+                    newHalf = math.max(newHalf, 0.5)
+                    if axis == 'x' then tSelected.width = newHalf * 2
+                    elseif axis == 'y' then tSelected.height = newHalf * 2
+                    else tSelected.depth = newHalf * 2 end
                 end
                 setupPhysics3d(tSelected)
             end
@@ -2192,6 +2348,97 @@ function addPhysics(tInfoPhysicsInner)
     tInfoPhysicsInner.selectable = true
     table.insert(tInfoPhysics,tInfoPhysicsInner)
     updatePhysics(tInfoPhysicsInner)
+end
+
+-- Builds and adds a new physics shape for the given primitive-picker index. Extracted out of the
+-- "Add" button's click handler so it can be called either directly (no 2D/3D-promotion conflict)
+-- or after the confirm gate clears the incompatible group (see showEditPhysics).
+function createPhysicsPrimitive(indexPrimitive)
+    local width,height,depth = tMesh:getSize()
+    if depth == nil then
+        depth = 1
+    end
+    -- Defaults to the mesh's true AABB center (obj:getAABBCenter(), MBM_VERSION 6.9.0) instead of
+    -- the hardcoded local origin -- for a mesh pivoted at its floor/base (e.g. a building), the
+    -- origin is an awkward starting point for a new hitbox; this lands new shapes at the mesh's
+    -- actual visual middle instead. Naturally still (0,0,0) for a mesh with no physics shapes yet
+    -- (nothing to compute a center from) or one that's genuinely centered on its own pivot already.
+    local cx, cy, cz = tMesh:getAABBCenter(true)
+    local tInfoPhysicsInner = {x = cx or 0, y = cy or 0, z = cz or 0}
+    if indexPrimitive == 1 then --cube (2D "Rectangle" entry point, or 3D "Cube")
+        tInfoPhysicsInner.type = 'cube'
+        tInfoPhysicsInner.width  = width
+        tInfoPhysicsInner.height = height
+        if bIs3d then
+            tInfoPhysicsInner.depth = depth
+        end
+    elseif indexPrimitive == 2 then --Triangle/Rectangle
+        local half_width = width / 2
+        local half_height = height / 2
+        local step_div = width / (tPhysicsOptions.iPrimitivesRectangle / 2.0);
+        local step = -half_width
+        for i=1, tPhysicsOptions.iPrimitivesRectangle / 2 do
+            local tInfoPhysicsTriangle = {x=0,y=0,z=0,type = 'triangle'}
+            tInfoPhysicsTriangle.a = {x = step,            y = -half_height}
+            tInfoPhysicsTriangle.b = {x = step,            y =  half_height}
+            tInfoPhysicsTriangle.c = {x = step + step_div, y = -half_height}
+            addPhysics(tInfoPhysicsTriangle)
+            step = step + step_div
+            local tOld = tInfoPhysicsTriangle
+            tInfoPhysicsTriangle = {x=0,y=0,z=0,type = 'triangle'}
+
+            tInfoPhysicsTriangle.a = {x = tOld.c.x, y = tOld.c.y}
+            tInfoPhysicsTriangle.b = {x = tOld.b.x, y = tOld.b.y}
+            tInfoPhysicsTriangle.c = {x = step,     y = half_height}
+            addPhysics(tInfoPhysicsTriangle)
+        end
+        tInfoPhysicsInner = nil
+
+    elseif indexPrimitive == 3 or indexPrimitive == 8 then --sphere (3 = 2D "Circle" entry point, 8 = 2D "Sphere" entry point, identical data)
+        tInfoPhysicsInner.type = 'sphere'
+        tInfoPhysicsInner.ray  = width * 0.5
+        if indexPrimitive == 8 then
+            tInfoPhysicsInner.promoted3d = true
+        end
+    elseif indexPrimitive == 4 then --Triangle/Circle
+        local index      = 1
+        local degree     = math.rad(360) / tPhysicsOptions.iPrimitivesCircle;
+        local ray_width  = width * 0.5;
+        local ray_height = height * 0.5;
+        local pVertex = {[1]=math.sin(0) * ray_width,[2]=math.cos(0) * ray_height}
+        for i=1, tPhysicsOptions.iPrimitivesCircle do
+            table.insert(pVertex,math.sin(degree * i) * ray_width)
+            table.insert(pVertex,math.cos(degree * i) * ray_height)
+        end
+
+        local index = 3
+        for i=1, tPhysicsOptions.iPrimitivesCircle do
+            local tInfoPhysicsTriangle = {x=0,y=0,z=0,type = 'triangle'}
+
+            tInfoPhysicsTriangle.a = {x = 0, y = 0}
+            tInfoPhysicsTriangle.b = {x = pVertex[index-2], y = pVertex[index-1]}
+            tInfoPhysicsTriangle.c = {x = pVertex[index+0], y = pVertex[index+1]}
+            index = index + 2
+            addPhysics(tInfoPhysicsTriangle)
+        end
+
+        tInfoPhysicsInner = nil
+    elseif indexPrimitive == 5 then --triangle
+        tInfoPhysicsInner.type = 'triangle'
+        tInfoPhysicsInner.a = {x = width * -0.25, y = height * -0.25}
+        tInfoPhysicsInner.b = {x = 0, y = height * 0.25}
+        tInfoPhysicsInner.c = {x = width * 0.25, y = height * -0.25}
+    elseif indexPrimitive == 6 then --complex (single 8-point box)
+        local corners = boxCorners(width * 0.5, height * 0.5, depth * 0.5)
+        tInfoPhysicsInner.type = 'complex'
+        tInfoPhysicsInner.promoted3d = true
+        for i,l in ipairs(BOX_LETTERS) do
+            tInfoPhysicsInner[l] = {x=corners[i].x, y=corners[i].y, z=corners[i].z}
+        end
+    end
+    if tInfoPhysicsInner then
+        addPhysics(tInfoPhysicsInner)
+    end
 end
 
 function onLoop(delta)
