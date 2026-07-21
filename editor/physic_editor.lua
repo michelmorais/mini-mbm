@@ -656,6 +656,28 @@ function makeBoxShape3d(cx,cy,cz,w,h,d,name)
     return tShape, hw,hh,hd
 end
 
+local handleMarkerCount = 0
+-- Small colored cube marker used for 3D physics shape move/resize drag handles (req #10) --
+-- same "default cube" pattern as makeBoxShape3d/boxCorners/boxTriangleFaces above, just sized
+-- for a handle instead of a shape's own AABB fill. Reused for either purpose since it's cheap to
+-- rebuild and readable from any camera angle (unlike a flat 'circle' shape).
+function makeHandleMarker(cx,cy,cz,size,r,g,b,a)
+    handleMarkerCount = handleMarkerCount + 1
+    local hw = math.max(size,0.01) * 0.5
+    local corners = boxCorners(hw,hw,hw)
+    local faces   = boxTriangleFaces(corners)
+    local verts   = {}
+    for _,tri in ipairs(faces) do
+        for _,p in ipairs(tri) do
+            table.insert(verts,p.x); table.insert(verts,p.y); table.insert(verts,p.z)
+        end
+    end
+    local tShape = shape:new('3d',cx,cy,cz)
+    tShape:create(verts, nil, 'physic_editor_handle_' .. handleMarkerCount)
+    tShape:setColor(r or 1, g or 1, b or 1, a or 1)
+    return tShape
+end
+
 -- Ray (origin o, unit direction d) vs axis-aligned box (min/max) slab test.
 function rayHitsAABB(ox,oy,oz, dx,dy,dz, minX,minY,minZ,maxX,maxY,maxZ)
     local tmin, tmax = -math.huge, math.huge
@@ -676,6 +698,70 @@ function rayHitsAABB(ox,oy,oz, dx,dy,dz, minX,minY,minZ,maxX,maxY,maxZ)
     return tmax >= 0
 end
 
+-- Standard analytic ray-sphere intersection (dir must be normalized, as mbm.getPickRay's is).
+-- Returns true + hit distance along the ray, or false. Ported from the removed mesh_debug.lua
+-- bone-gizmo drag code (git show 78958a2 -- editor/mesh_debug.lua) -- same technique, now used to
+-- hit-test physics shape move/resize handles instead of bone spheres.
+function raySphereHit(ox, oy, oz, dx, dy, dz, cx, cy, cz, radius)
+    local lx, ly, lz = cx - ox, cy - oy, cz - oz
+    local tca = lx * dx + ly * dy + lz * dz
+    if tca < 0 then return false end
+    local d2 = lx * lx + ly * ly + lz * lz - tca * tca
+    local r2 = radius * radius
+    if d2 > r2 then return false end
+    local thc = math.sqrt(r2 - d2)
+    return true, tca - thc
+end
+
+-- Intersects the pick ray through (sx,sy) with a fixed plane (billboard-drag technique: the plane
+-- is computed once at drag-start, facing the camera, so the dragged point tracks the cursor
+-- regardless of camera orbit during the drag). planePt/planeNormal are {x,y,z} tables. Same
+-- technique as the removed mesh_debug.lua bone-gizmo drag.
+function rayPlaneHit(sx, sy, planePt, planeNormal)
+    local okRay, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, sx, sy)
+    if not okRay then return nil end
+    local denom = planeNormal.x * dx + planeNormal.y * dy + planeNormal.z * dz
+    if math.abs(denom) < 1e-6 then return nil end
+    local t = ((planePt.x - ox) * planeNormal.x + (planePt.y - oy) * planeNormal.y + (planePt.z - oz) * planeNormal.z) / denom
+    if t < 0 then return nil end
+    return ox + dx * t, oy + dy * t, oz + dz * t
+end
+
+-- Hit-tests a single 3D physics shape's move/resize handles (req #10) against the pick ray
+-- through screen point (sx,sy); returns the nearest hit's kind ('move'|'corner'|'resize'), the
+-- corner letter (only for 'corner'), and the handle's own world position, or nil on a miss.
+-- Same nearest-hit-wins technique as the removed mesh_debug.lua bone gizmo's hitTestBone.
+function hitTestPhysicsHandles3d(tInfoPhysic, sx, sy)
+    local tHandles = tInfoPhysic and tInfoPhysic.tHandles
+    if not tHandles then return nil end
+    local okRay, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, sx, sy)
+    if not okRay then return nil end
+    local radius = tInfoPhysic.handleRadius or 5
+
+    local bestKind, bestLetter, bestDist, bestX, bestY, bestZ = nil, nil, math.huge, nil, nil, nil
+    local function test(kind, letter, handle)
+        if not handle or not handle.visible then return end
+        local p = handle:getPos()
+        local hit, dist = raySphereHit(ox,oy,oz, dx,dy,dz, p.x,p.y,p.z, radius)
+        if hit and dist < bestDist then
+            bestKind, bestLetter, bestDist, bestX, bestY, bestZ = kind, letter, dist, p.x, p.y, p.z
+        end
+    end
+
+    test('move', nil, tHandles.move)
+    test('resize', nil, tHandles.resize)
+    if tHandles.corners then
+        for l, h in pairs(tHandles.corners) do
+            test('corner', l, h)
+        end
+    end
+
+    if bestKind then
+        return bestKind, bestLetter, bestX, bestY, bestZ
+    end
+    return nil
+end
+
 function setupPhysics3d(tInfoPhysic)
     local sUniqueName = tostring(os.time()) .. tostring(os.clock()) .. tostring(math.random())
 
@@ -683,6 +769,13 @@ function setupPhysics3d(tInfoPhysic)
         tInfoPhysic.destroy = function(self)
             if self.tShape then self.tShape:destroy() end
             if self.tLine then self.tLine:destroy() end
+            if self.tHandles then
+                if self.tHandles.move then self.tHandles.move:destroy() end
+                if self.tHandles.resize then self.tHandles.resize:destroy() end
+                if self.tHandles.corners then
+                    for _,h in pairs(self.tHandles.corners) do h:destroy() end
+                end
+            end
         end
     end
 
@@ -746,6 +839,54 @@ function setupPhysics3d(tInfoPhysic)
         end
         tInfoPhysic.tLine:drawBounding(tInfoPhysic.tShape,false)
         tInfoPhysic.tLine:setColor(0,1,0)
+
+        -- Move/resize drag handles (req #10) -- only for the two Bullet3D-eligible 3D primitives
+        -- (Complex/Sphere, see the primitive-type restriction above). Created once, repositioned
+        -- (not recreated) on every rebuild -- including the live rebuild every drag-move frame,
+        -- see onTouchMove -- so a drag doesn't churn through new shape objects each frame. Visible
+        -- only while this shape is selected; tInfoPhysics.setSelected keeps this in sync on plain
+        -- selection changes that don't call setupPhysics3d themselves.
+        if tInfoPhysic.type == 'complex' or tInfoPhysic.type == 'sphere' then
+            local maxExtent  = math.max(w,h,d)
+            local handleSize = math.max(maxExtent * 0.08, 5)
+            tInfoPhysic.handleRadius = handleSize -- hit-test radius, matches the visual size
+
+            if tInfoPhysic.tHandles == nil then
+                tInfoPhysic.tHandles = {}
+            end
+            local tHandles = tInfoPhysic.tHandles
+            local bVisible = tInfoPhysic.bSelected == true
+
+            if tHandles.move == nil then
+                tHandles.move = makeHandleMarker(cx,cy,cz, handleSize, 1,1,0,1) -- yellow: move
+            else
+                tHandles.move:setPos(cx,cy,cz)
+            end
+            tHandles.move.visible = bVisible
+
+            if tInfoPhysic.type == 'complex' then
+                if tHandles.corners == nil then
+                    tHandles.corners = {}
+                end
+                for _,l in ipairs(BOX_LETTERS) do
+                    local p = tInfoPhysic[l]
+                    if tHandles.corners[l] == nil then
+                        tHandles.corners[l] = makeHandleMarker(p.x,p.y,p.z, handleSize, 0,1,1,1) -- cyan: resize
+                    else
+                        tHandles.corners[l]:setPos(p.x,p.y,p.z)
+                    end
+                    tHandles.corners[l].visible = bVisible
+                end
+            elseif tInfoPhysic.type == 'sphere' then
+                local rx = tInfoPhysic.x + tInfoPhysic.ray
+                if tHandles.resize == nil then
+                    tHandles.resize = makeHandleMarker(rx,cy,cz, handleSize, 0,1,1,1) -- cyan: resize
+                else
+                    tHandles.resize:setPos(rx,cy,cz)
+                end
+                tHandles.resize.visible = bVisible
+            end
+        end
     end
 
     if tInfoPhysic.finishMoveFrame == nil then
@@ -954,8 +1095,16 @@ function onLoadMesh()
                         local tShape = self[j].tShape
                         tShape.visible    = j == index
                         self[j].bSelected = j == index
+                        local tHandles = self[j].tHandles
+                        if tHandles then
+                            if tHandles.move then tHandles.move.visible = j == index end
+                            if tHandles.resize then tHandles.resize.visible = j == index end
+                            if tHandles.corners then
+                                for _,h in pairs(tHandles.corners) do h.visible = j == index end
+                            end
+                        end
                     end
-                    
+
                     self.iIndexSelected = 0
                     if index ~= 0 and index <= #self then
                         self.iIndexSelected  = index
@@ -1824,6 +1973,30 @@ function onTouchDown(key,x,y)
     lastMouse3d.y = y
 
     if not IsAnyWindowHovered and tInfoPhysics then
+        -- 3D handle-drag hit-test takes priority over both orbit and the ordinary 2D-flavored
+        -- selection logic below, but only when a shape is already selected -- otherwise every
+        -- ordinary orbit-drag click would pay for a hit-test against handles that aren't even
+        -- visible yet. Matches the removed mesh_debug.lua bone gizmo's own onTouchDown gating.
+        if key == 0 and bIs3d and tInfoPhysics.iIndexSelected ~= 0 then
+            local tSelected = tInfoPhysics[tInfoPhysics.iIndexSelected]
+            local kind, letter, hx, hy, hz = hitTestPhysicsHandles3d(tSelected, x, y)
+            if kind then
+                local okRay, ox, oy, oz = pcall(mbm.getPickRay, x, y)
+                local nx, ny, nz = hx, hy, hz
+                if okRay then
+                    nx, ny, nz = hx - ox, hy - oy, hz - oz
+                    local len = math.sqrt(nx*nx + ny*ny + nz*nz)
+                    if len > 0.0001 then nx, ny, nz = nx/len, ny/len, nz/len end
+                end
+                tSelected.draggingHandle  = kind
+                tSelected.draggingCorner  = letter
+                tSelected.dragPlaneNormal = {x=nx, y=ny, z=nz}
+                tSelected.dragPlanePoint  = {x=hx, y=hy, z=hz}
+                bEnableMoveWorld = false
+                return -- don't also run the ordinary selection logic below for this click
+            end
+        end
+
         tInfoPhysics:setTouchDown(x,y)
         local i_circle     =  tInfoPhysics:isOverCircle(x,y)
         local index_isOver =  tInfoPhysics:indexIsOver(x,y)
@@ -1876,6 +2049,45 @@ function onTouchMove(key,x,y)
     local IsAnyWindowHovered = tImGui.IsAnyWindowHovered()
 
     if bIs3d then
+        local tSelected = (tInfoPhysics and tInfoPhysics.iIndexSelected ~= 0)
+            and tInfoPhysics[tInfoPhysics.iIndexSelected] or nil
+
+        if tSelected and tSelected.draggingHandle and not IsAnyWindowHovered then
+            local wx, wy, wz = rayPlaneHit(x, y, tSelected.dragPlanePoint, tSelected.dragPlaneNormal)
+            if wx then
+                if tSelected.draggingHandle == 'move' then
+                    local dxm = wx - tSelected.dragPlanePoint.x
+                    local dym = wy - tSelected.dragPlanePoint.y
+                    local dzm = wz - tSelected.dragPlanePoint.z
+                    if tSelected.type == 'complex' then
+                        for _,l in ipairs(BOX_LETTERS) do
+                            local p = tSelected[l]
+                            p.x, p.y, p.z = p.x + dxm, p.y + dym, p.z + dzm
+                        end
+                    elseif tSelected.type == 'sphere' then
+                        tSelected.x = tSelected.x + dxm
+                        tSelected.y = tSelected.y + dym
+                        tSelected.z = tSelected.z + dzm
+                    end
+                    -- The new hit point is guaranteed to lie on the same fixed drag plane (it was
+                    -- computed as that plane's own intersection with the current ray), so reusing
+                    -- it as next frame's delta origin does NOT move the plane itself -- only the
+                    -- bookkeeping point used to measure the next incremental delta.
+                    tSelected.dragPlanePoint = {x=wx, y=wy, z=wz}
+                elseif tSelected.draggingHandle == 'corner' and tSelected.draggingCorner then
+                    local p = tSelected[tSelected.draggingCorner]
+                    p.x, p.y, p.z = wx, wy, wz
+                elseif tSelected.draggingHandle == 'resize' then
+                    local dxr, dyr, dzr = wx - tSelected.x, wy - tSelected.y, wz - tSelected.z
+                    tSelected.ray = math.sqrt(dxr*dxr + dyr*dyr + dzr*dzr)
+                end
+                setupPhysics3d(tSelected)
+            end
+            lastMouse3d.x = x
+            lastMouse3d.y = y
+            return
+        end
+
         if isClickedMouseLeft and not IsAnyWindowHovered then
             local dx = x - lastMouse3d.x
             local dy = y - lastMouse3d.y
@@ -1930,6 +2142,15 @@ function onTouchUp(key,x,y)
     bMovingAnyPoint = false
     bEnableMoveWorld = true
     if tInfoPhysics then
+        if bIs3d and tInfoPhysics.iIndexSelected ~= 0 then
+            -- Nothing to "commit" here -- onTouchMove's live setupPhysics3d rebuild already wrote
+            -- every change (position/corner/radius) as it happened. Just clear the drag state.
+            local tSelected = tInfoPhysics[tInfoPhysics.iIndexSelected]
+            tSelected.draggingHandle  = nil
+            tSelected.draggingCorner  = nil
+            tSelected.dragPlaneNormal = nil
+            tSelected.dragPlanePoint  = nil
+        end
         tInfoPhysics:finishMovingFrame(x,y)
         tInfoPhysics:unSelectCircles()
         if not bIs3d then
