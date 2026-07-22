@@ -345,31 +345,24 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
     return arm_obj
 
 
-def apply_stored_vertex_weights(mesh_obj, armature_obj, verts_data: list[dict], debug: bool) -> None:
-    """Writes the mesh's own REAL, originally-authored per-vertex bone weights -- captured at
-    import time by editor/blender_mesh_export.py's export_frame_subsets (SECTION_VERTEX_SKIN_WEIGHTS,
-    docs/mesh-v11-format.md Sec. 6f) and round-tripped here via writeMeshDebugJson's "boneNames"/
-    "weights" per-vertex fields -- directly into mesh_obj's vertex groups. No ARMATURE_ENVELOPE
-    geometric approximation, and none of bind_mesh_to_armature's cleanup passes (root-motion
-    stripping, nearest-bone fallback, left/right crosstalk resolution): all of those exist purely to
-    fix pathologies of envelope binding (a distance-based *guess*) and have nothing to correct when
-    the weights are real to begin with -- running them anyway would risk distorting genuinely-
-    authored data to fix a problem it doesn't have. A vertex with no stored weight data is left with
-    no vertex group assignment at all, a faithful round-trip of "the original mesh genuinely left
-    this vertex unweighted," not something to paper over.
+def apply_stored_vertex_weights_override(mesh_obj, verts_data: list[dict], debug: bool) -> None:
+    """Writes the mesh's own REAL, originally-authored (or editor Rigid-Bind-assigned) per-vertex
+    bone weights -- captured at import time by editor/blender_mesh_export.py's export_frame_subsets
+    (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec. 6f), or written directly by
+    mesh_debug.lua's Rigid Bind tool, and round-tripped here via writeMeshDebugJson's "boneNames"/
+    "weights" per-vertex fields -- directly into mesh_obj's vertex groups.
+
+    Runs as a FINAL OVERRIDE PASS, after bind_mesh_to_armature has already run its
+    ARMATURE_ENVELOPE geometric approximation (+ cleanup passes) for the WHOLE mesh -- previously
+    this function replaced that entire pass mesh-wide, which meant any vertex lacking stored data
+    (i.e. the rest of the character, whenever only a prop bone like a rigid-bound sword had real
+    weights) was left with NO vertex group membership at all, silently zeroing its deformation.
+    Only vertices that actually carry stored "boneNames" are touched here: their existing
+    (envelope-derived) group memberships are cleared first, then re-set from the stored data --
+    so explicit/real per-vertex data always wins for exactly the vertices it targets, without
+    needing to skip envelope binding (or its cleanup passes) for anything else in the mesh.
     """
-    import bpy
-
-    bpy.ops.object.select_all(action='DESELECT')
-    mesh_obj.select_set(True)
-    armature_obj.select_set(True)
-    bpy.context.view_layer.objects.active = armature_obj
-    # Bare parent+modifier only (no 'ARMATURE_AUTO'/'ARMATURE_ENVELOPE' auto-weight generation) --
-    # this still sets up the parent relationship + Armature modifier the FBX exporter needs to
-    # recognize mesh_obj as skinned to armature_obj; the vertex group weights populated below are
-    # what actually carries the real per-vertex data.
-    bpy.ops.object.parent_set(type='ARMATURE')
-
+    mesh_data = mesh_obj.data
     vgroups: dict[str, Any] = {}
     weighted_count = 0
     for vertex_index, v in enumerate(verts_data):
@@ -378,6 +371,8 @@ def apply_stored_vertex_weights(mesh_obj, armature_obj, verts_data: list[dict], 
         if not names:
             continue
         weighted_count += 1
+        for g in list(mesh_data.vertices[vertex_index].groups):
+            mesh_obj.vertex_groups[g.group].remove([vertex_index])
         for name, weight in zip(names, weights):
             if not name:
                 continue
@@ -386,7 +381,7 @@ def apply_stored_vertex_weights(mesh_obj, armature_obj, verts_data: list[dict], 
                 vg = mesh_obj.vertex_groups.get(name) or mesh_obj.vertex_groups.new(name=name)
                 vgroups[name] = vg
             vg.add([vertex_index], float(weight), 'REPLACE')
-    debug_print(debug, f"applied stored vertex weights: {weighted_count}/{len(verts_data)} vertices, "
+    debug_print(debug, f"applied stored vertex weight overrides: {weighted_count}/{len(verts_data)} vertices, "
                         f"{len(vgroups)} bone(s) referenced")
 
 
@@ -636,14 +631,18 @@ def main() -> int:
     if armature_obj:
         check_cancel_requested(args.cancel_file)
         verts_data = data["mesh"]["vertices"]
-        # SECTION_VERTEX_SKIN_WEIGHTS data (docs/mesh-v11-format.md Sec. 6f), when present, replaces
-        # ARMATURE_ENVELOPE's geometric guesswork entirely -- see apply_stored_vertex_weights' own
-        # docstring for why its cleanup passes don't apply to real, originally-authored weights.
+        # ARMATURE_ENVELOPE binding (+ its cleanup passes) always runs first, for every vertex --
+        # this is what gives the rest of the mesh (anything WITHOUT stored per-vertex data) normal
+        # deformation. SECTION_VERTEX_SKIN_WEIGHTS data (docs/mesh-v11-format.md Sec. 6f), when
+        # present on a vertex -- real, originally-authored weights, or an explicit Rigid Bind from
+        # mesh_debug.lua -- then OVERRIDES just that vertex's envelope-derived groups; see
+        # apply_stored_vertex_weights_override's own docstring for why this two-pass order replaced
+        # the previous mesh-wide either/or (which zeroed the rest of the mesh whenever only a prop
+        # bone had real weights).
+        bind_mesh_to_armature(mesh_obj, armature_obj, args.debug_steps)
         if any(v.get("boneNames") for v in verts_data):
-            debug_print(args.debug_steps, "using real stored per-vertex weights (no envelope binding)")
-            apply_stored_vertex_weights(mesh_obj, armature_obj, verts_data, args.debug_steps)
-        else:
-            bind_mesh_to_armature(mesh_obj, armature_obj, args.debug_steps)
+            debug_print(args.debug_steps, "overriding with real/rigid-bound stored per-vertex weights")
+            apply_stored_vertex_weights_override(mesh_obj, verts_data, args.debug_steps)
     else:
         debug_print(args.debug_steps, "no bones in input -- exporting mesh-only FBX")
 

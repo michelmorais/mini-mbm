@@ -208,9 +208,13 @@ LBS convention described above. Bones are referenced by a small **per-section na
 by raw index into `SECTION_FRAME_SKINNED`'s own array, and not shared with it at all (see Pitfalls).
 Captured on import from a real rig's `vertex_groups` (inline inside
 `editor/blender_mesh_export.py`'s `export_frame_subsets`, gated by its own `capture_weights`
-parameter — itself set from `--include-bones` — no separate named function), consumed on export
-(`editor/blender_mesh_skeleton_export.py`'s `apply_stored_vertex_weights`) in place of inventing new
-weights geometrically.
+parameter — itself set from `--include-bones` — no separate named function); also writable
+directly in the editor via `mesh_debug.lua`'s Bones-window **Rigid Bind** tool (`setVertexWeight`,
+weight 1.0 to one bone — for a prop that shouldn't deform, e.g. a sword welded to a hand, instead
+of leaving `ARMATURE_ENVELOPE`'s distance-based guess to decide). Consumed on export
+(`editor/blender_mesh_skeleton_export.py`'s `apply_stored_vertex_weights_override`) as a per-vertex
+override pass layered on top of `bind_mesh_to_armature`'s envelope binding, not a mesh-wide
+replacement of it — see the Editor Round-Trip Pipeline section below.
 
 ### What is explicitly missing for real ("dynamic frame") skeletal animation
 
@@ -260,20 +264,32 @@ never for anything the engine itself renders differently.
   `vertex_group_normalize_all` (the same cap/normalize convention the export-side envelope fallback
   already used), and attaches up to 4 `(boneName, weight)` pairs to each captured vertex.
 - **Inspect/edit** (`editor/mesh_debug.lua`'s Bones node/window): a plain table of bones
-  (name/parent/x/y/z/radius/length + a Highlight checkbox), DragFloat-editable, plus bake
+  (name/parent/x/y/z/radius/length/roll + a Highlight checkbox), DragFloat-editable, plus bake
   Rotate/Scale/Translate for the whole skeleton, an **Armature Template** system (see below), and
   Mesh Info's own read-only weight summary (weighted-vertex count, bones referenced, avg/max
-  influences).
+  influences). A `length ≤ ~1e-6` bone (e.g. one added via "+ Add Bone"/"+ Add Child Bone", which
+  never carry real orientation data) is flagged inline with a warning — `length > EPS` is the same
+  "real orientation data available" sentinel `has_orientation()` uses below, so this warning is
+  telling the user exactly when that fallback is about to kick in — and a per-bone **Recompute**
+  button bakes the same position-topology heuristic the exporter would otherwise silently apply
+  (see `compute_tail` just below) into real,
+  further-editable `rotX/Y/Z`/`length`, with a single **Roll** field for twisting around that
+  computed axis afterward. A **Rigid Bind** section writes real weight 1.0 to one bone for a chosen
+  set of vertices (picked either by proximity to that bone's own segment, reusing its `radius`, or
+  by an existing material subset) — for a prop that shouldn't deform under `ARMATURE_ENVELOPE`'s
+  geometric guess.
 - **Export** (`editor/blender_mesh_skeleton_export.py`, headless Blender): `build_armature`
   reconstructs real Blender edit-bones from the stored data (using the stored `rotX/Y/Z`/`length`
   directly when present — `length > EPS` is the "real orientation data available" sentinel — falling
   back to a position-topology heuristic, `compute_tail`, only for bones with none, e.g. hand-authored
-  ones with no Blender-import provenance). Binding then branches:
-  - **real stored weights present** → `apply_stored_vertex_weights` populates vertex groups directly
-    from the stored data, zero geometric guessing.
-  - **no stored weights** → `bind_mesh_to_armature`'s `ARMATURE_ENVELOPE` geometric fallback, plus
-    several targeted cleanup passes (see Pitfalls) that exist specifically to fix pathologies *of
-    that geometric approximation* — none of which apply to real, already-correct data.
+  ones with no Blender-import provenance, unless the editor's own Recompute button already baked a
+  real value in). Binding then always runs `bind_mesh_to_armature`'s `ARMATURE_ENVELOPE` geometric
+  fallback first, for the whole mesh, plus its several targeted cleanup passes (see Pitfalls); if
+  ANY vertex carries real/rigid-bound stored weight data, `apply_stored_vertex_weights_override` then
+  overrides just those specific vertices' groups from the stored data afterward — a per-vertex
+  override layered on top of envelope binding, not a mesh-wide either/or (see Pitfalls: "Weights are
+  independent of the skeleton" for why the earlier either/or design silently zeroed the rest of a
+  character whenever only a prop bone had real weights).
 
 ### Armature Templates — reusable named skeletons
 
