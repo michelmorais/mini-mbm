@@ -1016,6 +1016,10 @@ namespace mbm
                 constexpr int sizeFilters = sizeof(filters) / sizeof(char*);
                 std::string where_str("where:");
                 where_str += fileName;
+                #if defined (_DEBUG)
+                    printf("file not found: %s, launching file dialog. this block the application!\n If you are running in a headless environment, you can undefine USE_TEXTURE_MISSING_DIALOG to disable the file dialog.", where_str.c_str());
+                #endif
+
                 const char *result = dialog_util::openFileDialog(where_str.c_str(), fileName, filters, sizeFilters, 0);
                 if (result)
                 {
