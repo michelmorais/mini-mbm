@@ -101,6 +101,7 @@ M.en = {
     add_triangle = "Add Triangle",
     stop_simulation = "Stop Simulation",
     no_physics_available = "No physics available",
+    simulate_not_available_3d = "Not available for 3D objects yet (Bullet3D simulation isn't wired up here)",
     -- Texture packer
     texture_packer_editor = "Texture Packer Editor",
     load_texture_max32 = "Load Texture (Max 32 files)",
@@ -1551,6 +1552,7 @@ M.pt_br = {
     add_triangle = "Adicionar triângulo",
     stop_simulation = "Parar simulação",
     no_physics_available = "Nenhuma física disponível",
+    simulate_not_available_3d = "Ainda não disponível para objetos 3D (simulação Bullet3D não está integrada aqui)",
     -- Texture packer
     texture_packer_editor = "Empacotador de texturas",
     load_texture_max32 = "Carregar textura (máx. 32 arquivos)",

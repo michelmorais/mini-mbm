@@ -50,7 +50,8 @@ function onInitScene()
     bShowEditPhysics     = false
     bIs3d                = false
     bSpriteBackedObject  = false
-    setupPhysics         = nil
+    bSpriteEverWent3d    = false
+    tSpriteRef3d         = nil
     scale                = 1
     tSimulate            = {}
     tMouseJoint          = nil --point to mouse joint when created
@@ -156,6 +157,74 @@ function initCam3dFraming()
     tCam3d.distance = math.max(w,h,d) * 2.5
     tCam3d.azimuth, tCam3d.elevation = 0, 0.4
     applyCam3d(tCam3d)
+
+    -- Proportional to the mesh's own size, same convention as setupPhysics3d's handle-size fix --
+    -- direct user feedback: after that fix, "the pivot (center of object)" (tAABBCenterMarker,
+    -- plus tHighLightPoint's hover highlight right next to it) was still a fixed absolute size,
+    -- so it kept dwarfing a genuinely small mesh. A fresh unique nickname each call (os.time() +
+    -- math.random(), matching setupPhysics3d's own sUniqueName) is required -- shape:create()'s
+    -- nickname is a shared MESH_MANAGER cache key, and os.time() alone is only 1-second
+    -- resolution.
+    local maxExtent = math.max(w,h,d)
+    local hlSize    = math.max(maxExtent * 0.08, 0.01)
+    local aabbSize  = math.max(maxExtent * 0.05, 0.01)
+    local function freshName(prefix)
+        return string.format('%s_%d_%d', prefix, os.time(), math.random(1,1000000))
+    end
+    -- SHAPE_MESH::loadCircle is a no-op once an instance already has geometry loaded
+    -- (`if (this->mesh) return true;`), so calling :create() again on the same shape instance
+    -- would silently do nothing -- resizing requires destroy/recreate.
+    local function resizeMarker3d(size, segments, r,g,b, visible, namePrefix)
+        local m = shape:new('3d')
+        m:create('circle', size, size, segments, false, freshName(namePrefix))
+        m:setColor(r,g,b)
+        m.visible = visible
+        return m
+    end
+
+    -- A sprite-backed object's own tMesh stays a flat '2dw' object (rendered via camera2d) even
+    -- while its physics is edited in 3D -- direct user feedback: "the physics are switching to 3d
+    -- mode but not the sprite itself". Same pattern mesh_debug.lua/scene_editor3d.lua already use
+    -- elsewhere (reload the same asset file a second time as a '3d'-coordType object) rather than
+    -- inventing a billboard/texture-copy mechanism -- this reuses the real .spt asset (animation
+    -- frames, atlas, everything), just placed in true 3D space at the same origin the physics
+    -- shapes are centered around, purely as a visual reference. Created once per load (not
+    -- recreated on every camera-mode switch); destroyed in onLoadMesh's own cleanup.
+    if bSpriteBackedObject and tSpriteRef3d == nil then
+        tSpriteRef3d = sprite:new('3d', 0, 0, 0)
+        tSpriteRef3d:load(sLastEditorFileName)
+        -- DEVICE::addRenderizable auto-assigns an incrementing z-order to any 3D object
+        -- created at z==0 (a convenience for depth-unaware objects); force it back to the
+        -- physics shapes' own origin so the reference sprite lines up with them.
+        tSpriteRef3d:setPos(0, 0, 0)
+
+        -- camera2d and camera3d composite into the same frame every tick -- there is no
+        -- viewport switch that hides '2dw' objects on its own, so the flat sprite (now
+        -- superseded by tSpriteRef3d above) and its '2dw' highlight/AABB-center markers would
+        -- otherwise keep showing forever once in 3D view -- direct user feedback: "I still see
+        -- ... the old sprite + the pivot of physics in 2d". This transition is one-way
+        -- (bSpriteEverWent3d locks the "2D" camera option back off once set), so it's safe to
+        -- retire the 2D visuals permanently here rather than build bidirectional show/hide.
+        tMesh.visible = false
+
+        -- tHighLightPoint/tAABBCenterMarker already branch on bIs3d to compute a proper 3D-space
+        -- position (see tInfoPhysics.highLightPoint above, and the AABB marker update in
+        -- onLoop) -- they just need to actually be '3d' objects for that to render against
+        -- camera3d instead of camera2d. Recreate them in place, matching the '.msh' branch's own
+        -- creation (onLoadMesh) exactly, then reapply the same color/visibility defaults.
+        tHighLightPoint:destroy()
+        tHighLightPoint = resizeMarker3d(hlSize, 18, 0,1,0, false, 'tHighLightPoint3d')
+        tAABBCenterMarker:destroy()
+        tAABBCenterMarker = resizeMarker3d(aabbSize, 12, 1,1,0, true, 'tAABBCenterMarker3d')
+    else
+        -- A real '.msh' load already has '3d' tHighLightPoint/tAABBCenterMarker (created in
+        -- onLoadMesh before tMesh:load() ran, so their size was still an unproportioned
+        -- placeholder) -- resize them now that tMesh:getSize() is valid.
+        tHighLightPoint:destroy()
+        tHighLightPoint = resizeMarker3d(hlSize, 18, 0,1,0, false, 'tHighLightPoint3d')
+        tAABBCenterMarker:destroy()
+        tAABBCenterMarker = resizeMarker3d(aabbSize, 12, 1,1,0, true, 'tAABBCenterMarker3d')
+    end
 end
 
 function onRender(tShape, vertex, uv, index_read_only)
@@ -173,6 +242,7 @@ function setupPhysics2d(tInfoPhysic)
     if tInfoPhysic.tLine == nil then
         tLine             = line:new('2dw')
         tInfoPhysic.tLine = tLine
+        tInfoPhysic.tLineIs3d = false
         tLine:add({0,0,0,0})
     else
         tLine = tInfoPhysic.tLine
@@ -877,8 +947,18 @@ function setupPhysics3d(tInfoPhysic)
         tInfoPhysic.tShape:setColor(0,1,0,0.15)
         tInfoPhysic.tShape.visible = false
 
-        if tInfoPhysic.tLine == nil then
+        if tInfoPhysic.tLine == nil or not tInfoPhysic.tLineIs3d then
+            -- A promoted sprite's entry may already have a '2dw' tLine from a prior
+            -- setupPhysics2d build (before bIs3d flipped) -- reusing it here would try to draw a
+            -- 3D wireframe through a 2D-world line object. Destroy and rebuild fresh instead of
+            -- only conditionally creating; lineCircleIdx (sphere's great-circle indices) are tied
+            -- to the old object's own internal line list, so they're invalidated too.
+            if tInfoPhysic.tLine then
+                tInfoPhysic.tLine:destroy()
+            end
             tInfoPhysic.tLine = line:new('3d')
+            tInfoPhysic.tLineIs3d = true
+            tInfoPhysic.lineCircleIdx = nil
         end
         if tInfoPhysic.type == 'sphere' then
             -- A box wireframe (drawBounding, used for every other type) reads as "this is a
@@ -916,8 +996,12 @@ function setupPhysics3d(tInfoPhysic)
         -- (width/height/depth independently), symmetric about the unmoved center -- same
         -- distance-from-center convention as Sphere's own resize handle, just one axis at a time.
         if tInfoPhysic.type == 'complex' or tInfoPhysic.type == 'sphere' or tInfoPhysic.type == 'cube' then
+            -- No fixed-world-unit floor here -- a hard minimum (previously 5) made handles look
+            -- larger than the object itself once maxExtent dropped below ~62 units (direct user
+            -- feedback: "for a small object... the pivots... is bigger than the object itself").
+            -- Only a tiny epsilon remains, to avoid a truly zero-size (degenerate) handle mesh.
             local maxExtent  = math.max(w,h,d)
-            local handleSize = math.max(maxExtent * 0.08, 5)
+            local handleSize = math.max(maxExtent * 0.08, 0.01)
             tInfoPhysic.handleRadius = handleSize -- hit-test radius, matches the visual size
 
             if tInfoPhysic.tHandles == nil then
@@ -981,6 +1065,24 @@ function setupPhysics3d(tInfoPhysic)
     end
 end
 
+-- Dispatches to setupPhysics2d/setupPhysics3d based on the LIVE bIs3d, every call -- previously
+-- `setupPhysics` was a plain global variable assigned once, only at mesh/sprite load time
+-- (`setupPhysics = setupPhysics2d`/`= setupPhysics3d` in onLoadMesh). Promoting a sprite's
+-- physics to Cube/Complex/Sphere (or toggling the manual Camera 2D/3D view) flips `bIs3d` later,
+-- mid-session, without ever touching that cached reference -- so every physics entry, including
+-- the newly "promoted" one, kept being built by setupPhysics2d as a flat '2dw' preview. The
+-- camera3d repositioning had nothing 3D in its render list to actually look at, matching exactly
+-- what was reported: "the sprite keeps in 2d and also the physics" (direct user testing). Always
+-- dispatching live here removes the whole class of cache-vs-bIs3d-drift bug instead of trying to
+-- keep the two in sync at every place bIs3d changes.
+function setupPhysics(tInfoPhysic)
+    if bIs3d then
+        setupPhysics3d(tInfoPhysic)
+    else
+        setupPhysics2d(tInfoPhysic)
+    end
+end
+
 function onLoadMesh()
     local file_name = mbm.openFile(sLastEditorFileName,'*.spt','*.msh')
     if file_name then
@@ -1012,8 +1114,11 @@ function onLoadMesh()
             tAABBCenterMarker:destroy()
             tAABBCenterMarker = nil
         end
+        if tSpriteRef3d then
+            tSpriteRef3d:destroy()
+            tSpriteRef3d = nil
+        end
         if file_name:lower():match('%.spt$') then
-            setupPhysics = setupPhysics2d
             tMesh = sprite:new('2dw')
             tHighLightPoint = shape:new('2dw')
             tHighLightPoint:create('circle',25,25,18,false,string.format('tHighLightPoint_%d',os.time()))
@@ -1027,15 +1132,16 @@ function onLoadMesh()
             -- and the promote-confirm gate) -- this tracks what the file actually is, so the
             -- toggle only ever shows for a sprite and 3D detection on load only runs for one.
             bSpriteBackedObject = true
+            bSpriteEverWent3d = false
         elseif file_name:lower():match('%.msh$') then
             tMesh = mesh:new('3d')
-            setupPhysics = setupPhysics3d
             tHighLightPoint = shape:new('3d')
             tHighLightPoint:create('circle',25,25,18,false,string.format('tHighLightPoint_%d',os.time()))
             tAABBCenterMarker = shape:new('3d')
             tAABBCenterMarker:create('circle',15,15,12,false,string.format('tAABBCenterMarker_%d',os.time()))
             bIs3d = true
             bSpriteBackedObject = false
+            bSpriteEverWent3d = false
         end
         tHighLightPoint:setColor(0,1,0)
         tHighLightPoint.visible = false
@@ -1063,6 +1169,7 @@ function onLoadMesh()
                 for i=1, #tInfoPhysics do
                     if tInfoPhysics[i].type == 'complex' then
                         bIs3d = true
+                        bSpriteEverWent3d = true
                         break
                     end
                 end
@@ -1374,7 +1481,16 @@ function main_menu_physic_editor()
                 bShowEditPhysics = true
             end
 
-            if tImGui.BeginMenu(tLang.L("simulate")) then
+            -- Bullet3D simulation isn't wired up in this editor yet -- the whole "Simulate"
+            -- workflow below (box2d:new, shape:new('2dw',...), tMesh:getAnim() for the preview
+            -- sprite) is Box2D-only and would either do nothing meaningful or error against a
+            -- 3D-only object, so grey the submenu out entirely once bIs3d (covers both a real
+            -- .msh load and a sprite promoted to Cube/Complex/Sphere physics).
+            local bSimulateOpen = tImGui.BeginMenu(tLang.L("simulate"), not bIs3d)
+            if bIs3d and tImGui.IsItemHovered(0) then
+                tImGui.SetTooltip(tLang.L("simulate_not_available_3d"))
+            end
+            if bSimulateOpen then
                 local xCam = 100000
                 if tInfoPhysics and #tInfoPhysics > 0 then
                     local pressed,checked = tImGui.MenuItem(tLang.L("add_mesh"), nil, false)
@@ -1571,16 +1687,40 @@ function showEditPhysics()
         -- This toggle is the general fallback: force the view either way, same
         -- camera_2d/camera_3d radio pattern mesh_debug.lua's own camera panel already uses.
         if bSpriteBackedObject then
+            -- Once this object has EVER been viewed/edited in 3D (bSpriteEverWent3d -- either by
+            -- promoting, or by manually switching here), going back to "2D" and editing it (a GUI
+            -- field -> updatePhysics -> setupPhysics2d) is a real crash, not just a cosmetic gap:
+            -- setupPhysics2d's "reuse the existing tShape" branches assume a 2D quad-shaped
+            -- vertex buffer, but any entry rebuilt by setupPhysics3d (makeBoxShape3d's 36-vertex
+            -- box) has the wrong layout entirely -- confirmed via a headless test ("attempt to
+            -- index a nil value (local 'vertex')" in the 'complex' branch's reuse path). Once
+            -- promoted, there's nothing native-2D left anyway (mutual exclusivity, see the
+            -- promote-confirm gate); once manually viewed in 3D, every entry has already been
+            -- rebuilt via setupPhysics3d below, so going back would hit the exact same mismatch
+            -- even for otherwise-native shapes. Lock the toggle to 3D-only from that point on,
+            -- instead of trying to make setupPhysics2d cope with rebuilding a 3D-built shape.
             tImGui.Text(tLang.L("camera_panel"))
             local camMode = bIs3d and 1 or 0
+            tImGui.BeginDisabled(bSpriteEverWent3d)
             local newCamMode = tImGui.RadioButton(tLang.L('camera_2d') .. '##physicCamMode', camMode, 0)
+            tImGui.EndDisabled()
             tImGui.SameLine()
             newCamMode = tImGui.RadioButton(tLang.L('camera_3d') .. '##physicCamMode', newCamMode, 1)
             if newCamMode ~= camMode then
                 if newCamMode == 1 then
                     bIs3d = true
+                    bSpriteEverWent3d = true
                     initCam3dFraming()
-                else
+                    -- Existing entries (built by setupPhysics2d back when this sprite first
+                    -- loaded) are NOT touched just by flipping bIs3d -- setupPhysics only runs
+                    -- when something actually calls it. Rebuild every one of them now via the
+                    -- (correctly live-dispatching) setupPhysics, same "rebuild everything" loop
+                    -- onLoadMesh itself already uses right after a fresh load.
+                    for i=1, #tInfoPhysics do
+                        setupPhysics(tInfoPhysics[i])
+                    end
+                    tInfoPhysics:updateCircles()
+                elseif not bSpriteEverWent3d then
                     bIs3d = false
                 end
             end
@@ -1731,14 +1871,16 @@ function showEditPhysics()
                 tPhysicsOptions.bPromoteConfirmPending = true
                 tPhysicsOptions.iPendingPrimitive = indexPrimitive
             else
-                createPhysicsPrimitive(indexPrimitive)
-                -- Promoting needs the 3D drag tools to actually edit the new shape (direct user
-                -- request) -- switch the view automatically instead of making the user find the
-                -- Camera toggle themselves right after adding it.
+                -- Flip the view BEFORE creating the shape, not after -- setupPhysics (the live
+                -- bIs3d-dispatch wrapper) is what createPhysicsPrimitive's addPhysics/updatePhysics
+                -- call ends up invoking; doing this the other way around built the "promoted"
+                -- entry as a flat 2D preview anyway, since bIs3d was still false at creation time.
                 if bWantsPromoted and bSpriteBackedObject and not bIs3d then
                     bIs3d = true
+                    bSpriteEverWent3d = true
                     initCam3dFraming()
                 end
+                createPhysicsPrimitive(indexPrimitive)
             end
         end
 
@@ -1757,11 +1899,15 @@ function showEditPhysics()
                 end
                 tInfoPhysics.iIndexSelected = 0
                 tInfoPhysics:updateCircles()
-                createPhysicsPrimitive(tPhysicsOptions.iPendingPrimitive)
+                -- Flip the view BEFORE creating the shape -- see the matching comment in the
+                -- direct-add path above; setupPhysics dispatches on the LIVE bIs3d at creation
+                -- time, so flipping afterward built the entry as a flat 2D preview regardless.
                 if bWantsPromoted and bSpriteBackedObject and not bIs3d then
                     bIs3d = true
+                    bSpriteEverWent3d = true
                     initCam3dFraming()
                 end
+                createPhysicsPrimitive(tPhysicsOptions.iPendingPrimitive)
                 tPhysicsOptions.bPromoteConfirmPending = false
                 tPhysicsOptions.iPendingPrimitive = nil
             end
@@ -2469,7 +2615,15 @@ function onLoop(delta)
             end
         end
 
-        tUtil.showStatusMessage('Info',string.format('Scale: %2.2f\nPhysics %d\n%s',tMesh.sx,#tInfoPhysics,strSelected))
+        if bIs3d then
+            -- "Scale" is a 2D-only concept here (tMesh.sx, driven by onTouchZoom's 2D scale
+            -- path) -- in 3D the equivalent zoom feedback is how far camera3d orbits from the
+            -- object (tCam3d.distance IS that radius already, see cam3dGetPos/onTouchZoom's
+            -- 3D branch), so show that instead of a meaningless 2D scale value.
+            tUtil.showStatusMessage('Info',string.format('Distance: %2.2f\nPhysics %d\n%s',tCam3d.distance,#tInfoPhysics,strSelected))
+        else
+            tUtil.showStatusMessage('Info',string.format('Scale: %2.2f\nPhysics %d\n%s',tMesh.sx,#tInfoPhysics,strSelected))
+        end
     end
 
     if tMesh and tAABBCenterMarker then
