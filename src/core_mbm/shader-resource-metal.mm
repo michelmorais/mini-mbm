@@ -1537,7 +1537,7 @@ fragment float4 frag_main(VOut in [[stage_in]],
 #include <metal_stdlib>
 using namespace metal;
 struct MbmUniforms { float4x4 mvp; float4x4 mv; float4 color; };
-struct VIn  { float3 pos [[attribute(0)]]; float3 normal [[attribute(1)]]; };
+struct VIn  { float3 pos [[attribute(0)]]; float3 nor [[attribute(1)]]; };
 struct VOut { float4 pos [[position]]; float3 normalView; float3 positionView; };
 
 vertex VOut vert_main(VIn in [[stage_in]],
@@ -1545,7 +1545,7 @@ vertex VOut vert_main(VIn in [[stage_in]],
 {
     VOut o;
     o.pos = u.mvp * float4(in.pos, 1.0f);
-    o.normalView = (u.mv * float4(in.normal, 0.0f)).xyz;
+    o.normalView = (u.mv * float4(in.nor, 0.0f)).xyz;
     o.positionView = (u.mv * float4(in.pos, 1.0f)).xyz;
     return o;
 }
