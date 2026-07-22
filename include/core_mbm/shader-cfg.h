@@ -83,7 +83,13 @@ namespace mbm
         void extractKey(std::string &key, size_t const &sepPos, const std::string &line) const;
         void extractValue(std::string &value, size_t const &sepPos, const std::string &line) const;
     protected:
-        std::map<std::string, std::string> contents;        
+        std::map<std::string, std::string> contents;
+        // contents is keyed for exact-key lookup (getValue()), so it iterates in
+        // alphabetical key order, not declaration order. Shader variable packing
+        // (BASE_SHADER::addVar's sequential per-stage float offset) requires the
+        // original declaration order, so keys are also recorded here as they're
+        // first seen. See SHADER_CFG_LOADER::addVariablesFromContents().
+        std::vector<std::string> insertionOrder;
     };
 
     class SHADER_CFG_LOADER : public CFG_FROM_MEMORY

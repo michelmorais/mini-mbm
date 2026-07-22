@@ -8,68 +8,75 @@ doesn't have to re-derive the investigation from scratch.
 
 ---
 
-## `mbm.getPickRay` / `obj:collide()` skip the `camera.scaleScreen2d` correction `mbm.to3d` applies
+## RESOLVED (MBM_VERSION 6.31.9): `mbm.getPickRay` / `obj:collide()` skipped the `camera.scaleScreen2d` correction `mbm.to3d` applies
 
-**Found:** 2026-07-15, while debugging a 3D mouse-picking bug in `editor/mesh_debug.lua`'s Bones
-node (bone gizmo click-drag — since removed, see below).
+**Originally found:** 2026-07-15, while debugging a 3D mouse-picking bug in `editor/mesh_debug.lua`'s
+Bones node (bone gizmo click-drag — since removed).
 
-**The inconsistency:**
+**Original status (now superseded):** the investigation below concluded `scaleScreen2d` "evaluates
+to 1.0 unless the window is resized after launch, or `-ew`/`-eh` diverges" and therefore couldn't
+be the root cause of the reported bug, since no resize/`-ew`/`-eh` was involved. **That assumption
+was wrong** — see below.
 
-- `DEVICE::rayCast(sx, sy, ...)` (`src/core_mbm/device-common.cpp:1360`) expects `sx,sy` in raw
-  backbuffer pixel space (`impl->backBufferWidth`/`Height`).
-- The engine's long-established `mbm.to3d` (`ontransform2dsto3dmbm` →
-  `DEVICE::transformeScreen2dToWorld3d_scaled`, `device-common.cpp:1445`) first multiplies the
-  input x,y by `camera.scaleScreen2d.x`/`.y` before calling `rayCast`.
-- `camera.scaleScreen2d` = `backBufferWidth / camera.expectedScreen.x` (and the `.y` equivalent),
-  computed in `CORE_MANAGER::adjustScaleScreen2d` (`core-manager-common.cpp:744`).
-  `camera.expectedScreen` is normally pinned to the actual launch resolution on the first
-  `onLoop()` iteration (`core-manager-common.cpp:231-232`), or explicitly overridden via the
-  `-ew`/`-eh` CLI flags — so `scaleScreen2d` is `1.0` unless the window is resized after that
-  point, or `-ew`/`-eh` diverges from `-w`/`-h`.
-- The newer `mbm.getPickRay` Lua binding (`onGetPickRay`, `src/lua-wrap/framework-lua.cpp:1004`)
-  and the existing `obj:collide(x, y)` 3D branch (`onCheckCollisionBoundingBoxRenderizable`,
-  `src/lua-wrap/common-methods-lua.cpp:315`) both call `device->rayCast()` **directly**, with no
-  `scaleScreen2d` correction at all.
+**Root cause, found 2026-07-21 while revisiting this with a real headless reproduction:** built
+`src/test-lib/to3d_investigation.lua`, a scene that places `Crate.msh`/`base.msh`/`building_A.msh`
+on-axis at known camera distances (300/600/900 world units) and asserts `mbm.to3d(screenCenter,
+depth)` lands exactly on each one — no real mouse needed, since an on-axis marker under an on-axis
+camera must hit dead center by symmetry. Running this through the exact launch pattern the
+`engine-testing` skill recommends (`--disable_select_monitor -w 800 -h 600`, no `-ew`/`-eh`)
+**failed immediately**, off by a fixed proportional amount at every depth. Diagnosis:
 
-**Why it matters:** `obj:collide()` is not a safer or more-correct alternative to
-`mbm.getPickRay` for 3D screen-to-world picking — both hit the exact same raw path with the exact
-same gap. Fixing one without the other, or assuming "switch to the other API" resolves a picking
-bug, is a dead end.
+1. **`platform-linux/main-lua.cpp` / `platform-macos/main-lua.cpp` hardcoded
+   `mbm::set_expected_window_size(1920, 1080)`** whenever `-ew`/`-eh` weren't explicitly passed —
+   completely unrelated to the actual `-w`/`-h` requested window size. This is the fast path any
+   headless/agent/programmatic launch uses (`--disable_select_monitor` skips the interactive
+   monitor-picker dialog, which — in `mini-mbm-lib-Linux.cpp`/`-Windows.cpp` — correctly sets the
+   expected size to whatever resolution the human actually picked). The result:
+   `camera.expectedScreen` got pinned to `(1920, 1080)` instead of the real `(800, 600)` backbuffer,
+   so `camera.scaleScreen2d` came out to `0.556` (`= 600/1080`) instead of `1.0` — **permanently,
+   for the whole session, on any launch at a resolution other than exactly 1920×1080.** This is
+   exactly the divergence the original investigation assumed couldn't happen without an explicit
+   resize or `-ew`/`-eh` — it turns out it happens on effectively every non-1920×1080 headless
+   launch. Fixed by defaulting the "expected" size to the actual requested `-w`/`-h` (falling back
+   to 1920×1080 only when `-w`/`-h` were *also* omitted, matching `set_window_size`'s own existing
+   default), so `scaleScreen2d` comes out to `1.0` unless a caller explicitly opts into
+   design-resolution scaling via `-ew`/`-eh`.
+2. **`DEVICE::rayCast` (`device-common.cpp`)** — the shared primitive behind `mbm.to3d`,
+   `mbm.getPickRay`, and `obj:collide`'s 3D ray/AABB path — only had the `scaleScreen2d` correction
+   applied by its one caller inside `transformeScreen2dToWorld3d_scaled` (`mbm.to3d`); the other two
+   call sites (`onGetPickRay`, `onCheckCollisionBoundingBoxRenderizable`) passed raw, uncorrected
+   screen pixels straight through. This is the original consistency gap this doc entry was about.
+   Fixed by moving the `scaleScreen2d` multiplication into `rayCast` itself (and removing the
+   now-redundant copy in `transformeScreen2dToWorld3d_scaled`), so all three call sites agree by
+   construction. Verified: before the fix, `mbm.getPickRay`'s direction vs. the direction derived by
+   sampling `mbm.to3d` at two depths through the same pixel had a dot product of `0.968` (a real,
+   measurable ~14° divergence) once `scaleScreen2d` was forced away from 1.0 via `-ew 1920 -eh
+   1080`; after the fix, dot product is exactly `1.000` in both the normal (`scaleScreen2d == 1`)
+   and design-resolution-scaled (`-ew`/`-eh` set, `scaleScreen2d != 1`) cases.
 
-**Status — NOT the confirmed root cause of the bug that surfaced it.** The bug report was:
-in mesh_debug.lua's Bones node, clicking/dragging a bone gizmo failed completely at camera
-distance >= 5 world units (only started working at <= 4), and the click landed increasingly far
-left/up of the visible object as the window resolution was lowered. A live empirical test was
-built to check this directly: a marker sphere placed at world origin, camera positioned on-axis
-via the same `cam3dGetPos`/`applyCam3d` formula the editor uses, then a grid of screen pixels
-scanned to find which pixel's `mbm.getPickRay` actually passes closest to the marker. By symmetry,
-an on-axis marker under an on-axis camera must hit dead center in a bug-free pipeline — no
-assumption needed about which internal formula might be wrong.
+**On the original bug report** (bone gizmo click-drag failing at camera distance ≥ 5, offset
+growing as resolution was lowered): still not directly re-confirmed against the real editor tool
+(that feature was already removed, see `mesh_debug_bone_drag_removed` history), but bug #1 above is
+a very plausible match in hindsight — any launch not pinned to exactly 1920×1080 got a wrong,
+resolution-dependent `scaleScreen2d`, and "offset grows as resolution is lowered" is exactly the
+shape of error `scaleScreen2d` diverging further from 1.0 as actual resolution diverges further
+from the hardcoded 1920×1080 fallback would produce.
 
-Result: **zero offset**, at every camera distance tried (100/200/400/800 world units), at 800x600,
-and with an ImGui window actively rendering on top. So the raw `mbm.getPickRay` math is exact in
-every configuration reproducible in this sandbox — no aspect-ratio bug, no per-distance drift, no
-ImGui interference. The `scaleScreen2d` gap above is real, but for a normal (non-resized) launch it
-evaluates to 1.0, so it can't be the cause of what the user saw.
+**A residual, non-bug nuance found while building the repro:** `mbm.to3d(centerX, centerY, D)`
+only lands exactly on the forward axis when `scaleScreen2d == 1`. When a game *intentionally* opts
+into design-resolution scaling (`-ew`/`-eh` set on purpose, `scaleScreen2d != 1` by design),
+`transformeScreen2dToWorld3d_scaled` scales the raw screen pixel by `scaleScreen2d` **before**
+dividing by the actual backbuffer size to build the NDC coordinate — so the *true* screen-center
+pixel no longer produces `vx=vy=0` once that scaling is non-unity. This is a property of `to3d`'s
+existing formula, not something touched by the fixes above, and not necessarily wrong — just worth
+knowing if a future investigation assumes "screen center always maps to the forward axis"
+unconditionally.
 
-The user's actual bug was never root-caused. It's suspected to be specific to their desktop's
-display/input stack (HiDPI or fractional display scaling, window manager behavior, or a
-multi-monitor setup) causing the real x,y that X11 delivers to `onTouchDown`/`onTouchMove` to not
-be 1:1 with backbuffer pixel space — something this sandbox has no real mouse or matching display
-stack to reproduce. Given that, the 3D mouse click-drag bone-editing feature in mesh_debug.lua's
-Bones node was removed entirely rather than shipped half-working; bone position is now edited only
-via numeric `DragFloat` X/Y/Z fields in the Bones table.
-
-**How to apply, if mouse-based 3D picking is revisited anywhere in the editor tools:**
-
-1. Fix `onGetPickRay` to apply `camera.scaleScreen2d` the same way `mbm.to3d` does, for
-   consistency — worth doing even though it wasn't the active bug here, since it's a real
-   divergence from the engine's own established convention and will bite the next `-ew`/`-eh` or
-   post-launch-resize scenario.
-2. Before re-attempting ray-based hit-testing in an editor tool, get a live on-screen readout of
-   raw `onTouchMove` x,y next to `mbm.getRealSizeScreen()` running on the *actual* machine that
-   will use the feature, and eyeball whether they line up at a couple of known reference points
-   (e.g. the window's edges). Don't re-derive this purely from code reading or from an agent
-   sandbox — the pure ray/projection math has already been proven correct in isolation; the gap is
-   somewhere between the OS/window manager and the engine's touch-event pipeline, which only a
-   real desktop session can expose.
+**Verification method, for reuse:** `src/test-lib/to3d_investigation.lua` is a live scene, not a
+throwaway — it stays in the repo as both an interactive tool (real desktop, real mouse: a marker
+cube follows `mbm.to3d` at a selectable depth, 4 more markers trace the frustum cross-section at an
+adjustable depth, click-testing runs `obj:collide` against the three reference meshes) and a
+headless regression check (numeric self-test asserts on-axis accuracy and `getPickRay`/`to3d`
+direction agreement, prints `TO3D_SELFTEST PASS`/`FAIL`, safe to run under `timeout -s KILL` per the
+`engine-testing` skill's Path B). See the comment header in that file for full run instructions and
+controls.

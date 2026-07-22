@@ -1011,16 +1011,27 @@ namespace mbm
                      }
                 }
     #if (defined(_WIN32) || ((defined(__linux__) || defined(__APPLE__))) && !defined(ANDROID))
+        #if defined(USE_TEXTURE_MISSING_DIALOG)
                 const char * filters[] = { "*.png","*.jpeg","*.jpg","*.bmp","*.gif","*.psd","*.pic","*.pnm","*.hdr","*.tga","*.tif"};
                 constexpr int sizeFilters = sizeof(filters) / sizeof(char*);
                 std::string where_str("where:");
                 where_str += fileName;
+                #if defined (_DEBUG) || defined (DEBUG)
+                    printf("file not found: %s, launching file dialog. this block the application!\n If you are running in a headless environment, you can undefine USE_TEXTURE_MISSING_DIALOG to disable the file dialog.", where_str.c_str());
+                #endif
+
                 const char *result = dialog_util::openFileDialog(where_str.c_str(), fileName, filters, sizeFilters, 0);
                 if (result)
                 {
                     util::addPath(result);
                     fileName = result;
                 }
+        #else
+                // No USE_TEXTURE_MISSING_DIALOG: never block on a native file picker (hangs headless/test
+                // runs, see .agents/skills/engine-testing/SKILL.md). Fall back to a solid white texture;
+                // TEXTURE::load()/loadSolidColor() recognize the '#RRGGBBAA' prefix (texture-manager.cpp:318).
+                fileName = "#FFFFFFFF";
+        #endif
         #endif
             }
         }

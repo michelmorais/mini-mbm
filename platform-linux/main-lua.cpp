@@ -119,7 +119,16 @@ int main(const int argc,const char **argv)
 		}
         else
         {
-            mbm::set_expected_window_size(1920, 1080);
+            // Default the "expected" (design) resolution to the actual requested window size so
+            // camera.scaleScreen2d (device-common.cpp) comes out to 1.0 unless the caller
+            // explicitly opts into design-resolution scaling via -ew/-eh. This used to hardcode
+            // 1920x1080 here regardless of -w/-h, which silently left camera.scaleScreen2d
+            // permanently wrong (e.g. 0.556 at a 800x600 launch) for any --disable_select_monitor
+            // launch at a resolution other than exactly 1920x1080 -- breaking the screen-to-world
+            // math in mbm.to3d/mbm.getPickRay/obj:collide. See docs/future_investigation.md.
+            mbm::set_expected_window_size(
+                requested_width  > 0 ? requested_width  : 1920,
+                requested_height > 0 ? requested_height : 1080);
         }
 
         mbm::set_verbose(false);

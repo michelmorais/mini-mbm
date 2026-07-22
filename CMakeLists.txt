@@ -28,6 +28,25 @@ if(USE_ASAN)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address,undefined")
 endif()
+
+#-----------------------------------------------------------------------------------------------------------------------
+# -DUSE_TEXTURE_MISSING_DIALOG=0 : when a mesh/sprite/gif/font references a texture path the engine can't
+# resolve (src/core_mbm/texture-manager.cpp, TEXTURE_MANAGER::getFilePathTexture, Windows/Linux/macOS only,
+# not Android), it normally opens a blocking native "where is this file?" file-picker dialog so a human
+# can locate it. Default is ENABLED (matches the engine's long-standing behavior for interactive
+# desktop/editor use, where locating a moved texture via the picker is genuinely useful).
+#
+# Explicitly pass -DUSE_TEXTURE_MISSING_DIALOG=0 for headless/CI/test builds (testLib, mini-mbm, Lua
+# scripts) - there's no human there to click the dialog, so left enabled it hangs the process forever
+# with no timeout able to catch it (see .agents/skills/engine-testing/SKILL.md, "The missing-texture
+# dialog"). Disabling it falls back to a solid white texture ("#FFFFFFFF") instead of blocking.
+#-----------------------------------------------------------------------------------------------------------------------
+if(NOT DEFINED USE_TEXTURE_MISSING_DIALOG)
+    set(USE_TEXTURE_MISSING_DIALOG 1)
+endif()
+if(USE_TEXTURE_MISSING_DIALOG)
+    add_definitions(-DUSE_TEXTURE_MISSING_DIALOG)
+endif()
 set(CMAKE_VERSION_MAJOR "3.25.1")
 
 cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
@@ -164,6 +183,12 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
         message("-DUSE_ASAN=1               : AddressSanitizer + UBSan ENABLED - debug-only, real runtime overhead. See comment above 'if(USE_ASAN)' near the top of this file for the LD_PRELOAD note.")
     else()
         message("-DUSE_ASAN=0               : use -DUSE_ASAN=1 in a dedicated build dir to hunt memory-corruption/thread-safety bugs (see comment near the top of this file)")
+    endif()
+
+    if(USE_TEXTURE_MISSING_DIALOG)
+        message("-DUSE_TEXTURE_MISSING_DIALOG=1 : Missing textures open a native file-picker dialog (Current is ENABLED, this is the default) - pass -DUSE_TEXTURE_MISSING_DIALOG=0 for headless/CI/test builds, it will hang with no human to click it")
+    else()
+        message("-DUSE_TEXTURE_MISSING_DIALOG=0 : Missing textures fall back to a solid white texture instead of a blocking dialog (Current is DISABLED) - use for headless/CI/test builds")
     endif()
     message("******************************************************************************************************")
 endfunction()

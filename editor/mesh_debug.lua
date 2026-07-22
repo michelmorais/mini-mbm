@@ -4686,12 +4686,43 @@ local function unitSphereVerts(latSegments, lonSegments)
     return verts
 end
 
--- Built along local +Y from y=0 (radiusBottom) to y=height (radiusTop), with outward-facing
--- normals (winding confirmed by direct render testing).
-local function unitCylinderVerts(radiusTop, radiusBottom, height, radialSegments)
+-- Cylinder oriented directly toward an arbitrary world-space direction (dx,dy,dz), via vertex
+-- math instead of building it along a fixed local +Y axis and rotating the object with
+-- setAngle(0,0,theta) afterward -- the bone-link cylinder used to only rotate around Z (a flat,
+-- XY-plane-only angle, correct only when dz==0), which visually detached the cylinder from its
+-- two joints as soon as a bone moved along Z relative to its parent (direct user report:
+-- dragging a bone in Z/Y mode "moved the joint but the bone got lost/detached" -- Z/Y dragging is
+-- exactly what makes dz nonzero). Rather than guess this engine's Euler rotation order/composition
+-- to fix setAngle, this builds an orthonormal (right, axis, forward) basis from the direction
+-- itself and bakes the cylinder's geometry directly into that basis -- correct for any direction,
+-- no setAngle call needed at all (matches physic_editor.lua's own boxCorners/handle-marker
+-- precedent of computing world-relative vertices directly rather than relying on object rotation).
+local function orientedCylinderVerts(dx, dy, dz, radiusTop, radiusBottom, radialSegments)
     radialSegments = radialSegments or 10
+    local height = math.sqrt(dx * dx + dy * dy + dz * dz)
+    if height < 0.0001 then return {} end
+    local ax, ay, az = dx / height, dy / height, dz / height -- unit "length" axis (replaces local +Y)
+
+    -- Any vector not (nearly) parallel to axis, to seed a perpendicular basis.
+    local sx, sy, sz = 0, 1, 0
+    if math.abs(ay) > 0.999 then sx, sy, sz = 1, 0, 0 end
+
+    -- right = normalize(cross(axis, seed)) -- replaces local +X
+    local rx, ry, rz = ay * sz - az * sy, az * sx - ax * sz, ax * sy - ay * sx
+    local rlen = math.sqrt(rx * rx + ry * ry + rz * rz)
+    rx, ry, rz = rx / rlen, ry / rlen, rz / rlen
+
+    -- forward = cross(right, axis) -- replaces local +Z, completes the orthonormal basis
+    local fx, fy, fz = ry * az - rz * ay, rz * ax - rx * az, rx * ay - ry * ax
+
     local verts = {}
-    local function push(x, y, z) table.insert(verts, x); table.insert(verts, y); table.insert(verts, z) end
+    -- u,w are the local radial offsets around the ring, v is the distance along the cylinder's
+    -- own length -- projected through the (right, axis, forward) basis instead of raw X/Y/Z.
+    local function push(u, v, w)
+        table.insert(verts, u * rx + v * ax + w * fx)
+        table.insert(verts, u * ry + v * ay + w * fy)
+        table.insert(verts, u * rz + v * az + w * fz)
+    end
     for i = 0, radialSegments - 1 do
         local a1 = (i / radialSegments) * math.pi * 2
         local a2 = ((i + 1) / radialSegments) * math.pi * 2
@@ -4787,6 +4818,71 @@ local function dodgeAutoZOrder(z)
     return (z == 0) and 0.0001 or z
 end
 
+-- Standard analytic ray-sphere intersection (dir must be normalized, as mbm.getPickRay's is).
+-- Returns true + hit distance along the ray, or false. Ported from physic_editor.lua (which
+-- itself ported this from THIS file's own removed bone-gizmo drag code, git show 78958a2) -- now
+-- used again here for bone-sphere hit-testing, now that the underlying mbm.getPickRay/
+-- camera.scaleScreen2d bug that caused the original removal is fixed (MBM_VERSION 6.31.9).
+local function raySphereHit(ox, oy, oz, dx, dy, dz, cx, cy, cz, radius)
+    local lx, ly, lz = cx - ox, cy - oy, cz - oz
+    local tca = lx * dx + ly * dy + lz * dz
+    if tca < 0 then return false end
+    local d2 = lx * lx + ly * ly + lz * lz - tca * tca
+    local r2 = radius * radius
+    if d2 > r2 then return false end
+    local thc = math.sqrt(r2 - d2)
+    return true, tca - thc
+end
+
+-- Intersects the pick ray through (sx,sy) with a fixed plane. Ported from physic_editor.lua
+-- (same provenance as raySphereHit above). Used here with a fixed WORLD-axis plane (constant Z
+-- for X/Y-locked bone dragging, constant X for Z/Y-locked dragging) rather than a camera-facing
+-- billboard plane, so the drag stays exactly axis-locked regardless of camera angle.
+local function rayPlaneHit(sx, sy, planePt, planeNormal)
+    local okRay, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, sx, sy)
+    if not okRay then return nil end
+    local denom = planeNormal.x * dx + planeNormal.y * dy + planeNormal.z * dz
+    if math.abs(denom) < 1e-6 then return nil end
+    local t = ((planePt.x - ox) * planeNormal.x + (planePt.y - oy) * planeNormal.y + (planePt.z - oz) * planeNormal.z) / denom
+    if t < 0 then return nil end
+    return ox + dx * t, oy + dy * t, oz + dz * t
+end
+
+-- Nearest-hit-wins ray-sphere test against every bone's own gizmo sphere (tEntry.tBoneGizmo.spheres),
+-- for the 3D drag/drop bone editor (Bones node's "Drag Drop Joint/Bone X/Y" / "Z/Y" checkboxes).
+-- Each sphere's world radius is read directly off its own scale (unitSphereVerts() is a radius-1
+-- sphere, so h:getScale().x IS the true world hit-test radius, matching how rebuildBoneGizmo set it) --
+-- no separate parallel radius table needed.
+local function hitTestBoneSpheres3d(tEntry, sx, sy)
+    if not tEntry.tBoneGizmo or not tEntry.tBoneGizmo.spheres then return nil end
+    local okRay, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, sx, sy)
+    if not okRay then return nil end
+    local bestName, bestDist = nil, math.huge
+    for name, h in pairs(tEntry.tBoneGizmo.spheres) do
+        local p, s = h:getPos(), h:getScale()
+        local hit, dist = raySphereHit(ox, oy, oz, dx, dy, dz, p.x, p.y, p.z, s.x)
+        if hit and dist < bestDist then
+            bestName, bestDist = name, dist
+        end
+    end
+    if not bestName then return nil end
+    local p = tEntry.tBoneGizmo.spheres[bestName]:getPos()
+    return bestName, p.x, p.y, p.z
+end
+
+-- Snaps tEntry's own 3D orbit camera to a canonical straight-on view matching the just-checked
+-- drag plane -- azimuth=0/elevation=0 puts the camera on +Z looking down -Z (screen X/Y = world
+-- X/Y); azimuth=pi/2 puts it on +X looking down -X (screen X/Y = world Z/Y). A ONE-TIME snap on
+-- check (per direct user request), not a hard lock -- the user can still orbit away afterward by
+-- dragging empty space; the drag math itself stays correct (fixed world-axis plane) regardless of
+-- camera angle.
+local function snapCam3dToDragPlane(tEntry, mode)
+    local c = tEntry.cam3d
+    c.azimuth   = (mode == 'xy') and 0 or (math.pi * 0.5)
+    c.elevation = 0
+    if bCameraMode3D then applyCam3d(c) end
+end
+
 local function destroyBoneGizmo(tEntry)
     if tEntry.tBoneGizmo then
         for _, h in pairs(tEntry.tBoneGizmo.spheres) do h:destroy() end
@@ -4795,11 +4891,11 @@ local function destroyBoneGizmo(tEntry)
     tEntry.tBoneGizmo = { spheres = {}, bones = {} }
 end
 
--- Full gizmo rebuild: called whenever the bone list itself changes (add/remove/reparent/rename) or
--- the Bones node opens/closes/selection changes. Bone position/orientation is edited only via the
--- DragFloat X/Y/Z fields in the Bones table (see showBonesNode) -- mouse click-drag picking in the
--- 3D viewport was removed (screen<->world pick-ray coordinates were unreliable on at least one
--- real desktop setup; see the mbm.getPickRay/camera.scaleScreen2d memory note for the diagnosis).
+-- Full gizmo rebuild: called whenever the bone list itself changes (add/remove/reparent/rename),
+-- the Bones node opens/closes/selection changes, or a 3D drag/drop edit commits a new bone
+-- position (onTouchMove, via onBonesEdit -- same call path the DragFloat X/Y/Z fields already use
+-- on every frame while being click-dragged in ImGui, so a full rebuild on every 3D-viewport drag
+-- frame too is consistent with existing, already-shipped behavior for this exact mutation).
 function rebuildBoneGizmo(tEntry, meshD, index)
     destroyBoneGizmo(tEntry)
     if tEntry.sOpenNode ~= 'bones' or index ~= iSelectedMeshIndex then return end
@@ -4853,12 +4949,9 @@ function rebuildBoneGizmo(tEntry, meshD, index)
                 -- isolation, not just avoiding stale geometry reuse as originally noted here).
                 tEntry.iBoneGizmoGen = (tEntry.iBoneGizmoGen or 0) + 1
                 local nick = 'mesh_debug_bone_link_' .. index .. '_' .. tEntry.iBoneGizmoGen
-                h:create(unitCylinderVerts(b.radius * 0.5, parent.radius * 0.5, height, 8), nil, nick)
-                -- Flat (XY-plane) angle only (accurate when dz==0, an approximation otherwise --
-                -- full 3-axis bone orientation is a separate derivation this feature deliberately
-                -- doesn't take on).
-                local theta = math.atan(-dx, dy)
-                h:setAngle(0, 0, theta)
+                h:create(orientedCylinderVerts(dx, dy, dz, b.radius * 0.5, parent.radius * 0.5, 8), nil, nick)
+                -- No setAngle needed -- orientedCylinderVerts already bakes the parent->child
+                -- direction directly into the geometry, correct for any dx/dy/dz combination.
                 -- Colored by the CHILD bone's own highlight state (name here) -- this link visually
                 -- represents "the bone ending at this joint," not its parent.
                 local c = tHighlight[name] and BONE_HIGHLIGHT_COLOR or BONE_GIZMO_COLOR
@@ -5885,6 +5978,42 @@ function showBonesNode(tEntry, meshD, index)
         end
     end
 
+    -- Axis-locked 3D drag/drop for bone/joint positions (direct user request): click-drag a bone's
+    -- gizmo sphere in the 3D viewport to move it, constrained to X/Y (Z fixed) or Z/Y (X fixed) --
+    -- never a free 3-axis drag, which is what made the original (removed) bone-drag feature easy to
+    -- mis-place a joint with (pushing it too far forward/back along the hidden depth axis). The two
+    -- checkboxes are mutually exclusive (enforced below, not a RadioButton per direct user request)
+    -- and only meaningful with the 3D camera active -- same gating orbit itself already requires.
+    -- Enabling either one clears any existing bone-table Highlight selection -- the Highlight
+    -- checkbox column is repurposed while a drag plane is active as a live "which joint is under
+    -- the cursor right now" hover indicator (see onTouchMove), so any stale selection from before
+    -- would otherwise sit there misleadingly until the mouse next moves over the viewport.
+    if isOpen and isMesh3DType(tEntry) and bCameraMode3D then
+        local curPlane = tEntry.sBoneDragPlane
+        local newXY = tImGui.Checkbox(tLang.L('bones_drag_xy_checkbox') .. '##boneDragXY-' .. index, curPlane == 'xy')
+        if newXY and curPlane ~= 'xy' then
+            tEntry.sBoneDragPlane = 'xy'
+            curPlane = 'xy'
+            snapCam3dToDragPlane(tEntry, 'xy')
+            tEntry.tBoneHighlight = {}
+            tEntry.sHoveredBoneName = nil
+            rebuildBoneGizmo(tEntry, meshD, index)
+        elseif not newXY and curPlane == 'xy' then
+            tEntry.sBoneDragPlane = nil
+            curPlane = nil
+        end
+        local newZY = tImGui.Checkbox(tLang.L('bones_drag_zy_checkbox') .. '##boneDragZY-' .. index, curPlane == 'zy')
+        if newZY and curPlane ~= 'zy' then
+            tEntry.sBoneDragPlane = 'zy'
+            snapCam3dToDragPlane(tEntry, 'zy')
+            tEntry.tBoneHighlight = {}
+            tEntry.sHoveredBoneName = nil
+            rebuildBoneGizmo(tEntry, meshD, index)
+        elseif not newZY and curPlane == 'zy' then
+            tEntry.sBoneDragPlane = nil
+        end
+    end
+
     -- Same open/selected gating as the gizmo itself (gizmoShouldBeOpen), ANDed with the checkbox
     -- just read above, so the ghost disappears the instant the node closes or a different mesh is
     -- selected -- exactly per the user's own request.
@@ -6106,6 +6235,13 @@ function showBonesWindow()
     local posDragSpeed = computeFieldDragSpeed(tBones, {'x', 'y', 'z'}, 0.001)
     local sizeDragSpeed = computeFieldDragSpeed(tBones, {'radius', 'length'}, 0.0005)
 
+    local function findBoneInList(tBonesList, name)
+        for _, bb in ipairs(tBonesList) do
+            if bb.name == name then return bb end
+        end
+        return nil
+    end
+
     if #tBones > 0 then
         -- ScrollX + fixed-width columns (not the default stretch sizing) so a wide row (name +
         -- parent combo + 3 drag floats + remove button) scrolls horizontally within the panel
@@ -6117,7 +6253,7 @@ function showBonesWindow()
         local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
             'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_ScrollX', 'ImGuiTableFlags_SizingFixedFit')
         local listH = math.min(#tBones * 30 + 34, 320)
-        if tImGui.BeginTable('bonesTbl-' .. index, 9, tblFlags, {x = 0, y = listH}) then
+        if tImGui.BeginTable('bonesTbl-' .. index, 10, tblFlags, {x = 0, y = listH}) then
             tImGui.TableSetupScrollFreeze(1, 1)
             tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 160)
             tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 160)
@@ -6128,6 +6264,7 @@ function showBonesWindow()
             tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
             tImGui.TableSetupColumn(tLang.L('bones_highlight_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 50)
             tImGui.TableSetupColumn('Remove?', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
+            tImGui.TableSetupColumn('Add Child?', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 150)
             tImGui.TableHeadersRow()
 
             local iCountColumns = 0
@@ -6230,6 +6367,39 @@ function showBonesWindow()
                         tEntry.tBonePendingRemove = nil
                     else
                         tEntry.tBonePendingRemove = { idx = b.idx, name = b.name }
+                    end
+                end
+
+                -- "+ Add Child Bone" (direct user request): appends a new bone as this row's own
+                -- child, continuing the same direction and distance this bone itself has from ITS
+                -- OWN parent (grandparent -> parent -> this -> new, evenly spaced and colinear) --
+                -- a quick way to extend a limb chain one joint at a time without hand-computing a
+                -- position. Its own column (not a new row), right after Remove?, per direct user
+                -- request.
+                tImGui.TableNextColumn()
+                if tImGui.Button(tLang.L('bones_add_child_button') .. '##boneAddChild-' .. index .. '-' .. b.idx) then
+                    local parentB = b.parentName and findBoneInList(tBones, b.parentName)
+                    local nx, ny, nz
+                    if parentB then
+                        local dx, dy, dz = b.x - parentB.x, b.y - parentB.y, b.z - parentB.z
+                        local dlen = math.sqrt(dx*dx + dy*dy + dz*dz)
+                        if dlen > 0.0001 then
+                            nx, ny, nz = b.x + dx, b.y + dy, b.z + dz
+                        end
+                    end
+                    if not nx then
+                        -- No parent (root bone) or a degenerate zero-length step to extrapolate
+                        -- from -- fall back to a fixed, visible default offset.
+                        nx, ny, nz = b.x, b.y + 10, b.z
+                    end
+                    local newName = 'Bone ' .. (#tBones + 1)
+                    local okA, errA = dpCall(function()
+                        return meshD:addBone(newName, b.name, nx, ny, nz, b.radius)
+                    end)
+                    if okA then
+                        onBonesEdit(tEntry, meshD, index)
+                    else
+                        tUtil.showMessageWarn(errA or tLang.L('an_error_occurred'))
                     end
                 end
             end
@@ -10468,6 +10638,24 @@ end
 
 function onTouchDown(key, x, y)
     if not tImGui.IsAnyWindowHovered() then
+        -- Axis-locked bone drag/drop takes priority over ordinary orbit, but only when a drag
+        -- plane is actually checked -- otherwise every ordinary orbit-click would pay for a
+        -- hit-test against bone spheres that aren't even a relevant target. Same
+        -- hit-test-first-else-orbit structure physic_editor.lua's own 3D handle drag uses.
+        if key == 0 and bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+            local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+            if tEntry.sBoneDragPlane then
+                local name, hx, hy, hz = hitTestBoneSpheres3d(tEntry, x, y)
+                if name then
+                    tEntry.sDraggingBoneName = name
+                    tEntry.tDragPlaneNormal  = (tEntry.sBoneDragPlane == 'xy') and {x=0,y=0,z=1} or {x=1,y=0,z=0}
+                    tEntry.tDragPlanePoint   = {x=hx, y=hy, z=hz}
+                    camera2d.mx = x
+                    camera2d.my = y
+                    return -- don't also start an orbit for this click
+                end
+            end
+        end
         isClickedMouseleft  = (key == 0)
         isClickedMouseRight = (key == 1)
         camera2d.mx = x
@@ -10477,6 +10665,44 @@ end
 
 function onTouchMove(key, x, y)
     if tImGui.IsAnyWindowHovered() then return end
+    if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+        local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
+        if tDragEntry.sDraggingBoneName then
+            local wx, wy, wz = rayPlaneHit(x, y, tDragEntry.tDragPlanePoint, tDragEntry.tDragPlaneNormal)
+            if wx then
+                local meshD = tDragEntry.meshDebug
+                local tBones = getBoneList(meshD)
+                for _, b in ipairs(tBones) do
+                    if b.name == tDragEntry.sDraggingBoneName then
+                        local okU = dpCall(function()
+                            return meshD:updateBone(b.idx, b.name, b.parentName, wx, wy, wz, b.radius,
+                                b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
+                        end)
+                        if okU then onBonesEdit(tDragEntry, meshD, iSelectedMeshIndex) end
+                        break
+                    end
+                end
+                tDragEntry.tDragPlanePoint = {x=wx, y=wy, z=wz}
+            end
+            camera2d.mx = x
+            camera2d.my = y
+            return
+        elseif tDragEntry.sBoneDragPlane and bCameraMode3D and not isClickedMouseleft and not isClickedMouseRight then
+            -- Hover preview (direct user request): while a drag plane is checked and the mouse
+            -- isn't held for orbit/pan, continuously hit-test bone spheres and highlight (yellow,
+            -- reusing the existing Highlight checkbox/color mechanism) whichever one is currently
+            -- under the cursor -- so the user can see which joint a click would grab before
+            -- committing. Only rebuilds the gizmo when the hovered bone actually changes, not on
+            -- every single mouse-move frame while hovering the same one.
+            local name = hitTestBoneSpheres3d(tDragEntry, x, y)
+            if name ~= tDragEntry.sHoveredBoneName then
+                tDragEntry.tBoneHighlight = {}
+                if name then tDragEntry.tBoneHighlight[name] = true end
+                tDragEntry.sHoveredBoneName = name
+                rebuildBoneGizmo(tDragEntry, tDragEntry.meshDebug, iSelectedMeshIndex)
+            end
+        end
+    end
     if bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tEntry = tLoadedMeshes[iSelectedMeshIndex]
         local c = tEntry.cam3d
@@ -10517,6 +10743,14 @@ function onTouchUp(key, x, y)
     isClickedMouseRight = false
     camera2d.mx = x
     camera2d.my = y
+    if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+        local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+        -- Nothing to "commit" here -- onTouchMove's live updateBone/onBonesEdit already wrote
+        -- every change as it happened. Just clear the drag state.
+        tEntry.sDraggingBoneName = nil
+        tEntry.tDragPlanePoint   = nil
+        tEntry.tDragPlaneNormal  = nil
+    end
 end
 
 function onTouchZoom(zoom)

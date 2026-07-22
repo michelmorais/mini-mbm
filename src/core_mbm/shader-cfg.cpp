@@ -680,6 +680,7 @@ namespace mbm
         if (!keyExists(key))
         {
             contents.insert(std::pair<std::string, std::string>(key, value));
+            insertionOrder.push_back(key);
         }
         else
         {
@@ -759,6 +760,7 @@ namespace mbm
     void CFG_FROM_MEMORY::clearContents() noexcept
     {
         this->contents.clear();
+        this->insertionOrder.clear();
     }
 
     SHADER_CFG_LOADER::SHADER_CFG_LOADER() noexcept : CFG_FROM_MEMORY()
@@ -882,9 +884,15 @@ namespace mbm
 
     bool SHADER_CFG_LOADER::addVariablesFromContents()
     {
-        for (const auto & content : this->contents)
+        // Must iterate in cfg declaration order, not this->contents' alphabetical
+        // key order -- BASE_SHADER::addVar (Metal backend) packs PS/VS variables
+        // into a positional float buffer in the order they're added here, so an
+        // out-of-declaration-order pass silently shifts every variable's offset
+        // (e.g. "[float][thickness]" sorts before "[rgb][color]" alphabetically,
+        // even when color is declared first in the resource text).
+        for (const auto & keyStr : this->insertionOrder)
         {
-            const char *key = content.first.c_str();
+            const char *key = keyStr.c_str();
             size_t         len = strlen(key);
             if (len > 6)
             {
