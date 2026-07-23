@@ -6379,15 +6379,28 @@ function showBonesNode(tEntry, meshD, index)
         end
 
         tImGui.Separator()
-        -- Batch version of the per-row Recompute button (showBonesWindow) -- only touches bones
-        -- that actually need it (length <= EPS, the same threshold the length-warning marker uses),
-        -- so a bone with real Blender-imported orientation data is never clobbered by the
-        -- position-topology heuristic just because it happened to be in the same skeleton.
+        -- Batch version of the per-row Recompute button (showBonesWindow). By default only touches
+        -- bones that actually need it (length <= EPS, the same threshold the length-warning marker
+        -- uses), so a bone with real Blender-imported orientation data is never clobbered by the
+        -- position-topology heuristic just because it happened to be in the same skeleton. The
+        -- "even if Length is already set" checkbox opts into recomputing EVERY bone instead --
+        -- direct user request, for the "applied a borrowed/Mixamo armature template, then manually
+        -- dragged joints to fit this specific mesh" workflow: applyArmatureTemplate only does a
+        -- uniform scale + reposition (it can't know this mesh's own limb proportions), and manually
+        -- repositioning a joint afterward (the X/Y/Z drag fields) never touches Length/rotation --
+        -- so every bone can end up with a real but now geometrically STALE length. Safe to force
+        -- now that Recompute preserves each bone's existing roll instead of resetting it.
+        tEntry.bRecomputeAllForce = tImGui.Checkbox(tLang.L('bones_recompute_all_force_checkbox') .. '##boneRecomputeAllForce-' .. index, tEntry.bRecomputeAllForce or false)
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.Text(tLang.L('bones_recompute_all_force_tooltip'))
+            tImGui.EndTooltip()
+        end
         if tImGui.Button(tLang.L('bones_recompute_all_button') .. '##boneRecomputeAll-' .. index) then
             local childrenByParent = computeChildrenByParent(tBones)
             local anyOk = false
             for _, b in ipairs(tBones) do
-                if b.length <= 1e-6 then
+                if tEntry.bRecomputeAllForce or b.length <= 1e-6 then
                     local parentB = b.parentName and findBoneByName(tBones, b.parentName)
                     local ax, ay, az, newLength = computeAimAndLength(childrenByParent, b, parentB)
                     -- Preserve whatever roll the bone currently decodes to (relative to its OLD
@@ -6517,8 +6530,8 @@ function showBonesWindow()
             tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 110)
             tImGui.TableSetupColumn(tLang.L('bones_radius_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
             tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
-            tImGui.TableSetupColumn(tLang.L('bones_roll_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 110)
             tImGui.TableSetupColumn(tLang.L('bones_recompute_button'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 120)
+            tImGui.TableSetupColumn(tLang.L('bones_roll_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 110)
             tImGui.TableSetupColumn(tLang.L('bones_highlight_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 50)
             tImGui.TableSetupColumn('Remove?', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
             tImGui.TableSetupColumn('Add Child?', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 150)
@@ -6587,6 +6600,11 @@ function showBonesWindow()
                 tUtil.pushResponsiveItemWidth(120)
                 local chgRadius, nRadius = tImGui.DragFloat('Radius##boneRadius-' .. index .. '-' .. b.idx, b.radius, sizeDragSpeed, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('bones_radius_tooltip'))
+                    tImGui.EndTooltip()
+                end
                 if chgRadius then
                     local okU = dpCall(function()
                         return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, nRadius,
@@ -6636,29 +6654,15 @@ function showBonesWindow()
                     tImGui.PopStyleColor(3)
                 end
                 tImGui.PopItemWidth()
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('bones_length_tooltip'))
+                    tImGui.EndTooltip()
+                end
                 if chgLength then
                     local okU = dpCall(function()
                         return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, nLength)
-                    end)
-                    if okU then onBonesEdit(tEntry, meshD, index) end
-                end
-
-                tImGui.TableNextColumn()
-                -- Stateless: decoded fresh from b.rotX/Y/Z every frame (same convention as every
-                -- other field in this row) rather than a persisted field -- SKELETON_BONE_V11 has
-                -- no roll field of its own, only rotX/Y/Z, so "roll" only exists as this
-                -- canonicalRollAxis-relative decomposition.
-                tUtil.pushResponsiveItemWidth(100)
-                local curRoll = currentRollDeg(b.rotX, b.rotY, b.rotZ)
-                local chgRoll, nRoll = tImGui.DragFloat('Roll##boneRoll-' .. index .. '-' .. b.idx, curRoll, 1.0, 0, 0, '%.1f')
-                tImGui.PopItemWidth()
-                if chgRoll then
-                    local yx, yy, yz = eulerToBoneFrame(b.rotX, b.rotY, b.rotZ)
-                    local nRotX, nRotY, nRotZ = eulerFromAimAndRoll(yx, yy, yz, nRoll)
-                    local okU = dpCall(function()
-                        return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
-                            nRotX, nRotY, nRotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
                     end)
                     if okU then onBonesEdit(tEntry, meshD, index) end
                 end
@@ -6687,6 +6691,30 @@ function showBonesWindow()
                     tImGui.BeginTooltip()
                     tImGui.Text(tLang.L('bones_recompute_tooltip'))
                     tImGui.EndTooltip()
+                end
+
+                tImGui.TableNextColumn()
+                -- Stateless: decoded fresh from b.rotX/Y/Z every frame (same convention as every
+                -- other field in this row) rather than a persisted field -- SKELETON_BONE_V11 has
+                -- no roll field of its own, only rotX/Y/Z, so "roll" only exists as this
+                -- canonicalRollAxis-relative decomposition.
+                tUtil.pushResponsiveItemWidth(100)
+                local curRoll = currentRollDeg(b.rotX, b.rotY, b.rotZ)
+                local chgRoll, nRoll = tImGui.DragFloat('Roll##boneRoll-' .. index .. '-' .. b.idx, curRoll, 1.0, 0, 0, '%.1f')
+                tImGui.PopItemWidth()
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('bones_roll_tooltip'))
+                    tImGui.EndTooltip()
+                end
+                if chgRoll then
+                    local yx, yy, yz = eulerToBoneFrame(b.rotX, b.rotY, b.rotZ)
+                    local nRotX, nRotY, nRotZ = eulerFromAimAndRoll(yx, yy, yz, nRoll)
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
+                            nRotX, nRotY, nRotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
+                    end)
+                    if okU then onBonesEdit(tEntry, meshD, index) end
                 end
 
                 tImGui.TableNextColumn()
