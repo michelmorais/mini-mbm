@@ -272,9 +272,10 @@ never for anything the engine itself renders differently.
   "real orientation data available" sentinel `has_orientation()` uses below, so this warning is
   telling the user exactly when that fallback is about to kick in — and a per-bone **Recompute**
   button bakes the same position-topology heuristic the exporter would otherwise silently apply
-  (see `compute_tail` just below) into real,
-  further-editable `rotX/Y/Z`/`length`, with a single **Roll** field for twisting around that
-  computed axis afterward. A **Rigid Bind** section writes real weight 1.0 to one bone for a chosen
+  (see `compute_tail` just below) into real, further-editable `rotX/Y/Z`/`length` — preserving
+  whichever roll this bone already had (see Pitfalls: "Recompute must preserve roll, not reset it")
+  — with a single **Roll** field for twisting around that computed axis afterward. A **Rigid Bind**
+  section writes real weight 1.0 to one bone for a chosen
   set of vertices (picked either by proximity to that bone's own segment, reusing its `radius`, or
   by an existing material subset) — for a prop that shouldn't deform under `ARMATURE_ENVELOPE`'s
   geometric guess.
@@ -485,3 +486,99 @@ defaults exactly. Rotation does **not** work this way — undoing an import rota
 *negated* angle, not the same one applied twice. Getting this backwards for either produces a subtly
 wrong (not obviously broken) result: rotation would compound instead of cancel, or UV would flip
 twice unnecessarily.
+
+### `radius` and `length` are never preserved across a round-trip — they're re-derived every import
+
+A user round-tripped a character through Mixamo (upload FBX with a hand-added "sword" bone → apply
+an animation there → download the animated FBX → re-import into `mesh_debug.lua`) and found the
+sword bone's `radius` had grown substantially compared to what they'd originally set. Root cause,
+confirmed by reading the import path directly: `editor/blender_mesh_export.py`'s
+`extract_armature_joints` (`blender_mesh_export.py:1145`) computes radius fresh on **every** import —
+`radius = max(0.001, (world_tail - world_head).length * 0.15)` — always 15% of *that specific file's*
+own bone length, never copied forward from any previous mesh_debug session. So "radius changed" is
+really just a symptom: `length` changed somewhere in the round-trip (most likely Mixamo doing
+*something* internally with the one bone it has no built-in meaning for — "Bone 24" isn't part of
+its own 65-bone `mixamorig:` map — though its exact internal behavior is outside this codebase and
+wasn't independently verified). **This is not a skinning bug**: neither field ever drives animation
+(only keyframed transforms do, see the Quick Mental Model) or the *result* of a Rigid Bind (real
+stored per-vertex weights, once written, aren't touched by a `radius`/`length` change on re-import) —
+it only matters again if that mesh is re-exported and some of its vertices still need
+`ARMATURE_ENVELOPE`'s geometric fallback.
+
+**When a user should actually change `radius`:** only for a bone with no real per-vertex weights
+(i.e. still relying on the envelope fallback). Increase it when a bone should own a wide/long span
+of geometry and nearby vertices are visibly being claimed by the wrong neighbor, or not deforming at
+all (envelope never reached them — see `_assign_nearest_bone_to_unweighted` above). Keep it small for
+closely-spaced bones (fingers, a prop tucked into a hand) to avoid the same crosstalk
+`_resolve_left_right_crosstalk` exists to clean up elsewhere. For Rigid Bind's own Proximity mode,
+radius only sizes the *search* (which vertices count as "the prop") — once Applied, the resulting
+weights are exact and radius stops mattering for that bone.
+
+### `tImGui.Checkbox` returns only one value, not `(changed, value)`
+
+Unlike `Combo`/`DragFloat` (which push both a "did it change" bool and the new value),
+`onCheckboxImGuiLua` (`plugins/imGui/imgui-lua.cpp:4463`) pushes a single value: the checkbox's
+resulting boolean, full stop. Every checkbox already in `mesh_debug.lua` correctly follows the
+single-return idiom (`newVal = tImGui.Checkbox(label, oldVal); if newVal ~= oldVal then ... end`) —
+one new checkbox this session instead assumed the two-value `(changed, value)` shape, so its second
+variable was always `nil`. Concretely: `rb.mode = wantSubsetMode and 'subset' or 'proximity'` with
+`wantSubsetMode` always `nil` evaluates to `'proximity'` unconditionally, so the checkbox visually
+"snapped back" unchecked every frame no matter what the user clicked — confirmed via direct user
+testing ("the checkbox does not hold"). **Lesson:** always check a new `tImGui.Checkbox` call against
+an existing one in the same file before assuming its return arity.
+
+### `pushResponsiveItemWidth`'s `min_width` is a floor, not a cap
+
+`tUtil.pushResponsiveItemWidth(min_width, label_reserve)` (`editor/editor_utils.lua:47`, built on
+`getResponsiveItemWidth:33`) returns `max(min_width, available_width - reserve)` — so on a wide
+window, passing e.g. `200` does **not** cap the widget at 200px, it becomes a widget that fills
+nearly the entire remaining width, since `available_width - reserve` is larger. Two real symptoms
+this session, same root cause: (1) a combo box built with this helper for a should-stay-modest
+bone/subset picker stretched to nearly the full bottom-docked window, crowding a checkbox placed
+`SameLine()` right after it off the visible edge — fixed by switching to a plain, fixed
+`tImGui.PushItemWidth(140)`; (2) a warning marker (`!`) placed `SameLine()` *after* a
+`pushResponsiveItemWidth`-sized `DragFloat` got silently clipped past the table column's own
+boundary, since the DragFloat had already consumed the entire column — fixed by drawing the marker
+*before* the DragFloat instead, so `GetContentRegionAvail()` (which the helper reads) already
+reflects the space the marker consumed by the time the DragFloat sizes itself. **Lesson:** use this
+helper only for a field that's *meant* to expand and fill its row/column; for anything that must stay
+a fixed, modest size regardless of window width, use `tImGui.PushItemWidth(pixels)` directly.
+
+### A three-way "smallest magnitude wins" axis pick flips on ordinary floating-point noise
+
+The Roll field's "zero roll" reference (`canonicalRollAxis`, `editor/mesh_debug.lua:134`) originally
+picked whichever world axis (X/Y/Z) had the smallest `|component|` against the bone's aim direction,
+via a three-way `<=` comparison chain. For an aim of exactly `(0,1,0)` this reliably picked world Z
+(`aax=0, aaz=0`, tie broken toward Z). But an aim *decoded back* from stored `rotX/Y/Z` for that same
+bone came back as `(~1e-7, 1, ~1e-7)` — mathematically identical, but with `aaz` a hair larger than
+`aax` due to ordinary trig rounding — which failed the same tie check and fell through to world X
+instead, a full 90° away. The result: `currentRollDeg` decoded a value 90° off from what
+`eulerFromAimAndRoll` had just encoded, confirmed by a direct round-trip test
+(`eulerFromAimAndRoll(0,1,0,179)` then `currentRollDeg` on the result returned `89`, not `179`).
+Fix: replaced the three-way magnitude race with a **wide-margin threshold** (world Y as reference
+unless `|ay| > 0.9`, in which case world X) — comparing against a fixed, well-separated constant
+instead of two near-zero magnitudes against *each other* is immune to this class of noise, since the
+real boundary case (an aim actually near-parallel to Y) sits nowhere close to 0.9. **Lesson:** never
+pick a discrete code path by comparing two values that can both independently be "computed zero" —
+if one is real user data and the other is decoded/reconstructed, floating-point noise can and will
+disagree about which is smaller.
+
+### Recompute must preserve roll, not reset it
+
+The per-bone Recompute button originally called `eulerFromAimAndRoll(ax, ay, az, 0)` — hardcoding
+roll to the canonical reference on every use. This is fine for a bone that never had real orientation
+data to begin with (length was already 0), but a direct user test on an *already-good*, real
+Blender-imported bone (the skeleton root, length 0.30, a real authored roll around -90°) showed
+Recompute silently discarding that roll down to 0 — real data loss, since Recompute's actual purpose
+is fixing a *missing* aim/length, not overwriting a *good* one just because the button was clicked.
+Fix: decode the bone's current roll first (`currentRollDeg(b.rotX, b.rotY, b.rotZ)`, relative to its
+OLD aim) and reapply that same angle to the newly-computed aim, in both the per-row Recompute and the
+Bones-node **Recompute All** batch action — length updates to the real geometric distance to the
+bone's child (or continuation from its parent), aim direction updates to match, but roll rides along
+unchanged unless the user deliberately adjusts the Roll field afterward. This also made it safe to add
+a "recompute even if Length is already set" option to Recompute All, for the "applied a
+borrowed/Mixamo armature template, then manually dragged joints to fit this specific mesh" workflow
+— `applyArmatureTemplate` only does a uniform scale + reposition (see above), and repositioning a
+joint via the X/Y/Z drag fields never updates its Length/rotation on its own, so a template's bones
+can end up with a real but geometrically stale Length; forcing Recompute across all of them is no
+longer destructive to roll the way it would have been before this fix.
