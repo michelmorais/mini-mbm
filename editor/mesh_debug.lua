@@ -4857,6 +4857,11 @@ end
 
 local BONE_GIZMO_COLOR = {1, 0, 1, 0.85}
 local BONE_HIGHLIGHT_COLOR = {1, 1, 0, 0.95}
+-- The Roll field (showBonesWindow) has no visual reference of its own -- this is that reference,
+-- a thin rod along the bone's CURRENT decoded roll (local Z) axis, shown only for a highlighted
+-- bone (direct user request) so checking Highlight is the one action that answers "which way does
+-- Roll actually point" instead of the number alone.
+local BONE_ROLL_AXIS_COLOR = {0, 1, 1, 1}
 
 -- DEVICE::addRenderizable (device-common.cpp) silently overwrites a 3D object's own position.z with
 -- an ever-incrementing internal "z order control" counter whenever that object is created with z
@@ -4942,8 +4947,9 @@ local function destroyBoneGizmo(tEntry)
     if tEntry.tBoneGizmo then
         for _, h in pairs(tEntry.tBoneGizmo.spheres) do h:destroy() end
         for _, link in ipairs(tEntry.tBoneGizmo.bones) do link.handle:destroy() end
+        for _, r in ipairs(tEntry.tBoneGizmo.rollAxes or {}) do r:destroy() end
     end
-    tEntry.tBoneGizmo = { spheres = {}, bones = {} }
+    tEntry.tBoneGizmo = { spheres = {}, bones = {}, rollAxes = {} }
 end
 
 -- Full gizmo rebuild: called whenever the bone list itself changes (add/remove/reparent/rename),
@@ -4961,10 +4967,11 @@ function rebuildBoneGizmo(tEntry, meshD, index)
 
     local tBones = {}
     for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ = dpCall(function() return meshD:getBone(i) end)
         if okG and name then
             local wx, wy, wz = boneToWorld(meshD, x, y, z)
-            tBones[name] = { wx = wx, wy = wy, wz = wz, radius = radius or 1, parentName = parentName }
+            tBones[name] = { wx = wx, wy = wy, wz = wz, radius = radius or 1, parentName = parentName,
+                rotX = rotX or 0, rotY = rotY or 0, rotZ = rotZ or 0 }
         end
     end
 
@@ -4991,6 +4998,24 @@ function rebuildBoneGizmo(tEntry, meshD, index)
         local c = tHighlight[name] and BONE_HIGHLIGHT_COLOR or BONE_GIZMO_COLOR
         h:setColor(c[1], c[2], c[3], c[4])
         tEntry.tBoneGizmo.spheres[name] = h
+
+        -- Roll-axis reference rod (direct user request: the Roll field had no visual meaning) --
+        -- only for a highlighted bone, a thin cylinder from this bone's own position along its
+        -- CURRENT decoded roll (local Z) axis, the same eulerToBoneFrame this whole feature already
+        -- decodes rotX/Y/Z with. rotX/Y/Z are stored in the same space x,y,z are (see
+        -- eulerToBoneFrame's own comment), and boneToWorld is presently an identity passthrough
+        -- (bone-local coords already equal world coords), so the direction needs no extra transform
+        -- beyond what positions above already went through.
+        if tHighlight[name] then
+            local _, _, _, zx, zy, zz = eulerToBoneFrame(b.rotX, b.rotY, b.rotZ)
+            local rodLen = b.radius * 5
+            tEntry.iBoneGizmoGen = (tEntry.iBoneGizmoGen or 0) + 1
+            local rod = shape:new('3d', b.wx, b.wy, dodgeAutoZOrder(b.wz))
+            rod:create(orientedCylinderVerts(zx * rodLen, zy * rodLen, zz * rodLen, b.radius * 0.15, b.radius * 0.15, 8),
+                nil, 'mesh_debug_bone_roll_' .. index .. '_' .. tEntry.iBoneGizmoGen)
+            rod:setColor(BONE_ROLL_AXIS_COLOR[1], BONE_ROLL_AXIS_COLOR[2], BONE_ROLL_AXIS_COLOR[3], BONE_ROLL_AXIS_COLOR[4])
+            table.insert(tEntry.tBoneGizmo.rollAxes, rod)
+        end
     end
 
     for name, b in pairs(tBones) do
@@ -6538,6 +6563,32 @@ function showBonesWindow()
                 end
 
                 tImGui.TableNextColumn()
+                -- length <= EPS (blender_mesh_skeleton_export.py's has_orientation() sentinel) means
+                -- THIS bone's rotX/Y/Z is silently ignored on FBX export -- ARMATURE_STANDARD_SKELETON_65
+                -- and every real Blender import always carries a real nonzero length, so this only ever
+                -- fires for a hand-authored bone that never got an orientation. Warn, never block --
+                -- length==0 stays a legitimate "use the position-topology fallback" sentinel for
+                -- legacy/no-provenance bones, per docs/bones-armatures-and-fbx.md.
+                --
+                -- Drawn BEFORE the DragFloat (not after, via SameLine): pushResponsiveItemWidth's
+                -- min_width is a floor, not a cap (max(min_width, available-reserve)), so the
+                -- DragFloat below normally fills the entire column -- a marker tacked on AFTER it
+                -- via SameLine was getting clipped off past the column's own boundary, invisible.
+                -- Drawing it first means GetContentRegionAvail() (which pushResponsiveItemWidth
+                -- reads) already reflects the space this marker consumed by the time the DragFloat
+                -- sizes itself, so the two never fight over the same pixels.
+                local lengthIsZero = b.length <= 1e-6
+                if lengthIsZero then
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.65, b = 0.2, a = 1})
+                    tImGui.Text('!')
+                    tImGui.PopStyleColor(1)
+                    if tImGui.IsItemHovered(0) then
+                        tImGui.BeginTooltip()
+                        tImGui.Text(tLang.L('bones_length_zero_warning'))
+                        tImGui.EndTooltip()
+                    end
+                    tImGui.SameLine()
+                end
                 tUtil.pushResponsiveItemWidth(140)
                 local chgLength, nLength = tImGui.DragFloat('Length##boneLength-' .. index .. '-' .. b.idx, b.length, sizeDragSpeed, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
@@ -6547,23 +6598,6 @@ function showBonesWindow()
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, nLength)
                     end)
                     if okU then onBonesEdit(tEntry, meshD, index) end
-                end
-                -- length <= EPS (blender_mesh_skeleton_export.py's has_orientation() sentinel) means
-                -- THIS bone's rotX/Y/Z is silently ignored on FBX export -- ARMATURE_STANDARD_SKELETON_65
-                -- and every real Blender import always carries a real nonzero length, so this only ever
-                -- fires for a hand-authored bone that never got an orientation. Warn, never block --
-                -- length==0 stays a legitimate "use the position-topology fallback" sentinel for
-                -- legacy/no-provenance bones, per docs/bones-armatures-and-fbx.md.
-                if b.length <= 1e-6 then
-                    tImGui.SameLine()
-                    tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.65, b = 0.2, a = 1})
-                    tImGui.Text('!')
-                    tImGui.PopStyleColor(1)
-                    if tImGui.IsItemHovered(0) then
-                        tImGui.BeginTooltip()
-                        tImGui.Text(tLang.L('bones_length_zero_warning'))
-                        tImGui.EndTooltip()
-                    end
                 end
 
                 tImGui.TableNextColumn()
@@ -6702,14 +6736,24 @@ function showBonesWindow()
 
         local tBoneNames = {}
         for _, bb in ipairs(tBones) do table.insert(tBoneNames, bb.name) end
-        tUtil.pushResponsiveItemWidth(200)
+        -- Fixed width, NOT pushResponsiveItemWidth -- that helper's min_width is a FLOOR, not a
+        -- cap (it returns max(min_width, available-reserve)), so on this wide, bottom-docked
+        -- window it stretched to nearly the full window width instead of staying a modest combo,
+        -- crowding the checkbox right after it off the edge of the window.
+        tImGui.PushItemWidth(140)
         local chgRbBone, newRbBonePos = tImGui.Combo('##rigidBindBone-' .. index, indexOf(tBoneNames, rb.boneName), tBoneNames, -1)
         tImGui.PopItemWidth()
         if chgRbBone then rb.boneName = tBoneNames[newRbBonePos]; rb.matched = nil end
 
         tImGui.SameLine()
-        local chgRbMode, wantSubsetMode = tImGui.Checkbox(tLang.L('bones_rigid_bind_use_subset') .. '##rigidBindMode-' .. index, rb.mode == 'subset')
-        if chgRbMode then rb.mode = wantSubsetMode and 'subset' or 'proximity'; rb.matched = nil end
+        -- tImGui.Checkbox returns ONLY the resulting boolean (unlike Combo/DragFloat's
+        -- (changed, value) pair) -- every other checkbox in this file compares against the old
+        -- value to detect a change (e.g. the Highlight checkbox below); this one previously
+        -- assumed a (changed, value) return here, so wantSubsetMode was always nil and rb.mode
+        -- could never actually become 'subset'.
+        local wantSubsetMode = tImGui.Checkbox(tLang.L('bones_rigid_bind_use_subset') .. '##rigidBindMode-' .. index, rb.mode == 'subset')
+        local newRbMode = wantSubsetMode and 'subset' or 'proximity'
+        if newRbMode ~= rb.mode then rb.mode = newRbMode; rb.matched = nil end
 
         local okRbS, nRbSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
         nRbSubsets = (okRbS and nRbSubsets) or 0
@@ -6720,7 +6764,7 @@ function showBonesWindow()
                 local okRbV, nRbV = dpCall(function() return meshD:getTotalVertex(1, s) end)
                 table.insert(tSubsetLabels, string.format('%s %d (%d v)', tLang.L('bones_rigid_bind_subset_label'), s, (okRbV and nRbV) or 0))
             end
-            tUtil.pushResponsiveItemWidth(220)
+            tImGui.PushItemWidth(160)
             local chgRbSubset, newRbSubset = tImGui.Combo('##rigidBindSubset-' .. index, rb.subsetIndex, tSubsetLabels, -1)
             tImGui.PopItemWidth()
             if chgRbSubset then rb.subsetIndex = newRbSubset; rb.matched = nil end
