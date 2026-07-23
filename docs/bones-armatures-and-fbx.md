@@ -582,3 +582,55 @@ borrowed/Mixamo armature template, then manually dragged joints to fit this spec
 joint via the X/Y/Z drag fields never updates its Length/rotation on its own, so a template's bones
 can end up with a real but geometrically stale Length; forcing Recompute across all of them is no
 longer destructive to roll the way it would have been before this fix.
+
+## Known Open Issue: Left/Right Mirroring on Import (Confirmed, NOT Yet Fixed)
+
+Unlike everything in Pitfalls above, this one is **diagnosed but not fixed** — flagged in its own
+section so nobody mistakes it for already-resolved. Revisit and fix as a dedicated piece of work.
+
+**Symptom, confirmed via a controlled user test:** a Mixamo character with an asymmetric prop on the
+head (visually on the character's right side, facing the camera, both on the Mixamo website and in a
+fresh/untouched Blender import of the same source FBX) shows that same prop on the character's
+**left** side once imported through `editor/blender_mesh_export.py` into `mesh_debug.lua`. Camera
+angle was explicitly controlled for (character facing the viewer in all three), and two independent,
+trusted references (Mixamo's own web viewer and a plain Blender import with no mini-mbm involvement)
+agree with each other and disagree with mini-mbm — ruling out "which way is the character facing" as
+the explanation and pointing at the import pipeline itself.
+
+**Root cause, confirmed by direct code inspection:**
+
+- Mini MBM's own camera/rendering math is **left-handed** — `src/core_mbm/camera.cpp:193-195` builds
+  the engine's view/projection matrices with `MatrixLookAtLH`/`MatrixPerspectiveFovLH` specifically
+  (right-handed variants of these same functions exist in `primitives.cpp` but aren't used for the
+  camera).
+- Blender (and FBX, and therefore anything downloaded from Mixamo) is natively **right-handed**.
+- `editor/blender_mesh_export.py`'s vertex export copies `world_pos.x/y/z` straight from Blender with
+  no conversion at all (its own comment near `extract_armature_joints`, ~line 1099, states this
+  explicitly: "no axis conversion"; the vertex-write code itself, `export_frame_subsets` ~line
+  695-697, confirms it). The *only* transform ever applied on import is a genuine **rotation**
+  (`rotate_point_deg`, driven by `--angle-x/y/z`), used to reconcile Blender's Z-up convention with
+  this engine's own Y-up convention.
+
+**Why a rotation can't fix this:** a rotation is a "proper" transform (determinant +1) — it changes
+which physical direction each axis *points*, but it mathematically cannot change whether the
+coordinate system as a whole is left- or right-handed (that's an invariant of any pure rotation).
+Only an actual reflection (negating exactly one axis) converts one handedness to the other. Since no
+such reflection exists anywhere in this pipeline, data authored in Blender's right-handed space is
+handed to mini-mbm's left-handed renderer completely unconverted — the up-axis rotation fixes "which
+way is up," but the model still renders as a mirror image of its Blender/Mixamo appearance. This is
+invisible on roughly-symmetric geometry (a humanoid body looks the same either way) and only becomes
+obvious with an asymmetric detail, exactly as the test above found.
+
+**Scope:** this isn't specific to one mesh or one prop — it would affect the left/right orientation of
+*everything* ever imported through `editor/blender_mesh_export.py`, silently, for any asset with a
+genuinely asymmetric shape or a left/right-specific bone name (`.l`/`.r`) that a viewer might rely on
+matching a specific physical side.
+
+**Why this needs care, not a one-line patch, when someone picks it up:** negating a single axis to
+correct the handedness also **flips triangle winding order** (every face would start rendering as
+back-facing/culled under this engine's own culling convention) unless index order within each
+triangle is also swapped to compensate. The fix needs to consistently cover: vertex positions,
+vertex normals, bone positions, *and* bone rotations (`rotX/Y/Z` — a Euler triple encodes a
+handedness-dependent rotation too, not just a position) — doing only some of these would trade this
+bug for a worse, more confusing one (e.g. correct positions but inverted normals, or a correctly
+mirrored mesh with an now-incorrect skeleton).
