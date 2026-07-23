@@ -6379,6 +6379,39 @@ function showBonesNode(tEntry, meshD, index)
         end
 
         tImGui.Separator()
+        -- Batch version of the per-row Recompute button (showBonesWindow) -- only touches bones
+        -- that actually need it (length <= EPS, the same threshold the length-warning marker uses),
+        -- so a bone with real Blender-imported orientation data is never clobbered by the
+        -- position-topology heuristic just because it happened to be in the same skeleton.
+        if tImGui.Button(tLang.L('bones_recompute_all_button') .. '##boneRecomputeAll-' .. index) then
+            local childrenByParent = computeChildrenByParent(tBones)
+            local anyOk = false
+            for _, b in ipairs(tBones) do
+                if b.length <= 1e-6 then
+                    local parentB = b.parentName and findBoneByName(tBones, b.parentName)
+                    local ax, ay, az, newLength = computeAimAndLength(childrenByParent, b, parentB)
+                    -- Preserve whatever roll the bone currently decodes to (relative to its OLD
+                    -- aim) rather than resetting to the canonical 0 reference -- for a length<=0
+                    -- bone this is usually a no-op (rotX/Y/Z was never real to begin with), but it's
+                    -- never wrong, and keeps this in lockstep with the per-row Recompute fix below.
+                    local curRoll = currentRollDeg(b.rotX, b.rotY, b.rotZ)
+                    local nRotX, nRotY, nRotZ = eulerFromAimAndRoll(ax, ay, az, curRoll)
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
+                            nRotX, nRotY, nRotZ, b.scaleX, b.scaleY, b.scaleZ, newLength)
+                    end)
+                    anyOk = anyOk or okU
+                end
+            end
+            if anyOk then onBonesEdit(tEntry, meshD, index) end
+        end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.Text(tLang.L('bones_recompute_all_tooltip'))
+            tImGui.EndTooltip()
+        end
+
+        tImGui.Separator()
         tEntry.sBonesNewName = tEntry.sBonesNewName or ('Bone ' .. (nBones + 1))
         tUtil.pushResponsiveItemWidth(150)
         local _, newBoneName = tImGui.InputText('##boneNewName-' .. index, tEntry.sBonesNewName, 64, 0)
@@ -6590,7 +6623,18 @@ function showBonesWindow()
                     tImGui.SameLine()
                 end
                 tUtil.pushResponsiveItemWidth(140)
+                -- Same warning color as the "!" marker, applied to the field itself (not just the
+                -- marker) so the zero-length row reads as flagged even without hovering for the
+                -- tooltip -- direct user request.
+                if lengthIsZero then
+                    tImGui.PushStyleColor('ImGuiCol_FrameBg', {r = 1, g = 0.5, b = 0.15, a = 0.35})
+                    tImGui.PushStyleColor('ImGuiCol_FrameBgHovered', {r = 1, g = 0.5, b = 0.15, a = 0.5})
+                    tImGui.PushStyleColor('ImGuiCol_FrameBgActive', {r = 1, g = 0.5, b = 0.15, a = 0.6})
+                end
                 local chgLength, nLength = tImGui.DragFloat('Length##boneLength-' .. index .. '-' .. b.idx, b.length, sizeDragSpeed, 0, 0, '%.3f')
+                if lengthIsZero then
+                    tImGui.PopStyleColor(3)
+                end
                 tImGui.PopItemWidth()
                 if chgLength then
                     local okU = dpCall(function()
@@ -6622,12 +6666,17 @@ function showBonesWindow()
                 tImGui.TableNextColumn()
                 -- Bakes compute_tail's own fallback (see computeAimAndLength above) into real
                 -- rotX/Y/Z + length, replacing an invisible export-time guess with inspectable,
-                -- further-editable data. Roll resets to 0 (canonicalRollAxis's own reference) --
-                -- adjust with the Roll field above afterward if needed.
+                -- further-editable data. Roll is PRESERVED (decoded from the bone's current
+                -- rotX/Y/Z relative to its OLD aim, then reapplied to the NEW aim) rather than
+                -- reset to 0 -- confirmed via direct user testing that resetting roll here was
+                -- real data loss: clicking Recompute on a bone that already had a real,
+                -- Blender-authored roll (e.g. the root bone) silently discarded it, even though
+                -- Recompute's whole purpose is fixing MISSING orientation, not overwriting a good one.
                 if tImGui.Button(tLang.L('bones_recompute_button') .. '##boneRecompute-' .. index .. '-' .. b.idx) then
                     local parentB = b.parentName and findBoneByName(tBones, b.parentName)
                     local ax, ay, az, newLength = computeAimAndLength(childrenByParent, b, parentB)
-                    local nRotX, nRotY, nRotZ = eulerFromAimAndRoll(ax, ay, az, 0)
+                    local curRoll = currentRollDeg(b.rotX, b.rotY, b.rotZ)
+                    local nRotX, nRotY, nRotZ = eulerFromAimAndRoll(ax, ay, az, curRoll)
                     local okU = dpCall(function()
                         return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
                             nRotX, nRotY, nRotZ, b.scaleX, b.scaleY, b.scaleZ, newLength)
