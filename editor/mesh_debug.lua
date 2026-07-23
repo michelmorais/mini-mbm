@@ -108,6 +108,61 @@ function boneFrameToEuler(yx, yy, yz, zx, zy, zz)
     return rotX * 180 / math.pi, rotY * 180 / math.pi, rotZ * 180 / math.pi
 end
 
+local function cross3(ax, ay, az, bx, by, bz)
+    return ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx
+end
+local function dot3(ax, ay, az, bx, by, bz)
+    return ax * bx + ay * by + az * bz
+end
+local function normalize3(x, y, z)
+    local len = math.sqrt(x * x + y * y + z * z)
+    if len < 1e-9 then return 0, 0, 0 end
+    return x / len, y / len, z / len
+end
+
+-- Canonical "roll = 0" reference axis for a given bone aim (local Y) direction: world Y
+-- ("up"), unless aim itself is nearly parallel to world Y (a near-vertical bone, the single most
+-- common case in this engine -- spines/limbs), in which case world X instead. Deliberately a
+-- wide-margin threshold (0.9), not a three-way "smallest |component| wins" comparison: comparing
+-- two near-zero magnitudes against EACH OTHER (rather than against a fixed, well-separated
+-- threshold) flips its choice on ordinary floating-point noise -- confirmed directly: an aim
+-- reconstructed from stored rotX/Y/Z came back as (~1e-7, 1, ~1e-7) instead of exactly (0,1,0),
+-- and the old three-way comparison picked a DIFFERENT (perpendicular) reference axis for it than
+-- for the exact input, silently rotating every decoded roll by ~90 degrees. This threshold form
+-- only switches near true axis-alignment (|ay| within 1e-7 of 1.0 stays well above 0.9), so it's
+-- immune to that class of noise.
+local function canonicalRollAxis(ax, ay, az)
+    local refX, refY, refZ = 0, 1, 0
+    if math.abs(ay) > 0.9 then
+        refX, refY, refZ = 1, 0, 0
+    end
+    local d = dot3(refX, refY, refZ, ax, ay, az)
+    return normalize3(refX - d * ax, refY - d * ay, refZ - d * az)
+end
+
+-- Reads a bone's CURRENT roll (degrees) relative to its own canonicalRollAxis, purely from its
+-- already-stored rotX/Y/Z -- stateless, recomputed fresh every frame exactly like every other
+-- field in the bones table (X/Y/Z/Radius/Length), since SKELETON_BONE_V11 has no separate roll
+-- field of its own to persist this in.
+function currentRollDeg(rotX, rotY, rotZ)
+    local yx, yy, yz, zx, zy, zz = eulerToBoneFrame(rotX, rotY, rotZ)
+    local rx, ry, rz = canonicalRollAxis(yx, yy, yz)
+    local cosT = dot3(rx, ry, rz, zx, zy, zz)
+    local cx, cy, cz = cross3(rx, ry, rz, zx, zy, zz)
+    local sinT = dot3(cx, cy, cz, yx, yy, yz)
+    return math.atan(sinT, cosT) * 180 / math.pi
+end
+
+-- Inverse of currentRollDeg: given a bone aim direction (unit vector, local Y axis) and a target
+-- roll angle in degrees, returns rotX/Y/Z. Rodrigues' rotation formula around the aim axis,
+-- simplified since canonicalRollAxis is already guaranteed orthogonal to aim (k.v = 0 term drops).
+function eulerFromAimAndRoll(ax, ay, az, rollDeg)
+    local rx, ry, rz = canonicalRollAxis(ax, ay, az)
+    local kx, ky, kz = cross3(ax, ay, az, rx, ry, rz)
+    local c, s = math.cos(rollDeg * math.pi / 180), math.sin(rollDeg * math.pi / 180)
+    return boneFrameToEuler(ax, ay, az, rx * c + kx * s, ry * c + ky * s, rz * c + kz * s)
+end
+
 -- Bakes a rotation into every bone's own x,y,z (degrees, applied X then Y then Z), matching
 -- meshDebug:rotateFrame's exact per-axis formulas and order (src/core_mbm/mesh-manager.cpp:3128)
 -- -- rotateX/Y/Z above are the same helpers verified against MatrixRotationX/Y/Z. Used to keep the
@@ -4802,6 +4857,11 @@ end
 
 local BONE_GIZMO_COLOR = {1, 0, 1, 0.85}
 local BONE_HIGHLIGHT_COLOR = {1, 1, 0, 0.95}
+-- The Roll field (showBonesWindow) has no visual reference of its own -- this is that reference,
+-- a thin rod along the bone's CURRENT decoded roll (local Z) axis, shown only for a highlighted
+-- bone (direct user request) so checking Highlight is the one action that answers "which way does
+-- Roll actually point" instead of the number alone.
+local BONE_ROLL_AXIS_COLOR = {0, 1, 1, 1}
 
 -- DEVICE::addRenderizable (device-common.cpp) silently overwrites a 3D object's own position.z with
 -- an ever-incrementing internal "z order control" counter whenever that object is created with z
@@ -4887,8 +4947,9 @@ local function destroyBoneGizmo(tEntry)
     if tEntry.tBoneGizmo then
         for _, h in pairs(tEntry.tBoneGizmo.spheres) do h:destroy() end
         for _, link in ipairs(tEntry.tBoneGizmo.bones) do link.handle:destroy() end
+        for _, r in ipairs(tEntry.tBoneGizmo.rollAxes or {}) do r:destroy() end
     end
-    tEntry.tBoneGizmo = { spheres = {}, bones = {} }
+    tEntry.tBoneGizmo = { spheres = {}, bones = {}, rollAxes = {} }
 end
 
 -- Full gizmo rebuild: called whenever the bone list itself changes (add/remove/reparent/rename),
@@ -4906,10 +4967,11 @@ function rebuildBoneGizmo(tEntry, meshD, index)
 
     local tBones = {}
     for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName = dpCall(function() return meshD:getBone(i) end)
+        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ = dpCall(function() return meshD:getBone(i) end)
         if okG and name then
             local wx, wy, wz = boneToWorld(meshD, x, y, z)
-            tBones[name] = { wx = wx, wy = wy, wz = wz, radius = radius or 1, parentName = parentName }
+            tBones[name] = { wx = wx, wy = wy, wz = wz, radius = radius or 1, parentName = parentName,
+                rotX = rotX or 0, rotY = rotY or 0, rotZ = rotZ or 0 }
         end
     end
 
@@ -4936,6 +4998,24 @@ function rebuildBoneGizmo(tEntry, meshD, index)
         local c = tHighlight[name] and BONE_HIGHLIGHT_COLOR or BONE_GIZMO_COLOR
         h:setColor(c[1], c[2], c[3], c[4])
         tEntry.tBoneGizmo.spheres[name] = h
+
+        -- Roll-axis reference rod (direct user request: the Roll field had no visual meaning) --
+        -- only for a highlighted bone, a thin cylinder from this bone's own position along its
+        -- CURRENT decoded roll (local Z) axis, the same eulerToBoneFrame this whole feature already
+        -- decodes rotX/Y/Z with. rotX/Y/Z are stored in the same space x,y,z are (see
+        -- eulerToBoneFrame's own comment), and boneToWorld is presently an identity passthrough
+        -- (bone-local coords already equal world coords), so the direction needs no extra transform
+        -- beyond what positions above already went through.
+        if tHighlight[name] then
+            local _, _, _, zx, zy, zz = eulerToBoneFrame(b.rotX, b.rotY, b.rotZ)
+            local rodLen = b.radius * 5
+            tEntry.iBoneGizmoGen = (tEntry.iBoneGizmoGen or 0) + 1
+            local rod = shape:new('3d', b.wx, b.wy, dodgeAutoZOrder(b.wz))
+            rod:create(orientedCylinderVerts(zx * rodLen, zy * rodLen, zz * rodLen, b.radius * 0.15, b.radius * 0.15, 8),
+                nil, 'mesh_debug_bone_roll_' .. index .. '_' .. tEntry.iBoneGizmoGen)
+            rod:setColor(BONE_ROLL_AXIS_COLOR[1], BONE_ROLL_AXIS_COLOR[2], BONE_ROLL_AXIS_COLOR[3], BONE_ROLL_AXIS_COLOR[4])
+            table.insert(tEntry.tBoneGizmo.rollAxes, rod)
+        end
     end
 
     for name, b in pairs(tBones) do
@@ -5837,6 +5917,10 @@ local function onBonesEdit(tEntry, meshD, index)
     -- its own comment) -- Mesh Info's cached stats (showMeshInfoTable's tEntry.weightStats) must
     -- not keep showing stale numbers after that.
     tEntry.weightStats = nil
+    -- A moved/resized bone (or Recompute/Roll changing its orientation) can change which vertices
+    -- are actually nearest to it -- a cached Rigid Bind preview (showBonesWindow's
+    -- tEntry.tRigidBindUI.matched) must not stay showing a stale vertex set after that.
+    if tEntry.tRigidBindUI then tEntry.tRigidBindUI.matched = nil end
     rebuildBoneGizmo(tEntry, meshD, index)
 end
 
@@ -5859,6 +5943,144 @@ local function computeFieldDragSpeed(tBones, fields, fallback)
     end
     if minV == nil or maxV <= minV then return fallback end
     return math.max((maxV - minV) / 200, fallback)
+end
+
+local function findBoneByName(tBones, name)
+    for _, bb in ipairs(tBones) do
+        if bb.name == name then return bb end
+    end
+    return nil
+end
+
+-- children_by_parent (blender_mesh_skeleton_export.py:200-203), ported to Lua so Recompute can
+-- mirror the exporter's own topology rules exactly.
+local function computeChildrenByParent(tBones)
+    local childrenMap = {}
+    for _, bb in ipairs(tBones) do
+        if bb.parentName then
+            childrenMap[bb.parentName] = childrenMap[bb.parentName] or {}
+            table.insert(childrenMap[bb.parentName], bb)
+        end
+    end
+    return childrenMap
+end
+
+-- Ports compute_tail (blender_mesh_skeleton_export.py:228-245) -- the exact fallback the FBX
+-- exporter already uses, silently, whenever a bone's length is <= EPS -- into Lua, so "Recompute"
+-- bakes that same direction into real, inspectable/editable fields instead of leaving it an
+-- invisible export-time guess. Same rules: a single child -> aim at it; a multi-child ROOT (no
+-- parent) -> aim at its first child; a leaf or a multi-child NON-root -> continue the direction
+-- the bone arrived from (parent -> self); returns a unit aim vector (bone-local Y axis) + length.
+local function computeAimAndLength(childrenMap, b, parentB)
+    local children = childrenMap[b.name]
+    local ax, ay, az, length
+    if children and (#children == 1 or not parentB) then
+        local target = children[1]
+        local dx, dy, dz = target.x - b.x, target.y - b.y, target.z - b.z
+        local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if d >= 1e-6 then
+            ax, ay, az, length = dx / d, dy / d, dz / d, d
+        end
+    end
+    if not ax and parentB then
+        local dx, dy, dz = b.x - parentB.x, b.y - parentB.y, b.z - parentB.z
+        local dlen = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if dlen >= 1e-6 then
+            ax, ay, az, length = dx / dlen, dy / dlen, dz / dlen, math.max(0.01, dlen)
+        end
+    end
+    if not ax then
+        -- Rootless leaf or a degenerate coincident parent -- both rare. Default to straight up
+        -- (+Y), this engine's own vertical convention (e.g. CAMERA position/focus height), rather
+        -- than Python's own post-rotation +Z default which only makes sense in its own transformed
+        -- export space.
+        ax, ay, az, length = 0, 1, 0, 0.01
+    end
+    return ax, ay, az, length
+end
+
+-- Squared point-to-segment distance in 3D (segment (ax,ay,az)-(bx,by,bz), point (px,py,pz)) --
+-- the same distance concept Blender's ARMATURE_ENVELOPE uses to decide which bone influences a
+-- vertex (blender_mesh_skeleton_export.py's set_envelope_radius), computed explicitly here so the
+-- editor can preview/select a rigid-bind target before writing real per-vertex weights, instead of
+-- leaving Blender to guess it at export time.
+local function pointSegmentDistSq(px, py, pz, ax, ay, az, bx, by, bz)
+    local dx, dy, dz = bx - ax, by - ay, bz - az
+    local segLenSq = dx * dx + dy * dy + dz * dz
+    if segLenSq < 1e-12 then
+        local ex, ey, ez = px - ax, py - ay, pz - az
+        return ex * ex + ey * ey + ez * ez
+    end
+    local t = ((px - ax) * dx + (py - ay) * dy + (pz - az) * dz) / segLenSq
+    t = math.max(0, math.min(1, t))
+    local cx, cy, cz = ax + dx * t, ay + dy * t, az + dz * t
+    local ex, ey, ez = px - cx, py - cy, pz - cz
+    return ex * ex + ey * ey + ez * ez
+end
+
+-- Finds every frame-1 vertex whose NEAREST bone segment (every bone's own position <-> its
+-- parent's position; a root bone's "segment" is just its own point) is targetBone's own segment,
+-- within targetBone.radius -- a rigid-bind candidate set for "Apply Rigid Bind" below. Global
+-- vertex indices follow the exact same running-subset-offset convention writeMeshDebugJson (and
+-- meshD:setVertexWeight/getVertexWeight) already use: cumulative vertex count from PRIOR subsets
+-- (frame 1 only) + this subset's own 1-based index.
+local function findVerticesNearBoneSegment(meshD, tBones, targetBone)
+    local segments = {}
+    for _, bb in ipairs(tBones) do
+        local parentB = bb.parentName and findBoneByName(tBones, bb.parentName)
+        segments[bb.name] = {
+            ax = bb.x, ay = bb.y, az = bb.z,
+            bx = parentB and parentB.x or bb.x,
+            by = parentB and parentB.y or bb.y,
+            bz = parentB and parentB.z or bb.z,
+        }
+    end
+    local radiusSq = (targetBone.radius or 0) * (targetBone.radius or 0)
+    local matched = {}
+    local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    nSubsets = (okS and nSubsets) or 0
+    local totalVerts = 0
+    for s = 1, nSubsets do
+        local okV, nVerts = dpCall(function() return meshD:getTotalVertex(1, s) end)
+        nVerts = (okV and nVerts) or 0
+        for v = 1, nVerts do
+            local okG, vert = dpCall(function() return meshD:getVertex(1, s, v) end)
+            if okG and vert then
+                local bestName, bestDistSq = nil, nil
+                for name, seg in pairs(segments) do
+                    local d2 = pointSegmentDistSq(vert.x, vert.y, vert.z, seg.ax, seg.ay, seg.az, seg.bx, seg.by, seg.bz)
+                    if not bestDistSq or d2 < bestDistSq then
+                        bestDistSq, bestName = d2, name
+                    end
+                end
+                if bestName == targetBone.name and bestDistSq <= radiusSq then
+                    table.insert(matched, { globalIndex = totalVerts + v })
+                end
+            end
+        end
+        totalVerts = totalVerts + nVerts
+    end
+    return matched
+end
+
+-- Fast path for when the rigid-bind target is already its own material subset (e.g. the sword was
+-- a separate object/material in the source file): every vertex in that subset, no distance math.
+local function findVerticesInSubset(meshD, subsetIndex)
+    local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+    nSubsets = (okS and nSubsets) or 0
+    local totalVerts = 0
+    local matched = {}
+    for s = 1, nSubsets do
+        local okV, nVerts = dpCall(function() return meshD:getTotalVertex(1, s) end)
+        nVerts = (okV and nVerts) or 0
+        if s == subsetIndex then
+            for v = 1, nVerts do
+                table.insert(matched, { globalIndex = totalVerts + v })
+            end
+        end
+        totalVerts = totalVerts + nVerts
+    end
+    return matched
 end
 
 -- ---------------------------------------------------------------------------
@@ -6157,6 +6379,52 @@ function showBonesNode(tEntry, meshD, index)
         end
 
         tImGui.Separator()
+        -- Batch version of the per-row Recompute button (showBonesWindow). By default only touches
+        -- bones that actually need it (length <= EPS, the same threshold the length-warning marker
+        -- uses), so a bone with real Blender-imported orientation data is never clobbered by the
+        -- position-topology heuristic just because it happened to be in the same skeleton. The
+        -- "even if Length is already set" checkbox opts into recomputing EVERY bone instead --
+        -- direct user request, for the "applied a borrowed/Mixamo armature template, then manually
+        -- dragged joints to fit this specific mesh" workflow: applyArmatureTemplate only does a
+        -- uniform scale + reposition (it can't know this mesh's own limb proportions), and manually
+        -- repositioning a joint afterward (the X/Y/Z drag fields) never touches Length/rotation --
+        -- so every bone can end up with a real but now geometrically STALE length. Safe to force
+        -- now that Recompute preserves each bone's existing roll instead of resetting it.
+        tEntry.bRecomputeAllForce = tImGui.Checkbox(tLang.L('bones_recompute_all_force_checkbox') .. '##boneRecomputeAllForce-' .. index, tEntry.bRecomputeAllForce or false)
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.Text(tLang.L('bones_recompute_all_force_tooltip'))
+            tImGui.EndTooltip()
+        end
+        if tImGui.Button(tLang.L('bones_recompute_all_button') .. '##boneRecomputeAll-' .. index) then
+            local childrenByParent = computeChildrenByParent(tBones)
+            local anyOk = false
+            for _, b in ipairs(tBones) do
+                if tEntry.bRecomputeAllForce or b.length <= 1e-6 then
+                    local parentB = b.parentName and findBoneByName(tBones, b.parentName)
+                    local ax, ay, az, newLength = computeAimAndLength(childrenByParent, b, parentB)
+                    -- Preserve whatever roll the bone currently decodes to (relative to its OLD
+                    -- aim) rather than resetting to the canonical 0 reference -- for a length<=0
+                    -- bone this is usually a no-op (rotX/Y/Z was never real to begin with), but it's
+                    -- never wrong, and keeps this in lockstep with the per-row Recompute fix below.
+                    local curRoll = currentRollDeg(b.rotX, b.rotY, b.rotZ)
+                    local nRotX, nRotY, nRotZ = eulerFromAimAndRoll(ax, ay, az, curRoll)
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
+                            nRotX, nRotY, nRotZ, b.scaleX, b.scaleY, b.scaleZ, newLength)
+                    end)
+                    anyOk = anyOk or okU
+                end
+            end
+            if anyOk then onBonesEdit(tEntry, meshD, index) end
+        end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.Text(tLang.L('bones_recompute_all_tooltip'))
+            tImGui.EndTooltip()
+        end
+
+        tImGui.Separator()
         tEntry.sBonesNewName = tEntry.sBonesNewName or ('Bone ' .. (nBones + 1))
         tUtil.pushResponsiveItemWidth(150)
         local _, newBoneName = tImGui.InputText('##boneNewName-' .. index, tEntry.sBonesNewName, 64, 0)
@@ -6253,7 +6521,7 @@ function showBonesWindow()
         local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
             'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_ScrollX', 'ImGuiTableFlags_SizingFixedFit')
         local listH = math.min(#tBones * 30 + 34, 320)
-        if tImGui.BeginTable('bonesTbl-' .. index, 10, tblFlags, {x = 0, y = listH}) then
+        if tImGui.BeginTable('bonesTbl-' .. index, 12, tblFlags, {x = 0, y = listH}) then
             tImGui.TableSetupScrollFreeze(1, 1)
             tImGui.TableSetupColumn(tLang.L('bones_name_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 160)
             tImGui.TableSetupColumn(tLang.L('bones_parent_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 160)
@@ -6262,11 +6530,14 @@ function showBonesWindow()
             tImGui.TableSetupColumn('Z', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 110)
             tImGui.TableSetupColumn(tLang.L('bones_radius_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
             tImGui.TableSetupColumn(tLang.L('bones_length_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
+            tImGui.TableSetupColumn(tLang.L('bones_recompute_button'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 120)
+            tImGui.TableSetupColumn(tLang.L('bones_roll_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 110)
             tImGui.TableSetupColumn(tLang.L('bones_highlight_label'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 50)
             tImGui.TableSetupColumn('Remove?', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 130)
             tImGui.TableSetupColumn('Add Child?', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 150)
             tImGui.TableHeadersRow()
 
+            local childrenByParent = computeChildrenByParent(tBones)
             local iCountColumns = 0
             for _, b in ipairs(tBones) do
                 tImGui.TableNextRow()
@@ -6329,6 +6600,11 @@ function showBonesWindow()
                 tUtil.pushResponsiveItemWidth(120)
                 local chgRadius, nRadius = tImGui.DragFloat('Radius##boneRadius-' .. index .. '-' .. b.idx, b.radius, sizeDragSpeed, 0, 0, '%.3f')
                 tImGui.PopItemWidth()
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('bones_radius_tooltip'))
+                    tImGui.EndTooltip()
+                end
                 if chgRadius then
                     local okU = dpCall(function()
                         return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, nRadius,
@@ -6338,13 +6614,105 @@ function showBonesWindow()
                 end
 
                 tImGui.TableNextColumn()
+                -- length <= EPS (blender_mesh_skeleton_export.py's has_orientation() sentinel) means
+                -- THIS bone's rotX/Y/Z is silently ignored on FBX export -- ARMATURE_STANDARD_SKELETON_65
+                -- and every real Blender import always carries a real nonzero length, so this only ever
+                -- fires for a hand-authored bone that never got an orientation. Warn, never block --
+                -- length==0 stays a legitimate "use the position-topology fallback" sentinel for
+                -- legacy/no-provenance bones, per docs/bones-armatures-and-fbx.md.
+                --
+                -- Drawn BEFORE the DragFloat (not after, via SameLine): pushResponsiveItemWidth's
+                -- min_width is a floor, not a cap (max(min_width, available-reserve)), so the
+                -- DragFloat below normally fills the entire column -- a marker tacked on AFTER it
+                -- via SameLine was getting clipped off past the column's own boundary, invisible.
+                -- Drawing it first means GetContentRegionAvail() (which pushResponsiveItemWidth
+                -- reads) already reflects the space this marker consumed by the time the DragFloat
+                -- sizes itself, so the two never fight over the same pixels.
+                local lengthIsZero = b.length <= 1e-6
+                if lengthIsZero then
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.65, b = 0.2, a = 1})
+                    tImGui.Text('!')
+                    tImGui.PopStyleColor(1)
+                    if tImGui.IsItemHovered(0) then
+                        tImGui.BeginTooltip()
+                        tImGui.Text(tLang.L('bones_length_zero_warning'))
+                        tImGui.EndTooltip()
+                    end
+                    tImGui.SameLine()
+                end
                 tUtil.pushResponsiveItemWidth(140)
+                -- Same warning color as the "!" marker, applied to the field itself (not just the
+                -- marker) so the zero-length row reads as flagged even without hovering for the
+                -- tooltip -- direct user request.
+                if lengthIsZero then
+                    tImGui.PushStyleColor('ImGuiCol_FrameBg', {r = 1, g = 0.5, b = 0.15, a = 0.35})
+                    tImGui.PushStyleColor('ImGuiCol_FrameBgHovered', {r = 1, g = 0.5, b = 0.15, a = 0.5})
+                    tImGui.PushStyleColor('ImGuiCol_FrameBgActive', {r = 1, g = 0.5, b = 0.15, a = 0.6})
+                end
                 local chgLength, nLength = tImGui.DragFloat('Length##boneLength-' .. index .. '-' .. b.idx, b.length, sizeDragSpeed, 0, 0, '%.3f')
+                if lengthIsZero then
+                    tImGui.PopStyleColor(3)
+                end
                 tImGui.PopItemWidth()
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('bones_length_tooltip'))
+                    tImGui.EndTooltip()
+                end
                 if chgLength then
                     local okU = dpCall(function()
                         return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
                             b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, nLength)
+                    end)
+                    if okU then onBonesEdit(tEntry, meshD, index) end
+                end
+
+                tImGui.TableNextColumn()
+                -- Bakes compute_tail's own fallback (see computeAimAndLength above) into real
+                -- rotX/Y/Z + length, replacing an invisible export-time guess with inspectable,
+                -- further-editable data. Roll is PRESERVED (decoded from the bone's current
+                -- rotX/Y/Z relative to its OLD aim, then reapplied to the NEW aim) rather than
+                -- reset to 0 -- confirmed via direct user testing that resetting roll here was
+                -- real data loss: clicking Recompute on a bone that already had a real,
+                -- Blender-authored roll (e.g. the root bone) silently discarded it, even though
+                -- Recompute's whole purpose is fixing MISSING orientation, not overwriting a good one.
+                if tImGui.Button(tLang.L('bones_recompute_button') .. '##boneRecompute-' .. index .. '-' .. b.idx) then
+                    local parentB = b.parentName and findBoneByName(tBones, b.parentName)
+                    local ax, ay, az, newLength = computeAimAndLength(childrenByParent, b, parentB)
+                    local curRoll = currentRollDeg(b.rotX, b.rotY, b.rotZ)
+                    local nRotX, nRotY, nRotZ = eulerFromAimAndRoll(ax, ay, az, curRoll)
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
+                            nRotX, nRotY, nRotZ, b.scaleX, b.scaleY, b.scaleZ, newLength)
+                    end)
+                    if okU then onBonesEdit(tEntry, meshD, index) end
+                end
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('bones_recompute_tooltip'))
+                    tImGui.EndTooltip()
+                end
+
+                tImGui.TableNextColumn()
+                -- Stateless: decoded fresh from b.rotX/Y/Z every frame (same convention as every
+                -- other field in this row) rather than a persisted field -- SKELETON_BONE_V11 has
+                -- no roll field of its own, only rotX/Y/Z, so "roll" only exists as this
+                -- canonicalRollAxis-relative decomposition.
+                tUtil.pushResponsiveItemWidth(100)
+                local curRoll = currentRollDeg(b.rotX, b.rotY, b.rotZ)
+                local chgRoll, nRoll = tImGui.DragFloat('Roll##boneRoll-' .. index .. '-' .. b.idx, curRoll, 1.0, 0, 0, '%.1f')
+                tImGui.PopItemWidth()
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('bones_roll_tooltip'))
+                    tImGui.EndTooltip()
+                end
+                if chgRoll then
+                    local yx, yy, yz = eulerToBoneFrame(b.rotX, b.rotY, b.rotZ)
+                    local nRotX, nRotY, nRotZ = eulerFromAimAndRoll(yx, yy, yz, nRoll)
+                    local okU = dpCall(function()
+                        return meshD:updateBone(b.idx, b.name, b.parentName, b.x, b.y, b.z, b.radius,
+                            nRotX, nRotY, nRotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
                     end)
                     if okU then onBonesEdit(tEntry, meshD, index) end
                 end
@@ -6420,6 +6788,104 @@ function showBonesWindow()
         tImGui.SameLine()
         if tImGui.Button(tLang.L('cancel') .. '##boneRmCancel-' .. index) then
             tEntry.tBonePendingRemove = nil
+        end
+    end
+
+    -- ---------------------------------------------------------------------------
+    -- Rigid Bind: writes real per-vertex weight 1.0 to one bone (SECTION_VERTEX_SKIN_WEIGHTS,
+    -- meshD:setVertexWeight) for a prop that shouldn't deform (e.g. a sword welded to a hand),
+    -- instead of leaving Blender's distance-based ARMATURE_ENVELOPE guess to decide which nearby
+    -- bone(s) influence it -- exactly the scenario that produced a mismatched/wrong-looking
+    -- attachment in Mixamo that prompted this whole feature. blender_mesh_skeleton_export.py's
+    -- override pass keeps every OTHER vertex's normal envelope-derived weighting untouched.
+    -- ---------------------------------------------------------------------------
+    if #tBones > 0 then
+        tImGui.Separator()
+        tImGui.Text(tLang.L('bones_rigid_bind_section'))
+        tImGui.HelpMarker(tLang.L('bones_rigid_bind_help'))
+
+        tEntry.tRigidBindUI = tEntry.tRigidBindUI or { boneName = tBones[1].name, mode = 'proximity', subsetIndex = 1, matched = nil }
+        local rb = tEntry.tRigidBindUI
+        if not findBoneByName(tBones, rb.boneName) then
+            rb.boneName = tBones[1].name
+            rb.matched = nil
+        end
+
+        local tBoneNames = {}
+        for _, bb in ipairs(tBones) do table.insert(tBoneNames, bb.name) end
+        -- Fixed width, NOT pushResponsiveItemWidth -- that helper's min_width is a FLOOR, not a
+        -- cap (it returns max(min_width, available-reserve)), so on this wide, bottom-docked
+        -- window it stretched to nearly the full window width instead of staying a modest combo,
+        -- crowding the checkbox right after it off the edge of the window.
+        tImGui.PushItemWidth(140)
+        local chgRbBone, newRbBonePos = tImGui.Combo('##rigidBindBone-' .. index, indexOf(tBoneNames, rb.boneName), tBoneNames, -1)
+        tImGui.PopItemWidth()
+        if chgRbBone then rb.boneName = tBoneNames[newRbBonePos]; rb.matched = nil end
+
+        tImGui.SameLine()
+        -- tImGui.Checkbox returns ONLY the resulting boolean (unlike Combo/DragFloat's
+        -- (changed, value) pair) -- every other checkbox in this file compares against the old
+        -- value to detect a change (e.g. the Highlight checkbox below); this one previously
+        -- assumed a (changed, value) return here, so wantSubsetMode was always nil and rb.mode
+        -- could never actually become 'subset'.
+        local wantSubsetMode = tImGui.Checkbox(tLang.L('bones_rigid_bind_use_subset') .. '##rigidBindMode-' .. index, rb.mode == 'subset')
+        local newRbMode = wantSubsetMode and 'subset' or 'proximity'
+        if newRbMode ~= rb.mode then rb.mode = newRbMode; rb.matched = nil end
+
+        local okRbS, nRbSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+        nRbSubsets = (okRbS and nRbSubsets) or 0
+        if rb.mode == 'subset' and nRbSubsets > 0 then
+            rb.subsetIndex = math.min(math.max(rb.subsetIndex or 1, 1), nRbSubsets)
+            local tSubsetLabels = {}
+            for s = 1, nRbSubsets do
+                local okRbV, nRbV = dpCall(function() return meshD:getTotalVertex(1, s) end)
+                table.insert(tSubsetLabels, string.format('%s %d (%d v)', tLang.L('bones_rigid_bind_subset_label'), s, (okRbV and nRbV) or 0))
+            end
+            tImGui.PushItemWidth(160)
+            local chgRbSubset, newRbSubset = tImGui.Combo('##rigidBindSubset-' .. index, rb.subsetIndex, tSubsetLabels, -1)
+            tImGui.PopItemWidth()
+            if chgRbSubset then rb.subsetIndex = newRbSubset; rb.matched = nil end
+        end
+
+        -- Recomputes on an explicit click only -- per-vertex distance math over the whole mesh
+        -- (findVerticesNearBoneSegment) is the same "thousands, not tens, of iterations" cost
+        -- computeWeightStats's own comment warns about, so this follows that same
+        -- cache-and-invalidate-on-edit pattern (tEntry.tRigidBindUI.matched, cleared by
+        -- onBonesEdit) rather than recomputing every frame the window happens to be open.
+        if tImGui.Button(tLang.L('bones_rigid_bind_preview_button') .. '##rigidBindPreview-' .. index) then
+            local targetBone = findBoneByName(tBones, rb.boneName)
+            if targetBone then
+                if rb.mode == 'subset' then
+                    rb.matched = findVerticesInSubset(meshD, rb.subsetIndex)
+                else
+                    rb.matched = findVerticesNearBoneSegment(meshD, tBones, targetBone)
+                end
+            end
+        end
+        tImGui.SameLine()
+        if rb.matched then
+            tImGui.Text(string.format(tLang.L('bones_rigid_bind_match_count_fmt'), #rb.matched))
+        else
+            tImGui.TextDisabled(tLang.L('bones_rigid_bind_no_preview_label'))
+        end
+
+        if rb.matched and #rb.matched > 0 then
+            if tImGui.Button(tLang.L('bones_rigid_bind_apply_button') .. '##rigidBindApply-' .. index) then
+                local nApplied, allOk = 0, true
+                for _, m in ipairs(rb.matched) do
+                    local okSet = dpCall(function()
+                        return meshD:setVertexWeight(m.globalIndex, rb.boneName, 1.0, nil, 0, nil, 0, nil, 0)
+                    end)
+                    if okSet then nApplied = nApplied + 1 else allOk = false end
+                end
+                if allOk then
+                    tUtil.showMessage(string.format(tLang.L('bones_rigid_bind_applied_fmt'), nApplied, rb.boneName))
+                else
+                    tUtil.showMessageWarn(string.format(tLang.L('bones_rigid_bind_applied_partial_fmt'), nApplied, #rb.matched))
+                end
+                rb.matched = nil
+                onBonesEdit(tEntry, meshD, index)
+            end
         end
     end
 
