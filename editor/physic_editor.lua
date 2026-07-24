@@ -179,6 +179,10 @@ function initCam3dFraming()
         m:create('circle', size, size, segments, false, freshName(namePrefix))
         m:setColor(r,g,b)
         m.visible = visible
+        -- These are hover/pivot handles drawn coincident with the edited mesh's own physics
+        -- shapes/surface -- without this, depth test can bury them behind the mesh regardless
+        -- of draw order (see RENDERIZABLE::isAlwaysOnTop's doc comment in renderizable.h).
+        m.alwaysOnTop = true
         return m
     end
 
@@ -1145,6 +1149,11 @@ function onLoadMesh()
         end
         tHighLightPoint:setColor(0,1,0)
         tHighLightPoint.visible = false
+        -- Both markers sit coincident with the edited mesh/sprite's own surface -- guarantee
+        -- they win depth test regardless of draw order (see RENDERIZABLE::isAlwaysOnTop's doc
+        -- comment in renderizable.h); resizeMarker3d above applies the same flag once the '.msh'
+        -- 3D branch replaces these with proportioned markers.
+        tHighLightPoint.alwaysOnTop = true
         -- Distinct from tHighLightPoint (hover highlight, green) -- marks the mesh's true AABB
         -- center (obj:getAABBCenter(), MBM_VERSION 6.9.0), not just its pivot/local origin. Lets
         -- the user see where new physics shapes will default to when adding one (see
@@ -1152,6 +1161,7 @@ function onLoadMesh()
         -- anchored at its floor).
         tAABBCenterMarker:setColor(1,1,0)
         tAABBCenterMarker.visible = true
+        tAABBCenterMarker.alwaysOnTop = true
 
         if tMesh:load(file_name) then
             bShowEditPhysics = true

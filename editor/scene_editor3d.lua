@@ -1133,6 +1133,12 @@ function highlightBoxTriangleFaces(corners)
     }
 end
 
+-- A highlight box scaled to the object's exact AABB is invisible on any object that's itself a
+-- cube (its faces sit flush with the AABB's own faces, so the translucent overlay has no visible
+-- margin to shade). Inflating by a fixed 10% keeps the box hugging the object while guaranteeing a
+-- visible rim on every shape, cube or not.
+HIGHLIGHT_BOX_SCALE_FACTOR = 1.10
+
 iHighlightShapeNickName = 1
 
 -- A solid, translucent box (not a wireframe) -- mirrors the tinted-overlay visual language
@@ -1150,6 +1156,10 @@ function makeHighlightBoxShape()
     iHighlightShapeNickName = iHighlightShapeNickName + 1
     local shp = shape:new('3d', 0, 0, 0)
     shp:create(verts, nil, string.format('scene3d_highlight_%d', iHighlightShapeNickName))
+    -- Guarantees this box wins over the highlighted mesh regardless of distance/z ties or
+    -- actual geometry occlusion -- see RENDERIZABLE::isAlwaysOnTop's own doc comment
+    -- (renderizable.h) for why HIGHLIGHT_BOX_SCALE_FACTOR alone isn't a complete fix.
+    shp.alwaysOnTop = true
     return shp
 end
 
@@ -1201,8 +1211,12 @@ end
 -- Called every frame (Layer tab only) -- shows a translucent box over every placed mesh that's
 -- either hovered or selected: green while it belongs to the currently active layer, red
 -- otherwise (mirrors the active-layer concept the grid/placement already enforces), fixed alpha
--- 0.4 while merely hovered, blinking between alpha 0.2 and 0.5 while selected (a plain per-frame
--- sine wave -- no shader needed for this). Selected takes priority over hover when both apply.
+-- 0.15 while merely hovered, blinking between alpha 0.05 and 0.15 while selected (a plain per-frame
+-- sine wave -- no shader needed for this). Kept subtle to match physic_editor.lua's own translucent
+-- shape-overlay convention (alpha ~0.1-0.15) -- alwaysOnTop (see makeHighlightBoxShape) already
+-- guarantees this box is fully visible over the mesh, so it no longer needs a strong alpha to read
+-- as "on top"; a heavier alpha just looked like a solid tinted duplicate of the mesh underneath.
+-- Selected takes priority over hover when both apply.
 function updateSelectionHighlights()
     if sActiveTab ~= 'layer' then
         for _, tPlaced in ipairs(tPlacedMeshes) do
@@ -1210,7 +1224,7 @@ function updateSelectionHighlights()
         end
         return
     end
-    local blinkAlpha = 0.35 + 0.15 * math.sin(mbm.getTimeRun() * 4)
+    local blinkAlpha = 0.15 + 0.05 * math.sin(mbm.getTimeRun() * 4)
     for i, tPlaced in ipairs(tPlacedMeshes) do
         local isHovered = (i == tHoveredPlaced)
         -- Skip a mesh whose own layer is currently hidden (or is otherwise not rendering) -- a
@@ -1221,11 +1235,11 @@ function updateSelectionHighlights()
             end
             local w, h, d = tPlaced.tObj:getAABB(true)
             local cx, cy, cz = tPlaced.tObj:getAABBCenter()
-            tPlaced.tHighlightShape:setPos(cx, cy, cz)
-            tPlaced.tHighlightShape:setScale(w, h, d)
+            tPlaced.tHighlightShape:setPos(cx, cy + (0.1 * h), cz)
+            tPlaced.tHighlightShape:setScale(w * HIGHLIGHT_BOX_SCALE_FACTOR, h * HIGHLIGHT_BOX_SCALE_FACTOR, d * HIGHLIGHT_BOX_SCALE_FACTOR)
             local belongsToActiveLayer = tPlaced.layerIndex == iSelectedLayer
             local r, g = belongsToActiveLayer and 0 or 1, belongsToActiveLayer and 1 or 0
-            tPlaced.tHighlightShape:setColor(r, g, 0, tPlaced.isSelected and blinkAlpha or 0.4)
+            tPlaced.tHighlightShape:setColor(r, g, 0, tPlaced.isSelected and blinkAlpha or 0.2)
             tPlaced.tHighlightShape.visible = true
         elseif tPlaced.tHighlightShape then
             tPlaced.tHighlightShape.visible = false
@@ -2310,42 +2324,106 @@ function drawLayerTab(item_width)
     if show ~= bShowMeshSelector then bShowMeshSelector = show end
 
     tImGui.Separator()
-    tImGui.Text(tLang.L('placed_meshes_fmt'):format(#tPlacedMeshes))
-    for i, tPlaced in ipairs(tPlacedMeshes) do
-        if tPlaced.isSelected then
-            tImGui.PushStyleColor('ImGuiCol_Text', {r = 0, g = 1, b = 0, a = 1})
-        end
-        local rowOpen = tImGui.TreeNodeEx(tUtil.getShortName(tPlaced.fileName) .. '##placed_tree' .. i)
-        if tPlaced.isSelected then
-            tImGui.PopStyleColor(1)
-        end
-        if rowOpen then
-            local sel = tImGui.Checkbox(tLang.L('selected') .. '##placed_sel' .. i, tPlaced.isSelected)
-            if sel ~= tPlaced.isSelected then tPlaced.isSelected = sel end
-
-            if tMapOptions.sMapType == 'Free' then
-                local attach = tImGui.Checkbox(tLang.L('attached_to_layer') .. '##placed_attach' .. i, tPlaced.bAttachedToLayer)
-                if attach ~= tPlaced.bAttachedToLayer then
-                    tPlaced.bAttachedToLayer = attach
-                    syncPlacedMeshTransform(tPlaced)
-                end
-                if not tPlaced.bAttachedToLayer then
-                    local cFY, fy = tImGui.InputFloat(tLang.L('axis_y') .. '##placed_freey' .. i, tPlaced.freeY, 1, 10, '%.2f')
-                    if cFY then
-                        tPlaced.freeY = fy
-                        syncPlacedMeshTransform(tPlaced)
-                    end
-                end
-            end
-
-            if tImGui.Button(tLang.L('delete') .. '##placed_del' .. i) then
-                removePlacedMesh(i)
-                tImGui.TreePop()
+    -- Placed Meshes: the full editing row (name/Selected checkbox/Free-mode attach+Y/Delete).
+    -- Collapsed by default -- kept behind a tree node so a scene with many placed meshes doesn't
+    -- force every one of their thumbnails to be generated/queued on every frame this tab is drawn.
+    if tImGui.TreeNodeEx(tLang.L('placed_meshes_fmt'):format(#tPlacedMeshes) .. '##placed_meshes_tree') then
+        local thumbSize = {x = iSizeMeshOnSelector, y = iSizeMeshOnSelector}
+        for i, tPlaced in ipairs(tPlacedMeshes) do
+            if drawPlacedMeshRow(i, tPlaced, thumbSize, true) then
                 break
             end
-            tImGui.TreePop()
+        end
+        tImGui.TreePop()
+    end
+
+    tImGui.Separator()
+    -- Selected Meshes: a live filtered view of whichever placed meshes are currently selected
+    -- (3D-view click/Ctrl+click/Shift+drag, or the Selected checkbox above) -- lets the user dial
+    -- in rotation for just the active selection without scrolling the full Placed Meshes list.
+    -- Also collapsed by default and only walks tPlacedMeshes/generates thumbnails while open.
+    local tSelectedIndices = {}
+    for i, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.isSelected then table.insert(tSelectedIndices, i) end
+    end
+    if tImGui.TreeNodeEx(tLang.L('selected_meshes_fmt') .. '##selected_meshes_tree') then
+        local thumbSize = {x = iSizeMeshOnSelector, y = iSizeMeshOnSelector}
+        for _, i in ipairs(tSelectedIndices) do
+            drawPlacedMeshRow(i, tPlacedMeshes[i], thumbSize, false)
+        end
+        tImGui.TreePop()
+    end
+end
+
+-- Draws one placed-mesh thumbnail row (thumbnail + name + Y rotation DragFloat), shared by the
+-- Placed Meshes and Selected Meshes tree nodes above. `bFullControls` adds the Selected checkbox,
+-- Free-mode attach/Y fields, and Delete button -- Selected Meshes only ever shows an already-
+-- selected mesh, so those controls would be redundant/out of place there.
+-- Returns true if this row deleted itself (index i is no longer valid -- caller must stop
+-- iterating tPlacedMeshes by that same index).
+function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
+    -- Same cache/queue this mesh's entry already uses in the Mesh Selector (getOrCreateThumbnail
+    -- keys by fileName) -- registerMeshSetEntry is idempotent, returning the existing
+    -- tMeshSetEntries entry for an already-registered fileName, so this shares one bake/texture
+    -- across every placed instance of the same mesh instead of generating a thumbnail per instance.
+    local entry = registerMeshSetEntry(tPlaced.fileName)
+    local texInfo = entry and getOrCreateThumbnail(entry) or nil
+    if texInfo then
+        tImGui.Image(texInfo, thumbSize, {x = 0, y = 0}, {x = 1, y = 1})
+    else
+        tImGui.Button(tLang.L('generating') .. '##placedpending' .. i, thumbSize)
+    end
+
+    tImGui.SameLine()
+    tImGui.BeginGroup()
+    if tPlaced.isSelected then
+        tImGui.PushStyleColor('ImGuiCol_Text', {r = 0, g = 1, b = 0, a = 1})
+    end
+    tImGui.Text(tUtil.getShortName(tPlaced.fileName))
+    if tPlaced.isSelected then
+        tImGui.PopStyleColor(1)
+    end
+
+    if bFullControls then
+        local sel = tImGui.Checkbox(tLang.L('selected') .. '##placed_sel' .. i, tPlaced.isSelected)
+        if sel ~= tPlaced.isSelected then tPlaced.isSelected = sel end
+    end
+
+    -- Stored/applied in radians (matching rotationY everywhere else in this editor, see
+    -- rotateSelectedMeshes) but shown in degrees, same convention as the mesh Offset rotation
+    -- fields above. Unbounded (min=max=0) -- this is a free rotation, not snapped to any grid.
+    local cRotY, rotYDeg = tImGui.DragFloat(tLang.L('placed_rotation_y') .. '##placed_roty' .. i,
+        math.deg(tPlaced.rotationY or 0), 1, 0, 0, '%.2f')
+    if cRotY then
+        tPlaced.rotationY = math.rad(rotYDeg)
+        syncPlacedMeshTransform(tPlaced)
+    end
+
+    local bDeleted = false
+    if bFullControls then
+        if tMapOptions.sMapType == 'Free' then
+            local attach = tImGui.Checkbox(tLang.L('attached_to_layer') .. '##placed_attach' .. i, tPlaced.bAttachedToLayer)
+            if attach ~= tPlaced.bAttachedToLayer then
+                tPlaced.bAttachedToLayer = attach
+                syncPlacedMeshTransform(tPlaced)
+            end
+            if not tPlaced.bAttachedToLayer then
+                local cFY, fy = tImGui.InputFloat(tLang.L('axis_y') .. '##placed_freey' .. i, tPlaced.freeY, 1, 10, '%.2f')
+                if cFY then
+                    tPlaced.freeY = fy
+                    syncPlacedMeshTransform(tPlaced)
+                end
+            end
+        end
+
+        if tImGui.Button(tLang.L('delete') .. '##placed_del' .. i) then
+            removePlacedMesh(i)
+            bDeleted = true
         end
     end
+    tImGui.EndGroup()
+    tImGui.Separator()
+    return bDeleted
 end
 
 -- Placed meshes currently selected in the 3D view (Shift+drag rectangle, click, Ctrl+click)

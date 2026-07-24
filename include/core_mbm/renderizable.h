@@ -102,6 +102,14 @@ namespace mbm
         API_IMPL void setEnableRender(const bool enabled) noexcept;
         API_IMPL bool isRender2TextureEnabled() const noexcept;
         API_IMPL void setRender2Texture(const bool enabled) noexcept;
+        // When true, this object renders in a small extra sub-pass drawn AFTER its whole category's
+        // normal sorted list (3D after 3D, 2dw after 2dw, 2ds after 2ds), guaranteeing it visually
+        // wins over everything else in that category regardless of distance/z ties or actual
+        // geometry occlusion -- see CORE_MANAGER::render(). Has no effect on RENDER_2_TEXTURE's own,
+        // independent render2Texture() capture pass. Default false: zero behavior change for every
+        // existing object.
+        API_IMPL bool isAlwaysOnTop() const noexcept;
+        API_IMPL void setAlwaysOnTop(const bool enabled) noexcept;
         API_IMPL void * getUserData() const noexcept;
         API_IMPL void setUserData(void *data) noexcept;
         API_IMPL RENDER_STATE & getBlend() noexcept;

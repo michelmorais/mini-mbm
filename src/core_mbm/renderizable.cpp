@@ -43,6 +43,7 @@ namespace mbm
         bool        isRender2Texture;
         bool        alwaysRenderize;
         bool        enableRender;
+        bool        alwaysOnTop;
         void *      userData;
         RENDER_STATE blend;
         VEC3        position;
@@ -67,6 +68,7 @@ namespace mbm
             isRender2Texture(false),
             alwaysRenderize(false),
             enableRender(true),
+            alwaysOnTop(false),
             userData(nullptr),
             position(0, 0, 0),
             scale(1, 1, 1),
@@ -309,6 +311,16 @@ namespace mbm
     void RENDERIZABLE::setRender2Texture(const bool enabled) noexcept
     {
         this->impl->isRender2Texture = enabled;
+    }
+
+    bool RENDERIZABLE::isAlwaysOnTop() const noexcept
+    {
+        return this->impl->alwaysOnTop;
+    }
+
+    void RENDERIZABLE::setAlwaysOnTop(const bool enabled) noexcept
+    {
+        this->impl->alwaysOnTop = enabled;
     }
 
     void * RENDERIZABLE::getUserData() const noexcept
