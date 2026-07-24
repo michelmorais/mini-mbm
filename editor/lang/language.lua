@@ -10,6 +10,7 @@ local M = {}
 M.en = {
     -- Common menu
     menu_file = "File",
+    menu_edit = "Edit",
     menu_about = "About",
     menu_options = "Options",
     menu_version = "Version",
@@ -1487,6 +1488,7 @@ M.en = {
 M.pt_br = {
     -- Common menu
     menu_file = "Arquivo",
+    menu_edit = "Editar",
     menu_about = "Sobre",
     menu_options = "Opções",
     menu_version = "Versão",

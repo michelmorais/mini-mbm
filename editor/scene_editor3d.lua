@@ -1367,6 +1367,10 @@ function rotateSelectedMeshes(sign)
             syncPlacedMeshTransform(tPlaced)
         end
     end
+    -- Only ever called from showMeshTools' Rotate Right/Left buttons, which are themselves only
+    -- shown while at least one mesh matching this same condition is selected -- always a real,
+    -- already-completed rotation by the time this returns.
+    pushUndoSnapshot()
 end
 
 -- Bottom-right floating tool window, mirrors tilemap_editor.lua's showTileTools -- appears only
@@ -1402,6 +1406,7 @@ function showMeshTools()
         for i = #tPlacedMeshes, 1, -1 do
             if tPlacedMeshes[i].isSelected and tPlacedMeshes[i].layerIndex == iSelectedLayer then removePlacedMesh(i) end
         end
+        pushUndoSnapshot()
     end
     tToolsMeshSize = tImGui.GetWindowSize()
     tImGui.End()
@@ -1989,6 +1994,11 @@ end
 
 function drawMapTab(item_width)
     local ret, current_item = tImGui.Combo(tLang.L('map_type') .. '##MapType3d', tComboMapTypeIndexOf(tMapOptions.sMapType), tComboMapType3dCodes)
+    -- Read immediately after each widget below (ImGui's "last item" state) -- a Combo only ever
+    -- fires `ret`/deactivates once per selection anyway, but every grid field here is gated the
+    -- same uniform way for consistency, since the InputFloat/InputInt fields right below genuinely
+    -- need it (see their own comment).
+    local bMapTypeChanged = tImGui.IsItemDeactivatedAfterEdit()
     if ret then
         local tSnapshots = captureAllPlacedMeshWorldPositions() -- BEFORE the switch, while the old mode/rotation is still active
         tMapOptions.sMapType = tComboMapType3dCodes[current_item]
@@ -1996,6 +2006,7 @@ function drawMapTab(item_width)
         rebuildGridVisual()
         resyncAllPlacedMeshes()
     end
+    if bMapTypeChanged then pushUndoSnapshot() end
 
     -- Cell size of 0 (or negative) is not just meaningless, it's a division-by-zero hazard in
     -- worldToGridCell -- and there was previously no floor at all on these two fields.
@@ -2010,7 +2021,14 @@ function drawMapTab(item_width)
     -- Free mode still has no snapping, but it's now bordered by this same grid (see
     -- isWorldPosWithinGridBounds), so its extent must stay adjustable there too.
     local c1, w = tImGui.InputFloat(tLang.L('grid_width_x') .. '##GridWidthX', tMapOptions.fGridCellWidthX, 1, 10, '%.2f')
+    -- InputFloat/InputInt below can return true repeatedly while a user holds down their +/-
+    -- spinner button (auto-repeat), not just once on commit -- pushing a snapshot on every `true`
+    -- would flood history with one entry per held-button frame. IsItemDeactivatedAfterEdit fires
+    -- once instead, when the field actually loses focus/the button is released, after having
+    -- really changed.
+    local bWidthChanged = tImGui.IsItemDeactivatedAfterEdit()
     local c2, d = tImGui.InputFloat(tLang.L('grid_depth_z') .. '##GridDepthZ', tMapOptions.fGridCellDepthZ, 1, 10, '%.2f')
+    local bDepthChanged = tImGui.IsItemDeactivatedAfterEdit()
     if c1 then tMapOptions.fGridCellWidthX = math.max(MIN_GRID_CELL_SIZE, w) end
     if c2 then tMapOptions.fGridCellDepthZ = math.max(MIN_GRID_CELL_SIZE, d) end
     if c1 or c2 then
@@ -2020,28 +2038,36 @@ function drawMapTab(item_width)
         -- size, so it must be recomputed here too, not just the grid's visual lines.
         resyncAllPlacedMeshes()
     end
+    if bWidthChanged or bDepthChanged then pushUndoSnapshot() end
 
     -- How many cells wide/deep the visible grid (and "fill layer") span -- previously fixed
     -- at 10 half-lines (21x21) regardless of any setting.
     local c3, cx = tImGui.InputInt(tLang.L('grid_count_x') .. '##GridCountX', tMapOptions.iGridCountX, 1, 10)
+    local bCountXChanged = tImGui.IsItemDeactivatedAfterEdit()
     local c4, cz = tImGui.InputInt(tLang.L('grid_count_z') .. '##GridCountZ', tMapOptions.iGridCountZ, 1, 10)
+    local bCountZChanged = tImGui.IsItemDeactivatedAfterEdit()
     if c3 then tMapOptions.iGridCountX = math.max(MIN_GRID_COUNT, cx) end
     if c4 then tMapOptions.iGridCountZ = math.max(MIN_GRID_COUNT, cz) end
     if c3 or c4 then
         rebuildGridVisual()
         -- Shrinking the grid can leave previously-placed meshes past the new edge -- the grid
         -- is the bounds of the scene, so anything now outside it is removed, not left floating.
+        -- This cascade lands in the SAME snapshot pushed below (once the field is deactivated),
+        -- not a separate one -- it's a side effect of this one grid-count edit, not its own action.
         removePlacedMeshesOutsideGrid()
     end
+    if bCountXChanged or bCountZChanged then pushUndoSnapshot() end
 
     if tMapOptions.sMapType ~= 'Free' then
         -- Snapping/scaling to the grid is meaningless in Free mode (no snapping applies there at
         -- all), so this combo stays exclusive to the two grid-snapped modes.
         local retSnap, curSnap = tImGui.Combo(tLang.L('snap_scale_mode') .. '##SnapScaleMode', tComboSnapScaleModeIndexOf(tMapOptions.sSnapScaleMode), tComboSnapScaleModeLabel)
+        local bSnapChanged = tImGui.IsItemDeactivatedAfterEdit()
         if retSnap then
             tMapOptions.sSnapScaleMode = tComboSnapScaleMode[curSnap]
             resyncAllPlacedMeshes()
         end
+        if bSnapChanged then pushUndoSnapshot() end
     end
 
     tImGui.Separator()
@@ -2053,6 +2079,7 @@ function drawMapTab(item_width)
     if showObj ~= bShowSceneObjectMarkers then bShowSceneObjectMarkers = showObj end
     if tImGui.Button(tLang.L('add_object'), tUtil.getResponsiveItemSize(item_width - 40)) then
         addSceneObjectMarker()
+        pushUndoSnapshot()
     end
     for i, tObj in ipairs(tSceneObjects) do
         local isOpen = tImGui.TreeNodeEx(string.format('%s-%d##marker_tree', tLang.L('object'), i))
@@ -2066,6 +2093,7 @@ function drawMapTab(item_width)
                 if tSceneObjectShapes[i] and tSceneObjectShapes[i].handle then tSceneObjectShapes[i].handle:destroy() end
                 table.remove(tSceneObjects, i)
                 table.remove(tSceneObjectShapes, i)
+                pushUndoSnapshot()
                 tImGui.TreePop()
                 break
             end
@@ -2394,9 +2422,16 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
     -- fields above. Unbounded (min=max=0) -- this is a free rotation, not snapped to any grid.
     local cRotY, rotYDeg = tImGui.DragFloat(tLang.L('placed_rotation_y') .. '##placed_roty' .. i,
         math.deg(tPlaced.rotationY or 0), 1, 0, 0, '%.2f')
+    -- Must be read immediately after the widget (ImGui's "last item" state) -- fires exactly once,
+    -- on the frame the drag ends having actually changed the value, so an active drag collapses
+    -- into one undo entry instead of one per dragged frame.
+    local bRotYDragFinished = tImGui.IsItemDeactivatedAfterEdit()
     if cRotY then
         tPlaced.rotationY = math.rad(rotYDeg)
         syncPlacedMeshTransform(tPlaced)
+    end
+    if bRotYDragFinished then
+        pushUndoSnapshot()
     end
 
     local bDeleted = false
@@ -2418,6 +2453,7 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
 
         if tImGui.Button(tLang.L('delete') .. '##placed_del' .. i) then
             removePlacedMesh(i)
+            pushUndoSnapshot()
             bDeleted = true
         end
     end
@@ -2537,6 +2573,10 @@ function menuPopUpOptionToAddMesh()
             if tMapOptions.sMapType ~= 'Free' then
                 if tImGui.Selectable(tLang.L('fill_layer_with_selected_mesh')) then
                     fillActiveLayerWithMesh(sMeshSelectedForPlacement)
+                    -- One snapshot for the whole fill, not per-cell -- pushed here (the caller),
+                    -- not inside fillActiveLayerWithMesh itself, since that function is also called
+                    -- nowhere else that would want per-cell history.
+                    pushUndoSnapshot()
                 end
             else
                 tImGui.TextDisabled(tLang.L('fill_layer_unavailable_free'))
@@ -2634,6 +2674,16 @@ function main_menu_3d()
             tImGui.EndMenu()
         end
 
+        if tImGui.BeginMenu(tLang.L('menu_edit')) then
+            if tImGui.MenuItem(tLang.L('undo'), 'Ctrl+Z', false, canUndoScene3d()) then
+                onUndoScene3d()
+            end
+            if tImGui.MenuItem(tLang.L('redo'), 'Ctrl+Y', false, canRedoScene3d()) then
+                onRedoScene3d()
+            end
+            tImGui.EndMenu()
+        end
+
         if tImGui.BeginMenu(tLang.L('menu_mesh')) then
             if tImGui.MenuItem(tLang.L('add_mesh_from_folder')) then
                 onAddMeshFromFolder()
@@ -2665,6 +2715,7 @@ function main_menu_3d()
                     for i = #tPlacedMeshes, 1, -1 do
                         if tPlacedMeshes[i].isSelected and tPlacedMeshes[i].layerIndex == iSelectedLayer then removePlacedMesh(i) end
                     end
+                    pushUndoSnapshot()
                 end
             else
                 tImGui.TextDisabled(tLang.L('please_select_layer'))
@@ -3111,6 +3162,142 @@ return tScene3d]]
     return sCode
 end
 
+------------------------------------------------------------------------------------------------------------------
+-- Undo / redo (Map edition: place/delete/rotate placed meshes; Main Scene: grid/map options,
+-- Object Options add/delete) -- one shared history across both tabs, mirroring tilemap_editor.lua's
+-- own model (a linear stack + cursor; a new action after an undo truncates the redo branch) but
+-- implemented as plain in-memory Lua snapshots instead of tilemap's native disk-backed binary
+-- snapshots -- this editor's undoable state (placed-mesh records, grid options, object markers) is
+-- tiny plain data, so there's no need for temp files. Restoring is always a full teardown/rebuild of
+-- tPlacedMeshes (never touching a captured live RENDERIZABLE handle -- none is ever captured in the
+-- first place), the same "destroy everything, recreate fresh from data" approach applyLoadedScene3d
+-- already uses for file load, just leaner: it skips the camera/mesh-set-folder-rescan/thumbnail-
+-- requeue/loading-progress-overlay steps a real file load needs, none of which ever change here, so
+-- undo/redo stays instant instead of feeling like a mini file-load on every step.
+------------------------------------------------------------------------------------------------------------------
+
+tUndoHistory     = {} -- array of snapshot tables; tUndoHistory[iUndoIndex] is always the CURRENT state
+iUndoIndex       = 0
+MAX_UNDO_HISTORY = 100
+
+-- Only ever called on the known-plain-data subset captured by captureScene3dSnapshot below (grid
+-- options, object markers) -- never on tPlacedMeshes itself, which holds live tObj/tHighlightShape
+-- userdata that must never be captured or copied (see captureScene3dSnapshot's own tPlacedMeshInfo
+-- construction, which builds a fresh plain-data record per entry instead of copying tPlaced itself).
+local function deepCopyPlainTable(value)
+    if type(value) ~= 'table' then return value end
+    local out = {}
+    for k, v in pairs(value) do
+        out[k] = deepCopyPlainTable(v)
+    end
+    return out
+end
+
+-- Captures everything undo/redo needs as one plain-data table -- no RENDERIZABLE/userdata anywhere
+-- in it. tLayers is deliberately NOT captured: nothing this history tracks (place/delete/rotate a
+-- mesh, edit grid options, add/delete an Object Options marker) ever mutates tLayers, so it stays
+-- constant across every undo/redo step and doesn't need its own snapshot/restore.
+function captureScene3dSnapshot()
+    local tPlacedInfo = {}
+    for i, tPlaced in ipairs(tPlacedMeshes) do
+        tPlacedInfo[i] = {
+            fileName = tPlaced.fileName, type = tPlaced.type, layerIndex = tPlaced.layerIndex,
+            cellX = tPlaced.cellX, cellZ = tPlaced.cellZ,
+            freeX = tPlaced.freeX, freeZ = tPlaced.freeZ, freeY = tPlaced.freeY,
+            bAttachedToLayer = tPlaced.bAttachedToLayer,
+            rotationY = tPlaced.rotationY or 0,
+            sx = tPlaced.scale.x, sy = tPlaced.scale.y, sz = tPlaced.scale.z,
+        }
+    end
+    return {
+        tPlacedMeshInfo = tPlacedInfo,
+        tMapOptions     = deepCopyPlainTable(tMapOptions),
+        tSceneObjects   = deepCopyPlainTable(tSceneObjects),
+    }
+end
+
+-- Restores a snapshot captured above. Always a full teardown/rebuild -- see the section banner
+-- comment for why this is deliberately leaner than applyLoadedScene3d rather than reusing it.
+function restoreScene3dSnapshot(snapshot)
+    for i = #tPlacedMeshes, 1, -1 do removePlacedMesh(i) end
+    tSceneObjects       = deepCopyPlainTable(snapshot.tSceneObjects)
+    tSceneObjectShapes  = {}
+    tMapOptions         = deepCopyPlainTable(snapshot.tMapOptions)
+    rebuildGridVisual()
+    for _, tInfo in ipairs(snapshot.tPlacedMeshInfo) do
+        local tPlaced = addPlacedMesh(tInfo.fileName, tInfo.type, tInfo.layerIndex,
+            tInfo.cellX, tInfo.cellZ, tInfo.freeX, tInfo.freeZ, true)
+        tPlaced.bAttachedToLayer = tInfo.bAttachedToLayer
+        tPlaced.freeY            = tInfo.freeY
+        tPlaced.rotationY        = tInfo.rotationY
+        tPlaced.scale            = {x = tInfo.sx, y = tInfo.sy, z = tInfo.sz}
+        syncPlacedMeshTransform(tPlaced)
+    end
+end
+
+-- Called once from onInitScene (fresh/blank editor state) and once at the end of
+-- applyLoadedScene3d (a newly loaded file) -- undo must never cross either boundary: the history
+-- would otherwise reference placed-mesh layerIndex positions from before the load/reset, which may
+-- no longer mean the same thing (or exist at all) in tLayers afterward. Mirrors tilemap_editor.lua's
+-- own clearHistory()+addHistoric() pair on file open.
+function resetUndoHistory()
+    tUndoHistory = {}
+    iUndoIndex   = 0
+    pushUndoSnapshot()
+end
+
+-- Call AFTER a discrete, already-completed edit (place one mesh, delete N selected meshes, a
+-- finished rotation drag, a committed grid-option change, add/delete an Object Options marker).
+-- Never called mid-drag/mid-edit -- callers that touch a per-frame-changing widget (a rotation
+-- DragFloat, a grid InputFloat/InputInt's held +/- spinner) gate this behind
+-- tImGui.IsItemDeactivatedAfterEdit() so a whole drag/hold collapses into exactly one entry.
+function pushUndoSnapshot()
+    local snap = captureScene3dSnapshot()
+    if iUndoIndex == #tUndoHistory then
+        table.insert(tUndoHistory, snap)
+        iUndoIndex = #tUndoHistory
+    else
+        -- Cursor isn't at the tip (a previous undo happened, then this new edit arrived) --
+        -- overwrite forward from here and drop everything past it, the same "new edit destroys
+        -- the redo branch" rule tilemap_editor.lua's own addHistoric() enforces.
+        iUndoIndex = iUndoIndex + 1
+        tUndoHistory[iUndoIndex] = snap
+        for i = #tUndoHistory, iUndoIndex + 1, -1 do
+            table.remove(tUndoHistory, i)
+        end
+    end
+    if #tUndoHistory > MAX_UNDO_HISTORY then
+        table.remove(tUndoHistory, 1)
+        iUndoIndex = iUndoIndex - 1
+    end
+end
+
+function canUndoScene3d()
+    return iUndoIndex > 1
+end
+
+function canRedoScene3d()
+    return iUndoIndex < #tUndoHistory
+end
+
+function onUndoScene3d()
+    if not canUndoScene3d() then
+        tUtil.showMessageWarn(tLang.L('no_more_undo'))
+        return
+    end
+    iUndoIndex = iUndoIndex - 1
+    restoreScene3dSnapshot(tUndoHistory[iUndoIndex])
+end
+
+function onRedoScene3d()
+    if not canRedoScene3d() then
+        tUtil.showMessageWarn(tLang.L('no_more_redo'))
+        return
+    end
+    iUndoIndex = iUndoIndex + 1
+    restoreScene3dSnapshot(tUndoHistory[iUndoIndex])
+end
+
 function writeScene3d(fileName, bAsyncMesh, bIsExport)
     local oldLocale = os.setlocale(nil, 'numeric')
     os.setlocale('C', 'numeric')
@@ -3325,6 +3512,9 @@ function applyLoadedScene3d(tLoaded)
     for _, entry in ipairs(tMeshSetEntries) do
         getOrCreateThumbnail(entry)
     end
+
+    -- Undo must never cross a file-load boundary -- see resetUndoHistory's own comment.
+    resetUndoHistory()
 end
 
 function onOpenScene3d()
@@ -3565,6 +3755,7 @@ function onInitScene()
                         -- start, not only after the user first touches a Map-tab field.
     applyCam3d(cam3d)
     tUtil.sMessageOverlay = tLang.L('welcome_scene_editor_3d')
+    resetUndoHistory() -- seed the baseline undo entry now that the blank editor state is set up
 end
 
 function onLoop(delta)
@@ -3708,6 +3899,9 @@ function tryPlaceMeshAt(x, y)
         if existingIndex then removePlacedMesh(existingIndex) end
         addPlacedMesh(entry.fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
     end
+    -- Every early-return above happens before either addPlacedMesh call, so reaching here always
+    -- means a real placement just happened -- exactly one snapshot per successful click.
+    pushUndoSnapshot()
 end
 
 function onTouchDown(key, x, y)
@@ -3824,6 +4018,10 @@ function onKeyDown(key)
         onPlay3d()
     elseif keyControlPressed and key == mbm.getKeyCode('S') then
         onSaveScene3d()
+    elseif keyControlPressed and key == mbm.getKeyCode('Z') then
+        onUndoScene3d()
+    elseif keyControlPressed and key == mbm.getKeyCode('Y') then
+        onRedoScene3d()
     -- Select All / Invert / Unselect All mirror the Layer Options menu items of the same name
     -- (main_menu_3d) -- scoped to the active layer only, same reasoning as those menu actions.
     elseif keyControlPressed and key == mbm.getKeyCode('A') and sActiveTab == 'layer' then
@@ -3838,6 +4036,7 @@ function onKeyDown(key)
         for i = #tPlacedMeshes, 1, -1 do
             if tPlacedMeshes[i].isSelected and tPlacedMeshes[i].layerIndex == iSelectedLayer then removePlacedMesh(i) end
         end
+        pushUndoSnapshot()
     elseif key == mbm.getKeyCode('esc') and sActiveTab == 'layer' then
         unselectAllPlacedMeshes()
     elseif key == mbm.getKeyCode('W') or key == mbm.getKeyCode('up') then
