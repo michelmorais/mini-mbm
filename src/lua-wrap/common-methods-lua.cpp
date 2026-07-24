@@ -887,6 +887,16 @@ namespace mbm
                     return setVariable(lua, ptr, what);
             }
             break;
+            case 11:
+            {
+                if (strcmp("alwaysOnTop", what) == 0)
+                {
+                    ptr->setAlwaysOnTop(lua_toboolean(lua, 3) ? true : false);
+                }
+                else
+                    return setVariable(lua, ptr, what);
+            }
+            break;
             case 12:
             {
                 if (strcmp("alwaysRender", what) == 0)
@@ -974,6 +984,14 @@ namespace mbm
             {
                 if (strcmp("visible", what) == 0)
                     lua_pushboolean(lua, ptr->isRenderEnabled());
+                else
+                    return getVariable(lua, ptr, what);
+            }
+            break;
+            case 11:
+            {
+                if (strcmp("alwaysOnTop", what) == 0)
+                    lua_pushboolean(lua, ptr->isAlwaysOnTop());
                 else
                     return getVariable(lua, ptr, what);
             }

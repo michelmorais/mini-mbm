@@ -519,7 +519,8 @@ namespace mbm
     }
     
     void CORE_MANAGER::prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,
-                                std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d)
+                                std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d,
+                                std::vector<RENDERIZABLE *> &lsRenderOnFrustumAlwaysOnTop2d)
     {
         const std::vector<RENDERIZABLE*>::size_type total2d = lsAllObjects2d.size();
         for (std::vector<RENDERIZABLE*>::size_type i = 0; i < total2d; ++i)
@@ -550,17 +551,22 @@ namespace mbm
                 }
                 if (ptr->getIsObjectOnFrustum())
                 {
-                    lsRenderOnFrustum2d.push_back(ptr);
+                    if (ptr->isAlwaysOnTop())
+                        lsRenderOnFrustumAlwaysOnTop2d.push_back(ptr);
+                    else
+                        lsRenderOnFrustum2d.push_back(ptr);
                     ptr->setDistanceFromView(ptr->getPosition().z);
                 }
             }
         }
-        std::sort(lsRenderOnFrustum2d.begin(), lsRenderOnFrustum2d.end(),
-                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
+        const auto sortByDistance = [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); };
+        std::sort(lsRenderOnFrustum2d.begin(), lsRenderOnFrustum2d.end(), sortByDistance);
+        std::sort(lsRenderOnFrustumAlwaysOnTop2d.begin(), lsRenderOnFrustumAlwaysOnTop2d.end(), sortByDistance);
     }
-    
+
     void CORE_MANAGER::prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,
                                 std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d,
+                                std::vector<RENDERIZABLE *> &lsRenderOnFrustumAlwaysOnTop3d,
                                 const VEC3 &cameraPosition)
     {
         const std::vector<RENDERIZABLE*>::size_type total3d = lsAllObjects3d.size();
@@ -592,14 +598,18 @@ namespace mbm
                 }
                 if (ptr->getIsObjectOnFrustum())
                 {
-                    lsRenderOnFrustum3d.push_back(ptr);
                     const VEC3 distFromCam(ptr->getPosition() - cameraPosition);
                     ptr->setDistanceFromView(distFromCam.length());
+                    if (ptr->isAlwaysOnTop())
+                        lsRenderOnFrustumAlwaysOnTop3d.push_back(ptr);
+                    else
+                        lsRenderOnFrustum3d.push_back(ptr);
                 }
             }
         }
-        std::sort(lsRenderOnFrustum3d.begin(), lsRenderOnFrustum3d.end(),
-                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); });
+        const auto sortByDistance = [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->getDistanceFromView() < a->getDistanceFromView(); };
+        std::sort(lsRenderOnFrustum3d.begin(), lsRenderOnFrustum3d.end(), sortByDistance);
+        std::sort(lsRenderOnFrustumAlwaysOnTop3d.begin(), lsRenderOnFrustumAlwaysOnTop3d.end(), sortByDistance);
     }
 
     void CORE_MANAGER::render()
@@ -612,6 +622,11 @@ namespace mbm
         std::vector<RENDERIZABLE *> lsRender2ds;
         std::vector<RENDERIZABLE *> lsRender2dw;
         std::vector<RENDERIZABLE *> lsRender3d;
+        // isAlwaysOnTop() subset of each category above, drawn as a small trailing sub-pass after
+        // its own category's normal list -- see the render loop below for the depth handling.
+        std::vector<RENDERIZABLE *> lsRender2dsAlwaysOnTop;
+        std::vector<RENDERIZABLE *> lsRender2dwAlwaysOnTop;
+        std::vector<RENDERIZABLE *> lsRender3dAlwaysOnTop;
         // Atualiza a camera de acordo com a
         // projeção----
         device->setProjectionMode(true, device->getBackBufferWidth(), device->getBackBufferHeight());
@@ -630,9 +645,9 @@ namespace mbm
         const VEC3 cameraPosition = device->getCamera().position;
 
 #if defined USE_THREAD
-        std::thread thread2ds(prepareRender2d, std::ref(render2DSList), std::ref(lsRender2ds));
-        std::thread thread2dw(prepareRender2d, std::ref(render2DWList), std::ref(lsRender2dw));
-        std::thread thread3d(prepareRender3d, std::ref(render3DList), std::ref(lsRender3d), std::cref(cameraPosition));
+        std::thread thread2ds(prepareRender2d, std::ref(render2DSList), std::ref(lsRender2ds), std::ref(lsRender2dsAlwaysOnTop));
+        std::thread thread2dw(prepareRender2d, std::ref(render2DWList), std::ref(lsRender2dw), std::ref(lsRender2dwAlwaysOnTop));
+        std::thread thread3d(prepareRender3d, std::ref(render3DList), std::ref(lsRender3d), std::ref(lsRender3dAlwaysOnTop), std::cref(cameraPosition));
         if (thread2ds.joinable())
             thread2ds.join();
         if (thread2dw.joinable())
@@ -640,13 +655,13 @@ namespace mbm
         if (thread3d.joinable())
             thread3d.join();
 #else
-        prepareRender2d(std::ref(render2DSList), std::ref(lsRender2ds)); //-V525
-        prepareRender2d(std::ref(render2DWList), std::ref(lsRender2dw));
-        prepareRender3d(std::ref(render3DList), std::ref(lsRender3d), cameraPosition);
+        prepareRender2d(std::ref(render2DSList), std::ref(lsRender2ds), std::ref(lsRender2dsAlwaysOnTop)); //-V525
+        prepareRender2d(std::ref(render2DWList), std::ref(lsRender2dw), std::ref(lsRender2dwAlwaysOnTop));
+        prepareRender3d(std::ref(render3DList), std::ref(lsRender3d), std::ref(lsRender3dAlwaysOnTop), cameraPosition);
 #endif
 
-        device->setTotalObjectsOnFrustum2D(static_cast<uint32_t>(lsRender2ds.size() + lsRender2dw.size()));
-        device->setTotalObjectsOnFrustum3D(static_cast<uint32_t>(lsRender3d.size()));
+        device->setTotalObjectsOnFrustum2D(static_cast<uint32_t>(lsRender2ds.size() + lsRender2dsAlwaysOnTop.size() + lsRender2dw.size() + lsRender2dwAlwaysOnTop.size()));
+        device->setTotalObjectsOnFrustum3D(static_cast<uint32_t>(lsRender3d.size() + lsRender3dAlwaysOnTop.size()));
         
         if (!this->renderToTargets())
             return;
@@ -670,6 +685,23 @@ namespace mbm
                 if (ptrRender->render())
                     device->incrementTotalObjectsIsRendering3D();
             }
+            if (!lsRender3dAlwaysOnTop.empty())
+            {
+                // Guarantee visibility over the 3D scene just drawn above regardless of
+                // distance/z ties or actual geometry occlusion -- draw order alone is not
+                // enough here since depth test stays enabled through the whole 3D pass (see
+                // isAlwaysOnTop's own doc comment on why). Clearing depth (rather than
+                // disabling the test) keeps this sub-pass's own objects correctly depth-sorted
+                // against EACH OTHER (e.g. a hover highlight vs. a selected highlight both
+                // visible at once), while still unconditionally beating the already-drawn
+                // scene, whose depth values were just wiped.
+                device->clearDepth();
+                for (auto ptrRender : lsRender3dAlwaysOnTop)
+                {
+                    if (ptrRender->render())
+                        device->incrementTotalObjectsIsRendering3D();
+                }
+            }
 
             device->setProjectionMode(false, device->getBackBufferWidth(), device->getBackBufferHeight());
             device->setTotalObjectsIsRendering2D(0);
@@ -685,9 +717,28 @@ namespace mbm
                 if (ptrRender->render())
                     device->incrementTotalObjectsIsRendering2D();
             }
+            if (!lsRender2dwAlwaysOnTop.empty())
+            {
+                // Same trick as the 3D case above, scoped to the 2dw pass (which also keeps
+                // depth test enabled -- see the setDepthTest(true) two lines up).
+                device->clearDepth();
+                for (auto ptrRender : lsRender2dwAlwaysOnTop)
+                {
+                    if (ptrRender->render())
+                        device->incrementTotalObjectsIsRendering2D();
+                }
+            }
             device->setDepthTest(false);
             device->disableLightForRender();
             for (auto ptrRender : lsRender2ds)
+            {
+                if (ptrRender->render())
+                    device->incrementTotalObjectsIsRendering2D();
+            }
+            // 2ds already renders with depth test unconditionally disabled (line above) --
+            // drawing this sub-list last is by itself enough to guarantee it's on top, no
+            // depth clear needed here.
+            for (auto ptrRender : lsRender2dsAlwaysOnTop)
             {
                 if (ptrRender->render())
                     device->incrementTotalObjectsIsRendering2D();

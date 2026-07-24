@@ -1156,6 +1156,10 @@ function makeHighlightBoxShape()
     iHighlightShapeNickName = iHighlightShapeNickName + 1
     local shp = shape:new('3d', 0, 0, 0)
     shp:create(verts, nil, string.format('scene3d_highlight_%d', iHighlightShapeNickName))
+    -- Guarantees this box wins over the highlighted mesh regardless of distance/z ties or
+    -- actual geometry occlusion -- see RENDERIZABLE::isAlwaysOnTop's own doc comment
+    -- (renderizable.h) for why HIGHLIGHT_BOX_SCALE_FACTOR alone isn't a complete fix.
+    shp.alwaysOnTop = true
     return shp
 end
 
