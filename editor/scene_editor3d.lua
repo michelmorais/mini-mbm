@@ -2524,9 +2524,9 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
 
     -- Stored/applied in radians (matching rotationY everywhere else in this editor, see
     -- rotateSelectedMeshes) but shown in degrees, same convention as the mesh Offset rotation
-    -- fields above. Unbounded (min=max=0) -- this is a free rotation, not snapped to any grid.
+    -- fields above. Unbounded (min=-360, max=360)
     local cRotY, rotYDeg = tImGui.DragFloat(tLang.L('placed_rotation_y') .. '##placed_roty' .. i,
-        math.deg(tPlaced.rotationY or 0), 1, 0, 0, '%.2f')
+        math.deg(tPlaced.rotationY or 0), 1, -360, 360, '%.2f')
     -- Must be read immediately after the widget (ImGui's "last item" state) -- fires exactly once,
     -- on the frame the drag ends having actually changed the value, so an active drag collapses
     -- into one undo entry instead of one per dragged frame.
