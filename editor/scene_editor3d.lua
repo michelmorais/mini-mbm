@@ -1313,11 +1313,15 @@ end
 function finalizeRectSelection(xStart, yStart, xEnd, yEnd)
     if sActiveTab ~= 'layer' then return end
     if math.abs(xEnd - xStart) < 2 and math.abs(yEnd - yStart) < 2 then
-        -- Degenerate (near-zero-area) drag -- a Shift+click with no real drag. A zero-area
-        -- rectangle has no well-defined "inside" for the quad test above (every point would
-        -- trivially satisfy it), so fall back to whatever's directly under the cursor, same as a
-        -- plain click.
-        for i, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = (i == tHoveredPlaced) end
+        -- Degenerate (near-zero-area) drag -- a Shift+click with no real drag. Unlike a plain
+        -- click (handleSelectClickAt, which replaces the whole selection), Shift is the user's
+        -- explicit "build up a selection" signal -- ADD whatever's under the cursor to the
+        -- existing selection instead of replacing it, so repeated Shift+clicks can select several
+        -- meshes one at a time (e.g. to Copy them together). Clicking empty space with Shift held
+        -- intentionally leaves the current selection untouched rather than clearing it.
+        if tHoveredPlaced then
+            tPlacedMeshes[tHoveredPlaced].isSelected = true
+        end
         return
     end
     for _, tPlaced in ipairs(tPlacedMeshes) do
@@ -1377,12 +1381,19 @@ end
 -- while at least one placed mesh is selected, offering the same Rotate Right / Rotate Left /
 -- Delete actions (no Flip -- that's a 2D sprite-image operation with no 3D equivalent) against
 -- every currently-selected mesh at once.
-function showMeshTools()
-    if sActiveTab ~= 'layer' then return end
+-- Shared by showMeshTools and main_menu_3d's Edit menu (Copy/Paste enabled state) so the two
+-- never disagree about what "selected" means here.
+function countSelectedMeshesOnActiveLayer()
     local iSelectedCount = 0
     for _, tPlaced in ipairs(tPlacedMeshes) do
         if tPlaced.isSelected and tPlaced.layerIndex == iSelectedLayer then iSelectedCount = iSelectedCount + 1 end
     end
+    return iSelectedCount
+end
+
+function showMeshTools()
+    if sActiveTab ~= 'layer' then return end
+    local iSelectedCount = countSelectedMeshesOnActiveLayer()
     if iSelectedCount == 0 then return end
 
     local item_width = 150
@@ -1408,6 +1419,16 @@ function showMeshTools()
         end
         pushUndoSnapshot()
     end
+    if tImGui.Button(tLang.L('copy_btn'), tUtil.getResponsiveItemSize(item_width)) then
+        copySelectedMeshes()
+    end
+    -- Paste needs exactly one selected mesh to act as its unambiguous anchor -- see
+    -- pasteCopiedMeshes' own comment.
+    if tCopyBuffer and #tCopyBuffer > 0 and iSelectedCount == 1 then
+        if tImGui.Button(tLang.L('paste_btn'), tUtil.getResponsiveItemSize(item_width)) then
+            pasteCopiedMeshes()
+        end
+    end
     tToolsMeshSize = tImGui.GetWindowSize()
     tImGui.End()
 end
@@ -1427,6 +1448,90 @@ function resolvePlacedMeshWorldPos(tPlaced)
     else
         local x, y, z = gridCellToWorld(tPlaced.cellX, tPlaced.cellZ, layer)
         return x, y, z
+    end
+end
+
+-- Copy/Paste (Layer tab's Total Selected tool window, showMeshTools). nil until the first Copy --
+-- an array of {fileName, type, rotationY, sx, sy, sz, dx, dy, dz}, one entry per mesh selected at
+-- copy time, where dx/dy/dz is that mesh's WORLD-SPACE offset from the FIRST selected mesh (the
+-- copy-time "anchor"). Paste re-anchors that same relative layout onto whichever single mesh is
+-- selected at paste time -- the first copied mesh's own dx/dy/dz is (0,0,0), so its pasted copy
+-- lands exactly on the new anchor (replacing it in grid modes, same overwrite rule ordinary
+-- placement already uses), which is what lets Paste "stamp" a whole copied group starting at an
+-- existing mesh rather than only adding the OTHER meshes around it.
+tCopyBuffer = nil
+
+function copySelectedMeshes()
+    local tSelected = {}
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.isSelected and tPlaced.layerIndex == iSelectedLayer then
+            table.insert(tSelected, tPlaced)
+        end
+    end
+    if #tSelected == 0 then return end
+    local ax, ay, az = resolvePlacedMeshWorldPos(tSelected[1])
+    tCopyBuffer = {}
+    for _, tPlaced in ipairs(tSelected) do
+        local wx, wy, wz = resolvePlacedMeshWorldPos(tPlaced)
+        table.insert(tCopyBuffer, {
+            fileName = tPlaced.fileName, type = tPlaced.type,
+            rotationY = tPlaced.rotationY or 0,
+            sx = tPlaced.scale.x, sy = tPlaced.scale.y, sz = tPlaced.scale.z,
+            dx = wx - ax, dy = wy - ay, dz = wz - az,
+        })
+    end
+    -- Pure read of the current selection -- no scene mutation, so no undo snapshot here.
+end
+
+-- Requires exactly one selected mesh (the paste anchor) -- see showMeshTools, which only shows
+-- the Paste button under that same condition. Reuses the exact same grid-snap/bounds-check/
+-- overwrite-in-place logic tryPlaceMeshAt already uses for a normal click-placement, so a pasted
+-- mesh always lands the same way a manually placed one would.
+function pasteCopiedMeshes()
+    if not tCopyBuffer or #tCopyBuffer == 0 or iSelectedLayer == 0 then return end
+    local anchor = nil
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.isSelected and tPlaced.layerIndex == iSelectedLayer then
+            anchor = tPlaced
+            break
+        end
+    end
+    if not anchor then return end
+    local ax, ay, az = resolvePlacedMeshWorldPos(anchor)
+    local layer = tLayers[iSelectedLayer]
+    local tNewlyPasted = {}
+    for _, tCopy in ipairs(tCopyBuffer) do
+        local wx, wy, wz = ax + tCopy.dx, ay + tCopy.dy, az + tCopy.dz
+        local tNew = nil
+        if tMapOptions.sMapType == 'Free' then
+            if isWorldPosWithinGridBounds(wx, wz, layer) then
+                tNew = addPlacedMesh(tCopy.fileName, tCopy.type, iSelectedLayer, 0, 0, wx, wz, true)
+                -- Explicit Y (not layer-attached) so the copied group's own vertical offsets carry
+                -- over exactly, even for a mesh that was originally layer-attached at copy time.
+                tNew.bAttachedToLayer = false
+                tNew.freeY = wy
+            end
+        else
+            local cx, cz = worldToGridCell(wx, wz, layer)
+            if isCellWithinGridBounds(cx, cz) then
+                local existingIndex = findPlacedMeshAtCell(iSelectedLayer, cx, cz)
+                if existingIndex then removePlacedMesh(existingIndex) end
+                tNew = addPlacedMesh(tCopy.fileName, tCopy.type, iSelectedLayer, cx, cz, nil, nil, true)
+            end
+        end
+        if tNew then
+            tNew.rotationY = tCopy.rotationY
+            tNew.scale = {x = tCopy.sx, y = tCopy.sy, z = tCopy.sz}
+            syncPlacedMeshTransform(tNew)
+            table.insert(tNewlyPasted, tNew)
+        end
+    end
+    if #tNewlyPasted > 0 then
+        -- Select the pasted result instead of the anchor -- lets the user immediately see/adjust
+        -- what was just pasted, and matches conventional paste UX.
+        for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = false end
+        for _, tPlaced in ipairs(tNewlyPasted) do tPlaced.isSelected = true end
+        pushUndoSnapshot()
     end
 end
 
@@ -2680,6 +2785,15 @@ function main_menu_3d()
             end
             if tImGui.MenuItem(tLang.L('redo'), 'Ctrl+Y', false, canRedoScene3d()) then
                 onRedoScene3d()
+            end
+            tImGui.Separator()
+            local iEditMenuSelectedCount = countSelectedMeshesOnActiveLayer()
+            if tImGui.MenuItem(tLang.L('copy_btn'), 'Ctrl+C', false, iEditMenuSelectedCount > 0) then
+                copySelectedMeshes()
+            end
+            if tImGui.MenuItem(tLang.L('paste_btn'), 'Ctrl+V', false,
+                    tCopyBuffer ~= nil and #tCopyBuffer > 0 and iEditMenuSelectedCount == 1) then
+                pasteCopiedMeshes()
             end
             tImGui.EndMenu()
         end
@@ -4022,6 +4136,10 @@ function onKeyDown(key)
         onUndoScene3d()
     elseif keyControlPressed and key == mbm.getKeyCode('Y') then
         onRedoScene3d()
+    elseif keyControlPressed and key == mbm.getKeyCode('C') and sActiveTab == 'layer' then
+        copySelectedMeshes()
+    elseif keyControlPressed and key == mbm.getKeyCode('V') and sActiveTab == 'layer' then
+        pasteCopiedMeshes()
     -- Select All / Invert / Unselect All mirror the Layer Options menu items of the same name
     -- (main_menu_3d) -- scoped to the active layer only, same reasoning as those menu actions.
     elseif keyControlPressed and key == mbm.getKeyCode('A') and sActiveTab == 'layer' then
