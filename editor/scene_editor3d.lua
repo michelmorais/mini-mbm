@@ -1360,7 +1360,7 @@ end
 -- and never drifts off the active mode's lattice; used for Free mode too as the "quick" tool-
 -- window rotate step (a precise arbitrary angle is out of scope for this button).
 function rotateSelectedMeshes(sign)
-    local step = math.pi * 0.5
+    local step = math.pi * 0.25
     for _, tPlaced in ipairs(tPlacedMeshes) do
         -- Restricted to the active layer even though selection is already layer-scoped upstream
         -- (updateHoverHighlight/finalizeRectSelection) -- the per-mesh "Selected" checkbox in the
@@ -2531,6 +2531,20 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
     -- on the frame the drag ends having actually changed the value, so an active drag collapses
     -- into one undo entry instead of one per dragged frame.
     local bRotYDragFinished = tImGui.IsItemDeactivatedAfterEdit()
+    
+    if tImGui.Button("+" .. '##add_1_deg_' .. i, {x = 40, y = 30}) then
+        rotYDeg = rotYDeg + 1
+        tPlaced.rotationY = math.rad(rotYDeg)
+        syncPlacedMeshTransform(tPlaced)
+        pushUndoSnapshot()
+    end
+    tImGui.SameLine()
+    if tImGui.Button("-" .. '##sub_1_deg_' .. i, {x = 40, y = 30}) then
+        rotYDeg = rotYDeg - 1
+        tPlaced.rotationY = math.rad(rotYDeg)
+        syncPlacedMeshTransform(tPlaced)
+        pushUndoSnapshot()
+    end
     if cRotY then
         tPlaced.rotationY = math.rad(rotYDeg)
         syncPlacedMeshTransform(tPlaced)
