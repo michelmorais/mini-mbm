@@ -1211,8 +1211,12 @@ end
 -- Called every frame (Layer tab only) -- shows a translucent box over every placed mesh that's
 -- either hovered or selected: green while it belongs to the currently active layer, red
 -- otherwise (mirrors the active-layer concept the grid/placement already enforces), fixed alpha
--- 0.4 while merely hovered, blinking between alpha 0.2 and 0.5 while selected (a plain per-frame
--- sine wave -- no shader needed for this). Selected takes priority over hover when both apply.
+-- 0.15 while merely hovered, blinking between alpha 0.05 and 0.15 while selected (a plain per-frame
+-- sine wave -- no shader needed for this). Kept subtle to match physic_editor.lua's own translucent
+-- shape-overlay convention (alpha ~0.1-0.15) -- alwaysOnTop (see makeHighlightBoxShape) already
+-- guarantees this box is fully visible over the mesh, so it no longer needs a strong alpha to read
+-- as "on top"; a heavier alpha just looked like a solid tinted duplicate of the mesh underneath.
+-- Selected takes priority over hover when both apply.
 function updateSelectionHighlights()
     if sActiveTab ~= 'layer' then
         for _, tPlaced in ipairs(tPlacedMeshes) do
@@ -1220,7 +1224,7 @@ function updateSelectionHighlights()
         end
         return
     end
-    local blinkAlpha = 0.35 + 0.15 * math.sin(mbm.getTimeRun() * 4)
+    local blinkAlpha = 0.15 + 0.05 * math.sin(mbm.getTimeRun() * 4)
     for i, tPlaced in ipairs(tPlacedMeshes) do
         local isHovered = (i == tHoveredPlaced)
         -- Skip a mesh whose own layer is currently hidden (or is otherwise not rendering) -- a
@@ -1235,7 +1239,7 @@ function updateSelectionHighlights()
             tPlaced.tHighlightShape:setScale(w * HIGHLIGHT_BOX_SCALE_FACTOR, h * HIGHLIGHT_BOX_SCALE_FACTOR, d * HIGHLIGHT_BOX_SCALE_FACTOR)
             local belongsToActiveLayer = tPlaced.layerIndex == iSelectedLayer
             local r, g = belongsToActiveLayer and 0 or 1, belongsToActiveLayer and 1 or 0
-            tPlaced.tHighlightShape:setColor(r, g, 0, tPlaced.isSelected and blinkAlpha or 0.4)
+            tPlaced.tHighlightShape:setColor(r, g, 0, tPlaced.isSelected and blinkAlpha or 0.2)
             tPlaced.tHighlightShape.visible = true
         elseif tPlaced.tHighlightShape then
             tPlaced.tHighlightShape.visible = false
@@ -2342,7 +2346,7 @@ function drawLayerTab(item_width)
     for i, tPlaced in ipairs(tPlacedMeshes) do
         if tPlaced.isSelected then table.insert(tSelectedIndices, i) end
     end
-    if tImGui.TreeNodeEx(tLang.L('selected_meshes_fmt'):format(#tSelectedIndices) .. '##selected_meshes_tree') then
+    if tImGui.TreeNodeEx(tLang.L('selected_meshes_fmt') .. '##selected_meshes_tree') then
         local thumbSize = {x = iSizeMeshOnSelector, y = iSizeMeshOnSelector}
         for _, i in ipairs(tSelectedIndices) do
             drawPlacedMeshRow(i, tPlacedMeshes[i], thumbSize, false)
