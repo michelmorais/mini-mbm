@@ -483,6 +483,16 @@ function applyCam3d(c)
     camera3d:setFocus(c.fx, c.fy, c.fz)
 end
 
+-- `cam3d` is the active tab's entry in tCamByTab, so this resets just the view currently shown
+-- in the shared orbit window. The other tabs retain their independent camera framing.
+function resetActiveOrbitCameraView()
+    cam3d.azimuth = 0.3
+    cam3d.elevation = 0.3
+    cam3d.distance = 800
+    cam3d.fx, cam3d.fy, cam3d.fz = 0, 0, 0
+    applyCam3d(cam3d)
+end
+
 -- WASD/arrow-key ground-plane movement for the active tab's orbit camera, consumed once per frame
 -- from onLoop (before applyCam3d(cam3d), so this frame's applyCam3d already reflects the move).
 -- Reuses the exact forward/right XZ-plane derivation already used by right-drag-pan (onTouchMove,
@@ -3954,6 +3964,9 @@ function onLoop(delta)
     tImGui.Begin(tLang.L('mesh_preview_orbit'), true,
         tImGui.Flags({'ImGuiWindowFlags_NoTitleBar', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoCollapse'}))
     tUtil.drawOrbitGizmo(cam3d, {size = 110})
+    if tImGui.Button(tLang.L('reset_camera'), {x = 110, y = 0}) then
+        resetActiveOrbitCameraView()
+    end
     tImGui.Separator()
 
     -- Position/focus/distance readout+edit -- same math and widget pattern as mesh_debug.lua's
