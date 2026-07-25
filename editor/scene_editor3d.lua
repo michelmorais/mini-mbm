@@ -1486,6 +1486,7 @@ function copySelectedMeshes()
             dx = wx - ax, dy = wy - ay, dz = wz - az,
         })
     end
+    tUtil.showMessage(tLang.L('scene_3d_copied_objects_fmt'):format(#tCopyBuffer))
     -- Pure read of the current selection -- no scene mutation, so no undo snapshot here.
 end
 
@@ -1538,6 +1539,7 @@ function pasteCopiedMeshes()
         for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = false end
         for _, tPlaced in ipairs(tNewlyPasted) do tPlaced.isSelected = true end
         pushUndoSnapshot()
+        tUtil.showMessage(tLang.L('scene_3d_pasted_objects_fmt'):format(#tNewlyPasted))
     end
 end
 
@@ -3448,6 +3450,7 @@ function onUndoScene3d()
     end
     iUndoIndex = iUndoIndex - 1
     restoreScene3dSnapshot(tUndoHistory[iUndoIndex])
+    tUtil.showMessage(tLang.L('scene_3d_undo_ok'))
 end
 
 function onRedoScene3d()
@@ -3457,6 +3460,7 @@ function onRedoScene3d()
     end
     iUndoIndex = iUndoIndex + 1
     restoreScene3dSnapshot(tUndoHistory[iUndoIndex])
+    tUtil.showMessage(tLang.L('scene_3d_redo_ok'))
 end
 
 function writeScene3d(fileName, bAsyncMesh, bIsExport)
