@@ -1320,7 +1320,13 @@ function finalizeRectSelection(xStart, yStart, xEnd, yEnd)
         -- meshes one at a time (e.g. to Copy them together). Clicking empty space with Shift held
         -- intentionally leaves the current selection untouched rather than clearing it.
         if tHoveredPlaced then
-            tPlacedMeshes[tHoveredPlaced].isSelected = true
+            local tPlaced = tPlacedMeshes[tHoveredPlaced]
+            tPlaced.isSelected = true
+            -- Shift+click is also the quick "pick this placed mesh as my brush" gesture.
+            -- Keep the normal additive selection semantics above, but make the most recently
+            -- hit mesh the asset stamped by the next ordinary click in the scene. The selector
+            -- already derives its active highlight from this shared placement state.
+            sMeshSelectedForPlacement = tPlaced.fileName
         end
         return
     end
