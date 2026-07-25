@@ -2683,6 +2683,29 @@ function fillActiveLayerWithMesh(fileName)
     end
 end
 
+-- Same cell span as fillActiveLayerWithMesh, but only places into cells that don't already
+-- have a placed mesh on this layer -- existing placements (and their per-instance rotation/
+-- offset edits) are left untouched instead of being overwritten.
+function fillActiveLayerEmptyCellsWithMesh(fileName)
+    if tMapOptions.sMapType == 'Free' or iSelectedLayer == 0 then
+        return
+    end
+    local entry = nil
+    for _, e in ipairs(tMeshSetEntries) do
+        if e.fileName == fileName then entry = e; break end
+    end
+    if not entry then return end
+    local cxMin, cxMax = gridCellRange(math.max(1, tMapOptions.iGridCountX))
+    local czMin, czMax = gridCellRange(math.max(1, tMapOptions.iGridCountZ))
+    for cx = cxMin, cxMax do
+        for cz = czMin, czMax do
+            if not findPlacedMeshAtCell(iSelectedLayer, cx, cz) then
+                addPlacedMesh(fileName, entry.type, iSelectedLayer, cx, cz, nil, nil, true)
+            end
+        end
+    end
+end
+
 function menuPopUpOptionToAddMesh()
     -- "Fill layer" is a Map edition (Layer tab) action against the active grid -- keep it out of
     -- reach while the Mesh Selector is showing on the Mesh property tab, where there's no grid in
@@ -2695,6 +2718,10 @@ function menuPopUpOptionToAddMesh()
                     -- One snapshot for the whole fill, not per-cell -- pushed here (the caller),
                     -- not inside fillActiveLayerWithMesh itself, since that function is also called
                     -- nowhere else that would want per-cell history.
+                    pushUndoSnapshot()
+                end
+                if tImGui.Selectable(tLang.L('fill_empty_layer_with_selected_mesh')) then
+                    fillActiveLayerEmptyCellsWithMesh(sMeshSelectedForPlacement)
                     pushUndoSnapshot()
                 end
             else
