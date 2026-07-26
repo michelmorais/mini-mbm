@@ -113,6 +113,7 @@ tMeshOffsets         = {}
 tThumbnailGenQueue = {}
 tThumbGenRt        = nil
 tThumbGenActive    = nil
+iThumbnailBakeFileSerial = 0
 
 -- ---- Orbit camera (mesh_debug.lua pattern) ----
 -- Default camera3d:setFar() (camera.cpp) is only 1000 -- far too close for a scene editor where
@@ -1047,12 +1048,16 @@ function tickThumbnailBake()
     if tThumbGenActive.framesWaited < 3 then
         return
     end
-    -- Strip the asset's own extension first -- tUtil.getShortName keeps it (e.g. "hex_grass.msh"),
-    -- and any Mesh Set entry that's itself a plain texture file (scanMeshSetFolder registers every
-    -- recognized file in the folder, not just meshes) already ends in ".png"; appending another
-    -- ".png" on top of that produced "grass_top.png.png".
-    local baseName = tUtil.getShortName(tThumbGenActive.entry.fileName):gsub('%.[^.]*$', '')
-    local pngPath = sThumbnailCacheDir .. baseName .. '.png'
+    -- Generated thumbnails must never reuse the source asset's basename. TEXTURE_MANAGER caches
+    -- by basename, so a Vortex mesh such as cow.vox.msh (whose source palette is cow.vox.png)
+    -- would otherwise retrieve that 256x1 palette as its 160x160 selector thumbnail. Keep a
+    -- session-unique reserved basename and also skip anything already cached by the engine.
+    local thumbnailBaseName
+    repeat
+        iThumbnailBakeFileSerial = iThumbnailBakeFileSerial + 1
+        thumbnailBaseName = string.format('__mbm_scene3d_thumbnail_%d.png', iThumbnailBakeFileSerial)
+    until not mbm.existTexture(thumbnailBaseName)
+    local pngPath = sThumbnailCacheDir .. thumbnailBaseName
     tThumbGenRt:save(pngPath, 0, 0, 160, 160)
     tThumbGenRt:remove(tThumbGenActive.tObj)
     tThumbGenActive.tObj:destroy()
