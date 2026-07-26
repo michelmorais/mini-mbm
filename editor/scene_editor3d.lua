@@ -1371,6 +1371,23 @@ function unselectAllPlacedMeshes()
     for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = false end
 end
 
+-- Selection commands are layer-scoped: a Select All replaces the global selection with the
+-- active layer's meshes, and Invert toggles only that layer while clearing stale selections from
+-- other layers. Shared by the Edit menu, Layer Options, and their keyboard shortcuts.
+function selectAllMeshesOnActiveLayer()
+    if sActiveTab ~= 'layer' then return end
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer)
+    end
+end
+
+function invertSelectedMeshesOnActiveLayer()
+    if sActiveTab ~= 'layer' then return end
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) and not tPlaced.isSelected
+    end
+end
+
 -- Both Orthogonal's snap step and Isometric's (just phase-shifted by 45 degrees, see
 -- snapRotation) are 90 degrees apart, so a single +-90 degree step is exactly one grid rotation
 -- and never drifts off the active mode's lattice; used for Free mode too as the "quick" tool-
@@ -2846,6 +2863,14 @@ function main_menu_3d()
                 onRedoScene3d()
             end
             tImGui.Separator()
+            local bCanEditActiveLayer = sActiveTab == 'layer' and iSelectedLayer > 0
+            if tImGui.MenuItem(tLang.L('select_all_meshes'), 'Ctrl+A', false, bCanEditActiveLayer) then
+                selectAllMeshesOnActiveLayer()
+            end
+            if tImGui.MenuItem(tLang.L('invert_selected_meshes'), 'Ctrl+I', false, bCanEditActiveLayer) then
+                invertSelectedMeshesOnActiveLayer()
+            end
+            tImGui.Separator()
             local iEditMenuSelectedCount = countSelectedMeshesOnActiveLayer()
             if tImGui.MenuItem(tLang.L('copy_btn'), 'Ctrl+C', false, iEditMenuSelectedCount > 0) then
                 copySelectedMeshes()
@@ -2874,12 +2899,10 @@ function main_menu_3d()
                 -- any stray selection left over in another layer is cleared as a side effect,
                 -- exactly like a plain click/drag-select already does.
                 if tImGui.MenuItem(tLang.L('select_all_meshes'), 'Ctrl+A') then
-                    for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) end
+                    selectAllMeshesOnActiveLayer()
                 end
                 if tImGui.MenuItem(tLang.L('invert_selected_meshes'), 'Ctrl+I') then
-                    for _, tPlaced in ipairs(tPlacedMeshes) do
-                        tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) and not tPlaced.isSelected
-                    end
+                    invertSelectedMeshesOnActiveLayer()
                 end
                 if tImGui.MenuItem(tLang.L('unselect_all_meshes'), 'Ctrl+U') then
                     for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = false end
@@ -4207,11 +4230,9 @@ function onKeyDown(key)
     -- Select All / Invert / Unselect All mirror the Layer Options menu items of the same name
     -- (main_menu_3d) -- scoped to the active layer only, same reasoning as those menu actions.
     elseif keyControlPressed and key == mbm.getKeyCode('A') and sActiveTab == 'layer' then
-        for _, tPlaced in ipairs(tPlacedMeshes) do tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) end
+        selectAllMeshesOnActiveLayer()
     elseif keyControlPressed and key == mbm.getKeyCode('I') and sActiveTab == 'layer' then
-        for _, tPlaced in ipairs(tPlacedMeshes) do
-            tPlaced.isSelected = (tPlaced.layerIndex == iSelectedLayer) and not tPlaced.isSelected
-        end
+        invertSelectedMeshesOnActiveLayer()
     elseif keyControlPressed and key == mbm.getKeyCode('U') and sActiveTab == 'layer' then
         unselectAllPlacedMeshes()
     elseif key == mbm.getKeyCode('Delete') and sActiveTab == 'layer' then
