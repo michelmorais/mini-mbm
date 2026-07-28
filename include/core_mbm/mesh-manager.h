@@ -137,6 +137,8 @@ namespace mbm
         // v1-v10 support has been removed entirely.
         API_IMPL bool loadV11(const char *fileNamePath);
         API_IMPL bool check(char *error,const int lenError);
+        // indexSubset selects the center anchor; the calculated translation applies to every
+        // subset in each selected frame so their relative placement remains unchanged.
         API_IMPL void centralizeFrame(const int indexFrame, const int indexSubset);
         API_IMPL void rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ);
         API_IMPL void scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz);

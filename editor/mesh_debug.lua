@@ -5105,20 +5105,26 @@ function rebuildGhostMesh(tEntry, index)
 end
 
 -- ---------------------------------------------------------------------------
--- "Apply Humanoid Armature": fixed 18-joint biped preset, positioned from the mesh's own AABB.
+-- Raw vertex AABB helper. Armature/template callers use the default frame 1/all-subsets scope;
+-- transform centralization can optionally select a different frame/subset anchor.
 -- ---------------------------------------------------------------------------
 
--- Reads frame 1's raw vertex data across every subset -- not meshD:getPhysics(), whose configured
--- bounds can be absent/stale -- to place joints relative to the mesh's actual current geometry.
-local function computeMeshAABB(meshD)
-    local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+-- Reads raw vertex data -- not meshD:getPhysics(), whose configured bounds can be absent/stale.
+-- targetFrame defaults to frame 1; targetSubset defaults to every subset.
+local function computeMeshAABB(meshD, targetFrame, targetSubset)
+    targetFrame = targetFrame or 1
+    targetSubset = targetSubset or 0
+    local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(targetFrame) end)
     nSubsets = (okS and nSubsets) or 0
     local minX, minY, minZ, maxX, maxY, maxZ = nil, nil, nil, nil, nil, nil
-    for s = 1, nSubsets do
-        local okV, nVerts = dpCall(function() return meshD:getTotalVertex(1, s) end)
+    local firstSubset = targetSubset > 0 and targetSubset or 1
+    local lastSubset = targetSubset > 0 and targetSubset or nSubsets
+    if firstSubset > nSubsets then return nil end
+    for s = firstSubset, lastSubset do
+        local okV, nVerts = dpCall(function() return meshD:getTotalVertex(targetFrame, s) end)
         nVerts = (okV and nVerts) or 0
         for v = 1, nVerts do
-            local okG, vert = dpCall(function() return meshD:getVertex(1, s, v) end)
+            local okG, vert = dpCall(function() return meshD:getVertex(targetFrame, s, v) end)
             if okG and vert then
                 local x, y, z = vert.x, vert.y, vert.z
                 minX = (not minX or x < minX) and x or minX
@@ -5134,9 +5140,9 @@ local function computeMeshAABB(meshD)
     return { minX = minX, minY = minY, minZ = minZ, maxX = maxX, maxY = maxY, maxZ = maxZ }
 end
 
--- Reproduces MESH_MBM_DEBUG::centralizeFrame's exact offset formula (src/core_mbm/mesh-manager.cpp:
--- 2992-3097) given frame 1's AABB (computeMeshAABB's shape), so bones can be translated by the
--- identical delta meshD:centralize() bakes into vertices (every vertex gets `pos -= offset`).
+-- Reproduces MESH_MBM_DEBUG::centralizeFrame's exact offset formula given the selected anchor
+-- AABB (computeMeshAABB's shape), so bones can be translated by the identical delta
+-- meshD:centralize() bakes into vertices (every vertex gets `pos -= offset`).
 -- Replicates centralizeFrame's near-zero-crossing tolerance heuristic verbatim (if an axis's min/max
 -- are already nearly symmetric about zero, treat that axis as already centered rather than
 -- re-deriving from dist*0.5) rather than approximating with a plain AABB-center formula -- including
@@ -7970,12 +7976,21 @@ function showMeshOptions(tEntry, index)
     end
 
     if openNode(tEntry, 'transform', tLang.L("transform"), 0, 'transform-' .. index) then
+        -- Shared targeting state for every operation in this node. A selected subset is the
+        -- centralization anchor; all subsets in each targeted frame move by the same offset.
+        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false }
+        local xf = tEntry.tXformUI
+        xf.subset = xf.subset or 0
+        xf.dx = xf.dx or 0; xf.dy = xf.dy or 0; xf.dz = xf.dz or 0
+        if xf.hideOriginal == nil then xf.hideOriginal = false end
+        if xf.autoPreview == nil then xf.autoPreview = false end
+
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
-            -- Compute the offset meshD:centralize() is about to bake into vertices BEFORE calling
-            -- it (it derives its own offset from the CURRENT vertex state; frame 1's AABB, read
-            -- here, is exactly what it will use), so bones can be translated by the same delta.
-            local aabb = computeMeshAABB(meshD)
-            meshD:centralize()
+            -- Bones are mesh-wide rather than per-frame. Match the targeted frame when one is
+            -- selected; for "all frames", retain the established frame-1 reference behavior.
+            local boneReferenceFrame = xf.frame > 0 and xf.frame or 1
+            local aabb = computeMeshAABB(meshD, boneReferenceFrame, xf.subset)
+            meshD:centralize(xf.frame, xf.subset)
             if aabb then
                 local offX, offY, offZ = computeCentralizeOffset(aabb)
                 applyTranslateToBones(meshD, -offX, -offY, -offZ)
@@ -7987,12 +8002,6 @@ function showMeshOptions(tEntry, index)
         end
 
         -- Rotate/Scale/Translate with per-frame/per-subset targeting
-        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false }
-        local xf = tEntry.tXformUI
-        xf.subset = xf.subset or 0
-        xf.dx = xf.dx or 0; xf.dy = xf.dy or 0; xf.dz = xf.dz or 0
-        if xf.hideOriginal == nil then xf.hideOriginal = false end
-        if xf.autoPreview == nil then xf.autoPreview = false end
         local totalFrames = info.totalFrames or 0
         local totalSubsets = 0
         do
@@ -9565,10 +9574,14 @@ local function applyAllRecomputeNormalsBulk(sType)
 end
 
 local function applyAllCentralize(sType)
+    local xf = tApplyAllWin.transform
     return runApplyAllOperation(sType, tLang.L('centralize'), function(tEntry, index)
         local meshD = tEntry.meshDebug
-        local aabb = computeMeshAABB(meshD)
-        meshD:centralize()
+        -- Bones are mesh-wide rather than per-frame. Match the targeted frame when one is
+        -- selected; for "all frames", retain the established frame-1 reference behavior.
+        local boneReferenceFrame = xf.frame > 0 and xf.frame or 1
+        local aabb = computeMeshAABB(meshD, boneReferenceFrame, xf.subset)
+        meshD:centralize(xf.frame, xf.subset)
         if aabb then
             local offX, offY, offZ = computeCentralizeOffset(aabb)
             applyTranslateToBones(meshD, -offX, -offY, -offZ)

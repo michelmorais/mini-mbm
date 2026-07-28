@@ -3082,6 +3082,9 @@ namespace mbm
             const auto       s             = static_cast<uint32_t>(bufferCurrent->subset.size());
             VEC3                     maxSize(-FLT_MAX, -FLT_MAX, -FLT_MAX);
             VEC3                     minSize(FLT_MAX, FLT_MAX, FLT_MAX);
+            // indexSubset selects the geometry used to calculate the center. The resulting
+            // translation is always applied to the whole frame so the relative placement of
+            // its subsets is preserved.
             if (indexSubset < 0)
             {
                 for (uint32_t i = 0; i < s; ++i)
@@ -3172,26 +3175,11 @@ namespace mbm
             }
             const VEC3 middle(dist.x * 0.5f, dist.y * 0.5f, dist.z * 0.5f);
             const VEC3 offset(minSize.x + middle.x, minSize.y + middle.y, minSize.z + middle.z);
-            if (indexSubset < 0)
+            for (uint32_t i = 0; i < s; ++i)
             {
-                for (uint32_t i = 0; i < s; ++i)
-                {
-                    util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[i];
-                    const auto  n          = static_cast<uint32_t >(pTmpSubset->vertexStart + pTmpSubset->vertexCount);
-                    for (auto j = static_cast<uint32_t >(pTmpSubset->vertexStart); j < n; ++j)
-                    {
-                        VEC3 *pos = &pPosition[j];
-                        pos->x -= offset.x;
-                        pos->y -= offset.y;
-                        pos->z -= offset.z;
-                    }
-                }
-            }
-            else if (indexSubset < static_cast<int>(s))
-            {
-                util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[static_cast<std::vector<util::SUBSET_DEBUG *>::size_type>(indexSubset)];
-                const int  n          = pTmpSubset->vertexStart + pTmpSubset->vertexCount;
-                for (int j = pTmpSubset->vertexStart; j < n; ++j)
+                util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[i];
+                const auto n = static_cast<uint32_t>(pTmpSubset->vertexStart + pTmpSubset->vertexCount);
+                for (auto j = static_cast<uint32_t>(pTmpSubset->vertexStart); j < n; ++j)
                 {
                     VEC3 *pos = &pPosition[j];
                     pos->x -= offset.x;
