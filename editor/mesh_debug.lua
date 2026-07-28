@@ -3195,6 +3195,7 @@ function removeMeshFromTable(index)
     local wasSelected = (iSelectedMeshIndex == index)
     local removed = table.remove(tLoadedMeshes, index)
     if removed then
+        if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
         destroyNormalVisualization(removed)
         destroyPhysicsVisualization(removed)
     end
@@ -3951,6 +3952,10 @@ function refreshFrameFilterPreview(tEntry, index)
     end
 
     if ok and tPreviewMesh then
+        -- A freshly-created 3D mesh can receive an automatic device Z-order nudge when
+        -- registered. Frame/subset filter refreshes must not move the user's preview or the
+        -- apparent reference used by the split-capture cube.
+        if meshType == 'mesh' then tPreviewMesh:setPos(0, 0, 0) end
         tPreviewMesh.visible = true
         dpCall(function()
             local nA = (tEntry.info and tEntry.info.animation) or 0
@@ -6893,6 +6898,351 @@ function showBonesWindow()
 end
 
 -- ---------------------------------------------------------------------------
+-- Split capture: an axis-aligned 3D volume used to extract triangle groups.
+-- The volume is deliberately only evaluated when Start Capture is turned off;
+-- dragging/resizing it never mutates mesh data.
+-- ---------------------------------------------------------------------------
+function splitCaptureBuildBox(t)
+    if t.tShape then t.tShape:destroy(); t.tShape = nil end
+    if t.tLine then t.tLine:destroy(); t.tLine = nil end
+    local hw, hh, hd = math.max(t.width, 0.01) * 0.5,
+                       math.max(t.height, 0.01) * 0.5,
+                       math.max(t.depth, 0.01) * 0.5
+    local corners = {
+        {x=-hw,y=-hh,z= hd}, {x=-hw,y= hh,z= hd}, {x= hw,y= hh,z= hd}, {x= hw,y=-hh,z= hd},
+        {x=-hw,y=-hh,z=-hd}, {x=-hw,y= hh,z=-hd}, {x= hw,y= hh,z=-hd}, {x= hw,y=-hh,z=-hd},
+    }
+    local faces = {
+        {1,2,3},{1,3,4},{5,7,6},{5,8,7},
+        {5,6,2},{5,2,1},{4,3,7},{4,7,8},
+        {2,6,7},{2,7,3},{5,1,4},{5,4,8},
+    }
+    local verts = {}
+    for _, tri in ipairs(faces) do
+        for _, idx in ipairs(tri) do
+            local p = corners[idx]
+            table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z)
+        end
+    end
+    local name = 'mesh_debug_split_capture_' .. tostring(os.clock())
+    t.tShape = shape:new('3d', t.x, t.y, t.z)
+    t.tShape:create(verts, nil, name)
+    t.tShape:setColor(1, 0.65, 0.05, 0.12)
+    t.tShape.alwaysOnTop = true
+    t.tLine = line:new('3d', 0, 0, 0)
+    t.tLine:drawBounding(t.tShape, false)
+    t.tLine:setColor(1, 0.75, 0.1)
+    t.aabbMin = {x=t.x-hw, y=t.y-hh, z=t.z-hd}
+    t.aabbMax = {x=t.x+hw, y=t.y+hh, z=t.z+hd}
+end
+
+function splitCaptureRayHitsAABB(ox, oy, oz, dx, dy, dz, minX, minY, minZ, maxX, maxY, maxZ)
+    local tmin, tmax = -math.huge, math.huge
+    local function slab(o, d, mn, mx)
+        if math.abs(d) < 1e-9 then return o >= mn and o <= mx end
+        local a, b = (mn-o)/d, (mx-o)/d
+        if a > b then a, b = b, a end
+        tmin, tmax = math.max(tmin, a), math.min(tmax, b)
+        return tmin <= tmax
+    end
+    return slab(ox,dx,minX,maxX) and slab(oy,dy,minY,maxY) and slab(oz,dz,minZ,maxZ) and tmax >= 0
+end
+
+function splitCaptureDestroy(t)
+    if not t then return end
+    if t.tShape then t.tShape:destroy(); t.tShape = nil end
+    if t.tLine then t.tLine:destroy(); t.tLine = nil end
+end
+
+function splitCaptureSignature(vertices, indices, texture)
+    local h = 2166136261
+    local function add(v)
+        h = (h * 16777619 + (tonumber(v) or 0) * 1000) % 2147483647
+    end
+    add(texture and #texture or 0)
+    for _, v in ipairs(vertices or {}) do
+        add(v.x); add(v.y); add(v.z); add(v.nx); add(v.ny); add(v.nz); add(v.u); add(v.v)
+    end
+    for _, i in ipairs(indices or {}) do add(i) end
+    return tostring(math.floor(h)) .. ':' .. tostring(#vertices) .. ':' .. tostring(#indices)
+end
+
+function splitCaptureGroup(vertices, triangles)
+    local outVertices, outIndices, remap = {}, {}, {}
+    for _, tri in ipairs(triangles) do
+        for _, oldIndex in ipairs(tri) do
+            local newIndex = remap[oldIndex]
+            if not newIndex then
+                newIndex = #outVertices + 1
+                remap[oldIndex] = newIndex
+                outVertices[newIndex] = vertices[oldIndex]
+            end
+            table.insert(outIndices, newIndex)
+        end
+    end
+    return outVertices, outIndices
+end
+
+function splitCaptureSetSubsetTextures(meshD, frame, subset, texture, materialTextures)
+    meshD:setTexture(frame, subset, texture or '')
+    for role, value in pairs(materialTextures or {}) do
+        meshD:setMaterialTexture(frame, subset, role, value or '')
+    end
+end
+
+function splitCaptureGetSubsetSignature(meshD, frame, subset)
+    local okV, nVertices = dpCall(function() return meshD:getTotalVertex(frame, subset) end)
+    if not okV or not nVertices then return nil end
+    local vertices = {}
+    for v = 1, nVertices do
+        local ok, value = dpCall(function() return meshD:getVertex(frame, subset, v) end)
+        if not ok or not value then return nil end
+        vertices[v] = value
+    end
+    local okI, nIndices = dpCall(function() return meshD:getTotalIndex(frame, subset) end)
+    local indices = {}
+    if okI and nIndices and nIndices > 0 then
+        local ok, value = dpCall(function() return meshD:getIndex(frame, subset) end)
+        indices = (ok and value) or {}
+    else
+        for i = 1, nVertices do indices[i] = i end
+    end
+    local okT, texture = dpCall(function() return meshD:getTexture(frame, subset) end)
+    return splitCaptureSignature(vertices, indices, okT and texture or '')
+end
+
+function splitCaptureMesh(tEntry, meshD, box)
+    tEntry.tSplitCapturedSignatures = tEntry.tSplitCapturedSignatures or {}
+    local capturedFaces, capturedFrames = 0, 0
+    local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    if not okF or not nFrames then return 0, 0 end
+
+    for f = 1, nFrames do
+        local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+        if okS and nSubsets then
+            for s = nSubsets, 1, -1 do
+                -- A disabled subset is intentionally invisible in the Frame node and must not
+                -- participate in a later split capture.
+                if (tEntry.tCheckedRemove or {})[f * 100 + s] ~= false then
+                local okV, nVertices = dpCall(function() return meshD:getTotalVertex(f, s) end)
+                local okI, nIndices = dpCall(function() return meshD:getTotalIndex(f, s) end)
+                if okV and nVertices and nVertices > 0 then
+                    local vertices, indices = {}, {}
+                    for v = 1, nVertices do
+                        local ok, value = dpCall(function() return meshD:getVertex(f, s, v) end)
+                        if not ok or not value then vertices = nil; break end
+                        vertices[v] = value
+                    end
+                    if vertices then
+                        if okI and nIndices and nIndices > 0 then
+                            local ok, value = dpCall(function() return meshD:getIndex(f, s) end)
+                            indices = (ok and value) or {}
+                        else
+                            for i = 1, nVertices do indices[i] = i end
+                        end
+                        local okT, texture = dpCall(function() return meshD:getTexture(f, s) end)
+                        texture = okT and texture or ''
+                        local materialTextures = {}
+                        for _, role in ipairs({'normal', 'specular', 'emissive', 'mask'}) do
+                            local okM, value = dpCall(function() return meshD:getMaterialTexture(f, s, role) end)
+                            if okM and value and value ~= '' then materialTextures[role] = value end
+                        end
+                        local signature = splitCaptureSignature(vertices, indices, texture)
+                        local sourceKey = tostring(f) .. ':' .. signature
+                        if not tEntry.tSplitCapturedSignatures[sourceKey] then
+                            local inside, outside = {}, {}
+                            for i = 1, #indices - 2, 3 do
+                                local ia, ib, ic = indices[i], indices[i+1], indices[i+2]
+                                local a, b, c = vertices[ia], vertices[ib], vertices[ic]
+                                if a and b and c then
+                                    local cx, cy, cz = (a.x+b.x+c.x)/3, (a.y+b.y+c.y)/3, (a.z+b.z+c.z)/3
+                                    local target = (cx >= box.aabbMin.x and cx <= box.aabbMax.x and
+                                                    cy >= box.aabbMin.y and cy <= box.aabbMax.y and
+                                                    cz >= box.aabbMin.z and cz <= box.aabbMax.z) and inside or outside
+                                    table.insert(target, {ia, ib, ic})
+                                end
+                            end
+                            if #inside > 0 then
+                                local outsideV, outsideI = splitCaptureGroup(vertices, outside)
+                                local insideV, insideI = splitCaptureGroup(vertices, inside)
+                                dpCall(function() meshD:removeSubset(f, s) end)
+                                if #outsideI > 0 then
+                                    local newS = meshD:addSubSet(f)
+                                    meshD:addVertex(f, newS, outsideV)
+                                    meshD:addIndex(f, newS, outsideI)
+                                    splitCaptureSetSubsetTextures(meshD, f, newS, texture, materialTextures)
+                                end
+                                local newS = meshD:addSubSet(f)
+                                meshD:addVertex(f, newS, insideV)
+                                meshD:addIndex(f, newS, insideI)
+                                splitCaptureSetSubsetTextures(meshD, f, newS, texture, materialTextures)
+                                tEntry.tSplitCapturedSignatures[tostring(f) .. ':' .. splitCaptureSignature(insideV, insideI, texture)] = true
+                                capturedFaces = capturedFaces + #inside
+                                capturedFrames = capturedFrames + 1
+                            end
+                        end
+                    end
+                end
+                end
+            end
+        end
+    end
+    return capturedFaces, capturedFrames
+end
+
+function saveCapturedSplitAs(tEntry)
+    local captured = tEntry.tSplitCapturedSignatures or {}
+    if next(captured) == nil then
+        tUtil.showMessageWarn('No captured groups to save.')
+        return
+    end
+    local newFile = mbm.saveFile(sLastMeshPath, 'msh')
+    if not newFile or newFile == '' then return end
+
+    local sourceD = tEntry.meshDebug
+    local tempPath
+    local sourceForCopy = sourceD
+    if tEntry.modified then
+        tempPath = os.tmpname() .. '.msh'
+        if not sourceD:save(tempPath, false, false) then
+            tUtil.showMessageWarn('Could not prepare captured groups for saving.')
+            return
+        end
+        sourceForCopy = meshDebug:new()
+        if not sourceForCopy:load(tempPath) then
+            meshDebug:fakeRelease(tempPath)
+            os.remove(tempPath)
+            tUtil.showMessageWarn('Could not reload captured groups for saving.')
+            return
+        end
+        meshDebug:fakeRelease(tempPath)
+        os.remove(tempPath)
+    else
+        sourceForCopy = meshDebug:new()
+        if not sourceForCopy:load(tEntry.fileName) then
+            tUtil.showMessageWarn('Could not load mesh for captured-group save.')
+            return
+        end
+    end
+
+    local okF, nFrames = dpCall(function() return sourceForCopy:getTotalFrame() end)
+    local keepFrame, oldToNew = {}, {}
+    local newFrame = 0
+    for f = 1, (okF and nFrames or 0) do
+        local okS, nSubsets = dpCall(function() return sourceForCopy:getTotalSubset(f) end)
+        local hasCaptured = false
+        for s = 1, (okS and nSubsets or 0) do
+            local signature = splitCaptureGetSubsetSignature(sourceForCopy, f, s)
+            if signature and captured[tostring(f) .. ':' .. signature] then hasCaptured = true; break end
+        end
+        if hasCaptured then
+            newFrame = newFrame + 1
+            keepFrame[f], oldToNew[f] = true, newFrame
+        end
+    end
+    if newFrame == 0 then
+        sourceForCopy = nil -- meshDebug userdata is released by Lua GC; it has no :destroy() method
+        tUtil.showMessageWarn('No captured groups remain to save.')
+        return
+    end
+
+    local nAnim = (tEntry.info and tEntry.info.animation) or 0
+    for i = nAnim, 1, -1 do
+        local ok, name, initial, final, time, typ = dpCall(function() return sourceForCopy:getAnim(i) end)
+        if ok and name and initial and final then
+            local newInitial, newFinal
+            for f = initial, final do
+                if oldToNew[f] then
+                    newInitial = newInitial or oldToNew[f]
+                    newFinal = oldToNew[f]
+                end
+            end
+            if not newInitial then sourceForCopy:removeAnim(i)
+            else sourceForCopy:updateAnim(i, name, newInitial, newFinal, time or 0.1, typ or 0) end
+        end
+    end
+
+    for f = (okF and nFrames or 0), 1, -1 do
+        if keepFrame[f] then
+            local okS, nSubsets = dpCall(function() return sourceForCopy:getTotalSubset(f) end)
+            for s = (okS and nSubsets or 0), 1, -1 do
+                local signature = splitCaptureGetSubsetSignature(sourceForCopy, f, s)
+                if not (signature and captured[tostring(f) .. ':' .. signature]) then
+                    sourceForCopy:removeSubset(f, s)
+                end
+            end
+        else
+            sourceForCopy:removeFrame(f)
+        end
+    end
+
+    local okSave = sourceForCopy:save(newFile, false, false)
+    sourceForCopy = nil -- meshDebug userdata is released by Lua GC; it has no :destroy() method
+    if okSave then
+        sLastMeshPath = newFile
+        tUtil.showMessage('Captured groups saved: ' .. tUtil.getShortName(newFile), 5)
+    else
+        tUtil.showMessageWarn('Could not save captured groups.')
+    end
+end
+
+function showSplitCapture(tEntry, meshD, index)
+    local sp = tEntry.tSplitCapture
+    if not sp then return end
+    tImGui.Separator()
+    tImGui.Text('Split')
+    local oldActive = sp.active == true
+    local newActive = tImGui.Checkbox('Start Capture##splitCapture-' .. index, oldActive)
+    sp.active = newActive
+    if newActive and not oldActive then
+        if not sp.initialized then
+            local aabb = computeMeshAABB(meshD)
+            local cx = aabb and (aabb.minX + aabb.maxX) * 0.5 or 0
+            local cy = aabb and (aabb.minY + aabb.maxY) * 0.5 or 0
+            local cz = aabb and (aabb.minZ + aabb.maxZ) * 0.5 or 0
+            sp.x, sp.y, sp.z = cx, cy, cz
+            sp.width = math.max(aabb and (aabb.maxX - aabb.minX) * 0.25 or 100, 1)
+            sp.height = math.max(aabb and (aabb.maxY - aabb.minY) * 0.25 or 100, 1)
+            sp.depth = math.max(aabb and (aabb.maxZ - aabb.minZ) * 0.25 or 100, 1)
+            sp.initialized = true
+        end
+        splitCaptureBuildBox(sp)
+        tEntry.sSplitDragPlane = nil
+    elseif not newActive and oldActive then
+        local faces, frames = splitCaptureMesh(tEntry, meshD, sp)
+        splitCaptureDestroy(sp)
+        tEntry.sSplitDragPlane = nil
+        sp.lastFaces, sp.lastFrames = faces, frames
+        if faces > 0 then
+            tEntry.modified = true
+            tEntry.bNormalsVizDirty = true
+            tEntry.bPhysicsVizDirty = true
+            iLastPreviewedIndex = 0
+            table.insert(tEntry.tSplitCaptures, {faces=faces, frames=frames, x=sp.x, y=sp.y, z=sp.z, width=sp.width, height=sp.height, depth=sp.depth})
+            tUtil.showMessage(string.format('Split capture: %d face(s) in %d frame(s).', faces, frames), 5)
+        else
+            tUtil.showMessage('Split capture: no faces found inside the cube.', 4)
+        end
+    end
+    if sp.active then
+        local changed, v = tImGui.DragFloat3('Center##splitCenter-' .. index, {sp.x,sp.y,sp.z}, 0.1, 0, 0, '%.2f')
+        if changed and v then sp.x,sp.y,sp.z=v[1],v[2],v[3]; splitCaptureBuildBox(sp) end
+        local changedW, w = tImGui.DragFloat3('Size##splitSize-' .. index, {sp.width,sp.height,sp.depth}, 0.1, 0.01, 0, '%.2f')
+        if changedW and w then sp.width,sp.height,sp.depth=math.max(w[1],0.01),math.max(w[2],0.01),math.max(w[3],0.01); splitCaptureBuildBox(sp) end
+        if sp.lastFaces then tImGui.Text(string.format('Last capture: %d face(s)', sp.lastFaces)) end
+    end
+    if tEntry.tSplitCaptures and #tEntry.tSplitCaptures > 0 then
+        tImGui.Text('Captured groups: ' .. tostring(#tEntry.tSplitCaptures))
+        for i, cap in ipairs(tEntry.tSplitCaptures) do
+            tImGui.Text(string.format('%d: %d face(s), %d frame(s)', i, cap.faces, cap.frames))
+        end
+        if tImGui.Button(tLang.L('save_captured_as') .. '##saveCaptured-' .. index) then
+            saveCapturedSplitAs(tEntry)
+        end
+    end
+end
+
+-- ---------------------------------------------------------------------------
 -- Frame tree node: view/queue removals, open Frame Pick
 -- ---------------------------------------------------------------------------
 function showFrameNode(tEntry, meshD, index)
@@ -6917,6 +7267,16 @@ function showFrameNode(tEntry, meshD, index)
             local okT, tex = dpCall(function() return meshD:getTexture(f, s) end)
             local texName = (okT and tex and tex ~= '') and (' [' .. tUtil.getShortName(tex) .. ']') or ''
             table.insert(allSubsets, {f=f, s=s, texName=texName})
+        end
+    end
+    -- Newly-created subsets (including split-capture outputs) have no entry yet in the
+    -- visibility table. Missing means visible by default; only an explicit false disables it.
+    for f = 1, nFrames do
+        if tEntry.tCheckedRemove[f * 100] == nil then tEntry.tCheckedRemove[f * 100] = true end
+        local okS, nSubs = dpCall(function() return meshD:getTotalSubset(f) end)
+        for s = 1, (okS and nSubs or 0) do
+            local key = f * 100 + s
+            if tEntry.tCheckedRemove[key] == nil then tEntry.tCheckedRemove[key] = true end
         end
     end
 
@@ -7201,6 +7561,10 @@ function showFrameNode(tEntry, meshD, index)
         tEntry.bShowFramePick = true
         tEntry.tRightChecked  = {}
     end
+
+    tEntry.tSplitCapture = tEntry.tSplitCapture or {active=false, initialized=false}
+    tEntry.tSplitCaptures = tEntry.tSplitCaptures or {}
+    showSplitCapture(tEntry, meshD, index)
 
     -- Execute and Clear (when pending ops exist)
     if #tEntry.tPendingOps > 0 then
@@ -8605,6 +8969,16 @@ function doSaveAs(tEntry, index)
     local hasDeselected = false
     for f = 1, nFrames do
         if tSel[f] == false then hasDeselected = true; break end
+        local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+        if okS and nSubsets then
+            for s = 1, nSubsets do
+                if (tEntry.tCheckedRemove or {})[f * 100 + s] == false then
+                    hasDeselected = true
+                    break
+                end
+            end
+        end
+        if hasDeselected then break end
     end
 
     local ok = false
@@ -8613,7 +8987,7 @@ function doSaveAs(tEntry, index)
         -- All frames selected: simple save
         ok = meshD:save(newFile, false, false)
     else
-        local tempD = buildFilteredMesh(tEntry)
+        local tempD = buildFilteredMeshForSave(tEntry)
         if not tempD then
             tUtil.showMessageWarn('Nothing to save (all frames deselected)')
             return
@@ -8716,7 +9090,7 @@ local function buildCheckedRemoveDefaults(tEntry)
     return checked
 end
 
-local function buildFilteredMeshForSave(tEntry)
+function buildFilteredMeshForSave(tEntry)
     local oldCheckedRemove = tEntry.tCheckedRemove
     tEntry.tCheckedRemove = buildCheckedRemoveDefaults(tEntry)
 
@@ -11104,6 +11478,29 @@ end
 
 function onTouchDown(key, x, y)
     if not tImGui.IsAnyWindowHovered() then
+        if key == 0 and bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+            local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+            local sp = tEntry.tSplitCapture
+            if sp and sp.active and sp.aabbMin then
+                local okRay, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, x, y)
+                if okRay and splitCaptureRayHitsAABB(ox, oy, oz, dx, dy, dz,
+                        sp.aabbMin.x, sp.aabbMin.y, sp.aabbMin.z,
+                        sp.aabbMax.x, sp.aabbMax.y, sp.aabbMax.z) then
+                    local px, py, pz = cam3dGetPos(tEntry.cam3d)
+                    local nx, ny, nz = tEntry.cam3d.fx - px, tEntry.cam3d.fy - py, tEntry.cam3d.fz - pz
+                    local length = math.sqrt(nx*nx + ny*ny + nz*nz)
+                    if length > 0 then nx, ny, nz = nx/length, ny/length, nz/length end
+                    sp.dragPlaneNormal = {x=nx,y=ny,z=nz}
+                    sp.dragPlanePoint = {x=sp.x,y=sp.y,z=sp.z}
+                    sp.dragOffset = {x=sp.x,y=sp.y,z=sp.z}
+                    local wx, wy, wz = rayPlaneHit(x, y, sp.dragPlanePoint, sp.dragPlaneNormal)
+                    if wx then sp.dragOffset = {x=sp.x-wx,y=sp.y-wy,z=sp.z-wz} end
+                    tEntry.sSplitDragging = true
+                    camera2d.mx, camera2d.my = x, y
+                    return
+                end
+            end
+        end
         -- Axis-locked bone drag/drop takes priority over ordinary orbit, but only when a drag
         -- plane is actually checked -- otherwise every ordinary orbit-click would pay for a
         -- hit-test against bone spheres that aren't even a relevant target. Same
@@ -11133,6 +11530,16 @@ function onTouchMove(key, x, y)
     if tImGui.IsAnyWindowHovered() then return end
     if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
+        local sp = tDragEntry.tSplitCapture
+        if tDragEntry.sSplitDragging and sp and sp.active then
+            local wx, wy, wz = rayPlaneHit(x, y, sp.dragPlanePoint, sp.dragPlaneNormal)
+            if wx then
+                sp.x, sp.y, sp.z = wx + sp.dragOffset.x, wy + sp.dragOffset.y, wz + sp.dragOffset.z
+                splitCaptureBuildBox(sp)
+            end
+            camera2d.mx, camera2d.my = x, y
+            return
+        end
         if tDragEntry.sDraggingBoneName then
             local wx, wy, wz = rayPlaneHit(x, y, tDragEntry.tDragPlanePoint, tDragEntry.tDragPlaneNormal)
             if wx then
@@ -11211,6 +11618,12 @@ function onTouchUp(key, x, y)
     camera2d.my = y
     if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+        tEntry.sSplitDragging = nil
+        if tEntry.tSplitCapture then
+            tEntry.tSplitCapture.dragPlanePoint = nil
+            tEntry.tSplitCapture.dragPlaneNormal = nil
+            tEntry.tSplitCapture.dragOffset = nil
+        end
         -- Nothing to "commit" here -- onTouchMove's live updateBone/onBonesEdit already wrote
         -- every change as it happened. Just clear the drag state.
         tEntry.sDraggingBoneName = nil
