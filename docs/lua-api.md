@@ -1201,7 +1201,10 @@ meshD:addArticulatedKey(clipIndex, trackIndex, time,
 Channel masks are `1` for position, `2` for rotation, and `4` for scale. Adding another key for
 the same track and time replaces the previous key. `getTotalArticulatedParts()`,
 `getArticulatedPart(index)`, `getTotalArticulatedAnimations()`, and
-`getArticulatedAnimationName(index)` provide inspection.
+`getArticulatedAnimationName(index)`, `getArticulatedAnimation(index)`,
+`getTotalArticulatedTracks(animation)`, `getArticulatedTrack(animation, track)`, and
+`getArticulatedKey(animation, track, key)` provide inspection. The editor can create tracks with
+independent channel masks and add or replace keys.
 
 The loaded `mesh` object exposes playback controls for `.msh` assets. Multiple clips may be active;
 higher priority wins for a part, and a newer clip wins when priorities are equal. `pause` preserves

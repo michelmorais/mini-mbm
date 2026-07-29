@@ -1899,6 +1899,74 @@ namespace mbm
         return 1;
     }
 
+    int onGetArticulatedAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *name = nullptr;
+        float duration = 0.0f, speed = 1.0f;
+        int priority = 0;
+        bool loop = false;
+        if (!meshDebug->mesh.getArticulatedAnimation(index, &name, &duration, &speed, &priority, &loop))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushstring(lua, name);
+        lua_pushnumber(lua, duration);
+        lua_pushnumber(lua, speed);
+        lua_pushinteger(lua, priority);
+        lua_pushboolean(lua, loop ? 1 : 0);
+        return 5;
+    }
+
+    int onGetTotalArticulatedTracksDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalArticulatedTracks(animation)));
+        return 1;
+    }
+
+    int onGetArticulatedTrackDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        uint64_t partId = 0; uint8_t mask = 0; uint32_t keyCount = 0;
+        if (!meshDebug->mesh.getArticulatedTrack(animation, track, &partId, &mask, &keyCount))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushinteger(lua, static_cast<lua_Integer>(partId));
+        lua_pushinteger(lua, static_cast<lua_Integer>(mask));
+        lua_pushinteger(lua, static_cast<lua_Integer>(keyCount));
+        return 3;
+    }
+
+    int onGetArticulatedKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t keyIndex = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        float time = 0.0f, px = 0.0f, py = 0.0f, pz = 0.0f;
+        float qx = 0.0f, qy = 0.0f, qz = 0.0f, qw = 1.0f;
+        float sx = 1.0f, sy = 1.0f, sz = 1.0f;
+        if (!meshDebug->mesh.getArticulatedKey(animation, track, keyIndex, &time, &px, &py, &pz,
+                                               &qx, &qy, &qz, &qw, &sx, &sy, &sz))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushnumber(lua, time);
+        lua_pushnumber(lua, px); lua_pushnumber(lua, py); lua_pushnumber(lua, pz);
+        lua_pushnumber(lua, qx); lua_pushnumber(lua, qy); lua_pushnumber(lua, qz); lua_pushnumber(lua, qw);
+        lua_pushnumber(lua, sx); lua_pushnumber(lua, sy); lua_pushnumber(lua, sz);
+        return 12;
+    }
+
     int onAddArticulatedAnimationDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2257,6 +2325,10 @@ namespace mbm
                                           {"updateArticulatedPart", onUpdateArticulatedPartDebugLua},
                                           {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsDebugLua},
                                           {"getArticulatedAnimationName", onGetArticulatedAnimationNameDebugLua},
+                                          {"getArticulatedAnimation", onGetArticulatedAnimationDebugLua},
+                                          {"getTotalArticulatedTracks", onGetTotalArticulatedTracksDebugLua},
+                                          {"getArticulatedTrack", onGetArticulatedTrackDebugLua},
+                                          {"getArticulatedKey", onGetArticulatedKeyDebugLua},
                                           {"addArticulatedAnimation", onAddArticulatedAnimationDebugLua},
                                           {"addArticulatedTrack", onAddArticulatedTrackDebugLua},
                                           {"addArticulatedKey", onAddArticulatedKeyDebugLua},

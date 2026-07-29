@@ -6467,8 +6467,8 @@ function showBonesNode(tEntry, meshD, index)
 end
 
 -- ---------------------------------------------------------------------------
--- Articulated Animation node: first authoring pass for persistent parts/pivots
--- and named clips. Runtime evaluation/gizmos are added in the next milestone.
+-- Articulated Animation node: persistent parts/pivots, named clips, tracks and initial keys.
+-- Timeline scrubbing and visual pivot/keyframe gizmos remain subsequent milestones.
 -- ---------------------------------------------------------------------------
 function showArticulatedAnimationNode(tEntry, meshD, index)
     local isOpen = openNode(tEntry, 'articulated', tLang.L('articulated_animation'), 0, 'articulated-' .. index)
@@ -6527,10 +6527,83 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
     if totalClips == 0 then
         tImGui.TextDisabled(tLang.L('articulated_no_clips'))
     else
+        tEntry.iArticulatedClip = math.max(1, math.min(tEntry.iArticulatedClip or 1, totalClips))
+        local clipChanged, selectedClip = tImGui.InputInt('Clip##artClipSelect-' .. index,
+            tEntry.iArticulatedClip, 1, 1, 0)
+        if clipChanged then
+            tEntry.iArticulatedClip = math.max(1, math.min(selectedClip or 1, totalClips))
+        end
         for clipIndex = 1, totalClips do
             local ok, clipName = dpCall(function() return meshD:getArticulatedAnimationName(clipIndex) end)
             if ok and clipName then
-                tImGui.BulletText(clipName)
+                local marker = clipIndex == tEntry.iArticulatedClip and '>' or '-'
+                tImGui.Text(string.format('%s %d: %s', marker, clipIndex, clipName))
+            end
+        end
+
+        local activeClip = tEntry.iArticulatedClip
+        local okInfo, infoName, infoDuration, infoSpeed, infoPriority, infoLoop = dpCall(function()
+            return meshD:getArticulatedAnimation(activeClip)
+        end)
+        if okInfo and infoName then
+            tImGui.Text(string.format('Duration %.3f  Speed %.3f  Priority %d  Loop %s',
+                infoDuration or 0, infoSpeed or 1, infoPriority or 0, infoLoop and 'yes' or 'no'))
+        end
+
+        tImGui.Separator()
+        tImGui.Text('Tracks')
+        tEntry.bArticulatedPosition = tEntry.bArticulatedPosition ~= false
+        tEntry.bArticulatedRotation = tEntry.bArticulatedRotation ~= false
+        tEntry.bArticulatedScale = tEntry.bArticulatedScale ~= false
+        local channelPosition = tImGui.Checkbox('Position##artChannel-' .. index, tEntry.bArticulatedPosition)
+        tEntry.bArticulatedPosition = channelPosition
+        tImGui.SameLine()
+        local channelRotation = tImGui.Checkbox('Rotation##artChannel-' .. index, tEntry.bArticulatedRotation)
+        tEntry.bArticulatedRotation = channelRotation
+        tImGui.SameLine()
+        local channelScale = tImGui.Checkbox('Scale##artChannel-' .. index, tEntry.bArticulatedScale)
+        tEntry.bArticulatedScale = channelScale
+        local selectedMask = (channelPosition and 1 or 0) + (channelRotation and 2 or 0) + (channelScale and 4 or 0)
+        if totalParts > 0 then
+            for partIndex = 1, totalParts do
+                local okPart, partId, partFrame, partSubset, partName = dpCall(function()
+                    return meshD:getArticulatedPart(partIndex)
+                end)
+                if okPart and partId then
+                    tImGui.PushID('artTrackAdd-' .. index .. '-' .. partIndex)
+                    tImGui.Text(string.format('F%d S%d %s', partFrame or 0, partSubset or 0, partName or ''))
+                    tImGui.SameLine()
+                    if tImGui.Button('Add Track##add') and selectedMask ~= 0 then
+                        local okTrack = dpCall(function()
+                            return meshD:addArticulatedTrack(activeClip, partId, selectedMask)
+                        end)
+                        if okTrack then markArticulatedEdit() end
+                    end
+                    tImGui.PopID()
+                end
+            end
+        end
+
+        local okTracks, totalTracks = dpCall(function()
+            return meshD:getTotalArticulatedTracks(activeClip)
+        end)
+        totalTracks = (okTracks and totalTracks) or 0
+        for trackIndex = 1, totalTracks do
+            local okTrack, trackPartId, channelMask, keyCount = dpCall(function()
+                return meshD:getArticulatedTrack(activeClip, trackIndex)
+            end)
+            if okTrack and trackPartId then
+                tImGui.PushID('artTrack-' .. index .. '-' .. trackIndex)
+                tImGui.Text(string.format('Track %d  Part ID %s  Channels %d  Keys %d',
+                    trackIndex, tostring(trackPartId), channelMask or 0, keyCount or 0))
+                if tImGui.Button('Add Key at 0##addKey') then
+                    local okKey = dpCall(function()
+                        return meshD:addArticulatedKey(activeClip, trackIndex, 0,
+                            0, 0, 0, 0, 0, 0, 1, 1, 1, 1)
+                    end)
+                    if okKey then markArticulatedEdit() end
+                end
+                tImGui.PopID()
             end
         end
     end

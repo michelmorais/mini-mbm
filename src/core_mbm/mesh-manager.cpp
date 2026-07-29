@@ -4368,6 +4368,61 @@ namespace mbm
         return index < impl->articulatedClips.size() ? impl->articulatedClips[index].header.name.c_str() : nullptr;
     }
 
+    bool MESH_MBM_DEBUG::getArticulatedAnimation(const uint32_t index, const char **name, float *duration,
+                                                 float *speed, int *priority, bool *loop) const noexcept
+    {
+        if (index >= impl->articulatedClips.size() || !name || !duration || !speed || !priority || !loop)
+            return false;
+        const auto &clip = impl->articulatedClips[index].header;
+        *name = clip.name.c_str();
+        *duration = clip.duration;
+        *speed = clip.speed;
+        *priority = clip.defaultPriority;
+        *loop = clip.loop != 0;
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalArticulatedTracks(const uint32_t animationIndex) const noexcept
+    {
+        return animationIndex < impl->articulatedClips.size()
+            ? static_cast<uint32_t>(impl->articulatedClips[animationIndex].tracks.size()) : 0;
+    }
+
+    bool MESH_MBM_DEBUG::getArticulatedTrack(const uint32_t animationIndex, const uint32_t trackIndex,
+                                             uint64_t *partId, uint8_t *channelMask, uint32_t *keyCount) const noexcept
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            !partId || !channelMask || !keyCount)
+            return false;
+        const auto &track = impl->articulatedClips[animationIndex].tracks[trackIndex];
+        *partId = track.header.partId;
+        *channelMask = track.header.channelMask;
+        *keyCount = static_cast<uint32_t>(track.keys.size());
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                           const uint32_t keyIndex, float *time,
+                                           float *positionX, float *positionY, float *positionZ,
+                                           float *rotationX, float *rotationY, float *rotationZ, float *rotationW,
+                                           float *scaleX, float *scaleY, float *scaleZ) const noexcept
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size() ||
+            !time || !positionX || !positionY || !positionZ || !rotationX || !rotationY ||
+            !rotationZ || !rotationW || !scaleX || !scaleY || !scaleZ)
+            return false;
+        const auto &key = impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex];
+        *time = key.time;
+        *positionX = key.positionX; *positionY = key.positionY; *positionZ = key.positionZ;
+        *rotationX = key.rotationX; *rotationY = key.rotationY;
+        *rotationZ = key.rotationZ; *rotationW = key.rotationW;
+        *scaleX = key.scaleX; *scaleY = key.scaleY; *scaleZ = key.scaleZ;
+        return true;
+    }
+
     int MESH_MBM_DEBUG::addArticulatedAnimation(const char *name, const float duration, const float speed,
                                                 const int priority, const bool loop, char *errorOut, const int errorOutLen)
     {

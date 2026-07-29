@@ -229,6 +229,16 @@ namespace mbm
                                             const uint64_t parentPartId, char *errorOut, const int errorOutLen);
         API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
         API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
+        API_IMPL bool getArticulatedAnimation(const uint32_t index, const char **name, float *duration,
+                                              float *speed, int *priority, bool *loop) const noexcept;
+        API_IMPL uint32_t getTotalArticulatedTracks(const uint32_t animationIndex) const noexcept;
+        API_IMPL bool getArticulatedTrack(const uint32_t animationIndex, const uint32_t trackIndex,
+                                          uint64_t *partId, uint8_t *channelMask, uint32_t *keyCount) const noexcept;
+        API_IMPL bool getArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                        const uint32_t keyIndex, float *time,
+                                        float *positionX, float *positionY, float *positionZ,
+                                        float *rotationX, float *rotationY, float *rotationZ, float *rotationW,
+                                        float *scaleX, float *scaleY, float *scaleZ) const noexcept;
         API_IMPL int addArticulatedAnimation(const char *name, const float duration, const float speed,
                                              const int priority, const bool loop, char *errorOut, const int errorOutLen);
         API_IMPL int addArticulatedTrack(const uint32_t animationIndex, const uint64_t partId,
