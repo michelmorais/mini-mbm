@@ -6604,8 +6604,8 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
 
     local okClips, totalClips = dpCall(function() return meshD:getTotalArticulatedAnimations() end)
     totalClips = (okClips and totalClips) or 0
-    tImGui.Text(string.format('%s: %d', tLang.L('articulated_clips'), totalClips))
-    if tImGui.Button('Add Clip##artClipAdd-' .. index) then
+    tImGui.Text(string.format('%s: %d', tLang.L('articulated_clips_label'), totalClips))
+    if tImGui.Button(tLang.L('articulated_add_clip') .. '##artClipAdd-' .. index) then
         local clipName = 'Articulated ' .. (totalClips + 1)
         local ok = dpCall(function() return meshD:addArticulatedAnimation(clipName, 1.0, 1.0, 0, true) end)
         if ok then markArticulatedEdit() end
@@ -6677,7 +6677,6 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                     end)
                 end
                 articulatedTooltip('articulated_timeline_tooltip')
-                tImGui.SameLine()
                 if tImGui.Button('Play##artPlay-' .. index) then
                     dpCall(function() return tPreviewMesh:playArticulatedAnimation(infoName, infoPriority or 0) end)
                 end
@@ -6698,12 +6697,12 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 end
                 articulatedTooltip('articulated_playback_tooltip')
             elseif index == iSelectedMeshIndex then
-                tImGui.TextDisabled('Save mesh to enable preview')
+                tImGui.TextDisabled(tLang.L('articulated_save_to_preview'))
             end
         end
 
         tImGui.Separator()
-        tImGui.Text('Tracks')
+        tImGui.Text(tLang.L('articulated_tracks'))
         tEntry.bArticulatedPosition = tEntry.bArticulatedPosition ~= false
         tEntry.bArticulatedRotation = tEntry.bArticulatedRotation ~= false
         tEntry.bArticulatedScale = tEntry.bArticulatedScale ~= false
@@ -6726,7 +6725,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                     tImGui.PushID('artTrackAdd-' .. index .. '-' .. partIndex)
                     tImGui.Text(string.format('F%d S%d %s', partFrame or 0, partSubset or 0, partName or ''))
                     tImGui.SameLine()
-                    if tImGui.Button('Add Track##add') and selectedMask ~= 0 then
+                    if tImGui.Button(tLang.L('articulated_add_track') .. '##add') and selectedMask ~= 0 then
                         local okTrack = dpCall(function()
                             return meshD:addArticulatedTrack(activeClip, partId, selectedMask)
                         end)
@@ -6750,7 +6749,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 tImGui.PushID('artTrack-' .. index .. '-' .. trackIndex)
                 tImGui.Text(string.format('Track %d  Part ID %s  Channels %d  Keys %d',
                     trackIndex, tostring(trackPartId), channelMask or 0, keyCount or 0))
-                if tImGui.Button('Add Key at 0##addKey') then
+                if tImGui.Button(tLang.L('articulated_add_key') .. '##addKey') then
                     local okKey = dpCall(function()
                         return meshD:addArticulatedKey(activeClip, trackIndex, 0,
                             0, 0, 0, 0, 0, 0, 1, 1, 1, 1)
@@ -6828,6 +6827,9 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 end
                 tImGui.PopID()
             end
+        end
+        if totalTracks == 0 then
+            tImGui.TextDisabled(tLang.L('articulated_add_key_hint'))
         end
     end
     tImGui.TreePop()
