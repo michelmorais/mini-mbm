@@ -1217,6 +1217,7 @@ the current pose, `resume` continues it, and `disable` removes the clip from eva
 car:playArticulatedAnimation("wheel_spin", 10)
 car:pauseArticulatedAnimation("wheel_spin")
 car:resumeArticulatedAnimation("wheel_spin")
+car:seekArticulatedAnimation("wheel_spin", 0.5)
 car:disableArticulatedAnimation("wheel_spin")
 ```
 

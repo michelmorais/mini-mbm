@@ -6578,6 +6578,16 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             end
             local previewReady = index == iSelectedMeshIndex and tPreviewMesh and not tEntry.modified
             if previewReady then
+                tEntry.fArticulatedPreviewTime = math.max(0, math.min(tEntry.fArticulatedPreviewTime or 0,
+                    math.max(0, infoDuration or 0)))
+                local seekChanged, seekTime = tImGui.SliderFloat('Timeline##artTimeline-' .. index,
+                    tEntry.fArticulatedPreviewTime, 0, math.max(0.001, infoDuration or 0), '%.3f')
+                if seekChanged then
+                    tEntry.fArticulatedPreviewTime = seekTime or tEntry.fArticulatedPreviewTime
+                    dpCall(function()
+                        return tPreviewMesh:seekArticulatedAnimation(infoName, tEntry.fArticulatedPreviewTime)
+                    end)
+                end
                 tImGui.SameLine()
                 if tImGui.Button('Play##artPlay-' .. index) then
                     dpCall(function() return tPreviewMesh:playArticulatedAnimation(infoName, infoPriority or 0) end)

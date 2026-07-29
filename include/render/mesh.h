@@ -53,6 +53,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool pauseArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool resumeArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;
+    API_IMPL bool seekArticulatedAnimation(const char *name, const float time) noexcept;
     API_IMPL FX*  getFx() const override;
 	  API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
     FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;

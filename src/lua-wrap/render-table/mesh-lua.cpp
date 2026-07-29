@@ -137,6 +137,15 @@ namespace mbm
         return 1;
     }
 
+    int onSeekArticulatedAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const float time = static_cast<float>(luaL_checknumber(lua, 3));
+        lua_pushboolean(lua, mesh->seekArticulatedAnimation(name, time) ? 1 : 0);
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -199,6 +208,7 @@ namespace mbm
                                                      {"pauseArticulatedAnimation", onPauseArticulatedAnimationLua},
                                                      {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
                                                      {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
+                                                     {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
                                                      {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
@@ -245,6 +255,7 @@ namespace mbm
                                                          {"pauseArticulatedAnimation", onPauseArticulatedAnimationLua},
                                                          {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
                                                          {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
+                                                         {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();

@@ -313,6 +313,7 @@ namespace mbm
         API_IMPL bool pauseArticulatedAnimation(const char *name) noexcept;
         API_IMPL bool resumeArticulatedAnimation(const char *name) noexcept;
         API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;
+        API_IMPL bool seekArticulatedAnimation(const char *name, const float time) noexcept;
         API_IMPL void updateArticulatedAnimations(const float delta) noexcept;
         API_IMPL bool getArticulatedTransform(const uint32_t frameIndex, const uint32_t subsetIndex,
                                               VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,

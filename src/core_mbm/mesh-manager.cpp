@@ -5111,6 +5111,24 @@ namespace mbm
         return false;
     }
 
+    bool MESH_MBM::seekArticulatedAnimation(const char *name, const float time) noexcept
+    {
+        if (!name)
+            return false;
+        for (auto &active : impl->activeArticulatedClips)
+        {
+            if (active.clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[active.clipIndex].header.name == name)
+            {
+                const float duration = impl->articulatedClips[active.clipIndex].header.duration;
+                active.time = std::max(0.0f, duration > 0.0f ? std::min(time, duration) : 0.0f);
+                active.ended = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
     void MESH_MBM::updateArticulatedAnimations(const float delta) noexcept
     {
         if (delta <= 0.0f)

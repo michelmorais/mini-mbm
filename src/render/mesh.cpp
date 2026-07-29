@@ -143,6 +143,11 @@ namespace mbm
         return this->mesh ? this->mesh->disableArticulatedAnimation(name) : false;
     }
 
+    bool MESH::seekArticulatedAnimation(const char *name, const float time) noexcept
+    {
+        return this->mesh ? this->mesh->seekArticulatedAnimation(name, time) : false;
+    }
+
     bool MESH::render()
     {
         if (!mesh)
