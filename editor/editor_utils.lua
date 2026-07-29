@@ -1015,6 +1015,20 @@ tUtil.drawOrbitGizmo = function(c, opts)
     local rgY = 0
     local upX, upY, upZ = normalize3(fwY * rgZ - fwZ * rgY, fwZ * rgX - fwX * rgZ, fwX * rgY - fwY * rgX)
 
+    -- Optional roll around the viewing direction. Existing camera/light orbit states do not carry
+    -- roll, so the default remains zero; articulated pivot orbit states use it to expose the third
+    -- rotational degree of freedom instead of silently dropping quaternion roll.
+    local roll = c.roll or 0
+    local rollCos, rollSin = math.cos(roll), math.sin(roll)
+    local rolledRgX = rgX * rollCos + upX * rollSin
+    local rolledRgY = rgY * rollCos + upY * rollSin
+    local rolledRgZ = rgZ * rollCos + upZ * rollSin
+    local rolledUpX = -rgX * rollSin + upX * rollCos
+    local rolledUpY = -rgY * rollSin + upY * rollCos
+    local rolledUpZ = -rgZ * rollSin + upZ * rollCos
+    rgX, rgY, rgZ = rolledRgX, rolledRgY, rolledRgZ
+    upX, upY, upZ = rolledUpX, rolledUpY, rolledUpZ
+
     local p0     = tImGui.GetCursorScreenPos()
     local center = {x = p0.x + size * 0.5, y = p0.y + size * 0.5}
     local radius = size * 0.5 - 12

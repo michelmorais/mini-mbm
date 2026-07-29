@@ -6805,18 +6805,34 @@ end
 function articulatedQuaternionFromOrbit(orbit)
     local halfYaw = (orbit.azimuth or 0) * 0.5
     local halfPitch = -(orbit.elevation or 0) * 0.5
+    local halfRoll = (orbit.roll or 0) * 0.5
     local sy, cy = math.sin(halfYaw), math.cos(halfYaw)
     local sx, cx = math.sin(halfPitch), math.cos(halfPitch)
-    -- q = yaw(Y) * pitch(X), using the engine's x/y/z/w quaternion convention.
-    return cx * sy, sx * cy, -sx * sy, cx * cy
+    local sz, cz = math.sin(halfRoll), math.cos(halfRoll)
+    -- q = yaw(Y) * pitch(X) * roll(Z), using x/y/z/w quaternion storage.
+    local qx, qy, qz, qw = 0, sy, 0, cy
+    local px, py, pz, pw = sx, 0, 0, cx
+    local ax = qw * px + qx * pw + qy * pz - qz * py
+    local ay = qw * py - qx * pz + qy * pw + qz * px
+    local az = qw * pz + qx * py - qy * px + qz * pw
+    local aw = qw * pw - qx * px - qy * py - qz * pz
+    return ax * cz + ay * sz, ay * cz - ax * sz, az * cz + aw * sz, aw * cz - az * sz
 end
 
 function articulatedOrbitFromQuaternion(qx, qy, qz, qw)
-    local azimuth = 2 * math.atan(qx or 0, qw or 1)
-    local elevation = -2 * math.atan(qy or 0, qw or 1)
+    qx, qy, qz, qw = qx or 0, qy or 0, qz or 0, qw or 1
+    local m02 = 2 * (qx * qz + qy * qw)
+    local m12 = 2 * (qy * qz - qx * qw)
+    local m22 = 1 - 2 * (qx * qx + qy * qy)
+    local m10 = 2 * (qx * qy + qz * qw)
+    local m11 = 1 - 2 * (qx * qx + qz * qz)
+    local azimuth = math.atan(m02, m22)
+    local elevation = -math.asin(math.max(-1, math.min(1, m12)))
+    local roll = math.atan(m10, m11)
     return {
         azimuth = azimuth,
         elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, elevation)),
+        roll = roll,
     }
 end
 
