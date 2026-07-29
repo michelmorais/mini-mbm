@@ -6470,9 +6470,57 @@ end
 -- Articulated Animation node: persistent parts/pivots, named clips, tracks and initial keys.
 -- Timeline scrubbing and visual pivot/keyframe gizmos remain subsequent milestones.
 -- ---------------------------------------------------------------------------
+ARTICULATED_PIVOT_COLOR = {1, 0.55, 0.05, 0.95}
+
+function destroyArticulatedPivotGizmo(tEntry)
+    if tEntry.tArticulatedPivotGizmo then
+        tEntry.tArticulatedPivotGizmo:destroy()
+        tEntry.tArticulatedPivotGizmo = nil
+    end
+end
+
+function updateArticulatedPivotGizmo(tEntry, meshD, index, totalParts)
+    if index ~= iSelectedMeshIndex or not tEntry.bShowArticulatedPivot or totalParts == 0 then
+        destroyArticulatedPivotGizmo(tEntry)
+        return
+    end
+    tEntry.iArticulatedPart = math.max(1, math.min(tEntry.iArticulatedPart or 1, totalParts))
+    local ok, partId, frame, subset, name, px, py, pz = dpCall(function()
+        return meshD:getArticulatedPart(tEntry.iArticulatedPart)
+    end)
+    if not ok or not partId then
+        destroyArticulatedPivotGizmo(tEntry)
+        return
+    end
+    if not tEntry.fArticulatedPivotMarkerSize then
+        local bounds = computeMeshAABB(meshD)
+        local maxExtent = bounds and math.max(bounds.maxX - bounds.minX,
+            bounds.maxY - bounds.minY, bounds.maxZ - bounds.minZ) or 1
+        tEntry.fArticulatedPivotMarkerSize = math.max(maxExtent * 0.05, 0.01)
+    end
+    if not tEntry.tArticulatedPivotGizmo then
+        tEntry.iArticulatedPivotGizmoGeneration = (tEntry.iArticulatedPivotGizmoGeneration or 0) + 1
+        local h = shape:new('3d', px, py, dodgeAutoZOrder(pz))
+        h:create(unitSphereVerts(8, 12), nil,
+            'mesh_debug_articulated_pivot_' .. index .. '_' .. tEntry.iArticulatedPivotGizmoGeneration)
+        h:setColor(ARTICULATED_PIVOT_COLOR[1], ARTICULATED_PIVOT_COLOR[2],
+            ARTICULATED_PIVOT_COLOR[3], ARTICULATED_PIVOT_COLOR[4])
+        h.visible = true
+        h.alwaysOnTop = true
+        tEntry.tArticulatedPivotGizmo = h
+    else
+        tEntry.tArticulatedPivotGizmo:setPos(px, py, dodgeAutoZOrder(pz))
+    end
+    tEntry.tArticulatedPivotGizmo:setScale(tEntry.fArticulatedPivotMarkerSize,
+        tEntry.fArticulatedPivotMarkerSize, tEntry.fArticulatedPivotMarkerSize)
+end
+
 function showArticulatedAnimationNode(tEntry, meshD, index)
     local isOpen = openNode(tEntry, 'articulated', tLang.L('articulated_animation'), 0, 'articulated-' .. index)
-    if not isOpen then return end
+    if not isOpen then
+        destroyArticulatedPivotGizmo(tEntry)
+        return
+    end
     local function markArticulatedEdit()
         tEntry.modified = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
@@ -6485,6 +6533,18 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
 
     local okParts, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
     totalParts = (okParts and totalParts) or 0
+    tEntry.bShowArticulatedPivot = tImGui.Checkbox('Show Pivot Gizmo##artPivotShow-' .. index,
+        tEntry.bShowArticulatedPivot ~= false)
+    if totalParts > 0 then
+        tUtil.pushResponsiveItemWidth(100, 40)
+        local partChanged, selectedPart = tImGui.InputInt('Part##artPivotPart-' .. index,
+            tEntry.iArticulatedPart or 1, 1, 1, 0)
+        tImGui.PopItemWidth()
+        if partChanged then
+            tEntry.iArticulatedPart = math.max(1, math.min(selectedPart or 1, totalParts))
+        end
+    end
+    updateArticulatedPivotGizmo(tEntry, meshD, index, totalParts)
     tImGui.Separator()
     tImGui.Text(string.format('%s: %d', tLang.L('articulated_parts'), totalParts))
     if totalParts == 0 then
@@ -6577,11 +6637,14 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 if okUpdate then markArticulatedEdit() end
             end
             local previewReady = index == iSelectedMeshIndex and tPreviewMesh and not tEntry.modified
+            local timelineMin, timelineMax
             if previewReady then
                 tEntry.fArticulatedPreviewTime = math.max(0, math.min(tEntry.fArticulatedPreviewTime or 0,
                     math.max(0, infoDuration or 0)))
                 local seekChanged, seekTime = tImGui.SliderFloat('Timeline##artTimeline-' .. index,
                     tEntry.fArticulatedPreviewTime, 0, math.max(0.001, infoDuration or 0), '%.3f')
+                timelineMin = tImGui.GetItemRectMin()
+                timelineMax = tImGui.GetItemRectMax()
                 if seekChanged then
                     tEntry.fArticulatedPreviewTime = seekTime or tEntry.fArticulatedPreviewTime
                     dpCall(function()
@@ -6667,6 +6730,12 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         return meshD:getArticulatedKey(activeClip, trackIndex, keyIndex)
                     end)
                     if okKey and keyTime then
+                        if timelineMin and timelineMax and (infoDuration or 0) > 0 then
+                            local markerX = timelineMin.x + (timelineMax.x - timelineMin.x) *
+                                math.max(0, math.min(1, keyTime / infoDuration))
+                            tImGui.AddLine({x = markerX, y = timelineMin.y},
+                                {x = markerX, y = timelineMax.y}, {r = 1, g = 0.75, b = 0.1, a = 1}, 2)
+                        end
                         tImGui.PushID('artKey-' .. index .. '-' .. trackIndex .. '-' .. keyIndex)
                         local timeChanged, newTime = tImGui.InputFloat(string.format('Key %d Time', keyIndex),
                             keyTime, 0.01, 0.1, '%.3f', 0)
