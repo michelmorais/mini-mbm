@@ -6497,10 +6497,18 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             if ok and partId then
                 tImGui.PushID('artPart-' .. index .. '-' .. partIndex)
                 tImGui.Text(string.format('F%d S%d  ID %s', frame or 0, subset or 0, tostring(partId)))
+                tUtil.pushResponsiveItemWidth(260, 120)
                 local changedName, newName = tImGui.InputText(tLang.L('name'), name or '', 96, 0)
+                tImGui.PopItemWidth()
+                tUtil.pushResponsiveItemWidth(260, 120)
                 local posChanged, pos = tImGui.DragFloat3(tLang.L('articulated_pivot_position'), {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
+                tImGui.PopItemWidth()
+                tUtil.pushResponsiveItemWidth(260, 120)
                 local rotChanged, rot = tImGui.DragFloat3(tLang.L('articulated_pivot_rotation'), {qx or 0, qy or 0, qz or 0}, 0.01, -1, 1, '%.3f', 0)
+                tImGui.PopItemWidth()
+                tUtil.pushResponsiveItemWidth(180, 100)
                 local wChanged, newW = tImGui.InputFloat('Pivot QW', qw or 1, 0.01, 0.1, '%.3f', 0)
+                tImGui.PopItemWidth()
                 if changedName or posChanged or rotChanged or wChanged then
                     local p = pos or {px or 0, py or 0, pz or 0}
                     local r = rot or {qx or 0, qy or 0, qz or 0}
@@ -6602,6 +6610,42 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                             0, 0, 0, 0, 0, 0, 1, 1, 1, 1)
                     end)
                     if okKey then markArticulatedEdit() end
+                end
+                for keyIndex = 1, (keyCount or 0) do
+                    local okKey, keyTime, px, py, pz, qx, qy, qz, qw, sx, sy, sz = dpCall(function()
+                        return meshD:getArticulatedKey(activeClip, trackIndex, keyIndex)
+                    end)
+                    if okKey and keyTime then
+                        tImGui.PushID('artKey-' .. index .. '-' .. trackIndex .. '-' .. keyIndex)
+                        tImGui.Text(string.format('Key %d  Time %.3f', keyIndex, keyTime))
+                        tUtil.pushResponsiveItemWidth(260, 120)
+                        local posChanged, pos = tImGui.DragFloat3('Position', {px or 0, py or 0, pz or 0},
+                            0.01, -math.huge, math.huge, '%.3f', 0)
+                        tImGui.PopItemWidth()
+                        tUtil.pushResponsiveItemWidth(260, 120)
+                        local rotChanged, rot = tImGui.DragFloat3('Rotation', {qx or 0, qy or 0, qz or 0},
+                            0.01, -1, 1, '%.3f', 0)
+                        tImGui.PopItemWidth()
+                        tUtil.pushResponsiveItemWidth(180, 100)
+                        local wChanged, newQw = tImGui.InputFloat('Rotation W', qw or 1, 0.01, 0.1, '%.3f', 0)
+                        tImGui.PopItemWidth()
+                        tUtil.pushResponsiveItemWidth(260, 120)
+                        local scaleChanged, scale = tImGui.DragFloat3('Scale', {sx or 1, sy or 1, sz or 1},
+                            0.01, -math.huge, math.huge, '%.3f', 0)
+                        tImGui.PopItemWidth()
+                        if posChanged or rotChanged or wChanged or scaleChanged then
+                            local p = pos or {px or 0, py or 0, pz or 0}
+                            local r = rot or {qx or 0, qy or 0, qz or 0}
+                            local s = scale or {sx or 1, sy or 1, sz or 1}
+                            local okUpdate = dpCall(function()
+                                return meshD:addArticulatedKey(activeClip, trackIndex, keyTime,
+                                    p[1], p[2], p[3], r[1], r[2], r[3], newQw or qw or 1,
+                                    s[1], s[2], s[3])
+                            end)
+                            if okUpdate then markArticulatedEdit() end
+                        end
+                        tImGui.PopID()
+                    end
                 end
                 tImGui.PopID()
             end
@@ -10781,9 +10825,15 @@ end
 function showMeshTreeWindow()
     if not bShowMeshTree then return end
 
-    local width = 350
+    -- The tree contains long articulated labels (frame/subset identity, pivot channels and
+    -- keyframe controls). Keep a usable minimum while still allowing the user to resize it.
+    local width = 520
     local iW, iH = mbm.getSizeScreen()
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_mesh_tree, 0, 0, width, width + 100, iH * 0.8)
+    local minTreeWidth = math.min(width, math.max(350, iW - 40))
+    local maxTreeWidth = math.max(minTreeWidth, iW - 10)
+    tImGui.SetNextWindowSizeConstraints({x = minTreeWidth, y = 260},
+        {x = maxTreeWidth, y = math.max(260, iH - 20)})
     local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_tree), true, 0)
 
     if is_opened then
