@@ -1981,7 +1981,7 @@ namespace mbm
         lua_pushnumber(lua, px); lua_pushnumber(lua, py); lua_pushnumber(lua, pz);
         lua_pushnumber(lua, qx); lua_pushnumber(lua, qy); lua_pushnumber(lua, qz); lua_pushnumber(lua, qw);
         lua_pushnumber(lua, sx); lua_pushnumber(lua, sy); lua_pushnumber(lua, sz);
-        return 12;
+        return 11;
     }
 
     int onAddArticulatedAnimationDebugLua(lua_State *lua)

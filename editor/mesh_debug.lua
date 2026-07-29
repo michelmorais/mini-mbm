@@ -6682,18 +6682,23 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                             end
                         end
                         tUtil.pushResponsiveItemWidth(260, 120)
-                        local posChanged, pos = tImGui.DragFloat3('Position', {px or 0, py or 0, pz or 0},
+                        local keyId = index .. '-' .. trackIndex .. '-' .. keyIndex
+                        local posChanged, pos = tImGui.DragFloat3('Position##artKeyPos-' .. keyId,
+                            {px or 0, py or 0, pz or 0},
                             0.01, -math.huge, math.huge, '%.3f', 0)
                         tImGui.PopItemWidth()
                         tUtil.pushResponsiveItemWidth(260, 120)
-                        local rotChanged, rot = tImGui.DragFloat3('Rotation', {qx or 0, qy or 0, qz or 0},
+                        local rotChanged, rot = tImGui.DragFloat3('Rotation##artKeyRot-' .. keyId,
+                            {qx or 0, qy or 0, qz or 0},
                             0.01, -1, 1, '%.3f', 0)
                         tImGui.PopItemWidth()
                         tUtil.pushResponsiveItemWidth(180, 100)
-                        local wChanged, newQw = tImGui.InputFloat('Rotation W', qw or 1, 0.01, 0.1, '%.3f', 0)
+                        local wChanged, newQw = tImGui.InputFloat('Rotation W##artKeyRotW-' .. keyId,
+                            qw or 1, 0.01, 0.1, '%.3f', 0)
                         tImGui.PopItemWidth()
                         tUtil.pushResponsiveItemWidth(260, 120)
-                        local scaleChanged, scale = tImGui.DragFloat3('Scale', {sx or 1, sy or 1, sz or 1},
+                        local scaleChanged, scale = tImGui.DragFloat3('Scale##artKeyScale-' .. keyId,
+                            {sx or 1, sy or 1, sz or 1},
                             0.01, -math.huge, math.huge, '%.3f', 0)
                         tImGui.PopItemWidth()
                         if posChanged or rotChanged or wChanged or scaleChanged then
