@@ -4589,6 +4589,21 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::removeArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                              const uint32_t keyIndex, char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track/key index out of range");
+            return false;
+        }
+        auto &keys = impl->articulatedClips[animationIndex].tracks[trackIndex].keys;
+        keys.erase(keys.begin() + static_cast<ptrdiff_t>(keyIndex));
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept
     {
         if (index >= this->impl->infoAnimation.lsHeaderAnim.size())

@@ -257,6 +257,8 @@ namespace mbm
                                            const float rotationX, const float rotationY, const float rotationZ, const float rotationW,
                                            const float scaleX, const float scaleY, const float scaleZ,
                                            char *errorOut, const int errorOutLen);
+        API_IMPL bool removeArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                           const uint32_t keyIndex, char *errorOut, const int errorOutLen);
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();

@@ -6670,6 +6670,17 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         tImGui.PushID('artKey-' .. index .. '-' .. trackIndex .. '-' .. keyIndex)
                         local timeChanged, newTime = tImGui.InputFloat(string.format('Key %d Time', keyIndex),
                             keyTime, 0.01, 0.1, '%.3f', 0)
+                        tImGui.SameLine()
+                        if tImGui.Button('Remove##removeKey') then
+                            local okRemove = dpCall(function()
+                                return meshD:removeArticulatedKey(activeClip, trackIndex, keyIndex)
+                            end)
+                            if okRemove then
+                                markArticulatedEdit()
+                                tImGui.PopID()
+                                break
+                            end
+                        end
                         tUtil.pushResponsiveItemWidth(260, 120)
                         local posChanged, pos = tImGui.DragFloat3('Position', {px or 0, py or 0, pz or 0},
                             0.01, -math.huge, math.huge, '%.3f', 0)

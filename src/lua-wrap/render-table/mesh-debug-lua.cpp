@@ -2063,6 +2063,19 @@ namespace mbm
         return 1;
     }
 
+    int onRemoveArticulatedKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t key = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeArticulatedKey(animation, track, key, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     // Skeleton bindings (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
     // diagnostic round-trip only, follows the exact same flat-multi-return convention as
     // addAnim/getAnim above rather than a table, to stay consistent within this native class.
@@ -2377,6 +2390,7 @@ namespace mbm
                                           {"addArticulatedTrack", onAddArticulatedTrackDebugLua},
                                           {"addArticulatedKey", onAddArticulatedKeyDebugLua},
                                           {"updateArticulatedKey", onUpdateArticulatedKeyDebugLua},
+                                          {"removeArticulatedKey", onRemoveArticulatedKeyDebugLua},
 										  {"getExt", onGetStaticExtensionLua},
                                           {"setDetail", onSetDetailLua},
                                           {nullptr, nullptr}};

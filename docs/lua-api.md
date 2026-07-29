@@ -1207,7 +1207,8 @@ the same track and time replaces the previous key. `getTotalArticulatedParts()`,
 independent channel masks and add or replace keys. `updateArticulatedKey(animation, track, key,
 time, ...)` moves and edits an existing key, consolidating a collision with another key at the
 same time. `updateArticulatedAnimation(index, name, duration, speed, priority, loop)` edits clip
-metadata while preserving its tracks.
+metadata while preserving its tracks. `removeArticulatedKey(animation, track, key)` removes one
+keyframe without changing the clip's manually editable duration.
 
 The loaded `mesh` object exposes playback controls for `.msh` assets. Multiple clips may be active;
 higher priority wins for a part, and a newer clip wins when priorities are equal. `pause` preserves
