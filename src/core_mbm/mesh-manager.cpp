@@ -4382,6 +4382,38 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::updateArticulatedAnimation(const uint32_t index, const char *name, const float duration,
+                                                    const float speed, const int priority, const bool loop,
+                                                    char *errorOut, const int errorOutLen)
+    {
+        if (index >= impl->articulatedClips.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation index out of range");
+            return false;
+        }
+        const std::string clipName = name ? name : "";
+        if (clipName.empty())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation name cannot be empty");
+            return false;
+        }
+        for (size_t i = 0; i < impl->articulatedClips.size(); ++i)
+        {
+            if (i != index && impl->articulatedClips[i].header.name == clipName)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation [%s] already exists", clipName.c_str());
+                return false;
+            }
+        }
+        auto &header = impl->articulatedClips[index].header;
+        header.name = clipName;
+        header.duration = std::max(0.0f, duration);
+        header.speed = speed;
+        header.defaultPriority = priority;
+        header.loop = loop ? 1 : 0;
+        return true;
+    }
+
     uint32_t MESH_MBM_DEBUG::getTotalArticulatedTracks(const uint32_t animationIndex) const noexcept
     {
         return animationIndex < impl->articulatedClips.size()

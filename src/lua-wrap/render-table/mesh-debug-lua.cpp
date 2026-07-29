@@ -1928,6 +1928,23 @@ namespace mbm
         return 1;
     }
 
+    int onUpdateArticulatedAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *name = luaL_checkstring(lua, 3);
+        const float duration = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
+        const float speed = static_cast<float>(luaL_optnumber(lua, 5, 1.0));
+        const int priority = static_cast<int>(luaL_optinteger(lua, 6, 0));
+        const bool loop = lua_isnoneornil(lua, 7) ? true : lua_toboolean(lua, 7) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateArticulatedAnimation(index, name, duration, speed, priority, loop,
+                                                        errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     int onGetArticulatedTrackDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2352,6 +2369,7 @@ namespace mbm
                                           {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsDebugLua},
                                           {"getArticulatedAnimationName", onGetArticulatedAnimationNameDebugLua},
                                           {"getArticulatedAnimation", onGetArticulatedAnimationDebugLua},
+                                          {"updateArticulatedAnimation", onUpdateArticulatedAnimationDebugLua},
                                           {"getTotalArticulatedTracks", onGetTotalArticulatedTracksDebugLua},
                                           {"getArticulatedTrack", onGetArticulatedTrackDebugLua},
                                           {"getArticulatedKey", onGetArticulatedKeyDebugLua},

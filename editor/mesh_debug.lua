@@ -6554,8 +6554,49 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             return meshD:getArticulatedAnimation(activeClip)
         end)
         if okInfo and infoName then
-            tImGui.Text(string.format('Duration %.3f  Speed %.3f  Priority %d  Loop %s',
-                infoDuration or 0, infoSpeed or 1, infoPriority or 0, infoLoop and 'yes' or 'no'))
+            tUtil.pushResponsiveItemWidth(260, 120)
+            local nameChanged, newName = tImGui.InputText('Clip Name', infoName, 96, 0)
+            tImGui.PopItemWidth()
+            tUtil.pushResponsiveItemWidth(180, 100)
+            local durationChanged, newDuration = tImGui.InputFloat('Duration', infoDuration or 0, 0.01, 0.1, '%.3f', 0)
+            tImGui.PopItemWidth()
+            tUtil.pushResponsiveItemWidth(180, 100)
+            local speedChanged, newSpeed = tImGui.InputFloat('Speed', infoSpeed or 1, 0.01, 0.1, '%.3f', 0)
+            tImGui.PopItemWidth()
+            tUtil.pushResponsiveItemWidth(140, 100)
+            local priorityChanged, newPriority = tImGui.InputInt('Priority', infoPriority or 0, 1, 10, 0)
+            tImGui.PopItemWidth()
+            local newLoop = tImGui.Checkbox('Loop', infoLoop == true)
+            local loopChanged = newLoop ~= (infoLoop == true)
+            if nameChanged or durationChanged or speedChanged or priorityChanged or loopChanged then
+                local okUpdate = dpCall(function()
+                    return meshD:updateArticulatedAnimation(activeClip, newName or infoName,
+                        math.max(0, newDuration or infoDuration or 0), newSpeed or infoSpeed or 1,
+                        newPriority or infoPriority or 0, newLoop == true)
+                end)
+                if okUpdate then markArticulatedEdit() end
+            end
+            local previewReady = index == iSelectedMeshIndex and tPreviewMesh and not tEntry.modified
+            if previewReady then
+                tImGui.SameLine()
+                if tImGui.Button('Play##artPlay-' .. index) then
+                    dpCall(function() return tPreviewMesh:playArticulatedAnimation(infoName, infoPriority or 0) end)
+                end
+                tImGui.SameLine()
+                if tImGui.Button('Pause##artPause-' .. index) then
+                    dpCall(function() return tPreviewMesh:pauseArticulatedAnimation(infoName) end)
+                end
+                tImGui.SameLine()
+                if tImGui.Button('Resume##artResume-' .. index) then
+                    dpCall(function() return tPreviewMesh:resumeArticulatedAnimation(infoName) end)
+                end
+                tImGui.SameLine()
+                if tImGui.Button('Disable##artDisable-' .. index) then
+                    dpCall(function() return tPreviewMesh:disableArticulatedAnimation(infoName) end)
+                end
+            elseif index == iSelectedMeshIndex then
+                tImGui.TextDisabled('Save mesh to enable preview')
+            end
         end
 
         tImGui.Separator()
