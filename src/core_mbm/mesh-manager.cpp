@@ -4517,6 +4517,46 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::updateArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                              const uint32_t keyIndex, const float time,
+                                              const float positionX, const float positionY, const float positionZ,
+                                              const float rotationX, const float rotationY, const float rotationZ, const float rotationW,
+                                              const float scaleX, const float scaleY, const float scaleZ,
+                                              char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track/key index out of range");
+            return false;
+        }
+        auto &clip = impl->articulatedClips[animationIndex];
+        auto &keys = clip.tracks[trackIndex].keys;
+        util::ARTICULATED_KEY_V11 key = keys[keyIndex];
+        key.time = time < 0.0f ? 0.0f : time;
+        key.positionX = positionX; key.positionY = positionY; key.positionZ = positionZ;
+        key.rotationX = rotationX; key.rotationY = rotationY; key.rotationZ = rotationZ; key.rotationW = rotationW;
+        key.scaleX = scaleX; key.scaleY = scaleY; key.scaleZ = scaleZ;
+        constexpr float keyTimeEpsilon = 0.00001f;
+
+        keys.erase(keys.begin() + static_cast<ptrdiff_t>(keyIndex));
+        for (auto it = keys.begin(); it != keys.end(); ++it)
+        {
+            if (std::fabs(it->time - key.time) <= keyTimeEpsilon)
+            {
+                *it = key;
+                std::sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) { return a.time < b.time; });
+                clip.header.duration = std::max(clip.header.duration, key.time);
+                return true;
+            }
+        }
+        keys.push_back(key);
+        std::sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) { return a.time < b.time; });
+        clip.header.duration = std::max(clip.header.duration, key.time);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept
     {
         if (index >= this->impl->infoAnimation.lsHeaderAnim.size())

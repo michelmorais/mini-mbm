@@ -6617,7 +6617,8 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                     end)
                     if okKey and keyTime then
                         tImGui.PushID('artKey-' .. index .. '-' .. trackIndex .. '-' .. keyIndex)
-                        tImGui.Text(string.format('Key %d  Time %.3f', keyIndex, keyTime))
+                        local timeChanged, newTime = tImGui.InputFloat(string.format('Key %d Time', keyIndex),
+                            keyTime, 0.01, 0.1, '%.3f', 0)
                         tUtil.pushResponsiveItemWidth(260, 120)
                         local posChanged, pos = tImGui.DragFloat3('Position', {px or 0, py or 0, pz or 0},
                             0.01, -math.huge, math.huge, '%.3f', 0)
@@ -6638,11 +6639,19 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                             local r = rot or {qx or 0, qy or 0, qz or 0}
                             local s = scale or {sx or 1, sy or 1, sz or 1}
                             local okUpdate = dpCall(function()
-                                return meshD:addArticulatedKey(activeClip, trackIndex, keyTime,
+                                return meshD:updateArticulatedKey(activeClip, trackIndex, keyIndex,
+                                    timeChanged and math.max(0, newTime or keyTime) or keyTime,
                                     p[1], p[2], p[3], r[1], r[2], r[3], newQw or qw or 1,
                                     s[1], s[2], s[3])
                             end)
                             if okUpdate then markArticulatedEdit() end
+                        elseif timeChanged then
+                            local okTime = dpCall(function()
+                                return meshD:updateArticulatedKey(activeClip, trackIndex, keyIndex,
+                                    math.max(0, newTime or keyTime), px or 0, py or 0, pz or 0,
+                                    qx or 0, qy or 0, qz or 0, qw or 1, sx or 1, sy or 1, sz or 1)
+                            end)
+                            if okTime then markArticulatedEdit() end
                         end
                         tImGui.PopID()
                     end

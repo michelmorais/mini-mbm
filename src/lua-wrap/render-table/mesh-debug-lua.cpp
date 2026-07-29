@@ -2020,6 +2020,32 @@ namespace mbm
         return 1;
     }
 
+    int onUpdateArticulatedKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t key = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        const float time = static_cast<float>(luaL_checknumber(lua, 5));
+        const float px = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const float py = static_cast<float>(luaL_optnumber(lua, 7, 0.0));
+        const float pz = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float qx = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float qy = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float qz = static_cast<float>(luaL_optnumber(lua, 11, 0.0));
+        const float qw = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const float sx = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
+        const float sy = static_cast<float>(luaL_optnumber(lua, 14, 1.0));
+        const float sz = static_cast<float>(luaL_optnumber(lua, 15, 1.0));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateArticulatedKey(animation, track, key, time, px, py, pz,
+                                                  qx, qy, qz, qw, sx, sy, sz,
+                                                  errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     // Skeleton bindings (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
     // diagnostic round-trip only, follows the exact same flat-multi-return convention as
     // addAnim/getAnim above rather than a table, to stay consistent within this native class.
@@ -2332,6 +2358,7 @@ namespace mbm
                                           {"addArticulatedAnimation", onAddArticulatedAnimationDebugLua},
                                           {"addArticulatedTrack", onAddArticulatedTrackDebugLua},
                                           {"addArticulatedKey", onAddArticulatedKeyDebugLua},
+                                          {"updateArticulatedKey", onUpdateArticulatedKeyDebugLua},
 										  {"getExt", onGetStaticExtensionLua},
                                           {"setDetail", onSetDetailLua},
                                           {nullptr, nullptr}};
