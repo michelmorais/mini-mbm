@@ -123,6 +123,26 @@ namespace mbm
         return nullptr;
     }
 
+    bool MESH::playArticulatedAnimation(const char *name, const int priority)
+    {
+        return this->mesh ? this->mesh->playArticulatedAnimation(name, priority) : false;
+    }
+
+    bool MESH::pauseArticulatedAnimation(const char *name) noexcept
+    {
+        return this->mesh ? this->mesh->pauseArticulatedAnimation(name) : false;
+    }
+
+    bool MESH::resumeArticulatedAnimation(const char *name) noexcept
+    {
+        return this->mesh ? this->mesh->resumeArticulatedAnimation(name) : false;
+    }
+
+    bool MESH::disableArticulatedAnimation(const char *name) noexcept
+    {
+        return this->mesh ? this->mesh->disableArticulatedAnimation(name) : false;
+    }
+
     bool MESH::render()
     {
         if (!mesh)
@@ -134,6 +154,7 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
             anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
+            this->mesh->updateArticulatedAnimations(device->delta);
             const VEC3 &position = this->getPosition();
             const VEC3 &angle = this->getAngle();
             const VEC3 &scale = this->getScale();
@@ -161,7 +182,11 @@ namespace mbm
             fx.setBlendOp();
             BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
-            if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, this))
+            const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
+            const bool rendered = this->mesh->hasActiveArticulatedAnimations()
+                ? this->mesh->renderArticulatedDynamic(frameIndex, &fx.shader, this)
+                : this->mesh->render(frameIndex, &fx.shader, this);
+            if (!rendered)
                 return false;
             return true;
         }

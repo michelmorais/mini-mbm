@@ -70,11 +70,19 @@ Articulated clips are loaded inactive and start only after an explicit play requ
 
 1. Update/select the traditional frame, when present.
 2. Evaluate active articulated clips.
-3. Render subsets independently with their final transforms when articulated animation is active.
+3. Render the articulated pose when articulated animation is active.
 
 Without active articulated clips, the current static rendering path remains unchanged.
 
-The common implementation belongs in `MESH_MBM`, so the initial behavior applies to the existing OpenGL, DirectX9, and Metal paths. Backend-specific performance optimizations are deferred.
+The first implementation uses `MESH_MBM::renderArticulatedDynamic()` to transform a CPU-side
+working copy and reuse the existing dynamic-render path. The original static mesh buffers remain
+untouched, but the working vertex arrays are rebuilt for the current pose.
+
+The planned optimized implementation is `MESH_MBM::renderArticulatedStatic()`. It will reuse the
+loaded static vertex/index buffers and render each affected subset independently, applying its
+final matrix before that subset's draw call. This avoids duplicating and uploading transformed
+vertices, at the cost of additional draw calls. The common API will require backend-specific
+implementations for OpenGL ES, DirectX9, and Metal.
 
 ## Binary format
 
@@ -117,12 +125,14 @@ The editor will provide:
 5. Add Mesh Debug Editor authoring and preview workflow.
 6. Expose C++/Lua playback and inspection APIs.
 7. Validate old/new file compatibility and update version/documentation.
+8. Add `MESH_MBM::renderArticulatedStatic()` using static buffers and per-subset draw calls; keep
+   `renderArticulatedDynamic()` as the initial implementation/fallback.
 
 ## Deferred items
 
 - Parent-child transform composition in runtime/editor.
 - Curves and easing.
-- Backend-specific rendering optimizations.
+- GPU-side per-subset transform storage in shaders.
 - Sprite (`.spt`) support.
 - Blending and per-property composition between clips.
 - Runtime keyframe authoring from game code.

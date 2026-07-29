@@ -1201,5 +1201,18 @@ meshD:addArticulatedKey(clipIndex, trackIndex, time,
 Channel masks are `1` for position, `2` for rotation, and `4` for scale. Adding another key for
 the same track and time replaces the previous key. `getTotalArticulatedParts()`,
 `getArticulatedPart(index)`, `getTotalArticulatedAnimations()`, and
-`getArticulatedAnimationName(index)` provide inspection. Runtime playback controls and visual
-editor authoring are planned on top of this storage API.
+`getArticulatedAnimationName(index)` provide inspection.
+
+The loaded `mesh` object exposes playback controls for `.msh` assets. Multiple clips may be active;
+higher priority wins for a part, and a newer clip wins when priorities are equal. `pause` preserves
+the current pose, `resume` continues it, and `disable` removes the clip from evaluation.
+
+```lua
+car:playArticulatedAnimation("wheel_spin", 10)
+car:pauseArticulatedAnimation("wheel_spin")
+car:resumeArticulatedAnimation("wheel_spin")
+car:disableArticulatedAnimation("wheel_spin")
+```
+
+The runtime advances clip time with the engine's `device->delta`, preserving the engine time-scale
+and frame-rate behavior. Curves and easing remain a future revision of the track sampler.

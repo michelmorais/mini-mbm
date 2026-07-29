@@ -4862,6 +4862,11 @@ namespace mbm
         this->impl->infoAnimation.release();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
+        impl->activeArticulatedClips.clear();
+        impl->articulatedSequence = 0;
+        impl->articulatedBaseGeometry.clear();
+        impl->articulatedScratchPosition.clear();
+        impl->articulatedScratchNormal.clear();
 
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
@@ -4881,6 +4886,325 @@ namespace mbm
     bool MESH_MBM::isLoaded() const
     {
         return this->impl->buffer != nullptr;
+    }
+
+    bool MESH_MBM::hasArticulatedAnimationData() const noexcept
+    {
+        return !impl->articulatedClips.empty();
+    }
+
+    bool MESH_MBM::hasActiveArticulatedAnimations() const noexcept
+    {
+        return !impl->activeArticulatedClips.empty();
+    }
+
+    bool MESH_MBM::playArticulatedAnimation(const char *name, const int priority)
+    {
+        if (!name || !name[0])
+            return false;
+        uint32_t clipIndex = 0;
+        bool found = false;
+        for (uint32_t i = 0; i < impl->articulatedClips.size(); ++i)
+        {
+            if (impl->articulatedClips[i].header.name == name)
+            {
+                clipIndex = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return false;
+
+        for (auto &active : impl->activeArticulatedClips)
+        {
+            if (active.clipIndex == clipIndex)
+            {
+                active.time = 0.0f;
+                active.priority = priority;
+                active.sequence = ++impl->articulatedSequence;
+                active.paused = false;
+                active.ended = false;
+                return true;
+            }
+        }
+        ACTIVE_ARTICULATED_CLIP active;
+        active.clipIndex = clipIndex;
+        active.priority = priority;
+        active.sequence = ++impl->articulatedSequence;
+        impl->activeArticulatedClips.push_back(active);
+        return true;
+    }
+
+    bool MESH_MBM::pauseArticulatedAnimation(const char *name) noexcept
+    {
+        if (!name)
+            return false;
+        for (auto &active : impl->activeArticulatedClips)
+        {
+            if (active.clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[active.clipIndex].header.name == name)
+            {
+                active.paused = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::resumeArticulatedAnimation(const char *name) noexcept
+    {
+        if (!name)
+            return false;
+        for (auto &active : impl->activeArticulatedClips)
+        {
+            if (active.clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[active.clipIndex].header.name == name)
+            {
+                active.paused = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::disableArticulatedAnimation(const char *name) noexcept
+    {
+        if (!name)
+            return false;
+        for (auto it = impl->activeArticulatedClips.begin(); it != impl->activeArticulatedClips.end(); ++it)
+        {
+            if (it->clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[it->clipIndex].header.name == name)
+            {
+                impl->activeArticulatedClips.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void MESH_MBM::updateArticulatedAnimations(const float delta) noexcept
+    {
+        if (delta <= 0.0f)
+            return;
+        for (auto &active : impl->activeArticulatedClips)
+        {
+            if (active.paused || active.ended || active.clipIndex >= impl->articulatedClips.size())
+                continue;
+            const ARTICULATED_CLIP_DATA &clip = impl->articulatedClips[active.clipIndex];
+            const float duration = clip.header.duration;
+            if (duration <= 0.0f)
+            {
+                active.time = 0.0f;
+                active.ended = !clip.header.loop;
+                continue;
+            }
+            const float speed = std::max(0.0f, clip.header.speed);
+            active.time += delta * speed;
+            if (active.time >= duration)
+            {
+                if (clip.header.loop)
+                    active.time = std::fmod(active.time, duration);
+                else
+                {
+                    active.time = duration;
+                    active.ended = true;
+                }
+            }
+        }
+    }
+
+    bool MESH_MBM::getArticulatedTransform(const uint32_t frameIndex, const uint32_t subsetIndex,
+                                           VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,
+                                           VEC3 *pivot, float pivotQuaternion[4]) const noexcept
+    {
+        if (!translation || !rotationQuaternion || !scale || !pivot || !pivotQuaternion)
+            return false;
+        const util::ARTICULATED_PART_V11 *part = nullptr;
+        for (const auto &candidate : impl->articulatedParts)
+        {
+            if (candidate.frameIndex == frameIndex && candidate.subsetIndex == subsetIndex)
+            {
+                part = &candidate;
+                break;
+            }
+        }
+        if (!part)
+            return false;
+
+        *translation = VEC3(0.0f, 0.0f, 0.0f);
+        *scale = VEC3(1.0f, 1.0f, 1.0f);
+        rotationQuaternion[0] = rotationQuaternion[1] = rotationQuaternion[2] = 0.0f;
+        rotationQuaternion[3] = 1.0f;
+        *pivot = VEC3(part->pivotX, part->pivotY, part->pivotZ);
+        pivotQuaternion[0] = part->pivotQX; pivotQuaternion[1] = part->pivotQY;
+        pivotQuaternion[2] = part->pivotQZ; pivotQuaternion[3] = part->pivotQW;
+
+        const ARTICULATED_CLIP_DATA *selectedClip = nullptr;
+        const ARTICULATED_TRACK_DATA *selectedTrack = nullptr;
+        float selectedTime = 0.0f;
+        int selectedPriority = std::numeric_limits<int>::min();
+        uint64_t selectedSequence = 0;
+        for (const auto &active : impl->activeArticulatedClips)
+        {
+            if (active.clipIndex >= impl->articulatedClips.size())
+                continue;
+            const ARTICULATED_CLIP_DATA &clip = impl->articulatedClips[active.clipIndex];
+            for (const auto &track : clip.tracks)
+            {
+                if (track.header.partId != part->partId || track.keys.empty())
+                    continue;
+                if (!selectedTrack || active.priority > selectedPriority ||
+                    (active.priority == selectedPriority && active.sequence > selectedSequence))
+                {
+                    selectedClip = &clip;
+                    selectedTrack = &track;
+                    selectedTime = active.time;
+                    selectedPriority = active.priority;
+                    selectedSequence = active.sequence;
+                }
+                break;
+            }
+        }
+        if (!selectedClip || !selectedTrack)
+            return false;
+
+        const auto &keys = selectedTrack->keys;
+        const util::ARTICULATED_KEY_V11 *a = &keys.front();
+        const util::ARTICULATED_KEY_V11 *b = &keys.front();
+        float factor = 0.0f;
+        if (selectedTime >= keys.back().time)
+            a = b = &keys.back();
+        else if (selectedTime > keys.front().time)
+        {
+            for (size_t i = 1; i < keys.size(); ++i)
+            {
+                if (selectedTime <= keys[i].time)
+                {
+                    a = &keys[i - 1];
+                    b = &keys[i];
+                    const float span = b->time - a->time;
+                    factor = span > 0.0f ? (selectedTime - a->time) / span : 0.0f;
+                    break;
+                }
+            }
+        }
+        const auto lerp = [factor](const float x, const float y) { return x + (y - x) * factor; };
+        const uint8_t mask = selectedTrack->header.channelMask;
+        if (mask & util::ARTICULATED_CHANNEL_POSITION)
+        {
+            translation->x = lerp(a->positionX, b->positionX);
+            translation->y = lerp(a->positionY, b->positionY);
+            translation->z = lerp(a->positionZ, b->positionZ);
+        }
+        if (mask & util::ARTICULATED_CHANNEL_SCALE)
+        {
+            scale->x = lerp(a->scaleX, b->scaleX);
+            scale->y = lerp(a->scaleY, b->scaleY);
+            scale->z = lerp(a->scaleZ, b->scaleZ);
+        }
+        if (mask & util::ARTICULATED_CHANNEL_ROTATION)
+        {
+            rotationQuaternion[0] = lerp(a->rotationX, b->rotationX);
+            rotationQuaternion[1] = lerp(a->rotationY, b->rotationY);
+            rotationQuaternion[2] = lerp(a->rotationZ, b->rotationZ);
+            rotationQuaternion[3] = lerp(a->rotationW, b->rotationW);
+            const float length = std::sqrt(rotationQuaternion[0] * rotationQuaternion[0] +
+                                           rotationQuaternion[1] * rotationQuaternion[1] +
+                                           rotationQuaternion[2] * rotationQuaternion[2] +
+                                           rotationQuaternion[3] * rotationQuaternion[3]);
+            if (length > 0.000001f)
+            {
+                rotationQuaternion[0] /= length; rotationQuaternion[1] /= length;
+                rotationQuaternion[2] /= length; rotationQuaternion[3] /= length;
+            }
+        }
+        return true;
+    }
+
+    bool MESH_MBM::renderArticulatedDynamic(const uint32_t indexFrame, SHADER *pShader,
+                                            const RENDERIZABLE *renderizableOwner)
+    {
+        if (!pShader || !hasActiveArticulatedAnimations() || !impl->buffer ||
+            indexFrame >= impl->articulatedBaseGeometry.size() || indexFrame >= impl->totalFramesMesh)
+            return false;
+        const RUNTIME_FRAME_GEOMETRY &base = impl->articulatedBaseGeometry[indexFrame];
+        if (!base.position || base.vertexCount == 0)
+            return false;
+        impl->articulatedScratchPosition.resize(base.vertexCount);
+        std::memcpy(impl->articulatedScratchPosition.data(), base.position.get(), base.vertexCount * sizeof(VEC3));
+        if (base.normal)
+        {
+            impl->articulatedScratchNormal.resize(base.vertexCount);
+            std::memcpy(impl->articulatedScratchNormal.data(), base.normal.get(), base.vertexCount * sizeof(VEC3));
+        }
+        else
+            impl->articulatedScratchNormal.clear();
+
+        const auto normalizeQuaternion = [](float q[4])
+        {
+            const float length = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+            if (length > 0.000001f)
+            {
+                q[0] /= length; q[1] /= length; q[2] /= length; q[3] /= length;
+            }
+            else
+                q[0] = q[1] = q[2] = 0.0f, q[3] = 1.0f;
+        };
+        const auto multiplyQuaternion = [](const float a[4], const float b[4], float out[4])
+        {
+            out[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
+            out[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
+            out[2] = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3];
+            out[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
+        };
+        const auto rotateVector = [](const float q[4], const VEC3 &v) -> VEC3
+        {
+            const VEC3 qv(q[0], q[1], q[2]);
+            const auto cross = [](const VEC3 &a, const VEC3 &b) -> VEC3
+            {
+                return VEC3(a.y * b.z - a.z * b.y,
+                            a.z * b.x - a.x * b.z,
+                            a.x * b.y - a.y * b.x);
+            };
+            const VEC3 t = cross(qv, v) * 2.0f;
+            return v + t * q[3] + cross(qv, t);
+        };
+
+        const BUFFER_MESH &frameBuffer = impl->buffer[indexFrame];
+        for (uint32_t subsetIndex = 0; subsetIndex < frameBuffer.totalSubset; ++subsetIndex)
+        {
+            VEC3 translation, scale, pivot;
+            float rotation[4], pivotRotation[4];
+            if (!getArticulatedTransform(indexFrame, subsetIndex, &translation, rotation, &scale, &pivot, pivotRotation))
+                continue;
+            normalizeQuaternion(rotation);
+            normalizeQuaternion(pivotRotation);
+            const float inversePivot[4] = {-pivotRotation[0], -pivotRotation[1], -pivotRotation[2], pivotRotation[3]};
+            float orientedRotation[4], combinedRotation[4];
+            multiplyQuaternion(pivotRotation, rotation, orientedRotation);
+            multiplyQuaternion(orientedRotation, inversePivot, combinedRotation);
+            normalizeQuaternion(combinedRotation);
+
+            const util::SUBSET &subset = frameBuffer.subset[subsetIndex];
+            const int first = subset.vertexStart;
+            const int last = first + subset.vertexCount;
+            for (int vertex = first; vertex < last; ++vertex)
+            {
+                VEC3 local = impl->articulatedScratchPosition[static_cast<size_t>(vertex)] - pivot;
+                local.x *= scale.x; local.y *= scale.y; local.z *= scale.z;
+                impl->articulatedScratchPosition[static_cast<size_t>(vertex)] =
+                    rotateVector(combinedRotation, local) + pivot + translation;
+                if (!impl->articulatedScratchNormal.empty())
+                    impl->articulatedScratchNormal[static_cast<size_t>(vertex)] =
+                        rotateVector(combinedRotation, impl->articulatedScratchNormal[static_cast<size_t>(vertex)]);
+            }
+        }
+        VEC3 *normal = impl->articulatedScratchNormal.empty() ? nullptr : impl->articulatedScratchNormal.data();
+        VEC2 *uv = base.uv.get();
+        return this->renderDynamic(indexFrame, pShader, impl->articulatedScratchPosition.data(),
+                                   normal, uv, renderizableOwner);
     }
     
     bool MESH_MBM::render(const uint32_t indexFrame,const SHADER *pShader,
@@ -5025,6 +5349,31 @@ namespace mbm
         const auto totalFrames = static_cast<uint32_t>(in.frames.size());
         impl->buffer           = new BUFFER_MESH[totalFrames];
         impl->totalFramesMesh  = totalFrames;
+        if (!impl->articulatedParts.empty() || !impl->articulatedClips.empty())
+        {
+            impl->articulatedBaseGeometry.resize(totalFrames);
+            for (uint32_t frameIndex = 0; frameIndex < totalFrames; ++frameIndex)
+            {
+                const IntermediateFrameV11 &source = in.frames[frameIndex];
+                RUNTIME_FRAME_GEOMETRY &target = impl->articulatedBaseGeometry[frameIndex];
+                target.vertexCount = source.vertexCount;
+                if (source.vertexCount && source.position)
+                {
+                    target.position = std::make_unique<VEC3[]>(source.vertexCount);
+                    std::memcpy(target.position.get(), source.position.get(), source.vertexCount * sizeof(VEC3));
+                }
+                if (source.hasNormal && source.normal)
+                {
+                    target.normal = std::make_unique<VEC3[]>(source.vertexCount);
+                    std::memcpy(target.normal.get(), source.normal.get(), source.vertexCount * sizeof(VEC3));
+                }
+                if (source.uv)
+                {
+                    target.uv = std::make_unique<VEC2[]>(source.vertexCount);
+                    std::memcpy(target.uv.get(), source.uv.get(), source.vertexCount * sizeof(VEC2));
+                }
+            }
+        }
 
         TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
         for (uint32_t currentFrame = 0; currentFrame < totalFrames; ++currentFrame)

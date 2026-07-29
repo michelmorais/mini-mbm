@@ -288,6 +288,18 @@ namespace mbm
         API_IMPL bool isLoaded() const;
         API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader,
                              const RENDERIZABLE *renderizableOwner = nullptr);
+        API_IMPL bool hasArticulatedAnimationData() const noexcept;
+        API_IMPL bool hasActiveArticulatedAnimations() const noexcept;
+        API_IMPL bool playArticulatedAnimation(const char *name, const int priority);
+        API_IMPL bool pauseArticulatedAnimation(const char *name) noexcept;
+        API_IMPL bool resumeArticulatedAnimation(const char *name) noexcept;
+        API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;
+        API_IMPL void updateArticulatedAnimations(const float delta) noexcept;
+        API_IMPL bool getArticulatedTransform(const uint32_t frameIndex, const uint32_t subsetIndex,
+                                              VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,
+                                              VEC3 *pivot, float pivotQuaternion[4]) const noexcept;
+        API_IMPL bool renderArticulatedDynamic(const uint32_t indexFrame, SHADER *pShader,
+                                               const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
                                         VEC2 *uv,
                                         const RENDERIZABLE *renderizableOwner = nullptr);

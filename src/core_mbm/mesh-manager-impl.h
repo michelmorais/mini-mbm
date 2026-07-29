@@ -28,6 +28,24 @@ namespace mbm
         std::vector<ARTICULATED_TRACK_DATA> tracks;
     };
 
+    struct ACTIVE_ARTICULATED_CLIP
+    {
+        uint32_t clipIndex = 0;
+        float time = 0.0f;
+        int priority = 0;
+        uint64_t sequence = 0;
+        bool paused = false;
+        bool ended = false;
+    };
+
+    struct RUNTIME_FRAME_GEOMETRY
+    {
+        uint32_t vertexCount = 0;
+        std::unique_ptr<VEC3[]> position;
+        std::unique_ptr<VEC3[]> normal;
+        std::unique_ptr<VEC2[]> uv;
+    };
+
     struct MESH_MBM::Impl
     {
         // Deprecated: no longer applied to a loaded renderizable's position/angle at load time
@@ -54,6 +72,11 @@ namespace mbm
         void *extraInfo;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
+        std::vector<ACTIVE_ARTICULATED_CLIP> activeArticulatedClips;
+        uint64_t articulatedSequence = 0;
+        std::vector<RUNTIME_FRAME_GEOMETRY> articulatedBaseGeometry;
+        std::vector<VEC3> articulatedScratchPosition;
+        std::vector<VEC3> articulatedScratchNormal;
     };
 
     struct MESH_MBM_DEBUG::Impl
