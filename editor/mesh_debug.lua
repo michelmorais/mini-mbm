@@ -6466,6 +6466,77 @@ function showBonesNode(tEntry, meshD, index)
     end
 end
 
+-- ---------------------------------------------------------------------------
+-- Articulated Animation node: first authoring pass for persistent parts/pivots
+-- and named clips. Runtime evaluation/gizmos are added in the next milestone.
+-- ---------------------------------------------------------------------------
+function showArticulatedAnimationNode(tEntry, meshD, index)
+    local isOpen = openNode(tEntry, 'articulated', tLang.L('articulated_animation'), 0, 'articulated-' .. index)
+    if not isOpen then return end
+    local function markArticulatedEdit()
+        tEntry.modified = true
+        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    end
+
+    if tImGui.Button(tLang.L('articulated_initialize_parts') .. '##artInit-' .. index) then
+        local ok, added = dpCall(function() return meshD:initializeArticulatedParts() end)
+        if ok and added and added > 0 then markArticulatedEdit() end
+    end
+
+    local okParts, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
+    totalParts = (okParts and totalParts) or 0
+    tImGui.Separator()
+    tImGui.Text(string.format('%s: %d', tLang.L('articulated_parts'), totalParts))
+    if totalParts == 0 then
+        tImGui.TextDisabled(tLang.L('articulated_no_parts'))
+    else
+        for partIndex = 1, totalParts do
+            local ok, partId, frame, subset, name, px, py, pz, qx, qy, qz, qw, parent = dpCall(function()
+                return meshD:getArticulatedPart(partIndex)
+            end)
+            if ok and partId then
+                tImGui.PushID('artPart-' .. index .. '-' .. partIndex)
+                tImGui.Text(string.format('F%d S%d  ID %s', frame or 0, subset or 0, tostring(partId)))
+                local changedName, newName = tImGui.InputText(tLang.L('name'), name or '', 96, 0)
+                local posChanged, pos = tImGui.DragFloat3(tLang.L('articulated_pivot_position'), {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
+                local rotChanged, rot = tImGui.DragFloat3(tLang.L('articulated_pivot_rotation'), {qx or 0, qy or 0, qz or 0}, 0.01, -1, 1, '%.3f', 0)
+                local wChanged, newW = tImGui.InputFloat('Pivot QW', qw or 1, 0.01, 0.1, '%.3f', 0)
+                if changedName or posChanged or rotChanged or wChanged then
+                    local p = pos or {px or 0, py or 0, pz or 0}
+                    local r = rot or {qx or 0, qy or 0, qz or 0}
+                    dpCall(function()
+                        return meshD:updateArticulatedPart(partIndex, newName or name or '',
+                            p[1], p[2], p[3], r[1], r[2], r[3], newW or qw or 1, parent or 0)
+                    end)
+                    markArticulatedEdit()
+                end
+                tImGui.PopID()
+                tImGui.Separator()
+            end
+        end
+    end
+
+    local okClips, totalClips = dpCall(function() return meshD:getTotalArticulatedAnimations() end)
+    totalClips = (okClips and totalClips) or 0
+    tImGui.Text(string.format('%s: %d', tLang.L('articulated_clips'), totalClips))
+    if tImGui.Button('Add Clip##artClipAdd-' .. index) then
+        local clipName = 'Articulated ' .. (totalClips + 1)
+        local ok = dpCall(function() return meshD:addArticulatedAnimation(clipName, 1.0, 1.0, 0, true) end)
+        if ok then markArticulatedEdit() end
+    end
+    if totalClips == 0 then
+        tImGui.TextDisabled(tLang.L('articulated_no_clips'))
+    else
+        for clipIndex = 1, totalClips do
+            local ok, clipName = dpCall(function() return meshD:getArticulatedAnimationName(clipIndex) end)
+            if ok and clipName then
+                tImGui.BulletText(clipName)
+            end
+        end
+    end
+    tImGui.TreePop()
+end
+
 -- Just the per-bone table (name/parent/x/y/z/radius/length/highlight/remove) in its own
 -- bottom-docked window -- too wide to read comfortably inside the narrow "Loaded Meshes" tree panel
 -- once it grew past a handful of columns. Everything else the Bones node used to draw inline (Up
@@ -8531,7 +8602,7 @@ function showMeshOptions(tEntry, index)
     end
 
     local nAnim = info.animation or 0
-    if openNode(tEntry, 'anims', tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
+    if openNode(tEntry, 'anims', tLang.L("frame_animation_node") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
         -- Frame-filter preview refresh controls (only for the currently selected mesh)
         if index == iSelectedMeshIndex then
             if tPreviewMesh then
@@ -8725,6 +8796,9 @@ function showMeshOptions(tEntry, index)
 
     -- Bones node: view/add/edit/remove the mesh's optional skeleton (diagnostic-only)
     showBonesNode(tEntry, meshD, index)
+
+    -- Articulated Animation node: persistent parts/pivots and named clips
+    showArticulatedAnimationNode(tEntry, meshD, index)
 
     if openNode(tEntry, 'shader', tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then

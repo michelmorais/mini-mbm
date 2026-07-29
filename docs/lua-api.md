@@ -1184,6 +1184,12 @@ local partIndex = meshD:addArticulatedPart(
     pivotQX, pivotQY, pivotQZ, pivotQW,
     parentPartId)
 
+local added = meshD:initializeArticulatedParts() -- computes missing IDs and AABB-center pivots
+meshD:updateArticulatedPart(partIndex, name,
+    pivotX, pivotY, pivotZ,
+    pivotQX, pivotQY, pivotQZ, pivotQW,
+    parentPartId)
+
 local clipIndex = meshD:addArticulatedAnimation(name, duration, speed, priority, loop)
 local trackIndex = meshD:addArticulatedTrack(clipIndex, partId, channelMask)
 meshD:addArticulatedKey(clipIndex, trackIndex, time,

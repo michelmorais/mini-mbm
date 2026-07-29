@@ -4246,6 +4246,68 @@ namespace mbm
         return index < impl->articulatedParts.size() ? &impl->articulatedParts[index] : nullptr;
     }
 
+    uint32_t MESH_MBM_DEBUG::initializeArticulatedParts()
+    {
+        uint64_t nextPartId = 1;
+        for (const auto &part : impl->articulatedParts)
+            if (part.partId >= nextPartId)
+                nextPartId = part.partId + 1;
+
+        uint32_t added = 0;
+        for (uint32_t frameIndex = 0; frameIndex < impl->buffer.size(); ++frameIndex)
+        {
+            util::BUFFER_MESH_DEBUG *frame = impl->buffer[frameIndex];
+            if (!frame)
+                continue;
+            for (uint32_t subsetIndex = 0; subsetIndex < frame->subset.size(); ++subsetIndex)
+            {
+                bool exists = false;
+                for (const auto &part : impl->articulatedParts)
+                {
+                    if (part.frameIndex == frameIndex && part.subsetIndex == subsetIndex)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (exists)
+                    continue;
+
+                const util::SUBSET_DEBUG *subset = frame->subset[subsetIndex];
+                VEC3 pivot(0.0f, 0.0f, 0.0f);
+                if (subset && subset->vertexCount > 0)
+                {
+                    const VEC3 *positions = this->getPositionArray(frameIndex);
+                    if (positions)
+                    {
+                        VEC3 minValue(FLT_MAX, FLT_MAX, FLT_MAX);
+                        VEC3 maxValue(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+                        const int first = subset->vertexStart;
+                        const int last = first + subset->vertexCount;
+                        for (int vertex = first; vertex < last; ++vertex)
+                        {
+                            minValue.x = std::min(minValue.x, positions[vertex].x);
+                            minValue.y = std::min(minValue.y, positions[vertex].y);
+                            minValue.z = std::min(minValue.z, positions[vertex].z);
+                            maxValue.x = std::max(maxValue.x, positions[vertex].x);
+                            maxValue.y = std::max(maxValue.y, positions[vertex].y);
+                            maxValue.z = std::max(maxValue.z, positions[vertex].z);
+                        }
+                        pivot = (minValue + maxValue) * 0.5f;
+                    }
+                }
+                char errorOut[255] = "";
+                const std::string name = "Frame " + std::to_string(frameIndex + 1) +
+                                         " Subset " + std::to_string(subsetIndex + 1);
+                if (this->addArticulatedPart(nextPartId++, frameIndex, subsetIndex, name.c_str(),
+                                             pivot.x, pivot.y, pivot.z, 0.0f, 0.0f, 0.0f, 1.0f,
+                                             0, errorOut, static_cast<int>(sizeof(errorOut))) > 0)
+                    ++added;
+            }
+        }
+        return added;
+    }
+
     int MESH_MBM_DEBUG::addArticulatedPart(const uint64_t partId, const uint32_t frameIndex,
                                            const uint32_t subsetIndex, const char *name,
                                            const float pivotX, const float pivotY, const float pivotZ,
@@ -4276,6 +4338,24 @@ namespace mbm
         part.pivotQX = pivotQX; part.pivotQY = pivotQY; part.pivotQZ = pivotQZ; part.pivotQW = pivotQW;
         impl->articulatedParts.push_back(std::move(part));
         return static_cast<int>(impl->articulatedParts.size());
+    }
+
+    bool MESH_MBM_DEBUG::updateArticulatedPart(const uint32_t index, const char *name,
+                                               const float pivotX, const float pivotY, const float pivotZ,
+                                               const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
+                                               const uint64_t parentPartId, char *errorOut, const int errorOutLen)
+    {
+        if (index >= impl->articulatedParts.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated part index out of range");
+            return false;
+        }
+        auto &part = impl->articulatedParts[index];
+        part.name = name ? name : "";
+        part.pivotX = pivotX; part.pivotY = pivotY; part.pivotZ = pivotZ;
+        part.pivotQX = pivotQX; part.pivotQY = pivotQY; part.pivotQZ = pivotQZ; part.pivotQW = pivotQW;
+        part.parentPartId = parentPartId;
+        return true;
     }
 
     uint32_t MESH_MBM_DEBUG::getTotalArticulatedAnimations() const noexcept

@@ -1831,6 +1831,13 @@ namespace mbm
         return 12;
     }
 
+    int onInitializeArticulatedPartsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.initializeArticulatedParts()));
+        return 1;
+    }
+
     int onAddArticulatedPartDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1852,6 +1859,27 @@ namespace mbm
         if (ret == 0)
             return lua_error_debug(lua, errorOut);
         lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onUpdateArticulatedPartDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *name = luaL_optstring(lua, 3, "");
+        const float px = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
+        const float py = static_cast<float>(luaL_optnumber(lua, 5, 0.0));
+        const float pz = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const float qx = static_cast<float>(luaL_optnumber(lua, 7, 0.0));
+        const float qy = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float qz = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float qw = static_cast<float>(luaL_optnumber(lua, 10, 1.0));
+        const uint64_t parent = static_cast<uint64_t>(luaL_optinteger(lua, 11, 0));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateArticulatedPart(index, name, px, py, pz, qx, qy, qz, qw,
+                                                   parent, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
         return 1;
     }
 
@@ -2224,7 +2252,9 @@ namespace mbm
                                           {"removeVertexWeights", onRemoveVertexWeightsDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},
+                                          {"initializeArticulatedParts", onInitializeArticulatedPartsDebugLua},
                                           {"addArticulatedPart", onAddArticulatedPartDebugLua},
+                                          {"updateArticulatedPart", onUpdateArticulatedPartDebugLua},
                                           {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsDebugLua},
                                           {"getArticulatedAnimationName", onGetArticulatedAnimationNameDebugLua},
                                           {"addArticulatedAnimation", onAddArticulatedAnimationDebugLua},

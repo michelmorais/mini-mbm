@@ -217,11 +217,16 @@ namespace mbm
         // narrow operations are the editor-facing API and are also suitable for Lua bindings.
         API_IMPL uint32_t getTotalArticulatedParts() const noexcept;
         API_IMPL const util::ARTICULATED_PART_V11 *getArticulatedPart(const uint32_t index) const noexcept;
+        API_IMPL uint32_t initializeArticulatedParts();
         API_IMPL int addArticulatedPart(const uint64_t partId, const uint32_t frameIndex,
                                         const uint32_t subsetIndex, const char *name,
                                         const float pivotX, const float pivotY, const float pivotZ,
                                         const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
                                         const uint64_t parentPartId, char *errorOut, const int errorOutLen);
+        API_IMPL bool updateArticulatedPart(const uint32_t index, const char *name,
+                                            const float pivotX, const float pivotY, const float pivotZ,
+                                            const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
+                                            const uint64_t parentPartId, char *errorOut, const int errorOutLen);
         API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
         API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
         API_IMPL int addArticulatedAnimation(const char *name, const float duration, const float speed,
