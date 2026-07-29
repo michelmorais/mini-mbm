@@ -6549,7 +6549,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         tEntry.bShowArticulatedPivot ~= false)
     articulatedTooltip('articulated_show_pivot_tooltip')
     if totalParts > 0 then
-        tUtil.pushResponsiveItemWidth(100, 40)
+        tImGui.PushItemWidth(70)
         local partChanged, selectedPart = tImGui.InputInt('Part##artPivotPart-' .. index,
             tEntry.iArticulatedPart or 1, 1, 1, 0)
         tImGui.PopItemWidth()
@@ -6575,16 +6575,16 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             if ok and partId then
                 tImGui.PushID('artPart-' .. index .. '-' .. partIndex)
                 tImGui.Text(string.format('F%d S%d  ID %s', frame or 0, subset or 0, tostring(partId)))
-                tUtil.pushResponsiveItemWidth(260, 120)
+                tImGui.PushItemWidth(220)
                 local changedName, newName = tImGui.InputText(tLang.L('name'), name or '', 96, 0)
                 tImGui.PopItemWidth()
-                tUtil.pushResponsiveItemWidth(260, 120)
+                tImGui.PushItemWidth(220)
                 local posChanged, pos = tImGui.DragFloat3(tLang.L('articulated_pivot_position'), {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
                 tImGui.PopItemWidth()
-                tUtil.pushResponsiveItemWidth(260, 120)
+                tImGui.PushItemWidth(220)
                 local rotChanged, rot = tImGui.DragFloat3(tLang.L('articulated_pivot_rotation'), {qx or 0, qy or 0, qz or 0}, 0.01, -1, 1, '%.3f', 0)
                 tImGui.PopItemWidth()
-                tUtil.pushResponsiveItemWidth(180, 100)
+                tImGui.PushItemWidth(105)
                 local wChanged, newW = tImGui.InputFloat('Pivot QW', qw or 1, 0.01, 0.1, '%.3f', 0)
                 tImGui.PopItemWidth()
                 if changedName or posChanged or rotChanged or wChanged then
@@ -6615,8 +6615,10 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         tImGui.TextDisabled(tLang.L('articulated_no_clips'))
     else
         tEntry.iArticulatedClip = math.max(1, math.min(tEntry.iArticulatedClip or 1, totalClips))
+        tImGui.PushItemWidth(70)
         local clipChanged, selectedClip = tImGui.InputInt('Clip##artClipSelect-' .. index,
             tEntry.iArticulatedClip, 1, 1, 0)
+        tImGui.PopItemWidth()
         if clipChanged then
             tEntry.iArticulatedClip = math.max(1, math.min(selectedClip or 1, totalClips))
         end
@@ -6634,19 +6636,19 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             return meshD:getArticulatedAnimation(activeClip)
         end)
         if okInfo and infoName then
-            tUtil.pushResponsiveItemWidth(260, 120)
+            tImGui.PushItemWidth(220)
             local nameChanged, newName = tImGui.InputText('Clip Name', infoName, 96, 0)
             tImGui.PopItemWidth()
             articulatedTooltip('articulated_clip_name_tooltip')
-            tUtil.pushResponsiveItemWidth(180, 100)
+            tImGui.PushItemWidth(115)
             local durationChanged, newDuration = tImGui.InputFloat('Duration', infoDuration or 0, 0.01, 0.1, '%.3f', 0)
             tImGui.PopItemWidth()
             articulatedTooltip('articulated_duration_tooltip')
-            tUtil.pushResponsiveItemWidth(180, 100)
+            tImGui.PushItemWidth(115)
             local speedChanged, newSpeed = tImGui.InputFloat('Speed', infoSpeed or 1, 0.01, 0.1, '%.3f', 0)
             tImGui.PopItemWidth()
             articulatedTooltip('articulated_speed_tooltip')
-            tUtil.pushResponsiveItemWidth(140, 100)
+            tImGui.PushItemWidth(80)
             local priorityChanged, newPriority = tImGui.InputInt('Priority', infoPriority or 0, 1, 10, 0)
             tImGui.PopItemWidth()
             articulatedTooltip('articulated_priority_tooltip')
@@ -6666,8 +6668,10 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             if previewReady then
                 tEntry.fArticulatedPreviewTime = math.max(0, math.min(tEntry.fArticulatedPreviewTime or 0,
                     math.max(0, infoDuration or 0)))
+                tImGui.PushItemWidth(260)
                 local seekChanged, seekTime = tImGui.SliderFloat('Timeline##artTimeline-' .. index,
                     tEntry.fArticulatedPreviewTime, 0, math.max(0.001, infoDuration or 0), '%.3f')
+                tImGui.PopItemWidth()
                 timelineMin = tImGui.GetItemRectMin()
                 timelineMax = tImGui.GetItemRectMax()
                 if seekChanged then
@@ -6769,8 +6773,10 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                                 {x = markerX, y = timelineMax.y}, {r = 1, g = 0.75, b = 0.1, a = 1}, 2)
                         end
                         tImGui.PushID('artKey-' .. index .. '-' .. trackIndex .. '-' .. keyIndex)
+                        tImGui.PushItemWidth(100)
                         local timeChanged, newTime = tImGui.InputFloat(string.format('Key %d Time', keyIndex),
                             keyTime, 0.01, 0.1, '%.3f', 0)
+                        tImGui.PopItemWidth()
                         articulatedTooltip('articulated_key_tooltip')
                         tImGui.SameLine()
                         if tImGui.Button('Remove##removeKey') then
@@ -6783,22 +6789,22 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                                 break
                             end
                         end
-                        tUtil.pushResponsiveItemWidth(260, 120)
+                        tImGui.PushItemWidth(220)
                         local keyId = index .. '-' .. trackIndex .. '-' .. keyIndex
                         local posChanged, pos = tImGui.DragFloat3('Position##artKeyPos-' .. keyId,
                             {px or 0, py or 0, pz or 0},
                             0.01, -math.huge, math.huge, '%.3f', 0)
                         tImGui.PopItemWidth()
-                        tUtil.pushResponsiveItemWidth(260, 120)
+                        tImGui.PushItemWidth(220)
                         local rotChanged, rot = tImGui.DragFloat3('Rotation##artKeyRot-' .. keyId,
                             {qx or 0, qy or 0, qz or 0},
                             0.01, -1, 1, '%.3f', 0)
                         tImGui.PopItemWidth()
-                        tUtil.pushResponsiveItemWidth(180, 100)
+                        tImGui.PushItemWidth(100)
                         local wChanged, newQw = tImGui.InputFloat('Rotation W##artKeyRotW-' .. keyId,
                             qw or 1, 0.01, 0.1, '%.3f', 0)
                         tImGui.PopItemWidth()
-                        tUtil.pushResponsiveItemWidth(260, 120)
+                        tImGui.PushItemWidth(220)
                         local scaleChanged, scale = tImGui.DragFloat3('Scale##artKeyScale-' .. keyId,
                             {sx or 1, sy or 1, sz or 1},
                             0.01, -math.huge, math.huge, '%.3f', 0)
@@ -6926,7 +6932,7 @@ function showArticulatedPivotWindow()
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
         end
     end
-    tUtil.pushResponsiveItemWidth(190, 80)
+    tImGui.PushItemWidth(180)
     local eulerChanged, euler = tImGui.DragFloat3('Euler (deg)##artPivotEuler-' .. index,
         {-(tEntry.tArticulatedPivotOrbit.elevation or 0) * 180 / math.pi,
             (tEntry.tArticulatedPivotOrbit.azimuth or 0) * 180 / math.pi,
@@ -6950,15 +6956,15 @@ function showArticulatedPivotWindow()
         end
     end
     tImGui.Separator()
-    tUtil.pushResponsiveItemWidth(260, 120)
+    tImGui.PushItemWidth(220)
     local posChanged, pos = tImGui.DragFloat3('Pivot Position##artPivotWindowPos-' .. index,
         {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
     tImGui.PopItemWidth()
-    tUtil.pushResponsiveItemWidth(260, 120)
+    tImGui.PushItemWidth(220)
     local rotChanged, rot = tImGui.DragFloat3('Pivot Quaternion##artPivotWindowRot-' .. index,
         {qx or 0, qy or 0, qz or 0}, 0.01, -1, 1, '%.3f', 0)
     tImGui.PopItemWidth()
-    tUtil.pushResponsiveItemWidth(180, 100)
+    tImGui.PushItemWidth(105)
     local wChanged, newQw = tImGui.InputFloat('Pivot QW##artPivotWindowQw-' .. index,
         qw or 1, 0.01, 0.1, '%.3f', 0)
     tImGui.PopItemWidth()
