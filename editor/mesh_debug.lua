@@ -6543,6 +6543,9 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         if partChanged then
             tEntry.iArticulatedPart = math.max(1, math.min(selectedPart or 1, totalParts))
         end
+        if tImGui.Button('Open Pivot Gizmo##artPivotWindow-' .. index) then
+            tEntry.bArticulatedPivotWindow = true
+        end
     end
     updateArticulatedPivotGizmo(tEntry, meshD, index, totalParts)
     tImGui.Separator()
@@ -6797,6 +6800,114 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         end
     end
     tImGui.TreePop()
+end
+
+function articulatedQuaternionFromOrbit(orbit)
+    local halfYaw = (orbit.azimuth or 0) * 0.5
+    local halfPitch = -(orbit.elevation or 0) * 0.5
+    local sy, cy = math.sin(halfYaw), math.cos(halfYaw)
+    local sx, cx = math.sin(halfPitch), math.cos(halfPitch)
+    -- q = yaw(Y) * pitch(X), using the engine's x/y/z/w quaternion convention.
+    return cx * sy, sx * cy, -sx * sy, cx * cy
+end
+
+function articulatedOrbitFromQuaternion(qx, qy, qz, qw)
+    local azimuth = 2 * math.atan(qx or 0, qw or 1)
+    local elevation = -2 * math.atan(qy or 0, qw or 1)
+    return {
+        azimuth = azimuth,
+        elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, elevation)),
+    }
+end
+
+function showArticulatedPivotWindow()
+    local index = iSelectedMeshIndex
+    local tEntry = tLoadedMeshes[index]
+    if not tEntry or not tEntry.bArticulatedPivotWindow or tEntry.sOpenNode ~= 'articulated' then
+        return
+    end
+    local meshD = tEntry.meshDebug
+    local okTotal, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
+    totalParts = (okTotal and totalParts) or 0
+    if totalParts == 0 then
+        tEntry.bArticulatedPivotWindow = false
+        return
+    end
+    tEntry.iArticulatedPart = math.max(1, math.min(tEntry.iArticulatedPart or 1, totalParts))
+    local ok, partId, frame, subset, name, px, py, pz, qx, qy, qz, qw, parent = dpCall(function()
+        return meshD:getArticulatedPart(tEntry.iArticulatedPart)
+    end)
+    if not ok or not partId then return end
+
+    local iW, iH = mbm.getRealSizeScreen()
+    local winW, winH = 360, 470
+    local winX = math.min(iW - winW - 10, (iLoadedMeshesWindowWidth or 520) + 10)
+    tImGui.SetNextWindowPos({x = math.max(0, winX), y = math.max(30, iH - winH - 20)},
+        tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSize({x = winW, y = winH}, tImGui.Flags('ImGuiCond_Once'))
+    local opened, closed = tImGui.Begin('Articulated Pivot Gizmo##artPivotWindow', true,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if closed then tEntry.bArticulatedPivotWindow = false end
+    if not opened then
+        tImGui.End()
+        return
+    end
+
+    tImGui.Text(string.format('Part %s  F%d S%d', tostring(partId), frame or 0, subset or 0))
+    tImGui.Text(name or '')
+    local quaternionSignature = string.format('%.7f:%.7f:%.7f:%.7f', qx or 0, qy or 0, qz or 0, qw or 1)
+    if tEntry.tArticulatedPivotOrbitPartId ~= partId or
+        tEntry.sArticulatedPivotQuaternionSignature ~= quaternionSignature then
+        tEntry.tArticulatedPivotOrbit = articulatedOrbitFromQuaternion(qx, qy, qz, qw)
+        tEntry.tArticulatedPivotOrbitPartId = partId
+        tEntry.sArticulatedPivotQuaternionSignature = quaternionSignature
+    end
+    tEntry.tArticulatedPivotOrbit = tEntry.tArticulatedPivotOrbit or {azimuth = 0.3, elevation = 0.3}
+    local orbitChanged = tUtil.drawOrbitGizmo(tEntry.tArticulatedPivotOrbit, {size = 130})
+    if orbitChanged then
+        qx, qy, qz, qw = articulatedQuaternionFromOrbit(tEntry.tArticulatedPivotOrbit)
+        local okUpdate = dpCall(function()
+            return meshD:updateArticulatedPart(tEntry.iArticulatedPart, name or '',
+                px or 0, py or 0, pz or 0, qx, qy, qz, qw, parent or 0)
+        end)
+        if okUpdate then
+            tEntry.modified = true
+            tEntry.sArticulatedPivotQuaternionSignature = string.format('%.7f:%.7f:%.7f:%.7f',
+                qx, qy, qz, qw)
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        end
+    end
+    tImGui.Separator()
+    tUtil.pushResponsiveItemWidth(260, 120)
+    local posChanged, pos = tImGui.DragFloat3('Pivot Position##artPivotWindowPos-' .. index,
+        {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
+    tImGui.PopItemWidth()
+    tUtil.pushResponsiveItemWidth(260, 120)
+    local rotChanged, rot = tImGui.DragFloat3('Pivot Quaternion##artPivotWindowRot-' .. index,
+        {qx or 0, qy or 0, qz or 0}, 0.01, -1, 1, '%.3f', 0)
+    tImGui.PopItemWidth()
+    tUtil.pushResponsiveItemWidth(180, 100)
+    local wChanged, newQw = tImGui.InputFloat('Pivot QW##artPivotWindowQw-' .. index,
+        qw or 1, 0.01, 0.1, '%.3f', 0)
+    tImGui.PopItemWidth()
+    if posChanged or rotChanged or wChanged then
+        local p = pos or {px or 0, py or 0, pz or 0}
+        local r = rot or {qx or 0, qy or 0, qz or 0}
+        local okUpdate = dpCall(function()
+            return meshD:updateArticulatedPart(tEntry.iArticulatedPart, name or '',
+                p[1], p[2], p[3], r[1], r[2], r[3], newQw or qw or 1, parent or 0)
+        end)
+        if okUpdate then
+            tEntry.modified = true
+            tEntry.tArticulatedPivotOrbit = articulatedOrbitFromQuaternion(r[1], r[2], r[3], newQw or qw or 1)
+            tEntry.tArticulatedPivotOrbitPartId = partId
+            tEntry.sArticulatedPivotQuaternionSignature = string.format('%.7f:%.7f:%.7f:%.7f',
+                r[1], r[2], r[3], newQw or qw or 1)
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        end
+    end
+    tImGui.TextDisabled(tLang.L('articulated_pivot_gizmo_hint'))
+    tImGui.End()
 end
 
 -- Just the per-bone table (name/parent/x/y/z/radius/length/highlight/remove) in its own
@@ -11758,6 +11869,7 @@ function onLoop(delta)
     showCameraWindow()
     showLightWindow()
     showMeshTreeWindow()
+    showArticulatedPivotWindow()
     sweepStaleBoneGizmos()
     showBonesWindow()
     showApplyAllWindow()
