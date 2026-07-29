@@ -1168,3 +1168,32 @@ print("white", "plain message")        -- explicit color
 ```
 
 Standard `print(...)` (no tag) still works and prints white.
+
+---
+
+## 15. Mesh Debug articulated-animation authoring
+
+The editor-only `meshDebug` object exposes the initial Mesh V11 rigid-animation authoring API.
+Indices returned by this API are one-based, matching the existing Mesh Debug methods. Part IDs are
+persistent `uint64` identities; names are labels and are not used as file references.
+
+```lua
+local partIndex = meshD:addArticulatedPart(
+    partId, frame, subset, name,
+    pivotX, pivotY, pivotZ,
+    pivotQX, pivotQY, pivotQZ, pivotQW,
+    parentPartId)
+
+local clipIndex = meshD:addArticulatedAnimation(name, duration, speed, priority, loop)
+local trackIndex = meshD:addArticulatedTrack(clipIndex, partId, channelMask)
+meshD:addArticulatedKey(clipIndex, trackIndex, time,
+    positionX, positionY, positionZ,
+    rotationQX, rotationQY, rotationQZ, rotationQW,
+    scaleX, scaleY, scaleZ)
+```
+
+Channel masks are `1` for position, `2` for rotation, and `4` for scale. Adding another key for
+the same track and time replaces the previous key. `getTotalArticulatedParts()`,
+`getArticulatedPart(index)`, `getTotalArticulatedAnimations()`, and
+`getArticulatedAnimationName(index)` provide inspection. Runtime playback controls and visual
+editor authoring are planned on top of this storage API.

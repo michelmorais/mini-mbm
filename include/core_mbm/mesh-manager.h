@@ -213,6 +213,26 @@ namespace mbm
         API_IMPL bool hasVertexWeights() const noexcept;
         API_IMPL uint32_t getTotalVertexWeightBones() const noexcept; // weight palette size (unique bones referenced)
         API_IMPL void removeVertexWeights() noexcept; // clears palette + all per-vertex weight data
+        // Rigid/articulated animation authoring data. The storage remains PIMPL-owned; these
+        // narrow operations are the editor-facing API and are also suitable for Lua bindings.
+        API_IMPL uint32_t getTotalArticulatedParts() const noexcept;
+        API_IMPL const util::ARTICULATED_PART_V11 *getArticulatedPart(const uint32_t index) const noexcept;
+        API_IMPL int addArticulatedPart(const uint64_t partId, const uint32_t frameIndex,
+                                        const uint32_t subsetIndex, const char *name,
+                                        const float pivotX, const float pivotY, const float pivotZ,
+                                        const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
+                                        const uint64_t parentPartId, char *errorOut, const int errorOutLen);
+        API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
+        API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
+        API_IMPL int addArticulatedAnimation(const char *name, const float duration, const float speed,
+                                             const int priority, const bool loop, char *errorOut, const int errorOutLen);
+        API_IMPL int addArticulatedTrack(const uint32_t animationIndex, const uint64_t partId,
+                                         const uint8_t channelMask, char *errorOut, const int errorOutLen);
+        API_IMPL bool addArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                        const float time, const float positionX, const float positionY, const float positionZ,
+                                        const float rotationX, const float rotationY, const float rotationZ, const float rotationW,
+                                        const float scaleX, const float scaleY, const float scaleZ,
+                                        char *errorOut, const int errorOutLen);
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();

@@ -132,6 +132,8 @@ namespace mbm
         // (mesh-manager-impl.h) for where a debug-path load actually keeps this.
         std::vector<std::string> weightPalette;
         std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
+        std::vector<util::ARTICULATED_PART_V11> articulatedParts;
+        std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -169,7 +171,9 @@ namespace mbm
               angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
               extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
               skeleton(std::move(other.skeleton)), weightPalette(std::move(other.weightPalette)),
-              vertexWeights(std::move(other.vertexWeights))
+              vertexWeights(std::move(other.vertexWeights)),
+              articulatedParts(std::move(other.articulatedParts)),
+              articulatedClips(std::move(other.articulatedClips))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -193,6 +197,8 @@ namespace mbm
             skeleton       = std::move(other.skeleton);
             weightPalette  = std::move(other.weightPalette);
             vertexWeights  = std::move(other.vertexWeights);
+            articulatedParts = std::move(other.articulatedParts);
+            articulatedClips = std::move(other.articulatedClips);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -450,6 +456,61 @@ namespace
             infoHead->effectShader = fxOut;
         }
         return infoHead;
+    }
+
+    bool parse_articulated_parts_section_v11(util::MEM_CURSOR_V11 &tmp,
+                                             std::vector<util::ARTICULATED_PART_V11> &out)
+    {
+        util::ARTICULATED_PARTS_HEADER_V11 header;
+        if (!util::readArticulatedPartsHeaderV11(tmp, header))
+            return false;
+        out.clear();
+        out.reserve(header.partCount);
+        for (uint32_t i = 0; i < header.partCount; ++i)
+        {
+            util::ARTICULATED_PART_V11 part;
+            if (!util::readArticulatedPartV11(tmp, part))
+                return false;
+            out.push_back(std::move(part));
+        }
+        return true;
+    }
+
+    bool parse_articulated_animation_section_v11(util::MEM_CURSOR_V11 &tmp,
+                                                 std::vector<mbm::ARTICULATED_CLIP_DATA> &out)
+    {
+        util::ARTICULATED_ANIMATION_HEADER_V11 header;
+        if (!util::readArticulatedAnimationHeaderV11(tmp, header))
+            return false;
+        out.clear();
+        out.reserve(header.clipCount);
+        for (uint32_t c = 0; c < header.clipCount; ++c)
+        {
+            mbm::ARTICULATED_CLIP_DATA clip;
+            if (!util::readArticulatedClipV11(tmp, clip.header))
+                return false;
+            uint32_t trackCount = 0;
+            if (!util::le_io::readU32LE(tmp, trackCount))
+                return false;
+            clip.tracks.reserve(trackCount);
+            for (uint32_t t = 0; t < trackCount; ++t)
+            {
+                mbm::ARTICULATED_TRACK_DATA track;
+                if (!util::readArticulatedTrackV11(tmp, track.header))
+                    return false;
+                track.keys.reserve(track.header.keyCount);
+                for (uint32_t k = 0; k < track.header.keyCount; ++k)
+                {
+                    util::ARTICULATED_KEY_V11 key;
+                    if (!util::readArticulatedKeyV11(tmp, key))
+                        return false;
+                    track.keys.push_back(key);
+                }
+                clip.tracks.push_back(std::move(track));
+            }
+            out.push_back(std::move(clip));
+        }
+        return true;
     }
 
     // Parses one SECTION_DETAIL_PARTICLE payload (already staged as `tmp`) into a freshly allocated
@@ -895,6 +956,22 @@ namespace
                     return false;
                 }
                 out.infoAnimation.lsHeaderAnim.push_back(infoHead);
+            }
+            else if (staged.header.type == util::SECTION_ARTICULATED_PARTS)
+            {
+                if (!parse_articulated_parts_section_v11(tmp, out.articulatedParts))
+                {
+                    errorOut = "failed to parse SECTION_ARTICULATED_PARTS";
+                    return false;
+                }
+            }
+            else if (staged.header.type == util::SECTION_ARTICULATED_ANIMATION)
+            {
+                if (!parse_articulated_animation_section_v11(tmp, out.articulatedClips))
+                {
+                    errorOut = "failed to parse SECTION_ARTICULATED_ANIMATION";
+                    return false;
+                }
             }
             else if (staged.header.type == util::SECTION_DETAIL_PARTICLE)
             {
@@ -2078,6 +2155,8 @@ namespace mbm
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
                                      + (impl->skeleton.empty() ? 0u : 1u)
                                      + (impl->vertexWeights.empty() ? 0u : 1u)
+                                     + (impl->articulatedParts.empty() ? 0u : 1u)
+                                     + (impl->articulatedClips.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
                                      + this->getTotalAnimationHeaders()
                                      + ((impl->typeMe == util::TYPE_MESH_PARTICLE) ? 1u : 0u)
@@ -2248,6 +2327,61 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileOut);
+        }
+
+        // SECTION_ARTICULATED_PARTS - optional rigid-part identities and pivots -----------------------
+        if (!impl->articulatedParts.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_ARTICULATED_PARTS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                util::ARTICULATED_PARTS_HEADER_V11 partsHeader;
+                partsHeader.partCount = static_cast<uint32_t>(this->impl->articulatedParts.size());
+                if (!util::writeArticulatedPartsHeaderV11(fp, partsHeader))
+                    return false;
+                for (const auto &part : this->impl->articulatedParts)
+                    if (!util::writeArticulatedPartV11(fp, part))
+                        return false;
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_ARTICULATED_PARTS [%s]", fileOut);
+        }
+
+        // SECTION_ARTICULATED_ANIMATION - optional named clips and transform tracks -------------------
+        if (!impl->articulatedClips.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_ARTICULATED_ANIMATION;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                util::ARTICULATED_ANIMATION_HEADER_V11 animationHeader;
+                animationHeader.clipCount = static_cast<uint32_t>(this->impl->articulatedClips.size());
+                if (!util::writeArticulatedAnimationHeaderV11(fp, animationHeader))
+                    return false;
+                for (const auto &clip : this->impl->articulatedClips)
+                {
+                    if (!util::writeArticulatedClipV11(fp, clip.header) ||
+                        !util::le_io::writeU32LE(fp, static_cast<uint32_t>(clip.tracks.size())))
+                        return false;
+                    for (const auto &track : clip.tracks)
+                    {
+                        util::ARTICULATED_TRACK_V11 trackHeader = track.header;
+                        trackHeader.keyCount = static_cast<uint32_t>(track.keys.size());
+                        if (!util::writeArticulatedTrackV11(fp, trackHeader))
+                            return false;
+                        for (const auto &key : track.keys)
+                            if (!util::writeArticulatedKeyV11(fp, key))
+                                return false;
+                    }
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_ARTICULATED_ANIMATION [%s]", fileOut);
         }
 
         // SECTION_ANIMATION, one per animation, including its FX block ---------------------------------------
@@ -2844,6 +2978,18 @@ namespace mbm
                 if (!infoHead)
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ANIMATION [%s]", fileNamePath);
                 this->appendAnimationHeader(infoHead);
+            }
+            else if (sectionHeader.type == util::SECTION_ARTICULATED_PARTS)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (!parse_articulated_parts_section_v11(tmp, impl->articulatedParts))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ARTICULATED_PARTS [%s]", fileNamePath);
+            }
+            else if (sectionHeader.type == util::SECTION_ARTICULATED_ANIMATION)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (!parse_articulated_animation_section_v11(tmp, impl->articulatedClips))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ARTICULATED_ANIMATION [%s]", fileNamePath);
             }
             else if (sectionHeader.type == util::SECTION_DETAIL_PARTICLE)
             {
@@ -4090,6 +4236,152 @@ namespace mbm
         impl->vertexWeights.clear();
     }
 
+    uint32_t MESH_MBM_DEBUG::getTotalArticulatedParts() const noexcept
+    {
+        return static_cast<uint32_t>(impl->articulatedParts.size());
+    }
+
+    const util::ARTICULATED_PART_V11 *MESH_MBM_DEBUG::getArticulatedPart(const uint32_t index) const noexcept
+    {
+        return index < impl->articulatedParts.size() ? &impl->articulatedParts[index] : nullptr;
+    }
+
+    int MESH_MBM_DEBUG::addArticulatedPart(const uint64_t partId, const uint32_t frameIndex,
+                                           const uint32_t subsetIndex, const char *name,
+                                           const float pivotX, const float pivotY, const float pivotZ,
+                                           const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
+                                           const uint64_t parentPartId, char *errorOut, const int errorOutLen)
+    {
+        if (partId == 0)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "partId must be non-zero");
+            return 0;
+        }
+        for (const auto &part : impl->articulatedParts)
+        {
+            if (part.partId == partId && part.frameIndex == frameIndex && part.subsetIndex == subsetIndex)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "part occurrence already exists for partId [%llu]",
+                                       static_cast<unsigned long long>(partId));
+                return 0;
+            }
+        }
+        util::ARTICULATED_PART_V11 part;
+        part.partId = partId;
+        part.frameIndex = frameIndex;
+        part.subsetIndex = subsetIndex;
+        part.parentPartId = parentPartId;
+        part.name = name ? name : "";
+        part.pivotX = pivotX; part.pivotY = pivotY; part.pivotZ = pivotZ;
+        part.pivotQX = pivotQX; part.pivotQY = pivotQY; part.pivotQZ = pivotQZ; part.pivotQW = pivotQW;
+        impl->articulatedParts.push_back(std::move(part));
+        return static_cast<int>(impl->articulatedParts.size());
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalArticulatedAnimations() const noexcept
+    {
+        return static_cast<uint32_t>(impl->articulatedClips.size());
+    }
+
+    const char *MESH_MBM_DEBUG::getArticulatedAnimationName(const uint32_t index) const noexcept
+    {
+        return index < impl->articulatedClips.size() ? impl->articulatedClips[index].header.name.c_str() : nullptr;
+    }
+
+    int MESH_MBM_DEBUG::addArticulatedAnimation(const char *name, const float duration, const float speed,
+                                                const int priority, const bool loop, char *errorOut, const int errorOutLen)
+    {
+        const std::string clipName = name ? name : "";
+        if (clipName.empty())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation name cannot be empty");
+            return 0;
+        }
+        for (const auto &clip : impl->articulatedClips)
+        {
+            if (clip.header.name == clipName)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation [%s] already exists", clipName.c_str());
+                return 0;
+            }
+        }
+        ARTICULATED_CLIP_DATA clip;
+        clip.header.name = clipName;
+        clip.header.duration = duration < 0.0f ? 0.0f : duration;
+        clip.header.speed = speed;
+        clip.header.defaultPriority = priority;
+        clip.header.loop = loop ? 1 : 0;
+        impl->articulatedClips.push_back(std::move(clip));
+        return static_cast<int>(impl->articulatedClips.size());
+    }
+
+    int MESH_MBM_DEBUG::addArticulatedTrack(const uint32_t animationIndex, const uint64_t partId,
+                                            const uint8_t channelMask, char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation index out of range");
+            return 0;
+        }
+        if (!channelMask || (channelMask & ~(util::ARTICULATED_CHANNEL_POSITION |
+                                             util::ARTICULATED_CHANNEL_ROTATION |
+                                             util::ARTICULATED_CHANNEL_SCALE)))
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated channel mask");
+            return 0;
+        }
+        auto &tracks = impl->articulatedClips[animationIndex].tracks;
+        for (const auto &track : tracks)
+        {
+            if (track.header.partId == partId)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "track for partId [%llu] already exists in clip",
+                                       static_cast<unsigned long long>(partId));
+                return 0;
+            }
+        }
+        ARTICULATED_TRACK_DATA track;
+        track.header.partId = partId;
+        track.header.channelMask = channelMask;
+        tracks.push_back(std::move(track));
+        return static_cast<int>(tracks.size());
+    }
+
+    bool MESH_MBM_DEBUG::addArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                           const float time, const float positionX, const float positionY, const float positionZ,
+                                           const float rotationX, const float rotationY, const float rotationZ, const float rotationW,
+                                           const float scaleX, const float scaleY, const float scaleZ,
+                                           char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track index out of range");
+            return false;
+        }
+        auto &clip = impl->articulatedClips[animationIndex];
+        auto &keys = clip.tracks[trackIndex].keys;
+        util::ARTICULATED_KEY_V11 key;
+        key.time = time < 0.0f ? 0.0f : time;
+        key.positionX = positionX; key.positionY = positionY; key.positionZ = positionZ;
+        key.rotationX = rotationX; key.rotationY = rotationY; key.rotationZ = rotationZ; key.rotationW = rotationW;
+        key.scaleX = scaleX; key.scaleY = scaleY; key.scaleZ = scaleZ;
+        constexpr float keyTimeEpsilon = 0.00001f;
+        for (auto &existing : keys)
+        {
+            if (std::fabs(existing.time - key.time) <= keyTimeEpsilon)
+            {
+                existing = key;
+                clip.header.duration = std::max(clip.header.duration, key.time);
+                return true;
+            }
+        }
+        keys.push_back(key);
+        std::sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) { return a.time < b.time; });
+        clip.header.duration = std::max(clip.header.duration, key.time);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept
     {
         if (index >= this->impl->infoAnimation.lsHeaderAnim.size())
@@ -4206,6 +4498,8 @@ namespace mbm
         this->impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         this->impl->infoPhysics.release();
         this->impl->infoAnimation.release();
+        impl->articulatedParts.clear();
+        impl->articulatedClips.clear();
         impl->skeleton.clear();
     }
 
@@ -4486,6 +4780,8 @@ namespace mbm
         impl->buffer = nullptr;
         this->impl->infoPhysics.release();
         this->impl->infoAnimation.release();
+        impl->articulatedParts.clear();
+        impl->articulatedClips.clear();
 
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
@@ -4631,6 +4927,8 @@ namespace mbm
         impl->infoPhysics.lsSphere      = std::move(in.infoPhysics.lsSphere);
         impl->infoPhysics.lsTriangle    = std::move(in.infoPhysics.lsTriangle);
         impl->infoAnimation.lsHeaderAnim = std::move(in.infoAnimation.lsHeaderAnim);
+        impl->articulatedParts = std::move(in.articulatedParts);
+        impl->articulatedClips = std::move(in.articulatedClips);
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;
 

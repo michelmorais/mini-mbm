@@ -1802,6 +1802,128 @@ namespace mbm
         return 5;
     }
 
+    int onGetTotalArticulatedPartsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalArticulatedParts()));
+        return 1;
+    }
+
+    int onGetArticulatedPartDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const int index = static_cast<int>(luaL_checkinteger(lua, 2)) - 1;
+        const util::ARTICULATED_PART_V11 *part = index >= 0
+            ? meshDebug->mesh.getArticulatedPart(static_cast<uint32_t>(index)) : nullptr;
+        if (!part)
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushinteger(lua, static_cast<lua_Integer>(part->partId));
+        lua_pushinteger(lua, static_cast<lua_Integer>(part->frameIndex + 1));
+        lua_pushinteger(lua, static_cast<lua_Integer>(part->subsetIndex + 1));
+        lua_pushstring(lua, part->name.c_str());
+        lua_pushnumber(lua, part->pivotX); lua_pushnumber(lua, part->pivotY); lua_pushnumber(lua, part->pivotZ);
+        lua_pushnumber(lua, part->pivotQX); lua_pushnumber(lua, part->pivotQY);
+        lua_pushnumber(lua, part->pivotQZ); lua_pushnumber(lua, part->pivotQW);
+        lua_pushinteger(lua, static_cast<lua_Integer>(part->parentPartId));
+        return 12;
+    }
+
+    int onAddArticulatedPartDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint64_t partId = static_cast<uint64_t>(luaL_checkinteger(lua, 2));
+        const uint32_t frame = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t subset = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        const char *name = luaL_optstring(lua, 5, "");
+        const float px = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const float py = static_cast<float>(luaL_optnumber(lua, 7, 0.0));
+        const float pz = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float qx = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float qy = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float qz = static_cast<float>(luaL_optnumber(lua, 11, 0.0));
+        const float qw = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const uint64_t parent = static_cast<uint64_t>(luaL_optinteger(lua, 13, 0));
+        char errorOut[255] = "";
+        const int ret = meshDebug->mesh.addArticulatedPart(partId, frame, subset, name, px, py, pz,
+                                                            qx, qy, qz, qw, parent, errorOut, sizeof(errorOut));
+        if (ret == 0)
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onGetTotalArticulatedAnimationsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalArticulatedAnimations()));
+        return 1;
+    }
+
+    int onGetArticulatedAnimationNameDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *name = meshDebug->mesh.getArticulatedAnimationName(index);
+        if (name) lua_pushstring(lua, name); else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onAddArticulatedAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const float duration = static_cast<float>(luaL_optnumber(lua, 3, 0.0));
+        const float speed = static_cast<float>(luaL_optnumber(lua, 4, 1.0));
+        const int priority = static_cast<int>(luaL_optinteger(lua, 5, 0));
+        const bool loop = lua_isnoneornil(lua, 6) ? true : lua_toboolean(lua, 6) != 0;
+        char errorOut[255] = "";
+        const int ret = meshDebug->mesh.addArticulatedAnimation(name, duration, speed, priority, loop,
+                                                                 errorOut, sizeof(errorOut));
+        if (ret == 0) return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onAddArticulatedTrackDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint64_t partId = static_cast<uint64_t>(luaL_checkinteger(lua, 3));
+        const uint8_t mask = static_cast<uint8_t>(luaL_checkinteger(lua, 4));
+        char errorOut[255] = "";
+        const int ret = meshDebug->mesh.addArticulatedTrack(animation, partId, mask, errorOut, sizeof(errorOut));
+        if (ret == 0) return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onAddArticulatedKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const float time = static_cast<float>(luaL_checknumber(lua, 4));
+        const float px = static_cast<float>(luaL_optnumber(lua, 5, 0.0));
+        const float py = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const float pz = static_cast<float>(luaL_optnumber(lua, 7, 0.0));
+        const float qx = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float qy = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float qz = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float qw = static_cast<float>(luaL_optnumber(lua, 11, 1.0));
+        const float sx = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const float sy = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
+        const float sz = static_cast<float>(luaL_optnumber(lua, 14, 1.0));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addArticulatedKey(animation, track, time, px, py, pz, qx, qy, qz, qw,
+                                               sx, sy, sz, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     // Skeleton bindings (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
     // diagnostic round-trip only, follows the exact same flat-multi-return convention as
     // addAnim/getAnim above rather than a table, to stay consistent within this native class.
@@ -2100,6 +2222,14 @@ namespace mbm
                                           {"hasVertexWeights", onHasVertexWeightsDebugLua},
                                           {"getTotalVertexWeightBones", onGetTotalVertexWeightBonesDebugLua},
                                           {"removeVertexWeights", onRemoveVertexWeightsDebugLua},
+                                          {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
+                                          {"getArticulatedPart", onGetArticulatedPartDebugLua},
+                                          {"addArticulatedPart", onAddArticulatedPartDebugLua},
+                                          {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsDebugLua},
+                                          {"getArticulatedAnimationName", onGetArticulatedAnimationNameDebugLua},
+                                          {"addArticulatedAnimation", onAddArticulatedAnimationDebugLua},
+                                          {"addArticulatedTrack", onAddArticulatedTrackDebugLua},
+                                          {"addArticulatedKey", onAddArticulatedKeyDebugLua},
 										  {"getExt", onGetStaticExtensionLua},
                                           {"setDetail", onSetDetailLua},
                                           {nullptr, nullptr}};

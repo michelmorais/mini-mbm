@@ -149,8 +149,9 @@
     6.31.18 Follow-up to 6.31.17's Copy/Paste, per direct user request: added Ctrl+C/Ctrl+V keyboard shortcuts (onKeyDown, gated to sActiveTab=='layer' like the existing Ctrl+A/Ctrl+I/Ctrl+U selection shortcuts) and Copy/Paste entries in the Edit menu (main_menu_3d) below the existing Undo/Redo, matching their enabled/greyed-out pattern (Copy enabled while at least one mesh is selected on the active layer; Paste while a copy buffer exists and exactly one mesh is selected). New shared countSelectedMeshesOnActiveLayer() (scene_editor3d.lua) factors out the "how many placed meshes are selected on iSelectedLayer" loop previously inlined only in showMeshTools, now also used by the Edit menu's enabled-state checks, so the two never disagree about what "selected" means.
     6.31.20 Fixed Mesh Debug's Transform/Centralize action -- both the per-mesh Transform node and Apply All bulk operation -- ignoring the Target frame and Target subset controls. A selected frame now limits the translation to that frame. A selected subset supplies the AABB center used as the anchor while every subset in each targeted frame receives the same translation, preserving their relative distances; frame 0/subset 0 retains the existing all-frame, whole-frame behavior.
     6.31.21 Added Mesh Debug's vertex-only "Centralize Itself" transform to both the per-mesh Transform node and Apply All. Each targeted subset is centered independently at the origin: frame/subset 0 applies to every frame/subset, a selected frame limits the operation to that frame, and a selected subset limits it to that subset in each targeted frame. Unlike the existing Centralize anchor operation, unselected subsets and mesh-wide bones are not moved.
+    6.31.22 Started rigid/articulated animation for Mesh V11: optional SECTION_ARTICULATED_PARTS and SECTION_ARTICULATED_ANIMATION payloads, persistent part IDs/pivots, and runtime/editor parsing with backward-compatible omission when unused.
 */
-#define MBM_VERSION "6.31.21" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.22" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

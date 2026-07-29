@@ -86,6 +86,21 @@ namespace util
     bool readFxHeaderV11(util::MEM_CURSOR_V11 &fp, util::FX_HEADER_V11 &out);
     bool readAnimationHeaderV11(util::MEM_CURSOR_V11 &fp, util::ANIMATION_HEADER_V11 &out);
 
+    // Articulated rigid-animation payload serializers.
+    bool writeArticulatedPartsHeaderV11(FILE *fp, const util::ARTICULATED_PARTS_HEADER_V11 &in);
+    bool writeArticulatedPartV11(FILE *fp, const util::ARTICULATED_PART_V11 &in);
+    bool writeArticulatedAnimationHeaderV11(FILE *fp, const util::ARTICULATED_ANIMATION_HEADER_V11 &in);
+    bool writeArticulatedClipV11(FILE *fp, const util::ARTICULATED_CLIP_V11 &in);
+    bool writeArticulatedTrackV11(FILE *fp, const util::ARTICULATED_TRACK_V11 &in);
+    bool writeArticulatedKeyV11(FILE *fp, const util::ARTICULATED_KEY_V11 &in);
+
+    bool readArticulatedPartsHeaderV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_PARTS_HEADER_V11 &out);
+    bool readArticulatedPartV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_PART_V11 &out);
+    bool readArticulatedAnimationHeaderV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_ANIMATION_HEADER_V11 &out);
+    bool readArticulatedClipV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_CLIP_V11 &out);
+    bool readArticulatedTrackV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_TRACK_V11 &out);
+    bool readArticulatedKeyV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_KEY_V11 &out);
+
     // SECTION_DETAIL_PARTICLE / SECTION_DETAIL_FONT payload serializers.
     bool writeStageParticleV11(FILE *fp, const util::STAGE_PARTICLE &in);
     bool readStageParticleV11(util::MEM_CURSOR_V11 &fp, util::STAGE_PARTICLE &out);

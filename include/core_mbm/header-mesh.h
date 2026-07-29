@@ -563,6 +563,8 @@ namespace util
         SECTION_FRAME_STATIC       = 10, // repeated: one per frame, in order
         SECTION_FRAME_SKINNED      = 11, // bundled joint hierarchy for editor/mesh_debug.lua's
                                           // Bones node round-trip diagnostic - never runtime skinning
+        SECTION_ARTICULATED_PARTS  = 12, // optional rigid-part identities, pivots, and future hierarchy metadata
+        SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
         SECTION_DETAIL_PHYSICS     = 20,
         SECTION_DETAIL_FONT        = 21,
         SECTION_DETAIL_PARTICLE    = 22,
@@ -736,6 +738,64 @@ namespace util
         uint16_t    blendState;
         uint8_t     hasFx;           // bool - if 1, an FX_HEADER_V11 follows
         API_IMPL ANIMATION_HEADER_V11() noexcept;
+    };
+
+    struct ARTICULATED_PARTS_HEADER_V11 // payload header for SECTION_ARTICULATED_PARTS
+    {
+        uint32_t partCount;
+        API_IMPL ARTICULATED_PARTS_HEADER_V11() noexcept;
+    };
+
+    struct ARTICULATED_PART_V11 // one frame/subset occurrence; partId may be shared across frames
+    {
+        uint64_t    partId;
+        uint32_t    frameIndex;
+        uint32_t    subsetIndex;
+        uint64_t    parentPartId; // 0 means no parent; hierarchy composition is reserved for now
+        std::string name;
+        float       pivotX, pivotY, pivotZ;
+        float       pivotQX, pivotQY, pivotQZ, pivotQW;
+        API_IMPL ARTICULATED_PART_V11() noexcept;
+    };
+
+    struct ARTICULATED_ANIMATION_HEADER_V11 // payload header for SECTION_ARTICULATED_ANIMATION
+    {
+        uint32_t clipCount;
+        API_IMPL ARTICULATED_ANIMATION_HEADER_V11() noexcept;
+    };
+
+    struct ARTICULATED_CLIP_V11
+    {
+        std::string name;
+        float       duration;
+        float       speed;
+        int32_t     defaultPriority;
+        uint8_t     loop;
+        API_IMPL ARTICULATED_CLIP_V11() noexcept;
+    };
+
+    enum ARTICULATED_CHANNEL_MASK_V11 : uint8_t
+    {
+        ARTICULATED_CHANNEL_POSITION = 1,
+        ARTICULATED_CHANNEL_ROTATION = 2,
+        ARTICULATED_CHANNEL_SCALE    = 4,
+    };
+
+    struct ARTICULATED_TRACK_V11
+    {
+        uint64_t partId;
+        uint8_t  channelMask;
+        uint32_t keyCount;
+        API_IMPL ARTICULATED_TRACK_V11() noexcept;
+    };
+
+    struct ARTICULATED_KEY_V11
+    {
+        float time;
+        float positionX, positionY, positionZ;
+        float rotationX, rotationY, rotationZ, rotationW;
+        float scaleX, scaleY, scaleZ;
+        API_IMPL ARTICULATED_KEY_V11() noexcept;
     };
 
     struct FONT_DETAIL_HEADER_V11 // payload header for SECTION_DETAIL_FONT

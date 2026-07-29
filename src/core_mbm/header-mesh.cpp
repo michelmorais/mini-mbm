@@ -671,6 +671,51 @@ namespace util
         hasFx            = 0;
     }
 
+    ARTICULATED_PARTS_HEADER_V11::ARTICULATED_PARTS_HEADER_V11() noexcept
+    {
+        partCount = 0;
+    }
+
+    ARTICULATED_PART_V11::ARTICULATED_PART_V11() noexcept
+    {
+        partId = 0;
+        frameIndex = 0;
+        subsetIndex = 0;
+        parentPartId = 0;
+        pivotX = pivotY = pivotZ = 0.0f;
+        pivotQX = pivotQY = pivotQZ = 0.0f;
+        pivotQW = 1.0f;
+    }
+
+    ARTICULATED_ANIMATION_HEADER_V11::ARTICULATED_ANIMATION_HEADER_V11() noexcept
+    {
+        clipCount = 0;
+    }
+
+    ARTICULATED_CLIP_V11::ARTICULATED_CLIP_V11() noexcept
+    {
+        duration = 0.0f;
+        speed = 1.0f;
+        defaultPriority = 0;
+        loop = 1;
+    }
+
+    ARTICULATED_TRACK_V11::ARTICULATED_TRACK_V11() noexcept
+    {
+        partId = 0;
+        channelMask = 0;
+        keyCount = 0;
+    }
+
+    ARTICULATED_KEY_V11::ARTICULATED_KEY_V11() noexcept
+    {
+        time = 0.0f;
+        positionX = positionY = positionZ = 0.0f;
+        rotationX = rotationY = rotationZ = 0.0f;
+        rotationW = 1.0f;
+        scaleX = scaleY = scaleZ = 1.0f;
+    }
+
     FONT_DETAIL_HEADER_V11::FONT_DETAIL_HEADER_V11() noexcept
     {
         spaceXCharacter = 0;

@@ -451,6 +451,100 @@ namespace util
                readBytes(fp, &out.hasFx, sizeof(out.hasFx));
     }
 
+    bool writeArticulatedPartsHeaderV11(FILE *fp, const util::ARTICULATED_PARTS_HEADER_V11 &in)
+    {
+        return writeU32LE(fp, in.partCount);
+    }
+
+    bool writeArticulatedPartV11(FILE *fp, const util::ARTICULATED_PART_V11 &in)
+    {
+        return writeU64LE(fp, in.partId) &&
+               writeU32LE(fp, in.frameIndex) &&
+               writeU32LE(fp, in.subsetIndex) &&
+               writeU64LE(fp, in.parentPartId) &&
+               writeStringV11(fp, in.name) &&
+               writeF32LE(fp, in.pivotX) && writeF32LE(fp, in.pivotY) && writeF32LE(fp, in.pivotZ) &&
+               writeF32LE(fp, in.pivotQX) && writeF32LE(fp, in.pivotQY) &&
+               writeF32LE(fp, in.pivotQZ) && writeF32LE(fp, in.pivotQW);
+    }
+
+    bool writeArticulatedAnimationHeaderV11(FILE *fp, const util::ARTICULATED_ANIMATION_HEADER_V11 &in)
+    {
+        return writeU32LE(fp, in.clipCount);
+    }
+
+    bool writeArticulatedClipV11(FILE *fp, const util::ARTICULATED_CLIP_V11 &in)
+    {
+        return writeStringV11(fp, in.name) &&
+               writeF32LE(fp, in.duration) &&
+               writeF32LE(fp, in.speed) &&
+               writeI32LE(fp, in.defaultPriority) &&
+               writeBytes(fp, &in.loop, sizeof(in.loop));
+    }
+
+    bool writeArticulatedTrackV11(FILE *fp, const util::ARTICULATED_TRACK_V11 &in)
+    {
+        return writeU64LE(fp, in.partId) &&
+               writeBytes(fp, &in.channelMask, sizeof(in.channelMask)) &&
+               writeU32LE(fp, in.keyCount);
+    }
+
+    bool writeArticulatedKeyV11(FILE *fp, const util::ARTICULATED_KEY_V11 &in)
+    {
+        return writeF32LE(fp, in.time) &&
+               writeF32LE(fp, in.positionX) && writeF32LE(fp, in.positionY) && writeF32LE(fp, in.positionZ) &&
+               writeF32LE(fp, in.rotationX) && writeF32LE(fp, in.rotationY) &&
+               writeF32LE(fp, in.rotationZ) && writeF32LE(fp, in.rotationW) &&
+               writeF32LE(fp, in.scaleX) && writeF32LE(fp, in.scaleY) && writeF32LE(fp, in.scaleZ);
+    }
+
+    bool readArticulatedPartsHeaderV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_PARTS_HEADER_V11 &out)
+    {
+        return readU32LE(fp, out.partCount);
+    }
+
+    bool readArticulatedPartV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_PART_V11 &out)
+    {
+        return readU64LE(fp, out.partId) &&
+               readU32LE(fp, out.frameIndex) &&
+               readU32LE(fp, out.subsetIndex) &&
+               readU64LE(fp, out.parentPartId) &&
+               readStringV11(fp, out.name) &&
+               readF32LE(fp, out.pivotX) && readF32LE(fp, out.pivotY) && readF32LE(fp, out.pivotZ) &&
+               readF32LE(fp, out.pivotQX) && readF32LE(fp, out.pivotQY) &&
+               readF32LE(fp, out.pivotQZ) && readF32LE(fp, out.pivotQW);
+    }
+
+    bool readArticulatedAnimationHeaderV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_ANIMATION_HEADER_V11 &out)
+    {
+        return readU32LE(fp, out.clipCount);
+    }
+
+    bool readArticulatedClipV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_CLIP_V11 &out)
+    {
+        return readStringV11(fp, out.name) &&
+               readF32LE(fp, out.duration) &&
+               readF32LE(fp, out.speed) &&
+               readI32LE(fp, out.defaultPriority) &&
+               readBytes(fp, &out.loop, sizeof(out.loop));
+    }
+
+    bool readArticulatedTrackV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_TRACK_V11 &out)
+    {
+        return readU64LE(fp, out.partId) &&
+               readBytes(fp, &out.channelMask, sizeof(out.channelMask)) &&
+               readU32LE(fp, out.keyCount);
+    }
+
+    bool readArticulatedKeyV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_KEY_V11 &out)
+    {
+        return readF32LE(fp, out.time) &&
+               readF32LE(fp, out.positionX) && readF32LE(fp, out.positionY) && readF32LE(fp, out.positionZ) &&
+               readF32LE(fp, out.rotationX) && readF32LE(fp, out.rotationY) &&
+               readF32LE(fp, out.rotationZ) && readF32LE(fp, out.rotationW) &&
+               readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ);
+    }
+
     bool writeStageParticleV11(FILE *fp, const util::STAGE_PARTICLE &in)
     {
         return writeF32LE(fp, in.minOffsetPosition.x) && writeF32LE(fp, in.minOffsetPosition.y) &&

@@ -36,6 +36,12 @@ namespace util
 
 namespace mbm
 {
+    enum class ANIMATION_KIND : uint8_t
+    {
+        FRAME = 0,
+        ARTICULATED = 1,
+    };
+
     class TEXTURE;
     class MESH_MBM;
     
@@ -100,6 +106,8 @@ namespace mbm
         API_IMPL void setCurrentWayGrowing(const bool growing) noexcept;
         API_IMPL TYPE_ANIMATION getType() const noexcept;
         API_IMPL void setType(const TYPE_ANIMATION typeAnimation) noexcept;
+        API_IMPL ANIMATION_KIND getKind() const noexcept;
+        API_IMPL void setKind(const ANIMATION_KIND kind) noexcept;
         API_IMPL FX &getFx() noexcept;
         API_IMPL const FX &getFx() const noexcept;
         API_IMPL void restartAnimation();
