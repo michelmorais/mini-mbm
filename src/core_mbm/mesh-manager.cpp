@@ -5293,11 +5293,13 @@ namespace mbm
         if (!base.position || base.vertexCount == 0)
             return false;
         impl->articulatedScratchPosition.resize(base.vertexCount);
-        std::memcpy(impl->articulatedScratchPosition.data(), base.position.get(), base.vertexCount * sizeof(VEC3));
+        std::copy(base.position.get(), base.position.get() + base.vertexCount,
+                  impl->articulatedScratchPosition.begin());
         if (base.normal)
         {
             impl->articulatedScratchNormal.resize(base.vertexCount);
-            std::memcpy(impl->articulatedScratchNormal.data(), base.normal.get(), base.vertexCount * sizeof(VEC3));
+            std::copy(base.normal.get(), base.normal.get() + base.vertexCount,
+                      impl->articulatedScratchNormal.begin());
         }
         else
             impl->articulatedScratchNormal.clear();
@@ -5614,17 +5616,20 @@ namespace mbm
                 if (source.vertexCount && source.position)
                 {
                     target.position = std::make_unique<VEC3[]>(source.vertexCount);
-                    std::memcpy(target.position.get(), source.position.get(), source.vertexCount * sizeof(VEC3));
+                    std::copy(source.position.get(), source.position.get() + source.vertexCount,
+                              target.position.get());
                 }
                 if (source.hasNormal && source.normal)
                 {
                     target.normal = std::make_unique<VEC3[]>(source.vertexCount);
-                    std::memcpy(target.normal.get(), source.normal.get(), source.vertexCount * sizeof(VEC3));
+                    std::copy(source.normal.get(), source.normal.get() + source.vertexCount,
+                              target.normal.get());
                 }
                 if (source.uv)
                 {
                     target.uv = std::make_unique<VEC2[]>(source.vertexCount);
-                    std::memcpy(target.uv.get(), source.uv.get(), source.vertexCount * sizeof(VEC2));
+                    std::copy(source.uv.get(), source.uv.get() + source.vertexCount,
+                              target.uv.get());
                 }
             }
         }
