@@ -140,6 +140,8 @@ namespace mbm
         // indexSubset selects the center anchor; the calculated translation applies to every
         // subset in each selected frame so their relative placement remains unchanged.
         API_IMPL void centralizeFrame(const int indexFrame, const int indexSubset);
+        // Independently centralizes each selected subset. Unselected subsets are not moved.
+        API_IMPL void centralizeFrameItself(const int indexFrame, const int indexSubset);
         API_IMPL void rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ);
         API_IMPL void scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz);
         API_IMPL void translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz);

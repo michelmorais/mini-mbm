@@ -3190,6 +3190,95 @@ namespace mbm
         }
     }
 
+    void MESH_MBM_DEBUG::centralizeFrameItself(const int indexFrame, const int indexSubset)
+    {
+        if (indexFrame < 0)
+        {
+            for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
+                centralizeFrameItself(static_cast<int>(i), indexSubset);
+            return;
+        }
+        if (indexFrame >= static_cast<int>(this->impl->buffer.size()))
+            return;
+
+        util::BUFFER_MESH_DEBUG *bufferCurrent =
+            this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+        auto *const pPosition = reinterpret_cast<VEC3 *>(bufferCurrent->position);
+        const auto totalSubsets = static_cast<uint32_t>(bufferCurrent->subset.size());
+        if (indexSubset >= static_cast<int>(totalSubsets))
+            return;
+
+        const uint32_t firstSubset = indexSubset < 0 ? 0 : static_cast<uint32_t>(indexSubset);
+        const uint32_t endSubset = indexSubset < 0 ? totalSubsets : firstSubset + 1;
+        for (uint32_t i = firstSubset; i < endSubset; ++i)
+        {
+            util::SUBSET_DEBUG *subset = bufferCurrent->subset[i];
+            if (subset->vertexCount <= 0)
+                continue;
+
+            VEC3 maxSize(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+            VEC3 minSize(FLT_MAX, FLT_MAX, FLT_MAX);
+            const auto vertexEnd = static_cast<uint32_t>(subset->vertexStart + subset->vertexCount);
+            for (auto j = static_cast<uint32_t>(subset->vertexStart); j < vertexEnd; ++j)
+            {
+                const VEC3 &pos = pPosition[j];
+                if (pos.x < minSize.x)
+                    minSize.x = pos.x;
+                if (pos.y < minSize.y)
+                    minSize.y = pos.y;
+                if (pos.z < minSize.z)
+                    minSize.z = pos.z;
+                if (pos.x > maxSize.x)
+                    maxSize.x = pos.x;
+                if (pos.y > maxSize.y)
+                    maxSize.y = pos.y;
+                if (pos.z > maxSize.z)
+                    maxSize.z = pos.z;
+            }
+
+            VEC3 dist(maxSize - minSize);
+            const float xDif = maxSize.x < 0.0f ? -maxSize.x : maxSize.x;
+            const float yDif = maxSize.y < 0.0f ? -maxSize.y : maxSize.y;
+            const float zDif = maxSize.z < 0.0f ? -maxSize.z : maxSize.z;
+            const float xDiff = minSize.x < 0.0f ? -minSize.x : minSize.x;
+            const float yDiff = minSize.y < 0.0f ? -minSize.y : minSize.y;
+            const float zDiff = minSize.z < 0.0f ? -minSize.z : minSize.z;
+            const float xMin = xDiff < xDif ? xDiff : xDif;
+            const float xMax = xDiff > xDif ? xDiff : xDif;
+            const float yMin = yDiff < yDif ? yDiff : yDif;
+            const float yMax = yDiff > yDif ? yDiff : yDif;
+            const float zMin = zDiff < zDif ? zDiff : zDif;
+            const float zMax = zDiff > zDif ? zDiff : zDif;
+
+            if ((xMin / xMax) < 0.001f)
+            {
+                dist.x = xMin;
+                minSize.x = 0.0f;
+            }
+            if ((yMin / yMax) < 0.001f)
+            {
+                dist.y = yMin;
+                minSize.y = 0.0f;
+            }
+            if ((zMin / zMax) < 0.001f)
+            {
+                dist.z = zMin;
+                minSize.z = 0.0f;
+            }
+
+            const VEC3 offset(minSize.x + dist.x * 0.5f,
+                              minSize.y + dist.y * 0.5f,
+                              minSize.z + dist.z * 0.5f);
+            for (auto j = static_cast<uint32_t>(subset->vertexStart); j < vertexEnd; ++j)
+            {
+                VEC3 &pos = pPosition[j];
+                pos.x -= offset.x;
+                pos.y -= offset.y;
+                pos.z -= offset.z;
+            }
+        }
+    }
+
     void MESH_MBM_DEBUG::rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ)
     {
         if (indexFrame < 0)

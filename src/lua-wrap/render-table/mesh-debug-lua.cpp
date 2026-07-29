@@ -1438,6 +1438,16 @@ namespace mbm
         return 0;
     }
 
+    int onCentralizeItselfMeshDebugLua(lua_State *lua)
+    {
+        const int       top         = lua_gettop(lua);
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       indexFrame  = top > 1 ? luaL_checkinteger(lua, 2) - 1 : -1;
+        const int       indexSubset = top > 2 ? luaL_checkinteger(lua, 3) - 1 : -1;
+        meshDebug->mesh.centralizeFrameItself(indexFrame, indexSubset);
+        return 0;
+    }
+
     // rotateFrame(frame, ax, ay, az [,subset])  -- frame=0 means all; subset=0 means all; angles in degrees
     int onRotateFrameDebugLua(lua_State *lua)
     {
@@ -2066,6 +2076,7 @@ namespace mbm
                                           {"addAnim", onAddAnimationDebugLua},
                                           {"removeAnim", onRemoveAnimationDebugLua},
                                           {"centralize", onCentralizeMeshDebugLua},
+                                          {"centralizeItself", onCentralizeItselfMeshDebugLua},
                                           {"rotateFrame", onRotateFrameDebugLua},
                                           {"scaleFrame", onScaleFrameDebugLua},
                                           {"translateFrame", onTranslateFrameDebugLua},

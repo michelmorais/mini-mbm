@@ -8032,6 +8032,13 @@ function showMeshOptions(tEntry, index)
             if ns ~= xf.subset then cancelXformPreview() end
             xf.subset = ns
         end
+        if tImGui.Button(tLang.L("centralize_itself") .. '##' .. index) then
+            meshD:centralizeItself(xf.frame, xf.subset)
+            cancelXformPreview()
+            tEntry.modified = true
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+            tUtil.showMessage(string.format('%s: %s', tLang.L("centralize_itself"), shortName))
+        end
 
         -- Rotation
         tImGui.Spacing()
@@ -9592,6 +9599,15 @@ local function applyAllCentralize(sType)
     end)
 end
 
+local function applyAllCentralizeItself(sType)
+    local xf = tApplyAllWin.transform
+    return runApplyAllOperation(sType, tLang.L('centralize_itself'), function(tEntry)
+        tEntry.meshDebug:centralizeItself(xf.frame, xf.subset)
+        tEntry.modified = true
+        return 'success'
+    end)
+end
+
 local function applyAllTransform(sType, sMode)
     local xf = tApplyAllWin.transform
     local operationLabel = tLang.L('apply_transform')
@@ -10194,6 +10210,9 @@ function showApplyAllWindow()
                 tImGui.Text(tLang.L('target_subset_label'))
                 local _, ns = tImGui.InputInt('##applyAllXfSubset', xf.subset, 1, 1, 0)
                 if ns ~= nil then xf.subset = math.max(0, ns) end
+                if tImGui.Button(tLang.L('centralize_itself') .. '##applyAllCentralizeItself') then
+                    applyAllCentralizeItself(win.selectedType)
+                end
                 tImGui.Spacing()
                 tImGui.Text(tLang.L('rotate_xyz'))
                 local crx, rx = tImGui.DragFloat('X##applyAllRx', xf.rx, 1.0, 0, 0, '%.1f')
