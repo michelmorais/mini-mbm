@@ -163,10 +163,14 @@ namespace mbm
             const VEC3 &position = this->getPosition();
             const VEC3 &angle = this->getAngle();
             const VEC3 &scale = this->getScale();
+            const MATRIX *viewMatrix = nullptr;
+            const MATRIX *perspectiveMatrix = nullptr;
             if (this->is3DObject())
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
+                viewMatrix = &camera.matrixView;
+                perspectiveMatrix = &camera.matrixPerspective;
             }
             else if (this->is2dScreenObject())
             {
@@ -175,11 +179,15 @@ namespace mbm
                 device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
                 SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
+                viewMatrix = &camera.matrixView2d;
+                perspectiveMatrix = &camera.matrixPerspective2d;
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
+                viewMatrix = &camera.matrixView2d;
+                perspectiveMatrix = &camera.matrixPerspective2d;
             }
             FX &fx = anim->getFx();
             this->setBlendState(anim->getBlendState());
@@ -189,7 +197,7 @@ namespace mbm
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
             const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
             const bool rendered = this->mesh->hasActiveArticulatedAnimations()
-                ? this->mesh->renderArticulatedDynamic(frameIndex, &fx.shader, this)
+                ? this->mesh->renderArticulatedStatic(frameIndex, &fx.shader, *viewMatrix, *perspectiveMatrix, this)
                 : this->mesh->render(frameIndex, &fx.shader, this);
             if (!rendered)
                 return false;

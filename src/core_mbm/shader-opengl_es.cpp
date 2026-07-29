@@ -1358,7 +1358,8 @@ namespace mbm
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
+                        const int32_t subsetIndex) const
     {
         const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1407,7 +1408,11 @@ namespace mbm
             // BUFFER_GL::setTextureByStage/getTextureByStage callers) - bind it once here, outside
             // the per-subset loop, instead of redundantly rebinding the same texture every subset.
             bindTextureRoleOpenGlEs(pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
-            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+            const uint32_t firstSubset = subsetIndex >= 0 ? static_cast<uint32_t>(subsetIndex) : 0u;
+            const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
+            if (lastSubset > pBufferId->totalSubset)
+                return false;
+            for (uint32_t i = firstSubset; i < lastSubset; ++i)
             {
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
@@ -1429,7 +1434,11 @@ namespace mbm
             GLUseProgram(gles_shaderSpecific->programObject);
             // See the index-buffer branch above - shared, not per-subset.
             bindTextureRoleOpenGlEs(pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT, gles_shaderSpecific->samplerHandle1);
-            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+            const uint32_t firstSubset = subsetIndex >= 0 ? static_cast<uint32_t>(subsetIndex) : 0u;
+            const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
+            if (lastSubset > pBufferId->totalSubset)
+                return false;
+            for (uint32_t i = firstSubset; i < lastSubset; ++i)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, backendBuffer->vboVertexSubsetVB[i]);
                 GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);

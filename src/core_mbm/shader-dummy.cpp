@@ -214,7 +214,8 @@ namespace mbm
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
+                        const int32_t subsetIndex) const
     {
         REMINDER_TODO
         return true;

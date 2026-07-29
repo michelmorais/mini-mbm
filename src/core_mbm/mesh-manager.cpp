@@ -5366,6 +5366,100 @@ namespace mbm
         return this->renderDynamic(indexFrame, pShader, impl->articulatedScratchPosition.data(),
                                    normal, uv, renderizableOwner);
     }
+
+    bool MESH_MBM::renderArticulatedStatic(const uint32_t indexFrame, const SHADER *pShader,
+                                           const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix,
+                                           const RENDERIZABLE *renderizableOwner)
+    {
+        if (!pShader || !hasActiveArticulatedAnimations() || !impl->buffer ||
+            indexFrame >= impl->totalFramesMesh)
+            return false;
+
+        const BUFFER_MESH &frameBuffer = impl->buffer[indexFrame];
+        if (!frameBuffer.pBufferGL || frameBuffer.totalSubset == 0)
+            return false;
+
+        const MATRIX baseModelView = SHADER::modelView;
+        const auto normalizeQuaternion = [](float q[4])
+        {
+            const float length = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+            if (length > 0.000001f)
+            {
+                q[0] /= length; q[1] /= length; q[2] /= length; q[3] /= length;
+            }
+            else
+            {
+                q[0] = q[1] = q[2] = 0.0f;
+                q[3] = 1.0f;
+            }
+        };
+        const auto multiplyQuaternion = [](const float a[4], const float b[4], float out[4])
+        {
+            out[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
+            out[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
+            out[2] = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3];
+            out[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
+        };
+        const auto quaternionMatrix = [](MATRIX *out, const float q[4])
+        {
+            const float xx = q[0] * q[0];
+            const float yy = q[1] * q[1];
+            const float zz = q[2] * q[2];
+            const float xy = q[0] * q[1];
+            const float xz = q[0] * q[2];
+            const float yz = q[1] * q[2];
+            const float xw = q[0] * q[3];
+            const float yw = q[1] * q[3];
+            const float zw = q[2] * q[3];
+            MatrixIdentity(out);
+            out->_11 = 1.0f - 2.0f * (yy + zz);
+            out->_12 = 2.0f * (xy + zw);
+            out->_13 = 2.0f * (xz - yw);
+            out->_21 = 2.0f * (xy - zw);
+            out->_22 = 1.0f - 2.0f * (xx + zz);
+            out->_23 = 2.0f * (yz + xw);
+            out->_31 = 2.0f * (xz + yw);
+            out->_32 = 2.0f * (yz - xw);
+            out->_33 = 1.0f - 2.0f * (xx + yy);
+        };
+
+        DEVICE *device = DEVICE::getInstance();
+        device->setRenderMaterial(this->impl->material);
+        bool rendered = true;
+        for (uint32_t subsetIndex = 0; subsetIndex < frameBuffer.totalSubset; ++subsetIndex)
+        {
+            VEC3 translation(0.0f, 0.0f, 0.0f), scale(1.0f, 1.0f, 1.0f), pivot(0.0f, 0.0f, 0.0f);
+            float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            float pivotRotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            getArticulatedTransform(indexFrame, subsetIndex, &translation, rotation, &scale, &pivot, pivotRotation);
+            normalizeQuaternion(rotation);
+            normalizeQuaternion(pivotRotation);
+
+            const float inversePivot[4] = {-pivotRotation[0], -pivotRotation[1], -pivotRotation[2], pivotRotation[3]};
+            float orientedRotation[4], combinedRotation[4];
+            multiplyQuaternion(pivotRotation, rotation, orientedRotation);
+            multiplyQuaternion(orientedRotation, inversePivot, combinedRotation);
+            normalizeQuaternion(combinedRotation);
+
+            MATRIX partTransform, step;
+            MatrixTranslation(&partTransform, -pivot.x, -pivot.y, -pivot.z);
+            MatrixScaling(&step, scale.x, scale.y, scale.z);
+            MatrixMultiply(&partTransform, &partTransform, &step);
+            quaternionMatrix(&step, combinedRotation);
+            MatrixMultiply(&partTransform, &partTransform, &step);
+            MatrixTranslation(&step, pivot.x + translation.x, pivot.y + translation.y, pivot.z + translation.z);
+            MatrixMultiply(&partTransform, &partTransform, &step);
+
+            MatrixMultiply(&SHADER::modelView, &partTransform, &baseModelView);
+            SHADER::updateMvpAndLightMatrices(viewMatrix, perspectiveMatrix);
+            if (!pShader->render(frameBuffer.pBufferGL, renderizableOwner, static_cast<int32_t>(subsetIndex)))
+                rendered = false;
+        }
+        device->clearRenderMaterial();
+        SHADER::modelView = baseModelView;
+        SHADER::updateMvpAndLightMatrices(viewMatrix, perspectiveMatrix);
+        return rendered;
+    }
     
     bool MESH_MBM::render(const uint32_t indexFrame,const SHADER *pShader,
                           const RENDERIZABLE *renderizableOwner)

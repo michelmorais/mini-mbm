@@ -322,6 +322,9 @@ namespace mbm
                                               VEC3 *pivot, float pivotQuaternion[4]) const noexcept;
         API_IMPL bool renderArticulatedDynamic(const uint32_t indexFrame, SHADER *pShader,
                                                const RENDERIZABLE *renderizableOwner = nullptr);
+        API_IMPL bool renderArticulatedStatic(const uint32_t indexFrame, const SHADER *pShader,
+                                              const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix,
+                                              const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
                                         VEC2 *uv,
                                         const RENDERIZABLE *renderizableOwner = nullptr);

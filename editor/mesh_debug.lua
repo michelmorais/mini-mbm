@@ -6525,16 +6525,29 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         tEntry.modified = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     end
+    local function articulatedTooltip(key)
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            -- Tooltip windows have no reliable wrap width in this ImGui binding;
+            -- use explicit language newlines instead of wrapping one character at a time.
+            tImGui.Text(tLang.L(key))
+            tImGui.EndTooltip()
+        end
+    end
+
+    tImGui.TextWrapped(tLang.L('articulated_help'))
 
     if tImGui.Button(tLang.L('articulated_initialize_parts') .. '##artInit-' .. index) then
         local ok, added = dpCall(function() return meshD:initializeArticulatedParts() end)
         if ok and added and added > 0 then markArticulatedEdit() end
     end
+    articulatedTooltip('articulated_initialize_parts_tooltip')
 
     local okParts, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
     totalParts = (okParts and totalParts) or 0
     tEntry.bShowArticulatedPivot = tImGui.Checkbox('Show Pivot Gizmo##artPivotShow-' .. index,
         tEntry.bShowArticulatedPivot ~= false)
+    articulatedTooltip('articulated_show_pivot_tooltip')
     if totalParts > 0 then
         tUtil.pushResponsiveItemWidth(100, 40)
         local partChanged, selectedPart = tImGui.InputInt('Part##artPivotPart-' .. index,
@@ -6543,9 +6556,11 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         if partChanged then
             tEntry.iArticulatedPart = math.max(1, math.min(selectedPart or 1, totalParts))
         end
+        articulatedTooltip('articulated_part_tooltip')
         if tImGui.Button('Open Pivot Gizmo##artPivotWindow-' .. index) then
             tEntry.bArticulatedPivotWindow = true
         end
+        articulatedTooltip('articulated_open_pivot_tooltip')
     end
     updateArticulatedPivotGizmo(tEntry, meshD, index, totalParts)
     tImGui.Separator()
@@ -6595,6 +6610,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         local ok = dpCall(function() return meshD:addArticulatedAnimation(clipName, 1.0, 1.0, 0, true) end)
         if ok then markArticulatedEdit() end
     end
+    articulatedTooltip('articulated_add_clip_tooltip')
     if totalClips == 0 then
         tImGui.TextDisabled(tLang.L('articulated_no_clips'))
     else
@@ -6604,6 +6620,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         if clipChanged then
             tEntry.iArticulatedClip = math.max(1, math.min(selectedClip or 1, totalClips))
         end
+        articulatedTooltip('articulated_clip_selector_tooltip')
         for clipIndex = 1, totalClips do
             local ok, clipName = dpCall(function() return meshD:getArticulatedAnimationName(clipIndex) end)
             if ok and clipName then
@@ -6620,16 +6637,21 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             tUtil.pushResponsiveItemWidth(260, 120)
             local nameChanged, newName = tImGui.InputText('Clip Name', infoName, 96, 0)
             tImGui.PopItemWidth()
+            articulatedTooltip('articulated_clip_name_tooltip')
             tUtil.pushResponsiveItemWidth(180, 100)
             local durationChanged, newDuration = tImGui.InputFloat('Duration', infoDuration or 0, 0.01, 0.1, '%.3f', 0)
             tImGui.PopItemWidth()
+            articulatedTooltip('articulated_duration_tooltip')
             tUtil.pushResponsiveItemWidth(180, 100)
             local speedChanged, newSpeed = tImGui.InputFloat('Speed', infoSpeed or 1, 0.01, 0.1, '%.3f', 0)
             tImGui.PopItemWidth()
+            articulatedTooltip('articulated_speed_tooltip')
             tUtil.pushResponsiveItemWidth(140, 100)
             local priorityChanged, newPriority = tImGui.InputInt('Priority', infoPriority or 0, 1, 10, 0)
             tImGui.PopItemWidth()
+            articulatedTooltip('articulated_priority_tooltip')
             local newLoop = tImGui.Checkbox('Loop', infoLoop == true)
+            articulatedTooltip('articulated_loop_tooltip')
             local loopChanged = newLoop ~= (infoLoop == true)
             if nameChanged or durationChanged or speedChanged or priorityChanged or loopChanged then
                 local okUpdate = dpCall(function()
@@ -6654,22 +6676,27 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         return tPreviewMesh:seekArticulatedAnimation(infoName, tEntry.fArticulatedPreviewTime)
                     end)
                 end
+                articulatedTooltip('articulated_timeline_tooltip')
                 tImGui.SameLine()
                 if tImGui.Button('Play##artPlay-' .. index) then
                     dpCall(function() return tPreviewMesh:playArticulatedAnimation(infoName, infoPriority or 0) end)
                 end
+                articulatedTooltip('articulated_playback_tooltip')
                 tImGui.SameLine()
                 if tImGui.Button('Pause##artPause-' .. index) then
                     dpCall(function() return tPreviewMesh:pauseArticulatedAnimation(infoName) end)
                 end
+                articulatedTooltip('articulated_playback_tooltip')
                 tImGui.SameLine()
                 if tImGui.Button('Resume##artResume-' .. index) then
                     dpCall(function() return tPreviewMesh:resumeArticulatedAnimation(infoName) end)
                 end
+                articulatedTooltip('articulated_playback_tooltip')
                 tImGui.SameLine()
                 if tImGui.Button('Disable##artDisable-' .. index) then
                     dpCall(function() return tPreviewMesh:disableArticulatedAnimation(infoName) end)
                 end
+                articulatedTooltip('articulated_playback_tooltip')
             elseif index == iSelectedMeshIndex then
                 tImGui.TextDisabled('Save mesh to enable preview')
             end
@@ -6688,6 +6715,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         tImGui.SameLine()
         local channelScale = tImGui.Checkbox('Scale##artChannel-' .. index, tEntry.bArticulatedScale)
         tEntry.bArticulatedScale = channelScale
+        articulatedTooltip('articulated_channel_tooltip')
         local selectedMask = (channelPosition and 1 or 0) + (channelRotation and 2 or 0) + (channelScale and 4 or 0)
         if totalParts > 0 then
             for partIndex = 1, totalParts do
@@ -6704,6 +6732,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         end)
                         if okTrack then markArticulatedEdit() end
                     end
+                    articulatedTooltip('articulated_add_track_tooltip')
                     tImGui.PopID()
                 end
             end
@@ -6728,6 +6757,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                     end)
                     if okKey then markArticulatedEdit() end
                 end
+                articulatedTooltip('articulated_add_key_tooltip')
                 for keyIndex = 1, (keyCount or 0) do
                     local okKey, keyTime, px, py, pz, qx, qy, qz, qw, sx, sy, sz = dpCall(function()
                         return meshD:getArticulatedKey(activeClip, trackIndex, keyIndex)
@@ -6742,6 +6772,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         tImGui.PushID('artKey-' .. index .. '-' .. trackIndex .. '-' .. keyIndex)
                         local timeChanged, newTime = tImGui.InputFloat(string.format('Key %d Time', keyIndex),
                             keyTime, 0.01, 0.1, '%.3f', 0)
+                        articulatedTooltip('articulated_key_tooltip')
                         tImGui.SameLine()
                         if tImGui.Button('Remove##removeKey') then
                             local okRemove = dpCall(function()
@@ -6881,6 +6912,29 @@ function showArticulatedPivotWindow()
     tEntry.tArticulatedPivotOrbit = tEntry.tArticulatedPivotOrbit or {azimuth = 0.3, elevation = 0.3}
     local orbitChanged = tUtil.drawOrbitGizmo(tEntry.tArticulatedPivotOrbit, {size = 130})
     if orbitChanged then
+        qx, qy, qz, qw = articulatedQuaternionFromOrbit(tEntry.tArticulatedPivotOrbit)
+        local okUpdate = dpCall(function()
+            return meshD:updateArticulatedPart(tEntry.iArticulatedPart, name or '',
+                px or 0, py or 0, pz or 0, qx, qy, qz, qw, parent or 0)
+        end)
+        if okUpdate then
+            tEntry.modified = true
+            tEntry.sArticulatedPivotQuaternionSignature = string.format('%.7f:%.7f:%.7f:%.7f',
+                qx, qy, qz, qw)
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        end
+    end
+    tUtil.pushResponsiveItemWidth(190, 80)
+    local eulerChanged, euler = tImGui.DragFloat3('Euler (deg)##artPivotEuler-' .. index,
+        {-(tEntry.tArticulatedPivotOrbit.elevation or 0) * 180 / math.pi,
+            (tEntry.tArticulatedPivotOrbit.azimuth or 0) * 180 / math.pi,
+            (tEntry.tArticulatedPivotOrbit.roll or 0) * 180 / math.pi},
+        0.5, -360, 360, '%.2f', 0)
+    tImGui.PopItemWidth()
+    if eulerChanged and euler then
+        tEntry.tArticulatedPivotOrbit.elevation = -(euler[1] or 0) * math.pi / 180
+        tEntry.tArticulatedPivotOrbit.azimuth = (euler[2] or 0) * math.pi / 180
+        tEntry.tArticulatedPivotOrbit.roll = (euler[3] or 0) * math.pi / 180
         qx, qy, qz, qw = articulatedQuaternionFromOrbit(tEntry.tArticulatedPivotOrbit)
         local okUpdate = dpCall(function()
             return meshD:updateArticulatedPart(tEntry.iArticulatedPart, name or '',

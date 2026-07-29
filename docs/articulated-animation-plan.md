@@ -74,15 +74,13 @@ Articulated clips are loaded inactive and start only after an explicit play requ
 
 Without active articulated clips, the current static rendering path remains unchanged.
 
-The first implementation uses `MESH_MBM::renderArticulatedDynamic()` to transform a CPU-side
-working copy and reuse the existing dynamic-render path. The original static mesh buffers remain
-untouched, but the working vertex arrays are rebuilt for the current pose.
-
-The planned optimized implementation is `MESH_MBM::renderArticulatedStatic()`. It will reuse the
-loaded static vertex/index buffers and render each affected subset independently, applying its
-final matrix before that subset's draw call. This avoids duplicating and uploading transformed
-vertices, at the cost of additional draw calls. The common API will require backend-specific
-implementations for OpenGL ES, DirectX9, and Metal.
+The initial implementation used `MESH_MBM::renderArticulatedDynamic()` to transform a CPU-side
+working copy. `MESH_MBM::renderArticulatedStatic()` is now the active path for `.msh`: it reuses
+the loaded static vertex/index buffers and renders each subset independently, applying its final
+matrix before that subset's draw call. The `SHADER::render()` API keeps the original all-subsets
+behavior and accepts an optional subset selector, implemented by OpenGL ES, DirectX9, Metal, and
+the dummy backend. No transformed vertex buffer is duplicated or uploaded. The dynamic method is
+retained as a fallback/reference path while the static path receives runtime validation.
 
 ## Binary format
 
@@ -125,8 +123,8 @@ The editor will provide:
 5. Add Mesh Debug Editor authoring and preview workflow.
 6. Expose C++/Lua playback and inspection APIs.
 7. Validate old/new file compatibility and update version/documentation.
-8. Add `MESH_MBM::renderArticulatedStatic()` using static buffers and per-subset draw calls; keep
-   `renderArticulatedDynamic()` as the initial implementation/fallback.
+8. Integrate `MESH_MBM::renderArticulatedStatic()` using static buffers and per-subset draw calls;
+   validate rotations, scales, materials, culling, and 2D/3D behavior in the editor and runtime.
 
 ## Deferred items
 

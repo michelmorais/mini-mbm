@@ -1239,7 +1239,8 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::render(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner) const
+    bool SHADER::render(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner,
+                        const int32_t subsetIndex) const
     {
         const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1324,7 +1325,10 @@ namespace mbm
             {
                 if (!backendBuffer->vertexBuffer || !backendBuffer->indexBuffer) return false;
                 [enc setVertexBuffer:backendBuffer->vertexBuffer offset:0 atIndex:0];
-                for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+                const uint32_t firstSubset = subsetIndex >= 0 ? static_cast<uint32_t>(subsetIndex) : 0u;
+                const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
+                if (lastSubset > pBufferId->totalSubset) return false;
+                for (uint32_t i = firstSubset; i < lastSubset; ++i)
                 {
                     [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
                                     atIndex:0];
@@ -1349,7 +1353,10 @@ namespace mbm
             else
             {
                 if (!backendBuffer->vertexBuffer) return false;
-                for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+                const uint32_t firstSubset = subsetIndex >= 0 ? static_cast<uint32_t>(subsetIndex) : 0u;
+                const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
+                if (lastSubset > pBufferId->totalSubset) return false;
+                for (uint32_t i = firstSubset; i < lastSubset; ++i)
                 {
                     [enc setFragmentTexture:getMetalTextureForRole(pBufferId, i, mbm::TEXTURE_ROLE_DIFFUSE)
                                     atIndex:0];
