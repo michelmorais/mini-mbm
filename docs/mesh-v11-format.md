@@ -430,10 +430,9 @@ struct ARTICULATED_PART_V11
 ```
 
 `SECTION_ARTICULATED_ANIMATION` is one bundled section with a `uint32_t clipCount`. The current
-writer uses `sectionVersion` `5`; readers accept versions `2`, `3`, `4`, and `5`. Version 2 is
-interpreted with linear easing for every key, versions before 4 receive linear Bezier control
-points, and versions before 5 receive `ARTICULATED_BLEND_ABSOLUTE`. Other versions are rejected.
-Each clip contains a length-prefixed name,
+writer and readers use `sectionVersion` `1`; other versions are rejected. This is the first public
+layout for the optional section, so Euler authoring data, easing, Bezier controls, and clip
+composition mode are all present from version 1. Each clip contains a length-prefixed name,
 `float duration`, `float speed`, `int32_t defaultPriority`, a `uint8_t loop`, a
 `uint8_t blendMode`, and a
 `uint32_t trackCount`. Each track contains `uint64_t partId`, a `uint8_t` channel mask,
@@ -443,10 +442,9 @@ flag, an easing mode byte, four Bezier control-point floats (`x1/y1/x2/y2`), and
 When the flag is present, runtime interpolation uses
 the authored Euler values and converts the result to a quaternion. The easing mode on a key controls
 the segment from that key to the next one: `0` Linear, `1` Ease In, `2` Ease Out, `3` Ease In Out,
-`4` Smoothstep, and `5` Cubic Bezier. A missing easing byte (version 2) means Linear. Cubic Bezier
+`4` Smoothstep, and `5` Cubic Bezier. Cubic Bezier
 uses normalized time on X and normalized interpolation progress on Y. X control values must remain
-within `0..1`; Y may leave that range to produce overshoot. Versions 2 and 3 default to
-`P1=(0.25,0.25)` and `P2=(0.75,0.75)`, which describe a Linear curve.
+within `0..1`; Y may leave that range to produce overshoot.
 
 Clip blend modes are `0` (`ARTICULATED_BLEND_ABSOLUTE`) and `1`
 (`ARTICULATED_BLEND_ADDITIVE`). Absolute clips establish the base pose through per-channel

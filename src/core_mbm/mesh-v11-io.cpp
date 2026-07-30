@@ -527,18 +527,15 @@ namespace util
         return readU32LE(fp, out.clipCount);
     }
 
-    bool readArticulatedClipV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_CLIP_V11 &out,
-                                const uint16_t sectionVersion)
+    bool readArticulatedClipV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_CLIP_V11 &out)
     {
         if (!(readStringV11(fp, out.name) &&
               readF32LE(fp, out.duration) &&
               readF32LE(fp, out.speed) &&
               readI32LE(fp, out.defaultPriority) &&
               readBytes(fp, &out.loop, sizeof(out.loop)) &&
-              (sectionVersion >= 5 ? readBytes(fp, &out.blendMode, sizeof(out.blendMode)) : true)))
+              readBytes(fp, &out.blendMode, sizeof(out.blendMode))))
             return false;
-        if (sectionVersion < 5)
-            out.blendMode = util::ARTICULATED_BLEND_ABSOLUTE;
         return out.blendMode == util::ARTICULATED_BLEND_ABSOLUTE ||
                out.blendMode == util::ARTICULATED_BLEND_ADDITIVE;
     }
@@ -550,31 +547,19 @@ namespace util
                readU32LE(fp, out.keyCount);
     }
 
-    bool readArticulatedKeyV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_KEY_V11 &out,
-                               const uint16_t sectionVersion)
+    bool readArticulatedKeyV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_KEY_V11 &out)
     {
-        if (!(readF32LE(fp, out.time) &&
+        return readF32LE(fp, out.time) &&
                readF32LE(fp, out.positionX) && readF32LE(fp, out.positionY) && readF32LE(fp, out.positionZ) &&
                readF32LE(fp, out.rotationX) && readF32LE(fp, out.rotationY) &&
                readF32LE(fp, out.rotationZ) && readF32LE(fp, out.rotationW) &&
                readF32LE(fp, out.rotationEulerX) && readF32LE(fp, out.rotationEulerY) &&
                readF32LE(fp, out.rotationEulerZ) &&
                readBytes(fp, &out.hasRotationEuler, sizeof(out.hasRotationEuler)) &&
-               (sectionVersion >= 3 ? readBytes(fp, &out.easing, sizeof(out.easing)) : true) &&
-               (sectionVersion >= 4
-                    ? readF32LE(fp, out.bezierX1) && readF32LE(fp, out.bezierY1) &&
-                      readF32LE(fp, out.bezierX2) && readF32LE(fp, out.bezierY2)
-                    : true) &&
-               readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ)))
-            return false;
-        if (sectionVersion < 3)
-            out.easing = util::ARTICULATED_EASING_LINEAR;
-        if (sectionVersion < 4)
-        {
-            out.bezierX1 = out.bezierY1 = 0.25f;
-            out.bezierX2 = out.bezierY2 = 0.75f;
-        }
-        return true;
+               readBytes(fp, &out.easing, sizeof(out.easing)) &&
+               readF32LE(fp, out.bezierX1) && readF32LE(fp, out.bezierY1) &&
+               readF32LE(fp, out.bezierX2) && readF32LE(fp, out.bezierY2) &&
+               readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ);
     }
 
     bool writeStageParticleV11(FILE *fp, const util::STAGE_PARTICLE &in)

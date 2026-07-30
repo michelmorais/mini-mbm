@@ -477,12 +477,8 @@ namespace
     }
 
     bool parse_articulated_animation_section_v11(util::MEM_CURSOR_V11 &tmp,
-                                                 std::vector<mbm::ARTICULATED_CLIP_DATA> &out,
-                                                 const uint16_t sectionVersion)
+                                                 std::vector<mbm::ARTICULATED_CLIP_DATA> &out)
     {
-        if (sectionVersion != 2 && sectionVersion != 3 &&
-            sectionVersion != 4 && sectionVersion != 5)
-            return false;
         util::ARTICULATED_ANIMATION_HEADER_V11 header;
         if (!util::readArticulatedAnimationHeaderV11(tmp, header))
             return false;
@@ -491,7 +487,7 @@ namespace
         for (uint32_t c = 0; c < header.clipCount; ++c)
         {
             mbm::ARTICULATED_CLIP_DATA clip;
-            if (!util::readArticulatedClipV11(tmp, clip.header, sectionVersion))
+            if (!util::readArticulatedClipV11(tmp, clip.header))
                 return false;
             uint32_t trackCount = 0;
             if (!util::le_io::readU32LE(tmp, trackCount))
@@ -506,7 +502,7 @@ namespace
                 for (uint32_t k = 0; k < track.header.keyCount; ++k)
                 {
                     util::ARTICULATED_KEY_V11 key;
-                    if (!util::readArticulatedKeyV11(tmp, key, sectionVersion))
+                    if (!util::readArticulatedKeyV11(tmp, key))
                         return false;
                     track.keys.push_back(key);
                 }
@@ -971,8 +967,8 @@ namespace
             }
             else if (staged.header.type == util::SECTION_ARTICULATED_ANIMATION)
             {
-                if (!parse_articulated_animation_section_v11(tmp, out.articulatedClips,
-                                                              staged.header.sectionVersion))
+                if (staged.header.sectionVersion != 1 ||
+                    !parse_articulated_animation_section_v11(tmp, out.articulatedClips))
                 {
                     errorOut = "failed to parse SECTION_ARTICULATED_ANIMATION";
                     return false;
@@ -2373,7 +2369,7 @@ namespace mbm
         {
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_ARTICULATED_ANIMATION;
-            sectionHeader.sectionVersion = 5;
+            sectionHeader.sectionVersion = 1;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
                 util::ARTICULATED_ANIMATION_HEADER_V11 animationHeader;
@@ -3006,8 +3002,8 @@ namespace mbm
             else if (sectionHeader.type == util::SECTION_ARTICULATED_ANIMATION)
             {
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (!parse_articulated_animation_section_v11(tmp, impl->articulatedClips,
-                                                              sectionHeader.sectionVersion))
+                if (sectionHeader.sectionVersion != 1 ||
+                    !parse_articulated_animation_section_v11(tmp, impl->articulatedClips))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ARTICULATED_ANIMATION [%s]", fileNamePath);
             }
             else if (sectionHeader.type == util::SECTION_DETAIL_PARTICLE)

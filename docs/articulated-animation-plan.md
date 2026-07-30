@@ -46,8 +46,8 @@ the same frame and cycles are rejected.
 - Keyframe time is stored as `float`.
 - Animation time advances using the engine's `delta` and existing playback semantics.
 - Position and scale use linear interpolation.
-- Rotation keeps a quaternion for rendering, while authored Euler degrees are also persisted in
-  articulated-animation section version 2. Runtime interpolation uses the authored Euler values
+- Rotation keeps a quaternion for rendering, while authored Euler degrees are also persisted.
+  Runtime interpolation uses the authored Euler values
   so transitions such as 0° to 359° preserve the intended full turn. The articulated-animation
   section is still optional; meshes without it remain unchanged.
 - A duplicate keyframe for the same part, channel, and time replaces the existing key.
