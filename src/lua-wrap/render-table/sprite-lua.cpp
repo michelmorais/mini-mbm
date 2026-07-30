@@ -112,7 +112,9 @@ namespace mbm
         const char *name = luaL_checkstring(lua, 2);
         const int priority = static_cast<int>(luaL_optinteger(lua, 3, 0));
         const float blendDuration = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
-        lua_pushboolean(lua, sprite->playArticulatedAnimation(name, priority, blendDuration) ? 1 : 0);
+        const float weight = static_cast<float>(luaL_optnumber(lua, 5, 1.0));
+        lua_pushboolean(lua, sprite->playArticulatedAnimation(
+            name, priority, blendDuration, weight) ? 1 : 0);
         return 1;
     }
 

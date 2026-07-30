@@ -479,7 +479,8 @@ namespace util
                writeF32LE(fp, in.duration) &&
                writeF32LE(fp, in.speed) &&
                writeI32LE(fp, in.defaultPriority) &&
-               writeBytes(fp, &in.loop, sizeof(in.loop));
+               writeBytes(fp, &in.loop, sizeof(in.loop)) &&
+               writeBytes(fp, &in.blendMode, sizeof(in.blendMode));
     }
 
     bool writeArticulatedTrackV11(FILE *fp, const util::ARTICULATED_TRACK_V11 &in)
@@ -526,13 +527,20 @@ namespace util
         return readU32LE(fp, out.clipCount);
     }
 
-    bool readArticulatedClipV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_CLIP_V11 &out)
+    bool readArticulatedClipV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_CLIP_V11 &out,
+                                const uint16_t sectionVersion)
     {
-        return readStringV11(fp, out.name) &&
-               readF32LE(fp, out.duration) &&
-               readF32LE(fp, out.speed) &&
-               readI32LE(fp, out.defaultPriority) &&
-               readBytes(fp, &out.loop, sizeof(out.loop));
+        if (!(readStringV11(fp, out.name) &&
+              readF32LE(fp, out.duration) &&
+              readF32LE(fp, out.speed) &&
+              readI32LE(fp, out.defaultPriority) &&
+              readBytes(fp, &out.loop, sizeof(out.loop)) &&
+              (sectionVersion >= 5 ? readBytes(fp, &out.blendMode, sizeof(out.blendMode)) : true)))
+            return false;
+        if (sectionVersion < 5)
+            out.blendMode = util::ARTICULATED_BLEND_ABSOLUTE;
+        return out.blendMode == util::ARTICULATED_BLEND_ABSOLUTE ||
+               out.blendMode == util::ARTICULATED_BLEND_ADDITIVE;
     }
 
     bool readArticulatedTrackV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_TRACK_V11 &out)

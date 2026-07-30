@@ -480,7 +480,8 @@ namespace
                                                  std::vector<mbm::ARTICULATED_CLIP_DATA> &out,
                                                  const uint16_t sectionVersion)
     {
-        if (sectionVersion != 2 && sectionVersion != 3 && sectionVersion != 4)
+        if (sectionVersion != 2 && sectionVersion != 3 &&
+            sectionVersion != 4 && sectionVersion != 5)
             return false;
         util::ARTICULATED_ANIMATION_HEADER_V11 header;
         if (!util::readArticulatedAnimationHeaderV11(tmp, header))
@@ -490,7 +491,7 @@ namespace
         for (uint32_t c = 0; c < header.clipCount; ++c)
         {
             mbm::ARTICULATED_CLIP_DATA clip;
-            if (!util::readArticulatedClipV11(tmp, clip.header))
+            if (!util::readArticulatedClipV11(tmp, clip.header, sectionVersion))
                 return false;
             uint32_t trackCount = 0;
             if (!util::le_io::readU32LE(tmp, trackCount))
@@ -2372,7 +2373,7 @@ namespace mbm
         {
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_ARTICULATED_ANIMATION;
-            sectionHeader.sectionVersion = 4;
+            sectionHeader.sectionVersion = 5;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
                 util::ARTICULATED_ANIMATION_HEADER_V11 animationHeader;
@@ -4462,9 +4463,11 @@ namespace mbm
     }
 
     bool MESH_MBM_DEBUG::getArticulatedAnimation(const uint32_t index, const char **name, float *duration,
-                                                 float *speed, int *priority, bool *loop) const noexcept
+                                                 float *speed, int *priority, bool *loop,
+                                                 uint8_t *blendMode) const noexcept
     {
-        if (index >= impl->articulatedClips.size() || !name || !duration || !speed || !priority || !loop)
+        if (index >= impl->articulatedClips.size() || !name || !duration || !speed ||
+            !priority || !loop || !blendMode)
             return false;
         const auto &clip = impl->articulatedClips[index].header;
         *name = clip.name.c_str();
@@ -4472,16 +4475,24 @@ namespace mbm
         *speed = clip.speed;
         *priority = clip.defaultPriority;
         *loop = clip.loop != 0;
+        *blendMode = clip.blendMode;
         return true;
     }
 
     bool MESH_MBM_DEBUG::updateArticulatedAnimation(const uint32_t index, const char *name, const float duration,
                                                     const float speed, const int priority, const bool loop,
+                                                    const uint8_t blendMode,
                                                     char *errorOut, const int errorOutLen)
     {
         if (index >= impl->articulatedClips.size())
         {
             if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation index out of range");
+            return false;
+        }
+        if (blendMode != util::ARTICULATED_BLEND_ABSOLUTE &&
+            blendMode != util::ARTICULATED_BLEND_ADDITIVE)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated blend mode [%u]", blendMode);
             return false;
         }
         const std::string clipName = name ? name : "";
@@ -4508,6 +4519,7 @@ namespace mbm
         header.speed = speed;
         header.defaultPriority = priority;
         header.loop = loop ? 1 : 0;
+        header.blendMode = blendMode;
         return true;
     }
 
@@ -4560,12 +4572,19 @@ namespace mbm
     }
 
     int MESH_MBM_DEBUG::addArticulatedAnimation(const char *name, const float duration, const float speed,
-                                                const int priority, const bool loop, char *errorOut, const int errorOutLen)
+                                                const int priority, const bool loop, const uint8_t blendMode,
+                                                char *errorOut, const int errorOutLen)
     {
         const std::string clipName = name ? name : "";
         if (clipName.empty())
         {
             if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation name cannot be empty");
+            return 0;
+        }
+        if (blendMode != util::ARTICULATED_BLEND_ABSOLUTE &&
+            blendMode != util::ARTICULATED_BLEND_ADDITIVE)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated blend mode [%u]", blendMode);
             return 0;
         }
         for (const auto &clip : impl->articulatedClips)
@@ -4582,6 +4601,7 @@ namespace mbm
         clip.header.speed = speed;
         clip.header.defaultPriority = priority;
         clip.header.loop = loop ? 1 : 0;
+        clip.header.blendMode = blendMode;
         impl->articulatedClips.push_back(std::move(clip));
         return static_cast<int>(impl->articulatedClips.size());
     }
@@ -5229,7 +5249,7 @@ namespace mbm
 
     bool MESH_MBM::playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
                                             const char *name, const int priority,
-                                            const float blendDuration) const
+                                            const float blendDuration, const float weight) const
     {
         if (!name || !name[0])
             return false;
@@ -5256,6 +5276,7 @@ namespace mbm
                 active.sequence = ++player.impl->sequence;
                 active.blendDuration = std::max(0.0f, blendDuration);
                 active.blendElapsed = 0.0f;
+                active.weight = std::max(0.0f, std::min(1.0f, weight));
                 active.paused = false;
                 active.ended = false;
                 return true;
@@ -5266,6 +5287,7 @@ namespace mbm
         active.priority = priority;
         active.sequence = ++player.impl->sequence;
         active.blendDuration = std::max(0.0f, blendDuration);
+        active.weight = std::max(0.0f, std::min(1.0f, weight));
         player.impl->activeClips.push_back(active);
         return true;
     }
@@ -5507,7 +5529,9 @@ namespace mbm
         {
             VEC3 translation = VEC3(0.0f, 0.0f, 0.0f);
             VEC3 scale = VEC3(1.0f, 1.0f, 1.0f);
+            VEC3 rotationEuler = VEC3(0.0f, 0.0f, 0.0f);
             float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            bool hasRotationEuler = false;
         };
         const auto sampleTrack = [&applyEasing, &quaternionFromEulerDegrees](
                                      const ARTICULATED_TRACK_DATA &track, const float time,
@@ -5543,10 +5567,14 @@ namespace mbm
             sample.scale.z = lerp(a->scaleZ, b->scaleZ);
             if (a->hasRotationEuler && b->hasRotationEuler)
             {
+                sample.rotationEuler.x = lerp(a->rotationEulerX, b->rotationEulerX);
+                sample.rotationEuler.y = lerp(a->rotationEulerY, b->rotationEulerY);
+                sample.rotationEuler.z = lerp(a->rotationEulerZ, b->rotationEulerZ);
+                sample.hasRotationEuler = true;
                 quaternionFromEulerDegrees(
-                    lerp(a->rotationEulerX, b->rotationEulerX),
-                    lerp(a->rotationEulerY, b->rotationEulerY),
-                    lerp(a->rotationEulerZ, b->rotationEulerZ),
+                    sample.rotationEuler.x,
+                    sample.rotationEuler.y,
+                    sample.rotationEuler.z,
                     sample.rotation);
             }
             else
@@ -5584,6 +5612,9 @@ namespace mbm
         CHANNEL_CANDIDATES positionCandidates;
         CHANNEL_CANDIDATES rotationCandidates;
         CHANNEL_CANDIDATES scaleCandidates;
+        CHANNEL_CANDIDATES additivePositionCandidates;
+        CHANNEL_CANDIDATES additiveRotationCandidates;
+        CHANNEL_CANDIDATES additiveScaleCandidates;
         const auto addCandidate = [](CHANNEL_CANDIDATES &candidates,
                                      const ACTIVE_ARTICULATED_CLIP &active,
                                      const ARTICULATED_TRACK_DATA &track)
@@ -5607,13 +5638,19 @@ namespace mbm
             {
                 if (track.header.partId != part->partId || track.keys.empty())
                     continue;
+                CHANNEL_CANDIDATES *positionTarget = clip.header.blendMode == util::ARTICULATED_BLEND_ADDITIVE
+                    ? &additivePositionCandidates : &positionCandidates;
+                CHANNEL_CANDIDATES *rotationTarget = clip.header.blendMode == util::ARTICULATED_BLEND_ADDITIVE
+                    ? &additiveRotationCandidates : &rotationCandidates;
+                CHANNEL_CANDIDATES *scaleTarget = clip.header.blendMode == util::ARTICULATED_BLEND_ADDITIVE
+                    ? &additiveScaleCandidates : &scaleCandidates;
                 const uint8_t mask = track.header.channelMask;
                 if (mask & util::ARTICULATED_CHANNEL_POSITION)
-                    addCandidate(positionCandidates, active, track);
+                    addCandidate(*positionTarget, active, track);
                 if (mask & util::ARTICULATED_CHANNEL_ROTATION)
-                    addCandidate(rotationCandidates, active, track);
+                    addCandidate(*rotationTarget, active, track);
                 if (mask & util::ARTICULATED_CHANNEL_SCALE)
-                    addCandidate(scaleCandidates, active, track);
+                    addCandidate(*scaleTarget, active, track);
             }
         }
         const auto sortCandidates = [](CHANNEL_CANDIDATES &candidates)
@@ -5629,6 +5666,9 @@ namespace mbm
         sortCandidates(positionCandidates);
         sortCandidates(rotationCandidates);
         sortCandidates(scaleCandidates);
+        sortCandidates(additivePositionCandidates);
+        sortCandidates(additiveRotationCandidates);
+        sortCandidates(additiveScaleCandidates);
 
         const auto blendFactor = [](const ACTIVE_ARTICULATED_CLIP &active)
         {
@@ -5679,6 +5719,17 @@ namespace mbm
                 out[0] /= length; out[1] /= length; out[2] /= length; out[3] /= length;
             }
         };
+        const auto multiplyQuaternion = [](const float left[4], const float right[4], float out[4])
+        {
+            out[0] = left[3] * right[0] + left[0] * right[3] +
+                     left[1] * right[2] - left[2] * right[1];
+            out[1] = left[3] * right[1] - left[0] * right[2] +
+                     left[1] * right[3] + left[2] * right[0];
+            out[2] = left[3] * right[2] + left[0] * right[1] -
+                     left[1] * right[0] + left[2] * right[3];
+            out[3] = left[3] * right[3] - left[0] * right[0] -
+                     left[1] * right[1] - left[2] * right[2];
+        };
 
         const auto applyVectorChannel = [&sampleTrack, &blendFactor, &blendVector](
                                             const CHANNEL_CANDIDATES &candidates,
@@ -5705,7 +5756,63 @@ namespace mbm
                             blendFactor(*candidate.active), rotationQuaternion);
         }
 
-        return !positionCandidates.empty() || !rotationCandidates.empty() || !scaleCandidates.empty();
+        for (const auto &candidate : additivePositionCandidates)
+        {
+            SAMPLED_TRACK sample;
+            sampleTrack(*candidate.track, candidate.active->time, sample);
+            const float effectiveWeight = candidate.active->weight * blendFactor(*candidate.active);
+            translation->x += sample.translation.x * effectiveWeight;
+            translation->y += sample.translation.y * effectiveWeight;
+            translation->z += sample.translation.z * effectiveWeight;
+        }
+        for (const auto &candidate : additiveScaleCandidates)
+        {
+            SAMPLED_TRACK sample;
+            sampleTrack(*candidate.track, candidate.active->time, sample);
+            const float effectiveWeight = candidate.active->weight * blendFactor(*candidate.active);
+            scale->x *= 1.0f + (sample.scale.x - 1.0f) * effectiveWeight;
+            scale->y *= 1.0f + (sample.scale.y - 1.0f) * effectiveWeight;
+            scale->z *= 1.0f + (sample.scale.z - 1.0f) * effectiveWeight;
+        }
+        for (const auto &candidate : additiveRotationCandidates)
+        {
+            SAMPLED_TRACK sample;
+            sampleTrack(*candidate.track, candidate.active->time, sample);
+            const float identity[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            float weightedDelta[4];
+            const float effectiveWeight = candidate.active->weight * blendFactor(*candidate.active);
+            if (sample.hasRotationEuler)
+            {
+                quaternionFromEulerDegrees(sample.rotationEuler.x * effectiveWeight,
+                                           sample.rotationEuler.y * effectiveWeight,
+                                           sample.rotationEuler.z * effectiveWeight,
+                                           weightedDelta);
+            }
+            else
+            {
+                blendQuaternion(identity, sample.rotation, effectiveWeight, weightedDelta);
+            }
+            float composed[4];
+            multiplyQuaternion(rotationQuaternion, weightedDelta, composed);
+            rotationQuaternion[0] = composed[0]; rotationQuaternion[1] = composed[1];
+            rotationQuaternion[2] = composed[2]; rotationQuaternion[3] = composed[3];
+        }
+        if (!additiveRotationCandidates.empty())
+        {
+            const float length = std::sqrt(rotationQuaternion[0] * rotationQuaternion[0] +
+                                           rotationQuaternion[1] * rotationQuaternion[1] +
+                                           rotationQuaternion[2] * rotationQuaternion[2] +
+                                           rotationQuaternion[3] * rotationQuaternion[3]);
+            if (length > 0.000001f)
+            {
+                rotationQuaternion[0] /= length; rotationQuaternion[1] /= length;
+                rotationQuaternion[2] /= length; rotationQuaternion[3] /= length;
+            }
+        }
+
+        return !positionCandidates.empty() || !rotationCandidates.empty() || !scaleCandidates.empty() ||
+               !additivePositionCandidates.empty() || !additiveRotationCandidates.empty() ||
+               !additiveScaleCandidates.empty();
     }
 
     bool MESH_MBM::buildArticulatedTransformMatrix(const ARTICULATED_ANIMATION_PLAYER &player,

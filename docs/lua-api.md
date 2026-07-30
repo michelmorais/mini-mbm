@@ -1191,7 +1191,7 @@ meshD:updateArticulatedPart(partIndex, name,
     pivotQX, pivotQY, pivotQZ, pivotQW,
     parentPartId)
 
-local clipIndex = meshD:addArticulatedAnimation(name, duration, speed, priority, loop)
+local clipIndex = meshD:addArticulatedAnimation(name, duration, speed, priority, loop, blendMode)
 meshD:removeArticulatedAnimation(clipIndex)
 local trackIndex = meshD:addArticulatedTrack(clipIndex, partId, channelMask)
 meshD:addArticulatedKey(clipIndex, trackIndex, time,
@@ -1212,7 +1212,7 @@ the same track and time replaces the previous key. `getTotalArticulatedParts()`,
 `getArticulatedKey(animation, track, key)` provide inspection. The editor can create tracks with
 independent channel masks and add or replace keys. `updateArticulatedKey(animation, track, key,
 time, ...)` moves and edits an existing key, consolidating a collision with another key at the
-same time. `updateArticulatedAnimation(index, name, duration, speed, priority, loop)` edits clip
+same time. `updateArticulatedAnimation(index, name, duration, speed, priority, loop, blendMode)` edits clip
 metadata while preserving its tracks. `removeArticulatedKey(animation, track, key)` removes one
 keyframe without changing the clip's manually editable duration. The clip duration is automatically
 kept at least as large as the greatest key time; a requested shorter duration is clamped.
@@ -1228,25 +1228,37 @@ key; the final key has no outgoing segment.
 `parentPartId` establishes a same-frame parent relationship. A child inherits the parent's complete
 transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
 
-Loaded `mesh` and `sprite` objects expose the same playback controls for `.msh` and `.spt` assets.
-Multiple clips may be active. Position, rotation, and scale are resolved independently: the highest
-priority clip that provides a channel wins that channel, and a newer clip wins ties. This lets a
-lower-priority clip continue supplying channels omitted by the winner.
+Clip composition modes are `0` for Absolute and `1` for Additive. `getArticulatedAnimation(index)`
+returns this mode as its sixth result, after `loop`. Absolute is the default. Additive keys represent
+deltas: neutral position is `(0,0,0)`, neutral Euler rotation is `(0,0,0)`, and neutral scale is
+`(1,1,1)`.
 
-`playArticulatedAnimation(name, priority, blendDuration)` accepts an optional transition duration
+Loaded `mesh` and `sprite` objects expose the same playback controls for `.msh` and `.spt` assets.
+Multiple clips may be active. Absolute position, rotation, and scale are resolved independently:
+the highest-priority Absolute clip that provides a channel wins that channel, and a newer clip wins
+ties. This lets a lower-priority Absolute clip continue supplying channels omitted by the winner.
+All active Additive clips are then applied in increasing priority/start order; the ordering matters
+for local quaternion rotation composition.
+
+`playArticulatedAnimation(name, priority, blendDuration, weight)` accepts an optional transition duration
 in seconds. During that interval, each channel transitions from the already-composed pose of its
 lower-priority/older candidates, or from the base transform when no fallback exists. This also
 keeps overlapping crossfades continuous. Position and scale use linear interpolation and rotation
 uses quaternion spherical interpolation. The default `blendDuration` is `0`, preserving immediate
-playback. Blend duration is runtime state and is not persisted in the asset.
+playback. `weight` defaults to `1`, is clamped to `0..1`, and controls additive intensity; absolute
+clips ignore it. Blend duration and weight are runtime state and are not persisted in the asset.
+For an additive clip, blend duration fades its contribution from zero to the requested weight.
+Authored Euler rotation is weighted before conversion to the final quaternion, preserving intended
+full turns such as `0°..359°`; quaternion-only data falls back to spherical interpolation.
 
 `pause` freezes both clip time and blend progress, `resume` continues them, and `disable` removes
 the clip from evaluation. Playback state belongs to each renderizable instance: objects loading
 the same cached asset share geometry, parts, and clip definitions, but do not share active clips,
-time, pause state, priority, blend progress, or seek position.
+time, pause state, priority, blend progress, additive weight, or seek position.
 
 ```lua
-car:playArticulatedAnimation("wheel_spin", 10, 0.5) -- priority 10, 0.5-second crossfade
+car:playArticulatedAnimation("wheel_spin", 10, 0.5, 0.75)
+-- priority 10, 0.5-second fade, 75% weight when the clip is Additive
 car:pauseArticulatedAnimation("wheel_spin")
 car:resumeArticulatedAnimation("wheel_spin")
 car:seekArticulatedAnimation("wheel_spin", 0.5)

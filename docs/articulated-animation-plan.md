@@ -59,7 +59,7 @@ the same frame and cycles are rejected.
 `ANIMATION_MANAGER` remains the public manager. It will retain traditional animation behavior and gain articulated operations equivalent to:
 
 ```cpp
-playArticulatedAnimation(name, priority, blendDuration)
+playArticulatedAnimation(name, priority, blendDuration, weight)
 pauseArticulatedAnimation(name)
 resumeArticulatedAnimation(name)
 disableArticulatedAnimation(name)
@@ -100,7 +100,11 @@ SECTION_ARTICULATED_ANIMATION
 
 `SECTION_ARTICULATED_PARTS` stores part IDs, names, pivots, and future hierarchy data.
 
-`SECTION_ARTICULATED_ANIMATION` stores named clips, priorities/default playback data, tracks, channel masks, key times, transform values, and the per-segment easing mode. Linear is the default; Smoothstep, Cubic Bezier with two editable control points, and the other basic ease modes are evaluated by the runtime sampler.
+`SECTION_ARTICULATED_ANIMATION` stores named clips, priorities/default playback data, Absolute or
+Additive composition mode, tracks, channel masks, key times, transform values, and the per-segment
+easing mode. Linear is the default; Smoothstep, Cubic Bezier with two editable control points, and
+the other basic ease modes are evaluated by the runtime sampler. Playback weight remains
+instance-local and is not serialized.
 
 Both sections are omitted when there is no corresponding data. Existing `.msh` files without either section remain valid and follow the current static/frame-animation path.
 
@@ -139,9 +143,13 @@ The editor will provide:
     independently by priority. Each channel composes candidates from the base transform through
     increasing priority/start order, keeping overlapping crossfades continuous. A zero duration
     preserves immediate playback.
+12. Add persisted Absolute/Additive composition modes. Absolute clips establish the per-channel
+    base pose; active additive clips then contribute weighted position offsets, local quaternion
+    rotation deltas, and scale multipliers. Runtime weight is per play invocation, while blend
+    duration fades additive influence from zero to that weight. Authored Euler deltas are weighted
+    before quaternion conversion so full-turn intent remains available.
 
 ## Deferred items
 
 - GPU-side per-subset transform storage in shaders.
-- Additive clip composition beyond the implemented priority-based crossfade.
 - Runtime keyframe authoring from game code.

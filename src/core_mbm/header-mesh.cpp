@@ -698,6 +698,7 @@ namespace util
         speed = 1.0f;
         defaultPriority = 0;
         loop = 1;
+        blendMode = util::ARTICULATED_BLEND_ABSOLUTE;
     }
 
     ARTICULATED_TRACK_V11::ARTICULATED_TRACK_V11() noexcept

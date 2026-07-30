@@ -134,7 +134,8 @@ The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the 
 
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade
-duration/progress, and tie-break sequence remain private in `mesh-manager-impl.h`.
+duration/progress, per-play additive weight, and tie-break sequence remain private in
+`mesh-manager-impl.h`.
 `MESH_MBM::Impl` retains only cache-safe asset data (parts, authored clips, geometry, and scratch
 rendering storage); each `ANIMATION_MANAGER` instance owns a separate player, used by `MESH` and
 `SPRITE`, so cached assets never leak playback state between renderizable instances.

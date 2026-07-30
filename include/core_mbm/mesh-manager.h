@@ -247,9 +247,11 @@ namespace mbm
         API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
         API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
         API_IMPL bool getArticulatedAnimation(const uint32_t index, const char **name, float *duration,
-                                              float *speed, int *priority, bool *loop) const noexcept;
+                                              float *speed, int *priority, bool *loop,
+                                              uint8_t *blendMode) const noexcept;
         API_IMPL bool updateArticulatedAnimation(const uint32_t index, const char *name, const float duration,
                                                  const float speed, const int priority, const bool loop,
+                                                 const uint8_t blendMode,
                                                  char *errorOut, const int errorOutLen);
         API_IMPL uint32_t getTotalArticulatedTracks(const uint32_t animationIndex) const noexcept;
         API_IMPL bool getArticulatedTrack(const uint32_t animationIndex, const uint32_t trackIndex,
@@ -263,7 +265,8 @@ namespace mbm
                                         float *bezierX1, float *bezierY1,
                                         float *bezierX2, float *bezierY2) const noexcept;
         API_IMPL int addArticulatedAnimation(const char *name, const float duration, const float speed,
-                                             const int priority, const bool loop, char *errorOut, const int errorOutLen);
+                                             const int priority, const bool loop, const uint8_t blendMode,
+                                             char *errorOut, const int errorOutLen);
         API_IMPL bool removeArticulatedAnimation(const uint32_t animationIndex, char *errorOut, const int errorOutLen);
         API_IMPL int addArticulatedTrack(const uint32_t animationIndex, const uint64_t partId,
                                          const uint8_t channelMask, char *errorOut, const int errorOutLen);
@@ -346,7 +349,8 @@ namespace mbm
         API_IMPL bool hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept;
         API_IMPL bool playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
                                                const char *name, const int priority,
-                                               const float blendDuration = 0.0f) const;
+                                               const float blendDuration = 0.0f,
+                                               const float weight = 1.0f) const;
         API_IMPL bool pauseArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
                                                 const char *name) const noexcept;
         API_IMPL bool resumeArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,

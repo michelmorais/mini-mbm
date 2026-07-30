@@ -1925,7 +1925,9 @@ namespace mbm
         float duration = 0.0f, speed = 1.0f;
         int priority = 0;
         bool loop = false;
-        if (!meshDebug->mesh.getArticulatedAnimation(index, &name, &duration, &speed, &priority, &loop))
+        uint8_t blendMode = util::ARTICULATED_BLEND_ABSOLUTE;
+        if (!meshDebug->mesh.getArticulatedAnimation(
+                index, &name, &duration, &speed, &priority, &loop, &blendMode))
         {
             lua_pushnil(lua);
             return 1;
@@ -1935,7 +1937,8 @@ namespace mbm
         lua_pushnumber(lua, speed);
         lua_pushinteger(lua, priority);
         lua_pushboolean(lua, loop ? 1 : 0);
-        return 5;
+        lua_pushinteger(lua, static_cast<lua_Integer>(blendMode));
+        return 6;
     }
 
     int onGetTotalArticulatedTracksDebugLua(lua_State *lua)
@@ -1955,8 +1958,11 @@ namespace mbm
         const float speed = static_cast<float>(luaL_optnumber(lua, 5, 1.0));
         const int priority = static_cast<int>(luaL_optinteger(lua, 6, 0));
         const bool loop = lua_isnoneornil(lua, 7) ? true : lua_toboolean(lua, 7) != 0;
+        const uint8_t blendMode = static_cast<uint8_t>(
+            luaL_optinteger(lua, 8, util::ARTICULATED_BLEND_ABSOLUTE));
         char errorOut[255] = "";
-        if (!meshDebug->mesh.updateArticulatedAnimation(index, name, duration, speed, priority, loop,
+        if (!meshDebug->mesh.updateArticulatedAnimation(
+                index, name, duration, speed, priority, loop, blendMode,
                                                         errorOut, sizeof(errorOut)))
             return lua_error_debug(lua, errorOut);
         lua_pushboolean(lua, 1);
@@ -2017,9 +2023,11 @@ namespace mbm
         const float speed = static_cast<float>(luaL_optnumber(lua, 4, 1.0));
         const int priority = static_cast<int>(luaL_optinteger(lua, 5, 0));
         const bool loop = lua_isnoneornil(lua, 6) ? true : lua_toboolean(lua, 6) != 0;
+        const uint8_t blendMode = static_cast<uint8_t>(
+            luaL_optinteger(lua, 7, util::ARTICULATED_BLEND_ABSOLUTE));
         char errorOut[255] = "";
-        const int ret = meshDebug->mesh.addArticulatedAnimation(name, duration, speed, priority, loop,
-                                                                 errorOut, sizeof(errorOut));
+        const int ret = meshDebug->mesh.addArticulatedAnimation(
+            name, duration, speed, priority, loop, blendMode, errorOut, sizeof(errorOut));
         if (ret == 0) return lua_error_debug(lua, errorOut);
         lua_pushinteger(lua, ret);
         return 1;

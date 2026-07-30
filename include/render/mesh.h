@@ -50,7 +50,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL void loadAsync(const char *fileName, std::function<void(bool success)> callback);
     API_IMPL const char *getFileName() const;
     API_IMPL bool playArticulatedAnimation(const char *name, const int priority = 0,
-                                           const float blendDuration = 0.0f);
+                                           const float blendDuration = 0.0f,
+                                           const float weight = 1.0f);
     API_IMPL bool pauseArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool resumeArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;

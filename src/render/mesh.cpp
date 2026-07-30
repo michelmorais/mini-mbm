@@ -124,10 +124,11 @@ namespace mbm
         return nullptr;
     }
 
-    bool MESH::playArticulatedAnimation(const char *name, const int priority, const float blendDuration)
+    bool MESH::playArticulatedAnimation(const char *name, const int priority,
+                                        const float blendDuration, const float weight)
     {
         return this->mesh ? this->mesh->playArticulatedAnimation(
-            this->getArticulatedAnimationPlayer(), name, priority, blendDuration) : false;
+            this->getArticulatedAnimationPlayer(), name, priority, blendDuration, weight) : false;
     }
 
     bool MESH::pauseArticulatedAnimation(const char *name) noexcept

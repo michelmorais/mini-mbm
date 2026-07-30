@@ -764,6 +764,12 @@ namespace util
         API_IMPL ARTICULATED_ANIMATION_HEADER_V11() noexcept;
     };
 
+    enum ARTICULATED_BLEND_MODE_V11 : uint8_t
+    {
+        ARTICULATED_BLEND_ABSOLUTE = 0,
+        ARTICULATED_BLEND_ADDITIVE = 1
+    };
+
     struct ARTICULATED_CLIP_V11
     {
         std::string name;
@@ -771,6 +777,7 @@ namespace util
         float       speed;
         int32_t     defaultPriority;
         uint8_t     loop;
+        uint8_t     blendMode;
         API_IMPL ARTICULATED_CLIP_V11() noexcept;
     };
 

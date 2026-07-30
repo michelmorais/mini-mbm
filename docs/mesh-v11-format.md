@@ -430,10 +430,12 @@ struct ARTICULATED_PART_V11
 ```
 
 `SECTION_ARTICULATED_ANIMATION` is one bundled section with a `uint32_t clipCount`. The current
-writer uses `sectionVersion` `4`; readers accept versions `2`, `3`, and `4`. Version 2 is interpreted
-with linear easing for every key, and versions before 4 receive linear Bezier control points. Other
-versions are rejected. Each clip contains a length-prefixed name,
-`float duration`, `float speed`, `int32_t defaultPriority`, a `uint8_t loop`, and a
+writer uses `sectionVersion` `5`; readers accept versions `2`, `3`, `4`, and `5`. Version 2 is
+interpreted with linear easing for every key, versions before 4 receive linear Bezier control
+points, and versions before 5 receive `ARTICULATED_BLEND_ABSOLUTE`. Other versions are rejected.
+Each clip contains a length-prefixed name,
+`float duration`, `float speed`, `int32_t defaultPriority`, a `uint8_t loop`, a
+`uint8_t blendMode`, and a
 `uint32_t trackCount`. Each track contains `uint64_t partId`, a `uint8_t` channel mask,
 `uint32_t keyCount`, and key records. Keys store a `float time`, position (`x/y/z`), quaternion
 rotation (`x/y/z/w`), authored Euler rotation in degrees (`x/y/z`), a `uint8_t hasRotationEuler`
@@ -445,6 +447,12 @@ the segment from that key to the next one: `0` Linear, `1` Ease In, `2` Ease Out
 uses normalized time on X and normalized interpolation progress on Y. X control values must remain
 within `0..1`; Y may leave that range to produce overshoot. Versions 2 and 3 default to
 `P1=(0.25,0.25)` and `P2=(0.75,0.75)`, which describe a Linear curve.
+
+Clip blend modes are `0` (`ARTICULATED_BLEND_ABSOLUTE`) and `1`
+(`ARTICULATED_BLEND_ADDITIVE`). Absolute clips establish the base pose through per-channel
+priority/start-order resolution. Additive clips are then composed over that pose: position is an
+offset from zero, rotation is a quaternion delta from identity, and scale is a multiplier from one.
+Runtime playback weight and fade progress are instance state and are not stored in this section.
 
 ## 6g. `SECTION_VERTEX_SKIN_WEIGHTS` payload
 

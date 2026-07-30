@@ -6737,7 +6737,9 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
     tImGui.Text(string.format('%s: %d', tLang.L('articulated_clips_label'), totalClips))
     if tImGui.Button(tLang.L('articulated_add_clip') .. '##artClipAdd-' .. index) then
         local clipName = 'Articulated ' .. (totalClips + 1)
-        local ok = dpCall(function() return meshD:addArticulatedAnimation(clipName, 1.0, 1.0, 0, true) end)
+        local ok = dpCall(function()
+            return meshD:addArticulatedAnimation(clipName, 1.0, 1.0, 0, true, 0)
+        end)
         if ok then markArticulatedEdit() end
     end
     articulatedTooltip('articulated_add_clip_tooltip')
@@ -6787,7 +6789,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         end
 
         local activeClip = tEntry.iArticulatedClip
-        local okInfo, infoName, infoDuration, infoSpeed, infoPriority, infoLoop = dpCall(function()
+        local okInfo, infoName, infoDuration, infoSpeed, infoPriority, infoLoop, infoBlendMode = dpCall(function()
             return meshD:getArticulatedAnimation(activeClip)
         end)
         if okInfo and infoName then
@@ -6821,11 +6823,25 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             local newLoop = tImGui.Checkbox('Loop', infoLoop == true)
             articulatedTooltip('articulated_loop_tooltip')
             local loopChanged = newLoop ~= (infoLoop == true)
-            if nameChanged or nameDeactivatedAfterEdit or durationChanged or speedChanged or priorityChanged or loopChanged then
+            local blendModeOptions = {
+                tLang.L('articulated_blend_absolute'),
+                tLang.L('articulated_blend_additive')
+            }
+            tImGui.PushItemWidth(115)
+            local blendModeChanged, blendModeIndex = tImGui.Combo(
+                tLang.L('articulated_blend_mode') .. '##artBlendMode-' .. index,
+                math.max(1, math.min((infoBlendMode or 0) + 1, #blendModeOptions)),
+                blendModeOptions, -1)
+            tImGui.PopItemWidth()
+            articulatedTooltip('articulated_blend_mode_tooltip')
+            local newBlendMode = blendModeChanged and blendModeIndex and (blendModeIndex - 1)
+                or (infoBlendMode or 0)
+            if nameChanged or nameDeactivatedAfterEdit or durationChanged or speedChanged or
+                priorityChanged or loopChanged or blendModeChanged then
                 local okUpdate = dpCall(function()
                     return meshD:updateArticulatedAnimation(activeClip, nameEdit.value or infoName,
                         math.max(0, newDuration or infoDuration or 0), newSpeed or infoSpeed or 1,
-                        newPriority or infoPriority or 0, newLoop == true)
+                        newPriority or infoPriority or 0, newLoop == true, newBlendMode)
                 end)
                 if okUpdate then
                     nameEdit.engineName = nameEdit.value
@@ -6845,6 +6861,19 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                     tEntry.fArticulatedBlendDuration = math.max(0, blendDuration)
                 end
                 articulatedTooltip('articulated_blend_time_tooltip')
+                tEntry.fArticulatedPreviewWeight = math.max(0,
+                    math.min(1, tEntry.fArticulatedPreviewWeight or 1))
+                if newBlendMode == 1 then
+                    tImGui.PushItemWidth(115)
+                    local weightChanged, previewWeight = tImGui.DragFloat(
+                        tLang.L('articulated_preview_weight') .. '##artWeight-' .. index,
+                        tEntry.fArticulatedPreviewWeight, 0.01, 0, 1, '%.3f', 0)
+                    tImGui.PopItemWidth()
+                    if weightChanged and previewWeight ~= nil then
+                        tEntry.fArticulatedPreviewWeight = math.max(0, math.min(1, previewWeight))
+                    end
+                    articulatedTooltip('articulated_preview_weight_tooltip')
+                end
                 local okCurrentTime, currentTime = dpCall(function()
                     return tPreviewMesh:getArticulatedAnimationTime(infoName)
                 end)
@@ -6869,7 +6898,8 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 if tImGui.Button('Play##artPlay-' .. index) then
                     dpCall(function()
                         return tPreviewMesh:playArticulatedAnimation(
-                            infoName, infoPriority or 0, tEntry.fArticulatedBlendDuration or 0)
+                            infoName, infoPriority or 0, tEntry.fArticulatedBlendDuration or 0,
+                            newBlendMode == 1 and (tEntry.fArticulatedPreviewWeight or 1) or 1)
                     end)
                 end
                 articulatedTooltip('articulated_playback_tooltip')

@@ -97,7 +97,8 @@ namespace util
     bool readArticulatedPartsHeaderV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_PARTS_HEADER_V11 &out);
     bool readArticulatedPartV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_PART_V11 &out);
     bool readArticulatedAnimationHeaderV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_ANIMATION_HEADER_V11 &out);
-    bool readArticulatedClipV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_CLIP_V11 &out);
+    bool readArticulatedClipV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_CLIP_V11 &out,
+                                const uint16_t sectionVersion);
     bool readArticulatedTrackV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_TRACK_V11 &out);
     bool readArticulatedKeyV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_KEY_V11 &out,
                                const uint16_t sectionVersion);
