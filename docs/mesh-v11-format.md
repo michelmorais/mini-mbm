@@ -422,7 +422,7 @@ struct ARTICULATED_PART_V11
     uint64_t partId;
     uint32_t frameIndex;
     uint32_t subsetIndex;
-    uint64_t parentPartId; // 0 means no parent; composition is reserved for a later milestone
+    uint64_t parentPartId; // 0 means no parent; nonzero parent must belong to the same frame
     // name: length-prefixed string (§5)
     float pivotX, pivotY, pivotZ;
     float pivotQX, pivotQY, pivotQZ, pivotQW;

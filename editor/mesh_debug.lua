@@ -6571,6 +6571,11 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
 
     local okParts, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
     totalParts = (okParts and totalParts) or 0
+    local articulatedPartIds = {}
+    for partIndex = 1, totalParts do
+        local okPart, partId = dpCall(function() return meshD:getArticulatedPart(partIndex) end)
+        if okPart and partId then articulatedPartIds[partIndex] = partId end
+    end
     if totalParts > 0 then
         if not tEntry.bArticulatedRemovePartsConfirm then
             if tImGui.Button(tLang.L('articulated_remove_parts') .. '##artRemoveParts-' .. index) then
@@ -6632,7 +6637,8 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             end)
             if ok and partId then
                 tImGui.PushID('artPart-' .. index .. '-' .. partIndex)
-                tImGui.Text(string.format('F%d S%d  ID %s', frame or 0, subset or 0, tostring(partId)))
+                tImGui.Text(string.format('Part #%d   F%d S%d   ID %s', partIndex,
+                    frame or 0, subset or 0, tostring(partId)))
                 tImGui.PushItemWidth(220)
                 local changedName, newName = tImGui.InputText(tLang.L('name'), name or '', 96, 0)
                 tImGui.PopItemWidth()
@@ -6654,11 +6660,31 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                     pivotOrbit.roll = (rot[3] or 0) * math.pi / 180
                     qx, qy, qz, qw = articulatedQuaternionFromOrbit(pivotOrbit)
                 end
-                if changedName or posChanged or rotChanged then
+                local parentIndex = 0
+                if parent and parent ~= 0 then
+                    for candidateIndex = 1, totalParts do
+                        if articulatedPartIds[candidateIndex] == parent then
+                            parentIndex = candidateIndex
+                            break
+                        end
+                    end
+                end
+                tImGui.PushItemWidth(70)
+                local parentChanged, newParentIndex = tImGui.InputInt(
+                    tLang.L('articulated_parent_part') .. '##artParent-' .. index .. '-' .. partIndex,
+                    parentIndex, 1, 1, 0)
+                tImGui.PopItemWidth()
+                if parentChanged then
+                    parentIndex = math.max(0, math.min(newParentIndex or 0, totalParts))
+                    if parentIndex == partIndex then parentIndex = 0 end
+                end
+                articulatedTooltip('articulated_parent_part_tooltip')
+                local parentPartId = articulatedPartIds[parentIndex] or 0
+                if changedName or posChanged or rotChanged or parentChanged then
                     local p = pos or {px or 0, py or 0, pz or 0}
                     dpCall(function()
                         return meshD:updateArticulatedPart(partIndex, newName or name or '',
-                            p[1], p[2], p[3], qx or 0, qy or 0, qz or 0, qw or 1, parent or 0)
+                            p[1], p[2], p[3], qx or 0, qy or 0, qz or 0, qw or 1, parentPartId)
                     end)
                     markArticulatedEdit()
                 end
@@ -6817,6 +6843,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         end
 
         tImGui.Separator()
+        tImGui.NewLine()
         tImGui.Text(tLang.L('articulated_tracks'))
         tEntry.bArticulatedPosition = tEntry.bArticulatedPosition ~= false
         tEntry.bArticulatedRotation = tEntry.bArticulatedRotation ~= false
@@ -6830,6 +6857,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         local channelScale = tImGui.Checkbox('Scale##artChannel-' .. index, tEntry.bArticulatedScale)
         tEntry.bArticulatedScale = channelScale
         articulatedTooltip('articulated_channel_tooltip')
+        tImGui.Separator()
         local selectedMask = (channelPosition and 1 or 0) + (channelRotation and 2 or 0) + (channelScale and 4 or 0)
         if totalParts > 0 then
             for partIndex = 1, totalParts do
@@ -6851,6 +6879,8 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 end
             end
         end
+
+        tImGui.Separator()
 
         local okTracks, totalTracks = dpCall(function()
             return meshD:getTotalArticulatedTracks(activeClip)

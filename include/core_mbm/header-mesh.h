@@ -751,7 +751,7 @@ namespace util
         uint64_t    partId;
         uint32_t    frameIndex;
         uint32_t    subsetIndex;
-        uint64_t    parentPartId; // 0 means no parent; hierarchy composition is reserved for now
+        uint64_t    parentPartId; // 0 means no parent; parent must belong to the same frame
         std::string name;
         float       pivotX, pivotY, pivotZ;
         float       pivotQX, pivotQY, pivotQZ, pivotQW;

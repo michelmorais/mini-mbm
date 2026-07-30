@@ -347,6 +347,8 @@ namespace mbm
         
       private:
         MESH_MBM();
+        bool buildArticulatedTransformMatrix(const uint32_t frameIndex, const uint32_t subsetIndex,
+                                             MATRIX *out) const noexcept;
         bool load(const char *fileNamePath);
         bool load(const char *fileNamePath, RENDERIZABLE *renderizable);
         // Reads the v11 section/TLV format. This is the only mesh format - it backs

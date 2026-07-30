@@ -4355,6 +4355,29 @@ namespace mbm
                 return 0;
             }
         }
+        if (parentPartId != 0)
+        {
+            bool parentExists = false;
+            for (const auto &part : impl->articulatedParts)
+            {
+                if (part.frameIndex == frameIndex && part.partId == parentPartId)
+                {
+                    parentExists = true;
+                    break;
+                }
+            }
+            if (!parentExists)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "parent part [%llu] does not exist in frame [%u]",
+                                       static_cast<unsigned long long>(parentPartId), frameIndex + 1);
+                return 0;
+            }
+            if (parentPartId == partId)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "a part cannot be its own parent");
+                return 0;
+            }
+        }
         util::ARTICULATED_PART_V11 part;
         part.partId = partId;
         part.frameIndex = frameIndex;
@@ -4378,6 +4401,36 @@ namespace mbm
             return false;
         }
         auto &part = impl->articulatedParts[index];
+        if (parentPartId != 0)
+        {
+            uint64_t candidateId = parentPartId;
+            for (size_t depth = 0; depth <= impl->articulatedParts.size(); ++depth)
+            {
+                if (candidateId == part.partId)
+                {
+                    if (errorOut) snprintf(errorOut, errorOutLen, "parent relationship would create a cycle");
+                    return false;
+                }
+                const util::ARTICULATED_PART_V11 *candidate = nullptr;
+                for (const auto &other : impl->articulatedParts)
+                {
+                    if (other.frameIndex == part.frameIndex && other.partId == candidateId)
+                    {
+                        candidate = &other;
+                        break;
+                    }
+                }
+                if (!candidate)
+                {
+                    if (errorOut) snprintf(errorOut, errorOutLen, "parent part [%llu] does not exist in frame [%u]",
+                                           static_cast<unsigned long long>(candidateId), part.frameIndex + 1);
+                    return false;
+                }
+                candidateId = candidate->parentPartId;
+                if (candidateId == 0)
+                    break;
+            }
+        }
         part.name = name ? name : "";
         part.pivotX = pivotX; part.pivotY = pivotY; part.pivotZ = pivotZ;
         part.pivotQX = pivotQX; part.pivotQY = pivotQY; part.pivotQZ = pivotQZ; part.pivotQW = pivotQW;
@@ -5413,6 +5466,121 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM::buildArticulatedTransformMatrix(const uint32_t frameIndex, const uint32_t subsetIndex,
+                                                   MATRIX *out) const noexcept
+    {
+        if (!out)
+            return false;
+        MatrixIdentity(out);
+        const util::ARTICULATED_PART_V11 *part = nullptr;
+        for (const auto &candidate : impl->articulatedParts)
+        {
+            if (candidate.frameIndex == frameIndex && candidate.subsetIndex == subsetIndex)
+            {
+                part = &candidate;
+                break;
+            }
+        }
+        if (!part)
+            return false;
+
+        const auto normalizeQuaternion = [](float q[4])
+        {
+            const float length = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+            if (length > 0.000001f)
+            {
+                q[0] /= length; q[1] /= length; q[2] /= length; q[3] /= length;
+            }
+            else
+            {
+                q[0] = q[1] = q[2] = 0.0f; q[3] = 1.0f;
+            }
+        };
+        const auto multiplyQuaternion = [](const float a[4], const float b[4], float outQuaternion[4])
+        {
+            outQuaternion[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
+            outQuaternion[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
+            outQuaternion[2] = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3];
+            outQuaternion[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
+        };
+        const auto quaternionMatrix = [](MATRIX *matrix, const float q[4])
+        {
+            const float xx = q[0] * q[0], yy = q[1] * q[1], zz = q[2] * q[2];
+            const float xy = q[0] * q[1], xz = q[0] * q[2], yz = q[1] * q[2];
+            const float xw = q[0] * q[3], yw = q[1] * q[3], zw = q[2] * q[3];
+            MatrixIdentity(matrix);
+            matrix->_11 = 1.0f - 2.0f * (yy + zz);
+            matrix->_12 = 2.0f * (xy + zw);
+            matrix->_13 = 2.0f * (xz - yw);
+            matrix->_21 = 2.0f * (xy - zw);
+            matrix->_22 = 1.0f - 2.0f * (xx + zz);
+            matrix->_23 = 2.0f * (yz + xw);
+            matrix->_31 = 2.0f * (xz + yw);
+            matrix->_32 = 2.0f * (yz - xw);
+            matrix->_33 = 1.0f - 2.0f * (xx + yy);
+        };
+        const auto buildLocal = [&](const util::ARTICULATED_PART_V11 *localPart, MATRIX *matrix)
+        {
+            VEC3 translation(0.0f, 0.0f, 0.0f), scale(1.0f, 1.0f, 1.0f), pivot;
+            float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            float pivotRotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            getArticulatedTransform(localPart->frameIndex, localPart->subsetIndex,
+                                    &translation, rotation, &scale, &pivot, pivotRotation);
+            normalizeQuaternion(rotation);
+            normalizeQuaternion(pivotRotation);
+            const float inversePivot[4] = {-pivotRotation[0], -pivotRotation[1], -pivotRotation[2], pivotRotation[3]};
+            float orientedRotation[4], combinedRotation[4];
+            multiplyQuaternion(pivotRotation, rotation, orientedRotation);
+            multiplyQuaternion(orientedRotation, inversePivot, combinedRotation);
+            normalizeQuaternion(combinedRotation);
+            MATRIX step;
+            MatrixTranslation(matrix, -pivot.x, -pivot.y, -pivot.z);
+            MatrixScaling(&step, scale.x, scale.y, scale.z);
+            MatrixMultiply(matrix, matrix, &step);
+            quaternionMatrix(&step, combinedRotation);
+            MatrixMultiply(matrix, matrix, &step);
+            MatrixTranslation(&step, pivot.x + translation.x, pivot.y + translation.y, pivot.z + translation.z);
+            MatrixMultiply(matrix, matrix, &step);
+        };
+        std::unordered_set<uint64_t> recursion;
+        const auto buildRecursive = [&](auto &&self, const util::ARTICULATED_PART_V11 *current,
+                                        MATRIX *matrix) -> bool
+        {
+            if (!current || !recursion.insert(current->partId).second)
+                return false;
+            MATRIX local;
+            buildLocal(current, &local);
+            if (current->parentPartId != 0)
+            {
+                const util::ARTICULATED_PART_V11 *parent = nullptr;
+                for (const auto &candidate : impl->articulatedParts)
+                {
+                    if (candidate.frameIndex == current->frameIndex &&
+                        candidate.partId == current->parentPartId)
+                    {
+                        parent = &candidate;
+                        break;
+                    }
+                }
+                if (parent)
+                {
+                    MATRIX parentMatrix;
+                    if (self(self, parent, &parentMatrix))
+                        MatrixMultiply(matrix, &parentMatrix, &local);
+                    else
+                        *matrix = local;
+                }
+                else
+                    *matrix = local;
+            }
+            else
+                *matrix = local;
+            recursion.erase(current->partId);
+            return true;
+        };
+        return buildRecursive(buildRecursive, part, out);
+    }
+
     bool MESH_MBM::renderArticulatedDynamic(const uint32_t indexFrame, SHADER *pShader,
                                             const RENDERIZABLE *renderizableOwner)
     {
@@ -5434,63 +5602,36 @@ namespace mbm
         else
             impl->articulatedScratchNormal.clear();
 
-        const auto normalizeQuaternion = [](float q[4])
+        const auto transformPoint = [](const MATRIX &matrix, const VEC3 &v) -> VEC3
         {
-            const float length = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
-            if (length > 0.000001f)
-            {
-                q[0] /= length; q[1] /= length; q[2] /= length; q[3] /= length;
-            }
-            else
-                q[0] = q[1] = q[2] = 0.0f, q[3] = 1.0f;
+            return VEC3(v.x * matrix._11 + v.y * matrix._21 + v.z * matrix._31 + matrix._41,
+                        v.x * matrix._12 + v.y * matrix._22 + v.z * matrix._32 + matrix._42,
+                        v.x * matrix._13 + v.y * matrix._23 + v.z * matrix._33 + matrix._43);
         };
-        const auto multiplyQuaternion = [](const float a[4], const float b[4], float out[4])
+        const auto transformNormal = [](const MATRIX &matrix, const VEC3 &v) -> VEC3
         {
-            out[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
-            out[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
-            out[2] = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3];
-            out[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
-        };
-        const auto rotateVector = [](const float q[4], const VEC3 &v) -> VEC3
-        {
-            const VEC3 qv(q[0], q[1], q[2]);
-            const auto cross = [](const VEC3 &a, const VEC3 &b) -> VEC3
-            {
-                return VEC3(a.y * b.z - a.z * b.y,
-                            a.z * b.x - a.x * b.z,
-                            a.x * b.y - a.y * b.x);
-            };
-            const VEC3 t = cross(qv, v) * 2.0f;
-            return v + t * q[3] + cross(qv, t);
+            return VEC3(v.x * matrix._11 + v.y * matrix._21 + v.z * matrix._31,
+                        v.x * matrix._12 + v.y * matrix._22 + v.z * matrix._32,
+                        v.x * matrix._13 + v.y * matrix._23 + v.z * matrix._33);
         };
 
         const BUFFER_MESH &frameBuffer = impl->buffer[indexFrame];
         for (uint32_t subsetIndex = 0; subsetIndex < frameBuffer.totalSubset; ++subsetIndex)
         {
-            VEC3 translation, scale, pivot;
-            float rotation[4], pivotRotation[4];
-            if (!getArticulatedTransform(indexFrame, subsetIndex, &translation, rotation, &scale, &pivot, pivotRotation))
+            MATRIX partTransform;
+            if (!buildArticulatedTransformMatrix(indexFrame, subsetIndex, &partTransform))
                 continue;
-            normalizeQuaternion(rotation);
-            normalizeQuaternion(pivotRotation);
-            const float inversePivot[4] = {-pivotRotation[0], -pivotRotation[1], -pivotRotation[2], pivotRotation[3]};
-            float orientedRotation[4], combinedRotation[4];
-            multiplyQuaternion(pivotRotation, rotation, orientedRotation);
-            multiplyQuaternion(orientedRotation, inversePivot, combinedRotation);
-            normalizeQuaternion(combinedRotation);
 
             const util::SUBSET &subset = frameBuffer.subset[subsetIndex];
             const int first = subset.vertexStart;
             const int last = first + subset.vertexCount;
             for (int vertex = first; vertex < last; ++vertex)
             {
-                VEC3 local = impl->articulatedScratchPosition[static_cast<size_t>(vertex)] - pivot;
-                local.x *= scale.x; local.y *= scale.y; local.z *= scale.z;
                 impl->articulatedScratchPosition[static_cast<size_t>(vertex)] =
-                    rotateVector(combinedRotation, local) + pivot + translation;
+                    transformPoint(partTransform, impl->articulatedScratchPosition[static_cast<size_t>(vertex)]);
                 if (!impl->articulatedScratchNormal.empty())
                     impl->articulatedScratchNormal[static_cast<size_t>(vertex)] =
-                        rotateVector(combinedRotation, impl->articulatedScratchNormal[static_cast<size_t>(vertex)]);
+                        transformNormal(partTransform, impl->articulatedScratchNormal[static_cast<size_t>(vertex)]);
             }
         }
         VEC3 *normal = impl->articulatedScratchNormal.empty() ? nullptr : impl->articulatedScratchNormal.data();
@@ -5512,75 +5653,14 @@ namespace mbm
             return false;
 
         const MATRIX baseModelView = SHADER::modelView;
-        const auto normalizeQuaternion = [](float q[4])
-        {
-            const float length = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
-            if (length > 0.000001f)
-            {
-                q[0] /= length; q[1] /= length; q[2] /= length; q[3] /= length;
-            }
-            else
-            {
-                q[0] = q[1] = q[2] = 0.0f;
-                q[3] = 1.0f;
-            }
-        };
-        const auto multiplyQuaternion = [](const float a[4], const float b[4], float out[4])
-        {
-            out[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
-            out[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
-            out[2] = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3];
-            out[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
-        };
-        const auto quaternionMatrix = [](MATRIX *out, const float q[4])
-        {
-            const float xx = q[0] * q[0];
-            const float yy = q[1] * q[1];
-            const float zz = q[2] * q[2];
-            const float xy = q[0] * q[1];
-            const float xz = q[0] * q[2];
-            const float yz = q[1] * q[2];
-            const float xw = q[0] * q[3];
-            const float yw = q[1] * q[3];
-            const float zw = q[2] * q[3];
-            MatrixIdentity(out);
-            out->_11 = 1.0f - 2.0f * (yy + zz);
-            out->_12 = 2.0f * (xy + zw);
-            out->_13 = 2.0f * (xz - yw);
-            out->_21 = 2.0f * (xy - zw);
-            out->_22 = 1.0f - 2.0f * (xx + zz);
-            out->_23 = 2.0f * (yz + xw);
-            out->_31 = 2.0f * (xz + yw);
-            out->_32 = 2.0f * (yz - xw);
-            out->_33 = 1.0f - 2.0f * (xx + yy);
-        };
 
         DEVICE *device = DEVICE::getInstance();
         device->setRenderMaterial(this->impl->material);
         bool rendered = true;
         for (uint32_t subsetIndex = 0; subsetIndex < frameBuffer.totalSubset; ++subsetIndex)
         {
-            VEC3 translation(0.0f, 0.0f, 0.0f), scale(1.0f, 1.0f, 1.0f), pivot(0.0f, 0.0f, 0.0f);
-            float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-            float pivotRotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-            getArticulatedTransform(indexFrame, subsetIndex, &translation, rotation, &scale, &pivot, pivotRotation);
-            normalizeQuaternion(rotation);
-            normalizeQuaternion(pivotRotation);
-
-            const float inversePivot[4] = {-pivotRotation[0], -pivotRotation[1], -pivotRotation[2], pivotRotation[3]};
-            float orientedRotation[4], combinedRotation[4];
-            multiplyQuaternion(pivotRotation, rotation, orientedRotation);
-            multiplyQuaternion(orientedRotation, inversePivot, combinedRotation);
-            normalizeQuaternion(combinedRotation);
-
-            MATRIX partTransform, step;
-            MatrixTranslation(&partTransform, -pivot.x, -pivot.y, -pivot.z);
-            MatrixScaling(&step, scale.x, scale.y, scale.z);
-            MatrixMultiply(&partTransform, &partTransform, &step);
-            quaternionMatrix(&step, combinedRotation);
-            MatrixMultiply(&partTransform, &partTransform, &step);
-            MatrixTranslation(&step, pivot.x + translation.x, pivot.y + translation.y, pivot.z + translation.z);
-            MatrixMultiply(&partTransform, &partTransform, &step);
+            MATRIX partTransform;
+            buildArticulatedTransformMatrix(indexFrame, subsetIndex, &partTransform);
 
             MatrixMultiply(&SHADER::modelView, &partTransform, &baseModelView);
             SHADER::updateMvpAndLightMatrices(viewMatrix, perspectiveMatrix);

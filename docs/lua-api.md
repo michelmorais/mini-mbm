@@ -1218,6 +1218,8 @@ kept at least as large as the greatest key time; a requested shorter duration is
 `removeArticulatedParts()` removes all parts/pivots and tracks referencing those parts; clips remain.
 Mesh Debug displays key rotation as authored Euler degrees; the runtime converts those values to
 the quaternion used for rendering.
+`parentPartId` establishes a same-frame parent relationship. A child inherits the parent's complete
+transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
 
 The loaded `mesh` object exposes playback controls for `.msh` assets. Multiple clips may be active;
 higher priority wins for a part, and a newer clip wins when priorities are equal. `pause` preserves

@@ -28,7 +28,9 @@ Each articulated part will have:
 
 `partId` is the runtime and file-format identity. Names are labels only. If a name is duplicated in the active frame, debug mode reports the conflict and the first match is used for name lookup.
 
-The first runtime version treats all parts as independent; parent-child composition is reserved for a later milestone.
+Parent-child composition is supported at runtime. A child inherits the complete transform of its
+parent, while retaining its own local transform and mesh-space pivot. Parent links must stay within
+the same frame and cycles are rejected.
 
 ## Clips and tracks
 
@@ -131,7 +133,6 @@ The editor will provide:
 
 ## Deferred items
 
-- Parent-child transform composition in runtime/editor.
 - Curves and easing.
 - GPU-side per-subset transform storage in shaders.
 - Sprite (`.spt`) support.
