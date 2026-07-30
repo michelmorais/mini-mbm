@@ -5566,7 +5566,9 @@ namespace mbm
                 {
                     MATRIX parentMatrix;
                     if (self(self, parent, &parentMatrix))
-                        MatrixMultiply(matrix, &parentMatrix, &local);
+                        // This engine uses row-vector transforms (translation lives in _41/_42/_43):
+                        // apply the child's local transform first, then its parent hierarchy.
+                        MatrixMultiply(matrix, &local, &parentMatrix);
                     else
                         *matrix = local;
                 }

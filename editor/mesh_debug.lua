@@ -6924,7 +6924,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                     end)
                     if okKey and keyTime then
                         tImGui.Separator()
-                        tImGui.Text(string.format('Key Time %d', keyIndex))
+                        tImGui.Text(string.format(tLang.L('articulated_key_time_fmt'), trackIndex, keyIndex))
                         if timelineMin and timelineMax and (infoDuration or 0) > 0 then
                             local markerX = timelineMin.x + (timelineMax.x - timelineMin.x) *
                                 math.max(0, math.min(1, keyTime / infoDuration))
