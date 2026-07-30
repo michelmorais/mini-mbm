@@ -6842,28 +6842,43 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                                 break
                             end
                         end
-                        tImGui.PushItemWidth(220)
                         local keyId = index .. '-' .. trackIndex .. '-' .. keyIndex
+                        tEntry.tArticulatedKeyEuler = tEntry.tArticulatedKeyEuler or {}
+                        local keyEuler = tEntry.tArticulatedKeyEuler[keyId]
+                        local qSignature = string.format('%.7f:%.7f:%.7f:%.7f',
+                            qx or 0, qy or 0, qz or 0, qw or 1)
+                        if not keyEuler or keyEuler.qSignature ~= qSignature then
+                            local keyOrbit = articulatedOrbitFromQuaternion(qx, qy, qz, qw)
+                            keyEuler = {
+                                x = -(keyOrbit.elevation or 0) * 180 / math.pi,
+                                y = (keyOrbit.azimuth or 0) * 180 / math.pi,
+                                z = (keyOrbit.roll or 0) * 180 / math.pi,
+                                qSignature = qSignature
+                            }
+                            tEntry.tArticulatedKeyEuler[keyId] = keyEuler
+                        end
+                        tImGui.PushItemWidth(220)
                         local posChanged, pos = tImGui.DragFloat3('Position##artKeyPos-' .. keyId,
                             {px or 0, py or 0, pz or 0},
                             0.01, -math.huge, math.huge, '%.3f', 0)
                         tImGui.PopItemWidth()
                         tImGui.PushItemWidth(220)
-                        local keyOrbit = articulatedOrbitFromQuaternion(qx, qy, qz, qw)
                         local rotChanged, rot = tImGui.DragFloat3(
                             tLang.L('articulated_key_rotation') .. '##artKeyRot-' .. keyId,
-                            {-(keyOrbit.elevation or 0) * 180 / math.pi,
-                                (keyOrbit.azimuth or 0) * 180 / math.pi,
-                                (keyOrbit.roll or 0) * 180 / math.pi},
-                            0.5, -360, 360, '%.2f', 0)
+                            {keyEuler.x, keyEuler.y, keyEuler.z},
+                            0.5, -359.99, 359.99, '%.2f', 0)
                         tImGui.PopItemWidth()
                         articulatedTooltip('articulated_key_rotation_tooltip')
                         if rotChanged and rot then
+                            keyEuler.x = rot[1] or keyEuler.x
+                            keyEuler.y = rot[2] or keyEuler.y
+                            keyEuler.z = rot[3] or keyEuler.z
                             qx, qy, qz, qw = articulatedQuaternionFromOrbit({
-                                elevation = -(rot[1] or 0) * math.pi / 180,
-                                azimuth = (rot[2] or 0) * math.pi / 180,
-                                roll = (rot[3] or 0) * math.pi / 180
+                                elevation = -keyEuler.x * math.pi / 180,
+                                azimuth = keyEuler.y * math.pi / 180,
+                                roll = keyEuler.z * math.pi / 180
                             })
+                            keyEuler.qSignature = string.format('%.7f:%.7f:%.7f:%.7f', qx, qy, qz, qw)
                         end
                         tImGui.PushItemWidth(220)
                         local scaleChanged, scale = tImGui.DragFloat3('Scale##artKeyScale-' .. keyId,
