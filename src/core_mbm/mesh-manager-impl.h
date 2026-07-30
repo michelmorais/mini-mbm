@@ -47,14 +47,6 @@ namespace mbm
         uint64_t sequence = 0;
     };
 
-    struct RUNTIME_FRAME_GEOMETRY
-    {
-        uint32_t vertexCount = 0;
-        std::unique_ptr<VEC3[]> position;
-        std::unique_ptr<VEC3[]> normal;
-        std::unique_ptr<VEC2[]> uv;
-    };
-
     struct MESH_MBM::Impl
     {
         // Deprecated: no longer applied to a loaded renderizable's position/angle at load time
@@ -81,9 +73,6 @@ namespace mbm
         void *extraInfo;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
-        std::vector<RUNTIME_FRAME_GEOMETRY> articulatedBaseGeometry;
-        std::vector<VEC3> articulatedScratchPosition;
-        std::vector<VEC3> articulatedScratchNormal;
     };
 
     struct MESH_MBM_DEBUG::Impl

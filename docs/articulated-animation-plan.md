@@ -84,13 +84,12 @@ the same update each emit their own completion event.
 
 Without active articulated clips, the current static rendering path remains unchanged.
 
-The initial implementation used `MESH_MBM::renderArticulatedDynamic()` to transform a CPU-side
-working copy. `MESH_MBM::renderArticulatedStatic()` is now the active path for `.msh`: it reuses
-the loaded static vertex/index buffers and renders each subset independently, applying its final
-matrix before that subset's draw call. The `SHADER::render()` API keeps the original all-subsets
-behavior and accepts an optional subset selector, implemented by OpenGL ES, DirectX9, Metal, and
-the dummy backend. No transformed vertex buffer is duplicated or uploaded. The dynamic method is
-retained as a fallback/reference path while the static path receives runtime validation.
+The initial implementation used a dynamic CPU-side working copy, but that path and its duplicate
+per-frame geometry were removed after the static path was validated. `MESH_MBM::renderArticulatedStatic()`
+reuses the loaded static vertex/index buffers and renders each subset independently, applying its
+final matrix before that subset's draw call. The `SHADER::render()` API keeps the original
+all-subsets behavior and accepts an optional subset selector, implemented by OpenGL ES, DirectX9,
+Metal, and the dummy backend. No transformed vertex buffer is duplicated or uploaded.
 
 ## Binary format
 

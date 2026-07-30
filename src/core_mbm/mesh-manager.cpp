@@ -5209,9 +5209,6 @@ namespace mbm
         this->impl->infoAnimation.release();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
-        impl->articulatedBaseGeometry.clear();
-        impl->articulatedScratchPosition.clear();
-        impl->articulatedScratchNormal.clear();
 
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
@@ -5937,66 +5934,6 @@ namespace mbm
         return buildRecursive(buildRecursive, part, out);
     }
 
-    bool MESH_MBM::renderArticulatedDynamic(const ARTICULATED_ANIMATION_PLAYER &player,
-                                            const uint32_t indexFrame, SHADER *pShader,
-                                            const RENDERIZABLE *renderizableOwner)
-    {
-        if (!pShader || !hasActiveArticulatedAnimations(player) || !impl->buffer ||
-            indexFrame >= impl->articulatedBaseGeometry.size() || indexFrame >= impl->totalFramesMesh)
-            return false;
-        const RUNTIME_FRAME_GEOMETRY &base = impl->articulatedBaseGeometry[indexFrame];
-        if (!base.position || base.vertexCount == 0)
-            return false;
-        impl->articulatedScratchPosition.resize(base.vertexCount);
-        std::copy(base.position.get(), base.position.get() + base.vertexCount,
-                  impl->articulatedScratchPosition.begin());
-        if (base.normal)
-        {
-            impl->articulatedScratchNormal.resize(base.vertexCount);
-            std::copy(base.normal.get(), base.normal.get() + base.vertexCount,
-                      impl->articulatedScratchNormal.begin());
-        }
-        else
-            impl->articulatedScratchNormal.clear();
-
-        const auto transformPoint = [](const MATRIX &matrix, const VEC3 &v) -> VEC3
-        {
-            return VEC3(v.x * matrix._11 + v.y * matrix._21 + v.z * matrix._31 + matrix._41,
-                        v.x * matrix._12 + v.y * matrix._22 + v.z * matrix._32 + matrix._42,
-                        v.x * matrix._13 + v.y * matrix._23 + v.z * matrix._33 + matrix._43);
-        };
-        const auto transformNormal = [](const MATRIX &matrix, const VEC3 &v) -> VEC3
-        {
-            return VEC3(v.x * matrix._11 + v.y * matrix._21 + v.z * matrix._31,
-                        v.x * matrix._12 + v.y * matrix._22 + v.z * matrix._32,
-                        v.x * matrix._13 + v.y * matrix._23 + v.z * matrix._33);
-        };
-
-        const BUFFER_MESH &frameBuffer = impl->buffer[indexFrame];
-        for (uint32_t subsetIndex = 0; subsetIndex < frameBuffer.totalSubset; ++subsetIndex)
-        {
-            MATRIX partTransform;
-            if (!buildArticulatedTransformMatrix(player, indexFrame, subsetIndex, &partTransform))
-                continue;
-
-            const util::SUBSET &subset = frameBuffer.subset[subsetIndex];
-            const int first = subset.vertexStart;
-            const int last = first + subset.vertexCount;
-            for (int vertex = first; vertex < last; ++vertex)
-            {
-                impl->articulatedScratchPosition[static_cast<size_t>(vertex)] =
-                    transformPoint(partTransform, impl->articulatedScratchPosition[static_cast<size_t>(vertex)]);
-                if (!impl->articulatedScratchNormal.empty())
-                    impl->articulatedScratchNormal[static_cast<size_t>(vertex)] =
-                        transformNormal(partTransform, impl->articulatedScratchNormal[static_cast<size_t>(vertex)]);
-            }
-        }
-        VEC3 *normal = impl->articulatedScratchNormal.empty() ? nullptr : impl->articulatedScratchNormal.data();
-        VEC2 *uv = base.uv.get();
-        return this->renderDynamic(indexFrame, pShader, impl->articulatedScratchPosition.data(),
-                                   normal, uv, renderizableOwner);
-    }
-
     bool MESH_MBM::renderArticulatedStatic(const ARTICULATED_ANIMATION_PLAYER &player,
                                            const uint32_t indexFrame, const SHADER *pShader,
                                            const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix,
@@ -6173,34 +6110,6 @@ namespace mbm
         const auto totalFrames = static_cast<uint32_t>(in.frames.size());
         impl->buffer           = new BUFFER_MESH[totalFrames];
         impl->totalFramesMesh  = totalFrames;
-        if (!impl->articulatedParts.empty() || !impl->articulatedClips.empty())
-        {
-            impl->articulatedBaseGeometry.resize(totalFrames);
-            for (uint32_t frameIndex = 0; frameIndex < totalFrames; ++frameIndex)
-            {
-                const IntermediateFrameV11 &source = in.frames[frameIndex];
-                RUNTIME_FRAME_GEOMETRY &target = impl->articulatedBaseGeometry[frameIndex];
-                target.vertexCount = source.vertexCount;
-                if (source.vertexCount && source.position)
-                {
-                    target.position = std::make_unique<VEC3[]>(source.vertexCount);
-                    std::copy(source.position.get(), source.position.get() + source.vertexCount,
-                              target.position.get());
-                }
-                if (source.hasNormal && source.normal)
-                {
-                    target.normal = std::make_unique<VEC3[]>(source.vertexCount);
-                    std::copy(source.normal.get(), source.normal.get() + source.vertexCount,
-                              target.normal.get());
-                }
-                if (source.uv)
-                {
-                    target.uv = std::make_unique<VEC2[]>(source.vertexCount);
-                    std::copy(source.uv.get(), source.uv.get() + source.vertexCount,
-                              target.uv.get());
-                }
-            }
-        }
 
         TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
         for (uint32_t currentFrame = 0; currentFrame < totalFrames; ++currentFrame)

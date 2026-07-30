@@ -369,9 +369,6 @@ namespace mbm
                                               const uint32_t frameIndex, const uint32_t subsetIndex,
                                               VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,
                                               VEC3 *pivot, float pivotQuaternion[4]) const noexcept;
-        API_IMPL bool renderArticulatedDynamic(const ARTICULATED_ANIMATION_PLAYER &player,
-                                               const uint32_t indexFrame, SHADER *pShader,
-                                               const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool renderArticulatedStatic(const ARTICULATED_ANIMATION_PLAYER &player,
                                               const uint32_t indexFrame, const SHADER *pShader,
                                               const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix,
