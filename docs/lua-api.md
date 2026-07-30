@@ -1210,6 +1210,7 @@ same time. `updateArticulatedAnimation(index, name, duration, speed, priority, l
 metadata while preserving its tracks. `removeArticulatedKey(animation, track, key)` removes one
 keyframe without changing the clip's manually editable duration. The clip duration is automatically
 kept at least as large as the greatest key time; a requested shorter duration is clamped.
+Mesh Debug displays key rotation as Euler degrees and converts it to the stored quaternion values.
 
 The loaded `mesh` object exposes playback controls for `.msh` assets. Multiple clips may be active;
 higher priority wins for a part, and a newer clip wins when priorities are equal. `pause` preserves

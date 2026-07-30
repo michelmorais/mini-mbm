@@ -6108,6 +6108,12 @@ end
 -- cleaned up here instead, regardless of whether showBonesNode itself ran this frame.
 function sweepStaleBoneGizmos()
     for i, tEntry in ipairs(tLoadedMeshes) do
+        -- The articulated pivot marker follows the selected mesh only. The selected mesh tree
+        -- collapses immediately when another object is chosen, so its articulated node may not
+        -- run again to perform the normal close cleanup.
+        if tEntry.tArticulatedPivotGizmo and i ~= iSelectedMeshIndex then
+            destroyArticulatedPivotGizmo(tEntry)
+        end
         if tEntry.bBonesWasOpen and i ~= iSelectedMeshIndex then
             destroyBoneGizmo(tEntry)
             tEntry.bBonesWasOpen = false
@@ -6492,11 +6498,31 @@ function updateArticulatedPivotGizmo(tEntry, meshD, index, totalParts)
         destroyArticulatedPivotGizmo(tEntry)
         return
     end
-    if not tEntry.fArticulatedPivotMarkerSize then
-        local bounds = computeMeshAABB(meshD)
+    tEntry.fArticulatedPivotSizePercent = math.max(1, math.min(99,
+        tEntry.fArticulatedPivotSizePercent or 5))
+    if not tEntry.fArticulatedPivotMarkerSize or
+        tEntry.fArticulatedPivotMarkerPartId ~= partId or
+        tEntry.fArticulatedPivotMarkerPercent ~= tEntry.fArticulatedPivotSizePercent then
+        local okFrames, totalFrames = dpCall(function() return meshD:getTotalFrame() end)
+        totalFrames = (okFrames and totalFrames) or 1
+        local targetFrame = (frame or 0) + 1
+        if targetFrame > totalFrames then
+            targetFrame = math.max(1, math.min(frame or 1, totalFrames))
+        end
+        local okSubsets, totalSubsets = dpCall(function() return meshD:getTotalSubset(targetFrame) end)
+        totalSubsets = (okSubsets and totalSubsets) or 1
+        local targetSubset = (subset or 0) + 1
+        if targetSubset > totalSubsets then
+            targetSubset = math.max(1, math.min(subset or 1, totalSubsets))
+        end
+        local bounds = computeMeshAABB(meshD, targetFrame, targetSubset)
+        if not bounds then bounds = computeMeshAABB(meshD) end
         local maxExtent = bounds and math.max(bounds.maxX - bounds.minX,
             bounds.maxY - bounds.minY, bounds.maxZ - bounds.minZ) or 1
-        tEntry.fArticulatedPivotMarkerSize = math.max(maxExtent * 0.05, 0.01)
+        tEntry.fArticulatedPivotMarkerSize = math.max(maxExtent *
+            (tEntry.fArticulatedPivotSizePercent / 100), 0.01)
+        tEntry.fArticulatedPivotMarkerPartId = partId
+        tEntry.fArticulatedPivotMarkerPercent = tEntry.fArticulatedPivotSizePercent
     end
     if not tEntry.tArticulatedPivotGizmo then
         tEntry.iArticulatedPivotGizmoGeneration = (tEntry.iArticulatedPivotGizmoGeneration or 0) + 1
@@ -6548,6 +6574,16 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
     tEntry.bShowArticulatedPivot = tImGui.Checkbox('Show Pivot Gizmo##artPivotShow-' .. index,
         tEntry.bShowArticulatedPivot ~= false)
     articulatedTooltip('articulated_show_pivot_tooltip')
+    tImGui.SameLine()
+    tImGui.PushItemWidth(125)
+    local pivotSizeChanged, pivotSize = tImGui.SliderFloat(
+        tLang.L('articulated_pivot_size') .. '##artPivotSize-' .. index,
+        tEntry.fArticulatedPivotSizePercent or 5, 1, 99, '%.0f%%')
+    tImGui.PopItemWidth()
+    if pivotSizeChanged then
+        tEntry.fArticulatedPivotSizePercent = math.max(1, math.min(99, pivotSize or 10))
+    end
+    articulatedTooltip('articulated_pivot_size_tooltip')
     if totalParts > 0 then
         tImGui.PushItemWidth(70)
         local partChanged, selectedPart = tImGui.InputInt('Part##artPivotPart-' .. index,
@@ -6813,27 +6849,35 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                             0.01, -math.huge, math.huge, '%.3f', 0)
                         tImGui.PopItemWidth()
                         tImGui.PushItemWidth(220)
-                        local rotChanged, rot = tImGui.DragFloat3('Rotation##artKeyRot-' .. keyId,
-                            {qx or 0, qy or 0, qz or 0},
-                            0.01, -1, 1, '%.3f', 0)
+                        local keyOrbit = articulatedOrbitFromQuaternion(qx, qy, qz, qw)
+                        local rotChanged, rot = tImGui.DragFloat3(
+                            tLang.L('articulated_key_rotation') .. '##artKeyRot-' .. keyId,
+                            {-(keyOrbit.elevation or 0) * 180 / math.pi,
+                                (keyOrbit.azimuth or 0) * 180 / math.pi,
+                                (keyOrbit.roll or 0) * 180 / math.pi},
+                            0.5, -360, 360, '%.2f', 0)
                         tImGui.PopItemWidth()
-                        tImGui.PushItemWidth(100)
-                        local wChanged, newQw = tImGui.InputFloat('Rotation W##artKeyRotW-' .. keyId,
-                            qw or 1, 0.01, 0.1, '%.3f', 0)
-                        tImGui.PopItemWidth()
+                        articulatedTooltip('articulated_key_rotation_tooltip')
+                        if rotChanged and rot then
+                            qx, qy, qz, qw = articulatedQuaternionFromOrbit({
+                                elevation = -(rot[1] or 0) * math.pi / 180,
+                                azimuth = (rot[2] or 0) * math.pi / 180,
+                                roll = (rot[3] or 0) * math.pi / 180
+                            })
+                        end
                         tImGui.PushItemWidth(220)
                         local scaleChanged, scale = tImGui.DragFloat3('Scale##artKeyScale-' .. keyId,
                             {sx or 1, sy or 1, sz or 1},
                             0.01, -math.huge, math.huge, '%.3f', 0)
                         tImGui.PopItemWidth()
-                        if posChanged or rotChanged or wChanged or scaleChanged then
+                        if posChanged or rotChanged or scaleChanged then
                             local p = pos or {px or 0, py or 0, pz or 0}
-                            local r = rot or {qx or 0, qy or 0, qz or 0}
+                            local r = {qx or 0, qy or 0, qz or 0}
                             local s = scale or {sx or 1, sy or 1, sz or 1}
                             local okUpdate = dpCall(function()
                                 return meshD:updateArticulatedKey(activeClip, trackIndex, keyIndex,
                                     timeChanged and math.max(0, newTime or keyTime) or keyTime,
-                                    p[1], p[2], p[3], r[1], r[2], r[3], newQw or qw or 1,
+                                    p[1], p[2], p[3], r[1], r[2], r[3], qw or 1,
                                     s[1], s[2], s[3])
                             end)
                             if okUpdate then markArticulatedEdit() end
