@@ -146,6 +146,18 @@ namespace mbm
         return 1;
     }
 
+    int onGetArticulatedAnimationTimeLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        float time = 0.0f;
+        if (mesh->getArticulatedAnimationTime(name, &time))
+            lua_pushnumber(lua, time);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -209,6 +221,7 @@ namespace mbm
                                                      {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
                                                      {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
                                                      {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
+                                                     {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
                                                      {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
@@ -256,6 +269,7 @@ namespace mbm
                                                          {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
                                                          {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
                                                          {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
+                                                         {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();

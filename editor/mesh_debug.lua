@@ -6666,6 +6666,12 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             local previewReady = index == iSelectedMeshIndex and tPreviewMesh and not tEntry.modified
             local timelineMin, timelineMax
             if previewReady then
+                local okCurrentTime, currentTime = dpCall(function()
+                    return tPreviewMesh:getArticulatedAnimationTime(infoName)
+                end)
+                if okCurrentTime and currentTime ~= nil then
+                    tEntry.fArticulatedPreviewTime = currentTime
+                end
                 tEntry.fArticulatedPreviewTime = math.max(0, math.min(tEntry.fArticulatedPreviewTime or 0,
                     math.max(0, infoDuration or 0)))
                 tImGui.PushItemWidth(260)
@@ -6753,9 +6759,19 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 tImGui.PushID('artTrack-' .. index .. '-' .. trackIndex)
                 tImGui.Text(string.format('Track %d  Part ID %s  Channels %d  Keys %d',
                     trackIndex, tostring(trackPartId), channelMask or 0, keyCount or 0))
+                tImGui.PushItemWidth(100)
+                local newKeyTimeChanged, newKeyTime = tImGui.InputFloat(
+                    tLang.L('articulated_new_key_time') .. '##newKeyTime',
+                    tEntry.fArticulatedNewKeyTime or 0, 0.01, 0.1, '%.3f', 0)
+                tImGui.PopItemWidth()
+                if newKeyTimeChanged then
+                    tEntry.fArticulatedNewKeyTime = math.max(0, newKeyTime or 0)
+                end
+                articulatedTooltip('articulated_new_key_time_tooltip')
+                tImGui.SameLine()
                 if tImGui.Button(tLang.L('articulated_add_key') .. '##addKey') then
                     local okKey = dpCall(function()
-                        return meshD:addArticulatedKey(activeClip, trackIndex, 0,
+                        return meshD:addArticulatedKey(activeClip, trackIndex, tEntry.fArticulatedNewKeyTime or 0,
                             0, 0, 0, 0, 0, 0, 1, 1, 1, 1)
                     end)
                     if okKey then markArticulatedEdit() end
@@ -6766,6 +6782,8 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         return meshD:getArticulatedKey(activeClip, trackIndex, keyIndex)
                     end)
                     if okKey and keyTime then
+                        tImGui.Separator()
+                        tImGui.Text(string.format('Key Time %d', keyIndex))
                         if timelineMin and timelineMax and (infoDuration or 0) > 0 then
                             local markerX = timelineMin.x + (timelineMax.x - timelineMin.x) *
                                 math.max(0, math.min(1, keyTime / infoDuration))
@@ -6774,8 +6792,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         end
                         tImGui.PushID('artKey-' .. index .. '-' .. trackIndex .. '-' .. keyIndex)
                         tImGui.PushItemWidth(100)
-                        local timeChanged, newTime = tImGui.InputFloat(string.format('Key %d Time', keyIndex),
-                            keyTime, 0.01, 0.1, '%.3f', 0)
+                        local timeChanged, newTime = tImGui.InputFloat('Time',keyTime, 0.01, 0.1, '%.3f', 0)
                         tImGui.PopItemWidth()
                         articulatedTooltip('articulated_key_tooltip')
                         tImGui.SameLine()

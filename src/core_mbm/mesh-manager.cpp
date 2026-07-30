@@ -4407,7 +4407,11 @@ namespace mbm
         }
         auto &header = impl->articulatedClips[index].header;
         header.name = clipName;
-        header.duration = std::max(0.0f, duration);
+        float greatestKeyTime = 0.0f;
+        for (const auto &track : impl->articulatedClips[index].tracks)
+            for (const auto &key : track.keys)
+                greatestKeyTime = std::max(greatestKeyTime, key.time);
+        header.duration = std::max(std::max(0.0f, duration), greatestKeyTime);
         header.speed = speed;
         header.defaultPriority = priority;
         header.loop = loop ? 1 : 0;
@@ -5138,6 +5142,22 @@ namespace mbm
                 const float duration = impl->articulatedClips[active.clipIndex].header.duration;
                 active.time = std::max(0.0f, duration > 0.0f ? std::min(time, duration) : 0.0f);
                 active.ended = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::getArticulatedAnimationTime(const char *name, float *time) const noexcept
+    {
+        if (!name || !time)
+            return false;
+        for (const auto &active : impl->activeArticulatedClips)
+        {
+            if (active.clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[active.clipIndex].header.name == name)
+            {
+                *time = active.time;
                 return true;
             }
         }
