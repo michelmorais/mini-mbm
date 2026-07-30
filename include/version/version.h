@@ -160,8 +160,9 @@
     6.31.30 Removed the unused articulated dynamic-render fallback and its duplicate CPU-side geometry/scratch storage after validating static per-subset rendering as the sole runtime path.
     6.31.31 Simplified Mesh Debug articulated authoring around one selected animated subset, with descriptive subset and parent combos plus per-subset Part and Track controls.
     6.31.32 Preserved authored articulated-key Euler values in Mesh Debug after reload by exposing the persisted Euler fields through getArticulatedKey instead of reconstructing an equivalent wrapped angle from the quaternion.
+    6.31.33 Added editable Position/Rotation/Scale channel checkboxes to existing articulated Tracks in Mesh Debug, with validated C++/Lua channel-mask updates that preserve disabled Key values.
 */
-#define MBM_VERSION "6.31.32" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.33" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -1194,6 +1194,7 @@ meshD:updateArticulatedPart(partIndex, name,
 local clipIndex = meshD:addArticulatedAnimation(name, duration, speed, priority, loop, blendMode)
 meshD:removeArticulatedAnimation(clipIndex)
 local trackIndex = meshD:addArticulatedTrack(clipIndex, partId, channelMask)
+meshD:setArticulatedTrackChannels(clipIndex, trackIndex, channelMask)
 meshD:addArticulatedKey(clipIndex, trackIndex, time,
     positionX, positionY, positionZ,
     rotationQX, rotationQY, rotationQZ, rotationQW,
@@ -1204,8 +1205,11 @@ meshD:setArticulatedKeyEasing(clipIndex, trackIndex, keyIndex, easing)
 meshD:setArticulatedKeyBezier(clipIndex, trackIndex, keyIndex, x1, y1, x2, y2)
 ```
 
-Channel masks are `1` for position, `2` for rotation, and `4` for scale. Adding another key for
-the same track and time replaces the previous key. `getTotalArticulatedParts()`,
+Channel masks are `1` for position, `2` for rotation, and `4` for scale.
+`setArticulatedTrackChannels(animation, track, channelMask)` updates the channels controlled by an
+existing track and rejects zero or unknown mask bits. Disabling a channel does not erase its values
+from the track's keys, so re-enabling it restores their influence. Adding another key for the same
+track and time replaces the previous key. `getTotalArticulatedParts()`,
 `getArticulatedPart(index)`, `getTotalArticulatedAnimations()`, and
 `getArticulatedAnimationName(index)`, `getArticulatedAnimation(index)`,
 `getTotalArticulatedTracks(animation)`, `getArticulatedTrack(animation, track)`, and

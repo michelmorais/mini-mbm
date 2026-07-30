@@ -4653,6 +4653,28 @@ namespace mbm
         return static_cast<int>(tracks.size());
     }
 
+    bool MESH_MBM_DEBUG::setArticulatedTrackChannels(const uint32_t animationIndex,
+                                                     const uint32_t trackIndex,
+                                                     const uint8_t channelMask,
+                                                     char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track index out of range");
+            return false;
+        }
+        if (!channelMask || (channelMask & ~(util::ARTICULATED_CHANNEL_POSITION |
+                                             util::ARTICULATED_CHANNEL_ROTATION |
+                                             util::ARTICULATED_CHANNEL_SCALE)))
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated channel mask");
+            return false;
+        }
+        impl->articulatedClips[animationIndex].tracks[trackIndex].header.channelMask = channelMask;
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::addArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
                                            const float time, const float positionX, const float positionY, const float positionZ,
                                            const float rotationX, const float rotationY, const float rotationZ, const float rotationW,

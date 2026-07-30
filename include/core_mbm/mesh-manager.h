@@ -273,6 +273,10 @@ namespace mbm
         API_IMPL bool removeArticulatedAnimation(const uint32_t animationIndex, char *errorOut, const int errorOutLen);
         API_IMPL int addArticulatedTrack(const uint32_t animationIndex, const uint64_t partId,
                                          const uint8_t channelMask, char *errorOut, const int errorOutLen);
+        API_IMPL bool setArticulatedTrackChannels(const uint32_t animationIndex,
+                                                  const uint32_t trackIndex,
+                                                  const uint8_t channelMask,
+                                                  char *errorOut, const int errorOutLen);
         API_IMPL bool addArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
                                         const float time, const float positionX, const float positionY, const float positionZ,
                                         const float rotationX, const float rotationY, const float rotationZ, const float rotationW,

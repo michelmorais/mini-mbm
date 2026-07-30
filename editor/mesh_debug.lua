@@ -7011,12 +7011,29 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             end)
             if okTrack and trackPartId then
                 tImGui.PushID('artTrack-' .. index .. '-' .. trackIndex)
-                local channelNames = {}
-                if ((channelMask or 0) & 1) ~= 0 then channelNames[#channelNames + 1] = 'Position' end
-                if ((channelMask or 0) & 2) ~= 0 then channelNames[#channelNames + 1] = 'Rotation' end
-                if ((channelMask or 0) & 4) ~= 0 then channelNames[#channelNames + 1] = 'Scale' end
-                tImGui.Text(string.format('Track %d  Channels: %s  Keys: %d',
-                    trackIndex, table.concat(channelNames, ', '), keyCount or 0))
+                tImGui.Text(string.format('Track %d  Keys: %d', trackIndex, keyCount or 0))
+                local trackPosition = tImGui.Checkbox(
+                    'Position##artTrackPosition', ((channelMask or 0) & 1) ~= 0)
+                tImGui.SameLine()
+                local trackRotation = tImGui.Checkbox(
+                    'Rotation##artTrackRotation', ((channelMask or 0) & 2) ~= 0)
+                tImGui.SameLine()
+                local trackScale = tImGui.Checkbox(
+                    'Scale##artTrackScale', ((channelMask or 0) & 4) ~= 0)
+                articulatedTooltip('articulated_channel_tooltip')
+                local updatedChannelMask = (trackPosition and 1 or 0) +
+                    (trackRotation and 2 or 0) + (trackScale and 4 or 0)
+                if updatedChannelMask ~= (channelMask or 0) then
+                    if updatedChannelMask == 0 then
+                        tUtil.showMessageWarn(tLang.L('articulated_channel_required'))
+                    else
+                        local okChannels = dpCall(function()
+                            return meshD:setArticulatedTrackChannels(
+                                activeClip, trackIndex, updatedChannelMask)
+                        end)
+                        if okChannels then markArticulatedEdit() end
+                    end
+                end
                 tImGui.PushItemWidth(100)
                 local newKeyTimeChanged, newKeyTime = tImGui.InputFloat(
                     tLang.L('articulated_new_key_time') .. '##newKeyTime',

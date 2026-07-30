@@ -2078,6 +2078,20 @@ namespace mbm
         return 1;
     }
 
+    int onSetArticulatedTrackChannelsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint8_t channelMask = static_cast<uint8_t>(luaL_checkinteger(lua, 4));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setArticulatedTrackChannels(
+                animation, track, channelMask, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     int onSetArticulatedKeyEulerDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2481,6 +2495,7 @@ namespace mbm
                                           {"addArticulatedAnimation", onAddArticulatedAnimationDebugLua},
                                           {"removeArticulatedAnimation", onRemoveArticulatedAnimationDebugLua},
                                           {"addArticulatedTrack", onAddArticulatedTrackDebugLua},
+                                          {"setArticulatedTrackChannels", onSetArticulatedTrackChannelsDebugLua},
                                           {"addArticulatedKey", onAddArticulatedKeyDebugLua},
                                           {"setArticulatedKeyEuler", onSetArticulatedKeyEulerDebugLua},
                                           {"setArticulatedKeyEasing", onSetArticulatedKeyEasingDebugLua},
