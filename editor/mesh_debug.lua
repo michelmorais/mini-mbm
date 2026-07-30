@@ -6872,12 +6872,12 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         local rotChanged, rot = tImGui.DragFloat3(
                             tLang.L('articulated_key_rotation') .. '##artKeyRot-' .. keyId,
                             {keyEuler.x, keyEuler.y, keyEuler.z},
-                            0.5, -359.99, 359.99, '%.2f', 0)
+                            0.5, -360.0, 360.0, '%.2f', 0)
                         tImGui.PopItemWidth()
                         articulatedTooltip('articulated_key_rotation_tooltip')
                         if rotChanged and rot then
                             for axis = 1, 3 do
-                                rot[axis] = math.max(-359.99, math.min(359.99, rot[axis] or 0))
+                                rot[axis] = math.max(-360.0, math.min(360.0, rot[axis] or 0))
                             end
                             keyEuler.x = rot[1] or keyEuler.x
                             keyEuler.y = rot[2] or keyEuler.y
