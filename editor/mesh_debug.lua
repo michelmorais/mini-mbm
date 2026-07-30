@@ -6617,18 +6617,26 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 tImGui.PushItemWidth(220)
                 local posChanged, pos = tImGui.DragFloat3(tLang.L('articulated_pivot_position'), {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
                 tImGui.PopItemWidth()
+                local pivotOrbit = articulatedOrbitFromQuaternion(qx or 0, qy or 0, qz or 0, qw or 1)
                 tImGui.PushItemWidth(220)
-                local rotChanged, rot = tImGui.DragFloat3(tLang.L('articulated_pivot_rotation'), {qx or 0, qy or 0, qz or 0}, 0.01, -1, 1, '%.3f', 0)
+                local rotChanged, rot = tImGui.DragFloat3(
+                    tLang.L('articulated_pivot_rotation') .. '##artPivotEuler-' .. index .. '-' .. partIndex,
+                    {-(pivotOrbit.elevation or 0) * 180 / math.pi,
+                        (pivotOrbit.azimuth or 0) * 180 / math.pi,
+                        (pivotOrbit.roll or 0) * 180 / math.pi},
+                    0.5, -360, 360, '%.2f', 0)
                 tImGui.PopItemWidth()
-                tImGui.PushItemWidth(105)
-                local wChanged, newW = tImGui.InputFloat('Pivot QW', qw or 1, 0.01, 0.1, '%.3f', 0)
-                tImGui.PopItemWidth()
-                if changedName or posChanged or rotChanged or wChanged then
+                if rotChanged and rot then
+                    pivotOrbit.elevation = -(rot[1] or 0) * math.pi / 180
+                    pivotOrbit.azimuth = (rot[2] or 0) * math.pi / 180
+                    pivotOrbit.roll = (rot[3] or 0) * math.pi / 180
+                    qx, qy, qz, qw = articulatedQuaternionFromOrbit(pivotOrbit)
+                end
+                if changedName or posChanged or rotChanged then
                     local p = pos or {px or 0, py or 0, pz or 0}
-                    local r = rot or {qx or 0, qy or 0, qz or 0}
                     dpCall(function()
                         return meshD:updateArticulatedPart(partIndex, newName or name or '',
-                            p[1], p[2], p[3], r[1], r[2], r[3], newW or qw or 1, parent or 0)
+                            p[1], p[2], p[3], qx or 0, qy or 0, qz or 0, qw or 1, parent or 0)
                     end)
                     markArticulatedEdit()
                 end
@@ -9191,7 +9199,9 @@ function showMeshOptions(tEntry, index)
                     tAnimNames[i] = animMap[i] == false and ('[!] ' .. name) or name
                 end
                 tEntry.iSelectedAnim = tEntry.iSelectedAnim or 1
+                tImGui.PushItemWidth(180)
                 local changed, newIdx = tImGui.Combo(tLang.L("animation") .. '##animSel-' .. index, tEntry.iSelectedAnim, tAnimNames, -1)
+                tImGui.PopItemWidth()
                 if changed and newIdx and newIdx >= 1 and newIdx <= nAnim then
                     tEntry.iSelectedAnim = newIdx
                     local filteredIdx = animMap[newIdx]
@@ -9220,16 +9230,26 @@ function showMeshOptions(tEntry, index)
                 if ok and name then
                     if tImGui.TreeNodeEx(name or ('Anim ' .. i), 0, 'anim-' .. index .. '-' .. i) then
                         tImGui.Text(tLang.L("name"))
+                        tImGui.PushItemWidth(220)
                         local mod, newName = tImGui.InputText('##animName-' .. index .. '-' .. i, name or '', flags)
+                        tImGui.PopItemWidth()
                         tImGui.Text(tLang.L("initial_frame"))
+                        tImGui.PushItemWidth(70)
                         local ri, ni = tImGui.InputInt('##animInit-' .. index .. '-' .. i, initF or 1, 1, 1, flags)
+                        tImGui.PopItemWidth()
                         tImGui.Text(tLang.L("final_frame"))
+                        tImGui.PushItemWidth(70)
                         local rf, nf = tImGui.InputInt('##animFin-' .. index .. '-' .. i, finF or 1, 1, 1, flags)
+                        tImGui.PopItemWidth()
                         tImGui.Text(tLang.L("time_between_frames_anim"))
+                        tImGui.PushItemWidth(105)
                         local rt, nt = tImGui.InputFloat('##animTime-' .. index .. '-' .. i, time or 0.1, 0.01, 0.1, '%.3f', flags)
+                        tImGui.PopItemWidth()
                         tImGui.Text(tLang.L("type_label"))
                         local typIdx = math.max(1, math.min((typ or 0) + 1, #tAnimTypeOpts))
+                        tImGui.PushItemWidth(180)
                         local rty, newTypIdx = tImGui.Combo('##animType-' .. index .. '-' .. i, typIdx, tAnimTypeOpts, -1)
+                        tImGui.PopItemWidth()
                         local nty = (rty and newTypIdx and newTypIdx > 0) and (newTypIdx - 1) or (typ or 0)
                         if (mod or ri or rf or rt or rty) then
                             local totalFrames = info.totalFrames or 0
@@ -9265,7 +9285,9 @@ function showMeshOptions(tEntry, index)
                         end
                         tEntry.tFxFilenames = tEntry.tFxFilenames or {}
                         local fxFn = tEntry.tFxFilenames[i] or ''
+                        tImGui.PushItemWidth(220)
                         local modFxF, newFxF = tImGui.InputText('##animFxFile-' .. index .. '-' .. i, fxFn, 512, 0)
+                        tImGui.PopItemWidth()
                         if modFxF and newFxF ~= nil then tEntry.tFxFilenames[i] = newFxF end
                         tImGui.SameLine()
                         if tImGui.Button(tLang.L('tex_browse') .. '##animFxBrowse-' .. index .. '-' .. i) then
