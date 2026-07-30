@@ -167,7 +167,8 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
             anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
-            this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta);
+            this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
+                                                     this, this->getOnEndAnimation());
             const VEC3 &position = this->getPosition();
             const VEC3 &angle = this->getAngle();
             const VEC3 &scale = this->getScale();
@@ -246,7 +247,8 @@ namespace mbm
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
-                this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta);
+                this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
+                                                         this, this->getOnEndAnimation());
             }
             return ret;
         }

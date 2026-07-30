@@ -535,7 +535,7 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
 | `obj:restartAnim` | `()` | — | Restart animation from frame 1 |
 | `obj:isEndedAnim` | `()` | bool | Whether a non-looping animation has finished |
-| `obj:onEndAnim` | `(callback)` | — | Call `callback()` when animation ends |
+| `obj:onEndAnim` | `(callback)` | — | Call `callback(obj, animationName)` once when a non-looping frame animation or articulated clip ends |
 | `obj:onEndFx` | `(callback)` | — | Call `callback()` when shader effect ends |
 | `obj:setTypeAnim` | `(type: int)` | — | Set animation loop type using `mbm.*` constants |
 | `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
@@ -1256,9 +1256,17 @@ the clip from evaluation. Playback state belongs to each renderizable instance: 
 the same cached asset share geometry, parts, and clip definitions, but do not share active clips,
 time, pause state, priority, blend progress, additive weight, or seek position.
 
+A non-looping articulated clip invokes the same callback registered by `obj:onEndAnim(callback)`
+when it reaches its duration. The callback receives the renderizable object and the articulated
+clip name. Looping clips do not emit this completion callback. If multiple active clips finish in
+the same update, the callback is invoked once for each finished clip.
+
 ```lua
 car:playArticulatedAnimation("wheel_spin", 10, 0.5, 0.75)
 -- priority 10, 0.5-second fade, 75% weight when the clip is Additive
+car:onEndAnim(function(object, animationName)
+    print(animationName .. " finished")
+end)
 car:pauseArticulatedAnimation("wheel_spin")
 car:resumeArticulatedAnimation("wheel_spin")
 car:seekArticulatedAnimation("wheel_spin", 0.5)
@@ -1273,4 +1281,4 @@ icon:playArticulatedAnimation("gear_spin") -- priority 0, immediate transition
 The runtime advances clip time with the engine's `device->delta`, preserving the engine time-scale
 and frame-rate behavior. Easing is evaluated in the articulated track sampler before interpolating
 position, rotation, and scale. Cubic Bezier solves its normalized-time X curve before evaluating Y.
-Existing version-2 articulated sections default to Linear.
+Version-1 articulated sections default to Linear.

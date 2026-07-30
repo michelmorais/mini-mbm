@@ -5376,10 +5376,12 @@ namespace mbm
     }
 
     void MESH_MBM::updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
-                                               const float delta) const noexcept
+                                               const float delta, RENDERIZABLE *owner,
+                                               OnEndAnimation onEndAnimation) const
     {
         if (delta <= 0.0f)
             return;
+        std::vector<std::string> endedClipNames;
         for (auto &active : player.impl->activeClips)
         {
             if (active.paused || active.clipIndex >= impl->articulatedClips.size())
@@ -5394,6 +5396,8 @@ namespace mbm
             {
                 active.time = 0.0f;
                 active.ended = !clip.header.loop;
+                if (active.ended && onEndAnimation)
+                    endedClipNames.push_back(clip.header.name);
                 continue;
             }
             const float speed = std::max(0.0f, clip.header.speed);
@@ -5406,9 +5410,13 @@ namespace mbm
                 {
                     active.time = duration;
                     active.ended = true;
+                    if (onEndAnimation)
+                        endedClipNames.push_back(clip.header.name);
                 }
             }
         }
+        for (const std::string &clipName : endedClipNames)
+            onEndAnimation(clipName.c_str(), owner);
     }
 
     bool MESH_MBM::getArticulatedTransform(const ARTICULATED_ANIMATION_PLAYER &player,

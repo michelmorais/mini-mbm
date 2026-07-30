@@ -25,6 +25,7 @@
 #include "header-mesh.h"
 #include "physics.h"
 #include "texture-role.h"
+#include "animation.h"
 #include <map>
 #include <memory>
 #include <functional>
@@ -362,7 +363,8 @@ namespace mbm
         API_IMPL bool getArticulatedAnimationTime(const ARTICULATED_ANIMATION_PLAYER &player,
                                                   const char *name, float *time) const noexcept;
         API_IMPL void updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
-                                                  const float delta) const noexcept;
+                                                  const float delta, RENDERIZABLE *owner,
+                                                  OnEndAnimation onEndAnimation) const;
         API_IMPL bool getArticulatedTransform(const ARTICULATED_ANIMATION_PLAYER &player,
                                               const uint32_t frameIndex, const uint32_t subsetIndex,
                                               VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,

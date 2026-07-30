@@ -156,8 +156,9 @@
     6.31.26 Added optional per-instance articulated clip crossfade with delta-driven pause/resume behavior, independent priority resolution for position/rotation/scale channels, quaternion spherical rotation blending, Lua/C++ playback arguments, and Mesh Debug preview controls.
     6.31.27 Finalized SECTION_ARTICULATED_ANIMATION's first public layout as version 1 with persisted Absolute/Additive clip composition, per-play additive weight and fade-in, weighted position offsets/local quaternion rotation deltas/scale multipliers, and Mesh Debug authoring and preview controls.
     6.31.28 Fixed global pause during fake-FPS cycles by applying game speed after fake-FPS selection, guaranteeing delta zero while paused and making accelerated/slowed time affect fake FPS consistently; corrected mbm.pause documentation to note that scene logic/rendering continue.
+    6.31.29 Reused the animation-end callback for non-looping articulated clips, emitting one event per completed clip while preserving safe callback-driven playback changes.
 */
-#define MBM_VERSION "6.31.28" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.29" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

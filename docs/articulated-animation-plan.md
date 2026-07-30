@@ -70,6 +70,9 @@ The C++/Lua API will expose playback and read-only inspection of clips and parts
 Pause freezes clip time while preserving its last pose and priority. Disable removes the clip from composition. A separate `stopArticulatedAnimation()` is not planned initially.
 
 Articulated clips are loaded inactive and start only after an explicit play request. They also work over a static frame when no traditional frame animation is active.
+When a non-looping clip reaches its duration, it emits the existing animation-end callback once,
+using the articulated clip name. Looping clips do not emit this callback. Multiple clips ending in
+the same update each emit their own completion event.
 
 ## Rendering
 
