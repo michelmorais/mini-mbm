@@ -1196,6 +1196,8 @@ meshD:addArticulatedKey(clipIndex, trackIndex, time,
     positionX, positionY, positionZ,
     rotationQX, rotationQY, rotationQZ, rotationQW,
     scaleX, scaleY, scaleZ)
+meshD:setArticulatedKeyEuler(clipIndex, trackIndex, time,
+    rotationEulerX, rotationEulerY, rotationEulerZ)
 ```
 
 Channel masks are `1` for position, `2` for rotation, and `4` for scale. Adding another key for

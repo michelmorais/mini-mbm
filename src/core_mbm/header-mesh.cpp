@@ -713,6 +713,8 @@ namespace util
         positionX = positionY = positionZ = 0.0f;
         rotationX = rotationY = rotationZ = 0.0f;
         rotationW = 1.0f;
+        rotationEulerX = rotationEulerY = rotationEulerZ = 0.0f;
+        hasRotationEuler = 0;
         scaleX = scaleY = scaleZ = 1.0f;
     }
 

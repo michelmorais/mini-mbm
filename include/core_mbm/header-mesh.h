@@ -794,6 +794,9 @@ namespace util
         float time;
         float positionX, positionY, positionZ;
         float rotationX, rotationY, rotationZ, rotationW;
+        // Authoring rotation in degrees. Quaternion fields remain the runtime representation.
+        float rotationEulerX, rotationEulerY, rotationEulerZ;
+        uint8_t hasRotationEuler;
         float scaleX, scaleY, scaleZ;
         API_IMPL ARTICULATED_KEY_V11() noexcept;
     };

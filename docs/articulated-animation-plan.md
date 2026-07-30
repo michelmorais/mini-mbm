@@ -42,7 +42,10 @@ The first runtime version treats all parts as independent; parent-child composit
 - Keyframe time is stored as `float`.
 - Animation time advances using the engine's `delta` and existing playback semantics.
 - Position and scale use linear interpolation.
-- Rotation is stored/interpolated as quaternion and edited/displayed as Euler angles.
+- Rotation keeps a quaternion for rendering, while authored Euler degrees are also persisted in
+  articulated-animation section version 2. Runtime interpolation uses the authored Euler values
+  so transitions such as 0° to 359° preserve the intended full turn. The articulated-animation
+  section is still optional; meshes without it remain unchanged.
 - A duplicate keyframe for the same part, channel, and time replaces the existing key.
 - Clip duration grows automatically to the greatest key time but remains manually editable.
 - Orphaned tracks are preserved, ignored by runtime, and reported in debug/editor.

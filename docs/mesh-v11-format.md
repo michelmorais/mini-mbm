@@ -429,11 +429,14 @@ struct ARTICULATED_PART_V11
 };
 ```
 
-`SECTION_ARTICULATED_ANIMATION` is one bundled section with a `uint32_t clipCount`. Each clip
-contains a length-prefixed name, `float duration`, `float speed`, `int32_t defaultPriority`, a
-`uint8_t loop`, and a `uint32_t trackCount`. Each track contains `uint64_t partId`, a `uint8_t`
-channel mask, `uint32_t keyCount`, and key records. Each key stores a `float time`, position
-(`x/y/z`), quaternion rotation (`x/y/z/w`), and scale (`x/y/z`).
+`SECTION_ARTICULATED_ANIMATION` is one bundled section with a `uint32_t clipCount`. Its current
+`sectionVersion` is `2`; other versions are rejected. Each clip contains a length-prefixed name,
+`float duration`, `float speed`, `int32_t defaultPriority`, a `uint8_t loop`, and a
+`uint32_t trackCount`. Each track contains `uint64_t partId`, a `uint8_t` channel mask,
+`uint32_t keyCount`, and key records. Keys store a `float time`, position (`x/y/z`), quaternion
+rotation (`x/y/z/w`), authored Euler rotation in degrees (`x/y/z`), a `uint8_t hasRotationEuler`
+flag, and scale (`x/y/z`). When the flag is present, runtime interpolation uses the authored Euler
+values and converts the result to a quaternion.
 
 ## 6g. `SECTION_VERTEX_SKIN_WEIGHTS` payload
 

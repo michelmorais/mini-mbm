@@ -2037,6 +2037,23 @@ namespace mbm
         return 1;
     }
 
+    int onSetArticulatedKeyEulerDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const float time = static_cast<float>(luaL_checknumber(lua, 4));
+        const float eulerX = static_cast<float>(luaL_checknumber(lua, 5));
+        const float eulerY = static_cast<float>(luaL_checknumber(lua, 6));
+        const float eulerZ = static_cast<float>(luaL_checknumber(lua, 7));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setArticulatedKeyEuler(animation, track, time, eulerX, eulerY, eulerZ,
+                                                    errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     int onUpdateArticulatedKeyDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2389,6 +2406,7 @@ namespace mbm
                                           {"addArticulatedAnimation", onAddArticulatedAnimationDebugLua},
                                           {"addArticulatedTrack", onAddArticulatedTrackDebugLua},
                                           {"addArticulatedKey", onAddArticulatedKeyDebugLua},
+                                          {"setArticulatedKeyEuler", onSetArticulatedKeyEulerDebugLua},
                                           {"updateArticulatedKey", onUpdateArticulatedKeyDebugLua},
                                           {"removeArticulatedKey", onRemoveArticulatedKeyDebugLua},
 										  {"getExt", onGetStaticExtensionLua},

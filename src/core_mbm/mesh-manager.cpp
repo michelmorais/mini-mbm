@@ -477,8 +477,11 @@ namespace
     }
 
     bool parse_articulated_animation_section_v11(util::MEM_CURSOR_V11 &tmp,
-                                                 std::vector<mbm::ARTICULATED_CLIP_DATA> &out)
+                                                 std::vector<mbm::ARTICULATED_CLIP_DATA> &out,
+                                                 const uint16_t sectionVersion)
     {
+        if (sectionVersion != 2)
+            return false;
         util::ARTICULATED_ANIMATION_HEADER_V11 header;
         if (!util::readArticulatedAnimationHeaderV11(tmp, header))
             return false;
@@ -967,7 +970,8 @@ namespace
             }
             else if (staged.header.type == util::SECTION_ARTICULATED_ANIMATION)
             {
-                if (!parse_articulated_animation_section_v11(tmp, out.articulatedClips))
+                if (!parse_articulated_animation_section_v11(tmp, out.articulatedClips,
+                                                              staged.header.sectionVersion))
                 {
                     errorOut = "failed to parse SECTION_ARTICULATED_ANIMATION";
                     return false;
@@ -2355,7 +2359,7 @@ namespace mbm
         {
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_ARTICULATED_ANIMATION;
-            sectionHeader.sectionVersion = 1;
+            sectionHeader.sectionVersion = 2;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
                 util::ARTICULATED_ANIMATION_HEADER_V11 animationHeader;
@@ -2988,7 +2992,8 @@ namespace mbm
             else if (sectionHeader.type == util::SECTION_ARTICULATED_ANIMATION)
             {
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (!parse_articulated_animation_section_v11(tmp, impl->articulatedClips))
+                if (!parse_articulated_animation_section_v11(tmp, impl->articulatedClips,
+                                                              sectionHeader.sectionVersion))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ARTICULATED_ANIMATION [%s]", fileNamePath);
             }
             else if (sectionHeader.type == util::SECTION_DETAIL_PARTICLE)
@@ -4553,6 +4558,34 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::setArticulatedKeyEuler(const uint32_t animationIndex, const uint32_t trackIndex,
+                                                const float time, const float rotationEulerX,
+                                                const float rotationEulerY, const float rotationEulerZ,
+                                                char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track index out of range");
+            return false;
+        }
+        auto &keys = impl->articulatedClips[animationIndex].tracks[trackIndex].keys;
+        constexpr float keyTimeEpsilon = 0.00001f;
+        for (auto &key : keys)
+        {
+            if (std::fabs(key.time - time) <= keyTimeEpsilon)
+            {
+                key.rotationEulerX = rotationEulerX;
+                key.rotationEulerY = rotationEulerY;
+                key.rotationEulerZ = rotationEulerZ;
+                key.hasRotationEuler = 1;
+                return true;
+            }
+        }
+        if (errorOut) snprintf(errorOut, errorOutLen, "articulated key time not found");
+        return false;
+    }
+
     bool MESH_MBM_DEBUG::updateArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
                                               const uint32_t keyIndex, const float time,
                                               const float positionX, const float positionY, const float positionZ,
@@ -5271,6 +5304,30 @@ namespace mbm
             }
         }
         const auto lerp = [factor](const float x, const float y) { return x + (y - x) * factor; };
+        const auto quaternionFromEulerDegrees = [](const float eulerX, const float eulerY,
+                                                   const float eulerZ, float out[4])
+        {
+            constexpr float degreesToRadians = 0.017453292519943295769f;
+            const float halfYaw = eulerY * degreesToRadians * 0.5f;
+            const float halfPitch = -eulerX * degreesToRadians * 0.5f;
+            const float halfRoll = eulerZ * degreesToRadians * 0.5f;
+            const float sy = std::sin(halfYaw), cy = std::cos(halfYaw);
+            const float sx = std::sin(halfPitch), cx = std::cos(halfPitch);
+            const float sz = std::sin(halfRoll), cz = std::cos(halfRoll);
+            const float yaw[4] = {0.0f, sy, 0.0f, cy};
+            const float pitch[4] = {sx, 0.0f, 0.0f, cx};
+            const float roll[4] = {0.0f, 0.0f, sz, cz};
+            const auto multiply = [](const float a[4], const float b[4], float result[4])
+            {
+                result[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
+                result[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
+                result[2] = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3];
+                result[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
+            };
+            float yawPitch[4];
+            multiply(yaw, pitch, yawPitch);
+            multiply(yawPitch, roll, out);
+        };
         const uint8_t mask = selectedTrack->header.channelMask;
         if (mask & util::ARTICULATED_CHANNEL_POSITION)
         {
@@ -5286,10 +5343,29 @@ namespace mbm
         }
         if (mask & util::ARTICULATED_CHANNEL_ROTATION)
         {
-            rotationQuaternion[0] = lerp(a->rotationX, b->rotationX);
-            rotationQuaternion[1] = lerp(a->rotationY, b->rotationY);
-            rotationQuaternion[2] = lerp(a->rotationZ, b->rotationZ);
-            rotationQuaternion[3] = lerp(a->rotationW, b->rotationW);
+            if (a->hasRotationEuler && b->hasRotationEuler)
+            {
+                quaternionFromEulerDegrees(
+                    lerp(a->rotationEulerX, b->rotationEulerX),
+                    lerp(a->rotationEulerY, b->rotationEulerY),
+                    lerp(a->rotationEulerZ, b->rotationEulerZ),
+                    rotationQuaternion);
+            }
+            else
+            {
+                float endQuaternion[4] = {b->rotationX, b->rotationY, b->rotationZ, b->rotationW};
+                const float dot = a->rotationX * endQuaternion[0] + a->rotationY * endQuaternion[1] +
+                                  a->rotationZ * endQuaternion[2] + a->rotationW * endQuaternion[3];
+                if (dot < 0.0f)
+                {
+                    endQuaternion[0] = -endQuaternion[0]; endQuaternion[1] = -endQuaternion[1];
+                    endQuaternion[2] = -endQuaternion[2]; endQuaternion[3] = -endQuaternion[3];
+                }
+                rotationQuaternion[0] = lerp(a->rotationX, endQuaternion[0]);
+                rotationQuaternion[1] = lerp(a->rotationY, endQuaternion[1]);
+                rotationQuaternion[2] = lerp(a->rotationZ, endQuaternion[2]);
+                rotationQuaternion[3] = lerp(a->rotationW, endQuaternion[3]);
+            }
             const float length = std::sqrt(rotationQuaternion[0] * rotationQuaternion[0] +
                                            rotationQuaternion[1] * rotationQuaternion[1] +
                                            rotationQuaternion[2] * rotationQuaternion[2] +

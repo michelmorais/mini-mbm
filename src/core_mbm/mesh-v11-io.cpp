@@ -495,6 +495,9 @@ namespace util
                writeF32LE(fp, in.positionX) && writeF32LE(fp, in.positionY) && writeF32LE(fp, in.positionZ) &&
                writeF32LE(fp, in.rotationX) && writeF32LE(fp, in.rotationY) &&
                writeF32LE(fp, in.rotationZ) && writeF32LE(fp, in.rotationW) &&
+               writeF32LE(fp, in.rotationEulerX) && writeF32LE(fp, in.rotationEulerY) &&
+               writeF32LE(fp, in.rotationEulerZ) &&
+               writeBytes(fp, &in.hasRotationEuler, sizeof(in.hasRotationEuler)) &&
                writeF32LE(fp, in.scaleX) && writeF32LE(fp, in.scaleY) && writeF32LE(fp, in.scaleZ);
     }
 
@@ -538,11 +541,16 @@ namespace util
 
     bool readArticulatedKeyV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_KEY_V11 &out)
     {
-        return readF32LE(fp, out.time) &&
+        if (!(readF32LE(fp, out.time) &&
                readF32LE(fp, out.positionX) && readF32LE(fp, out.positionY) && readF32LE(fp, out.positionZ) &&
                readF32LE(fp, out.rotationX) && readF32LE(fp, out.rotationY) &&
                readF32LE(fp, out.rotationZ) && readF32LE(fp, out.rotationW) &&
-               readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ);
+               readF32LE(fp, out.rotationEulerX) && readF32LE(fp, out.rotationEulerY) &&
+               readF32LE(fp, out.rotationEulerZ) &&
+               readBytes(fp, &out.hasRotationEuler, sizeof(out.hasRotationEuler)) &&
+               readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ)))
+            return false;
+        return true;
     }
 
     bool writeStageParticleV11(FILE *fp, const util::STAGE_PARTICLE &in)

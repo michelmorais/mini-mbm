@@ -6810,7 +6810,13 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         return meshD:addArticulatedKey(activeClip, trackIndex, tEntry.fArticulatedNewKeyTime or 0,
                             0, 0, 0, 0, 0, 0, 1, 1, 1, 1)
                     end)
-                    if okKey then markArticulatedEdit() end
+                    if okKey then
+                        dpCall(function()
+                            return meshD:setArticulatedKeyEuler(activeClip, trackIndex,
+                                tEntry.fArticulatedNewKeyTime or 0, 0, 0, 0)
+                        end)
+                        markArticulatedEdit()
+                    end
                 end
                 articulatedTooltip('articulated_add_key_tooltip')
                 for keyIndex = 1, (keyCount or 0) do
@@ -6870,6 +6876,9 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         tImGui.PopItemWidth()
                         articulatedTooltip('articulated_key_rotation_tooltip')
                         if rotChanged and rot then
+                            for axis = 1, 3 do
+                                rot[axis] = math.max(-359.99, math.min(359.99, rot[axis] or 0))
+                            end
                             keyEuler.x = rot[1] or keyEuler.x
                             keyEuler.y = rot[2] or keyEuler.y
                             keyEuler.z = rot[3] or keyEuler.z
@@ -6895,7 +6904,16 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                                     p[1], p[2], p[3], r[1], r[2], r[3], qw or 1,
                                     s[1], s[2], s[3])
                             end)
-                            if okUpdate then markArticulatedEdit() end
+                            if okUpdate then
+                                if rotChanged then
+                                    dpCall(function()
+                                        return meshD:setArticulatedKeyEuler(activeClip, trackIndex,
+                                            timeChanged and math.max(0, newTime or keyTime) or keyTime,
+                                            keyEuler.x, keyEuler.y, keyEuler.z)
+                                    end)
+                                end
+                                markArticulatedEdit()
+                            end
                         elseif timeChanged then
                             local okTime = dpCall(function()
                                 return meshD:updateArticulatedKey(activeClip, trackIndex, keyIndex,
