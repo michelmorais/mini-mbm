@@ -499,6 +499,8 @@ namespace util
                writeF32LE(fp, in.rotationEulerZ) &&
                writeBytes(fp, &in.hasRotationEuler, sizeof(in.hasRotationEuler)) &&
                writeBytes(fp, &in.easing, sizeof(in.easing)) &&
+               writeF32LE(fp, in.bezierX1) && writeF32LE(fp, in.bezierY1) &&
+               writeF32LE(fp, in.bezierX2) && writeF32LE(fp, in.bezierY2) &&
                writeF32LE(fp, in.scaleX) && writeF32LE(fp, in.scaleY) && writeF32LE(fp, in.scaleZ);
     }
 
@@ -551,10 +553,19 @@ namespace util
                readF32LE(fp, out.rotationEulerZ) &&
                readBytes(fp, &out.hasRotationEuler, sizeof(out.hasRotationEuler)) &&
                (sectionVersion >= 3 ? readBytes(fp, &out.easing, sizeof(out.easing)) : true) &&
+               (sectionVersion >= 4
+                    ? readF32LE(fp, out.bezierX1) && readF32LE(fp, out.bezierY1) &&
+                      readF32LE(fp, out.bezierX2) && readF32LE(fp, out.bezierY2)
+                    : true) &&
                readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ)))
             return false;
         if (sectionVersion < 3)
             out.easing = util::ARTICULATED_EASING_LINEAR;
+        if (sectionVersion < 4)
+        {
+            out.bezierX1 = out.bezierY1 = 0.25f;
+            out.bezierX2 = out.bezierY2 = 0.75f;
+        }
         return true;
     }
 

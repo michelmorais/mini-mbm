@@ -1990,8 +1990,11 @@ namespace mbm
         float qx = 0.0f, qy = 0.0f, qz = 0.0f, qw = 1.0f;
         float sx = 1.0f, sy = 1.0f, sz = 1.0f;
         uint8_t easing = util::ARTICULATED_EASING_LINEAR;
+        float bezierX1 = 0.25f, bezierY1 = 0.25f;
+        float bezierX2 = 0.75f, bezierY2 = 0.75f;
         if (!meshDebug->mesh.getArticulatedKey(animation, track, keyIndex, &time, &px, &py, &pz,
-                                               &qx, &qy, &qz, &qw, &sx, &sy, &sz, &easing))
+                                               &qx, &qy, &qz, &qw, &sx, &sy, &sz, &easing,
+                                               &bezierX1, &bezierY1, &bezierX2, &bezierY2))
         {
             lua_pushnil(lua);
             return 1;
@@ -2001,7 +2004,9 @@ namespace mbm
         lua_pushnumber(lua, qx); lua_pushnumber(lua, qy); lua_pushnumber(lua, qz); lua_pushnumber(lua, qw);
         lua_pushnumber(lua, sx); lua_pushnumber(lua, sy); lua_pushnumber(lua, sz);
         lua_pushinteger(lua, static_cast<lua_Integer>(easing));
-        return 12;
+        lua_pushnumber(lua, bezierX1); lua_pushnumber(lua, bezierY1);
+        lua_pushnumber(lua, bezierX2); lua_pushnumber(lua, bezierY2);
+        return 16;
     }
 
     int onAddArticulatedAnimationDebugLua(lua_State *lua)
@@ -2083,6 +2088,24 @@ namespace mbm
         const uint8_t easing = static_cast<uint8_t>(luaL_checkinteger(lua, 5));
         char errorOut[255] = "";
         if (!meshDebug->mesh.setArticulatedKeyEasing(animation, track, key, easing,
+                                                     errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onSetArticulatedKeyBezierDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t key = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        const float x1 = static_cast<float>(luaL_checknumber(lua, 5));
+        const float y1 = static_cast<float>(luaL_checknumber(lua, 6));
+        const float x2 = static_cast<float>(luaL_checknumber(lua, 7));
+        const float y2 = static_cast<float>(luaL_checknumber(lua, 8));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setArticulatedKeyBezier(animation, track, key, x1, y1, x2, y2,
                                                      errorOut, sizeof(errorOut)))
             return lua_error_debug(lua, errorOut);
         lua_pushboolean(lua, 1);
@@ -2445,6 +2468,7 @@ namespace mbm
                                           {"addArticulatedKey", onAddArticulatedKeyDebugLua},
                                           {"setArticulatedKeyEuler", onSetArticulatedKeyEulerDebugLua},
                                           {"setArticulatedKeyEasing", onSetArticulatedKeyEasingDebugLua},
+                                          {"setArticulatedKeyBezier", onSetArticulatedKeyBezierDebugLua},
                                           {"updateArticulatedKey", onUpdateArticulatedKeyDebugLua},
                                           {"removeArticulatedKey", onRemoveArticulatedKeyDebugLua},
 										  {"getExt", onGetStaticExtensionLua},

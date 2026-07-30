@@ -98,7 +98,7 @@ SECTION_ARTICULATED_ANIMATION
 
 `SECTION_ARTICULATED_PARTS` stores part IDs, names, pivots, and future hierarchy data.
 
-`SECTION_ARTICULATED_ANIMATION` stores named clips, priorities/default playback data, tracks, channel masks, key times, transform values, and the per-segment easing mode. Linear is the default; Smoothstep and the other basic ease modes are evaluated by the runtime sampler.
+`SECTION_ARTICULATED_ANIMATION` stores named clips, priorities/default playback data, tracks, channel masks, key times, transform values, and the per-segment easing mode. Linear is the default; Smoothstep, Cubic Bezier with two editable control points, and the other basic ease modes are evaluated by the runtime sampler.
 
 Both sections are omitted when there is no corresponding data. Existing `.msh` files without either section remain valid and follow the current static/frame-animation path.
 

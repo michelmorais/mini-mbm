@@ -1201,6 +1201,7 @@ meshD:addArticulatedKey(clipIndex, trackIndex, time,
 meshD:setArticulatedKeyEuler(clipIndex, trackIndex, time,
     rotationEulerX, rotationEulerY, rotationEulerZ)
 meshD:setArticulatedKeyEasing(clipIndex, trackIndex, keyIndex, easing)
+meshD:setArticulatedKeyBezier(clipIndex, trackIndex, keyIndex, x1, y1, x2, y2)
 ```
 
 Channel masks are `1` for position, `2` for rotation, and `4` for scale. Adding another key for
@@ -1220,8 +1221,10 @@ kept at least as large as the greatest key time; a requested shorter duration is
 Mesh Debug displays key rotation as authored Euler degrees; the runtime converts those values to
 the quaternion used for rendering. `getArticulatedKey` also returns the key easing mode, and
 `setArticulatedKeyEasing` accepts `0` Linear, `1` Ease In, `2` Ease Out, `3` Ease In Out, or
-`4` Smoothstep. The easing on a key controls the transition to the next key; the final key has no
-outgoing segment.
+`4` Smoothstep, or `5` Cubic Bezier. `getArticulatedKey` returns the four Bezier control values
+after the easing mode. `setArticulatedKeyBezier` changes those controls; X is restricted to `0..1`,
+while Y may leave that range for overshoot. The easing on a key controls the transition to the next
+key; the final key has no outgoing segment.
 `parentPartId` establishes a same-frame parent relationship. A child inherits the parent's complete
 transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
 
@@ -1240,4 +1243,5 @@ car:disableArticulatedAnimation("wheel_spin")
 
 The runtime advances clip time with the engine's `device->delta`, preserving the engine time-scale
 and frame-rate behavior. Easing is evaluated in the articulated track sampler before interpolating
-position, rotation, and scale. Existing version-2 articulated sections default to Linear.
+position, rotation, and scale. Cubic Bezier solves its normalized-time X curve before evaluating Y.
+Existing version-2 articulated sections default to Linear.

@@ -430,16 +430,21 @@ struct ARTICULATED_PART_V11
 ```
 
 `SECTION_ARTICULATED_ANIMATION` is one bundled section with a `uint32_t clipCount`. The current
-writer uses `sectionVersion` `3`; readers accept versions `2` and `3`. Version 2 is interpreted
-with linear easing for every key. Other versions are rejected. Each clip contains a length-prefixed name,
+writer uses `sectionVersion` `4`; readers accept versions `2`, `3`, and `4`. Version 2 is interpreted
+with linear easing for every key, and versions before 4 receive linear Bezier control points. Other
+versions are rejected. Each clip contains a length-prefixed name,
 `float duration`, `float speed`, `int32_t defaultPriority`, a `uint8_t loop`, and a
 `uint32_t trackCount`. Each track contains `uint64_t partId`, a `uint8_t` channel mask,
 `uint32_t keyCount`, and key records. Keys store a `float time`, position (`x/y/z`), quaternion
 rotation (`x/y/z/w`), authored Euler rotation in degrees (`x/y/z`), a `uint8_t hasRotationEuler`
-flag, an easing mode byte, and scale (`x/y/z`). When the flag is present, runtime interpolation uses
+flag, an easing mode byte, four Bezier control-point floats (`x1/y1/x2/y2`), and scale (`x/y/z`).
+When the flag is present, runtime interpolation uses
 the authored Euler values and converts the result to a quaternion. The easing mode on a key controls
 the segment from that key to the next one: `0` Linear, `1` Ease In, `2` Ease Out, `3` Ease In Out,
-and `4` Smoothstep. A missing easing byte (version 2) means Linear.
+`4` Smoothstep, and `5` Cubic Bezier. A missing easing byte (version 2) means Linear. Cubic Bezier
+uses normalized time on X and normalized interpolation progress on Y. X control values must remain
+within `0..1`; Y may leave that range to produce overshoot. Versions 2 and 3 default to
+`P1=(0.25,0.25)` and `P2=(0.75,0.75)`, which describe a Linear curve.
 
 ## 6g. `SECTION_VERTEX_SKIN_WEIGHTS` payload
 

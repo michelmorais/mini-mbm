@@ -3790,8 +3790,37 @@ local function getArticulatedEasingOptions()
         tLang.L('articulated_easing_in'),
         tLang.L('articulated_easing_out'),
         tLang.L('articulated_easing_in_out'),
-        tLang.L('articulated_easing_smoothstep')
+        tLang.L('articulated_easing_smoothstep'),
+        tLang.L('articulated_easing_bezier')
     }
+end
+
+function drawArticulatedBezierPreview(x1, y1, x2, y2)
+    local size = {x = 180, y = 110}
+    local origin = tImGui.GetCursorScreenPos()
+    local minY = math.min(-0.1, y1, y2)
+    local maxY = math.max(1.1, y1, y2)
+    local spanY = math.max(0.001, maxY - minY)
+    local function point(x, y)
+        return {
+            x = origin.x + math.max(0, math.min(1, x)) * size.x,
+            y = origin.y + (maxY - y) / spanY * size.y
+        }
+    end
+    local p0 = point(0, 0)
+    local p1 = point(x1, y1)
+    local p2 = point(x2, y2)
+    local p3 = point(1, 1)
+    tImGui.AddRect(origin, {x = origin.x + size.x, y = origin.y + size.y},
+        {r = 0.55, g = 0.55, b = 0.55, a = 0.7}, 0, 0, 1)
+    tImGui.AddLine(point(0, 0), point(1, 0), {r = 0.35, g = 0.35, b = 0.35, a = 0.8}, 1)
+    tImGui.AddLine(point(0, 1), point(1, 1), {r = 0.35, g = 0.35, b = 0.35, a = 0.8}, 1)
+    tImGui.AddLine(p0, p1, {r = 0.65, g = 0.65, b = 0.65, a = 0.8}, 1)
+    tImGui.AddLine(p2, p3, {r = 0.65, g = 0.65, b = 0.65, a = 0.8}, 1)
+    tImGui.AddBezierCubic(p0, p1, p2, p3, {r = 0.2, g = 0.75, b = 1, a = 1}, 2, 32)
+    tImGui.AddCircleFilled(p1, 4, {r = 1, g = 0.65, b = 0.1, a = 1}, 12)
+    tImGui.AddCircleFilled(p2, 4, {r = 1, g = 0.35, b = 0.2, a = 1}, 12)
+    tImGui.Dummy(size)
 end
 
 -- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
@@ -6928,7 +6957,8 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 end
                 articulatedTooltip('articulated_add_key_tooltip')
                 for keyIndex = 1, (keyCount or 0) do
-                    local okKey, keyTime, px, py, pz, qx, qy, qz, qw, sx, sy, sz, keyEasing = dpCall(function()
+                    local okKey, keyTime, px, py, pz, qx, qy, qz, qw, sx, sy, sz,
+                        keyEasing, bezierX1, bezierY1, bezierX2, bezierY2 = dpCall(function()
                         return meshD:getArticulatedKey(activeClip, trackIndex, keyIndex)
                     end)
                     if okKey and keyTime then
@@ -6969,6 +6999,34 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         articulatedTooltip('articulated_easing_tooltip')
                         local newEasing = (easingChanged and newEasingIndex and newEasingIndex > 0)
                             and (newEasingIndex - 1) or (keyEasing or 0)
+                        local bezierChanged = false
+                        local newBezierX1, newBezierY1 = bezierX1 or 0.25, bezierY1 or 0.25
+                        local newBezierX2, newBezierY2 = bezierX2 or 0.75, bezierY2 or 0.75
+                        if newEasing == 5 then
+                            tImGui.PushItemWidth(150)
+                            local p1Changed, p1 = tImGui.DragFloat2(
+                                tLang.L('articulated_bezier_p1') .. '##artBezierP1-' .. keyId,
+                                {newBezierX1, newBezierY1}, 0.01, 0, 0, '%.3f', 0)
+                            tImGui.PopItemWidth()
+                            articulatedTooltip('articulated_bezier_points_tooltip')
+                            tImGui.PushItemWidth(150)
+                            local p2Changed, p2 = tImGui.DragFloat2(
+                                tLang.L('articulated_bezier_p2') .. '##artBezierP2-' .. keyId,
+                                {newBezierX2, newBezierY2}, 0.01, 0, 0, '%.3f', 0)
+                            tImGui.PopItemWidth()
+                            articulatedTooltip('articulated_bezier_points_tooltip')
+                            if p1Changed and p1 then
+                                newBezierX1 = math.max(0, math.min(1, p1[1] or newBezierX1))
+                                newBezierY1 = p1[2] or newBezierY1
+                            end
+                            if p2Changed and p2 then
+                                newBezierX2 = math.max(0, math.min(1, p2[1] or newBezierX2))
+                                newBezierY2 = p2[2] or newBezierY2
+                            end
+                            bezierChanged = p1Changed or p2Changed
+                            drawArticulatedBezierPreview(
+                                newBezierX1, newBezierY1, newBezierX2, newBezierY2)
+                        end
                         local qSignature = string.format('%.7f:%.7f:%.7f:%.7f',
                             qx or 0, qy or 0, qz or 0, qw or 1)
                         if not keyEuler or keyEuler.qSignature ~= qSignature then
@@ -7012,6 +7070,19 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                             {sx or 1, sy or 1, sz or 1},
                             0.01, -math.huge, math.huge, '%.3f', 0)
                         tImGui.PopItemWidth()
+                        if easingChanged and newEasingIndex and newEasingIndex > 0 then
+                            local okEasing = dpCall(function()
+                                return meshD:setArticulatedKeyEasing(activeClip, trackIndex, keyIndex, newEasing)
+                            end)
+                            if okEasing then markArticulatedEdit() end
+                        end
+                        if bezierChanged then
+                            local okBezier = dpCall(function()
+                                return meshD:setArticulatedKeyBezier(activeClip, trackIndex, keyIndex,
+                                    newBezierX1, newBezierY1, newBezierX2, newBezierY2)
+                            end)
+                            if okBezier then markArticulatedEdit() end
+                        end
                         if posChanged or rotChanged or scaleChanged then
                             local p = pos or {px or 0, py or 0, pz or 0}
                             local r = {qx or 0, qy or 0, qz or 0}
@@ -7039,12 +7110,6 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                                     qx or 0, qy or 0, qz or 0, qw or 1, sx or 1, sy or 1, sz or 1)
                             end)
                             if okTime then markArticulatedEdit() end
-                        end
-                        if easingChanged and newEasingIndex and newEasingIndex > 0 then
-                            local okEasing = dpCall(function()
-                                return meshD:setArticulatedKeyEasing(activeClip, trackIndex, keyIndex, newEasing)
-                            end)
-                            if okEasing then markArticulatedEdit() end
                         end
                         tImGui.PopID()
                     end

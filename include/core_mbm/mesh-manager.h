@@ -244,7 +244,9 @@ namespace mbm
                                         float *positionX, float *positionY, float *positionZ,
                                         float *rotationX, float *rotationY, float *rotationZ, float *rotationW,
                                         float *scaleX, float *scaleY, float *scaleZ,
-                                        uint8_t *easing) const noexcept;
+                                        uint8_t *easing,
+                                        float *bezierX1, float *bezierY1,
+                                        float *bezierX2, float *bezierY2) const noexcept;
         API_IMPL int addArticulatedAnimation(const char *name, const float duration, const float speed,
                                              const int priority, const bool loop, char *errorOut, const int errorOutLen);
         API_IMPL bool removeArticulatedAnimation(const uint32_t animationIndex, char *errorOut, const int errorOutLen);
@@ -261,6 +263,11 @@ namespace mbm
                                              char *errorOut, const int errorOutLen);
         API_IMPL bool setArticulatedKeyEasing(const uint32_t animationIndex, const uint32_t trackIndex,
                                               const uint32_t keyIndex, const uint8_t easing,
+                                              char *errorOut, const int errorOutLen);
+        API_IMPL bool setArticulatedKeyBezier(const uint32_t animationIndex, const uint32_t trackIndex,
+                                              const uint32_t keyIndex,
+                                              const float x1, const float y1,
+                                              const float x2, const float y2,
                                               char *errorOut, const int errorOutLen);
         API_IMPL bool updateArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
                                            const uint32_t keyIndex, const float time,

@@ -480,7 +480,7 @@ namespace
                                                  std::vector<mbm::ARTICULATED_CLIP_DATA> &out,
                                                  const uint16_t sectionVersion)
     {
-        if (sectionVersion != 2 && sectionVersion != 3)
+        if (sectionVersion != 2 && sectionVersion != 3 && sectionVersion != 4)
             return false;
         util::ARTICULATED_ANIMATION_HEADER_V11 header;
         if (!util::readArticulatedAnimationHeaderV11(tmp, header))
@@ -2359,7 +2359,7 @@ namespace mbm
         {
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_ARTICULATED_ANIMATION;
-            sectionHeader.sectionVersion = 3;
+            sectionHeader.sectionVersion = 4;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
                 util::ARTICULATED_ANIMATION_HEADER_V11 animationHeader;
@@ -4523,13 +4523,16 @@ namespace mbm
                                            float *positionX, float *positionY, float *positionZ,
                                            float *rotationX, float *rotationY, float *rotationZ, float *rotationW,
                                            float *scaleX, float *scaleY, float *scaleZ,
-                                           uint8_t *easing) const noexcept
+                                           uint8_t *easing,
+                                           float *bezierX1, float *bezierY1,
+                                           float *bezierX2, float *bezierY2) const noexcept
     {
         if (animationIndex >= impl->articulatedClips.size() ||
             trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
             keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size() ||
             !time || !positionX || !positionY || !positionZ || !rotationX || !rotationY ||
-            !rotationZ || !rotationW || !scaleX || !scaleY || !scaleZ || !easing)
+            !rotationZ || !rotationW || !scaleX || !scaleY || !scaleZ || !easing ||
+            !bezierX1 || !bezierY1 || !bezierX2 || !bezierY2)
             return false;
         const auto &key = impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex];
         *time = key.time;
@@ -4538,6 +4541,8 @@ namespace mbm
         *rotationZ = key.rotationZ; *rotationW = key.rotationW;
         *scaleX = key.scaleX; *scaleY = key.scaleY; *scaleZ = key.scaleZ;
         *easing = key.easing;
+        *bezierX1 = key.bezierX1; *bezierY1 = key.bezierY1;
+        *bezierX2 = key.bezierX2; *bezierY2 = key.bezierY2;
         return true;
     }
 
@@ -4686,12 +4691,37 @@ namespace mbm
             if (errorOut) snprintf(errorOut, errorOutLen, "articulated key index out of range");
             return false;
         }
-        if (easing > util::ARTICULATED_EASING_SMOOTHSTEP)
+        if (easing > util::ARTICULATED_EASING_BEZIER)
         {
             if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated easing");
             return false;
         }
         impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex].easing = easing;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setArticulatedKeyBezier(const uint32_t animationIndex, const uint32_t trackIndex,
+                                                 const uint32_t keyIndex,
+                                                 const float x1, const float y1,
+                                                 const float x2, const float y2,
+                                                 char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated key index out of range");
+            return false;
+        }
+        if (!std::isfinite(x1) || !std::isfinite(y1) || !std::isfinite(x2) || !std::isfinite(y2) ||
+            x1 < 0.0f || x1 > 1.0f || x2 < 0.0f || x2 > 1.0f)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated Bezier control points");
+            return false;
+        }
+        auto &key = impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex];
+        key.bezierX1 = x1; key.bezierY1 = y1;
+        key.bezierX2 = x2; key.bezierY2 = y2;
         return true;
     }
 
@@ -5412,10 +5442,10 @@ namespace mbm
                 }
             }
         }
-        const auto applyEasing = [](float value, const uint8_t easing)
+        const auto applyEasing = [](float value, const util::ARTICULATED_KEY_V11 &key)
         {
             value = std::max(0.0f, std::min(1.0f, value));
-            switch (easing)
+            switch (key.easing)
             {
                 case util::ARTICULATED_EASING_IN:
                     return value * value;
@@ -5426,11 +5456,51 @@ namespace mbm
                                        : 1.0f - 2.0f * (1.0f - value) * (1.0f - value);
                 case util::ARTICULATED_EASING_SMOOTHSTEP:
                     return value * value * (3.0f - 2.0f * value);
+                case util::ARTICULATED_EASING_BEZIER:
+                {
+                    const auto cubic = [](const float t, const float p1, const float p2)
+                    {
+                        const float oneMinusT = 1.0f - t;
+                        return 3.0f * oneMinusT * oneMinusT * t * p1 +
+                               3.0f * oneMinusT * t * t * p2 +
+                               t * t * t;
+                    };
+                    const auto cubicDerivative = [](const float t, const float p1, const float p2)
+                    {
+                        const float oneMinusT = 1.0f - t;
+                        return 3.0f * oneMinusT * oneMinusT * p1 +
+                               6.0f * oneMinusT * t * (p2 - p1) +
+                               3.0f * t * t * (1.0f - p2);
+                    };
+                    float parameter = value;
+                    for (int i = 0; i < 6; ++i)
+                    {
+                        const float difference = cubic(parameter, key.bezierX1, key.bezierX2) - value;
+                        const float derivative = cubicDerivative(parameter, key.bezierX1, key.bezierX2);
+                        if (std::fabs(difference) < 0.00001f || std::fabs(derivative) < 0.00001f)
+                            break;
+                        parameter = std::max(0.0f, std::min(1.0f, parameter - difference / derivative));
+                    }
+                    float low = 0.0f;
+                    float high = 1.0f;
+                    for (int i = 0; i < 10; ++i)
+                    {
+                        const float currentX = cubic(parameter, key.bezierX1, key.bezierX2);
+                        if (std::fabs(currentX - value) < 0.00001f)
+                            break;
+                        if (currentX < value)
+                            low = parameter;
+                        else
+                            high = parameter;
+                        parameter = (low + high) * 0.5f;
+                    }
+                    return cubic(parameter, key.bezierY1, key.bezierY2);
+                }
                 default:
                     return value;
             }
         };
-        factor = applyEasing(factor, a->easing);
+        factor = applyEasing(factor, *a);
         const auto lerp = [factor](const float x, const float y) { return x + (y - x) * factor; };
         const auto quaternionFromEulerDegrees = [](const float eulerX, const float eulerY,
                                                    const float eulerZ, float out[4])

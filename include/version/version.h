@@ -151,8 +151,9 @@
     6.31.21 Added Mesh Debug's vertex-only "Centralize Itself" transform to both the per-mesh Transform node and Apply All. Each targeted subset is centered independently at the origin: frame/subset 0 applies to every frame/subset, a selected frame limits the operation to that frame, and a selected subset limits it to that subset in each targeted frame. Unlike the existing Centralize anchor operation, unselected subsets and mesh-wide bones are not moved.
     6.31.22 Started rigid/articulated animation for Mesh V11: optional SECTION_ARTICULATED_PARTS and SECTION_ARTICULATED_ANIMATION payloads, persistent part IDs/pivots, and runtime/editor parsing with backward-compatible omission when unused.
     6.31.23 Added per-key articulated-animation easing (Linear, Ease In, Ease Out, Ease In Out, and Smoothstep), persisted as SECTION_ARTICULATED_ANIMATION version 3 while version 2 defaults to Linear, with Mesh Debug and Lua authoring support.
+    6.31.24 Added Cubic Bezier articulated easing with editable P1/P2 time-progress control points, a Mesh Debug curve preview, runtime normalized-time solving, Lua authoring support, and SECTION_ARTICULATED_ANIMATION version 4 persistence while versions 2 and 3 receive Linear control defaults.
 */
-#define MBM_VERSION "6.31.23" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.24" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

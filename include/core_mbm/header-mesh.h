@@ -787,7 +787,8 @@ namespace util
         ARTICULATED_EASING_IN = 1,
         ARTICULATED_EASING_OUT = 2,
         ARTICULATED_EASING_IN_OUT = 3,
-        ARTICULATED_EASING_SMOOTHSTEP = 4
+        ARTICULATED_EASING_SMOOTHSTEP = 4,
+        ARTICULATED_EASING_BEZIER = 5
     };
 
     struct ARTICULATED_TRACK_V11
@@ -807,6 +808,8 @@ namespace util
         float rotationEulerX, rotationEulerY, rotationEulerZ;
         uint8_t hasRotationEuler;
         uint8_t easing;
+        float bezierX1, bezierY1;
+        float bezierX2, bezierY2;
         float scaleX, scaleY, scaleZ;
         API_IMPL ARTICULATED_KEY_V11() noexcept;
     };
