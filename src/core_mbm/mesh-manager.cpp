@@ -4313,6 +4313,28 @@ namespace mbm
         return added;
     }
 
+    uint32_t MESH_MBM_DEBUG::removeArticulatedParts() noexcept
+    {
+        if (impl->articulatedParts.empty())
+            return 0;
+        std::unordered_set<uint64_t> removedPartIds;
+        removedPartIds.reserve(impl->articulatedParts.size());
+        for (const auto &part : impl->articulatedParts)
+            removedPartIds.insert(part.partId);
+        const uint32_t removedCount = static_cast<uint32_t>(impl->articulatedParts.size());
+        impl->articulatedParts.clear();
+        for (auto &clip : impl->articulatedClips)
+        {
+            clip.tracks.erase(std::remove_if(clip.tracks.begin(), clip.tracks.end(),
+                                             [&removedPartIds](const ARTICULATED_TRACK_DATA &track)
+                                             {
+                                                 return removedPartIds.find(track.header.partId) != removedPartIds.end();
+                                             }),
+                               clip.tracks.end());
+        }
+        return removedCount;
+    }
+
     int MESH_MBM_DEBUG::addArticulatedPart(const uint64_t partId, const uint32_t frameIndex,
                                            const uint32_t subsetIndex, const char *name,
                                            const float pivotX, const float pivotY, const float pivotZ,
@@ -4489,6 +4511,18 @@ namespace mbm
         clip.header.loop = loop ? 1 : 0;
         impl->articulatedClips.push_back(std::move(clip));
         return static_cast<int>(impl->articulatedClips.size());
+    }
+
+    bool MESH_MBM_DEBUG::removeArticulatedAnimation(const uint32_t animationIndex,
+                                                    char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation index out of range");
+            return false;
+        }
+        impl->articulatedClips.erase(impl->articulatedClips.begin() + animationIndex);
+        return true;
     }
 
     int MESH_MBM_DEBUG::addArticulatedTrack(const uint32_t animationIndex, const uint64_t partId,

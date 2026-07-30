@@ -1185,12 +1185,14 @@ local partIndex = meshD:addArticulatedPart(
     parentPartId)
 
 local added = meshD:initializeArticulatedParts() -- computes missing IDs and AABB-center pivots
+local removedParts = meshD:removeArticulatedParts() -- removes parts and their tracks; clips remain
 meshD:updateArticulatedPart(partIndex, name,
     pivotX, pivotY, pivotZ,
     pivotQX, pivotQY, pivotQZ, pivotQW,
     parentPartId)
 
 local clipIndex = meshD:addArticulatedAnimation(name, duration, speed, priority, loop)
+meshD:removeArticulatedAnimation(clipIndex)
 local trackIndex = meshD:addArticulatedTrack(clipIndex, partId, channelMask)
 meshD:addArticulatedKey(clipIndex, trackIndex, time,
     positionX, positionY, positionZ,
@@ -1212,6 +1214,8 @@ same time. `updateArticulatedAnimation(index, name, duration, speed, priority, l
 metadata while preserving its tracks. `removeArticulatedKey(animation, track, key)` removes one
 keyframe without changing the clip's manually editable duration. The clip duration is automatically
 kept at least as large as the greatest key time; a requested shorter duration is clamped.
+`removeArticulatedAnimation(index)` removes a clip and all its tracks and keys.
+`removeArticulatedParts()` removes all parts/pivots and tracks referencing those parts; clips remain.
 Mesh Debug displays key rotation as authored Euler degrees; the runtime converts those values to
 the quaternion used for rendering.
 

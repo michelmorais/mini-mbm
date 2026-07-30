@@ -1838,6 +1838,13 @@ namespace mbm
         return 1;
     }
 
+    int onRemoveArticulatedPartsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.removeArticulatedParts()));
+        return 1;
+    }
+
     int onAddArticulatedPartDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1859,6 +1866,17 @@ namespace mbm
         if (ret == 0)
             return lua_error_debug(lua, errorOut);
         lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onRemoveArticulatedAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeArticulatedAnimation(index, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
         return 1;
     }
 
@@ -2394,6 +2412,7 @@ namespace mbm
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},
                                           {"initializeArticulatedParts", onInitializeArticulatedPartsDebugLua},
+                                          {"removeArticulatedParts", onRemoveArticulatedPartsDebugLua},
                                           {"addArticulatedPart", onAddArticulatedPartDebugLua},
                                           {"updateArticulatedPart", onUpdateArticulatedPartDebugLua},
                                           {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsDebugLua},
@@ -2404,6 +2423,7 @@ namespace mbm
                                           {"getArticulatedTrack", onGetArticulatedTrackDebugLua},
                                           {"getArticulatedKey", onGetArticulatedKeyDebugLua},
                                           {"addArticulatedAnimation", onAddArticulatedAnimationDebugLua},
+                                          {"removeArticulatedAnimation", onRemoveArticulatedAnimationDebugLua},
                                           {"addArticulatedTrack", onAddArticulatedTrackDebugLua},
                                           {"addArticulatedKey", onAddArticulatedKeyDebugLua},
                                           {"setArticulatedKeyEuler", onSetArticulatedKeyEulerDebugLua},

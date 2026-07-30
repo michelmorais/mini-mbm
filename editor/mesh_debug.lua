@@ -6571,6 +6571,28 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
 
     local okParts, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
     totalParts = (okParts and totalParts) or 0
+    if totalParts > 0 then
+        if not tEntry.bArticulatedRemovePartsConfirm then
+            if tImGui.Button(tLang.L('articulated_remove_parts') .. '##artRemoveParts-' .. index) then
+                tEntry.bArticulatedRemovePartsConfirm = true
+            end
+        else
+            tImGui.TextWrapped(tLang.L('articulated_remove_parts_confirm'))
+            if tImGui.Button('Confirm##artRemovePartsConfirm-' .. index) then
+                local okRemove = dpCall(function() return meshD:removeArticulatedParts() end)
+                if okRemove then
+                    tEntry.bArticulatedRemovePartsConfirm = false
+                    tEntry.iArticulatedPart = 1
+                    markArticulatedEdit()
+                    totalParts = 0
+                end
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('cancel') .. '##artRemovePartsCancel-' .. index) then
+                tEntry.bArticulatedRemovePartsConfirm = false
+            end
+        end
+    end
     tEntry.bShowArticulatedPivot = tImGui.Checkbox('Show Pivot Gizmo##artPivotShow-' .. index,
         tEntry.bShowArticulatedPivot ~= false)
     articulatedTooltip('articulated_show_pivot_tooltip')
@@ -6655,6 +6677,31 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         if ok then markArticulatedEdit() end
     end
     articulatedTooltip('articulated_add_clip_tooltip')
+    if totalClips > 0 then
+        if not tEntry.bArticulatedRemoveClipConfirm then
+            if tImGui.Button(tLang.L('articulated_remove_clip') .. '##artRemoveClip-' .. index) then
+                tEntry.bArticulatedRemoveClipConfirm = true
+            end
+        else
+            tImGui.TextWrapped(tLang.L('articulated_remove_clip_confirm'))
+            if tImGui.Button('Confirm##artRemoveClipConfirm-' .. index) then
+                local removeIndex = math.max(1, math.min(tEntry.iArticulatedClip or 1, totalClips))
+                local okRemove = dpCall(function()
+                    return meshD:removeArticulatedAnimation(removeIndex)
+                end)
+                if okRemove then
+                    tEntry.bArticulatedRemoveClipConfirm = false
+                    totalClips = totalClips - 1
+                    tEntry.iArticulatedClip = math.max(1, math.min(removeIndex, math.max(1, totalClips)))
+                    markArticulatedEdit()
+                end
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('cancel') .. '##artRemoveClipCancel-' .. index) then
+                tEntry.bArticulatedRemoveClipConfirm = false
+            end
+        end
+    end
     if totalClips == 0 then
         tImGui.TextDisabled(tLang.L('articulated_no_clips'))
     else
@@ -6680,9 +6727,20 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             return meshD:getArticulatedAnimation(activeClip)
         end)
         if okInfo and infoName then
+            tEntry.tArticulatedClipNameEdits = tEntry.tArticulatedClipNameEdits or {}
+            local nameEdit = tEntry.tArticulatedClipNameEdits[activeClip]
+            if not nameEdit or nameEdit.engineName ~= infoName then
+                nameEdit = {value = infoName, engineName = infoName}
+                tEntry.tArticulatedClipNameEdits[activeClip] = nameEdit
+            end
             tImGui.PushItemWidth(220)
-            local nameChanged, newName = tImGui.InputText('Clip Name', infoName, 96, 0)
+            local nameChanged, newName = tImGui.InputText(
+                'Clip Name##artClipName-' .. index .. '-' .. activeClip, nameEdit.value, 96, 0)
+            local nameDeactivatedAfterEdit = tImGui.IsItemDeactivatedAfterEdit()
             tImGui.PopItemWidth()
+            if newName ~= nil then
+                nameEdit.value = newName
+            end
             articulatedTooltip('articulated_clip_name_tooltip')
             tImGui.PushItemWidth(115)
             local durationChanged, newDuration = tImGui.InputFloat('Duration', infoDuration or 0, 0.01, 0.1, '%.3f', 0)
@@ -6699,13 +6757,16 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             local newLoop = tImGui.Checkbox('Loop', infoLoop == true)
             articulatedTooltip('articulated_loop_tooltip')
             local loopChanged = newLoop ~= (infoLoop == true)
-            if nameChanged or durationChanged or speedChanged or priorityChanged or loopChanged then
+            if nameChanged or nameDeactivatedAfterEdit or durationChanged or speedChanged or priorityChanged or loopChanged then
                 local okUpdate = dpCall(function()
-                    return meshD:updateArticulatedAnimation(activeClip, newName or infoName,
+                    return meshD:updateArticulatedAnimation(activeClip, nameEdit.value or infoName,
                         math.max(0, newDuration or infoDuration or 0), newSpeed or infoSpeed or 1,
                         newPriority or infoPriority or 0, newLoop == true)
                 end)
-                if okUpdate then markArticulatedEdit() end
+                if okUpdate then
+                    nameEdit.engineName = nameEdit.value
+                    markArticulatedEdit()
+                end
             end
             local previewReady = index == iSelectedMeshIndex and tPreviewMesh and not tEntry.modified
             local timelineMin, timelineMax
