@@ -134,7 +134,7 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 | Function | Signature | Returns | Description |
 |---|---|---|---|
 | `mbm.quit` | `()` | — | Exit the application |
-| `mbm.pause` | `()` | — | Pause engine (stops `logic` calls and audio) |
+| `mbm.pause` | `()` | — | Pause engine time (`delta=0`) and optionally audio; scene logic and rendering continue |
 | `mbm.resume` | `()` | — | Resume a paused engine |
 | `mbm.loadScene` | `(name: string)` | — | Load a new Lua scene file (relative path) |
 | `mbm.getSceneName` | `()` | string | Name of the current scene file |
