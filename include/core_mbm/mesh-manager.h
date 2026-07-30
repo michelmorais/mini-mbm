@@ -264,7 +264,9 @@ namespace mbm
                                         float *scaleX, float *scaleY, float *scaleZ,
                                         uint8_t *easing,
                                         float *bezierX1, float *bezierY1,
-                                        float *bezierX2, float *bezierY2) const noexcept;
+                                        float *bezierX2, float *bezierY2,
+                                        float *rotationEulerX, float *rotationEulerY,
+                                        float *rotationEulerZ, bool *hasRotationEuler) const noexcept;
         API_IMPL int addArticulatedAnimation(const char *name, const float duration, const float speed,
                                              const int priority, const bool loop, const uint8_t blendMode,
                                              char *errorOut, const int errorOutLen);

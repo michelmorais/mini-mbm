@@ -1998,9 +1998,13 @@ namespace mbm
         uint8_t easing = util::ARTICULATED_EASING_LINEAR;
         float bezierX1 = 0.25f, bezierY1 = 0.25f;
         float bezierX2 = 0.75f, bezierY2 = 0.75f;
+        float rotationEulerX = 0.0f, rotationEulerY = 0.0f, rotationEulerZ = 0.0f;
+        bool hasRotationEuler = false;
         if (!meshDebug->mesh.getArticulatedKey(animation, track, keyIndex, &time, &px, &py, &pz,
                                                &qx, &qy, &qz, &qw, &sx, &sy, &sz, &easing,
-                                               &bezierX1, &bezierY1, &bezierX2, &bezierY2))
+                                               &bezierX1, &bezierY1, &bezierX2, &bezierY2,
+                                               &rotationEulerX, &rotationEulerY, &rotationEulerZ,
+                                               &hasRotationEuler))
         {
             lua_pushnil(lua);
             return 1;
@@ -2012,7 +2016,11 @@ namespace mbm
         lua_pushinteger(lua, static_cast<lua_Integer>(easing));
         lua_pushnumber(lua, bezierX1); lua_pushnumber(lua, bezierY1);
         lua_pushnumber(lua, bezierX2); lua_pushnumber(lua, bezierY2);
-        return 16;
+        lua_pushnumber(lua, rotationEulerX);
+        lua_pushnumber(lua, rotationEulerY);
+        lua_pushnumber(lua, rotationEulerZ);
+        lua_pushboolean(lua, hasRotationEuler ? 1 : 0);
+        return 20;
     }
 
     int onAddArticulatedAnimationDebugLua(lua_State *lua)

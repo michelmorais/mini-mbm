@@ -1222,9 +1222,12 @@ Mesh Debug displays key rotation as authored Euler degrees; the runtime converts
 the quaternion used for rendering. `getArticulatedKey` also returns the key easing mode, and
 `setArticulatedKeyEasing` accepts `0` Linear, `1` Ease In, `2` Ease Out, `3` Ease In Out, or
 `4` Smoothstep, or `5` Cubic Bezier. `getArticulatedKey` returns the four Bezier control values
-after the easing mode. `setArticulatedKeyBezier` changes those controls; X is restricted to `0..1`,
-while Y may leave that range for overshoot. The easing on a key controls the transition to the next
-key; the final key has no outgoing segment.
+after the easing mode, followed by the authored Euler X/Y/Z values and a boolean indicating whether
+those Euler values are present. Existing return values keep their original order. Mesh Debug uses
+the authored values instead of deriving Euler angles from the equivalent quaternion, preserving
+inputs such as `359.99°` when the asset is reopened. `setArticulatedKeyBezier` changes the curve
+controls; X is restricted to `0..1`, while Y may leave that range for overshoot. The easing on a
+key controls the transition to the next key; the final key has no outgoing segment.
 `parentPartId` establishes a same-frame parent relationship. A child inherits the parent's complete
 transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
 

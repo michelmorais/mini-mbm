@@ -6511,8 +6511,8 @@ function showBonesNode(tEntry, meshD, index)
 end
 
 -- ---------------------------------------------------------------------------
--- Articulated Animation node: persistent parts/pivots, named clips, tracks and initial keys.
--- Timeline scrubbing and visual pivot/keyframe gizmos remain subsequent milestones.
+-- Articulated Animation node: one selected animated subset drives its Part/pivot editor,
+-- the current Clip's Track/Keys, timeline preview and pivot gizmos.
 -- ---------------------------------------------------------------------------
 ARTICULATED_PIVOT_COLOR = {1, 0.55, 0.05, 0.95}
 
@@ -6610,9 +6610,24 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
     local okParts, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
     totalParts = (okParts and totalParts) or 0
     local articulatedPartIds = {}
+    local articulatedParts = {}
+    local articulatedPartOptions = {}
     for partIndex = 1, totalParts do
-        local okPart, partId = dpCall(function() return meshD:getArticulatedPart(partIndex) end)
-        if okPart and partId then articulatedPartIds[partIndex] = partId end
+        local okPart, partId, frame, subset, name, px, py, pz, qx, qy, qz, qw, parent = dpCall(function()
+            return meshD:getArticulatedPart(partIndex)
+        end)
+        if okPart and partId then
+            articulatedPartIds[partIndex] = partId
+            articulatedParts[partIndex] = {
+                partId = partId, frame = frame, subset = subset, name = name,
+                px = px, py = py, pz = pz, qx = qx, qy = qy, qz = qz, qw = qw,
+                parent = parent
+            }
+            articulatedPartOptions[partIndex] = string.format('F%d S%d - %s',
+                frame or 0, subset or 0, (name and name ~= '') and name or ('Part ' .. partIndex))
+        else
+            articulatedPartOptions[partIndex] = 'Part ' .. partIndex
+        end
     end
     if totalParts > 0 then
         if not tEntry.bArticulatedRemovePartsConfirm then
@@ -6628,6 +6643,9 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                     tEntry.iArticulatedPart = 1
                     markArticulatedEdit()
                     totalParts = 0
+                    articulatedPartIds = {}
+                    articulatedParts = {}
+                    articulatedPartOptions = {}
                 end
             end
             tImGui.SameLine()
@@ -6650,11 +6668,14 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
     end
     articulatedTooltip('articulated_pivot_size_tooltip')
     if totalParts > 0 then
-        tImGui.PushItemWidth(70)
-        local partChanged, selectedPart = tImGui.InputInt('Part##artPivotPart-' .. index,
-            tEntry.iArticulatedPart or 1, 1, 1, 0)
+        tEntry.iArticulatedPart = math.max(1,
+            math.min(tEntry.iArticulatedPart or 1, totalParts))
+        tImGui.PushItemWidth(260)
+        local partChanged, selectedPart = tImGui.Combo(
+            tLang.L('articulated_animated_subset') .. '##artPivotPart-' .. index,
+            tEntry.iArticulatedPart, articulatedPartOptions, -1)
         tImGui.PopItemWidth()
-        if partChanged then
+        if partChanged and selectedPart then
             tEntry.iArticulatedPart = math.max(1, math.min(selectedPart or 1, totalParts))
         end
         articulatedTooltip('articulated_part_tooltip')
@@ -6665,70 +6686,75 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
     end
     updateArticulatedPivotGizmo(tEntry, meshD, index, totalParts)
     tImGui.Separator()
-    tImGui.Text(string.format('%s: %d', tLang.L('articulated_parts'), totalParts))
     if totalParts == 0 then
         tImGui.TextDisabled(tLang.L('articulated_no_parts'))
     else
-        for partIndex = 1, totalParts do
-            local ok, partId, frame, subset, name, px, py, pz, qx, qy, qz, qw, parent = dpCall(function()
-                return meshD:getArticulatedPart(partIndex)
-            end)
-            if ok and partId then
-                tImGui.PushID('artPart-' .. index .. '-' .. partIndex)
-                tImGui.Text(string.format('Part #%d   F%d S%d   ID %s', partIndex,
-                    frame or 0, subset or 0, tostring(partId)))
-                tImGui.PushItemWidth(220)
-                local changedName, newName = tImGui.InputText(tLang.L('name'), name or '', 96, 0)
-                tImGui.PopItemWidth()
-                tImGui.PushItemWidth(220)
-                local posChanged, pos = tImGui.DragFloat3(tLang.L('articulated_pivot_position'), {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
-                tImGui.PopItemWidth()
-                local pivotOrbit = articulatedOrbitFromQuaternion(qx or 0, qy or 0, qz or 0, qw or 1)
-                tImGui.PushItemWidth(220)
-                local rotChanged, rot = tImGui.DragFloat3(
-                    tLang.L('articulated_pivot_rotation') .. '##artPivotEuler-' .. index .. '-' .. partIndex,
-                    {-(pivotOrbit.elevation or 0) * 180 / math.pi,
-                        (pivotOrbit.azimuth or 0) * 180 / math.pi,
-                        (pivotOrbit.roll or 0) * 180 / math.pi},
-                    0.5, -360, 360, '%.2f', 0)
-                tImGui.PopItemWidth()
-                if rotChanged and rot then
-                    pivotOrbit.elevation = -(rot[1] or 0) * math.pi / 180
-                    pivotOrbit.azimuth = (rot[2] or 0) * math.pi / 180
-                    pivotOrbit.roll = (rot[3] or 0) * math.pi / 180
-                    qx, qy, qz, qw = articulatedQuaternionFromOrbit(pivotOrbit)
-                end
-                local parentIndex = 0
-                if parent and parent ~= 0 then
-                    for candidateIndex = 1, totalParts do
-                        if articulatedPartIds[candidateIndex] == parent then
-                            parentIndex = candidateIndex
-                            break
-                        end
+        local partIndex = tEntry.iArticulatedPart
+        local selectedPartInfo = articulatedParts[partIndex]
+        if selectedPartInfo then
+            local partId = selectedPartInfo.partId
+            local frame, subset, name = selectedPartInfo.frame, selectedPartInfo.subset, selectedPartInfo.name
+            local px, py, pz = selectedPartInfo.px, selectedPartInfo.py, selectedPartInfo.pz
+            local qx, qy, qz, qw = selectedPartInfo.qx, selectedPartInfo.qy,
+                selectedPartInfo.qz, selectedPartInfo.qw
+            local parent = selectedPartInfo.parent
+            tImGui.PushID('artPart-' .. index .. '-' .. partIndex)
+            tImGui.Text(tLang.L('articulated_selected_subset'))
+            tImGui.Text(string.format('Frame %d   Subset %d   Part ID %s',
+                frame or 0, subset or 0, tostring(partId)))
+            tImGui.PushItemWidth(220)
+            local changedName, newName = tImGui.InputText(tLang.L('name'), name or '', 96, 0)
+            tImGui.PopItemWidth()
+            tImGui.PushItemWidth(220)
+            local posChanged, pos = tImGui.DragFloat3(tLang.L('articulated_pivot_position'),
+                {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
+            tImGui.PopItemWidth()
+            local pivotOrbit = articulatedOrbitFromQuaternion(qx or 0, qy or 0, qz or 0, qw or 1)
+            tImGui.PushItemWidth(220)
+            local rotChanged, rot = tImGui.DragFloat3(
+                tLang.L('articulated_pivot_rotation') .. '##artPivotEuler-' .. index .. '-' .. partIndex,
+                {-(pivotOrbit.elevation or 0) * 180 / math.pi,
+                    (pivotOrbit.azimuth or 0) * 180 / math.pi,
+                    (pivotOrbit.roll or 0) * 180 / math.pi},
+                0.5, -360, 360, '%.2f', 0)
+            tImGui.PopItemWidth()
+            if rotChanged and rot then
+                pivotOrbit.elevation = -(rot[1] or 0) * math.pi / 180
+                pivotOrbit.azimuth = (rot[2] or 0) * math.pi / 180
+                pivotOrbit.roll = (rot[3] or 0) * math.pi / 180
+                qx, qy, qz, qw = articulatedQuaternionFromOrbit(pivotOrbit)
+            end
+            local parentOptions = {tLang.L('none')}
+            local parentPartIndices = {0}
+            local parentComboIndex = 1
+            for candidateIndex = 1, totalParts do
+                if candidateIndex ~= partIndex then
+                    parentOptions[#parentOptions + 1] = articulatedPartOptions[candidateIndex]
+                    parentPartIndices[#parentPartIndices + 1] = candidateIndex
+                    if parent and parent ~= 0 and articulatedPartIds[candidateIndex] == parent then
+                        parentComboIndex = #parentOptions
                     end
                 end
-                tImGui.PushItemWidth(70)
-                local parentChanged, newParentIndex = tImGui.InputInt(
-                    tLang.L('articulated_parent_part') .. '##artParent-' .. index .. '-' .. partIndex,
-                    parentIndex, 1, 1, 0)
-                tImGui.PopItemWidth()
-                if parentChanged then
-                    parentIndex = math.max(0, math.min(newParentIndex or 0, totalParts))
-                    if parentIndex == partIndex then parentIndex = 0 end
-                end
-                articulatedTooltip('articulated_parent_part_tooltip')
-                local parentPartId = articulatedPartIds[parentIndex] or 0
-                if changedName or posChanged or rotChanged or parentChanged then
-                    local p = pos or {px or 0, py or 0, pz or 0}
-                    dpCall(function()
-                        return meshD:updateArticulatedPart(partIndex, newName or name or '',
-                            p[1], p[2], p[3], qx or 0, qy or 0, qz or 0, qw or 1, parentPartId)
-                    end)
-                    markArticulatedEdit()
-                end
-                tImGui.PopID()
-                tImGui.Separator()
             end
+            tImGui.PushItemWidth(260)
+            local parentChanged, newParentComboIndex = tImGui.Combo(
+                tLang.L('articulated_parent_part') .. '##artParent-' .. index .. '-' .. partIndex,
+                parentComboIndex, parentOptions, -1)
+            tImGui.PopItemWidth()
+            local parentIndex = parentPartIndices[
+                (parentChanged and newParentComboIndex) or parentComboIndex] or 0
+            articulatedTooltip('articulated_parent_part_tooltip')
+            local parentPartId = articulatedPartIds[parentIndex] or 0
+            if changedName or posChanged or rotChanged or parentChanged then
+                local p = pos or {px or 0, py or 0, pz or 0}
+                dpCall(function()
+                    return meshD:updateArticulatedPart(partIndex, newName or name or '',
+                        p[1], p[2], p[3], qx or 0, qy or 0, qz or 0, qw or 1, parentPartId)
+                end)
+                markArticulatedEdit()
+            end
+            tImGui.PopID()
+            tImGui.Separator()
         end
     end
 
@@ -6926,55 +6952,71 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         tImGui.Separator()
         tImGui.NewLine()
         tImGui.Text(tLang.L('articulated_tracks'))
-        tEntry.bArticulatedPosition = tEntry.bArticulatedPosition ~= false
-        tEntry.bArticulatedRotation = tEntry.bArticulatedRotation ~= false
-        tEntry.bArticulatedScale = tEntry.bArticulatedScale ~= false
-        local channelPosition = tImGui.Checkbox('Position##artChannel-' .. index, tEntry.bArticulatedPosition)
-        tEntry.bArticulatedPosition = channelPosition
-        tImGui.SameLine()
-        local channelRotation = tImGui.Checkbox('Rotation##artChannel-' .. index, tEntry.bArticulatedRotation)
-        tEntry.bArticulatedRotation = channelRotation
-        tImGui.SameLine()
-        local channelScale = tImGui.Checkbox('Scale##artChannel-' .. index, tEntry.bArticulatedScale)
-        tEntry.bArticulatedScale = channelScale
-        articulatedTooltip('articulated_channel_tooltip')
-        tImGui.Separator()
-        local selectedMask = (channelPosition and 1 or 0) + (channelRotation and 2 or 0) + (channelScale and 4 or 0)
-        if totalParts > 0 then
-            for partIndex = 1, totalParts do
-                local okPart, partId, partFrame, partSubset, partName = dpCall(function()
-                    return meshD:getArticulatedPart(partIndex)
-                end)
-                if okPart and partId then
-                    tImGui.PushID('artTrackAdd-' .. index .. '-' .. partIndex)
-                    tImGui.Text(string.format('F%d S%d %s', partFrame or 0, partSubset or 0, partName or ''))
-                    tImGui.SameLine()
-                    if tImGui.Button(tLang.L('articulated_add_track') .. '##add') and selectedMask ~= 0 then
-                        local okTrack = dpCall(function()
-                            return meshD:addArticulatedTrack(activeClip, partId, selectedMask)
-                        end)
-                        if okTrack then markArticulatedEdit() end
-                    end
-                    articulatedTooltip('articulated_add_track_tooltip')
-                    tImGui.PopID()
-                end
-            end
-        end
-
-        tImGui.Separator()
-
+        local selectedPartInfo = articulatedParts[tEntry.iArticulatedPart or 1]
+        local selectedPartId = selectedPartInfo and selectedPartInfo.partId or nil
         local okTracks, totalTracks = dpCall(function()
             return meshD:getTotalArticulatedTracks(activeClip)
         end)
         totalTracks = (okTracks and totalTracks) or 0
-        for trackIndex = 1, totalTracks do
+        local selectedTrackIndex = nil
+        for candidateTrackIndex = 1, totalTracks do
+            local okTrack, trackPartId = dpCall(function()
+                return meshD:getArticulatedTrack(activeClip, candidateTrackIndex)
+            end)
+            if okTrack and trackPartId == selectedPartId then
+                selectedTrackIndex = candidateTrackIndex
+                break
+            end
+        end
+        if selectedPartInfo then
+            tImGui.Text(string.format('F%d S%d - %s - Part ID %s',
+                selectedPartInfo.frame or 0, selectedPartInfo.subset or 0,
+                selectedPartInfo.name or '', tostring(selectedPartId)))
+        end
+        if selectedPartId and not selectedTrackIndex then
+            tImGui.Text(tLang.L('articulated_new_track_channels'))
+            tEntry.bArticulatedPosition = tEntry.bArticulatedPosition ~= false
+            tEntry.bArticulatedRotation = tEntry.bArticulatedRotation ~= false
+            tEntry.bArticulatedScale = tEntry.bArticulatedScale ~= false
+            local channelPosition = tImGui.Checkbox(
+                'Position##artChannel-' .. index, tEntry.bArticulatedPosition)
+            tEntry.bArticulatedPosition = channelPosition
+            tImGui.SameLine()
+            local channelRotation = tImGui.Checkbox(
+                'Rotation##artChannel-' .. index, tEntry.bArticulatedRotation)
+            tEntry.bArticulatedRotation = channelRotation
+            tImGui.SameLine()
+            local channelScale = tImGui.Checkbox(
+                'Scale##artChannel-' .. index, tEntry.bArticulatedScale)
+            tEntry.bArticulatedScale = channelScale
+            articulatedTooltip('articulated_channel_tooltip')
+            local selectedMask = (channelPosition and 1 or 0) +
+                (channelRotation and 2 or 0) + (channelScale and 4 or 0)
+            if tImGui.Button(tLang.L('articulated_add_track') .. '##addSelected-' .. index) and
+                selectedMask ~= 0 then
+                local okTrack = dpCall(function()
+                    return meshD:addArticulatedTrack(activeClip, selectedPartId, selectedMask)
+                end)
+                if okTrack then markArticulatedEdit() end
+            end
+            articulatedTooltip('articulated_add_track_tooltip')
+        end
+
+        tImGui.Separator()
+
+        if selectedTrackIndex then
+            local trackIndex = selectedTrackIndex
             local okTrack, trackPartId, channelMask, keyCount = dpCall(function()
                 return meshD:getArticulatedTrack(activeClip, trackIndex)
             end)
             if okTrack and trackPartId then
                 tImGui.PushID('artTrack-' .. index .. '-' .. trackIndex)
-                tImGui.Text(string.format('Track %d  Part ID %s  Channels %d  Keys %d',
-                    trackIndex, tostring(trackPartId), channelMask or 0, keyCount or 0))
+                local channelNames = {}
+                if ((channelMask or 0) & 1) ~= 0 then channelNames[#channelNames + 1] = 'Position' end
+                if ((channelMask or 0) & 2) ~= 0 then channelNames[#channelNames + 1] = 'Rotation' end
+                if ((channelMask or 0) & 4) ~= 0 then channelNames[#channelNames + 1] = 'Scale' end
+                tImGui.Text(string.format('Track %d  Channels: %s  Keys: %d',
+                    trackIndex, table.concat(channelNames, ', '), keyCount or 0))
                 tImGui.PushItemWidth(100)
                 local newKeyTimeChanged, newKeyTime = tImGui.InputFloat(
                     tLang.L('articulated_new_key_time') .. '##newKeyTime',
@@ -7001,7 +7043,9 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 articulatedTooltip('articulated_add_key_tooltip')
                 for keyIndex = 1, (keyCount or 0) do
                     local okKey, keyTime, px, py, pz, qx, qy, qz, qw, sx, sy, sz,
-                        keyEasing, bezierX1, bezierY1, bezierX2, bezierY2 = dpCall(function()
+                        keyEasing, bezierX1, bezierY1, bezierX2, bezierY2,
+                        authoredEulerX, authoredEulerY, authoredEulerZ,
+                        hasAuthoredEuler = dpCall(function()
                         return meshD:getArticulatedKey(activeClip, trackIndex, keyIndex)
                     end)
                     if okKey and keyTime then
@@ -7072,14 +7116,28 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         end
                         local qSignature = string.format('%.7f:%.7f:%.7f:%.7f',
                             qx or 0, qy or 0, qz or 0, qw or 1)
-                        if not keyEuler or keyEuler.qSignature ~= qSignature then
-                            local keyOrbit = articulatedOrbitFromQuaternion(qx, qy, qz, qw)
-                            keyEuler = {
-                                x = -(keyOrbit.elevation or 0) * 180 / math.pi,
-                                y = (keyOrbit.azimuth or 0) * 180 / math.pi,
-                                z = (keyOrbit.roll or 0) * 180 / math.pi,
-                                qSignature = qSignature
-                            }
+                        local authoredEulerSignature = hasAuthoredEuler and string.format(
+                            '%.7f:%.7f:%.7f', authoredEulerX or 0,
+                            authoredEulerY or 0, authoredEulerZ or 0) or nil
+                        if not keyEuler or keyEuler.qSignature ~= qSignature or
+                            keyEuler.authoredEulerSignature ~= authoredEulerSignature then
+                            if hasAuthoredEuler then
+                                keyEuler = {
+                                    x = authoredEulerX or 0,
+                                    y = authoredEulerY or 0,
+                                    z = authoredEulerZ or 0,
+                                    qSignature = qSignature,
+                                    authoredEulerSignature = authoredEulerSignature
+                                }
+                            else
+                                local keyOrbit = articulatedOrbitFromQuaternion(qx, qy, qz, qw)
+                                keyEuler = {
+                                    x = -(keyOrbit.elevation or 0) * 180 / math.pi,
+                                    y = (keyOrbit.azimuth or 0) * 180 / math.pi,
+                                    z = (keyOrbit.roll or 0) * 180 / math.pi,
+                                    qSignature = qSignature
+                                }
+                            end
                             tEntry.tArticulatedKeyEuler[keyId] = keyEuler
                         end
                         tImGui.PushItemWidth(220)
@@ -7107,6 +7165,8 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                                 roll = keyEuler.z * math.pi / 180
                             })
                             keyEuler.qSignature = string.format('%.7f:%.7f:%.7f:%.7f', qx, qy, qz, qw)
+                            keyEuler.authoredEulerSignature = string.format('%.7f:%.7f:%.7f',
+                                keyEuler.x, keyEuler.y, keyEuler.z)
                         end
                         tImGui.PushItemWidth(220)
                         local scaleChanged, scale = tImGui.DragFloat3('Scale##artKeyScale-' .. keyId,
@@ -7160,7 +7220,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 tImGui.PopID()
             end
         end
-        if totalTracks == 0 then
+        if not selectedTrackIndex then
             tImGui.TextDisabled(tLang.L('articulated_add_key_hint'))
         end
     end

@@ -4546,14 +4546,17 @@ namespace mbm
                                            float *scaleX, float *scaleY, float *scaleZ,
                                            uint8_t *easing,
                                            float *bezierX1, float *bezierY1,
-                                           float *bezierX2, float *bezierY2) const noexcept
+                                           float *bezierX2, float *bezierY2,
+                                           float *rotationEulerX, float *rotationEulerY,
+                                           float *rotationEulerZ, bool *hasRotationEuler) const noexcept
     {
         if (animationIndex >= impl->articulatedClips.size() ||
             trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
             keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size() ||
             !time || !positionX || !positionY || !positionZ || !rotationX || !rotationY ||
             !rotationZ || !rotationW || !scaleX || !scaleY || !scaleZ || !easing ||
-            !bezierX1 || !bezierY1 || !bezierX2 || !bezierY2)
+            !bezierX1 || !bezierY1 || !bezierX2 || !bezierY2 ||
+            !rotationEulerX || !rotationEulerY || !rotationEulerZ || !hasRotationEuler)
             return false;
         const auto &key = impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex];
         *time = key.time;
@@ -4564,6 +4567,10 @@ namespace mbm
         *easing = key.easing;
         *bezierX1 = key.bezierX1; *bezierY1 = key.bezierY1;
         *bezierX2 = key.bezierX2; *bezierY2 = key.bezierY2;
+        *rotationEulerX = key.rotationEulerX;
+        *rotationEulerY = key.rotationEulerY;
+        *rotationEulerZ = key.rotationEulerZ;
+        *hasRotationEuler = key.hasRotationEuler != 0;
         return true;
     }
 
