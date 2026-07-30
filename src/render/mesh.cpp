@@ -49,6 +49,7 @@ namespace mbm
         this->releaseAnimation();
         this->setIndexAnimation(0);
         this->mesh                  = nullptr;
+        this->resetArticulatedAnimationPlayer();
     }
     
     bool MESH::load(const char *fileName)
@@ -125,32 +126,32 @@ namespace mbm
 
     bool MESH::playArticulatedAnimation(const char *name, const int priority)
     {
-        return this->mesh ? this->mesh->playArticulatedAnimation(name, priority) : false;
+        return this->mesh ? this->mesh->playArticulatedAnimation(this->getArticulatedAnimationPlayer(), name, priority) : false;
     }
 
     bool MESH::pauseArticulatedAnimation(const char *name) noexcept
     {
-        return this->mesh ? this->mesh->pauseArticulatedAnimation(name) : false;
+        return this->mesh ? this->mesh->pauseArticulatedAnimation(this->getArticulatedAnimationPlayer(), name) : false;
     }
 
     bool MESH::resumeArticulatedAnimation(const char *name) noexcept
     {
-        return this->mesh ? this->mesh->resumeArticulatedAnimation(name) : false;
+        return this->mesh ? this->mesh->resumeArticulatedAnimation(this->getArticulatedAnimationPlayer(), name) : false;
     }
 
     bool MESH::disableArticulatedAnimation(const char *name) noexcept
     {
-        return this->mesh ? this->mesh->disableArticulatedAnimation(name) : false;
+        return this->mesh ? this->mesh->disableArticulatedAnimation(this->getArticulatedAnimationPlayer(), name) : false;
     }
 
     bool MESH::seekArticulatedAnimation(const char *name, const float time) noexcept
     {
-        return this->mesh ? this->mesh->seekArticulatedAnimation(name, time) : false;
+        return this->mesh ? this->mesh->seekArticulatedAnimation(this->getArticulatedAnimationPlayer(), name, time) : false;
     }
 
     bool MESH::getArticulatedAnimationTime(const char *name, float *time) const noexcept
     {
-        return this->mesh ? this->mesh->getArticulatedAnimationTime(name, time) : false;
+        return this->mesh ? this->mesh->getArticulatedAnimationTime(this->getArticulatedAnimationPlayer(), name, time) : false;
     }
 
     bool MESH::render()
@@ -164,7 +165,7 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
             anim->updateAnimation(device->delta,this,this->getOnEndAnimation(),this->getOnEndFx());
-            this->mesh->updateArticulatedAnimations(device->delta);
+            this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta);
             const VEC3 &position = this->getPosition();
             const VEC3 &angle = this->getAngle();
             const VEC3 &scale = this->getScale();
@@ -201,8 +202,9 @@ namespace mbm
             BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
             const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
-            const bool rendered = this->mesh->hasActiveArticulatedAnimations()
-                ? this->mesh->renderArticulatedStatic(frameIndex, &fx.shader, *viewMatrix, *perspectiveMatrix, this)
+            const bool rendered = this->mesh->hasActiveArticulatedAnimations(this->getArticulatedAnimationPlayer())
+                ? this->mesh->renderArticulatedStatic(this->getArticulatedAnimationPlayer(), frameIndex, &fx.shader,
+                                                      *viewMatrix, *perspectiveMatrix, this)
                 : this->mesh->render(frameIndex, &fx.shader, this);
             if (!rendered)
                 return false;
@@ -242,6 +244,7 @@ namespace mbm
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
+                this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta);
             }
             return ret;
         }

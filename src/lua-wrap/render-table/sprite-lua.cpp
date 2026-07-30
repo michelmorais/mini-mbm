@@ -106,6 +106,57 @@ namespace mbm
         return 1;
     }
 
+    int onPlayArticulatedAnimationSpriteLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const int priority = static_cast<int>(luaL_optinteger(lua, 3, 0));
+        lua_pushboolean(lua, sprite->playArticulatedAnimation(name, priority) ? 1 : 0);
+        return 1;
+    }
+
+    int onPauseArticulatedAnimationSpriteLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, sprite->pauseArticulatedAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onResumeArticulatedAnimationSpriteLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, sprite->resumeArticulatedAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onDisableArticulatedAnimationSpriteLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, sprite->disableArticulatedAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onSeekArticulatedAnimationSpriteLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const float time = static_cast<float>(luaL_checknumber(lua, 3));
+        lua_pushboolean(lua, sprite->seekArticulatedAnimation(name, time) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetArticulatedAnimationTimeSpriteLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        float time = 0.0f;
+        if (sprite->getArticulatedAnimationTime(name, &time))
+            lua_pushnumber(lua, time);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load" - see mesh-lua.cpp's onLoadAsyncMeshLua for
     // the full rationale of the ref-holding mechanism.
     namespace
@@ -155,7 +206,14 @@ namespace mbm
     int onNewSpriteLua(lua_State *lua)
     {
         const int top                = lua_gettop(lua);
-        luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua}, {nullptr, nullptr}};
+        luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua},
+                                        {"playArticulatedAnimation", onPlayArticulatedAnimationSpriteLua},
+                                        {"pauseArticulatedAnimation", onPauseArticulatedAnimationSpriteLua},
+                                        {"resumeArticulatedAnimation", onResumeArticulatedAnimationSpriteLua},
+                                        {"disableArticulatedAnimation", onDisableArticulatedAnimationSpriteLua},
+                                        {"seekArticulatedAnimation", onSeekArticulatedAnimationSpriteLua},
+                                        {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeSpriteLua},
+                                        {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regSpriteMethods);
         const luaL_Reg *             regMethods = selfMethods.get();
@@ -229,7 +287,14 @@ namespace mbm
 			return false;
 		
 		//table
-		luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua}, {nullptr, nullptr}};
+		luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua},
+                                        {"playArticulatedAnimation", onPlayArticulatedAnimationSpriteLua},
+                                        {"pauseArticulatedAnimation", onPauseArticulatedAnimationSpriteLua},
+                                        {"resumeArticulatedAnimation", onResumeArticulatedAnimationSpriteLua},
+                                        {"disableArticulatedAnimation", onDisableArticulatedAnimationSpriteLua},
+                                        {"seekArticulatedAnimation", onSeekArticulatedAnimationSpriteLua},
+                                        {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeSpriteLua},
+                                        {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regSpriteMethods);
         const luaL_Reg *             regMethods = selfMethods.get();

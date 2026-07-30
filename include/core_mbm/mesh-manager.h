@@ -42,6 +42,7 @@ namespace mbm
     class RENDERIZABLE_TO_TARGET;
     class SHADER;
     class MESH_MBM;
+    class ARTICULATED_ANIMATION_PLAYER;
     struct IMAGE_RESOURCE;
     // Defined in mesh-manager.cpp only - forward-declared here so MESH_MBM::finishLoadFromIntermediate
     // can be declared without exposing the type's layout in the public header, same PIMPL-style
@@ -60,6 +61,20 @@ namespace mbm
         API_IMPL bool hasLoadedRenderBuffer() const noexcept;
         API_IMPL uint32_t getTotalSubsets() const noexcept;
         API_IMPL util::SUBSET *getSubset(const uint32_t indexSubset) const noexcept;
+    };
+
+    class ARTICULATED_ANIMATION_PLAYER
+    {
+        friend class MESH_MBM;
+      public:
+        API_IMPL ARTICULATED_ANIMATION_PLAYER();
+        API_IMPL ~ARTICULATED_ANIMATION_PLAYER();
+        API_IMPL void reset() noexcept;
+        ARTICULATED_ANIMATION_PLAYER(const ARTICULATED_ANIMATION_PLAYER &) = delete;
+        ARTICULATED_ANIMATION_PLAYER &operator=(const ARTICULATED_ANIMATION_PLAYER &) = delete;
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
     };
 
     class MESH_MBM_DEBUG
@@ -328,20 +343,30 @@ namespace mbm
         API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader,
                              const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool hasArticulatedAnimationData() const noexcept;
-        API_IMPL bool hasActiveArticulatedAnimations() const noexcept;
-        API_IMPL bool playArticulatedAnimation(const char *name, const int priority);
-        API_IMPL bool pauseArticulatedAnimation(const char *name) noexcept;
-        API_IMPL bool resumeArticulatedAnimation(const char *name) noexcept;
-        API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;
-        API_IMPL bool seekArticulatedAnimation(const char *name, const float time) noexcept;
-        API_IMPL bool getArticulatedAnimationTime(const char *name, float *time) const noexcept;
-        API_IMPL void updateArticulatedAnimations(const float delta) noexcept;
-        API_IMPL bool getArticulatedTransform(const uint32_t frameIndex, const uint32_t subsetIndex,
+        API_IMPL bool hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept;
+        API_IMPL bool playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                               const char *name, const int priority) const;
+        API_IMPL bool pauseArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                                const char *name) const noexcept;
+        API_IMPL bool resumeArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                                 const char *name) const noexcept;
+        API_IMPL bool disableArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                                  const char *name) const noexcept;
+        API_IMPL bool seekArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                               const char *name, const float time) const noexcept;
+        API_IMPL bool getArticulatedAnimationTime(const ARTICULATED_ANIMATION_PLAYER &player,
+                                                  const char *name, float *time) const noexcept;
+        API_IMPL void updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
+                                                  const float delta) const noexcept;
+        API_IMPL bool getArticulatedTransform(const ARTICULATED_ANIMATION_PLAYER &player,
+                                              const uint32_t frameIndex, const uint32_t subsetIndex,
                                               VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,
                                               VEC3 *pivot, float pivotQuaternion[4]) const noexcept;
-        API_IMPL bool renderArticulatedDynamic(const uint32_t indexFrame, SHADER *pShader,
+        API_IMPL bool renderArticulatedDynamic(const ARTICULATED_ANIMATION_PLAYER &player,
+                                               const uint32_t indexFrame, SHADER *pShader,
                                                const RENDERIZABLE *renderizableOwner = nullptr);
-        API_IMPL bool renderArticulatedStatic(const uint32_t indexFrame, const SHADER *pShader,
+        API_IMPL bool renderArticulatedStatic(const ARTICULATED_ANIMATION_PLAYER &player,
+                                              const uint32_t indexFrame, const SHADER *pShader,
                                               const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix,
                                               const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
@@ -358,7 +383,8 @@ namespace mbm
         
       private:
         MESH_MBM();
-        bool buildArticulatedTransformMatrix(const uint32_t frameIndex, const uint32_t subsetIndex,
+        bool buildArticulatedTransformMatrix(const ARTICULATED_ANIMATION_PLAYER &player,
+                                             const uint32_t frameIndex, const uint32_t subsetIndex,
                                              MATRIX *out) const noexcept;
         bool load(const char *fileNamePath);
         bool load(const char *fileNamePath, RENDERIZABLE *renderizable);

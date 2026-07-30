@@ -36,6 +36,7 @@ namespace util
 
 namespace mbm
 {
+    class ARTICULATED_ANIMATION_PLAYER;
     enum class ANIMATION_KIND : uint8_t
     {
         FRAME = 0,
@@ -191,7 +192,12 @@ namespace mbm
         API_IMPL virtual bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha);
         API_IMPL void backupAnimations() noexcept; // called automatically by engine (CORE_MANAGER)
         API_IMPL void restoreBackupAnimations() noexcept;// called automatically by engine (CORE_MANAGER)
-    
+
+      protected:
+        API_IMPL ARTICULATED_ANIMATION_PLAYER &getArticulatedAnimationPlayer() noexcept;
+        API_IMPL const ARTICULATED_ANIMATION_PLAYER &getArticulatedAnimationPlayer() const noexcept;
+        API_IMPL void resetArticulatedAnimationPlayer() noexcept;
+
       private:
         struct Impl;
         std::unique_ptr<Impl> impl;

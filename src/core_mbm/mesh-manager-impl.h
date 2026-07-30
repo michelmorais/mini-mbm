@@ -38,6 +38,12 @@ namespace mbm
         bool ended = false;
     };
 
+    struct ARTICULATED_ANIMATION_PLAYER::Impl
+    {
+        std::vector<ACTIVE_ARTICULATED_CLIP> activeClips;
+        uint64_t sequence = 0;
+    };
+
     struct RUNTIME_FRAME_GEOMETRY
     {
         uint32_t vertexCount = 0;
@@ -72,8 +78,6 @@ namespace mbm
         void *extraInfo;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
-        std::vector<ACTIVE_ARTICULATED_CLIP> activeArticulatedClips;
-        uint64_t articulatedSequence = 0;
         std::vector<RUNTIME_FRAME_GEOMETRY> articulatedBaseGeometry;
         std::vector<VEC3> articulatedScratchPosition;
         std::vector<VEC3> articulatedScratchNormal;

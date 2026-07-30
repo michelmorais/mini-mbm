@@ -130,10 +130,12 @@ The editor will provide:
 7. Validate old/new file compatibility and update version/documentation.
 8. Integrate `MESH_MBM::renderArticulatedStatic()` using static buffers and per-subset draw calls;
    validate rotations, scales, materials, culling, and 2D/3D behavior in the editor and runtime.
+9. Move active clip playback state from the cached `MESH_MBM` asset into one opaque player per
+   renderizable instance, while continuing to share geometry and authored clip data.
+10. Reuse the per-instance player and static per-subset render path for Sprite (`.spt`).
 
 ## Deferred items
 
 - GPU-side per-subset transform storage in shaders.
-- Sprite (`.spt`) support.
 - Blending and per-property composition between clips.
 - Runtime keyframe authoring from game code.

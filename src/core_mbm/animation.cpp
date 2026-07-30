@@ -980,6 +980,8 @@ namespace mbm
         uint32_t indexCurrentAnimation = 0;
         OnEndAnimation onEndAnimation = nullptr;
         OnEndEffect onEndFx = nullptr;
+        std::unique_ptr<ARTICULATED_ANIMATION_PLAYER> articulatedPlayer =
+            std::make_unique<ARTICULATED_ANIMATION_PLAYER>();
     };
 
     ANIMATION_MANAGER::ANIMATION_MANAGER() noexcept
@@ -991,6 +993,21 @@ namespace mbm
     {
         this->setIndexAnimation(0);
         this->releaseAnimation();
+    }
+
+    ARTICULATED_ANIMATION_PLAYER &ANIMATION_MANAGER::getArticulatedAnimationPlayer() noexcept
+    {
+        return *impl->articulatedPlayer;
+    }
+
+    const ARTICULATED_ANIMATION_PLAYER &ANIMATION_MANAGER::getArticulatedAnimationPlayer() const noexcept
+    {
+        return *impl->articulatedPlayer;
+    }
+
+    void ANIMATION_MANAGER::resetArticulatedAnimationPlayer() noexcept
+    {
+        impl->articulatedPlayer->reset();
     }
 
     void ANIMATION_MANAGER::populateTextureAnimationEffectFromMesh(MESH_MBM *mesh)

@@ -1056,6 +1056,19 @@ namespace
 
 namespace mbm
 {
+    ARTICULATED_ANIMATION_PLAYER::ARTICULATED_ANIMATION_PLAYER()
+        : impl(std::make_unique<Impl>())
+    {
+    }
+
+    ARTICULATED_ANIMATION_PLAYER::~ARTICULATED_ANIMATION_PLAYER() = default;
+
+    void ARTICULATED_ANIMATION_PLAYER::reset() noexcept
+    {
+        impl->activeClips.clear();
+        impl->sequence = 0;
+    }
+
     struct MESH_MANAGER::Impl
     {
         std::unordered_map<std::string, MESH_MBM *> lsMeshes;
@@ -5180,8 +5193,6 @@ namespace mbm
         this->impl->infoAnimation.release();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
-        impl->activeArticulatedClips.clear();
-        impl->articulatedSequence = 0;
         impl->articulatedBaseGeometry.clear();
         impl->articulatedScratchPosition.clear();
         impl->articulatedScratchNormal.clear();
@@ -5211,12 +5222,13 @@ namespace mbm
         return !impl->articulatedClips.empty();
     }
 
-    bool MESH_MBM::hasActiveArticulatedAnimations() const noexcept
+    bool MESH_MBM::hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept
     {
-        return !impl->activeArticulatedClips.empty();
+        return !player.impl->activeClips.empty();
     }
 
-    bool MESH_MBM::playArticulatedAnimation(const char *name, const int priority)
+    bool MESH_MBM::playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                            const char *name, const int priority) const
     {
         if (!name || !name[0])
             return false;
@@ -5234,13 +5246,13 @@ namespace mbm
         if (!found)
             return false;
 
-        for (auto &active : impl->activeArticulatedClips)
+        for (auto &active : player.impl->activeClips)
         {
             if (active.clipIndex == clipIndex)
             {
                 active.time = 0.0f;
                 active.priority = priority;
-                active.sequence = ++impl->articulatedSequence;
+                active.sequence = ++player.impl->sequence;
                 active.paused = false;
                 active.ended = false;
                 return true;
@@ -5249,16 +5261,17 @@ namespace mbm
         ACTIVE_ARTICULATED_CLIP active;
         active.clipIndex = clipIndex;
         active.priority = priority;
-        active.sequence = ++impl->articulatedSequence;
-        impl->activeArticulatedClips.push_back(active);
+        active.sequence = ++player.impl->sequence;
+        player.impl->activeClips.push_back(active);
         return true;
     }
 
-    bool MESH_MBM::pauseArticulatedAnimation(const char *name) noexcept
+    bool MESH_MBM::pauseArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                             const char *name) const noexcept
     {
         if (!name)
             return false;
-        for (auto &active : impl->activeArticulatedClips)
+        for (auto &active : player.impl->activeClips)
         {
             if (active.clipIndex < impl->articulatedClips.size() &&
                 impl->articulatedClips[active.clipIndex].header.name == name)
@@ -5270,11 +5283,12 @@ namespace mbm
         return false;
     }
 
-    bool MESH_MBM::resumeArticulatedAnimation(const char *name) noexcept
+    bool MESH_MBM::resumeArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                              const char *name) const noexcept
     {
         if (!name)
             return false;
-        for (auto &active : impl->activeArticulatedClips)
+        for (auto &active : player.impl->activeClips)
         {
             if (active.clipIndex < impl->articulatedClips.size() &&
                 impl->articulatedClips[active.clipIndex].header.name == name)
@@ -5286,27 +5300,29 @@ namespace mbm
         return false;
     }
 
-    bool MESH_MBM::disableArticulatedAnimation(const char *name) noexcept
+    bool MESH_MBM::disableArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                               const char *name) const noexcept
     {
         if (!name)
             return false;
-        for (auto it = impl->activeArticulatedClips.begin(); it != impl->activeArticulatedClips.end(); ++it)
+        for (auto it = player.impl->activeClips.begin(); it != player.impl->activeClips.end(); ++it)
         {
             if (it->clipIndex < impl->articulatedClips.size() &&
                 impl->articulatedClips[it->clipIndex].header.name == name)
             {
-                impl->activeArticulatedClips.erase(it);
+                player.impl->activeClips.erase(it);
                 return true;
             }
         }
         return false;
     }
 
-    bool MESH_MBM::seekArticulatedAnimation(const char *name, const float time) noexcept
+    bool MESH_MBM::seekArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                            const char *name, const float time) const noexcept
     {
         if (!name)
             return false;
-        for (auto &active : impl->activeArticulatedClips)
+        for (auto &active : player.impl->activeClips)
         {
             if (active.clipIndex < impl->articulatedClips.size() &&
                 impl->articulatedClips[active.clipIndex].header.name == name)
@@ -5320,11 +5336,12 @@ namespace mbm
         return false;
     }
 
-    bool MESH_MBM::getArticulatedAnimationTime(const char *name, float *time) const noexcept
+    bool MESH_MBM::getArticulatedAnimationTime(const ARTICULATED_ANIMATION_PLAYER &player,
+                                               const char *name, float *time) const noexcept
     {
         if (!name || !time)
             return false;
-        for (const auto &active : impl->activeArticulatedClips)
+        for (const auto &active : player.impl->activeClips)
         {
             if (active.clipIndex < impl->articulatedClips.size() &&
                 impl->articulatedClips[active.clipIndex].header.name == name)
@@ -5336,11 +5353,12 @@ namespace mbm
         return false;
     }
 
-    void MESH_MBM::updateArticulatedAnimations(const float delta) noexcept
+    void MESH_MBM::updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
+                                               const float delta) const noexcept
     {
         if (delta <= 0.0f)
             return;
-        for (auto &active : impl->activeArticulatedClips)
+        for (auto &active : player.impl->activeClips)
         {
             if (active.paused || active.ended || active.clipIndex >= impl->articulatedClips.size())
                 continue;
@@ -5367,7 +5385,8 @@ namespace mbm
         }
     }
 
-    bool MESH_MBM::getArticulatedTransform(const uint32_t frameIndex, const uint32_t subsetIndex,
+    bool MESH_MBM::getArticulatedTransform(const ARTICULATED_ANIMATION_PLAYER &player,
+                                           const uint32_t frameIndex, const uint32_t subsetIndex,
                                            VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,
                                            VEC3 *pivot, float pivotQuaternion[4]) const noexcept
     {
@@ -5398,7 +5417,7 @@ namespace mbm
         float selectedTime = 0.0f;
         int selectedPriority = std::numeric_limits<int>::min();
         uint64_t selectedSequence = 0;
-        for (const auto &active : impl->activeArticulatedClips)
+        for (const auto &active : player.impl->activeClips)
         {
             if (active.clipIndex >= impl->articulatedClips.size())
                 continue;
@@ -5577,7 +5596,8 @@ namespace mbm
         return true;
     }
 
-    bool MESH_MBM::buildArticulatedTransformMatrix(const uint32_t frameIndex, const uint32_t subsetIndex,
+    bool MESH_MBM::buildArticulatedTransformMatrix(const ARTICULATED_ANIMATION_PLAYER &player,
+                                                   const uint32_t frameIndex, const uint32_t subsetIndex,
                                                    MATRIX *out) const noexcept
     {
         if (!out)
@@ -5635,7 +5655,7 @@ namespace mbm
             VEC3 translation(0.0f, 0.0f, 0.0f), scale(1.0f, 1.0f, 1.0f), pivot;
             float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
             float pivotRotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-            getArticulatedTransform(localPart->frameIndex, localPart->subsetIndex,
+            getArticulatedTransform(player, localPart->frameIndex, localPart->subsetIndex,
                                     &translation, rotation, &scale, &pivot, pivotRotation);
             normalizeQuaternion(rotation);
             normalizeQuaternion(pivotRotation);
@@ -5694,10 +5714,11 @@ namespace mbm
         return buildRecursive(buildRecursive, part, out);
     }
 
-    bool MESH_MBM::renderArticulatedDynamic(const uint32_t indexFrame, SHADER *pShader,
+    bool MESH_MBM::renderArticulatedDynamic(const ARTICULATED_ANIMATION_PLAYER &player,
+                                            const uint32_t indexFrame, SHADER *pShader,
                                             const RENDERIZABLE *renderizableOwner)
     {
-        if (!pShader || !hasActiveArticulatedAnimations() || !impl->buffer ||
+        if (!pShader || !hasActiveArticulatedAnimations(player) || !impl->buffer ||
             indexFrame >= impl->articulatedBaseGeometry.size() || indexFrame >= impl->totalFramesMesh)
             return false;
         const RUNTIME_FRAME_GEOMETRY &base = impl->articulatedBaseGeometry[indexFrame];
@@ -5732,7 +5753,7 @@ namespace mbm
         for (uint32_t subsetIndex = 0; subsetIndex < frameBuffer.totalSubset; ++subsetIndex)
         {
             MATRIX partTransform;
-            if (!buildArticulatedTransformMatrix(indexFrame, subsetIndex, &partTransform))
+            if (!buildArticulatedTransformMatrix(player, indexFrame, subsetIndex, &partTransform))
                 continue;
 
             const util::SUBSET &subset = frameBuffer.subset[subsetIndex];
@@ -5753,11 +5774,12 @@ namespace mbm
                                    normal, uv, renderizableOwner);
     }
 
-    bool MESH_MBM::renderArticulatedStatic(const uint32_t indexFrame, const SHADER *pShader,
+    bool MESH_MBM::renderArticulatedStatic(const ARTICULATED_ANIMATION_PLAYER &player,
+                                           const uint32_t indexFrame, const SHADER *pShader,
                                            const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix,
                                            const RENDERIZABLE *renderizableOwner)
     {
-        if (!pShader || !hasActiveArticulatedAnimations() || !impl->buffer ||
+        if (!pShader || !hasActiveArticulatedAnimations(player) || !impl->buffer ||
             indexFrame >= impl->totalFramesMesh)
             return false;
 
@@ -5773,7 +5795,7 @@ namespace mbm
         for (uint32_t subsetIndex = 0; subsetIndex < frameBuffer.totalSubset; ++subsetIndex)
         {
             MATRIX partTransform;
-            buildArticulatedTransformMatrix(indexFrame, subsetIndex, &partTransform);
+            buildArticulatedTransformMatrix(player, indexFrame, subsetIndex, &partTransform);
 
             MatrixMultiply(&SHADER::modelView, &partTransform, &baseModelView);
             SHADER::updateMvpAndLightMatrices(viewMatrix, perspectiveMatrix);

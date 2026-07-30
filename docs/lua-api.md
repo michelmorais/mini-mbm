@@ -1228,9 +1228,12 @@ key; the final key has no outgoing segment.
 `parentPartId` establishes a same-frame parent relationship. A child inherits the parent's complete
 transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
 
-The loaded `mesh` object exposes playback controls for `.msh` assets. Multiple clips may be active;
-higher priority wins for a part, and a newer clip wins when priorities are equal. `pause` preserves
-the current pose, `resume` continues it, and `disable` removes the clip from evaluation.
+Loaded `mesh` and `sprite` objects expose the same playback controls for `.msh` and `.spt` assets.
+Multiple clips may be active; higher priority wins for a part, and a newer clip wins when priorities
+are equal. `pause` preserves the current pose, `resume` continues it, and `disable` removes the clip
+from evaluation. Playback state belongs to each renderizable instance: objects loading the same
+cached asset share geometry, parts, and clip definitions, but do not share active clips, time,
+pause state, priority, or seek position.
 
 ```lua
 car:playArticulatedAnimation("wheel_spin", 10)
@@ -1239,6 +1242,10 @@ car:resumeArticulatedAnimation("wheel_spin")
 car:seekArticulatedAnimation("wheel_spin", 0.5)
 local currentTime = car:getArticulatedAnimationTime("wheel_spin")
 car:disableArticulatedAnimation("wheel_spin")
+
+local icon = sprite:new("2dw")
+icon:load("machine.spt")
+icon:playArticulatedAnimation("gear_spin")
 ```
 
 The runtime advances clip time with the engine's `device->delta`, preserving the engine time-scale
