@@ -38,9 +38,11 @@ the same frame and cycles are rejected.
 - Duplicate articulated clip names are rejected.
 - Multiple articulated clips may be active at the same time.
 - Each clip has an integer priority.
-- Higher priority wins when clips control the same part. On equal priority, the most recently started clip wins.
+- Priority is resolved independently for position, rotation, and scale. On equal priority, the most
+  recently started clip that supplies the channel wins.
 - A clip can contain independent position, rotation, and scale channels.
-- Missing channels inherit the subset base transform.
+- A missing channel may come from a lower-priority active clip; the subset base transform is used
+  only when no active clip supplies that channel.
 - Keyframe time is stored as `float`.
 - Animation time advances using the engine's `delta` and existing playback semantics.
 - Position and scale use linear interpolation.
@@ -57,7 +59,7 @@ the same frame and cycles are rejected.
 `ANIMATION_MANAGER` remains the public manager. It will retain traditional animation behavior and gain articulated operations equivalent to:
 
 ```cpp
-playArticulatedAnimation(name, priority)
+playArticulatedAnimation(name, priority, blendDuration)
 pauseArticulatedAnimation(name)
 resumeArticulatedAnimation(name)
 disableArticulatedAnimation(name)
@@ -133,9 +135,13 @@ The editor will provide:
 9. Move active clip playback state from the cached `MESH_MBM` asset into one opaque player per
    renderizable instance, while continuing to share geometry and authored clip data.
 10. Reuse the per-instance player and static per-subset render path for Sprite (`.spt`).
+11. Add optional runtime crossfade between clips and resolve position, rotation, and scale
+    independently by priority. Each channel composes candidates from the base transform through
+    increasing priority/start order, keeping overlapping crossfades continuous. A zero duration
+    preserves immediate playback.
 
 ## Deferred items
 
 - GPU-side per-subset transform storage in shaders.
-- Blending and per-property composition between clips.
+- Additive clip composition beyond the implemented priority-based crossfade.
 - Runtime keyframe authoring from game code.

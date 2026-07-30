@@ -1229,14 +1229,24 @@ key; the final key has no outgoing segment.
 transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
 
 Loaded `mesh` and `sprite` objects expose the same playback controls for `.msh` and `.spt` assets.
-Multiple clips may be active; higher priority wins for a part, and a newer clip wins when priorities
-are equal. `pause` preserves the current pose, `resume` continues it, and `disable` removes the clip
-from evaluation. Playback state belongs to each renderizable instance: objects loading the same
-cached asset share geometry, parts, and clip definitions, but do not share active clips, time,
-pause state, priority, or seek position.
+Multiple clips may be active. Position, rotation, and scale are resolved independently: the highest
+priority clip that provides a channel wins that channel, and a newer clip wins ties. This lets a
+lower-priority clip continue supplying channels omitted by the winner.
+
+`playArticulatedAnimation(name, priority, blendDuration)` accepts an optional transition duration
+in seconds. During that interval, each channel transitions from the already-composed pose of its
+lower-priority/older candidates, or from the base transform when no fallback exists. This also
+keeps overlapping crossfades continuous. Position and scale use linear interpolation and rotation
+uses quaternion spherical interpolation. The default `blendDuration` is `0`, preserving immediate
+playback. Blend duration is runtime state and is not persisted in the asset.
+
+`pause` freezes both clip time and blend progress, `resume` continues them, and `disable` removes
+the clip from evaluation. Playback state belongs to each renderizable instance: objects loading
+the same cached asset share geometry, parts, and clip definitions, but do not share active clips,
+time, pause state, priority, blend progress, or seek position.
 
 ```lua
-car:playArticulatedAnimation("wheel_spin", 10)
+car:playArticulatedAnimation("wheel_spin", 10, 0.5) -- priority 10, 0.5-second crossfade
 car:pauseArticulatedAnimation("wheel_spin")
 car:resumeArticulatedAnimation("wheel_spin")
 car:seekArticulatedAnimation("wheel_spin", 0.5)
@@ -1245,7 +1255,7 @@ car:disableArticulatedAnimation("wheel_spin")
 
 local icon = sprite:new("2dw")
 icon:load("machine.spt")
-icon:playArticulatedAnimation("gear_spin")
+icon:playArticulatedAnimation("gear_spin") -- priority 0, immediate transition
 ```
 
 The runtime advances clip time with the engine's `device->delta`, preserving the engine time-scale

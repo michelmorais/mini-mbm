@@ -345,7 +345,8 @@ namespace mbm
         API_IMPL bool hasArticulatedAnimationData() const noexcept;
         API_IMPL bool hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept;
         API_IMPL bool playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
-                                               const char *name, const int priority) const;
+                                               const char *name, const int priority,
+                                               const float blendDuration = 0.0f) const;
         API_IMPL bool pauseArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
                                                 const char *name) const noexcept;
         API_IMPL bool resumeArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,

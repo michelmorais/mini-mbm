@@ -112,7 +112,8 @@ namespace mbm
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
         const char *name = luaL_checkstring(lua, 2);
         const int priority = static_cast<int>(luaL_optinteger(lua, 3, 0));
-        lua_pushboolean(lua, mesh->playArticulatedAnimation(name, priority) ? 1 : 0);
+        const float blendDuration = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
+        lua_pushboolean(lua, mesh->playArticulatedAnimation(name, priority, blendDuration) ? 1 : 0);
         return 1;
     }
 

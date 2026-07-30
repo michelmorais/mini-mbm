@@ -153,8 +153,9 @@
     6.31.23 Added per-key articulated-animation easing (Linear, Ease In, Ease Out, Ease In Out, and Smoothstep), persisted as SECTION_ARTICULATED_ANIMATION version 3 while version 2 defaults to Linear, with Mesh Debug and Lua authoring support.
     6.31.24 Added Cubic Bezier articulated easing with editable P1/P2 time-progress control points, a Mesh Debug curve preview, runtime normalized-time solving, Lua authoring support, and SECTION_ARTICULATED_ANIMATION version 4 persistence while versions 2 and 3 receive Linear control defaults.
     6.31.25 Made articulated playback state instance-local through an opaque ARTICULATED_ANIMATION_PLAYER, preventing cached .msh/.spt assets from sharing or multiply-advancing active clips, and enabled the static per-subset articulated render path plus Lua playback controls for SPRITE.
+    6.31.26 Added optional per-instance articulated clip crossfade with delta-driven pause/resume behavior, independent priority resolution for position/rotation/scale channels, quaternion spherical rotation blending, Lua/C++ playback arguments, and Mesh Debug preview controls.
 */
-#define MBM_VERSION "6.31.25" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.26" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

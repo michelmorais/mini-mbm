@@ -34,6 +34,8 @@ namespace mbm
         float time = 0.0f;
         int priority = 0;
         uint64_t sequence = 0;
+        float blendDuration = 0.0f;
+        float blendElapsed = 0.0f;
         bool paused = false;
         bool ended = false;
     };

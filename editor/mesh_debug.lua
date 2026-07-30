@@ -6835,6 +6835,16 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
             local previewReady = index == iSelectedMeshIndex and tPreviewMesh and not tEntry.modified
             local timelineMin, timelineMax
             if previewReady then
+                tEntry.fArticulatedBlendDuration = math.max(0, tEntry.fArticulatedBlendDuration or 0)
+                tImGui.PushItemWidth(115)
+                local blendChanged, blendDuration = tImGui.DragFloat(
+                    tLang.L('articulated_blend_time') .. '##artBlend-' .. index,
+                    tEntry.fArticulatedBlendDuration, 0.01, 0, 60, '%.3f', 0)
+                tImGui.PopItemWidth()
+                if blendChanged and blendDuration ~= nil then
+                    tEntry.fArticulatedBlendDuration = math.max(0, blendDuration)
+                end
+                articulatedTooltip('articulated_blend_time_tooltip')
                 local okCurrentTime, currentTime = dpCall(function()
                     return tPreviewMesh:getArticulatedAnimationTime(infoName)
                 end)
@@ -6857,7 +6867,10 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 end
                 articulatedTooltip('articulated_timeline_tooltip')
                 if tImGui.Button('Play##artPlay-' .. index) then
-                    dpCall(function() return tPreviewMesh:playArticulatedAnimation(infoName, infoPriority or 0) end)
+                    dpCall(function()
+                        return tPreviewMesh:playArticulatedAnimation(
+                            infoName, infoPriority or 0, tEntry.fArticulatedBlendDuration or 0)
+                    end)
                 end
                 articulatedTooltip('articulated_playback_tooltip')
                 tImGui.SameLine()

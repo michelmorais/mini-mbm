@@ -5228,7 +5228,8 @@ namespace mbm
     }
 
     bool MESH_MBM::playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
-                                            const char *name, const int priority) const
+                                            const char *name, const int priority,
+                                            const float blendDuration) const
     {
         if (!name || !name[0])
             return false;
@@ -5253,6 +5254,8 @@ namespace mbm
                 active.time = 0.0f;
                 active.priority = priority;
                 active.sequence = ++player.impl->sequence;
+                active.blendDuration = std::max(0.0f, blendDuration);
+                active.blendElapsed = 0.0f;
                 active.paused = false;
                 active.ended = false;
                 return true;
@@ -5262,6 +5265,7 @@ namespace mbm
         active.clipIndex = clipIndex;
         active.priority = priority;
         active.sequence = ++player.impl->sequence;
+        active.blendDuration = std::max(0.0f, blendDuration);
         player.impl->activeClips.push_back(active);
         return true;
     }
@@ -5360,7 +5364,11 @@ namespace mbm
             return;
         for (auto &active : player.impl->activeClips)
         {
-            if (active.paused || active.ended || active.clipIndex >= impl->articulatedClips.size())
+            if (active.paused || active.clipIndex >= impl->articulatedClips.size())
+                continue;
+            if (active.blendElapsed < active.blendDuration)
+                active.blendElapsed = std::min(active.blendDuration, active.blendElapsed + delta);
+            if (active.ended)
                 continue;
             const ARTICULATED_CLIP_DATA &clip = impl->articulatedClips[active.clipIndex];
             const float duration = clip.header.duration;
@@ -5412,55 +5420,6 @@ namespace mbm
         pivotQuaternion[0] = part->pivotQX; pivotQuaternion[1] = part->pivotQY;
         pivotQuaternion[2] = part->pivotQZ; pivotQuaternion[3] = part->pivotQW;
 
-        const ARTICULATED_CLIP_DATA *selectedClip = nullptr;
-        const ARTICULATED_TRACK_DATA *selectedTrack = nullptr;
-        float selectedTime = 0.0f;
-        int selectedPriority = std::numeric_limits<int>::min();
-        uint64_t selectedSequence = 0;
-        for (const auto &active : player.impl->activeClips)
-        {
-            if (active.clipIndex >= impl->articulatedClips.size())
-                continue;
-            const ARTICULATED_CLIP_DATA &clip = impl->articulatedClips[active.clipIndex];
-            for (const auto &track : clip.tracks)
-            {
-                if (track.header.partId != part->partId || track.keys.empty())
-                    continue;
-                if (!selectedTrack || active.priority > selectedPriority ||
-                    (active.priority == selectedPriority && active.sequence > selectedSequence))
-                {
-                    selectedClip = &clip;
-                    selectedTrack = &track;
-                    selectedTime = active.time;
-                    selectedPriority = active.priority;
-                    selectedSequence = active.sequence;
-                }
-                break;
-            }
-        }
-        if (!selectedClip || !selectedTrack)
-            return false;
-
-        const auto &keys = selectedTrack->keys;
-        const util::ARTICULATED_KEY_V11 *a = &keys.front();
-        const util::ARTICULATED_KEY_V11 *b = &keys.front();
-        float factor = 0.0f;
-        if (selectedTime >= keys.back().time)
-            a = b = &keys.back();
-        else if (selectedTime > keys.front().time)
-        {
-            for (size_t i = 1; i < keys.size(); ++i)
-            {
-                if (selectedTime <= keys[i].time)
-                {
-                    a = &keys[i - 1];
-                    b = &keys[i];
-                    const float span = b->time - a->time;
-                    factor = span > 0.0f ? (selectedTime - a->time) / span : 0.0f;
-                    break;
-                }
-            }
-        }
         const auto applyEasing = [](float value, const util::ARTICULATED_KEY_V11 &key)
         {
             value = std::max(0.0f, std::min(1.0f, value));
@@ -5519,8 +5478,6 @@ namespace mbm
                     return value;
             }
         };
-        factor = applyEasing(factor, *a);
-        const auto lerp = [factor](const float x, const float y) { return x + (y - x) * factor; };
         const auto quaternionFromEulerDegrees = [](const float eulerX, const float eulerY,
                                                    const float eulerZ, float out[4])
         {
@@ -5545,28 +5502,52 @@ namespace mbm
             multiply(yaw, pitch, yawPitch);
             multiply(yawPitch, roll, out);
         };
-        const uint8_t mask = selectedTrack->header.channelMask;
-        if (mask & util::ARTICULATED_CHANNEL_POSITION)
+
+        struct SAMPLED_TRACK
         {
-            translation->x = lerp(a->positionX, b->positionX);
-            translation->y = lerp(a->positionY, b->positionY);
-            translation->z = lerp(a->positionZ, b->positionZ);
-        }
-        if (mask & util::ARTICULATED_CHANNEL_SCALE)
+            VEC3 translation = VEC3(0.0f, 0.0f, 0.0f);
+            VEC3 scale = VEC3(1.0f, 1.0f, 1.0f);
+            float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        };
+        const auto sampleTrack = [&applyEasing, &quaternionFromEulerDegrees](
+                                     const ARTICULATED_TRACK_DATA &track, const float time,
+                                     SAMPLED_TRACK &sample)
         {
-            scale->x = lerp(a->scaleX, b->scaleX);
-            scale->y = lerp(a->scaleY, b->scaleY);
-            scale->z = lerp(a->scaleZ, b->scaleZ);
-        }
-        if (mask & util::ARTICULATED_CHANNEL_ROTATION)
-        {
+            const auto &keys = track.keys;
+            const util::ARTICULATED_KEY_V11 *a = &keys.front();
+            const util::ARTICULATED_KEY_V11 *b = &keys.front();
+            float factor = 0.0f;
+            if (time >= keys.back().time)
+                a = b = &keys.back();
+            else if (time > keys.front().time)
+            {
+                for (size_t i = 1; i < keys.size(); ++i)
+                {
+                    if (time <= keys[i].time)
+                    {
+                        a = &keys[i - 1];
+                        b = &keys[i];
+                        const float span = b->time - a->time;
+                        factor = span > 0.0f ? (time - a->time) / span : 0.0f;
+                        break;
+                    }
+                }
+            }
+            factor = applyEasing(factor, *a);
+            const auto lerp = [factor](const float x, const float y) { return x + (y - x) * factor; };
+            sample.translation.x = lerp(a->positionX, b->positionX);
+            sample.translation.y = lerp(a->positionY, b->positionY);
+            sample.translation.z = lerp(a->positionZ, b->positionZ);
+            sample.scale.x = lerp(a->scaleX, b->scaleX);
+            sample.scale.y = lerp(a->scaleY, b->scaleY);
+            sample.scale.z = lerp(a->scaleZ, b->scaleZ);
             if (a->hasRotationEuler && b->hasRotationEuler)
             {
                 quaternionFromEulerDegrees(
                     lerp(a->rotationEulerX, b->rotationEulerX),
                     lerp(a->rotationEulerY, b->rotationEulerY),
                     lerp(a->rotationEulerZ, b->rotationEulerZ),
-                    rotationQuaternion);
+                    sample.rotation);
             }
             else
             {
@@ -5578,22 +5559,153 @@ namespace mbm
                     endQuaternion[0] = -endQuaternion[0]; endQuaternion[1] = -endQuaternion[1];
                     endQuaternion[2] = -endQuaternion[2]; endQuaternion[3] = -endQuaternion[3];
                 }
-                rotationQuaternion[0] = lerp(a->rotationX, endQuaternion[0]);
-                rotationQuaternion[1] = lerp(a->rotationY, endQuaternion[1]);
-                rotationQuaternion[2] = lerp(a->rotationZ, endQuaternion[2]);
-                rotationQuaternion[3] = lerp(a->rotationW, endQuaternion[3]);
+                sample.rotation[0] = lerp(a->rotationX, endQuaternion[0]);
+                sample.rotation[1] = lerp(a->rotationY, endQuaternion[1]);
+                sample.rotation[2] = lerp(a->rotationZ, endQuaternion[2]);
+                sample.rotation[3] = lerp(a->rotationW, endQuaternion[3]);
             }
-            const float length = std::sqrt(rotationQuaternion[0] * rotationQuaternion[0] +
-                                           rotationQuaternion[1] * rotationQuaternion[1] +
-                                           rotationQuaternion[2] * rotationQuaternion[2] +
-                                           rotationQuaternion[3] * rotationQuaternion[3]);
+            const float length = std::sqrt(sample.rotation[0] * sample.rotation[0] +
+                                           sample.rotation[1] * sample.rotation[1] +
+                                           sample.rotation[2] * sample.rotation[2] +
+                                           sample.rotation[3] * sample.rotation[3]);
             if (length > 0.000001f)
             {
-                rotationQuaternion[0] /= length; rotationQuaternion[1] /= length;
-                rotationQuaternion[2] /= length; rotationQuaternion[3] /= length;
+                sample.rotation[0] /= length; sample.rotation[1] /= length;
+                sample.rotation[2] /= length; sample.rotation[3] /= length;
+            }
+        };
+
+        struct CHANNEL_CANDIDATE
+        {
+            const ACTIVE_ARTICULATED_CLIP *active = nullptr;
+            const ARTICULATED_TRACK_DATA *track = nullptr;
+        };
+        using CHANNEL_CANDIDATES = std::vector<CHANNEL_CANDIDATE>;
+        CHANNEL_CANDIDATES positionCandidates;
+        CHANNEL_CANDIDATES rotationCandidates;
+        CHANNEL_CANDIDATES scaleCandidates;
+        const auto addCandidate = [](CHANNEL_CANDIDATES &candidates,
+                                     const ACTIVE_ARTICULATED_CLIP &active,
+                                     const ARTICULATED_TRACK_DATA &track)
+        {
+            for (auto &candidate : candidates)
+            {
+                if (candidate.active == &active)
+                {
+                    candidate.track = &track;
+                    return;
+                }
+            }
+            candidates.push_back({&active, &track});
+        };
+        for (const auto &active : player.impl->activeClips)
+        {
+            if (active.clipIndex >= impl->articulatedClips.size())
+                continue;
+            const ARTICULATED_CLIP_DATA &clip = impl->articulatedClips[active.clipIndex];
+            for (const auto &track : clip.tracks)
+            {
+                if (track.header.partId != part->partId || track.keys.empty())
+                    continue;
+                const uint8_t mask = track.header.channelMask;
+                if (mask & util::ARTICULATED_CHANNEL_POSITION)
+                    addCandidate(positionCandidates, active, track);
+                if (mask & util::ARTICULATED_CHANNEL_ROTATION)
+                    addCandidate(rotationCandidates, active, track);
+                if (mask & util::ARTICULATED_CHANNEL_SCALE)
+                    addCandidate(scaleCandidates, active, track);
             }
         }
-        return true;
+        const auto sortCandidates = [](CHANNEL_CANDIDATES &candidates)
+        {
+            std::sort(candidates.begin(), candidates.end(),
+                [](const CHANNEL_CANDIDATE &left, const CHANNEL_CANDIDATE &right)
+                {
+                    return left.active->priority < right.active->priority ||
+                           (left.active->priority == right.active->priority &&
+                            left.active->sequence < right.active->sequence);
+                });
+        };
+        sortCandidates(positionCandidates);
+        sortCandidates(rotationCandidates);
+        sortCandidates(scaleCandidates);
+
+        const auto blendFactor = [](const ACTIVE_ARTICULATED_CLIP &active)
+        {
+            if (active.blendDuration <= 0.0f)
+                return 1.0f;
+            return std::max(0.0f, std::min(1.0f, active.blendElapsed / active.blendDuration));
+        };
+        const auto blendVector = [](const VEC3 &source, const VEC3 &target, const float factor)
+        {
+            return VEC3(source.x + (target.x - source.x) * factor,
+                        source.y + (target.y - source.y) * factor,
+                        source.z + (target.z - source.z) * factor);
+        };
+        const auto blendQuaternion = [](const float source[4], const float target[4],
+                                        const float factor, float out[4])
+        {
+            float end[4] = {target[0], target[1], target[2], target[3]};
+            float dot = source[0] * end[0] + source[1] * end[1] +
+                        source[2] * end[2] + source[3] * end[3];
+            if (dot < 0.0f)
+            {
+                dot = -dot;
+                end[0] = -end[0]; end[1] = -end[1]; end[2] = -end[2]; end[3] = -end[3];
+            }
+            dot = std::max(-1.0f, std::min(1.0f, dot));
+            if (dot > 0.9995f)
+            {
+                out[0] = source[0] + (end[0] - source[0]) * factor;
+                out[1] = source[1] + (end[1] - source[1]) * factor;
+                out[2] = source[2] + (end[2] - source[2]) * factor;
+                out[3] = source[3] + (end[3] - source[3]) * factor;
+            }
+            else
+            {
+                const float angle = std::acos(dot);
+                const float denominator = std::sin(angle);
+                const float sourceWeight = std::sin((1.0f - factor) * angle) / denominator;
+                const float targetWeight = std::sin(factor * angle) / denominator;
+                out[0] = source[0] * sourceWeight + end[0] * targetWeight;
+                out[1] = source[1] * sourceWeight + end[1] * targetWeight;
+                out[2] = source[2] * sourceWeight + end[2] * targetWeight;
+                out[3] = source[3] * sourceWeight + end[3] * targetWeight;
+            }
+            const float length = std::sqrt(out[0] * out[0] + out[1] * out[1] +
+                                           out[2] * out[2] + out[3] * out[3]);
+            if (length > 0.000001f)
+            {
+                out[0] /= length; out[1] /= length; out[2] /= length; out[3] /= length;
+            }
+        };
+
+        const auto applyVectorChannel = [&sampleTrack, &blendFactor, &blendVector](
+                                            const CHANNEL_CANDIDATES &candidates,
+                                            const bool useScale, VEC3 &value)
+        {
+            for (const auto &candidate : candidates)
+            {
+                SAMPLED_TRACK targetSample;
+                sampleTrack(*candidate.track, candidate.active->time, targetSample);
+                const VEC3 &target = useScale ? targetSample.scale : targetSample.translation;
+                value = blendVector(value, target, blendFactor(*candidate.active));
+            }
+        };
+        applyVectorChannel(positionCandidates, false, *translation);
+        applyVectorChannel(scaleCandidates, true, *scale);
+
+        for (const auto &candidate : rotationCandidates)
+        {
+            SAMPLED_TRACK targetSample;
+            sampleTrack(*candidate.track, candidate.active->time, targetSample);
+            float source[4] = {rotationQuaternion[0], rotationQuaternion[1],
+                               rotationQuaternion[2], rotationQuaternion[3]};
+            blendQuaternion(source, targetSample.rotation,
+                            blendFactor(*candidate.active), rotationQuaternion);
+        }
+
+        return !positionCandidates.empty() || !rotationCandidates.empty() || !scaleCandidates.empty();
     }
 
     bool MESH_MBM::buildArticulatedTransformMatrix(const ARTICULATED_ANIMATION_PLAYER &player,
