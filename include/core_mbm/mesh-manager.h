@@ -243,7 +243,8 @@ namespace mbm
                                         const uint32_t keyIndex, float *time,
                                         float *positionX, float *positionY, float *positionZ,
                                         float *rotationX, float *rotationY, float *rotationZ, float *rotationW,
-                                        float *scaleX, float *scaleY, float *scaleZ) const noexcept;
+                                        float *scaleX, float *scaleY, float *scaleZ,
+                                        uint8_t *easing) const noexcept;
         API_IMPL int addArticulatedAnimation(const char *name, const float duration, const float speed,
                                              const int priority, const bool loop, char *errorOut, const int errorOutLen);
         API_IMPL bool removeArticulatedAnimation(const uint32_t animationIndex, char *errorOut, const int errorOutLen);
@@ -258,6 +259,9 @@ namespace mbm
                                              const float time, const float rotationEulerX,
                                              const float rotationEulerY, const float rotationEulerZ,
                                              char *errorOut, const int errorOutLen);
+        API_IMPL bool setArticulatedKeyEasing(const uint32_t animationIndex, const uint32_t trackIndex,
+                                              const uint32_t keyIndex, const uint8_t easing,
+                                              char *errorOut, const int errorOutLen);
         API_IMPL bool updateArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
                                            const uint32_t keyIndex, const float time,
                                            const float positionX, const float positionY, const float positionZ,

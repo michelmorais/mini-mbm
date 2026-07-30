@@ -480,7 +480,7 @@ namespace
                                                  std::vector<mbm::ARTICULATED_CLIP_DATA> &out,
                                                  const uint16_t sectionVersion)
     {
-        if (sectionVersion != 2)
+        if (sectionVersion != 2 && sectionVersion != 3)
             return false;
         util::ARTICULATED_ANIMATION_HEADER_V11 header;
         if (!util::readArticulatedAnimationHeaderV11(tmp, header))
@@ -505,7 +505,7 @@ namespace
                 for (uint32_t k = 0; k < track.header.keyCount; ++k)
                 {
                     util::ARTICULATED_KEY_V11 key;
-                    if (!util::readArticulatedKeyV11(tmp, key))
+                    if (!util::readArticulatedKeyV11(tmp, key, sectionVersion))
                         return false;
                     track.keys.push_back(key);
                 }
@@ -2359,7 +2359,7 @@ namespace mbm
         {
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_ARTICULATED_ANIMATION;
-            sectionHeader.sectionVersion = 2;
+            sectionHeader.sectionVersion = 3;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
                 util::ARTICULATED_ANIMATION_HEADER_V11 animationHeader;
@@ -4522,13 +4522,14 @@ namespace mbm
                                            const uint32_t keyIndex, float *time,
                                            float *positionX, float *positionY, float *positionZ,
                                            float *rotationX, float *rotationY, float *rotationZ, float *rotationW,
-                                           float *scaleX, float *scaleY, float *scaleZ) const noexcept
+                                           float *scaleX, float *scaleY, float *scaleZ,
+                                           uint8_t *easing) const noexcept
     {
         if (animationIndex >= impl->articulatedClips.size() ||
             trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
             keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size() ||
             !time || !positionX || !positionY || !positionZ || !rotationX || !rotationY ||
-            !rotationZ || !rotationW || !scaleX || !scaleY || !scaleZ)
+            !rotationZ || !rotationW || !scaleX || !scaleY || !scaleZ || !easing)
             return false;
         const auto &key = impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex];
         *time = key.time;
@@ -4536,6 +4537,7 @@ namespace mbm
         *rotationX = key.rotationX; *rotationY = key.rotationY;
         *rotationZ = key.rotationZ; *rotationW = key.rotationW;
         *scaleX = key.scaleX; *scaleY = key.scaleY; *scaleZ = key.scaleZ;
+        *easing = key.easing;
         return true;
     }
 
@@ -4671,6 +4673,26 @@ namespace mbm
         }
         if (errorOut) snprintf(errorOut, errorOutLen, "articulated key time not found");
         return false;
+    }
+
+    bool MESH_MBM_DEBUG::setArticulatedKeyEasing(const uint32_t animationIndex, const uint32_t trackIndex,
+                                                 const uint32_t keyIndex, const uint8_t easing,
+                                                 char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated key index out of range");
+            return false;
+        }
+        if (easing > util::ARTICULATED_EASING_SMOOTHSTEP)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated easing");
+            return false;
+        }
+        impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex].easing = easing;
+        return true;
     }
 
     bool MESH_MBM_DEBUG::updateArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
@@ -5390,6 +5412,25 @@ namespace mbm
                 }
             }
         }
+        const auto applyEasing = [](float value, const uint8_t easing)
+        {
+            value = std::max(0.0f, std::min(1.0f, value));
+            switch (easing)
+            {
+                case util::ARTICULATED_EASING_IN:
+                    return value * value;
+                case util::ARTICULATED_EASING_OUT:
+                    return 1.0f - (1.0f - value) * (1.0f - value);
+                case util::ARTICULATED_EASING_IN_OUT:
+                    return value < 0.5f ? 2.0f * value * value
+                                       : 1.0f - 2.0f * (1.0f - value) * (1.0f - value);
+                case util::ARTICULATED_EASING_SMOOTHSTEP:
+                    return value * value * (3.0f - 2.0f * value);
+                default:
+                    return value;
+            }
+        };
+        factor = applyEasing(factor, a->easing);
         const auto lerp = [factor](const float x, const float y) { return x + (y - x) * factor; };
         const auto quaternionFromEulerDegrees = [](const float eulerX, const float eulerY,
                                                    const float eulerZ, float out[4])

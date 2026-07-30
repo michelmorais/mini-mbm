@@ -3784,6 +3784,15 @@ local tModeCullOpts   = {'FRONT','BACK','FRONT_AND_BACK'}
 local tModeFrontOpts  = {'CW','CCW'}
 -- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
 local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREASING_LOOP','RECURSIVE','RECURSIVE_LOOP'}
+local function getArticulatedEasingOptions()
+    return {
+        tLang.L('articulated_easing_linear'),
+        tLang.L('articulated_easing_in'),
+        tLang.L('articulated_easing_out'),
+        tLang.L('articulated_easing_in_out'),
+        tLang.L('articulated_easing_smoothstep')
+    }
+end
 
 -- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
 local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREASING_LOOP','RECURSIVE','RECURSIVE_LOOP'}
@@ -6919,7 +6928,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                 end
                 articulatedTooltip('articulated_add_key_tooltip')
                 for keyIndex = 1, (keyCount or 0) do
-                    local okKey, keyTime, px, py, pz, qx, qy, qz, qw, sx, sy, sz = dpCall(function()
+                    local okKey, keyTime, px, py, pz, qx, qy, qz, qw, sx, sy, sz, keyEasing = dpCall(function()
                         return meshD:getArticulatedKey(activeClip, trackIndex, keyIndex)
                     end)
                     if okKey and keyTime then
@@ -6950,6 +6959,16 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                         local keyId = index .. '-' .. trackIndex .. '-' .. keyIndex
                         tEntry.tArticulatedKeyEuler = tEntry.tArticulatedKeyEuler or {}
                         local keyEuler = tEntry.tArticulatedKeyEuler[keyId]
+                        local easingOptions = getArticulatedEasingOptions()
+                        local easingIndex = math.max(1, math.min((keyEasing or 0) + 1, #easingOptions))
+                        tImGui.PushItemWidth(150)
+                        local easingChanged, newEasingIndex = tImGui.Combo(
+                            tLang.L('articulated_easing') .. '##artKeyEasing-' .. keyId,
+                            easingIndex, easingOptions, -1)
+                        tImGui.PopItemWidth()
+                        articulatedTooltip('articulated_easing_tooltip')
+                        local newEasing = (easingChanged and newEasingIndex and newEasingIndex > 0)
+                            and (newEasingIndex - 1) or (keyEasing or 0)
                         local qSignature = string.format('%.7f:%.7f:%.7f:%.7f',
                             qx or 0, qy or 0, qz or 0, qw or 1)
                         if not keyEuler or keyEuler.qSignature ~= qSignature then
@@ -7020,6 +7039,12 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
                                     qx or 0, qy or 0, qz or 0, qw or 1, sx or 1, sy or 1, sz or 1)
                             end)
                             if okTime then markArticulatedEdit() end
+                        end
+                        if easingChanged and newEasingIndex and newEasingIndex > 0 then
+                            local okEasing = dpCall(function()
+                                return meshD:setArticulatedKeyEasing(activeClip, trackIndex, keyIndex, newEasing)
+                            end)
+                            if okEasing then markArticulatedEdit() end
                         end
                         tImGui.PopID()
                     end

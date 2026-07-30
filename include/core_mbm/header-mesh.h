@@ -781,6 +781,15 @@ namespace util
         ARTICULATED_CHANNEL_SCALE    = 4,
     };
 
+    enum ARTICULATED_EASING_V11 : uint8_t
+    {
+        ARTICULATED_EASING_LINEAR = 0,
+        ARTICULATED_EASING_IN = 1,
+        ARTICULATED_EASING_OUT = 2,
+        ARTICULATED_EASING_IN_OUT = 3,
+        ARTICULATED_EASING_SMOOTHSTEP = 4
+    };
+
     struct ARTICULATED_TRACK_V11
     {
         uint64_t partId;
@@ -797,6 +806,7 @@ namespace util
         // Authoring rotation in degrees. Quaternion fields remain the runtime representation.
         float rotationEulerX, rotationEulerY, rotationEulerZ;
         uint8_t hasRotationEuler;
+        uint8_t easing;
         float scaleX, scaleY, scaleZ;
         API_IMPL ARTICULATED_KEY_V11() noexcept;
     };

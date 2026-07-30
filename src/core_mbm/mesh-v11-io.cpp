@@ -498,6 +498,7 @@ namespace util
                writeF32LE(fp, in.rotationEulerX) && writeF32LE(fp, in.rotationEulerY) &&
                writeF32LE(fp, in.rotationEulerZ) &&
                writeBytes(fp, &in.hasRotationEuler, sizeof(in.hasRotationEuler)) &&
+               writeBytes(fp, &in.easing, sizeof(in.easing)) &&
                writeF32LE(fp, in.scaleX) && writeF32LE(fp, in.scaleY) && writeF32LE(fp, in.scaleZ);
     }
 
@@ -539,7 +540,8 @@ namespace util
                readU32LE(fp, out.keyCount);
     }
 
-    bool readArticulatedKeyV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_KEY_V11 &out)
+    bool readArticulatedKeyV11(util::MEM_CURSOR_V11 &fp, util::ARTICULATED_KEY_V11 &out,
+                               const uint16_t sectionVersion)
     {
         if (!(readF32LE(fp, out.time) &&
                readF32LE(fp, out.positionX) && readF32LE(fp, out.positionY) && readF32LE(fp, out.positionZ) &&
@@ -548,8 +550,11 @@ namespace util
                readF32LE(fp, out.rotationEulerX) && readF32LE(fp, out.rotationEulerY) &&
                readF32LE(fp, out.rotationEulerZ) &&
                readBytes(fp, &out.hasRotationEuler, sizeof(out.hasRotationEuler)) &&
+               (sectionVersion >= 3 ? readBytes(fp, &out.easing, sizeof(out.easing)) : true) &&
                readF32LE(fp, out.scaleX) && readF32LE(fp, out.scaleY) && readF32LE(fp, out.scaleZ)))
             return false;
+        if (sectionVersion < 3)
+            out.easing = util::ARTICULATED_EASING_LINEAR;
         return true;
     }
 

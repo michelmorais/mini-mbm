@@ -715,6 +715,7 @@ namespace util
         rotationW = 1.0f;
         rotationEulerX = rotationEulerY = rotationEulerZ = 0.0f;
         hasRotationEuler = 0;
+        easing = util::ARTICULATED_EASING_LINEAR;
         scaleX = scaleY = scaleZ = 1.0f;
     }
 

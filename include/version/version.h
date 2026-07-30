@@ -150,8 +150,9 @@
     6.31.20 Fixed Mesh Debug's Transform/Centralize action -- both the per-mesh Transform node and Apply All bulk operation -- ignoring the Target frame and Target subset controls. A selected frame now limits the translation to that frame. A selected subset supplies the AABB center used as the anchor while every subset in each targeted frame receives the same translation, preserving their relative distances; frame 0/subset 0 retains the existing all-frame, whole-frame behavior.
     6.31.21 Added Mesh Debug's vertex-only "Centralize Itself" transform to both the per-mesh Transform node and Apply All. Each targeted subset is centered independently at the origin: frame/subset 0 applies to every frame/subset, a selected frame limits the operation to that frame, and a selected subset limits it to that subset in each targeted frame. Unlike the existing Centralize anchor operation, unselected subsets and mesh-wide bones are not moved.
     6.31.22 Started rigid/articulated animation for Mesh V11: optional SECTION_ARTICULATED_PARTS and SECTION_ARTICULATED_ANIMATION payloads, persistent part IDs/pivots, and runtime/editor parsing with backward-compatible omission when unused.
+    6.31.23 Added per-key articulated-animation easing (Linear, Ease In, Ease Out, Ease In Out, and Smoothstep), persisted as SECTION_ARTICULATED_ANIMATION version 3 while version 2 defaults to Linear, with Mesh Debug and Lua authoring support.
 */
-#define MBM_VERSION "6.31.22" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.23" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
