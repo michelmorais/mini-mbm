@@ -8196,8 +8196,14 @@ function showFrameNode(tEntry, meshD, index)
         local okS, nSubs = dpCall(function() return meshD:getTotalSubset(f) end)
         for s = 1, (okS and nSubs or 0) do
             local okT, tex = dpCall(function() return meshD:getTexture(f, s) end)
+            local okV, vertexCount = dpCall(function() return meshD:getTotalVertex(f, s) end)
             local texName = (okT and tex and tex ~= '') and (' [' .. tUtil.getShortName(tex) .. ']') or ''
-            table.insert(allSubsets, {f=f, s=s, texName=texName})
+            table.insert(allSubsets, {
+                f = f,
+                s = s,
+                texName = texName,
+                vertexCount = okV and vertexCount or nil,
+            })
         end
     end
     -- Newly-created subsets (including split-capture outputs) have no entry yet in the
@@ -8228,6 +8234,7 @@ function showFrameNode(tEntry, meshD, index)
     local listH      = math.min((nFrames + #allSubsets) * 22 + 8, 300)
     local tblFlags   = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_ScrollY')
     local frameSelChanged = false
+    local requestedSubsetMove = nil
 
     -- Precompute: which frames have at least one subset staged for removal
     local tImplicit = {}
@@ -8237,10 +8244,14 @@ function showFrameNode(tEntry, meshD, index)
         end
     end
 
-    if tImGui.BeginTable('fnOuter-' .. index, 2, tblFlags, {x=0, y=listH}) then
+    if tImGui.BeginTable('fnOuter-' .. index, 4, tblFlags, {x=0, y=listH}) then
         tImGui.TableSetupScrollFreeze(0, 1)
-        tImGui.TableSetupColumn(tLang.L('frame_node'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.4)
-        tImGui.TableSetupColumn(tLang.L('subsets'),   tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.6)
+        tImGui.TableSetupColumn(tLang.L('frame_node'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.35)
+        tImGui.TableSetupColumn(tLang.L('subsets'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.65)
+        tImGui.TableSetupColumn(tLang.L('subset_vertices'),
+            tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 64)
+        tImGui.TableSetupColumn(tLang.L('move_subset_up'),
+            tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 48)
         tImGui.TableHeadersRow()
 
         for f = 1, nFrames do
@@ -8279,6 +8290,22 @@ function showFrameNode(tEntry, meshD, index)
                 end
             end
 
+            local function renderMoveSubsetUp(sub)
+                if sub.s <= 1 or pendingFrames[f] then
+                    tImGui.TextDisabled('-')
+                    return
+                end
+                if tImGui.ArrowButton('##fnMoveUp-' .. index .. '-' .. sub.f .. '-' .. sub.s,
+                                      tImGui.Flags('ImGuiDir_Up')) then
+                    requestedSubsetMove = {frame = sub.f, subset = sub.s}
+                end
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('move_subset_up_tooltip'))
+                    tImGui.EndTooltip()
+                end
+            end
+
             -- ── First row of this frame group ────────────────────────────
             tImGui.TableNextRow()
             tImGui.TableSetColumnIndex(0)
@@ -8304,12 +8331,22 @@ function showFrameNode(tEntry, meshD, index)
             end
             tImGui.TableSetColumnIndex(1)
             if #fSubsets >= 1 then renderSubsetCell(fSubsets[1]) end
+            tImGui.TableSetColumnIndex(2)
+            if #fSubsets >= 1 then
+                tImGui.Text(fSubsets[1].vertexCount and tostring(fSubsets[1].vertexCount) or '-')
+            end
+            tImGui.TableSetColumnIndex(3)
+            if #fSubsets >= 1 then renderMoveSubsetUp(fSubsets[1]) end
 
             -- ── Additional rows: blank left, one more subset on right ────
             for i = 2, #fSubsets do
                 tImGui.TableNextRow()
                 tImGui.TableSetColumnIndex(1)
                 renderSubsetCell(fSubsets[i])
+                tImGui.TableSetColumnIndex(2)
+                tImGui.Text(fSubsets[i].vertexCount and tostring(fSubsets[i].vertexCount) or '-')
+                tImGui.TableSetColumnIndex(3)
+                renderMoveSubsetUp(fSubsets[i])
             end
 
             -- ── Thin separator row between frame groups ──────────────────
@@ -8319,10 +8356,44 @@ function showFrameNode(tEntry, meshD, index)
                 tImGui.Separator()
                 tImGui.TableSetColumnIndex(1)
                 tImGui.Separator()
+                tImGui.TableSetColumnIndex(2)
+                tImGui.Separator()
+                tImGui.TableSetColumnIndex(3)
+                tImGui.Separator()
             end
         end
 
         tImGui.EndTable()
+    end
+
+    if requestedSubsetMove then
+        local moveFrame = requestedSubsetMove.frame
+        local moveSubset = requestedSubsetMove.subset
+        local okMove, moved = dpCall(function()
+            return meshD:moveSubsetUp(moveFrame, moveSubset)
+        end)
+        if okMove and moved then
+            local previousSubset = moveSubset - 1
+            local currentKey = moveFrame * 100 + moveSubset
+            local previousKey = moveFrame * 100 + previousSubset
+            tEntry.tCheckedRemove[currentKey], tEntry.tCheckedRemove[previousKey] =
+                tEntry.tCheckedRemove[previousKey], tEntry.tCheckedRemove[currentKey]
+
+            -- Pending removals identify subset indices too, so keep them attached to the same
+            -- geometry while the two adjacent entries exchange positions.
+            for _, op in ipairs(tEntry.tPendingOps) do
+                if op.kind == 'removeSubset' and op.frame == moveFrame then
+                    if op.subset == moveSubset then
+                        op.subset = previousSubset
+                    elseif op.subset == previousSubset then
+                        op.subset = moveSubset
+                    end
+                end
+            end
+            tEntry.modified = true
+            tEntry.bFrameSelectionDirty = true
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        end
     end
 
     -- Auto-refresh preview when any checkbox changed

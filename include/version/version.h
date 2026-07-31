@@ -161,8 +161,10 @@
     6.31.31 Simplified Mesh Debug articulated authoring around one selected animated subset, with descriptive subset and parent combos plus per-subset Part and Track controls.
     6.31.32 Preserved authored articulated-key Euler values in Mesh Debug after reload by exposing the persisted Euler fields through getArticulatedKey instead of reconstructing an equivalent wrapped angle from the quaternion.
     6.31.33 Added editable Position/Rotation/Scale channel checkboxes to existing articulated Tracks in Mesh Debug, with validated C++/Lua channel-mask updates that preserve disabled Key values.
+    6.31.34 Added subset-order editing to Mesh Debug's Frames table through a Move Up control, preserving per-subset visibility and pending removals in the editor while remapping articulated Part occurrences so stable IDs, tracks, pivots, and hierarchy remain attached to the same geometry.
+    6.31.35 Added a per-subset vertex-count column to Mesh Debug's Frames table using the existing Lua getTotalVertex API, without changing the C++ authoring API or mesh format.
 */
-#define MBM_VERSION "6.31.33" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.35" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

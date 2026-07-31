@@ -1171,9 +1171,23 @@ Standard `print(...)` (no tag) still works and prints white.
 
 ---
 
-## 15. Mesh Debug articulated-animation authoring
+## 15. Mesh Debug authoring
 
-The editor-only `meshDebug` object exposes the initial Mesh V11 rigid-animation authoring API.
+The editor-only `meshDebug` object exposes Mesh V11 authoring operations. To reorder subsets inside
+a frame, use:
+
+```lua
+local moved = meshD:moveSubsetUp(frame, subset)
+```
+
+`frame` and `subset` are one-based. The call returns `true` when the subset exchanged positions
+with its predecessor, or `false` for the first subset or an invalid index. Articulated Part
+occurrences are remapped automatically, so their stable IDs, tracks, pivots, and parent-child
+relationships remain attached to the same geometry.
+
+### 15.1 Articulated-animation authoring
+
+The object also exposes the Mesh V11 rigid-animation authoring API.
 Indices returned by this API are one-based, matching the existing Mesh Debug methods. Part IDs are
 persistent `uint64` identities; names are labels and are not used as file references.
 

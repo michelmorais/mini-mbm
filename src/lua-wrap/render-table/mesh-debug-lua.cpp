@@ -1582,6 +1582,18 @@ namespace mbm
         return 0;
     }
 
+    int onMoveSubsetUpDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer frame     = luaL_checkinteger(lua, 2);
+        const lua_Integer subset    = luaL_checkinteger(lua, 3);
+        const bool moved = frame > 0 && subset > 1 &&
+                           meshDebug->mesh.moveSubsetUp(static_cast<uint32_t>(frame - 1),
+                                                        static_cast<uint32_t>(subset - 1));
+        lua_pushboolean(lua, moved ? 1 : 0);
+        return 1;
+    }
+
     int onCopyFrameFromDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug    = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2450,6 +2462,7 @@ namespace mbm
                                           {"removeFrame", onRemoveFrameDebugLua},
                                           {"addSubSet", onAddSubsetDebugLua},
                                           {"removeSubset", onRemoveSubsetDebugLua},
+                                          {"moveSubsetUp", onMoveSubsetUpDebugLua},
                                           {"copyFrameFrom", onCopyFrameFromDebugLua},
                                           {"copySubsetFrom", onCopySubsetFromDebugLua},
                                           {"addAnim", onAddAnimationDebugLua},

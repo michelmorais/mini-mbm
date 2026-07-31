@@ -1917,6 +1917,31 @@ namespace mbm
         buf->headerFrame.sizeVertexBuffer -= vCount;
     }
 
+    bool MESH_MBM_DEBUG::moveSubsetUp(uint32_t indexFrame, uint32_t indexSubset)
+    {
+        if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()) || indexSubset == 0)
+            return false;
+        util::BUFFER_MESH_DEBUG *buf = this->impl->buffer[indexFrame];
+        if (!buf || indexSubset >= static_cast<uint32_t>(buf->subset.size()))
+            return false;
+
+        const uint32_t previousSubsetIndex = indexSubset - 1;
+        std::swap(buf->subset[previousSubsetIndex], buf->subset[indexSubset]);
+
+        // Articulated tracks and hierarchy target stable part IDs. Keep each Part attached to
+        // the same geometry by remapping only the two subset occurrences whose order changed.
+        for (auto &part : this->impl->articulatedParts)
+        {
+            if (part.frameIndex != indexFrame)
+                continue;
+            if (part.subsetIndex == indexSubset)
+                part.subsetIndex = previousSubsetIndex;
+            else if (part.subsetIndex == previousSubsetIndex)
+                part.subsetIndex = indexSubset;
+        }
+        return true;
+    }
+
     uint32_t MESH_MBM_DEBUG::copyBufferFrom(MESH_MBM_DEBUG &src, uint32_t srcFrameIdx)
     {
         if (srcFrameIdx >= static_cast<uint32_t>(src.impl->buffer.size()))
