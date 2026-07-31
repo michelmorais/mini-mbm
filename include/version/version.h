@@ -163,8 +163,9 @@
     6.31.33 Added editable Position/Rotation/Scale channel checkboxes to existing articulated Tracks in Mesh Debug, with validated C++/Lua channel-mask updates that preserve disabled Key values.
     6.31.34 Added subset-order editing to Mesh Debug's Frames table through a Move Up control, preserving per-subset visibility and pending removals in the editor while remapping articulated Part occurrences so stable IDs, tracks, pivots, and hierarchy remain attached to the same geometry.
     6.31.35 Added a per-subset vertex-count column to Mesh Debug's Frames table using the existing Lua getTotalVertex API, without changing the C++ authoring API or mesh format.
+    6.31.36 Fixed Mesh Debug Split turning meshes authored without normals into lighting-enabled meshes containing only zero normals: subset reconstruction now restores the source no-normal characteristic after addVertex's mandatory temporary normal-buffer allocation.
 */
-#define MBM_VERSION "6.31.35" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.36" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

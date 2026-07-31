@@ -949,6 +949,14 @@ namespace mbm
                         lua_setfield(lua, -2, "ny");
                         lua_pushnumber(lua, 0.0);
                         lua_setfield(lua, -2, "nz");
+                        #if (DEBUG || _DEBUG)
+                        static bool s_warnNormalNull = true;
+                        if (s_warnNormalNull)
+                        {
+                            s_warnNormalNull = false;
+                            WARN_LOG("%s:%d Normal array is null for indexFrame %d, returning (0,0,0)\n", __FILE__, __LINE__, indexFrame);
+                        }
+                        #endif
                     }
 
                     lua_pushnumber(lua, pUv[indexRaw].x);

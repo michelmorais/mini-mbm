@@ -7944,6 +7944,11 @@ end
 
 function splitCaptureMesh(tEntry, meshD, box)
     tEntry.tSplitCapturedSignatures = tEntry.tSplitCapturedSignatures or {}
+    -- addVertex() necessarily allocates a normal buffer while rebuilding subsets. Remember the
+    -- source characteristic so a mesh authored without normals does not silently become a
+    -- zero-normal, lighting-enabled mesh after Split.
+    local sourceHadNormals = tEntry.info and tEntry.info.hasNormal == true
+    local sourceNormalStateKnown = tEntry.info and tEntry.info.hasNormal ~= nil
     local capturedFaces, capturedFrames = 0, 0
     local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okF or not nFrames then return 0, 0 end
@@ -8017,6 +8022,10 @@ function splitCaptureMesh(tEntry, meshD, box)
                 end
             end
         end
+    end
+    if capturedFrames > 0 and sourceNormalStateKnown and not sourceHadNormals then
+        meshD:removeNormals()
+        tEntry.info.hasNormal = false
     end
     return capturedFaces, capturedFrames
 end
