@@ -9549,8 +9549,9 @@ function showMeshOptions(tEntry, index)
             tImGui.Text(tLang.L('preview_subset_visibility'))
             local hoveredSubset = nil
             local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
-            if tImGui.BeginTable('xfSubsetVisibility-' .. index, 1, tableFlags) then
+            if tImGui.BeginTable('xfSubsetVisibility-' .. index, 2, tableFlags) then
                 tImGui.TableSetupColumn(tLang.L('subset'))
+                tImGui.TableSetupColumn(tLang.L('select'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
                 tImGui.TableHeadersRow()
                 for subset = 1, totalSubsets do
                     local frameVisibility, visible = getSubsetVisibility(xf.frame, subset)
@@ -9565,6 +9566,16 @@ function showMeshOptions(tEntry, index)
                         if tEntry.tXformPreviewMesh then
                             buildXformPreview()
                         elseif xf.autoPreview then
+                            tEntry.xfLastPreviewFP = nil
+                        end
+                    end
+                    tImGui.TableSetColumnIndex(1)
+                    local selectPressed = tImGui.Button(tLang.L('select') .. '##xfSubsetSelect-' .. index .. '-' .. xf.frame .. '-' .. subset)
+                    if tImGui.IsItemHovered(0) then hoveredSubset = subset end
+                    if selectPressed then
+                        if xf.subset ~= subset then
+                            cancelXformPreview()
+                            xf.subset = subset
                             tEntry.xfLastPreviewFP = nil
                         end
                     end

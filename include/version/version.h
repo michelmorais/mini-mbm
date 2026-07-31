@@ -179,8 +179,10 @@
     6.31.49 Removed the automatic Z-order offset from Mesh Debug transform-preview clones so untinted previews align exactly with the original mesh.
     6.31.50 Made Mesh Debug preview-subset visibility authoritative and disabled target dragging while any subset is hidden.
     6.31.51 Simplified Mesh Debug's preview-subset table and added an always-on-top center marker while hovering a subset checkbox.
+    6.31.52 Added a Select column to Mesh Debug's preview-subset table for setting the Transform target subset directly.
+    6.31.53 Extended the preview-subset center marker hover detection to each row's Select button.
 */
-#define MBM_VERSION "6.31.51" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.53" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
