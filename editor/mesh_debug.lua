@@ -293,6 +293,9 @@ function onInitScene()
     tGhostMesh           = nil    -- separate translucent mesh instance shown while Bones node is open
     isClickedMouseleft   = false
     isClickedMouseRight  = false
+    -- Continuous 3D camera movement, set by onKeyDown/onKeyUp and consumed once per frame using
+    -- delta so movement follows the engine's real-time speed instead of OS key-repeat timing.
+    tCam3dMove           = {forward = 0, right = 0, vertical = 0}
     -- Origin lines: 2D (X red, Y green) and 3D (X red, Y green, Z blue)
     originLine2dX = line:new('2dw', 0, 0, 50)
     originLine2dY = line:new('2dw', 0, 0, 50)
@@ -3239,6 +3242,42 @@ function applyCam3d(c)
     local x, y, z = cam3dGetPos(c)
     camera3d:setPos(x, y, z)
     camera3d:setFocus(c.fx, c.fy, c.fz)
+end
+
+-- WASD translates the orbit focus on the camera's horizontal forward/right plane; Page Up/Down
+-- translates it on world Y. Since cam3dGetPos derives camera position from the focus, moving the
+-- focus moves camera and target together without changing azimuth, elevation or orbit distance.
+function updateCam3dKeyboardMovement(delta)
+    local move = tCam3dMove
+    if not move or (move.forward == 0 and move.right == 0 and move.vertical == 0) then return end
+    if tImGui.GetWantCaptureKeyboard() or not bCameraMode3D then return end
+    if iSelectedMeshIndex <= 0 or iSelectedMeshIndex > #tLoadedMeshes then return end
+
+    local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+    -- isMesh3DType is declared later as a local helper, so keep this early camera helper
+    -- self-contained instead of accidentally resolving a nonexistent global of the same name.
+    if not (tEntry.info and tEntry.info.type == 'mesh') then return end
+    local c = tEntry.cam3d
+    local speed = c.distance * 0.8 * math.max(delta or 0, 0)
+    local dx, dz = 0, 0
+
+    if move.forward ~= 0 or move.right ~= 0 then
+        -- Use the engine camera's own basis, as Scene Editor 3D does, then flatten and normalize
+        -- it so pitched views do not move more slowly across the XZ plane.
+        local fw = camera3d:getNormal('F')
+        local rg = camera3d:getNormal('R')
+        local fwLen = math.sqrt(fw.x * fw.x + fw.z * fw.z)
+        local rgLen = math.sqrt(rg.x * rg.x + rg.z * rg.z)
+        if fwLen > 1e-6 and rgLen > 1e-6 then
+            dx = (fw.x / fwLen * move.forward + rg.x / rgLen * move.right) * speed
+            dz = (fw.z / fwLen * move.forward + rg.z / rgLen * move.right) * speed
+        end
+    end
+
+    c.fx = c.fx + dx
+    c.fy = c.fy + move.vertical * speed
+    c.fz = c.fz + dz
+    applyCam3d(c)
 end
 
 -- Each loaded mesh entry keeps its own cam3d (orbit position around the object), so switching
@@ -11836,6 +11875,7 @@ function showCameraWindow()
                 end
                 tImGui.TextDisabled(tLang.L('cam_hint_3d'))
                 tImGui.TextDisabled('Scroll:zoom')
+                tImGui.TextDisabled(tLang.L('cam_hint_keyboard'))
             else
                 tImGui.TextDisabled(tLang.L('cam_no_mesh'))
             end
@@ -12451,6 +12491,7 @@ function onLoop(delta)
     showListTexturesWindow()
     showListMeshesWindow()
     updatePreviewMesh()
+    updateCam3dKeyboardMovement(delta)
     -- Frame Pick popup (per loaded mesh)
     for i = 1, #tLoadedMeshes do
         local tE = tLoadedMeshes[i]
@@ -12714,6 +12755,27 @@ function onKeyDown(key)
         selectMeshIndex(iSelectedMeshIndex + 1)
     elseif mbm.getKeyName(key) == 'UP' then
         selectMeshIndex(iSelectedMeshIndex - 1)
+    elseif key == mbm.getKeyCode('W') then
+        tCam3dMove.forward = 1
+    elseif key == mbm.getKeyCode('S') then
+        tCam3dMove.forward = -1
+    elseif key == mbm.getKeyCode('A') then
+        tCam3dMove.right = -1
+    elseif key == mbm.getKeyCode('D') then
+        tCam3dMove.right = 1
+    elseif key == mbm.getKeyCode('pageup') then
+        tCam3dMove.vertical = 1
+    elseif key == mbm.getKeyCode('pagedown') then
+        tCam3dMove.vertical = -1
     end
 end
-function onKeyUp() end
+
+function onKeyUp(key)
+    if key == mbm.getKeyCode('W') or key == mbm.getKeyCode('S') then
+        tCam3dMove.forward = 0
+    elseif key == mbm.getKeyCode('A') or key == mbm.getKeyCode('D') then
+        tCam3dMove.right = 0
+    elseif key == mbm.getKeyCode('pageup') or key == mbm.getKeyCode('pagedown') then
+        tCam3dMove.vertical = 0
+    end
+end

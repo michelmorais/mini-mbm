@@ -164,8 +164,9 @@
     6.31.34 Added subset-order editing to Mesh Debug's Frames table through a Move Up control, preserving per-subset visibility and pending removals in the editor while remapping articulated Part occurrences so stable IDs, tracks, pivots, and hierarchy remain attached to the same geometry.
     6.31.35 Added a per-subset vertex-count column to Mesh Debug's Frames table using the existing Lua getTotalVertex API, without changing the C++ authoring API or mesh format.
     6.31.36 Fixed Mesh Debug Split turning meshes authored without normals into lighting-enabled meshes containing only zero normals: subset reconstruction now restores the source no-normal characteristic after addVertex's mandatory temporary normal-buffer allocation.
+    6.31.37 Added delta-driven Mesh Debug 3D camera translation with WASD for horizontal forward/strafe movement and Page Up/Page Down for world-space elevation, while preserving the existing Up/Down mesh-selection shortcuts and ignoring movement while ImGui captures keyboard input.
 */
-#define MBM_VERSION "6.31.36" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.37" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
