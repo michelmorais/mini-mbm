@@ -6969,20 +6969,54 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
         tImGui.TextDisabled(tLang.L('articulated_no_clips'))
     else
         tEntry.iArticulatedClip = math.max(1, math.min(tEntry.iArticulatedClip or 1, totalClips))
-        tImGui.PushItemWidth(70)
-        local clipChanged, selectedClip = tImGui.InputInt('Clip##artClipSelect-' .. index,
-            tEntry.iArticulatedClip, 1, 1, 0)
-        tImGui.PopItemWidth()
-        if clipChanged then
-            tEntry.iArticulatedClip = math.max(1, math.min(selectedClip or 1, totalClips))
-        end
-        articulatedTooltip('articulated_clip_selector_tooltip')
-        for clipIndex = 1, totalClips do
-            local ok, clipName = dpCall(function() return meshD:getArticulatedAnimationName(clipIndex) end)
-            if ok and clipName then
-                local marker = clipIndex == tEntry.iArticulatedClip and '>' or '-'
-                tImGui.Text(string.format('%s %d: %s', marker, clipIndex, clipName))
+        local partSubsetById = {}
+        for partIndex = 1, totalParts do
+            local partInfo = articulatedParts[partIndex]
+            if partInfo and partInfo.partId then
+                partSubsetById[partInfo.partId] = partInfo.subset
             end
+        end
+        local clipTableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
+        if tImGui.BeginTable('artClipTable-' .. index, 3, clipTableFlags) then
+            tImGui.TableSetupColumn(tLang.L('select'),
+                tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 55)
+            tImGui.TableSetupColumn(tLang.L('articulated_clip'))
+            tImGui.TableSetupColumn(tLang.L('articulated_affected_subsets'))
+            tImGui.TableHeadersRow()
+            for clipIndex = 1, totalClips do
+                local ok, clipName = dpCall(function()
+                    return meshD:getArticulatedAnimationName(clipIndex)
+                end)
+                local affectedSubsets = {}
+                local affectedSubsetSet = {}
+                local okTracks, totalClipTracks = dpCall(function()
+                    return meshD:getTotalArticulatedTracks(clipIndex)
+                end)
+                totalClipTracks = (okTracks and totalClipTracks) or 0
+                for trackIndex = 1, totalClipTracks do
+                    local okTrack, trackPartId = dpCall(function()
+                        return meshD:getArticulatedTrack(clipIndex, trackIndex)
+                    end)
+                    local subset = okTrack and partSubsetById[trackPartId] or nil
+                    if subset and not affectedSubsetSet[subset] then
+                        affectedSubsetSet[subset] = true
+                        affectedSubsets[#affectedSubsets + 1] = subset
+                    end
+                end
+                table.sort(affectedSubsets)
+
+                tImGui.TableNextRow()
+                tImGui.TableSetColumnIndex(0)
+                tEntry.iArticulatedClip = tImGui.RadioButton(
+                    '##artClipSelect-' .. index .. '-' .. clipIndex,
+                    tEntry.iArticulatedClip, clipIndex)
+                articulatedTooltip('articulated_clip_selector_tooltip')
+                tImGui.TableSetColumnIndex(1)
+                tImGui.Text((ok and clipName) or ('Clip ' .. clipIndex))
+                tImGui.TableSetColumnIndex(2)
+                tImGui.Text(#affectedSubsets > 0 and table.concat(affectedSubsets, ',') or '-')
+            end
+            tImGui.EndTable()
         end
 
         local activeClip = tEntry.iArticulatedClip
