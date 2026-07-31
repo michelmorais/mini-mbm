@@ -5218,21 +5218,24 @@ local function computeMeshAABB(meshD, targetFrame, targetSubset)
     return { minX = minX, minY = minY, minZ = minZ, maxX = maxX, maxY = maxY, maxZ = maxZ }
 end
 
-function destroyTransformSubsetHoverMarker(tEntry)
+function destroyTransformSubsetHoverMarker(tEntry, owner)
+    if owner and tEntry.sTransformSubsetHoverOwner ~= owner then return end
     if tEntry.tTransformSubsetHoverMarker then
         tEntry.tTransformSubsetHoverMarker:destroy()
         tEntry.tTransformSubsetHoverMarker = nil
     end
     tEntry.sTransformSubsetHoverCoordType = nil
+    tEntry.sTransformSubsetHoverOwner = nil
 end
 
--- Shows the hovered visibility-row subset independently of the preview filter. The marker is
--- derived from raw vertices, so it still exists when that subset is unchecked, and alwaysOnTop
--- keeps it readable through the mesh regardless of the current orbit angle.
-function updateTransformSubsetHoverMarker(tEntry, meshD, frame, subset, xf, index)
+-- Shows a hovered table-row subset independently of the preview filter. The marker is derived
+-- from raw vertices, so it still exists when that subset is unchecked, and alwaysOnTop keeps it
+-- readable through the mesh regardless of the current orbit angle.
+function updateTransformSubsetHoverMarker(tEntry, meshD, frame, subset, xf, index, owner)
+    owner = owner or 'transform'
     local bounds = computeMeshAABB(meshD, frame, subset)
     if not bounds then
-        destroyTransformSubsetHoverMarker(tEntry)
+        destroyTransformSubsetHoverMarker(tEntry, owner)
         return
     end
     local cx = (bounds.minX + bounds.maxX) * 0.5
@@ -5247,7 +5250,8 @@ function updateTransformSubsetHoverMarker(tEntry, meshD, frame, subset, xf, inde
         bounds.maxZ - bounds.minZ)
     local markerSize = math.max(extent * 0.06, 0.05)
     local coordType = bCameraMode3D and '3d' or '2dw'
-    if tEntry.tTransformSubsetHoverMarker and tEntry.sTransformSubsetHoverCoordType ~= coordType then
+    if tEntry.tTransformSubsetHoverMarker and
+            (tEntry.sTransformSubsetHoverCoordType ~= coordType or tEntry.sTransformSubsetHoverOwner ~= owner) then
         destroyTransformSubsetHoverMarker(tEntry)
     end
     if not tEntry.tTransformSubsetHoverMarker then
@@ -5259,6 +5263,7 @@ function updateTransformSubsetHoverMarker(tEntry, meshD, frame, subset, xf, inde
         marker.alwaysOnTop = true
         tEntry.tTransformSubsetHoverMarker = marker
         tEntry.sTransformSubsetHoverCoordType = coordType
+        tEntry.sTransformSubsetHoverOwner = owner
     else
         tEntry.tTransformSubsetHoverMarker:setPos(cx, cy, dodgeAutoZOrder(cz))
     end
@@ -6671,6 +6676,7 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
     local isOpen = openNode(tEntry, 'articulated', tLang.L('articulated_animation'), 0, 'articulated-' .. index)
     if not isOpen then
         destroyArticulatedPivotGizmo(tEntry)
+        destroyTransformSubsetHoverMarker(tEntry, 'articulated')
         return
     end
     local function markArticulatedEdit()
@@ -6758,15 +6764,92 @@ function showArticulatedAnimationNode(tEntry, meshD, index)
     if totalParts > 0 then
         tEntry.iArticulatedPart = math.max(1,
             math.min(tEntry.iArticulatedPart or 1, totalParts))
-        tImGui.PushItemWidth(260)
-        local partChanged, selectedPart = tImGui.Combo(
-            tLang.L('articulated_animated_subset') .. '##artPivotPart-' .. index,
-            tEntry.iArticulatedPart, articulatedPartOptions, -1)
+        local okFrames, totalFrames = dpCall(function() return meshD:getTotalFrame() end)
+        totalFrames = (okFrames and totalFrames) or 1
+        local currentPartInfo = articulatedParts[tEntry.iArticulatedPart]
+        tEntry.iArticulatedFrame = math.max(1, math.min(tEntry.iArticulatedFrame or
+            (currentPartInfo and currentPartInfo.frame) or 1, totalFrames))
+
+        tImGui.PushItemWidth(100)
+        local frameChanged, selectedFrame = tImGui.InputInt(
+            tLang.L('frame_selection') .. '##artFrame-' .. index,
+            tEntry.iArticulatedFrame, 1, 1, 0)
         tImGui.PopItemWidth()
-        if partChanged and selectedPart then
-            tEntry.iArticulatedPart = math.max(1, math.min(selectedPart or 1, totalParts))
+        if frameChanged then
+            tEntry.iArticulatedFrame = math.max(1, math.min(selectedFrame or 1, totalFrames))
         end
-        articulatedTooltip('articulated_part_tooltip')
+
+        local framePartOptions, framePartIndices = {}, {}
+        local frameComboIndex = 1
+        for partIndex = 1, totalParts do
+            local partInfo = articulatedParts[partIndex]
+            if partInfo and partInfo.frame == tEntry.iArticulatedFrame then
+                framePartOptions[#framePartOptions + 1] = articulatedPartOptions[partIndex]
+                framePartIndices[#framePartIndices + 1] = partIndex
+                if partIndex == tEntry.iArticulatedPart then frameComboIndex = #framePartIndices end
+            end
+        end
+        if #framePartIndices > 0 then
+            local selectedIsInFrame = articulatedParts[tEntry.iArticulatedPart] and
+                articulatedParts[tEntry.iArticulatedPart].frame == tEntry.iArticulatedFrame
+            if not selectedIsInFrame then
+                tEntry.iArticulatedPart = framePartIndices[1]
+                frameComboIndex = 1
+            end
+            tImGui.PushItemWidth(260)
+            local partChanged, selectedFramePart = tImGui.Combo(
+                tLang.L('articulated_animated_subset') .. '##artPivotPart-' .. index,
+                frameComboIndex, framePartOptions, -1)
+            tImGui.PopItemWidth()
+            if partChanged and selectedFramePart then
+                tEntry.iArticulatedPart = framePartIndices[selectedFramePart] or tEntry.iArticulatedPart
+            end
+            articulatedTooltip('articulated_part_tooltip')
+
+            local hoveredSubset = nil
+            local okSubsets, totalSubsets = dpCall(function()
+                return meshD:getTotalSubset(tEntry.iArticulatedFrame)
+            end)
+            totalSubsets = (okSubsets and totalSubsets) or 0
+            local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
+            if tImGui.BeginTable('artSubsetTable-' .. index, 2, tableFlags) then
+                tImGui.TableSetupColumn(tLang.L('subset'))
+                tImGui.TableSetupColumn(tLang.L('select'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+                tImGui.TableHeadersRow()
+                for subset = 1, totalSubsets do
+                    local partForSubset = nil
+                    for _, candidatePartIndex in ipairs(framePartIndices) do
+                        if articulatedParts[candidatePartIndex].subset == subset then
+                            partForSubset = candidatePartIndex
+                            break
+                        end
+                    end
+                    tImGui.TableNextRow()
+                    tImGui.TableSetColumnIndex(0)
+                    tImGui.Text(string.format('%s %d', tLang.L('subset'), subset))
+                    if tImGui.IsItemHovered(0) then hoveredSubset = subset end
+                    tImGui.TableSetColumnIndex(1)
+                    tImGui.BeginDisabled(not partForSubset)
+                    local selectPressed = tImGui.Button(tLang.L('select') ..
+                        '##artSubsetSelect-' .. index .. '-' .. tEntry.iArticulatedFrame .. '-' .. subset)
+                    if tImGui.IsItemHovered(0) then hoveredSubset = subset end
+                    tImGui.EndDisabled()
+                    if selectPressed and partForSubset then tEntry.iArticulatedPart = partForSubset end
+                end
+                tImGui.EndTable()
+            end
+            if hoveredSubset then
+                tEntry.tArticulatedSubsetMarkerTransform = tEntry.tArticulatedSubsetMarkerTransform or
+                    {rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0}
+                updateTransformSubsetHoverMarker(tEntry, meshD, tEntry.iArticulatedFrame,
+                    hoveredSubset, tEntry.tArticulatedSubsetMarkerTransform, index, 'articulated')
+            else
+                destroyTransformSubsetHoverMarker(tEntry, 'articulated')
+            end
+        else
+            tImGui.TextDisabled(tLang.L('articulated_no_parts'))
+            destroyTransformSubsetHoverMarker(tEntry, 'articulated')
+        end
         if tImGui.Button('Open Pivot Gizmo##artPivotWindow-' .. index) then
             tEntry.bArticulatedPivotWindow = true
         end
@@ -9583,12 +9666,12 @@ function showMeshOptions(tEntry, index)
                 tImGui.EndTable()
             end
             if hoveredSubset then
-                updateTransformSubsetHoverMarker(tEntry, meshD, xf.frame, hoveredSubset, xf, index)
+                updateTransformSubsetHoverMarker(tEntry, meshD, xf.frame, hoveredSubset, xf, index, 'transform')
             else
-                destroyTransformSubsetHoverMarker(tEntry)
+                destroyTransformSubsetHoverMarker(tEntry, 'transform')
             end
         else
-            destroyTransformSubsetHoverMarker(tEntry)
+            destroyTransformSubsetHoverMarker(tEntry, 'transform')
         end
 
         tImGui.TreePop()

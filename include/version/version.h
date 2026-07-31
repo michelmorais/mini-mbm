@@ -181,8 +181,9 @@
     6.31.51 Simplified Mesh Debug's preview-subset table and added an always-on-top center marker while hovering a subset checkbox.
     6.31.52 Added a Select column to Mesh Debug's preview-subset table for setting the Transform target subset directly.
     6.31.53 Extended the preview-subset center marker hover detection to each row's Select button.
+    6.31.54 Filtered the Articulated Animation subset picker by a selected frame and added a per-frame subset selection table with always-on-top hover markers.
 */
-#define MBM_VERSION "6.31.53" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.54" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
