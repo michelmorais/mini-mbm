@@ -9145,19 +9145,20 @@ function showMeshOptions(tEntry, index)
     if tEntry.tXformPreviewMesh and tEntry.sOpenNode ~= 'transform' then
         tEntry.tXformPreviewMesh:destroy()
         tEntry.tXformPreviewMesh = nil
-        local xfHide = tEntry.tXformUI and tEntry.tXformUI.hideOriginal
-        if xfHide and tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
+        tEntry.bXformSubsetFilterActive = false
+        if tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
     end
 
     if openNode(tEntry, 'transform', tLang.L("transform"), 0, 'transform-' .. index) then
         -- Shared targeting state for every operation in this node. A selected subset is the
         -- centralization anchor; all subsets in each targeted frame move by the same offset.
-        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false }
+        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false, subsetVisibility={} }
         local xf = tEntry.tXformUI
         xf.subset = xf.subset or 0
         xf.dx = xf.dx or 0; xf.dy = xf.dy or 0; xf.dz = xf.dz or 0
         if xf.hideOriginal == nil then xf.hideOriginal = false end
         if xf.autoPreview == nil then xf.autoPreview = false end
+        xf.subsetVisibility = xf.subsetVisibility or {}
 
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
             -- Bones are mesh-wide rather than per-frame. Match the targeted frame when one is
@@ -9188,7 +9189,26 @@ function showMeshOptions(tEntry, index)
                 tEntry.tXformPreviewMesh:destroy()
                 tEntry.tXformPreviewMesh = nil
             end
-            if xf.hideOriginal and tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
+            tEntry.bXformSubsetFilterActive = false
+            if tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
+        end
+
+        local function getSubsetVisibility(frame, subset)
+            local frameVisibility = xf.subsetVisibility[frame]
+            if not frameVisibility then
+                frameVisibility = {}
+                xf.subsetVisibility[frame] = frameVisibility
+            end
+            if frameVisibility[subset] == nil then frameVisibility[subset] = true end
+            return frameVisibility, frameVisibility[subset]
+        end
+
+        local function hasHiddenSubset(frame, subsetCount)
+            for subset = 1, subsetCount do
+                local _, visible = getSubsetVisibility(frame, subset)
+                if not visible then return true end
+            end
+            return false
         end
 
         tImGui.Separator()
@@ -9288,7 +9308,7 @@ function showMeshOptions(tEntry, index)
         if newHide ~= xf.hideOriginal then
             xf.hideOriginal = newHide
             if tEntry.tXformPreviewMesh and tPreviewMesh and index == iSelectedMeshIndex then
-                tPreviewMesh.visible = not newHide
+                tPreviewMesh.visible = not (newHide or tEntry.bXformSubsetFilterActive)
             end
         end
         xf.autoPreview = tImGui.Checkbox(tLang.L("auto_preview_transform") .. '##xfAuto-' .. index, xf.autoPreview)
@@ -9309,6 +9329,21 @@ function showMeshOptions(tEntry, index)
                     end
                     if xf.dx ~= 0 or xf.dy ~= 0 or xf.dz ~= 0 then
                         dpCall(function() cloneMeshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
+                    end
+                    local hiddenSubset = xf.frame > 0 and hasHiddenSubset(xf.frame, totalSubsets)
+                    local visibleSubsetCount = totalSubsets
+                    if hiddenSubset then
+                        for subset = totalSubsets, 1, -1 do
+                            local _, visible = getSubsetVisibility(xf.frame, subset)
+                            if not visible then
+                                visibleSubsetCount = visibleSubsetCount - 1
+                                -- Keep an all-hidden clone structurally valid; the render object is
+                                -- hidden below instead of trying to save a frame with zero subsets.
+                                if visibleSubsetCount > 0 then
+                                    dpCall(function() cloneMeshD:removeSubset(xf.frame, subset) end)
+                                end
+                            end
+                        end
                     end
                     if cloneMeshD:save(tEntry.xfPreviewPath, false, false) then
                         meshDebug:fakeRelease(tEntry.xfPreviewPath)
@@ -9336,9 +9371,11 @@ function showMeshOptions(tEntry, index)
                             -- rendered opaque white instead of the intended yellow/gold tint.
                             cloneRender:setColor(1.0, 220/255, 50/255, 200/255)
                             dpCall(function() cloneRender:setAnim(tEntry.iSelectedAnim or 1) end)
+                            cloneRender.visible = visibleSubsetCount > 0
                             tEntry.tXformPreviewMesh = cloneRender
-                            if xf.hideOriginal and tPreviewMesh and index == iSelectedMeshIndex then
-                                tPreviewMesh.visible = false
+                            tEntry.bXformSubsetFilterActive = hiddenSubset
+                            if tPreviewMesh and index == iSelectedMeshIndex then
+                                tPreviewMesh.visible = not (xf.hideOriginal or hiddenSubset)
                             end
                         else
                             if cloneRender then cloneRender:destroy() end
@@ -9400,6 +9437,36 @@ function showMeshOptions(tEntry, index)
                 end
             end
             tImGui.PopStyleColor(1)
+        end
+
+        -- Subset visibility is a preview-only filter. It is available for one concrete frame;
+        -- frame 0 targets all frames and may have a different subset layout in each frame.
+        if xf.frame > 0 then
+            tImGui.Spacing()
+            tImGui.Text(tLang.L('preview_subset_visibility'))
+            local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
+            if tImGui.BeginTable('xfSubsetVisibility-' .. index, 2, tableFlags) then
+                tImGui.TableSetupColumn(tLang.L('visible'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 70)
+                tImGui.TableSetupColumn(tLang.L('subset'))
+                tImGui.TableHeadersRow()
+                for subset = 1, totalSubsets do
+                    local frameVisibility, visible = getSubsetVisibility(xf.frame, subset)
+                    tImGui.TableNextRow()
+                    tImGui.TableSetColumnIndex(0)
+                    local newVisible = tImGui.Checkbox('##xfSubsetVisible-' .. index .. '-' .. xf.frame .. '-' .. subset, visible)
+                    tImGui.TableSetColumnIndex(1)
+                    tImGui.Text(string.format('%s %d', tLang.L('subset'), subset))
+                    if newVisible ~= visible then
+                        frameVisibility[subset] = newVisible
+                        if tEntry.tXformPreviewMesh then
+                            buildXformPreview()
+                        elseif xf.autoPreview then
+                            tEntry.xfLastPreviewFP = nil
+                        end
+                    end
+                end
+                tImGui.EndTable()
+            end
         end
 
         tImGui.TreePop()

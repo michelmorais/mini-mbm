@@ -170,8 +170,9 @@
     6.31.40 Fixed Mesh Debug Split Capture's filled volume and outline using different world-space centers after numeric edits, cleared stale scene-drag state when capture or numeric editing starts, and made DragFloat sensitivity proportional to capture size.
     6.31.41 Fixed the first Mesh Debug Split Capture Center edit affecting visual depth by moving existing capture render objects in place; only Size edits now rebuild capture geometry, with every object's full XYZ position explicitly synchronized after creation.
     6.31.42 Finalized the subset-split/articulated-animation feature audit: enforced valid Part occurrences, globally unique articulated part IDs, and one Part per frame/subset occurrence in authoring and V11 loading; rejected unsupported Parts section versions and malformed hierarchies; removed the unused ANIMATION_KIND API residue; and replaced the completed implementation plan with maintained architecture plus precise Lua playback/authoring documentation.
+    6.31.43 Added per-subset visibility controls to Mesh Debug's transform preview for a selected frame.
 */
-#define MBM_VERSION "6.31.42" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.43" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
