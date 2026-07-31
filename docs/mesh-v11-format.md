@@ -80,7 +80,7 @@ enum SECTION_TYPE : uint16_t
     SECTION_FRAME_STATIC       = 10,  // repeated: one per frame, in order
     SECTION_FRAME_SKINNED      = 11,  // bundled joint hierarchy, see Sec. 6e — diagnostic/editor
                                        // round-trip only, never consulted by rendering
-    SECTION_ARTICULATED_PARTS  = 12,  // optional rigid-part identities, pivots, and future hierarchy metadata
+    SECTION_ARTICULATED_PARTS  = 12,  // optional rigid-part identities, pivots, and hierarchy metadata
     SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
     SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / cube-complex / triangle bounding volumes
     SECTION_DETAIL_FONT        = 21,
@@ -413,8 +413,10 @@ These are optional rigid/articulated-animation sections. They are omitted when t
 data does not exist, so old meshes without them remain valid and continue through the existing
 static/frame-animation path. Both the runtime and editor loaders parse them.
 
-`SECTION_ARTICULATED_PARTS` is one bundled section with a `uint32_t partCount`, followed by that
-many records:
+`SECTION_ARTICULATED_PARTS` is one bundled section with `sectionVersion` `1` and a `uint32_t
+partCount`, followed by that many records. Other section versions are rejected. Every `partId` is
+nonzero and globally unique within the asset, and a frame/subset occurrence can have at most one
+Part. Part names are editable labels and may repeat:
 
 ```cpp
 struct ARTICULATED_PART_V11

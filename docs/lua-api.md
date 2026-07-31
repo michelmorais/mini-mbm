@@ -547,6 +547,22 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:setBlend` | `(srcBlend, dstBlend, op?)` | — | Set blend mode using `mbm.*` blend constants |
 | `obj:getBlend` | `()` | srcBlend, dstBlend, op | Get current blend mode |
 
+#### Articulated playback (`mesh` and `sprite`)
+
+These methods are available on loaded `.msh` and `.spt` objects whose asset contains articulated
+Parts and clips. Playback state is local to the object instance even when several objects share the
+same cached asset. See [articulated-animation.md](articulated-animation.md) for the asset model,
+composition rules, editor workflow, and rendering design.
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `obj:playArticulatedAnimation` | `(name, priority?, blendDuration?, weight?)` | bool | Start/restart a clip. Defaults: priority `0`, immediate blend, weight `1` |
+| `obj:pauseArticulatedAnimation` | `(name)` | bool | Freeze an active clip and its blend progress |
+| `obj:resumeArticulatedAnimation` | `(name)` | bool | Resume a paused active clip |
+| `obj:disableArticulatedAnimation` | `(name)` | bool | Remove an active clip from pose composition |
+| `obj:seekArticulatedAnimation` | `(name, time)` | bool | Move an active clip's playback position to the specified time, clamped to `0..duration` |
+| `obj:getArticulatedAnimationTime` | `(name)` | number or nil | Current time for an active clip, or `nil` when it is inactive/unknown |
+
 ### 6.7 Depth / Ordering
 
 Draw order (depth-sorting) is controlled via the `obj.z` property:
@@ -1189,7 +1205,11 @@ relationships remain attached to the same geometry.
 
 The object also exposes the Mesh V11 rigid-animation authoring API.
 Indices returned by this API are one-based, matching the existing Mesh Debug methods. Part IDs are
-persistent `uint64` identities; names are labels and are not used as file references.
+nonzero, globally unique `uint64` identities within the asset; names are labels, may repeat, and are
+not used as file references. Each frame/subset occurrence can have only one Part. Invalid mutations
+raise a Lua error with the engine validation message; successful mutations return `true`, except
+creation methods, which return their new one-based index, and the initialize/remove-all methods,
+which return a count.
 
 ```lua
 local partIndex = meshD:addArticulatedPart(
@@ -1218,6 +1238,19 @@ meshD:setArticulatedKeyEuler(clipIndex, trackIndex, time,
 meshD:setArticulatedKeyEasing(clipIndex, trackIndex, keyIndex, easing)
 meshD:setArticulatedKeyBezier(clipIndex, trackIndex, keyIndex, x1, y1, x2, y2)
 ```
+
+Inspection return values are:
+
+| Method | Returns |
+|---|---|
+| `getTotalArticulatedParts()` | Part count |
+| `getArticulatedPart(index)` | `partId, frame, subset, name, pivotX, pivotY, pivotZ, pivotQX, pivotQY, pivotQZ, pivotQW, parentPartId`, or `nil` |
+| `getTotalArticulatedAnimations()` | Clip count |
+| `getArticulatedAnimationName(index)` | Name, or `nil` |
+| `getArticulatedAnimation(index)` | `name, duration, speed, priority, loop, blendMode`, or `nil` |
+| `getTotalArticulatedTracks(animation)` | Track count |
+| `getArticulatedTrack(animation, track)` | `partId, channelMask, keyCount`, or `nil` |
+| `getArticulatedKey(animation, track, key)` | `time`, position XYZ, quaternion XYZW, scale XYZ, `easing`, Bezier X1/Y1/X2/Y2, authored Euler XYZ, `hasEuler`; or `nil` |
 
 Channel masks are `1` for position, `2` for rotation, and `4` for scale.
 `setArticulatedTrackChannels(animation, track, channelMask)` updates the channels controlled by an

@@ -563,7 +563,7 @@ namespace util
         SECTION_FRAME_STATIC       = 10, // repeated: one per frame, in order
         SECTION_FRAME_SKINNED      = 11, // bundled joint hierarchy for editor/mesh_debug.lua's
                                           // Bones node round-trip diagnostic - never runtime skinning
-        SECTION_ARTICULATED_PARTS  = 12, // optional rigid-part identities, pivots, and future hierarchy metadata
+        SECTION_ARTICULATED_PARTS  = 12, // optional rigid-part identities, pivots, and hierarchy metadata
         SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
         SECTION_DETAIL_PHYSICS     = 20,
         SECTION_DETAIL_FONT        = 21,
@@ -746,7 +746,7 @@ namespace util
         API_IMPL ARTICULATED_PARTS_HEADER_V11() noexcept;
     };
 
-    struct ARTICULATED_PART_V11 // one frame/subset occurrence; partId may be shared across frames
+    struct ARTICULATED_PART_V11 // one frame/subset occurrence; partId is globally unique in the asset
     {
         uint64_t    partId;
         uint32_t    frameIndex;

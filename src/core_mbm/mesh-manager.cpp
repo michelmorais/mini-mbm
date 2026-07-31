@@ -473,6 +473,32 @@ namespace
                 return false;
             out.push_back(std::move(part));
         }
+
+        std::unordered_map<uint64_t, const util::ARTICULATED_PART_V11 *> partsById;
+        std::unordered_set<uint64_t> occurrences;
+        partsById.reserve(out.size());
+        occurrences.reserve(out.size());
+        for (const auto &part : out)
+        {
+            const uint64_t occurrence = (static_cast<uint64_t>(part.frameIndex) << 32) | part.subsetIndex;
+            if (part.partId == 0 || !partsById.emplace(part.partId, &part).second ||
+                !occurrences.insert(occurrence).second)
+                return false;
+        }
+        for (const auto &part : out)
+        {
+            uint64_t parentId = part.parentPartId;
+            for (size_t depth = 0; parentId != 0 && depth <= out.size(); ++depth)
+            {
+                const auto found = partsById.find(parentId);
+                if (found == partsById.end() || found->second->frameIndex != part.frameIndex ||
+                    parentId == part.partId)
+                    return false;
+                parentId = found->second->parentPartId;
+                if (depth == out.size() && parentId != 0)
+                    return false;
+            }
+        }
         return true;
     }
 
@@ -959,7 +985,8 @@ namespace
             }
             else if (staged.header.type == util::SECTION_ARTICULATED_PARTS)
             {
-                if (!parse_articulated_parts_section_v11(tmp, out.articulatedParts))
+                if (staged.header.sectionVersion != 1 ||
+                    !parse_articulated_parts_section_v11(tmp, out.articulatedParts))
                 {
                     errorOut = "failed to parse SECTION_ARTICULATED_PARTS";
                     return false;
@@ -3021,7 +3048,8 @@ namespace mbm
             else if (sectionHeader.type == util::SECTION_ARTICULATED_PARTS)
             {
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (!parse_articulated_parts_section_v11(tmp, impl->articulatedParts))
+                if (sectionHeader.sectionVersion != 1 ||
+                    !parse_articulated_parts_section_v11(tmp, impl->articulatedParts))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ARTICULATED_PARTS [%s]", fileNamePath);
             }
             else if (sectionHeader.type == util::SECTION_ARTICULATED_ANIMATION)
@@ -4381,12 +4409,24 @@ namespace mbm
             if (errorOut) snprintf(errorOut, errorOutLen, "partId must be non-zero");
             return 0;
         }
+        if (frameIndex >= impl->buffer.size() || !impl->buffer[frameIndex] ||
+            subsetIndex >= impl->buffer[frameIndex]->subset.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "frame/subset occurrence is out of range");
+            return 0;
+        }
         for (const auto &part : impl->articulatedParts)
         {
-            if (part.partId == partId && part.frameIndex == frameIndex && part.subsetIndex == subsetIndex)
+            if (part.partId == partId)
             {
-                if (errorOut) snprintf(errorOut, errorOutLen, "part occurrence already exists for partId [%llu]",
+                if (errorOut) snprintf(errorOut, errorOutLen, "partId [%llu] already exists",
                                        static_cast<unsigned long long>(partId));
+                return 0;
+            }
+            if (part.frameIndex == frameIndex && part.subsetIndex == subsetIndex)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "frame [%u] subset [%u] already has a part",
+                                       frameIndex + 1, subsetIndex + 1);
                 return 0;
             }
         }
@@ -4939,7 +4979,7 @@ namespace mbm
         }
         impl->extraInfo           = nullptr;
     }
-    
+
     void MESH_MBM_DEBUG::fixDefaultBoud()
     {
         if (this->impl->infoPhysics.lsCube.size() == 0)
@@ -4948,14 +4988,14 @@ namespace mbm
             impl->headerMesh.deprecated_typePhysics = 1;
         }
     }
-    
+
     void MESH_MBM_DEBUG::release()
     {
         deleteExtraInfo();
         if (this->impl->coordTexFrame_0)
             delete[] this->impl->coordTexFrame_0;
         this->impl->coordTexFrame_0 = nullptr;
-        
+
         for (auto meshBuffer : this->impl->buffer)
         {
             if (meshBuffer)

@@ -636,7 +636,6 @@ namespace mbm
 
     struct ANIMATION::Impl
     {
-        ANIMATION_KIND  kind = ANIMATION_KIND::FRAME;
         char           nameAnimation[NAME_ANIMATION_SIZE] = {};
         float          intervalChangeFrame = 1.0f;
         int            indexInitialFrame = 0;
@@ -757,16 +756,6 @@ namespace mbm
     void ANIMATION::setType(const TYPE_ANIMATION typeAnimation) noexcept
     {
         this->impl->type = typeAnimation;
-    }
-
-    ANIMATION_KIND ANIMATION::getKind() const noexcept
-    {
-        return this->impl->kind;
-    }
-
-    void ANIMATION::setKind(const ANIMATION_KIND kind) noexcept
-    {
-        this->impl->kind = kind;
     }
 
     FX &ANIMATION::getFx() noexcept
