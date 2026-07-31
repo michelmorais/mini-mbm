@@ -9323,12 +9323,16 @@ function showMeshOptions(tEntry, index)
         xf.previewTint = tImGui.Checkbox(tLang.L('preview_yellow_tint') .. '##xfTint-' .. index, xf.previewTint)
         local previewTintChanged = oldPreviewTint ~= xf.previewTint
 
-        local canDragSubset = xf.frame > 0 and xf.subset > 0
+        local visibilityBlocksDrag = xf.frame > 0 and hasHiddenSubset(xf.frame, totalSubsets)
+        local canDragSubset = xf.frame > 0 and xf.subset > 0 and not visibilityBlocksDrag
         local oldEnableSubsetDrag = xf.enableSubsetDrag
         tImGui.BeginDisabled(not canDragSubset)
         xf.enableSubsetDrag = tImGui.Checkbox(tLang.L('drag_target_subset') .. '##xfDrag-' .. index, xf.enableSubsetDrag)
         tImGui.EndDisabled()
-        if not canDragSubset then
+        if visibilityBlocksDrag then
+            xf.enableSubsetDrag = false
+            tImGui.TextDisabled(tLang.L('drag_target_subset_visibility_help'))
+        elseif not canDragSubset then
             xf.enableSubsetDrag = false
             tImGui.TextDisabled(tLang.L('drag_target_subset_select_help'))
         elseif xf.enableSubsetDrag then
@@ -9356,8 +9360,8 @@ function showMeshOptions(tEntry, index)
                     -- Drag mode keeps the temporary render clone down to the one target subset.
                     -- onTouchMove can then translate that render object directly instead of
                     -- rewriting, saving, reloading, and uploading every vertex on every event.
-                    local isolateDragSubset = xf.enableSubsetDrag and xf.frame > 0 and xf.subset > 0
-                    local hiddenSubset = not isolateDragSubset and xf.frame > 0 and hasHiddenSubset(xf.frame, totalSubsets)
+                    local hiddenSubset = xf.frame > 0 and hasHiddenSubset(xf.frame, totalSubsets)
+                    local isolateDragSubset = xf.enableSubsetDrag and xf.frame > 0 and xf.subset > 0 and not hiddenSubset
                     local visibleSubsetCount = totalSubsets
                     if isolateDragSubset then
                         for subset = totalSubsets, 1, -1 do
@@ -9400,6 +9404,11 @@ function showMeshOptions(tEntry, index)
                             cloneRender = texture:new(coordType); rok = cloneRender:load(tEntry.xfPreviewPath)
                         end
                         if rok and cloneRender then
+                            -- Match updatePreviewMesh's origin reset. A newly-created renderizable
+                            -- at z=0 receives DEVICE's automatic render-order Z nudge; leaving it
+                            -- in place makes the transform clone look like a displaced duplicate
+                            -- of the original, especially when the yellow preview tint is off.
+                            cloneRender:setPos(0, 0, 0)
                             -- obj:setColor takes 0.0-1.0 per channel, not 0-255 (docs/lua-api.md:539)
                             -- -- values above 1 clamp, so the previous (255,220,50,200) call silently
                             -- rendered opaque white instead of the intended yellow/gold tint.
@@ -12819,7 +12828,8 @@ function onTouchDown(key, x, y)
             local tEntry = tLoadedMeshes[iSelectedMeshIndex]
             local xf = tEntry.tXformUI
             if tEntry.sOpenNode == 'transform' and tEntry.tXformPreviewMesh and
-                    xf and xf.enableSubsetDrag and xf.frame > 0 and xf.subset > 0 then
+                    xf and xf.enableSubsetDrag and not tEntry.bXformSubsetFilterActive and
+                    xf.frame > 0 and xf.subset > 0 then
                 if key == 0 and bCameraMode3D then
                     tEntry.bXformOrbiting = true
                     camera2d.mx, camera2d.my = x, y

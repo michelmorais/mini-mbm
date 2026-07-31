@@ -176,8 +176,10 @@
     6.31.46 Added fast right-button rotation of the isolated Mesh Debug transform-preview subset while drag mode is enabled.
     6.31.47 Added middle-button 3D camera orbit while Mesh Debug target-subset drag mode is enabled.
     6.31.48 Standardized Mesh Debug target-subset controls: left orbits, right translates, and middle rotates.
+    6.31.49 Removed the automatic Z-order offset from Mesh Debug transform-preview clones so untinted previews align exactly with the original mesh.
+    6.31.50 Made Mesh Debug preview-subset visibility authoritative and disabled target dragging while any subset is hidden.
 */
-#define MBM_VERSION "6.31.48" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.50" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
