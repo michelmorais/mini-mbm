@@ -165,8 +165,12 @@
     6.31.35 Added a per-subset vertex-count column to Mesh Debug's Frames table using the existing Lua getTotalVertex API, without changing the C++ authoring API or mesh format.
     6.31.36 Fixed Mesh Debug Split turning meshes authored without normals into lighting-enabled meshes containing only zero normals: subset reconstruction now restores the source no-normal characteristic after addVertex's mandatory temporary normal-buffer allocation.
     6.31.37 Added delta-driven Mesh Debug 3D camera translation with WASD for horizontal forward/strafe movement and Page Up/Page Down for world-space elevation, while preserving the existing Up/Down mesh-selection shortcuts and ignoring movement while ImGui captures keyboard input.
+    6.31.38 Added axis-aware Split Capture hover feedback in Mesh Debug: Center X/Y/Z highlights the corresponding parallel cube edges, while Size X/Y/Z highlights the corresponding pair of cube faces without rebuilding render objects on mouse movement.
+    6.31.39 Widened the individual Center and Size axis controls in Mesh Debug Split Capture for easier numeric editing.
+    6.31.40 Fixed Mesh Debug Split Capture's filled volume and outline using different world-space centers after numeric edits, cleared stale scene-drag state when capture or numeric editing starts, and made DragFloat sensitivity proportional to capture size.
+    6.31.41 Fixed the first Mesh Debug Split Capture Center edit affecting visual depth by moving existing capture render objects in place; only Size edits now rebuild capture geometry, with every object's full XYZ position explicitly synchronized after creation.
 */
-#define MBM_VERSION "6.31.37" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.41" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

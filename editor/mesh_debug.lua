@@ -7872,9 +7872,29 @@ end
 -- The volume is deliberately only evaluated when Start Capture is turned off;
 -- dragging/resizing it never mutates mesh data.
 -- ---------------------------------------------------------------------------
+function splitCaptureSetObjectPosition(obj, t)
+    if not obj then return end
+    obj.x, obj.y, obj.z = t.x, t.y, t.z
+end
+
+function splitCaptureMoveBox(t)
+    splitCaptureSetObjectPosition(t.tShape, t)
+    splitCaptureSetObjectPosition(t.tLine, t)
+    for _, overlay in pairs(t.tAxisEdgeLines or {}) do splitCaptureSetObjectPosition(overlay, t) end
+    for _, overlay in pairs(t.tAxisFaceShapes or {}) do splitCaptureSetObjectPosition(overlay, t) end
+    local hw, hh, hd = math.max(t.width, 0.01) * 0.5,
+                       math.max(t.height, 0.01) * 0.5,
+                       math.max(t.depth, 0.01) * 0.5
+    t.aabbMin = {x=t.x-hw, y=t.y-hh, z=t.z-hd}
+    t.aabbMax = {x=t.x+hw, y=t.y+hh, z=t.z+hd}
+end
+
 function splitCaptureBuildBox(t)
     if t.tShape then t.tShape:destroy(); t.tShape = nil end
     if t.tLine then t.tLine:destroy(); t.tLine = nil end
+    for _, overlay in pairs(t.tAxisEdgeLines or {}) do overlay:destroy() end
+    for _, overlay in pairs(t.tAxisFaceShapes or {}) do overlay:destroy() end
+    t.tAxisEdgeLines, t.tAxisFaceShapes = {}, {}
     local hw, hh, hd = math.max(t.width, 0.01) * 0.5,
                        math.max(t.height, 0.01) * 0.5,
                        math.max(t.depth, 0.01) * 0.5
@@ -7899,11 +7919,77 @@ function splitCaptureBuildBox(t)
     t.tShape:create(verts, nil, name)
     t.tShape:setColor(1, 0.65, 0.05, 0.12)
     t.tShape.alwaysOnTop = true
-    t.tLine = line:new('3d', 0, 0, 0)
+    -- drawBounding() generates local coordinates, so the outline must share
+    -- the capture volume's world-space center.
+    t.tLine = line:new('3d', t.x, t.y, t.z)
     t.tLine:drawBounding(t.tShape, false)
     t.tLine:setColor(1, 0.75, 0.1)
-    t.aabbMin = {x=t.x-hw, y=t.y-hh, z=t.z-hd}
-    t.aabbMax = {x=t.x+hw, y=t.y+hh, z=t.z+hd}
+
+    -- Hover overlays are built together with the capture box, then only their
+    -- visibility changes per frame. This avoids allocating render objects while
+    -- the mouse moves across the six controls.
+    local axisColors = {
+        x = {1.0, 0.1, 0.8}, -- magenta
+        y = {0.1, 1.0, 1.0}, -- cyan
+        z = {0.8, 1.0, 0.1}, -- lime
+    }
+    local axisEdges = {
+        x = {{1,4},{2,3},{5,8},{6,7}},
+        y = {{1,2},{4,3},{5,6},{8,7}},
+        z = {{1,5},{2,6},{3,7},{4,8}},
+    }
+    local axisFaces = {
+        x = {{5,6,2},{5,2,1},{4,3,7},{4,7,8}},
+        y = {{2,6,7},{2,7,3},{5,1,4},{5,4,8}},
+        z = {{1,2,3},{1,3,4},{5,7,6},{5,8,7}},
+    }
+    for _, axis in ipairs({'x', 'y', 'z'}) do
+        local edgeLine = line:new('3d', t.x, t.y, t.z)
+        for _, edge in ipairs(axisEdges[axis]) do
+            local edgeVertices = {}
+            for _, cornerIndex in ipairs(edge) do
+                local p = corners[cornerIndex]
+                table.insert(edgeVertices, p.x)
+                table.insert(edgeVertices, p.y)
+                table.insert(edgeVertices, p.z)
+            end
+            -- Each add() is its own LINE_STRIP. Keeping one strip per edge
+            -- prevents diagonal connector segments between parallel edges.
+            edgeLine:add(edgeVertices)
+        end
+        edgeLine:setColor(axisColors[axis][1], axisColors[axis][2], axisColors[axis][3], 1)
+        edgeLine.alwaysOnTop = true
+        edgeLine.visible = false
+        t.tAxisEdgeLines[axis] = edgeLine
+
+        local faceVertices = {}
+        for _, tri in ipairs(axisFaces[axis]) do
+            for _, cornerIndex in ipairs(tri) do
+                local p = corners[cornerIndex]
+                table.insert(faceVertices, p.x)
+                table.insert(faceVertices, p.y)
+                table.insert(faceVertices, p.z)
+            end
+        end
+        local faceShape = shape:new('3d', t.x, t.y, t.z)
+        faceShape:create(faceVertices, nil, name .. '_hover_face_' .. axis)
+        faceShape:setColor(axisColors[axis][1], axisColors[axis][2], axisColors[axis][3], 0.32)
+        faceShape.alwaysOnTop = true
+        faceShape.visible = false
+        t.tAxisFaceShapes[axis] = faceShape
+    end
+    -- Assign all coordinates explicitly after creation. Center-only edits use
+    -- this same path without destroying or recreating any render object.
+    splitCaptureMoveBox(t)
+end
+
+function splitCaptureSetHover(t, kind, axis)
+    for name, overlay in pairs(t.tAxisEdgeLines or {}) do
+        overlay.visible = kind == 'center' and name == axis
+    end
+    for name, overlay in pairs(t.tAxisFaceShapes or {}) do
+        overlay.visible = kind == 'size' and name == axis
+    end
 end
 
 function splitCaptureRayHitsAABB(ox, oy, oz, dx, dy, dz, minX, minY, minZ, maxX, maxY, maxZ)
@@ -7922,6 +8008,9 @@ function splitCaptureDestroy(t)
     if not t then return end
     if t.tShape then t.tShape:destroy(); t.tShape = nil end
     if t.tLine then t.tLine:destroy(); t.tLine = nil end
+    for _, overlay in pairs(t.tAxisEdgeLines or {}) do overlay:destroy() end
+    for _, overlay in pairs(t.tAxisFaceShapes or {}) do overlay:destroy() end
+    t.tAxisEdgeLines, t.tAxisFaceShapes = nil, nil
 end
 
 function splitCaptureSignature(vertices, indices, texture)
@@ -8186,11 +8275,13 @@ function showSplitCapture(tEntry, meshD, index)
             sp.initialized = true
         end
         splitCaptureBuildBox(sp)
-        tEntry.sSplitDragPlane = nil
+        tEntry.sSplitDragging = nil
+        sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
     elseif not newActive and oldActive then
         local faces, frames = splitCaptureMesh(tEntry, meshD, sp)
         splitCaptureDestroy(sp)
-        tEntry.sSplitDragPlane = nil
+        tEntry.sSplitDragging = nil
+        sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
         sp.lastFaces, sp.lastFrames = faces, frames
         if faces > 0 then
             tEntry.modified = true
@@ -8204,10 +8295,49 @@ function showSplitCapture(tEntry, meshD, index)
         end
     end
     if sp.active then
-        local changed, v = tImGui.DragFloat3('Center##splitCenter-' .. index, {sp.x,sp.y,sp.z}, 0.1, 0, 0, '%.2f')
-        if changed and v then sp.x,sp.y,sp.z=v[1],v[2],v[3]; splitCaptureBuildBox(sp) end
-        local changedW, w = tImGui.DragFloat3('Size##splitSize-' .. index, {sp.width,sp.height,sp.depth}, 0.1, 0.01, 0, '%.2f')
-        if changedW and w then sp.width,sp.height,sp.depth=math.max(w[1],0.01),math.max(w[2],0.01),math.max(w[3],0.01); splitCaptureBuildBox(sp) end
+        local hoverKind, hoverAxis = nil, nil
+        -- Keep numeric dragging perceptible for both tiny and very large imports.
+        local dragSpeed = math.max(math.max(sp.width, sp.height, sp.depth) * 0.0025, 0.01)
+        tImGui.Text('Center')
+        tImGui.PushItemWidth(120)
+        local changedX, x = tImGui.DragFloat('X##splitCenterX-' .. index, sp.x, dragSpeed, 0, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'center', 'x' end
+        tImGui.SameLine()
+        local changedY, y = tImGui.DragFloat('Y##splitCenterY-' .. index, sp.y, dragSpeed, 0, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'center', 'y' end
+        tImGui.SameLine()
+        local changedZ, z = tImGui.DragFloat('Z##splitCenterZ-' .. index, sp.z, dragSpeed, 0, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'center', 'z' end
+        tImGui.PopItemWidth()
+
+        tImGui.Text('Size')
+        tImGui.PushItemWidth(120)
+        local changedW, width = tImGui.DragFloat('X##splitSizeX-' .. index, sp.width, dragSpeed, 0.01, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'size', 'x' end
+        tImGui.SameLine()
+        local changedH, height = tImGui.DragFloat('Y##splitSizeY-' .. index, sp.height, dragSpeed, 0.01, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'size', 'y' end
+        tImGui.SameLine()
+        local changedD, depth = tImGui.DragFloat('Z##splitSizeZ-' .. index, sp.depth, dragSpeed, 0.01, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'size', 'z' end
+        tImGui.PopItemWidth()
+
+        local centerChanged = changedX or changedY or changedZ
+        local sizeChanged = changedW or changedH or changedD
+        if centerChanged or sizeChanged then
+            tEntry.sSplitDragging = nil
+            sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
+            sp.x, sp.y, sp.z = changedX and x or sp.x, changedY and y or sp.y, changedZ and z or sp.z
+            sp.width = changedW and math.max(width, 0.01) or sp.width
+            sp.height = changedH and math.max(height, 0.01) or sp.height
+            sp.depth = changedD and math.max(depth, 0.01) or sp.depth
+            if sizeChanged then
+                splitCaptureBuildBox(sp)
+            else
+                splitCaptureMoveBox(sp)
+            end
+        end
+        splitCaptureSetHover(sp, hoverKind, hoverAxis)
         if sp.lastFaces then tImGui.Text(string.format('Last capture: %d face(s)', sp.lastFaces)) end
     end
     if tEntry.tSplitCaptures and #tEntry.tSplitCaptures > 0 then
@@ -12637,7 +12767,7 @@ function onTouchMove(key, x, y)
             local wx, wy, wz = rayPlaneHit(x, y, sp.dragPlanePoint, sp.dragPlaneNormal)
             if wx then
                 sp.x, sp.y, sp.z = wx + sp.dragOffset.x, wy + sp.dragOffset.y, wz + sp.dragOffset.z
-                splitCaptureBuildBox(sp)
+                splitCaptureMoveBox(sp)
             end
             camera2d.mx, camera2d.my = x, y
             return
