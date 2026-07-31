@@ -171,8 +171,13 @@
     6.31.41 Fixed the first Mesh Debug Split Capture Center edit affecting visual depth by moving existing capture render objects in place; only Size edits now rebuild capture geometry, with every object's full XYZ position explicitly synchronized after creation.
     6.31.42 Finalized the subset-split/articulated-animation feature audit: enforced valid Part occurrences, globally unique articulated part IDs, and one Part per frame/subset occurrence in authoring and V11 loading; rejected unsupported Parts section versions and malformed hierarchies; removed the unused ANIMATION_KIND API residue; and replaced the completed implementation plan with maintained architecture plus precise Lua playback/authoring documentation.
     6.31.43 Added per-subset visibility controls to Mesh Debug's transform preview for a selected frame.
+    6.31.44 Added an optional transform-preview tint and viewport dragging for a selected target frame/subset in Mesh Debug.
+    6.31.45 Made Mesh Debug subset dragging move an isolated render clone directly and rebuild only once on drop.
+    6.31.46 Added fast right-button rotation of the isolated Mesh Debug transform-preview subset while drag mode is enabled.
+    6.31.47 Added middle-button 3D camera orbit while Mesh Debug target-subset drag mode is enabled.
+    6.31.48 Standardized Mesh Debug target-subset controls: left orbits, right translates, and middle rotates.
 */
-#define MBM_VERSION "6.31.43" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.48" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -9142,22 +9142,29 @@ function showMeshOptions(tEntry, index)
     end
 
     -- Auto-cancel transform preview when the Transform node is closed
-    if tEntry.tXformPreviewMesh and tEntry.sOpenNode ~= 'transform' then
-        tEntry.tXformPreviewMesh:destroy()
-        tEntry.tXformPreviewMesh = nil
+    if tEntry.sOpenNode ~= 'transform' then
+        if tEntry.tXformPreviewMesh then
+            tEntry.tXformPreviewMesh:destroy()
+            tEntry.tXformPreviewMesh = nil
+        end
         tEntry.bXformSubsetFilterActive = false
+        tEntry.fnBuildXformPreview = nil
+        tEntry.tXformSubsetDrag = nil
+        tEntry.bXformOrbiting = nil
         if tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
     end
 
     if openNode(tEntry, 'transform', tLang.L("transform"), 0, 'transform-' .. index) then
         -- Shared targeting state for every operation in this node. A selected subset is the
         -- centralization anchor; all subsets in each targeted frame move by the same offset.
-        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false, subsetVisibility={} }
+        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false, previewTint=true, enableSubsetDrag=false, subsetVisibility={} }
         local xf = tEntry.tXformUI
         xf.subset = xf.subset or 0
         xf.dx = xf.dx or 0; xf.dy = xf.dy or 0; xf.dz = xf.dz or 0
         if xf.hideOriginal == nil then xf.hideOriginal = false end
         if xf.autoPreview == nil then xf.autoPreview = false end
+        if xf.previewTint == nil then xf.previewTint = true end
+        if xf.enableSubsetDrag == nil then xf.enableSubsetDrag = false end
         xf.subsetVisibility = xf.subsetVisibility or {}
 
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
@@ -9312,6 +9319,22 @@ function showMeshOptions(tEntry, index)
             end
         end
         xf.autoPreview = tImGui.Checkbox(tLang.L("auto_preview_transform") .. '##xfAuto-' .. index, xf.autoPreview)
+        local oldPreviewTint = xf.previewTint
+        xf.previewTint = tImGui.Checkbox(tLang.L('preview_yellow_tint') .. '##xfTint-' .. index, xf.previewTint)
+        local previewTintChanged = oldPreviewTint ~= xf.previewTint
+
+        local canDragSubset = xf.frame > 0 and xf.subset > 0
+        local oldEnableSubsetDrag = xf.enableSubsetDrag
+        tImGui.BeginDisabled(not canDragSubset)
+        xf.enableSubsetDrag = tImGui.Checkbox(tLang.L('drag_target_subset') .. '##xfDrag-' .. index, xf.enableSubsetDrag)
+        tImGui.EndDisabled()
+        if not canDragSubset then
+            xf.enableSubsetDrag = false
+            tImGui.TextDisabled(tLang.L('drag_target_subset_select_help'))
+        elseif xf.enableSubsetDrag then
+            tImGui.TextWrapped(tLang.L('drag_target_subset_help'))
+        end
+        local enableSubsetDragChanged = oldEnableSubsetDrag ~= xf.enableSubsetDrag
 
         -- Shared helper: build/rebuild the preview clone
         local function buildXformPreview()
@@ -9330,9 +9353,20 @@ function showMeshOptions(tEntry, index)
                     if xf.dx ~= 0 or xf.dy ~= 0 or xf.dz ~= 0 then
                         dpCall(function() cloneMeshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
                     end
-                    local hiddenSubset = xf.frame > 0 and hasHiddenSubset(xf.frame, totalSubsets)
+                    -- Drag mode keeps the temporary render clone down to the one target subset.
+                    -- onTouchMove can then translate that render object directly instead of
+                    -- rewriting, saving, reloading, and uploading every vertex on every event.
+                    local isolateDragSubset = xf.enableSubsetDrag and xf.frame > 0 and xf.subset > 0
+                    local hiddenSubset = not isolateDragSubset and xf.frame > 0 and hasHiddenSubset(xf.frame, totalSubsets)
                     local visibleSubsetCount = totalSubsets
-                    if hiddenSubset then
+                    if isolateDragSubset then
+                        for subset = totalSubsets, 1, -1 do
+                            if subset ~= xf.subset then
+                                visibleSubsetCount = visibleSubsetCount - 1
+                                dpCall(function() cloneMeshD:removeSubset(xf.frame, subset) end)
+                            end
+                        end
+                    elseif hiddenSubset then
                         for subset = totalSubsets, 1, -1 do
                             local _, visible = getSubsetVisibility(xf.frame, subset)
                             if not visible then
@@ -9369,7 +9403,9 @@ function showMeshOptions(tEntry, index)
                             -- obj:setColor takes 0.0-1.0 per channel, not 0-255 (docs/lua-api.md:539)
                             -- -- values above 1 clamp, so the previous (255,220,50,200) call silently
                             -- rendered opaque white instead of the intended yellow/gold tint.
-                            cloneRender:setColor(1.0, 220/255, 50/255, 200/255)
+                            if xf.previewTint then
+                                cloneRender:setColor(1.0, 220/255, 50/255, 200/255)
+                            end
                             dpCall(function() cloneRender:setAnim(tEntry.iSelectedAnim or 1) end)
                             cloneRender.visible = visibleSubsetCount > 0
                             tEntry.tXformPreviewMesh = cloneRender
@@ -9385,6 +9421,8 @@ function showMeshOptions(tEntry, index)
                 end
             end
         end
+        tEntry.fnBuildXformPreview = buildXformPreview
+        if (previewTintChanged or enableSubsetDragChanged) and tEntry.tXformPreviewMesh then buildXformPreview() end
 
         -- Auto-preview: rebuild only when values change (fingerprint)
         if xf.autoPreview then
@@ -12777,6 +12815,64 @@ end
 
 function onTouchDown(key, x, y)
     if not tImGui.IsAnyWindowHovered() then
+        if (key == 0 or key == 1 or key == 2) and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+            local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+            local xf = tEntry.tXformUI
+            if tEntry.sOpenNode == 'transform' and tEntry.tXformPreviewMesh and
+                    xf and xf.enableSubsetDrag and xf.frame > 0 and xf.subset > 0 then
+                if key == 0 and bCameraMode3D then
+                    tEntry.bXformOrbiting = true
+                    camera2d.mx, camera2d.my = x, y
+                    return
+                end
+                if key == 0 then
+                    isClickedMouseleft = true
+                    camera2d.mx, camera2d.my = x, y
+                    return
+                end
+                if key == 2 then
+                    tEntry.tXformSubsetDrag = {
+                        mode='rotate', startScreenX=x, startScreenY=y,
+                        initialRx=xf.rx, initialRy=xf.ry, initialRz=xf.rz,
+                        deltaRx=0, deltaRy=0, deltaRz=0,
+                    }
+                    camera2d.mx, camera2d.my = x, y
+                    return
+                end
+                -- In 2D there is no orbit camera, so preserve the editor's normal left-button
+                -- viewport behavior. Right-button dragging remains the subset translation action.
+                local planePoint
+                local aabb = computeMeshAABB(tEntry.meshDebug, xf.frame, xf.subset)
+                if aabb then
+                    planePoint = {
+                        x = (aabb.minX + aabb.maxX) * 0.5 + xf.dx,
+                        y = (aabb.minY + aabb.maxY) * 0.5 + xf.dy,
+                        z = (aabb.minZ + aabb.maxZ) * 0.5 + xf.dz,
+                    }
+                else
+                    planePoint = {x=xf.dx, y=xf.dy, z=xf.dz}
+                end
+                local planeNormal = {x=0, y=0, z=1}
+                if bCameraMode3D then
+                    local px, py, pz = cam3dGetPos(tEntry.cam3d)
+                    local nx, ny, nz = tEntry.cam3d.fx - px, tEntry.cam3d.fy - py, tEntry.cam3d.fz - pz
+                    local length = math.sqrt(nx*nx + ny*ny + nz*nz)
+                    if length > 0 then planeNormal = {x=nx/length, y=ny/length, z=nz/length} end
+                end
+                local wx, wy, wz = rayPlaneHit(x, y, planePoint, planeNormal)
+                if wx then
+                    tEntry.tXformSubsetDrag = {
+                        mode='translate',
+                        planePoint=planePoint, planeNormal=planeNormal,
+                        startX=wx, startY=wy, startZ=wz,
+                        initialDx=xf.dx, initialDy=xf.dy, initialDz=xf.dz,
+                        deltaX=0, deltaY=0, deltaZ=0,
+                    }
+                    camera2d.mx, camera2d.my = x, y
+                    return
+                end
+            end
+        end
         if key == 0 and bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
             local tEntry = tLoadedMeshes[iSelectedMeshIndex]
             local sp = tEntry.tSplitCapture
@@ -12829,6 +12925,45 @@ function onTouchMove(key, x, y)
     if tImGui.IsAnyWindowHovered() then return end
     if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
+        if tDragEntry.bXformOrbiting and bCameraMode3D then
+            local c = tDragEntry.cam3d
+            c.azimuth   = c.azimuth   - (x - camera2d.mx) * 0.005
+            c.elevation = c.elevation + (y - camera2d.my) * 0.005
+            c.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, c.elevation))
+            camera2d.mx, camera2d.my = x, y
+            if tPreviewMesh then applyCam3d(c) end
+            return
+        end
+        local xfDrag = tDragEntry.tXformSubsetDrag
+        if xfDrag then
+            if xfDrag.mode == 'rotate' then
+                if bCameraMode3D then
+                    xfDrag.deltaRx = (y - xfDrag.startScreenY) * 0.5
+                    xfDrag.deltaRy = (x - xfDrag.startScreenX) * 0.5
+                    xfDrag.deltaRz = 0
+                else
+                    xfDrag.deltaRx, xfDrag.deltaRy = 0, 0
+                    xfDrag.deltaRz = (x - xfDrag.startScreenX) * 0.5
+                end
+                if tDragEntry.tXformPreviewMesh then
+                    tDragEntry.tXformPreviewMesh:setAngle(math.rad(xfDrag.deltaRx), math.rad(xfDrag.deltaRy), math.rad(xfDrag.deltaRz))
+                end
+            else
+                local wx, wy, wz = rayPlaneHit(x, y, xfDrag.planePoint, xfDrag.planeNormal)
+                if wx then
+                    xfDrag.deltaX = wx - xfDrag.startX
+                    xfDrag.deltaY = wy - xfDrag.startY
+                    xfDrag.deltaZ = wz - xfDrag.startZ
+                    -- The drag preview contains only the selected subset, so moving its render
+                    -- object is equivalent to moving that subset and does not touch vertex data.
+                    if tDragEntry.tXformPreviewMesh then
+                        tDragEntry.tXformPreviewMesh:setPos(xfDrag.deltaX, xfDrag.deltaY, xfDrag.deltaZ)
+                    end
+                end
+            end
+            camera2d.mx, camera2d.my = x, y
+            return
+        end
         local sp = tDragEntry.tSplitCapture
         if tDragEntry.sSplitDragging and sp and sp.active then
             local wx, wy, wz = rayPlaneHit(x, y, sp.dragPlanePoint, sp.dragPlaneNormal)
@@ -12917,6 +13052,29 @@ function onTouchUp(key, x, y)
     camera2d.my = y
     if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+        tEntry.bXformOrbiting = nil
+        local xfDrag = tEntry.tXformSubsetDrag
+        if xfDrag then
+            local xf = tEntry.tXformUI
+            if xfDrag.mode == 'rotate' then
+                xf.rx = xfDrag.initialRx + xfDrag.deltaRx
+                xf.ry = xfDrag.initialRy + xfDrag.deltaRy
+                xf.rz = xfDrag.initialRz + xfDrag.deltaRz
+            else
+                xf.dx = xfDrag.initialDx + xfDrag.deltaX
+                xf.dy = xfDrag.initialDy + xfDrag.deltaY
+                xf.dz = xfDrag.initialDz + xfDrag.deltaZ
+            end
+            tEntry.tXformSubsetDrag = nil
+            if xf.autoPreview then
+                tEntry.xfLastPreviewFP = string.format('%d|%d|%.3f|%.3f|%.3f|%.3f|%.3f|%.3f|%.3f|%.3f|%.3f',
+                    xf.frame, xf.subset, xf.rx, xf.ry, xf.rz, xf.sx, xf.sy, xf.sz, xf.dx, xf.dy, xf.dz)
+            end
+            -- Bake the final translation/rotation into the temporary clone once, on drop. No mesh
+            -- reconstruction occurs while the mouse is moving.
+            if tEntry.fnBuildXformPreview then tEntry.fnBuildXformPreview() end
+        end
+        tEntry.tXformSubsetDrag = nil
         tEntry.sSplitDragging = nil
         if tEntry.tSplitCapture then
             tEntry.tSplitCapture.dragPlanePoint = nil
