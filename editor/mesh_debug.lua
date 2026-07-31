@@ -3199,6 +3199,7 @@ function removeMeshFromTable(index)
     local removed = table.remove(tLoadedMeshes, index)
     if removed then
         if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
+        destroyTransformSubsetHoverMarker(removed)
         destroyNormalVisualization(removed)
         destroyPhysicsVisualization(removed)
     end
@@ -5215,6 +5216,54 @@ local function computeMeshAABB(meshD, targetFrame, targetSubset)
     end
     if not minX then return nil end
     return { minX = minX, minY = minY, minZ = minZ, maxX = maxX, maxY = maxY, maxZ = maxZ }
+end
+
+function destroyTransformSubsetHoverMarker(tEntry)
+    if tEntry.tTransformSubsetHoverMarker then
+        tEntry.tTransformSubsetHoverMarker:destroy()
+        tEntry.tTransformSubsetHoverMarker = nil
+    end
+    tEntry.sTransformSubsetHoverCoordType = nil
+end
+
+-- Shows the hovered visibility-row subset independently of the preview filter. The marker is
+-- derived from raw vertices, so it still exists when that subset is unchecked, and alwaysOnTop
+-- keeps it readable through the mesh regardless of the current orbit angle.
+function updateTransformSubsetHoverMarker(tEntry, meshD, frame, subset, xf, index)
+    local bounds = computeMeshAABB(meshD, frame, subset)
+    if not bounds then
+        destroyTransformSubsetHoverMarker(tEntry)
+        return
+    end
+    local cx = (bounds.minX + bounds.maxX) * 0.5
+    local cy = (bounds.minY + bounds.maxY) * 0.5
+    local cz = (bounds.minZ + bounds.maxZ) * 0.5
+    if xf.rx ~= 0 then cx, cy, cz = rotateX(cx, cy, cz, math.rad(xf.rx)) end
+    if xf.ry ~= 0 then cx, cy, cz = rotateY(cx, cy, cz, math.rad(xf.ry)) end
+    if xf.rz ~= 0 then cx, cy, cz = rotateZ(cx, cy, cz, math.rad(xf.rz)) end
+    cx, cy, cz = cx * xf.sx + xf.dx, cy * xf.sy + xf.dy, cz * xf.sz + xf.dz
+
+    local extent = math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY,
+        bounds.maxZ - bounds.minZ)
+    local markerSize = math.max(extent * 0.06, 0.05)
+    local coordType = bCameraMode3D and '3d' or '2dw'
+    if tEntry.tTransformSubsetHoverMarker and tEntry.sTransformSubsetHoverCoordType ~= coordType then
+        destroyTransformSubsetHoverMarker(tEntry)
+    end
+    if not tEntry.tTransformSubsetHoverMarker then
+        tEntry.iTransformSubsetHoverGeneration = (tEntry.iTransformSubsetHoverGeneration or 0) + 1
+        local marker = shape:new(coordType, cx, cy, dodgeAutoZOrder(cz))
+        marker:create(unitSphereVerts(8, 12), nil, 'mesh_debug_subset_hover_' .. index .. '_' ..
+            tEntry.iTransformSubsetHoverGeneration)
+        marker:setColor(0.1, 1.0, 1.0, 0.95)
+        marker.alwaysOnTop = true
+        tEntry.tTransformSubsetHoverMarker = marker
+        tEntry.sTransformSubsetHoverCoordType = coordType
+    else
+        tEntry.tTransformSubsetHoverMarker:setPos(cx, cy, dodgeAutoZOrder(cz))
+    end
+    tEntry.tTransformSubsetHoverMarker:setScale(markerSize, markerSize, markerSize)
+    tEntry.tTransformSubsetHoverMarker.visible = true
 end
 
 -- Reproduces MESH_MBM_DEBUG::centralizeFrame's exact offset formula given the selected anchor
@@ -9143,6 +9192,7 @@ function showMeshOptions(tEntry, index)
 
     -- Auto-cancel transform preview when the Transform node is closed
     if tEntry.sOpenNode ~= 'transform' then
+        destroyTransformSubsetHoverMarker(tEntry)
         if tEntry.tXformPreviewMesh then
             tEntry.tXformPreviewMesh:destroy()
             tEntry.tXformPreviewMesh = nil
@@ -9497,18 +9547,19 @@ function showMeshOptions(tEntry, index)
         if xf.frame > 0 then
             tImGui.Spacing()
             tImGui.Text(tLang.L('preview_subset_visibility'))
+            local hoveredSubset = nil
             local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
-            if tImGui.BeginTable('xfSubsetVisibility-' .. index, 2, tableFlags) then
-                tImGui.TableSetupColumn(tLang.L('visible'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 70)
+            if tImGui.BeginTable('xfSubsetVisibility-' .. index, 1, tableFlags) then
                 tImGui.TableSetupColumn(tLang.L('subset'))
                 tImGui.TableHeadersRow()
                 for subset = 1, totalSubsets do
                     local frameVisibility, visible = getSubsetVisibility(xf.frame, subset)
                     tImGui.TableNextRow()
                     tImGui.TableSetColumnIndex(0)
-                    local newVisible = tImGui.Checkbox('##xfSubsetVisible-' .. index .. '-' .. xf.frame .. '-' .. subset, visible)
-                    tImGui.TableSetColumnIndex(1)
-                    tImGui.Text(string.format('%s %d', tLang.L('subset'), subset))
+                    local label = string.format('%s %d##xfSubsetVisible-%d-%d-%d',
+                        tLang.L('subset'), subset, index, xf.frame, subset)
+                    local newVisible = tImGui.Checkbox(label, visible)
+                    if tImGui.IsItemHovered(0) then hoveredSubset = subset end
                     if newVisible ~= visible then
                         frameVisibility[subset] = newVisible
                         if tEntry.tXformPreviewMesh then
@@ -9520,6 +9571,13 @@ function showMeshOptions(tEntry, index)
                 end
                 tImGui.EndTable()
             end
+            if hoveredSubset then
+                updateTransformSubsetHoverMarker(tEntry, meshD, xf.frame, hoveredSubset, xf, index)
+            else
+                destroyTransformSubsetHoverMarker(tEntry)
+            end
+        else
+            destroyTransformSubsetHoverMarker(tEntry)
         end
 
         tImGui.TreePop()
@@ -12023,6 +12081,7 @@ function showMeshTreeWindow()
                         tEntry.tXformPreviewMesh:destroy()
                         tEntry.tXformPreviewMesh = nil
                     end
+                    destroyTransformSubsetHoverMarker(tEntry)
                 end
             end
             for j = #tToRemove, 1, -1 do

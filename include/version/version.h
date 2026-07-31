@@ -178,8 +178,9 @@
     6.31.48 Standardized Mesh Debug target-subset controls: left orbits, right translates, and middle rotates.
     6.31.49 Removed the automatic Z-order offset from Mesh Debug transform-preview clones so untinted previews align exactly with the original mesh.
     6.31.50 Made Mesh Debug preview-subset visibility authoritative and disabled target dragging while any subset is hidden.
+    6.31.51 Simplified Mesh Debug's preview-subset table and added an always-on-top center marker while hovering a subset checkbox.
 */
-#define MBM_VERSION "6.31.50" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.31.51" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
