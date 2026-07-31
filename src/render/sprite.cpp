@@ -46,6 +46,7 @@ namespace mbm
         this->releaseAnimation();
         this->mesh                  = nullptr;
         this->setIndexAnimation(0);
+        this->resetArticulatedAnimationPlayer();
     }
     
     bool SPRITE::load(const char *fileName)
@@ -119,6 +120,38 @@ namespace mbm
             return this->mesh->getFilenameMesh();
         return nullptr;
     }
+
+    bool SPRITE::playArticulatedAnimation(const char *name, const int priority,
+                                          const float blendDuration, const float weight)
+    {
+        return this->mesh ? this->mesh->playArticulatedAnimation(
+            this->getArticulatedAnimationPlayer(), name, priority, blendDuration, weight) : false;
+    }
+
+    bool SPRITE::pauseArticulatedAnimation(const char *name) noexcept
+    {
+        return this->mesh ? this->mesh->pauseArticulatedAnimation(this->getArticulatedAnimationPlayer(), name) : false;
+    }
+
+    bool SPRITE::resumeArticulatedAnimation(const char *name) noexcept
+    {
+        return this->mesh ? this->mesh->resumeArticulatedAnimation(this->getArticulatedAnimationPlayer(), name) : false;
+    }
+
+    bool SPRITE::disableArticulatedAnimation(const char *name) noexcept
+    {
+        return this->mesh ? this->mesh->disableArticulatedAnimation(this->getArticulatedAnimationPlayer(), name) : false;
+    }
+
+    bool SPRITE::seekArticulatedAnimation(const char *name, const float time) noexcept
+    {
+        return this->mesh ? this->mesh->seekArticulatedAnimation(this->getArticulatedAnimationPlayer(), name, time) : false;
+    }
+
+    bool SPRITE::getArticulatedAnimationTime(const char *name, float *time) const noexcept
+    {
+        return this->mesh ? this->mesh->getArticulatedAnimationTime(this->getArticulatedAnimationPlayer(), name, time) : false;
+    }
     
     bool SPRITE::isOnFrustum()
     {
@@ -131,6 +164,8 @@ namespace mbm
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
+                this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
+                                                         this, this->getOnEndAnimation());
             }
             return ret;
         }
@@ -148,13 +183,19 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const CAMERA &camera = device->getCamera();
             anim->updateAnimation(device->delta, this, this->getOnEndAnimation(),this->getOnEndFx());
+            this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
+                                                     this, this->getOnEndAnimation());
             const VEC3 &position = this->getPosition();
             const VEC3 &angle = this->getAngle();
             const VEC3 &scale = this->getScale();
+            const MATRIX *viewMatrix = nullptr;
+            const MATRIX *perspectiveMatrix = nullptr;
             if (this->is3DObject())
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 SHADER::updateMvpAndLightMatrices(camera.matrixView, camera.matrixPerspective);
+                viewMatrix = &camera.matrixView;
+                perspectiveMatrix = &camera.matrixPerspective;
             }
             else if (this->is2dScreenObject())
             {
@@ -163,11 +204,15 @@ namespace mbm
                 device->transformeScreen2dToWorld2d_scaled(position.x, position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &angle, &scale);
                 SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
+                viewMatrix = &camera.matrixView2d;
+                perspectiveMatrix = &camera.matrixPerspective2d;
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &position, &angle, &scale);
                 SHADER::updateMvpAndLightMatrices(camera.matrixView2d, camera.matrixPerspective2d);
+                viewMatrix = &camera.matrixView2d;
+                perspectiveMatrix = &camera.matrixPerspective2d;
             }
             FX &fx = anim->getFx();
             this->setBlendState(anim->getBlendState());
@@ -175,7 +220,12 @@ namespace mbm
             fx.setBlendOp();
             BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
-            if (!this->mesh->render(static_cast<unsigned int>(anim->getIndexCurrentFrame()), &fx.shader, this))
+            const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
+            const bool rendered = this->mesh->hasActiveArticulatedAnimations(this->getArticulatedAnimationPlayer())
+                ? this->mesh->renderArticulatedStatic(this->getArticulatedAnimationPlayer(), frameIndex, &fx.shader,
+                                                      *viewMatrix, *perspectiveMatrix, this)
+                : this->mesh->render(frameIndex, &fx.shader, this);
+            if (!rendered)
                 return false;
             return true;
         }

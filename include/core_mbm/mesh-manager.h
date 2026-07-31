@@ -25,6 +25,7 @@
 #include "header-mesh.h"
 #include "physics.h"
 #include "texture-role.h"
+#include "animation.h"
 #include <map>
 #include <memory>
 #include <functional>
@@ -42,6 +43,7 @@ namespace mbm
     class RENDERIZABLE_TO_TARGET;
     class SHADER;
     class MESH_MBM;
+    class ARTICULATED_ANIMATION_PLAYER;
     struct IMAGE_RESOURCE;
     // Defined in mesh-manager.cpp only - forward-declared here so MESH_MBM::finishLoadFromIntermediate
     // can be declared without exposing the type's layout in the public header, same PIMPL-style
@@ -62,6 +64,20 @@ namespace mbm
         API_IMPL util::SUBSET *getSubset(const uint32_t indexSubset) const noexcept;
     };
 
+    class ARTICULATED_ANIMATION_PLAYER
+    {
+        friend class MESH_MBM;
+      public:
+        API_IMPL ARTICULATED_ANIMATION_PLAYER();
+        API_IMPL ~ARTICULATED_ANIMATION_PLAYER();
+        API_IMPL void reset() noexcept;
+        ARTICULATED_ANIMATION_PLAYER(const ARTICULATED_ANIMATION_PLAYER &) = delete;
+        ARTICULATED_ANIMATION_PLAYER &operator=(const ARTICULATED_ANIMATION_PLAYER &) = delete;
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
+    };
+
     class MESH_MBM_DEBUG
     {
       public:
@@ -71,6 +87,7 @@ namespace mbm
         API_IMPL uint32_t addBuffer(const int stride = 3);
         API_IMPL uint32_t addSubset(uint32_t indexFrame);
         API_IMPL void     removeSubset(uint32_t indexFrame, uint32_t indexSubset);
+        API_IMPL bool     moveSubsetUp(uint32_t indexFrame, uint32_t indexSubset);
         API_IMPL uint32_t copyBufferFrom(MESH_MBM_DEBUG &src, uint32_t srcFrameIdx);
         API_IMPL uint32_t copySubsetFrom(uint32_t targetFrame, MESH_MBM_DEBUG &src, uint32_t srcFrame, uint32_t srcSubsetIdx);
         API_IMPL bool getInfo(util::HEADER_MESH &headerMeshMbmOut, util::TYPE_MESH &typeOut, INFO_BOUND_FONT **datailFontOut,
@@ -137,7 +154,11 @@ namespace mbm
         // v1-v10 support has been removed entirely.
         API_IMPL bool loadV11(const char *fileNamePath);
         API_IMPL bool check(char *error,const int lenError);
+        // indexSubset selects the center anchor; the calculated translation applies to every
+        // subset in each selected frame so their relative placement remains unchanged.
         API_IMPL void centralizeFrame(const int indexFrame, const int indexSubset);
+        // Independently centralizes each selected subset. Unselected subsets are not moved.
+        API_IMPL void centralizeFrameItself(const int indexFrame, const int indexSubset);
         API_IMPL void rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ);
         API_IMPL void scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz);
         API_IMPL void translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz);
@@ -209,6 +230,79 @@ namespace mbm
         API_IMPL bool hasVertexWeights() const noexcept;
         API_IMPL uint32_t getTotalVertexWeightBones() const noexcept; // weight palette size (unique bones referenced)
         API_IMPL void removeVertexWeights() noexcept; // clears palette + all per-vertex weight data
+        // Rigid/articulated animation authoring data. The storage remains PIMPL-owned; these
+        // narrow operations are the editor-facing API and are also suitable for Lua bindings.
+        API_IMPL uint32_t getTotalArticulatedParts() const noexcept;
+        API_IMPL const util::ARTICULATED_PART_V11 *getArticulatedPart(const uint32_t index) const noexcept;
+        API_IMPL uint32_t initializeArticulatedParts();
+        // Removes all parts/pivots and tracks that reference those parts. Clips remain available.
+        API_IMPL uint32_t removeArticulatedParts() noexcept;
+        API_IMPL int addArticulatedPart(const uint64_t partId, const uint32_t frameIndex,
+                                        const uint32_t subsetIndex, const char *name,
+                                        const float pivotX, const float pivotY, const float pivotZ,
+                                        const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
+                                        const uint64_t parentPartId, char *errorOut, const int errorOutLen);
+        API_IMPL bool updateArticulatedPart(const uint32_t index, const char *name,
+                                            const float pivotX, const float pivotY, const float pivotZ,
+                                            const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
+                                            const uint64_t parentPartId, char *errorOut, const int errorOutLen);
+        API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
+        API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
+        API_IMPL bool getArticulatedAnimation(const uint32_t index, const char **name, float *duration,
+                                              float *speed, int *priority, bool *loop,
+                                              uint8_t *blendMode) const noexcept;
+        API_IMPL bool updateArticulatedAnimation(const uint32_t index, const char *name, const float duration,
+                                                 const float speed, const int priority, const bool loop,
+                                                 const uint8_t blendMode,
+                                                 char *errorOut, const int errorOutLen);
+        API_IMPL uint32_t getTotalArticulatedTracks(const uint32_t animationIndex) const noexcept;
+        API_IMPL bool getArticulatedTrack(const uint32_t animationIndex, const uint32_t trackIndex,
+                                          uint64_t *partId, uint8_t *channelMask, uint32_t *keyCount) const noexcept;
+        API_IMPL bool getArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                        const uint32_t keyIndex, float *time,
+                                        float *positionX, float *positionY, float *positionZ,
+                                        float *rotationX, float *rotationY, float *rotationZ, float *rotationW,
+                                        float *scaleX, float *scaleY, float *scaleZ,
+                                        uint8_t *easing,
+                                        float *bezierX1, float *bezierY1,
+                                        float *bezierX2, float *bezierY2,
+                                        float *rotationEulerX, float *rotationEulerY,
+                                        float *rotationEulerZ, bool *hasRotationEuler) const noexcept;
+        API_IMPL int addArticulatedAnimation(const char *name, const float duration, const float speed,
+                                             const int priority, const bool loop, const uint8_t blendMode,
+                                             char *errorOut, const int errorOutLen);
+        API_IMPL bool removeArticulatedAnimation(const uint32_t animationIndex, char *errorOut, const int errorOutLen);
+        API_IMPL int addArticulatedTrack(const uint32_t animationIndex, const uint64_t partId,
+                                         const uint8_t channelMask, char *errorOut, const int errorOutLen);
+        API_IMPL bool setArticulatedTrackChannels(const uint32_t animationIndex,
+                                                  const uint32_t trackIndex,
+                                                  const uint8_t channelMask,
+                                                  char *errorOut, const int errorOutLen);
+        API_IMPL bool addArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                        const float time, const float positionX, const float positionY, const float positionZ,
+                                        const float rotationX, const float rotationY, const float rotationZ, const float rotationW,
+                                        const float scaleX, const float scaleY, const float scaleZ,
+                                        char *errorOut, const int errorOutLen);
+        API_IMPL bool setArticulatedKeyEuler(const uint32_t animationIndex, const uint32_t trackIndex,
+                                             const float time, const float rotationEulerX,
+                                             const float rotationEulerY, const float rotationEulerZ,
+                                             char *errorOut, const int errorOutLen);
+        API_IMPL bool setArticulatedKeyEasing(const uint32_t animationIndex, const uint32_t trackIndex,
+                                              const uint32_t keyIndex, const uint8_t easing,
+                                              char *errorOut, const int errorOutLen);
+        API_IMPL bool setArticulatedKeyBezier(const uint32_t animationIndex, const uint32_t trackIndex,
+                                              const uint32_t keyIndex,
+                                              const float x1, const float y1,
+                                              const float x2, const float y2,
+                                              char *errorOut, const int errorOutLen);
+        API_IMPL bool updateArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                           const uint32_t keyIndex, const float time,
+                                           const float positionX, const float positionY, const float positionZ,
+                                           const float rotationX, const float rotationY, const float rotationZ, const float rotationW,
+                                           const float scaleX, const float scaleY, const float scaleZ,
+                                           char *errorOut, const int errorOutLen);
+        API_IMPL bool removeArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                           const uint32_t keyIndex, char *errorOut, const int errorOutLen);
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
@@ -259,6 +353,33 @@ namespace mbm
         API_IMPL bool isLoaded() const;
         API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader,
                              const RENDERIZABLE *renderizableOwner = nullptr);
+        API_IMPL bool hasArticulatedAnimationData() const noexcept;
+        API_IMPL bool hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept;
+        API_IMPL bool playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                               const char *name, const int priority,
+                                               const float blendDuration = 0.0f,
+                                               const float weight = 1.0f) const;
+        API_IMPL bool pauseArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                                const char *name) const noexcept;
+        API_IMPL bool resumeArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                                 const char *name) const noexcept;
+        API_IMPL bool disableArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                                  const char *name) const noexcept;
+        API_IMPL bool seekArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                               const char *name, const float time) const noexcept;
+        API_IMPL bool getArticulatedAnimationTime(const ARTICULATED_ANIMATION_PLAYER &player,
+                                                  const char *name, float *time) const noexcept;
+        API_IMPL void updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
+                                                  const float delta, RENDERIZABLE *owner,
+                                                  OnEndAnimation onEndAnimation) const;
+        API_IMPL bool getArticulatedTransform(const ARTICULATED_ANIMATION_PLAYER &player,
+                                              const uint32_t frameIndex, const uint32_t subsetIndex,
+                                              VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,
+                                              VEC3 *pivot, float pivotQuaternion[4]) const noexcept;
+        API_IMPL bool renderArticulatedStatic(const ARTICULATED_ANIMATION_PLAYER &player,
+                                              const uint32_t indexFrame, const SHADER *pShader,
+                                              const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix,
+                                              const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
                                         VEC2 *uv,
                                         const RENDERIZABLE *renderizableOwner = nullptr);
@@ -273,6 +394,9 @@ namespace mbm
         
       private:
         MESH_MBM();
+        bool buildArticulatedTransformMatrix(const ARTICULATED_ANIMATION_PLAYER &player,
+                                             const uint32_t frameIndex, const uint32_t subsetIndex,
+                                             MATRIX *out) const noexcept;
         bool load(const char *fileNamePath);
         bool load(const char *fileNamePath, RENDERIZABLE *renderizable);
         // Reads the v11 section/TLV format. This is the only mesh format - it backs

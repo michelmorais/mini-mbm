@@ -16,6 +16,37 @@
 
 namespace mbm
 {
+    struct ARTICULATED_TRACK_DATA
+    {
+        util::ARTICULATED_TRACK_V11 header;
+        std::vector<util::ARTICULATED_KEY_V11> keys;
+    };
+
+    struct ARTICULATED_CLIP_DATA
+    {
+        util::ARTICULATED_CLIP_V11 header;
+        std::vector<ARTICULATED_TRACK_DATA> tracks;
+    };
+
+    struct ACTIVE_ARTICULATED_CLIP
+    {
+        uint32_t clipIndex = 0;
+        float time = 0.0f;
+        int priority = 0;
+        uint64_t sequence = 0;
+        float blendDuration = 0.0f;
+        float blendElapsed = 0.0f;
+        float weight = 1.0f;
+        bool paused = false;
+        bool ended = false;
+    };
+
+    struct ARTICULATED_ANIMATION_PLAYER::Impl
+    {
+        std::vector<ACTIVE_ARTICULATED_CLIP> activeClips;
+        uint64_t sequence = 0;
+    };
+
     struct MESH_MBM::Impl
     {
         // Deprecated: no longer applied to a loaded renderizable's position/angle at load time
@@ -40,6 +71,8 @@ namespace mbm
         VEC2 *coordTexFrame_0;
         uint32_t totalFramesMesh;
         void *extraInfo;
+        std::vector<util::ARTICULATED_PART_V11> articulatedParts;
+        std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
     };
 
     struct MESH_MBM_DEBUG::Impl
@@ -74,6 +107,8 @@ namespace mbm
         // data" - see MESH_MBM_DEBUG::hasVertexWeights/setVertexWeight/getVertexWeight.
         std::vector<std::string> weightPalette;
         std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
+        std::vector<util::ARTICULATED_PART_V11> articulatedParts;
+        std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
     };
 }
 

@@ -131,3 +131,11 @@ The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the 
 `MESH_MBM_DEBUG::Impl::skeleton` (`std::vector<util::SKELETON_BONE_V11>`, `SECTION_FRAME_SKINNED` persistence for `mesh_debug.lua`'s Bones node round-trip, added alongside `addBone`/`getBone`/`getTotalBone`) follows the standard Impl-only rule from "Repo Rule For Future Core Work" below — noted here explicitly so a future reader doesn't have to re-derive that this was a deliberate, rule-compliant addition rather than an oversight. `MESH_MBM::Impl` was deliberately NOT given an equivalent field (no runtime skinning consumer exists); the shared parse path merely tolerates and discards the section for that class.
 
 `updateBone`/`removeBone` (added for `mesh_debug.lua`'s general-purpose Bones editor node) are pure `MESH_MBM_DEBUG` methods operating only on the existing `impl->skeleton` field above — no new header-visible state, so the PIMPL boundary itself doesn't move. `updateBone`'s reparent path calls a small anonymous-namespace helper, `resortSkeletonParentFirst` (`src/core_mbm/mesh-manager.cpp`), kept as a private translation-unit function rather than a class method per the same rule, since it's pure vector-reordering logic with no need to touch `Impl` directly beyond the vector reference it's passed.
+
+`ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
+operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade
+duration/progress, per-play additive weight, and tie-break sequence remain private in
+`mesh-manager-impl.h`.
+`MESH_MBM::Impl` retains only cache-safe asset data (parts, authored clips, geometry, and scratch
+rendering storage); each `ANIMATION_MANAGER` instance owns a separate player, used by `MESH` and
+`SPRITE`, so cached assets never leak playback state between renderizable instances.

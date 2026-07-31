@@ -949,6 +949,14 @@ namespace mbm
                         lua_setfield(lua, -2, "ny");
                         lua_pushnumber(lua, 0.0);
                         lua_setfield(lua, -2, "nz");
+                        #if (DEBUG || _DEBUG)
+                        static bool s_warnNormalNull = true;
+                        if (s_warnNormalNull)
+                        {
+                            s_warnNormalNull = false;
+                            WARN_LOG("%s:%d Normal array is null for indexFrame %d, returning (0,0,0)\n", __FILE__, __LINE__, indexFrame);
+                        }
+                        #endif
                     }
 
                     lua_pushnumber(lua, pUv[indexRaw].x);
@@ -1438,6 +1446,16 @@ namespace mbm
         return 0;
     }
 
+    int onCentralizeItselfMeshDebugLua(lua_State *lua)
+    {
+        const int       top         = lua_gettop(lua);
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       indexFrame  = top > 1 ? luaL_checkinteger(lua, 2) - 1 : -1;
+        const int       indexSubset = top > 2 ? luaL_checkinteger(lua, 3) - 1 : -1;
+        meshDebug->mesh.centralizeFrameItself(indexFrame, indexSubset);
+        return 0;
+    }
+
     // rotateFrame(frame, ax, ay, az [,subset])  -- frame=0 means all; subset=0 means all; angles in degrees
     int onRotateFrameDebugLua(lua_State *lua)
     {
@@ -1570,6 +1588,18 @@ namespace mbm
         const uint32_t  indexSubset  = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
         meshDebug->mesh.removeSubset(indexFrame, indexSubset);
         return 0;
+    }
+
+    int onMoveSubsetUpDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer frame     = luaL_checkinteger(lua, 2);
+        const lua_Integer subset    = luaL_checkinteger(lua, 3);
+        const bool moved = frame > 0 && subset > 1 &&
+                           meshDebug->mesh.moveSubsetUp(static_cast<uint32_t>(frame - 1),
+                                                        static_cast<uint32_t>(subset - 1));
+        lua_pushboolean(lua, moved ? 1 : 0);
+        return 1;
     }
 
     int onCopyFrameFromDebugLua(lua_State *lua)
@@ -1790,6 +1820,385 @@ namespace mbm
         lua_pushnumber(lua,head->headerAnim->timeBetweenFrame);
         lua_pushinteger(lua,static_cast<lua_Integer>(head->headerAnim->typeAnimation));
         return 5;
+    }
+
+    int onGetTotalArticulatedPartsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalArticulatedParts()));
+        return 1;
+    }
+
+    int onGetArticulatedPartDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const int index = static_cast<int>(luaL_checkinteger(lua, 2)) - 1;
+        const util::ARTICULATED_PART_V11 *part = index >= 0
+            ? meshDebug->mesh.getArticulatedPart(static_cast<uint32_t>(index)) : nullptr;
+        if (!part)
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushinteger(lua, static_cast<lua_Integer>(part->partId));
+        lua_pushinteger(lua, static_cast<lua_Integer>(part->frameIndex + 1));
+        lua_pushinteger(lua, static_cast<lua_Integer>(part->subsetIndex + 1));
+        lua_pushstring(lua, part->name.c_str());
+        lua_pushnumber(lua, part->pivotX); lua_pushnumber(lua, part->pivotY); lua_pushnumber(lua, part->pivotZ);
+        lua_pushnumber(lua, part->pivotQX); lua_pushnumber(lua, part->pivotQY);
+        lua_pushnumber(lua, part->pivotQZ); lua_pushnumber(lua, part->pivotQW);
+        lua_pushinteger(lua, static_cast<lua_Integer>(part->parentPartId));
+        return 12;
+    }
+
+    int onInitializeArticulatedPartsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.initializeArticulatedParts()));
+        return 1;
+    }
+
+    int onRemoveArticulatedPartsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.removeArticulatedParts()));
+        return 1;
+    }
+
+    int onAddArticulatedPartDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint64_t partId = static_cast<uint64_t>(luaL_checkinteger(lua, 2));
+        const uint32_t frame = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t subset = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        const char *name = luaL_optstring(lua, 5, "");
+        const float px = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const float py = static_cast<float>(luaL_optnumber(lua, 7, 0.0));
+        const float pz = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float qx = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float qy = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float qz = static_cast<float>(luaL_optnumber(lua, 11, 0.0));
+        const float qw = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const uint64_t parent = static_cast<uint64_t>(luaL_optinteger(lua, 13, 0));
+        char errorOut[255] = "";
+        const int ret = meshDebug->mesh.addArticulatedPart(partId, frame, subset, name, px, py, pz,
+                                                            qx, qy, qz, qw, parent, errorOut, sizeof(errorOut));
+        if (ret == 0)
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onRemoveArticulatedAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeArticulatedAnimation(index, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onUpdateArticulatedPartDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *name = luaL_optstring(lua, 3, "");
+        const float px = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
+        const float py = static_cast<float>(luaL_optnumber(lua, 5, 0.0));
+        const float pz = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const float qx = static_cast<float>(luaL_optnumber(lua, 7, 0.0));
+        const float qy = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float qz = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float qw = static_cast<float>(luaL_optnumber(lua, 10, 1.0));
+        const uint64_t parent = static_cast<uint64_t>(luaL_optinteger(lua, 11, 0));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateArticulatedPart(index, name, px, py, pz, qx, qy, qz, qw,
+                                                   parent, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onGetTotalArticulatedAnimationsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalArticulatedAnimations()));
+        return 1;
+    }
+
+    int onGetArticulatedAnimationNameDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *name = meshDebug->mesh.getArticulatedAnimationName(index);
+        if (name) lua_pushstring(lua, name); else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onGetArticulatedAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *name = nullptr;
+        float duration = 0.0f, speed = 1.0f;
+        int priority = 0;
+        bool loop = false;
+        uint8_t blendMode = util::ARTICULATED_BLEND_ABSOLUTE;
+        if (!meshDebug->mesh.getArticulatedAnimation(
+                index, &name, &duration, &speed, &priority, &loop, &blendMode))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushstring(lua, name);
+        lua_pushnumber(lua, duration);
+        lua_pushnumber(lua, speed);
+        lua_pushinteger(lua, priority);
+        lua_pushboolean(lua, loop ? 1 : 0);
+        lua_pushinteger(lua, static_cast<lua_Integer>(blendMode));
+        return 6;
+    }
+
+    int onGetTotalArticulatedTracksDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalArticulatedTracks(animation)));
+        return 1;
+    }
+
+    int onUpdateArticulatedAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t index = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const char *name = luaL_checkstring(lua, 3);
+        const float duration = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
+        const float speed = static_cast<float>(luaL_optnumber(lua, 5, 1.0));
+        const int priority = static_cast<int>(luaL_optinteger(lua, 6, 0));
+        const bool loop = lua_isnoneornil(lua, 7) ? true : lua_toboolean(lua, 7) != 0;
+        const uint8_t blendMode = static_cast<uint8_t>(
+            luaL_optinteger(lua, 8, util::ARTICULATED_BLEND_ABSOLUTE));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateArticulatedAnimation(
+                index, name, duration, speed, priority, loop, blendMode,
+                                                        errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onGetArticulatedTrackDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        uint64_t partId = 0; uint8_t mask = 0; uint32_t keyCount = 0;
+        if (!meshDebug->mesh.getArticulatedTrack(animation, track, &partId, &mask, &keyCount))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushinteger(lua, static_cast<lua_Integer>(partId));
+        lua_pushinteger(lua, static_cast<lua_Integer>(mask));
+        lua_pushinteger(lua, static_cast<lua_Integer>(keyCount));
+        return 3;
+    }
+
+    int onGetArticulatedKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t keyIndex = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        float time = 0.0f, px = 0.0f, py = 0.0f, pz = 0.0f;
+        float qx = 0.0f, qy = 0.0f, qz = 0.0f, qw = 1.0f;
+        float sx = 1.0f, sy = 1.0f, sz = 1.0f;
+        uint8_t easing = util::ARTICULATED_EASING_LINEAR;
+        float bezierX1 = 0.25f, bezierY1 = 0.25f;
+        float bezierX2 = 0.75f, bezierY2 = 0.75f;
+        float rotationEulerX = 0.0f, rotationEulerY = 0.0f, rotationEulerZ = 0.0f;
+        bool hasRotationEuler = false;
+        if (!meshDebug->mesh.getArticulatedKey(animation, track, keyIndex, &time, &px, &py, &pz,
+                                               &qx, &qy, &qz, &qw, &sx, &sy, &sz, &easing,
+                                               &bezierX1, &bezierY1, &bezierX2, &bezierY2,
+                                               &rotationEulerX, &rotationEulerY, &rotationEulerZ,
+                                               &hasRotationEuler))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_pushnumber(lua, time);
+        lua_pushnumber(lua, px); lua_pushnumber(lua, py); lua_pushnumber(lua, pz);
+        lua_pushnumber(lua, qx); lua_pushnumber(lua, qy); lua_pushnumber(lua, qz); lua_pushnumber(lua, qw);
+        lua_pushnumber(lua, sx); lua_pushnumber(lua, sy); lua_pushnumber(lua, sz);
+        lua_pushinteger(lua, static_cast<lua_Integer>(easing));
+        lua_pushnumber(lua, bezierX1); lua_pushnumber(lua, bezierY1);
+        lua_pushnumber(lua, bezierX2); lua_pushnumber(lua, bezierY2);
+        lua_pushnumber(lua, rotationEulerX);
+        lua_pushnumber(lua, rotationEulerY);
+        lua_pushnumber(lua, rotationEulerZ);
+        lua_pushboolean(lua, hasRotationEuler ? 1 : 0);
+        return 20;
+    }
+
+    int onAddArticulatedAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const float duration = static_cast<float>(luaL_optnumber(lua, 3, 0.0));
+        const float speed = static_cast<float>(luaL_optnumber(lua, 4, 1.0));
+        const int priority = static_cast<int>(luaL_optinteger(lua, 5, 0));
+        const bool loop = lua_isnoneornil(lua, 6) ? true : lua_toboolean(lua, 6) != 0;
+        const uint8_t blendMode = static_cast<uint8_t>(
+            luaL_optinteger(lua, 7, util::ARTICULATED_BLEND_ABSOLUTE));
+        char errorOut[255] = "";
+        const int ret = meshDebug->mesh.addArticulatedAnimation(
+            name, duration, speed, priority, loop, blendMode, errorOut, sizeof(errorOut));
+        if (ret == 0) return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onAddArticulatedTrackDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint64_t partId = static_cast<uint64_t>(luaL_checkinteger(lua, 3));
+        const uint8_t mask = static_cast<uint8_t>(luaL_checkinteger(lua, 4));
+        char errorOut[255] = "";
+        const int ret = meshDebug->mesh.addArticulatedTrack(animation, partId, mask, errorOut, sizeof(errorOut));
+        if (ret == 0) return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, ret);
+        return 1;
+    }
+
+    int onAddArticulatedKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const float time = static_cast<float>(luaL_checknumber(lua, 4));
+        const float px = static_cast<float>(luaL_optnumber(lua, 5, 0.0));
+        const float py = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const float pz = static_cast<float>(luaL_optnumber(lua, 7, 0.0));
+        const float qx = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float qy = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float qz = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float qw = static_cast<float>(luaL_optnumber(lua, 11, 1.0));
+        const float sx = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const float sy = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
+        const float sz = static_cast<float>(luaL_optnumber(lua, 14, 1.0));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addArticulatedKey(animation, track, time, px, py, pz, qx, qy, qz, qw,
+                                               sx, sy, sz, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onSetArticulatedTrackChannelsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint8_t channelMask = static_cast<uint8_t>(luaL_checkinteger(lua, 4));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setArticulatedTrackChannels(
+                animation, track, channelMask, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onSetArticulatedKeyEulerDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const float time = static_cast<float>(luaL_checknumber(lua, 4));
+        const float eulerX = static_cast<float>(luaL_checknumber(lua, 5));
+        const float eulerY = static_cast<float>(luaL_checknumber(lua, 6));
+        const float eulerZ = static_cast<float>(luaL_checknumber(lua, 7));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setArticulatedKeyEuler(animation, track, time, eulerX, eulerY, eulerZ,
+                                                    errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onSetArticulatedKeyEasingDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t key = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        const uint8_t easing = static_cast<uint8_t>(luaL_checkinteger(lua, 5));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setArticulatedKeyEasing(animation, track, key, easing,
+                                                     errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onSetArticulatedKeyBezierDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t key = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        const float x1 = static_cast<float>(luaL_checknumber(lua, 5));
+        const float y1 = static_cast<float>(luaL_checknumber(lua, 6));
+        const float x2 = static_cast<float>(luaL_checknumber(lua, 7));
+        const float y2 = static_cast<float>(luaL_checknumber(lua, 8));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setArticulatedKeyBezier(animation, track, key, x1, y1, x2, y2,
+                                                     errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onUpdateArticulatedKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t key = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        const float time = static_cast<float>(luaL_checknumber(lua, 5));
+        const float px = static_cast<float>(luaL_optnumber(lua, 6, 0.0));
+        const float py = static_cast<float>(luaL_optnumber(lua, 7, 0.0));
+        const float pz = static_cast<float>(luaL_optnumber(lua, 8, 0.0));
+        const float qx = static_cast<float>(luaL_optnumber(lua, 9, 0.0));
+        const float qy = static_cast<float>(luaL_optnumber(lua, 10, 0.0));
+        const float qz = static_cast<float>(luaL_optnumber(lua, 11, 0.0));
+        const float qw = static_cast<float>(luaL_optnumber(lua, 12, 1.0));
+        const float sx = static_cast<float>(luaL_optnumber(lua, 13, 1.0));
+        const float sy = static_cast<float>(luaL_optnumber(lua, 14, 1.0));
+        const float sz = static_cast<float>(luaL_optnumber(lua, 15, 1.0));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateArticulatedKey(animation, track, key, time, px, py, pz,
+                                                  qx, qy, qz, qw, sx, sy, sz,
+                                                  errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onRemoveArticulatedKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t animation = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t track = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t key = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeArticulatedKey(animation, track, key, errorOut, sizeof(errorOut)))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
     }
 
     // Skeleton bindings (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
@@ -2061,11 +2470,13 @@ namespace mbm
                                           {"removeFrame", onRemoveFrameDebugLua},
                                           {"addSubSet", onAddSubsetDebugLua},
                                           {"removeSubset", onRemoveSubsetDebugLua},
+                                          {"moveSubsetUp", onMoveSubsetUpDebugLua},
                                           {"copyFrameFrom", onCopyFrameFromDebugLua},
                                           {"copySubsetFrom", onCopySubsetFromDebugLua},
                                           {"addAnim", onAddAnimationDebugLua},
                                           {"removeAnim", onRemoveAnimationDebugLua},
                                           {"centralize", onCentralizeMeshDebugLua},
+                                          {"centralizeItself", onCentralizeItselfMeshDebugLua},
                                           {"rotateFrame", onRotateFrameDebugLua},
                                           {"scaleFrame", onScaleFrameDebugLua},
                                           {"translateFrame", onTranslateFrameDebugLua},
@@ -2089,6 +2500,29 @@ namespace mbm
                                           {"hasVertexWeights", onHasVertexWeightsDebugLua},
                                           {"getTotalVertexWeightBones", onGetTotalVertexWeightBonesDebugLua},
                                           {"removeVertexWeights", onRemoveVertexWeightsDebugLua},
+                                          {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
+                                          {"getArticulatedPart", onGetArticulatedPartDebugLua},
+                                          {"initializeArticulatedParts", onInitializeArticulatedPartsDebugLua},
+                                          {"removeArticulatedParts", onRemoveArticulatedPartsDebugLua},
+                                          {"addArticulatedPart", onAddArticulatedPartDebugLua},
+                                          {"updateArticulatedPart", onUpdateArticulatedPartDebugLua},
+                                          {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsDebugLua},
+                                          {"getArticulatedAnimationName", onGetArticulatedAnimationNameDebugLua},
+                                          {"getArticulatedAnimation", onGetArticulatedAnimationDebugLua},
+                                          {"updateArticulatedAnimation", onUpdateArticulatedAnimationDebugLua},
+                                          {"getTotalArticulatedTracks", onGetTotalArticulatedTracksDebugLua},
+                                          {"getArticulatedTrack", onGetArticulatedTrackDebugLua},
+                                          {"getArticulatedKey", onGetArticulatedKeyDebugLua},
+                                          {"addArticulatedAnimation", onAddArticulatedAnimationDebugLua},
+                                          {"removeArticulatedAnimation", onRemoveArticulatedAnimationDebugLua},
+                                          {"addArticulatedTrack", onAddArticulatedTrackDebugLua},
+                                          {"setArticulatedTrackChannels", onSetArticulatedTrackChannelsDebugLua},
+                                          {"addArticulatedKey", onAddArticulatedKeyDebugLua},
+                                          {"setArticulatedKeyEuler", onSetArticulatedKeyEulerDebugLua},
+                                          {"setArticulatedKeyEasing", onSetArticulatedKeyEasingDebugLua},
+                                          {"setArticulatedKeyBezier", onSetArticulatedKeyBezierDebugLua},
+                                          {"updateArticulatedKey", onUpdateArticulatedKeyDebugLua},
+                                          {"removeArticulatedKey", onRemoveArticulatedKeyDebugLua},
 										  {"getExt", onGetStaticExtensionLua},
                                           {"setDetail", onSetDetailLua},
                                           {nullptr, nullptr}};

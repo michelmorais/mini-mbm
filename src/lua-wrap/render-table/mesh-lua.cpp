@@ -107,6 +107,60 @@ namespace mbm
         return 1;
     }
 
+    int onPlayArticulatedAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const int priority = static_cast<int>(luaL_optinteger(lua, 3, 0));
+        const float blendDuration = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
+        const float weight = static_cast<float>(luaL_optnumber(lua, 5, 1.0));
+        lua_pushboolean(lua, mesh->playArticulatedAnimation(
+            name, priority, blendDuration, weight) ? 1 : 0);
+        return 1;
+    }
+
+    int onPauseArticulatedAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->pauseArticulatedAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onResumeArticulatedAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->resumeArticulatedAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onDisableArticulatedAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->disableArticulatedAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onSeekArticulatedAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const float time = static_cast<float>(luaL_checknumber(lua, 3));
+        lua_pushboolean(lua, mesh->seekArticulatedAnimation(name, time) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetArticulatedAnimationTimeLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        float time = 0.0f;
+        if (mesh->getArticulatedAnimationTime(name, &time))
+            lua_pushnumber(lua, time);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -164,7 +218,14 @@ namespace mbm
 			return false;
 		
 		//table
-		luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {"loadAsync", onLoadAsyncMeshLua}, {nullptr, nullptr}};
+		luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {"loadAsync", onLoadAsyncMeshLua},
+                                                     {"playArticulatedAnimation", onPlayArticulatedAnimationLua},
+                                                     {"pauseArticulatedAnimation", onPauseArticulatedAnimationLua},
+                                                     {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
+                                                     {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
+                                                     {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
+                                                     {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
+                                                     {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();
@@ -205,7 +266,14 @@ namespace mbm
     int onNewMeshLua(lua_State *lua)
     {
         const int                    top              = lua_gettop(lua);
-        luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {"loadAsync", onLoadAsyncMeshLua}, {nullptr, nullptr}};
+        luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {"loadAsync", onLoadAsyncMeshLua},
+                                                         {"playArticulatedAnimation", onPlayArticulatedAnimationLua},
+                                                         {"pauseArticulatedAnimation", onPauseArticulatedAnimationLua},
+                                                         {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
+                                                         {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
+                                                         {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
+                                                         {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
+                                                         {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();
 

@@ -134,7 +134,7 @@ outside `[0,1]` don't error, they silently clamp or saturate, so the mistake sho
 | Function | Signature | Returns | Description |
 |---|---|---|---|
 | `mbm.quit` | `()` | — | Exit the application |
-| `mbm.pause` | `()` | — | Pause engine (stops `logic` calls and audio) |
+| `mbm.pause` | `()` | — | Pause engine time (`delta=0`) and optionally audio; scene logic and rendering continue |
 | `mbm.resume` | `()` | — | Resume a paused engine |
 | `mbm.loadScene` | `(name: string)` | — | Load a new Lua scene file (relative path) |
 | `mbm.getSceneName` | `()` | string | Name of the current scene file |
@@ -535,7 +535,7 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
 | `obj:restartAnim` | `()` | — | Restart animation from frame 1 |
 | `obj:isEndedAnim` | `()` | bool | Whether a non-looping animation has finished |
-| `obj:onEndAnim` | `(callback)` | — | Call `callback()` when animation ends |
+| `obj:onEndAnim` | `(callback)` | — | Call `callback(obj, animationName)` once when a non-looping frame animation or articulated clip ends |
 | `obj:onEndFx` | `(callback)` | — | Call `callback()` when shader effect ends |
 | `obj:setTypeAnim` | `(type: int)` | — | Set animation loop type using `mbm.*` constants |
 | `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
@@ -546,6 +546,22 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 | `obj:getShader` | `()` | table | Get current shader config (`name`, `var` values) |
 | `obj:setBlend` | `(srcBlend, dstBlend, op?)` | — | Set blend mode using `mbm.*` blend constants |
 | `obj:getBlend` | `()` | srcBlend, dstBlend, op | Get current blend mode |
+
+#### Articulated playback (`mesh` and `sprite`)
+
+These methods are available on loaded `.msh` and `.spt` objects whose asset contains articulated
+Parts and clips. Playback state is local to the object instance even when several objects share the
+same cached asset. See [articulated-animation.md](articulated-animation.md) for the asset model,
+composition rules, editor workflow, and rendering design.
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `obj:playArticulatedAnimation` | `(name, priority?, blendDuration?, weight?)` | bool | Start/restart a clip. Defaults: priority `0`, immediate blend, weight `1` |
+| `obj:pauseArticulatedAnimation` | `(name)` | bool | Freeze an active clip and its blend progress |
+| `obj:resumeArticulatedAnimation` | `(name)` | bool | Resume a paused active clip |
+| `obj:disableArticulatedAnimation` | `(name)` | bool | Remove an active clip from pose composition |
+| `obj:seekArticulatedAnimation` | `(name, time)` | bool | Move an active clip's playback position to the specified time, clamped to `0..duration` |
+| `obj:getArticulatedAnimationTime` | `(name)` | number or nil | Current time for an active clip, or `nil` when it is inactive/unknown |
 
 ### 6.7 Depth / Ordering
 
@@ -1168,3 +1184,155 @@ print("white", "plain message")        -- explicit color
 ```
 
 Standard `print(...)` (no tag) still works and prints white.
+
+---
+
+## 15. Mesh Debug authoring
+
+The editor-only `meshDebug` object exposes Mesh V11 authoring operations. To reorder subsets inside
+a frame, use:
+
+```lua
+local moved = meshD:moveSubsetUp(frame, subset)
+```
+
+`frame` and `subset` are one-based. The call returns `true` when the subset exchanged positions
+with its predecessor, or `false` for the first subset or an invalid index. Articulated Part
+occurrences are remapped automatically, so their stable IDs, tracks, pivots, and parent-child
+relationships remain attached to the same geometry.
+
+### 15.1 Articulated-animation authoring
+
+The object also exposes the Mesh V11 rigid-animation authoring API.
+Indices returned by this API are one-based, matching the existing Mesh Debug methods. Part IDs are
+nonzero, globally unique `uint64` identities within the asset; names are labels, may repeat, and are
+not used as file references. Each frame/subset occurrence can have only one Part. Invalid mutations
+raise a Lua error with the engine validation message; successful mutations return `true`, except
+creation methods, which return their new one-based index, and the initialize/remove-all methods,
+which return a count.
+
+```lua
+local partIndex = meshD:addArticulatedPart(
+    partId, frame, subset, name,
+    pivotX, pivotY, pivotZ,
+    pivotQX, pivotQY, pivotQZ, pivotQW,
+    parentPartId)
+
+local added = meshD:initializeArticulatedParts() -- computes missing IDs and AABB-center pivots
+local removedParts = meshD:removeArticulatedParts() -- removes parts and their tracks; clips remain
+meshD:updateArticulatedPart(partIndex, name,
+    pivotX, pivotY, pivotZ,
+    pivotQX, pivotQY, pivotQZ, pivotQW,
+    parentPartId)
+
+local clipIndex = meshD:addArticulatedAnimation(name, duration, speed, priority, loop, blendMode)
+meshD:removeArticulatedAnimation(clipIndex)
+local trackIndex = meshD:addArticulatedTrack(clipIndex, partId, channelMask)
+meshD:setArticulatedTrackChannels(clipIndex, trackIndex, channelMask)
+meshD:addArticulatedKey(clipIndex, trackIndex, time,
+    positionX, positionY, positionZ,
+    rotationQX, rotationQY, rotationQZ, rotationQW,
+    scaleX, scaleY, scaleZ)
+meshD:setArticulatedKeyEuler(clipIndex, trackIndex, time,
+    rotationEulerX, rotationEulerY, rotationEulerZ)
+meshD:setArticulatedKeyEasing(clipIndex, trackIndex, keyIndex, easing)
+meshD:setArticulatedKeyBezier(clipIndex, trackIndex, keyIndex, x1, y1, x2, y2)
+```
+
+Inspection return values are:
+
+| Method | Returns |
+|---|---|
+| `getTotalArticulatedParts()` | Part count |
+| `getArticulatedPart(index)` | `partId, frame, subset, name, pivotX, pivotY, pivotZ, pivotQX, pivotQY, pivotQZ, pivotQW, parentPartId`, or `nil` |
+| `getTotalArticulatedAnimations()` | Clip count |
+| `getArticulatedAnimationName(index)` | Name, or `nil` |
+| `getArticulatedAnimation(index)` | `name, duration, speed, priority, loop, blendMode`, or `nil` |
+| `getTotalArticulatedTracks(animation)` | Track count |
+| `getArticulatedTrack(animation, track)` | `partId, channelMask, keyCount`, or `nil` |
+| `getArticulatedKey(animation, track, key)` | `time`, position XYZ, quaternion XYZW, scale XYZ, `easing`, Bezier X1/Y1/X2/Y2, authored Euler XYZ, `hasEuler`; or `nil` |
+
+Channel masks are `1` for position, `2` for rotation, and `4` for scale.
+`setArticulatedTrackChannels(animation, track, channelMask)` updates the channels controlled by an
+existing track and rejects zero or unknown mask bits. Disabling a channel does not erase its values
+from the track's keys, so re-enabling it restores their influence. Adding another key for the same
+track and time replaces the previous key. `getTotalArticulatedParts()`,
+`getArticulatedPart(index)`, `getTotalArticulatedAnimations()`, and
+`getArticulatedAnimationName(index)`, `getArticulatedAnimation(index)`,
+`getTotalArticulatedTracks(animation)`, `getArticulatedTrack(animation, track)`, and
+`getArticulatedKey(animation, track, key)` provide inspection. The editor can create tracks with
+independent channel masks and add or replace keys. `updateArticulatedKey(animation, track, key,
+time, ...)` moves and edits an existing key, consolidating a collision with another key at the
+same time. `updateArticulatedAnimation(index, name, duration, speed, priority, loop, blendMode)` edits clip
+metadata while preserving its tracks. `removeArticulatedKey(animation, track, key)` removes one
+keyframe without changing the clip's manually editable duration. The clip duration is automatically
+kept at least as large as the greatest key time; a requested shorter duration is clamped.
+`removeArticulatedAnimation(index)` removes a clip and all its tracks and keys.
+`removeArticulatedParts()` removes all parts/pivots and tracks referencing those parts; clips remain.
+Mesh Debug displays key rotation as authored Euler degrees; the runtime converts those values to
+the quaternion used for rendering. `getArticulatedKey` also returns the key easing mode, and
+`setArticulatedKeyEasing` accepts `0` Linear, `1` Ease In, `2` Ease Out, `3` Ease In Out, or
+`4` Smoothstep, or `5` Cubic Bezier. `getArticulatedKey` returns the four Bezier control values
+after the easing mode, followed by the authored Euler X/Y/Z values and a boolean indicating whether
+those Euler values are present. Existing return values keep their original order. Mesh Debug uses
+the authored values instead of deriving Euler angles from the equivalent quaternion, preserving
+inputs such as `359.99°` when the asset is reopened. `setArticulatedKeyBezier` changes the curve
+controls; X is restricted to `0..1`, while Y may leave that range for overshoot. The easing on a
+key controls the transition to the next key; the final key has no outgoing segment.
+`parentPartId` establishes a same-frame parent relationship. A child inherits the parent's complete
+transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
+
+Clip composition modes are `0` for Absolute and `1` for Additive. `getArticulatedAnimation(index)`
+returns this mode as its sixth result, after `loop`. Absolute is the default. Additive keys represent
+deltas: neutral position is `(0,0,0)`, neutral Euler rotation is `(0,0,0)`, and neutral scale is
+`(1,1,1)`.
+
+Loaded `mesh` and `sprite` objects expose the same playback controls for `.msh` and `.spt` assets.
+Multiple clips may be active. Absolute position, rotation, and scale are resolved independently:
+the highest-priority Absolute clip that provides a channel wins that channel, and a newer clip wins
+ties. This lets a lower-priority Absolute clip continue supplying channels omitted by the winner.
+All active Additive clips are then applied in increasing priority/start order; the ordering matters
+for local quaternion rotation composition.
+
+`playArticulatedAnimation(name, priority, blendDuration, weight)` accepts an optional transition duration
+in seconds. During that interval, each channel transitions from the already-composed pose of its
+lower-priority/older candidates, or from the base transform when no fallback exists. This also
+keeps overlapping crossfades continuous. Position and scale use linear interpolation and rotation
+uses quaternion spherical interpolation. The default `blendDuration` is `0`, preserving immediate
+playback. `weight` defaults to `1`, is clamped to `0..1`, and controls additive intensity; absolute
+clips ignore it. Blend duration and weight are runtime state and are not persisted in the asset.
+For an additive clip, blend duration fades its contribution from zero to the requested weight.
+Authored Euler rotation is weighted before conversion to the final quaternion, preserving intended
+full turns such as `0°..359°`; quaternion-only data falls back to spherical interpolation.
+
+`pause` freezes both clip time and blend progress, `resume` continues them, and `disable` removes
+the clip from evaluation. Playback state belongs to each renderizable instance: objects loading
+the same cached asset share geometry, parts, and clip definitions, but do not share active clips,
+time, pause state, priority, blend progress, additive weight, or seek position.
+
+A non-looping articulated clip invokes the same callback registered by `obj:onEndAnim(callback)`
+when it reaches its duration. The callback receives the renderizable object and the articulated
+clip name. Looping clips do not emit this completion callback. If multiple active clips finish in
+the same update, the callback is invoked once for each finished clip.
+
+```lua
+car:playArticulatedAnimation("wheel_spin", 10, 0.5, 0.75)
+-- priority 10, 0.5-second fade, 75% weight when the clip is Additive
+car:onEndAnim(function(object, animationName)
+    print(animationName .. " finished")
+end)
+car:pauseArticulatedAnimation("wheel_spin")
+car:resumeArticulatedAnimation("wheel_spin")
+car:seekArticulatedAnimation("wheel_spin", 0.5)
+local currentTime = car:getArticulatedAnimationTime("wheel_spin")
+car:disableArticulatedAnimation("wheel_spin")
+
+local icon = sprite:new("2dw")
+icon:load("machine.spt")
+icon:playArticulatedAnimation("gear_spin") -- priority 0, immediate transition
+```
+
+The runtime advances clip time with the engine's `device->delta`, preserving the engine time-scale
+and frame-rate behavior. Easing is evaluated in the articulated track sampler before interpolating
+position, rotation, and scale. Cubic Bezier solves its normalized-time X curve before evaluating Y.
+Version-1 articulated sections default to Linear.

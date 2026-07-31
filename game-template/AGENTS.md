@@ -77,7 +77,7 @@ local wx, wy, wz   = mbm.to3d(sx, sy, depth) -- screen px → 3D world
 
 ```lua
 mbm.quit()                          -- exit the application
-mbm.pause()                         -- pause engine + audio
+mbm.pause()                         -- pause engine time (delta=0); scene loop/render continue, audio optional
 mbm.resume()                        -- resume
 mbm.loadScene("other.lua")          -- load a different scene file
 mbm.getSceneName()                  -- → string: current scene filename
@@ -85,7 +85,7 @@ mbm.getFps(real?)                   -- → number: current FPS
 mbm.getTimeRun()                    -- → number: seconds since engine start
 mbm.setFakeFps(cycles, fps)         -- force fixed FPS (testing)
 mbm.onErrorStop(bool)               -- halt on first Lua error if true
-mbm.pauseAudioOnPauseGame(bool)     -- whether pause() stops audio
+mbm.pauseAudioOnPauseGame(bool)     -- whether pause() also pauses audio
 mbm.doCommands(cmd, param)          -- send native platform command
 ```
 

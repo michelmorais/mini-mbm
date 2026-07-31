@@ -1478,7 +1478,8 @@ namespace mbm
     }
 
 
-    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner) const
+    bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
+                        const int32_t subsetIndex) const
     {
         const ScopedRenderizableContextD3D scopedRenderizableContext(renderizableOwner);
         BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
@@ -1607,7 +1608,11 @@ namespace mbm
 
             // TextureAnimationEffect stays shared across subsets by design.
             bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
-            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+            const uint32_t firstSubset = subsetIndex >= 0 ? static_cast<uint32_t>(subsetIndex) : 0u;
+            const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
+            if (lastSubset > pBufferId->totalSubset)
+                return false;
+            for (uint32_t i = firstSubset; i < lastSubset; ++i)
             {
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
@@ -1701,7 +1706,11 @@ namespace mbm
             // TextureAnimationEffect stays shared across subsets by design.
             bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
 
-            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+            const uint32_t firstSubset = subsetIndex >= 0 ? static_cast<uint32_t>(subsetIndex) : 0u;
+            const uint32_t lastSubset = subsetIndex >= 0 ? firstSubset + 1u : pBufferId->totalSubset;
+            if (lastSubset > pBufferId->totalSubset)
+                return false;
+            for (uint32_t i = firstSubset; i < lastSubset; ++i)
             {
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);

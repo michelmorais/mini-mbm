@@ -38,6 +38,18 @@ namespace le_io
                ((value & 0xFF000000u) >> 24);
     }
 
+    inline uint64_t bswap64(const uint64_t value) noexcept
+    {
+        return ((value & 0x00000000000000FFULL) << 56) |
+               ((value & 0x000000000000FF00ULL) << 40) |
+               ((value & 0x0000000000FF0000ULL) << 24) |
+               ((value & 0x00000000FF000000ULL) << 8)  |
+               ((value & 0x000000FF00000000ULL) >> 8)  |
+               ((value & 0x0000FF0000000000ULL) >> 24) |
+               ((value & 0x00FF000000000000ULL) >> 40) |
+               ((value & 0xFF00000000000000ULL) >> 56);
+    }
+
     inline int16_t leToI16(const int16_t value) noexcept
     {
         if (hostLittleEndian())
@@ -66,6 +78,13 @@ namespace le_io
         if (hostLittleEndian())
             return value;
         return bswap32(value);
+    }
+
+    inline uint64_t leToU64(const uint64_t value) noexcept
+    {
+        if (hostLittleEndian())
+            return value;
+        return bswap64(value);
     }
 
     inline float leToF32(const float value) noexcept
@@ -167,6 +186,21 @@ namespace le_io
         return writeBytes(fp, &temp, sizeof(temp));
     }
 
+    inline bool readU64LE(FILE *fp, uint64_t &out)
+    {
+        uint64_t temp = 0;
+        if (!readBytes(fp, &temp, sizeof(temp)))
+            return false;
+        out = leToU64(temp);
+        return true;
+    }
+
+    inline bool writeU64LE(FILE *fp, const uint64_t in)
+    {
+        const uint64_t temp = leToU64(in);
+        return writeBytes(fp, &temp, sizeof(temp));
+    }
+
     inline bool readF32LE(FILE *fp, float &out)
     {
         float temp = 0.0f;
@@ -215,6 +249,15 @@ namespace le_io
         if (!readBytes(cur, &temp, sizeof(temp)))
             return false;
         out = leToU32(temp);
+        return true;
+    }
+
+    inline bool readU64LE(MEM_CURSOR_V11 &cur, uint64_t &out)
+    {
+        uint64_t temp = 0;
+        if (!readBytes(cur, &temp, sizeof(temp)))
+            return false;
+        out = leToU64(temp);
         return true;
     }
 

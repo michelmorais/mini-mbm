@@ -203,14 +203,16 @@ namespace mbm
             delta = 1.0f / fps;
         else
             delta = 0.0f;
-        fps *= this->speed;
-        delta *= this->speed;
         if(fakeFpsCicle > 0)
         {
             fakeFpsCicle--;
             fps =  static_cast<float>(fakeFps);
             delta = 1.0f / fakeFps;
         }
+        // Fake FPS defines the unscaled simulation step. Apply the game speed last so pause
+        // (speed == 0) remains authoritative and accelerated/slowed time also affects fake FPS.
+        fps *= this->speed;
+        delta *= this->speed;
     }
     
     float TIME_CONTROL::getTimeTick() // Recupera o tempo em milisegundos decorrido do ultimo updateFPS
@@ -246,4 +248,3 @@ namespace mbm
     }
     
 }
-

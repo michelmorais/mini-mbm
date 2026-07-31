@@ -293,6 +293,9 @@ function onInitScene()
     tGhostMesh           = nil    -- separate translucent mesh instance shown while Bones node is open
     isClickedMouseleft   = false
     isClickedMouseRight  = false
+    -- Continuous 3D camera movement, set by onKeyDown/onKeyUp and consumed once per frame using
+    -- delta so movement follows the engine's real-time speed instead of OS key-repeat timing.
+    tCam3dMove           = {forward = 0, right = 0, vertical = 0}
     -- Origin lines: 2D (X red, Y green) and 3D (X red, Y green, Z blue)
     originLine2dX = line:new('2dw', 0, 0, 50)
     originLine2dY = line:new('2dw', 0, 0, 50)
@@ -3195,6 +3198,7 @@ function removeMeshFromTable(index)
     local wasSelected = (iSelectedMeshIndex == index)
     local removed = table.remove(tLoadedMeshes, index)
     if removed then
+        if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
         destroyNormalVisualization(removed)
         destroyPhysicsVisualization(removed)
     end
@@ -3238,6 +3242,42 @@ function applyCam3d(c)
     local x, y, z = cam3dGetPos(c)
     camera3d:setPos(x, y, z)
     camera3d:setFocus(c.fx, c.fy, c.fz)
+end
+
+-- WASD translates the orbit focus on the camera's horizontal forward/right plane; Page Up/Down
+-- translates it on world Y. Since cam3dGetPos derives camera position from the focus, moving the
+-- focus moves camera and target together without changing azimuth, elevation or orbit distance.
+function updateCam3dKeyboardMovement(delta)
+    local move = tCam3dMove
+    if not move or (move.forward == 0 and move.right == 0 and move.vertical == 0) then return end
+    if tImGui.GetWantCaptureKeyboard() or not bCameraMode3D then return end
+    if iSelectedMeshIndex <= 0 or iSelectedMeshIndex > #tLoadedMeshes then return end
+
+    local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+    -- isMesh3DType is declared later as a local helper, so keep this early camera helper
+    -- self-contained instead of accidentally resolving a nonexistent global of the same name.
+    if not (tEntry.info and tEntry.info.type == 'mesh') then return end
+    local c = tEntry.cam3d
+    local speed = c.distance * 0.8 * math.max(delta or 0, 0)
+    local dx, dz = 0, 0
+
+    if move.forward ~= 0 or move.right ~= 0 then
+        -- Use the engine camera's own basis, as Scene Editor 3D does, then flatten and normalize
+        -- it so pitched views do not move more slowly across the XZ plane.
+        local fw = camera3d:getNormal('F')
+        local rg = camera3d:getNormal('R')
+        local fwLen = math.sqrt(fw.x * fw.x + fw.z * fw.z)
+        local rgLen = math.sqrt(rg.x * rg.x + rg.z * rg.z)
+        if fwLen > 1e-6 and rgLen > 1e-6 then
+            dx = (fw.x / fwLen * move.forward + rg.x / rgLen * move.right) * speed
+            dz = (fw.z / fwLen * move.forward + rg.z / rgLen * move.right) * speed
+        end
+    end
+
+    c.fx = c.fx + dx
+    c.fy = c.fy + move.vertical * speed
+    c.fz = c.fz + dz
+    applyCam3d(c)
 end
 
 -- Each loaded mesh entry keeps its own cam3d (orbit position around the object), so switching
@@ -3783,6 +3823,44 @@ local tModeCullOpts   = {'FRONT','BACK','FRONT_AND_BACK'}
 local tModeFrontOpts  = {'CW','CCW'}
 -- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
 local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREASING_LOOP','RECURSIVE','RECURSIVE_LOOP'}
+local function getArticulatedEasingOptions()
+    return {
+        tLang.L('articulated_easing_linear'),
+        tLang.L('articulated_easing_in'),
+        tLang.L('articulated_easing_out'),
+        tLang.L('articulated_easing_in_out'),
+        tLang.L('articulated_easing_smoothstep'),
+        tLang.L('articulated_easing_bezier')
+    }
+end
+
+function drawArticulatedBezierPreview(x1, y1, x2, y2)
+    local size = {x = 180, y = 110}
+    local origin = tImGui.GetCursorScreenPos()
+    local minY = math.min(-0.1, y1, y2)
+    local maxY = math.max(1.1, y1, y2)
+    local spanY = math.max(0.001, maxY - minY)
+    local function point(x, y)
+        return {
+            x = origin.x + math.max(0, math.min(1, x)) * size.x,
+            y = origin.y + (maxY - y) / spanY * size.y
+        }
+    end
+    local p0 = point(0, 0)
+    local p1 = point(x1, y1)
+    local p2 = point(x2, y2)
+    local p3 = point(1, 1)
+    tImGui.AddRect(origin, {x = origin.x + size.x, y = origin.y + size.y},
+        {r = 0.55, g = 0.55, b = 0.55, a = 0.7}, 0, 0, 1)
+    tImGui.AddLine(point(0, 0), point(1, 0), {r = 0.35, g = 0.35, b = 0.35, a = 0.8}, 1)
+    tImGui.AddLine(point(0, 1), point(1, 1), {r = 0.35, g = 0.35, b = 0.35, a = 0.8}, 1)
+    tImGui.AddLine(p0, p1, {r = 0.65, g = 0.65, b = 0.65, a = 0.8}, 1)
+    tImGui.AddLine(p2, p3, {r = 0.65, g = 0.65, b = 0.65, a = 0.8}, 1)
+    tImGui.AddBezierCubic(p0, p1, p2, p3, {r = 0.2, g = 0.75, b = 1, a = 1}, 2, 32)
+    tImGui.AddCircleFilled(p1, 4, {r = 1, g = 0.65, b = 0.1, a = 1}, 12)
+    tImGui.AddCircleFilled(p2, 4, {r = 1, g = 0.35, b = 0.2, a = 1}, 12)
+    tImGui.Dummy(size)
+end
 
 -- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
 local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREASING_LOOP','RECURSIVE','RECURSIVE_LOOP'}
@@ -3951,6 +4029,10 @@ function refreshFrameFilterPreview(tEntry, index)
     end
 
     if ok and tPreviewMesh then
+        -- A freshly-created 3D mesh can receive an automatic device Z-order nudge when
+        -- registered. Frame/subset filter refreshes must not move the user's preview or the
+        -- apparent reference used by the split-capture cube.
+        if meshType == 'mesh' then tPreviewMesh:setPos(0, 0, 0) end
         tPreviewMesh.visible = true
         dpCall(function()
             local nA = (tEntry.info and tEntry.info.animation) or 0
@@ -5100,20 +5182,26 @@ function rebuildGhostMesh(tEntry, index)
 end
 
 -- ---------------------------------------------------------------------------
--- "Apply Humanoid Armature": fixed 18-joint biped preset, positioned from the mesh's own AABB.
+-- Raw vertex AABB helper. Armature/template callers use the default frame 1/all-subsets scope;
+-- transform centralization can optionally select a different frame/subset anchor.
 -- ---------------------------------------------------------------------------
 
--- Reads frame 1's raw vertex data across every subset -- not meshD:getPhysics(), whose configured
--- bounds can be absent/stale -- to place joints relative to the mesh's actual current geometry.
-local function computeMeshAABB(meshD)
-    local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
+-- Reads raw vertex data -- not meshD:getPhysics(), whose configured bounds can be absent/stale.
+-- targetFrame defaults to frame 1; targetSubset defaults to every subset.
+local function computeMeshAABB(meshD, targetFrame, targetSubset)
+    targetFrame = targetFrame or 1
+    targetSubset = targetSubset or 0
+    local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(targetFrame) end)
     nSubsets = (okS and nSubsets) or 0
     local minX, minY, minZ, maxX, maxY, maxZ = nil, nil, nil, nil, nil, nil
-    for s = 1, nSubsets do
-        local okV, nVerts = dpCall(function() return meshD:getTotalVertex(1, s) end)
+    local firstSubset = targetSubset > 0 and targetSubset or 1
+    local lastSubset = targetSubset > 0 and targetSubset or nSubsets
+    if firstSubset > nSubsets then return nil end
+    for s = firstSubset, lastSubset do
+        local okV, nVerts = dpCall(function() return meshD:getTotalVertex(targetFrame, s) end)
         nVerts = (okV and nVerts) or 0
         for v = 1, nVerts do
-            local okG, vert = dpCall(function() return meshD:getVertex(1, s, v) end)
+            local okG, vert = dpCall(function() return meshD:getVertex(targetFrame, s, v) end)
             if okG and vert then
                 local x, y, z = vert.x, vert.y, vert.z
                 minX = (not minX or x < minX) and x or minX
@@ -5129,9 +5217,9 @@ local function computeMeshAABB(meshD)
     return { minX = minX, minY = minY, minZ = minZ, maxX = maxX, maxY = maxY, maxZ = maxZ }
 end
 
--- Reproduces MESH_MBM_DEBUG::centralizeFrame's exact offset formula (src/core_mbm/mesh-manager.cpp:
--- 2992-3097) given frame 1's AABB (computeMeshAABB's shape), so bones can be translated by the
--- identical delta meshD:centralize() bakes into vertices (every vertex gets `pos -= offset`).
+-- Reproduces MESH_MBM_DEBUG::centralizeFrame's exact offset formula given the selected anchor
+-- AABB (computeMeshAABB's shape), so bones can be translated by the identical delta
+-- meshD:centralize() bakes into vertices (every vertex gets `pos -= offset`).
 -- Replicates centralizeFrame's near-zero-crossing tolerance heuristic verbatim (if an axis's min/max
 -- are already nearly symmetric about zero, treat that axis as already centered rather than
 -- re-deriving from dist*0.5) rather than approximating with a plain AABB-center formula -- including
@@ -6097,6 +6185,12 @@ end
 -- cleaned up here instead, regardless of whether showBonesNode itself ran this frame.
 function sweepStaleBoneGizmos()
     for i, tEntry in ipairs(tLoadedMeshes) do
+        -- The articulated pivot marker follows the selected mesh only. The selected mesh tree
+        -- collapses immediately when another object is chosen, so its articulated node may not
+        -- run again to perform the normal close cleanup.
+        if tEntry.tArticulatedPivotGizmo and i ~= iSelectedMeshIndex then
+            destroyArticulatedPivotGizmo(tEntry)
+        end
         if tEntry.bBonesWasOpen and i ~= iSelectedMeshIndex then
             destroyBoneGizmo(tEntry)
             tEntry.bBonesWasOpen = false
@@ -6453,6 +6547,887 @@ function showBonesNode(tEntry, meshD, index)
 
         tImGui.TreePop()
     end
+end
+
+-- ---------------------------------------------------------------------------
+-- Articulated Animation node: one selected animated subset drives its Part/pivot editor,
+-- the current Clip's Track/Keys, timeline preview and pivot gizmos.
+-- ---------------------------------------------------------------------------
+ARTICULATED_PIVOT_COLOR = {1, 0.55, 0.05, 0.95}
+
+function destroyArticulatedPivotGizmo(tEntry)
+    if tEntry.tArticulatedPivotGizmo then
+        tEntry.tArticulatedPivotGizmo:destroy()
+        tEntry.tArticulatedPivotGizmo = nil
+    end
+end
+
+function updateArticulatedPivotGizmo(tEntry, meshD, index, totalParts)
+    if index ~= iSelectedMeshIndex or not tEntry.bShowArticulatedPivot or totalParts == 0 then
+        destroyArticulatedPivotGizmo(tEntry)
+        return
+    end
+    tEntry.iArticulatedPart = math.max(1, math.min(tEntry.iArticulatedPart or 1, totalParts))
+    local ok, partId, frame, subset, name, px, py, pz = dpCall(function()
+        return meshD:getArticulatedPart(tEntry.iArticulatedPart)
+    end)
+    if not ok or not partId then
+        destroyArticulatedPivotGizmo(tEntry)
+        return
+    end
+    tEntry.fArticulatedPivotSizePercent = math.max(1, math.min(99,
+        tEntry.fArticulatedPivotSizePercent or 5))
+    if not tEntry.fArticulatedPivotMarkerSize or
+        tEntry.fArticulatedPivotMarkerPartId ~= partId or
+        tEntry.fArticulatedPivotMarkerPercent ~= tEntry.fArticulatedPivotSizePercent then
+        local okFrames, totalFrames = dpCall(function() return meshD:getTotalFrame() end)
+        totalFrames = (okFrames and totalFrames) or 1
+        local targetFrame = (frame or 0) + 1
+        if targetFrame > totalFrames then
+            targetFrame = math.max(1, math.min(frame or 1, totalFrames))
+        end
+        local okSubsets, totalSubsets = dpCall(function() return meshD:getTotalSubset(targetFrame) end)
+        totalSubsets = (okSubsets and totalSubsets) or 1
+        local targetSubset = (subset or 0) + 1
+        if targetSubset > totalSubsets then
+            targetSubset = math.max(1, math.min(subset or 1, totalSubsets))
+        end
+        local bounds = computeMeshAABB(meshD, targetFrame, targetSubset)
+        if not bounds then bounds = computeMeshAABB(meshD) end
+        local maxExtent = bounds and math.max(bounds.maxX - bounds.minX,
+            bounds.maxY - bounds.minY, bounds.maxZ - bounds.minZ) or 1
+        tEntry.fArticulatedPivotMarkerSize = math.max(maxExtent *
+            (tEntry.fArticulatedPivotSizePercent / 100), 0.01)
+        tEntry.fArticulatedPivotMarkerPartId = partId
+        tEntry.fArticulatedPivotMarkerPercent = tEntry.fArticulatedPivotSizePercent
+    end
+    if not tEntry.tArticulatedPivotGizmo then
+        tEntry.iArticulatedPivotGizmoGeneration = (tEntry.iArticulatedPivotGizmoGeneration or 0) + 1
+        local h = shape:new('3d', px, py, dodgeAutoZOrder(pz))
+        h:create(unitSphereVerts(8, 12), nil,
+            'mesh_debug_articulated_pivot_' .. index .. '_' .. tEntry.iArticulatedPivotGizmoGeneration)
+        h:setColor(ARTICULATED_PIVOT_COLOR[1], ARTICULATED_PIVOT_COLOR[2],
+            ARTICULATED_PIVOT_COLOR[3], ARTICULATED_PIVOT_COLOR[4])
+        h.visible = true
+        h.alwaysOnTop = true
+        tEntry.tArticulatedPivotGizmo = h
+    else
+        tEntry.tArticulatedPivotGizmo:setPos(px, py, dodgeAutoZOrder(pz))
+    end
+    tEntry.tArticulatedPivotGizmo:setScale(tEntry.fArticulatedPivotMarkerSize,
+        tEntry.fArticulatedPivotMarkerSize, tEntry.fArticulatedPivotMarkerSize)
+end
+
+function showArticulatedAnimationNode(tEntry, meshD, index)
+    local isOpen = openNode(tEntry, 'articulated', tLang.L('articulated_animation'), 0, 'articulated-' .. index)
+    if not isOpen then
+        destroyArticulatedPivotGizmo(tEntry)
+        return
+    end
+    local function markArticulatedEdit()
+        tEntry.modified = true
+        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    end
+    local function articulatedTooltip(key)
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            -- Tooltip windows have no reliable wrap width in this ImGui binding;
+            -- use explicit language newlines instead of wrapping one character at a time.
+            tImGui.Text(tLang.L(key))
+            tImGui.EndTooltip()
+        end
+    end
+
+    tImGui.TextWrapped(tLang.L('articulated_help'))
+
+    if tImGui.Button(tLang.L('articulated_initialize_parts') .. '##artInit-' .. index) then
+        local ok, added = dpCall(function() return meshD:initializeArticulatedParts() end)
+        if ok and added and added > 0 then markArticulatedEdit() end
+    end
+    articulatedTooltip('articulated_initialize_parts_tooltip')
+
+    local okParts, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
+    totalParts = (okParts and totalParts) or 0
+    local articulatedPartIds = {}
+    local articulatedParts = {}
+    local articulatedPartOptions = {}
+    for partIndex = 1, totalParts do
+        local okPart, partId, frame, subset, name, px, py, pz, qx, qy, qz, qw, parent = dpCall(function()
+            return meshD:getArticulatedPart(partIndex)
+        end)
+        if okPart and partId then
+            articulatedPartIds[partIndex] = partId
+            articulatedParts[partIndex] = {
+                partId = partId, frame = frame, subset = subset, name = name,
+                px = px, py = py, pz = pz, qx = qx, qy = qy, qz = qz, qw = qw,
+                parent = parent
+            }
+            articulatedPartOptions[partIndex] = string.format('F%d S%d - %s',
+                frame or 0, subset or 0, (name and name ~= '') and name or ('Part ' .. partIndex))
+        else
+            articulatedPartOptions[partIndex] = 'Part ' .. partIndex
+        end
+    end
+    if totalParts > 0 then
+        if not tEntry.bArticulatedRemovePartsConfirm then
+            if tImGui.Button(tLang.L('articulated_remove_parts') .. '##artRemoveParts-' .. index) then
+                tEntry.bArticulatedRemovePartsConfirm = true
+            end
+        else
+            tImGui.TextWrapped(tLang.L('articulated_remove_parts_confirm'))
+            if tImGui.Button('Confirm##artRemovePartsConfirm-' .. index) then
+                local okRemove = dpCall(function() return meshD:removeArticulatedParts() end)
+                if okRemove then
+                    tEntry.bArticulatedRemovePartsConfirm = false
+                    tEntry.iArticulatedPart = 1
+                    markArticulatedEdit()
+                    totalParts = 0
+                    articulatedPartIds = {}
+                    articulatedParts = {}
+                    articulatedPartOptions = {}
+                end
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('cancel') .. '##artRemovePartsCancel-' .. index) then
+                tEntry.bArticulatedRemovePartsConfirm = false
+            end
+        end
+    end
+    tEntry.bShowArticulatedPivot = tImGui.Checkbox('Show Pivot Gizmo##artPivotShow-' .. index,
+        tEntry.bShowArticulatedPivot ~= false)
+    articulatedTooltip('articulated_show_pivot_tooltip')
+    tImGui.SameLine()
+    tImGui.PushItemWidth(125)
+    local pivotSizeChanged, pivotSize = tImGui.SliderFloat(
+        tLang.L('articulated_pivot_size') .. '##artPivotSize-' .. index,
+        tEntry.fArticulatedPivotSizePercent or 5, 1, 99, '%.0f%%')
+    tImGui.PopItemWidth()
+    if pivotSizeChanged then
+        tEntry.fArticulatedPivotSizePercent = math.max(1, math.min(99, pivotSize or 10))
+    end
+    articulatedTooltip('articulated_pivot_size_tooltip')
+    if totalParts > 0 then
+        tEntry.iArticulatedPart = math.max(1,
+            math.min(tEntry.iArticulatedPart or 1, totalParts))
+        tImGui.PushItemWidth(260)
+        local partChanged, selectedPart = tImGui.Combo(
+            tLang.L('articulated_animated_subset') .. '##artPivotPart-' .. index,
+            tEntry.iArticulatedPart, articulatedPartOptions, -1)
+        tImGui.PopItemWidth()
+        if partChanged and selectedPart then
+            tEntry.iArticulatedPart = math.max(1, math.min(selectedPart or 1, totalParts))
+        end
+        articulatedTooltip('articulated_part_tooltip')
+        if tImGui.Button('Open Pivot Gizmo##artPivotWindow-' .. index) then
+            tEntry.bArticulatedPivotWindow = true
+        end
+        articulatedTooltip('articulated_open_pivot_tooltip')
+    end
+    updateArticulatedPivotGizmo(tEntry, meshD, index, totalParts)
+    tImGui.Separator()
+    if totalParts == 0 then
+        tImGui.TextDisabled(tLang.L('articulated_no_parts'))
+    else
+        local partIndex = tEntry.iArticulatedPart
+        local selectedPartInfo = articulatedParts[partIndex]
+        if selectedPartInfo then
+            local partId = selectedPartInfo.partId
+            local frame, subset, name = selectedPartInfo.frame, selectedPartInfo.subset, selectedPartInfo.name
+            local px, py, pz = selectedPartInfo.px, selectedPartInfo.py, selectedPartInfo.pz
+            local qx, qy, qz, qw = selectedPartInfo.qx, selectedPartInfo.qy,
+                selectedPartInfo.qz, selectedPartInfo.qw
+            local parent = selectedPartInfo.parent
+            tImGui.PushID('artPart-' .. index .. '-' .. partIndex)
+            tImGui.Text(tLang.L('articulated_selected_subset'))
+            tImGui.Text(string.format('Frame %d   Subset %d   Part ID %s',
+                frame or 0, subset or 0, tostring(partId)))
+            tImGui.PushItemWidth(220)
+            local changedName, newName = tImGui.InputText(tLang.L('name'), name or '', 96, 0)
+            tImGui.PopItemWidth()
+            tImGui.PushItemWidth(220)
+            local posChanged, pos = tImGui.DragFloat3(tLang.L('articulated_pivot_position'),
+                {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
+            tImGui.PopItemWidth()
+            local pivotOrbit = articulatedOrbitFromQuaternion(qx or 0, qy or 0, qz or 0, qw or 1)
+            tImGui.PushItemWidth(220)
+            local rotChanged, rot = tImGui.DragFloat3(
+                tLang.L('articulated_pivot_rotation') .. '##artPivotEuler-' .. index .. '-' .. partIndex,
+                {-(pivotOrbit.elevation or 0) * 180 / math.pi,
+                    (pivotOrbit.azimuth or 0) * 180 / math.pi,
+                    (pivotOrbit.roll or 0) * 180 / math.pi},
+                0.5, -360, 360, '%.2f', 0)
+            tImGui.PopItemWidth()
+            if rotChanged and rot then
+                pivotOrbit.elevation = -(rot[1] or 0) * math.pi / 180
+                pivotOrbit.azimuth = (rot[2] or 0) * math.pi / 180
+                pivotOrbit.roll = (rot[3] or 0) * math.pi / 180
+                qx, qy, qz, qw = articulatedQuaternionFromOrbit(pivotOrbit)
+            end
+            local parentOptions = {tLang.L('none')}
+            local parentPartIndices = {0}
+            local parentComboIndex = 1
+            for candidateIndex = 1, totalParts do
+                if candidateIndex ~= partIndex then
+                    parentOptions[#parentOptions + 1] = articulatedPartOptions[candidateIndex]
+                    parentPartIndices[#parentPartIndices + 1] = candidateIndex
+                    if parent and parent ~= 0 and articulatedPartIds[candidateIndex] == parent then
+                        parentComboIndex = #parentOptions
+                    end
+                end
+            end
+            tImGui.PushItemWidth(260)
+            local parentChanged, newParentComboIndex = tImGui.Combo(
+                tLang.L('articulated_parent_part') .. '##artParent-' .. index .. '-' .. partIndex,
+                parentComboIndex, parentOptions, -1)
+            tImGui.PopItemWidth()
+            local parentIndex = parentPartIndices[
+                (parentChanged and newParentComboIndex) or parentComboIndex] or 0
+            articulatedTooltip('articulated_parent_part_tooltip')
+            local parentPartId = articulatedPartIds[parentIndex] or 0
+            if changedName or posChanged or rotChanged or parentChanged then
+                local p = pos or {px or 0, py or 0, pz or 0}
+                dpCall(function()
+                    return meshD:updateArticulatedPart(partIndex, newName or name or '',
+                        p[1], p[2], p[3], qx or 0, qy or 0, qz or 0, qw or 1, parentPartId)
+                end)
+                markArticulatedEdit()
+            end
+            tImGui.PopID()
+            tImGui.Separator()
+        end
+    end
+
+    local okClips, totalClips = dpCall(function() return meshD:getTotalArticulatedAnimations() end)
+    totalClips = (okClips and totalClips) or 0
+    tImGui.Text(string.format('%s: %d', tLang.L('articulated_clips_label'), totalClips))
+    if tImGui.Button(tLang.L('articulated_add_clip') .. '##artClipAdd-' .. index) then
+        local clipName = 'Articulated ' .. (totalClips + 1)
+        local ok = dpCall(function()
+            return meshD:addArticulatedAnimation(clipName, 1.0, 1.0, 0, true, 0)
+        end)
+        if ok then markArticulatedEdit() end
+    end
+    articulatedTooltip('articulated_add_clip_tooltip')
+    if totalClips > 0 then
+        if not tEntry.bArticulatedRemoveClipConfirm then
+            if tImGui.Button(tLang.L('articulated_remove_clip') .. '##artRemoveClip-' .. index) then
+                tEntry.bArticulatedRemoveClipConfirm = true
+            end
+        else
+            tImGui.TextWrapped(tLang.L('articulated_remove_clip_confirm'))
+            if tImGui.Button('Confirm##artRemoveClipConfirm-' .. index) then
+                local removeIndex = math.max(1, math.min(tEntry.iArticulatedClip or 1, totalClips))
+                local okRemove = dpCall(function()
+                    return meshD:removeArticulatedAnimation(removeIndex)
+                end)
+                if okRemove then
+                    tEntry.bArticulatedRemoveClipConfirm = false
+                    totalClips = totalClips - 1
+                    tEntry.iArticulatedClip = math.max(1, math.min(removeIndex, math.max(1, totalClips)))
+                    markArticulatedEdit()
+                end
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('cancel') .. '##artRemoveClipCancel-' .. index) then
+                tEntry.bArticulatedRemoveClipConfirm = false
+            end
+        end
+    end
+    if totalClips == 0 then
+        tImGui.TextDisabled(tLang.L('articulated_no_clips'))
+    else
+        tEntry.iArticulatedClip = math.max(1, math.min(tEntry.iArticulatedClip or 1, totalClips))
+        tImGui.PushItemWidth(70)
+        local clipChanged, selectedClip = tImGui.InputInt('Clip##artClipSelect-' .. index,
+            tEntry.iArticulatedClip, 1, 1, 0)
+        tImGui.PopItemWidth()
+        if clipChanged then
+            tEntry.iArticulatedClip = math.max(1, math.min(selectedClip or 1, totalClips))
+        end
+        articulatedTooltip('articulated_clip_selector_tooltip')
+        for clipIndex = 1, totalClips do
+            local ok, clipName = dpCall(function() return meshD:getArticulatedAnimationName(clipIndex) end)
+            if ok and clipName then
+                local marker = clipIndex == tEntry.iArticulatedClip and '>' or '-'
+                tImGui.Text(string.format('%s %d: %s', marker, clipIndex, clipName))
+            end
+        end
+
+        local activeClip = tEntry.iArticulatedClip
+        local okInfo, infoName, infoDuration, infoSpeed, infoPriority, infoLoop, infoBlendMode = dpCall(function()
+            return meshD:getArticulatedAnimation(activeClip)
+        end)
+        if okInfo and infoName then
+            tEntry.tArticulatedClipNameEdits = tEntry.tArticulatedClipNameEdits or {}
+            local nameEdit = tEntry.tArticulatedClipNameEdits[activeClip]
+            if not nameEdit or nameEdit.engineName ~= infoName then
+                nameEdit = {value = infoName, engineName = infoName}
+                tEntry.tArticulatedClipNameEdits[activeClip] = nameEdit
+            end
+            tImGui.PushItemWidth(220)
+            local nameChanged, newName = tImGui.InputText(
+                'Clip Name##artClipName-' .. index .. '-' .. activeClip, nameEdit.value, 96, 0)
+            local nameDeactivatedAfterEdit = tImGui.IsItemDeactivatedAfterEdit()
+            tImGui.PopItemWidth()
+            if newName ~= nil then
+                nameEdit.value = newName
+            end
+            articulatedTooltip('articulated_clip_name_tooltip')
+            tImGui.PushItemWidth(115)
+            local durationChanged, newDuration = tImGui.InputFloat('Duration', infoDuration or 0, 0.01, 0.1, '%.3f', 0)
+            tImGui.PopItemWidth()
+            articulatedTooltip('articulated_duration_tooltip')
+            tImGui.PushItemWidth(115)
+            local speedChanged, newSpeed = tImGui.InputFloat('Speed', infoSpeed or 1, 0.01, 0.1, '%.3f', 0)
+            tImGui.PopItemWidth()
+            articulatedTooltip('articulated_speed_tooltip')
+            tImGui.PushItemWidth(80)
+            local priorityChanged, newPriority = tImGui.InputInt('Priority', infoPriority or 0, 1, 10, 0)
+            tImGui.PopItemWidth()
+            articulatedTooltip('articulated_priority_tooltip')
+            local newLoop = tImGui.Checkbox('Loop', infoLoop == true)
+            articulatedTooltip('articulated_loop_tooltip')
+            local loopChanged = newLoop ~= (infoLoop == true)
+            local blendModeOptions = {
+                tLang.L('articulated_blend_absolute'),
+                tLang.L('articulated_blend_additive')
+            }
+            tImGui.PushItemWidth(115)
+            local blendModeChanged, blendModeIndex = tImGui.Combo(
+                tLang.L('articulated_blend_mode') .. '##artBlendMode-' .. index,
+                math.max(1, math.min((infoBlendMode or 0) + 1, #blendModeOptions)),
+                blendModeOptions, -1)
+            tImGui.PopItemWidth()
+            articulatedTooltip('articulated_blend_mode_tooltip')
+            local newBlendMode = blendModeChanged and blendModeIndex and (blendModeIndex - 1)
+                or (infoBlendMode or 0)
+            if nameChanged or nameDeactivatedAfterEdit or durationChanged or speedChanged or
+                priorityChanged or loopChanged or blendModeChanged then
+                local okUpdate = dpCall(function()
+                    return meshD:updateArticulatedAnimation(activeClip, nameEdit.value or infoName,
+                        math.max(0, newDuration or infoDuration or 0), newSpeed or infoSpeed or 1,
+                        newPriority or infoPriority or 0, newLoop == true, newBlendMode)
+                end)
+                if okUpdate then
+                    nameEdit.engineName = nameEdit.value
+                    markArticulatedEdit()
+                end
+            end
+            local previewReady = index == iSelectedMeshIndex and tPreviewMesh and not tEntry.modified
+            local timelineMin, timelineMax
+            if previewReady then
+                tEntry.fArticulatedBlendDuration = math.max(0, tEntry.fArticulatedBlendDuration or 0)
+                tImGui.PushItemWidth(115)
+                local blendChanged, blendDuration = tImGui.DragFloat(
+                    tLang.L('articulated_blend_time') .. '##artBlend-' .. index,
+                    tEntry.fArticulatedBlendDuration, 0.01, 0, 60, '%.3f', 0)
+                tImGui.PopItemWidth()
+                if blendChanged and blendDuration ~= nil then
+                    tEntry.fArticulatedBlendDuration = math.max(0, blendDuration)
+                end
+                articulatedTooltip('articulated_blend_time_tooltip')
+                tEntry.fArticulatedPreviewWeight = math.max(0,
+                    math.min(1, tEntry.fArticulatedPreviewWeight or 1))
+                if newBlendMode == 1 then
+                    tImGui.PushItemWidth(115)
+                    local weightChanged, previewWeight = tImGui.DragFloat(
+                        tLang.L('articulated_preview_weight') .. '##artWeight-' .. index,
+                        tEntry.fArticulatedPreviewWeight, 0.01, 0, 1, '%.3f', 0)
+                    tImGui.PopItemWidth()
+                    if weightChanged and previewWeight ~= nil then
+                        tEntry.fArticulatedPreviewWeight = math.max(0, math.min(1, previewWeight))
+                    end
+                    articulatedTooltip('articulated_preview_weight_tooltip')
+                end
+                local okCurrentTime, currentTime = dpCall(function()
+                    return tPreviewMesh:getArticulatedAnimationTime(infoName)
+                end)
+                if okCurrentTime and currentTime ~= nil then
+                    tEntry.fArticulatedPreviewTime = currentTime
+                end
+                tEntry.fArticulatedPreviewTime = math.max(0, math.min(tEntry.fArticulatedPreviewTime or 0,
+                    math.max(0, infoDuration or 0)))
+                tImGui.PushItemWidth(260)
+                local seekChanged, seekTime = tImGui.SliderFloat('Timeline##artTimeline-' .. index,
+                    tEntry.fArticulatedPreviewTime, 0, math.max(0.001, infoDuration or 0), '%.3f')
+                tImGui.PopItemWidth()
+                timelineMin = tImGui.GetItemRectMin()
+                timelineMax = tImGui.GetItemRectMax()
+                if seekChanged then
+                    tEntry.fArticulatedPreviewTime = seekTime or tEntry.fArticulatedPreviewTime
+                    dpCall(function()
+                        return tPreviewMesh:seekArticulatedAnimation(infoName, tEntry.fArticulatedPreviewTime)
+                    end)
+                end
+                articulatedTooltip('articulated_timeline_tooltip')
+                if tImGui.Button('Play##artPlay-' .. index) then
+                    dpCall(function()
+                        return tPreviewMesh:playArticulatedAnimation(
+                            infoName, infoPriority or 0, tEntry.fArticulatedBlendDuration or 0,
+                            newBlendMode == 1 and (tEntry.fArticulatedPreviewWeight or 1) or 1)
+                    end)
+                end
+                articulatedTooltip('articulated_playback_tooltip')
+                tImGui.SameLine()
+                if tImGui.Button('Pause##artPause-' .. index) then
+                    dpCall(function() return tPreviewMesh:pauseArticulatedAnimation(infoName) end)
+                end
+                articulatedTooltip('articulated_playback_tooltip')
+                tImGui.SameLine()
+                if tImGui.Button('Resume##artResume-' .. index) then
+                    dpCall(function() return tPreviewMesh:resumeArticulatedAnimation(infoName) end)
+                end
+                articulatedTooltip('articulated_playback_tooltip')
+                tImGui.SameLine()
+                if tImGui.Button('Disable##artDisable-' .. index) then
+                    dpCall(function() return tPreviewMesh:disableArticulatedAnimation(infoName) end)
+                end
+                articulatedTooltip('articulated_playback_tooltip')
+            elseif index == iSelectedMeshIndex then
+                tImGui.TextDisabled(tLang.L('articulated_save_to_preview'))
+            end
+        end
+
+        tImGui.Separator()
+        tImGui.NewLine()
+        tImGui.Text(tLang.L('articulated_tracks'))
+        local selectedPartInfo = articulatedParts[tEntry.iArticulatedPart or 1]
+        local selectedPartId = selectedPartInfo and selectedPartInfo.partId or nil
+        local okTracks, totalTracks = dpCall(function()
+            return meshD:getTotalArticulatedTracks(activeClip)
+        end)
+        totalTracks = (okTracks and totalTracks) or 0
+        local selectedTrackIndex = nil
+        for candidateTrackIndex = 1, totalTracks do
+            local okTrack, trackPartId = dpCall(function()
+                return meshD:getArticulatedTrack(activeClip, candidateTrackIndex)
+            end)
+            if okTrack and trackPartId == selectedPartId then
+                selectedTrackIndex = candidateTrackIndex
+                break
+            end
+        end
+        if selectedPartInfo then
+            tImGui.Text(string.format('F%d S%d - %s - Part ID %s',
+                selectedPartInfo.frame or 0, selectedPartInfo.subset or 0,
+                selectedPartInfo.name or '', tostring(selectedPartId)))
+        end
+        if selectedPartId and not selectedTrackIndex then
+            tImGui.Text(tLang.L('articulated_new_track_channels'))
+            tEntry.bArticulatedPosition = tEntry.bArticulatedPosition ~= false
+            tEntry.bArticulatedRotation = tEntry.bArticulatedRotation ~= false
+            tEntry.bArticulatedScale = tEntry.bArticulatedScale ~= false
+            local channelPosition = tImGui.Checkbox(
+                'Position##artChannel-' .. index, tEntry.bArticulatedPosition)
+            tEntry.bArticulatedPosition = channelPosition
+            tImGui.SameLine()
+            local channelRotation = tImGui.Checkbox(
+                'Rotation##artChannel-' .. index, tEntry.bArticulatedRotation)
+            tEntry.bArticulatedRotation = channelRotation
+            tImGui.SameLine()
+            local channelScale = tImGui.Checkbox(
+                'Scale##artChannel-' .. index, tEntry.bArticulatedScale)
+            tEntry.bArticulatedScale = channelScale
+            articulatedTooltip('articulated_channel_tooltip')
+            local selectedMask = (channelPosition and 1 or 0) +
+                (channelRotation and 2 or 0) + (channelScale and 4 or 0)
+            if tImGui.Button(tLang.L('articulated_add_track') .. '##addSelected-' .. index) and
+                selectedMask ~= 0 then
+                local okTrack = dpCall(function()
+                    return meshD:addArticulatedTrack(activeClip, selectedPartId, selectedMask)
+                end)
+                if okTrack then markArticulatedEdit() end
+            end
+            articulatedTooltip('articulated_add_track_tooltip')
+        end
+
+        tImGui.Separator()
+
+        if selectedTrackIndex then
+            local trackIndex = selectedTrackIndex
+            local okTrack, trackPartId, channelMask, keyCount = dpCall(function()
+                return meshD:getArticulatedTrack(activeClip, trackIndex)
+            end)
+            if okTrack and trackPartId then
+                tImGui.PushID('artTrack-' .. index .. '-' .. trackIndex)
+                tImGui.Text(string.format('Track %d  Keys: %d', trackIndex, keyCount or 0))
+                local trackPosition = tImGui.Checkbox(
+                    'Position##artTrackPosition', ((channelMask or 0) & 1) ~= 0)
+                tImGui.SameLine()
+                local trackRotation = tImGui.Checkbox(
+                    'Rotation##artTrackRotation', ((channelMask or 0) & 2) ~= 0)
+                tImGui.SameLine()
+                local trackScale = tImGui.Checkbox(
+                    'Scale##artTrackScale', ((channelMask or 0) & 4) ~= 0)
+                articulatedTooltip('articulated_channel_tooltip')
+                local updatedChannelMask = (trackPosition and 1 or 0) +
+                    (trackRotation and 2 or 0) + (trackScale and 4 or 0)
+                if updatedChannelMask ~= (channelMask or 0) then
+                    if updatedChannelMask == 0 then
+                        tUtil.showMessageWarn(tLang.L('articulated_channel_required'))
+                    else
+                        local okChannels = dpCall(function()
+                            return meshD:setArticulatedTrackChannels(
+                                activeClip, trackIndex, updatedChannelMask)
+                        end)
+                        if okChannels then markArticulatedEdit() end
+                    end
+                end
+                tImGui.PushItemWidth(100)
+                local newKeyTimeChanged, newKeyTime = tImGui.InputFloat(
+                    tLang.L('articulated_new_key_time') .. '##newKeyTime',
+                    tEntry.fArticulatedNewKeyTime or 0, 0.01, 0.1, '%.3f', 0)
+                tImGui.PopItemWidth()
+                if newKeyTimeChanged then
+                    tEntry.fArticulatedNewKeyTime = math.max(0, newKeyTime or 0)
+                end
+                articulatedTooltip('articulated_new_key_time_tooltip')
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('articulated_add_key') .. '##addKey') then
+                    local okKey = dpCall(function()
+                        return meshD:addArticulatedKey(activeClip, trackIndex, tEntry.fArticulatedNewKeyTime or 0,
+                            0, 0, 0, 0, 0, 0, 1, 1, 1, 1)
+                    end)
+                    if okKey then
+                        dpCall(function()
+                            return meshD:setArticulatedKeyEuler(activeClip, trackIndex,
+                                tEntry.fArticulatedNewKeyTime or 0, 0, 0, 0)
+                        end)
+                        markArticulatedEdit()
+                    end
+                end
+                articulatedTooltip('articulated_add_key_tooltip')
+                for keyIndex = 1, (keyCount or 0) do
+                    local okKey, keyTime, px, py, pz, qx, qy, qz, qw, sx, sy, sz,
+                        keyEasing, bezierX1, bezierY1, bezierX2, bezierY2,
+                        authoredEulerX, authoredEulerY, authoredEulerZ,
+                        hasAuthoredEuler = dpCall(function()
+                        return meshD:getArticulatedKey(activeClip, trackIndex, keyIndex)
+                    end)
+                    if okKey and keyTime then
+                        tImGui.Separator()
+                        tImGui.Text(string.format(tLang.L('articulated_key_time_fmt'), trackIndex, keyIndex))
+                        if timelineMin and timelineMax and (infoDuration or 0) > 0 then
+                            local markerX = timelineMin.x + (timelineMax.x - timelineMin.x) *
+                                math.max(0, math.min(1, keyTime / infoDuration))
+                            tImGui.AddLine({x = markerX, y = timelineMin.y},
+                                {x = markerX, y = timelineMax.y}, {r = 1, g = 0.75, b = 0.1, a = 1}, 2)
+                        end
+                        tImGui.PushID('artKey-' .. index .. '-' .. trackIndex .. '-' .. keyIndex)
+                        tImGui.PushItemWidth(100)
+                        local timeChanged, newTime = tImGui.InputFloat('Time',keyTime, 0.01, 0.1, '%.3f', 0)
+                        tImGui.PopItemWidth()
+                        articulatedTooltip('articulated_key_tooltip')
+                        tImGui.SameLine()
+                        if tImGui.Button('Remove##removeKey') then
+                            local okRemove = dpCall(function()
+                                return meshD:removeArticulatedKey(activeClip, trackIndex, keyIndex)
+                            end)
+                            if okRemove then
+                                markArticulatedEdit()
+                                tImGui.PopID()
+                                break
+                            end
+                        end
+                        local keyId = index .. '-' .. trackIndex .. '-' .. keyIndex
+                        tEntry.tArticulatedKeyEuler = tEntry.tArticulatedKeyEuler or {}
+                        local keyEuler = tEntry.tArticulatedKeyEuler[keyId]
+                        local easingOptions = getArticulatedEasingOptions()
+                        local easingIndex = math.max(1, math.min((keyEasing or 0) + 1, #easingOptions))
+                        tImGui.PushItemWidth(150)
+                        local easingChanged, newEasingIndex = tImGui.Combo(
+                            tLang.L('articulated_easing') .. '##artKeyEasing-' .. keyId,
+                            easingIndex, easingOptions, -1)
+                        tImGui.PopItemWidth()
+                        articulatedTooltip('articulated_easing_tooltip')
+                        local newEasing = (easingChanged and newEasingIndex and newEasingIndex > 0)
+                            and (newEasingIndex - 1) or (keyEasing or 0)
+                        local bezierChanged = false
+                        local newBezierX1, newBezierY1 = bezierX1 or 0.25, bezierY1 or 0.25
+                        local newBezierX2, newBezierY2 = bezierX2 or 0.75, bezierY2 or 0.75
+                        if newEasing == 5 then
+                            tImGui.PushItemWidth(150)
+                            local p1Changed, p1 = tImGui.DragFloat2(
+                                tLang.L('articulated_bezier_p1') .. '##artBezierP1-' .. keyId,
+                                {newBezierX1, newBezierY1}, 0.01, 0, 0, '%.3f', 0)
+                            tImGui.PopItemWidth()
+                            articulatedTooltip('articulated_bezier_points_tooltip')
+                            tImGui.PushItemWidth(150)
+                            local p2Changed, p2 = tImGui.DragFloat2(
+                                tLang.L('articulated_bezier_p2') .. '##artBezierP2-' .. keyId,
+                                {newBezierX2, newBezierY2}, 0.01, 0, 0, '%.3f', 0)
+                            tImGui.PopItemWidth()
+                            articulatedTooltip('articulated_bezier_points_tooltip')
+                            if p1Changed and p1 then
+                                newBezierX1 = math.max(0, math.min(1, p1[1] or newBezierX1))
+                                newBezierY1 = p1[2] or newBezierY1
+                            end
+                            if p2Changed and p2 then
+                                newBezierX2 = math.max(0, math.min(1, p2[1] or newBezierX2))
+                                newBezierY2 = p2[2] or newBezierY2
+                            end
+                            bezierChanged = p1Changed or p2Changed
+                            drawArticulatedBezierPreview(
+                                newBezierX1, newBezierY1, newBezierX2, newBezierY2)
+                        end
+                        local qSignature = string.format('%.7f:%.7f:%.7f:%.7f',
+                            qx or 0, qy or 0, qz or 0, qw or 1)
+                        local authoredEulerSignature = hasAuthoredEuler and string.format(
+                            '%.7f:%.7f:%.7f', authoredEulerX or 0,
+                            authoredEulerY or 0, authoredEulerZ or 0) or nil
+                        if not keyEuler or keyEuler.qSignature ~= qSignature or
+                            keyEuler.authoredEulerSignature ~= authoredEulerSignature then
+                            if hasAuthoredEuler then
+                                keyEuler = {
+                                    x = authoredEulerX or 0,
+                                    y = authoredEulerY or 0,
+                                    z = authoredEulerZ or 0,
+                                    qSignature = qSignature,
+                                    authoredEulerSignature = authoredEulerSignature
+                                }
+                            else
+                                local keyOrbit = articulatedOrbitFromQuaternion(qx, qy, qz, qw)
+                                keyEuler = {
+                                    x = -(keyOrbit.elevation or 0) * 180 / math.pi,
+                                    y = (keyOrbit.azimuth or 0) * 180 / math.pi,
+                                    z = (keyOrbit.roll or 0) * 180 / math.pi,
+                                    qSignature = qSignature
+                                }
+                            end
+                            tEntry.tArticulatedKeyEuler[keyId] = keyEuler
+                        end
+                        tImGui.PushItemWidth(220)
+                        local posChanged, pos = tImGui.DragFloat3('Position##artKeyPos-' .. keyId,
+                            {px or 0, py or 0, pz or 0},
+                            0.01, -math.huge, math.huge, '%.3f', 0)
+                        tImGui.PopItemWidth()
+                        tImGui.PushItemWidth(220)
+                        local rotChanged, rot = tImGui.DragFloat3(
+                            tLang.L('articulated_key_rotation') .. '##artKeyRot-' .. keyId,
+                            {keyEuler.x, keyEuler.y, keyEuler.z},
+                            0.5, -360.0, 360.0, '%.2f', 0)
+                        tImGui.PopItemWidth()
+                        articulatedTooltip('articulated_key_rotation_tooltip')
+                        if rotChanged and rot then
+                            for axis = 1, 3 do
+                                rot[axis] = math.max(-360.0, math.min(360.0, rot[axis] or 0))
+                            end
+                            keyEuler.x = rot[1] or keyEuler.x
+                            keyEuler.y = rot[2] or keyEuler.y
+                            keyEuler.z = rot[3] or keyEuler.z
+                            qx, qy, qz, qw = articulatedQuaternionFromOrbit({
+                                elevation = -keyEuler.x * math.pi / 180,
+                                azimuth = keyEuler.y * math.pi / 180,
+                                roll = keyEuler.z * math.pi / 180
+                            })
+                            keyEuler.qSignature = string.format('%.7f:%.7f:%.7f:%.7f', qx, qy, qz, qw)
+                            keyEuler.authoredEulerSignature = string.format('%.7f:%.7f:%.7f',
+                                keyEuler.x, keyEuler.y, keyEuler.z)
+                        end
+                        tImGui.PushItemWidth(220)
+                        local scaleChanged, scale = tImGui.DragFloat3('Scale##artKeyScale-' .. keyId,
+                            {sx or 1, sy or 1, sz or 1},
+                            0.01, -math.huge, math.huge, '%.3f', 0)
+                        tImGui.PopItemWidth()
+                        if easingChanged and newEasingIndex and newEasingIndex > 0 then
+                            local okEasing = dpCall(function()
+                                return meshD:setArticulatedKeyEasing(activeClip, trackIndex, keyIndex, newEasing)
+                            end)
+                            if okEasing then markArticulatedEdit() end
+                        end
+                        if bezierChanged then
+                            local okBezier = dpCall(function()
+                                return meshD:setArticulatedKeyBezier(activeClip, trackIndex, keyIndex,
+                                    newBezierX1, newBezierY1, newBezierX2, newBezierY2)
+                            end)
+                            if okBezier then markArticulatedEdit() end
+                        end
+                        if posChanged or rotChanged or scaleChanged then
+                            local p = pos or {px or 0, py or 0, pz or 0}
+                            local r = {qx or 0, qy or 0, qz or 0}
+                            local s = scale or {sx or 1, sy or 1, sz or 1}
+                            local okUpdate = dpCall(function()
+                                return meshD:updateArticulatedKey(activeClip, trackIndex, keyIndex,
+                                    timeChanged and math.max(0, newTime or keyTime) or keyTime,
+                                    p[1], p[2], p[3], r[1], r[2], r[3], qw or 1,
+                                    s[1], s[2], s[3])
+                            end)
+                            if okUpdate then
+                                if rotChanged then
+                                    dpCall(function()
+                                        return meshD:setArticulatedKeyEuler(activeClip, trackIndex,
+                                            timeChanged and math.max(0, newTime or keyTime) or keyTime,
+                                            keyEuler.x, keyEuler.y, keyEuler.z)
+                                    end)
+                                end
+                                markArticulatedEdit()
+                            end
+                        elseif timeChanged then
+                            local okTime = dpCall(function()
+                                return meshD:updateArticulatedKey(activeClip, trackIndex, keyIndex,
+                                    math.max(0, newTime or keyTime), px or 0, py or 0, pz or 0,
+                                    qx or 0, qy or 0, qz or 0, qw or 1, sx or 1, sy or 1, sz or 1)
+                            end)
+                            if okTime then markArticulatedEdit() end
+                        end
+                        tImGui.PopID()
+                    end
+                end
+                tImGui.PopID()
+            end
+        end
+        if not selectedTrackIndex then
+            tImGui.TextDisabled(tLang.L('articulated_add_key_hint'))
+        end
+    end
+    tImGui.TreePop()
+end
+
+function articulatedQuaternionFromOrbit(orbit)
+    local halfYaw = (orbit.azimuth or 0) * 0.5
+    local halfPitch = -(orbit.elevation or 0) * 0.5
+    local halfRoll = (orbit.roll or 0) * 0.5
+    local sy, cy = math.sin(halfYaw), math.cos(halfYaw)
+    local sx, cx = math.sin(halfPitch), math.cos(halfPitch)
+    local sz, cz = math.sin(halfRoll), math.cos(halfRoll)
+    -- q = yaw(Y) * pitch(X) * roll(Z), using x/y/z/w quaternion storage.
+    local qx, qy, qz, qw = 0, sy, 0, cy
+    local px, py, pz, pw = sx, 0, 0, cx
+    local ax = qw * px + qx * pw + qy * pz - qz * py
+    local ay = qw * py - qx * pz + qy * pw + qz * px
+    local az = qw * pz + qx * py - qy * px + qz * pw
+    local aw = qw * pw - qx * px - qy * py - qz * pz
+    return ax * cz + ay * sz, ay * cz - ax * sz, az * cz + aw * sz, aw * cz - az * sz
+end
+
+function articulatedOrbitFromQuaternion(qx, qy, qz, qw)
+    qx, qy, qz, qw = qx or 0, qy or 0, qz or 0, qw or 1
+    local m02 = 2 * (qx * qz + qy * qw)
+    local m12 = 2 * (qy * qz - qx * qw)
+    local m22 = 1 - 2 * (qx * qx + qy * qy)
+    local m10 = 2 * (qx * qy + qz * qw)
+    local m11 = 1 - 2 * (qx * qx + qz * qz)
+    local azimuth = math.atan(m02, m22)
+    local elevation = -math.asin(math.max(-1, math.min(1, m12)))
+    local roll = math.atan(m10, m11)
+    return {
+        azimuth = azimuth,
+        elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, elevation)),
+        roll = roll,
+    }
+end
+
+function showArticulatedPivotWindow()
+    local index = iSelectedMeshIndex
+    local tEntry = tLoadedMeshes[index]
+    if not tEntry or not tEntry.bArticulatedPivotWindow or tEntry.sOpenNode ~= 'articulated' then
+        return
+    end
+    local meshD = tEntry.meshDebug
+    local okTotal, totalParts = dpCall(function() return meshD:getTotalArticulatedParts() end)
+    totalParts = (okTotal and totalParts) or 0
+    if totalParts == 0 then
+        tEntry.bArticulatedPivotWindow = false
+        return
+    end
+    tEntry.iArticulatedPart = math.max(1, math.min(tEntry.iArticulatedPart or 1, totalParts))
+    local ok, partId, frame, subset, name, px, py, pz, qx, qy, qz, qw, parent = dpCall(function()
+        return meshD:getArticulatedPart(tEntry.iArticulatedPart)
+    end)
+    if not ok or not partId then return end
+
+    local iW, iH = mbm.getRealSizeScreen()
+    local winW, winH = 360, 470
+    local winX = math.min(iW - winW - 10, (iLoadedMeshesWindowWidth or 520) + 10)
+    tImGui.SetNextWindowPos({x = math.max(0, winX), y = math.max(30, iH - winH - 20)},
+        tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSize({x = winW, y = winH}, tImGui.Flags('ImGuiCond_Once'))
+    local opened, closed = tImGui.Begin('Articulated Pivot Gizmo##artPivotWindow', true,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if closed then tEntry.bArticulatedPivotWindow = false end
+    if not opened then
+        tImGui.End()
+        return
+    end
+
+    tImGui.Text(string.format('Part %s  F%d S%d', tostring(partId), frame or 0, subset or 0))
+    tImGui.Text(name or '')
+    local quaternionSignature = string.format('%.7f:%.7f:%.7f:%.7f', qx or 0, qy or 0, qz or 0, qw or 1)
+    if tEntry.tArticulatedPivotOrbitPartId ~= partId or
+        tEntry.sArticulatedPivotQuaternionSignature ~= quaternionSignature then
+        tEntry.tArticulatedPivotOrbit = articulatedOrbitFromQuaternion(qx, qy, qz, qw)
+        tEntry.tArticulatedPivotOrbitPartId = partId
+        tEntry.sArticulatedPivotQuaternionSignature = quaternionSignature
+    end
+    tEntry.tArticulatedPivotOrbit = tEntry.tArticulatedPivotOrbit or {azimuth = 0.3, elevation = 0.3}
+    local orbitChanged = tUtil.drawOrbitGizmo(tEntry.tArticulatedPivotOrbit, {size = 130})
+    if orbitChanged then
+        qx, qy, qz, qw = articulatedQuaternionFromOrbit(tEntry.tArticulatedPivotOrbit)
+        local okUpdate = dpCall(function()
+            return meshD:updateArticulatedPart(tEntry.iArticulatedPart, name or '',
+                px or 0, py or 0, pz or 0, qx, qy, qz, qw, parent or 0)
+        end)
+        if okUpdate then
+            tEntry.modified = true
+            tEntry.sArticulatedPivotQuaternionSignature = string.format('%.7f:%.7f:%.7f:%.7f',
+                qx, qy, qz, qw)
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        end
+    end
+    tImGui.PushItemWidth(180)
+    local eulerChanged, euler = tImGui.DragFloat3('Euler (deg)##artPivotEuler-' .. index,
+        {-(tEntry.tArticulatedPivotOrbit.elevation or 0) * 180 / math.pi,
+            (tEntry.tArticulatedPivotOrbit.azimuth or 0) * 180 / math.pi,
+            (tEntry.tArticulatedPivotOrbit.roll or 0) * 180 / math.pi},
+        0.5, -360, 360, '%.2f', 0)
+    tImGui.PopItemWidth()
+    if eulerChanged and euler then
+        tEntry.tArticulatedPivotOrbit.elevation = -(euler[1] or 0) * math.pi / 180
+        tEntry.tArticulatedPivotOrbit.azimuth = (euler[2] or 0) * math.pi / 180
+        tEntry.tArticulatedPivotOrbit.roll = (euler[3] or 0) * math.pi / 180
+        qx, qy, qz, qw = articulatedQuaternionFromOrbit(tEntry.tArticulatedPivotOrbit)
+        local okUpdate = dpCall(function()
+            return meshD:updateArticulatedPart(tEntry.iArticulatedPart, name or '',
+                px or 0, py or 0, pz or 0, qx, qy, qz, qw, parent or 0)
+        end)
+        if okUpdate then
+            tEntry.modified = true
+            tEntry.sArticulatedPivotQuaternionSignature = string.format('%.7f:%.7f:%.7f:%.7f',
+                qx, qy, qz, qw)
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        end
+    end
+    tImGui.Separator()
+    tImGui.PushItemWidth(220)
+    local posChanged, pos = tImGui.DragFloat3('Pivot Position##artPivotWindowPos-' .. index,
+        {px or 0, py or 0, pz or 0}, 0.01, -math.huge, math.huge, '%.3f', 0)
+    tImGui.PopItemWidth()
+    tImGui.PushItemWidth(220)
+    local rotChanged, rot = tImGui.DragFloat3('Pivot Quaternion##artPivotWindowRot-' .. index,
+        {qx or 0, qy or 0, qz or 0}, 0.01, -1, 1, '%.3f', 0)
+    tImGui.PopItemWidth()
+    tImGui.PushItemWidth(105)
+    local wChanged, newQw = tImGui.InputFloat('Pivot QW##artPivotWindowQw-' .. index,
+        qw or 1, 0.01, 0.1, '%.3f', 0)
+    tImGui.PopItemWidth()
+    if posChanged or rotChanged or wChanged then
+        local p = pos or {px or 0, py or 0, pz or 0}
+        local r = rot or {qx or 0, qy or 0, qz or 0}
+        local okUpdate = dpCall(function()
+            return meshD:updateArticulatedPart(tEntry.iArticulatedPart, name or '',
+                p[1], p[2], p[3], r[1], r[2], r[3], newQw or qw or 1, parent or 0)
+        end)
+        if okUpdate then
+            tEntry.modified = true
+            tEntry.tArticulatedPivotOrbit = articulatedOrbitFromQuaternion(r[1], r[2], r[3], newQw or qw or 1)
+            tEntry.tArticulatedPivotOrbitPartId = partId
+            tEntry.sArticulatedPivotQuaternionSignature = string.format('%.7f:%.7f:%.7f:%.7f',
+                r[1], r[2], r[3], newQw or qw or 1)
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        end
+    end
+    tImGui.TextDisabled(tLang.L('articulated_pivot_gizmo_hint'))
+    tImGui.End()
 end
 
 -- Just the per-bone table (name/parent/x/y/z/radius/length/highlight/remove) in its own
@@ -6893,6 +7868,490 @@ function showBonesWindow()
 end
 
 -- ---------------------------------------------------------------------------
+-- Split capture: an axis-aligned 3D volume used to extract triangle groups.
+-- The volume is deliberately only evaluated when Start Capture is turned off;
+-- dragging/resizing it never mutates mesh data.
+-- ---------------------------------------------------------------------------
+function splitCaptureSetObjectPosition(obj, t)
+    if not obj then return end
+    obj.x, obj.y, obj.z = t.x, t.y, t.z
+end
+
+function splitCaptureMoveBox(t)
+    splitCaptureSetObjectPosition(t.tShape, t)
+    splitCaptureSetObjectPosition(t.tLine, t)
+    for _, overlay in pairs(t.tAxisEdgeLines or {}) do splitCaptureSetObjectPosition(overlay, t) end
+    for _, overlay in pairs(t.tAxisFaceShapes or {}) do splitCaptureSetObjectPosition(overlay, t) end
+    local hw, hh, hd = math.max(t.width, 0.01) * 0.5,
+                       math.max(t.height, 0.01) * 0.5,
+                       math.max(t.depth, 0.01) * 0.5
+    t.aabbMin = {x=t.x-hw, y=t.y-hh, z=t.z-hd}
+    t.aabbMax = {x=t.x+hw, y=t.y+hh, z=t.z+hd}
+end
+
+function splitCaptureBuildBox(t)
+    if t.tShape then t.tShape:destroy(); t.tShape = nil end
+    if t.tLine then t.tLine:destroy(); t.tLine = nil end
+    for _, overlay in pairs(t.tAxisEdgeLines or {}) do overlay:destroy() end
+    for _, overlay in pairs(t.tAxisFaceShapes or {}) do overlay:destroy() end
+    t.tAxisEdgeLines, t.tAxisFaceShapes = {}, {}
+    local hw, hh, hd = math.max(t.width, 0.01) * 0.5,
+                       math.max(t.height, 0.01) * 0.5,
+                       math.max(t.depth, 0.01) * 0.5
+    local corners = {
+        {x=-hw,y=-hh,z= hd}, {x=-hw,y= hh,z= hd}, {x= hw,y= hh,z= hd}, {x= hw,y=-hh,z= hd},
+        {x=-hw,y=-hh,z=-hd}, {x=-hw,y= hh,z=-hd}, {x= hw,y= hh,z=-hd}, {x= hw,y=-hh,z=-hd},
+    }
+    local faces = {
+        {1,2,3},{1,3,4},{5,7,6},{5,8,7},
+        {5,6,2},{5,2,1},{4,3,7},{4,7,8},
+        {2,6,7},{2,7,3},{5,1,4},{5,4,8},
+    }
+    local verts = {}
+    for _, tri in ipairs(faces) do
+        for _, idx in ipairs(tri) do
+            local p = corners[idx]
+            table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z)
+        end
+    end
+    local name = 'mesh_debug_split_capture_' .. tostring(os.clock())
+    t.tShape = shape:new('3d', t.x, t.y, t.z)
+    t.tShape:create(verts, nil, name)
+    t.tShape:setColor(1, 0.65, 0.05, 0.12)
+    t.tShape.alwaysOnTop = true
+    -- drawBounding() generates local coordinates, so the outline must share
+    -- the capture volume's world-space center.
+    t.tLine = line:new('3d', t.x, t.y, t.z)
+    t.tLine:drawBounding(t.tShape, false)
+    t.tLine:setColor(1, 0.75, 0.1)
+
+    -- Hover overlays are built together with the capture box, then only their
+    -- visibility changes per frame. This avoids allocating render objects while
+    -- the mouse moves across the six controls.
+    local axisColors = {
+        x = {1.0, 0.1, 0.8}, -- magenta
+        y = {0.1, 1.0, 1.0}, -- cyan
+        z = {0.8, 1.0, 0.1}, -- lime
+    }
+    local axisEdges = {
+        x = {{1,4},{2,3},{5,8},{6,7}},
+        y = {{1,2},{4,3},{5,6},{8,7}},
+        z = {{1,5},{2,6},{3,7},{4,8}},
+    }
+    local axisFaces = {
+        x = {{5,6,2},{5,2,1},{4,3,7},{4,7,8}},
+        y = {{2,6,7},{2,7,3},{5,1,4},{5,4,8}},
+        z = {{1,2,3},{1,3,4},{5,7,6},{5,8,7}},
+    }
+    for _, axis in ipairs({'x', 'y', 'z'}) do
+        local edgeLine = line:new('3d', t.x, t.y, t.z)
+        for _, edge in ipairs(axisEdges[axis]) do
+            local edgeVertices = {}
+            for _, cornerIndex in ipairs(edge) do
+                local p = corners[cornerIndex]
+                table.insert(edgeVertices, p.x)
+                table.insert(edgeVertices, p.y)
+                table.insert(edgeVertices, p.z)
+            end
+            -- Each add() is its own LINE_STRIP. Keeping one strip per edge
+            -- prevents diagonal connector segments between parallel edges.
+            edgeLine:add(edgeVertices)
+        end
+        edgeLine:setColor(axisColors[axis][1], axisColors[axis][2], axisColors[axis][3], 1)
+        edgeLine.alwaysOnTop = true
+        edgeLine.visible = false
+        t.tAxisEdgeLines[axis] = edgeLine
+
+        local faceVertices = {}
+        for _, tri in ipairs(axisFaces[axis]) do
+            for _, cornerIndex in ipairs(tri) do
+                local p = corners[cornerIndex]
+                table.insert(faceVertices, p.x)
+                table.insert(faceVertices, p.y)
+                table.insert(faceVertices, p.z)
+            end
+        end
+        local faceShape = shape:new('3d', t.x, t.y, t.z)
+        faceShape:create(faceVertices, nil, name .. '_hover_face_' .. axis)
+        faceShape:setColor(axisColors[axis][1], axisColors[axis][2], axisColors[axis][3], 0.32)
+        faceShape.alwaysOnTop = true
+        faceShape.visible = false
+        t.tAxisFaceShapes[axis] = faceShape
+    end
+    -- Assign all coordinates explicitly after creation. Center-only edits use
+    -- this same path without destroying or recreating any render object.
+    splitCaptureMoveBox(t)
+end
+
+function splitCaptureSetHover(t, kind, axis)
+    for name, overlay in pairs(t.tAxisEdgeLines or {}) do
+        overlay.visible = kind == 'center' and name == axis
+    end
+    for name, overlay in pairs(t.tAxisFaceShapes or {}) do
+        overlay.visible = kind == 'size' and name == axis
+    end
+end
+
+function splitCaptureRayHitsAABB(ox, oy, oz, dx, dy, dz, minX, minY, minZ, maxX, maxY, maxZ)
+    local tmin, tmax = -math.huge, math.huge
+    local function slab(o, d, mn, mx)
+        if math.abs(d) < 1e-9 then return o >= mn and o <= mx end
+        local a, b = (mn-o)/d, (mx-o)/d
+        if a > b then a, b = b, a end
+        tmin, tmax = math.max(tmin, a), math.min(tmax, b)
+        return tmin <= tmax
+    end
+    return slab(ox,dx,minX,maxX) and slab(oy,dy,minY,maxY) and slab(oz,dz,minZ,maxZ) and tmax >= 0
+end
+
+function splitCaptureDestroy(t)
+    if not t then return end
+    if t.tShape then t.tShape:destroy(); t.tShape = nil end
+    if t.tLine then t.tLine:destroy(); t.tLine = nil end
+    for _, overlay in pairs(t.tAxisEdgeLines or {}) do overlay:destroy() end
+    for _, overlay in pairs(t.tAxisFaceShapes or {}) do overlay:destroy() end
+    t.tAxisEdgeLines, t.tAxisFaceShapes = nil, nil
+end
+
+function splitCaptureSignature(vertices, indices, texture)
+    local h = 2166136261
+    local function add(v)
+        h = (h * 16777619 + (tonumber(v) or 0) * 1000) % 2147483647
+    end
+    add(texture and #texture or 0)
+    for _, v in ipairs(vertices or {}) do
+        add(v.x); add(v.y); add(v.z); add(v.nx); add(v.ny); add(v.nz); add(v.u); add(v.v)
+    end
+    for _, i in ipairs(indices or {}) do add(i) end
+    return tostring(math.floor(h)) .. ':' .. tostring(#vertices) .. ':' .. tostring(#indices)
+end
+
+function splitCaptureGroup(vertices, triangles)
+    local outVertices, outIndices, remap = {}, {}, {}
+    for _, tri in ipairs(triangles) do
+        for _, oldIndex in ipairs(tri) do
+            local newIndex = remap[oldIndex]
+            if not newIndex then
+                newIndex = #outVertices + 1
+                remap[oldIndex] = newIndex
+                outVertices[newIndex] = vertices[oldIndex]
+            end
+            table.insert(outIndices, newIndex)
+        end
+    end
+    return outVertices, outIndices
+end
+
+function splitCaptureSetSubsetTextures(meshD, frame, subset, texture, materialTextures)
+    meshD:setTexture(frame, subset, texture or '')
+    for role, value in pairs(materialTextures or {}) do
+        meshD:setMaterialTexture(frame, subset, role, value or '')
+    end
+end
+
+function splitCaptureGetSubsetSignature(meshD, frame, subset)
+    local okV, nVertices = dpCall(function() return meshD:getTotalVertex(frame, subset) end)
+    if not okV or not nVertices then return nil end
+    local vertices = {}
+    for v = 1, nVertices do
+        local ok, value = dpCall(function() return meshD:getVertex(frame, subset, v) end)
+        if not ok or not value then return nil end
+        vertices[v] = value
+    end
+    local okI, nIndices = dpCall(function() return meshD:getTotalIndex(frame, subset) end)
+    local indices = {}
+    if okI and nIndices and nIndices > 0 then
+        local ok, value = dpCall(function() return meshD:getIndex(frame, subset) end)
+        indices = (ok and value) or {}
+    else
+        for i = 1, nVertices do indices[i] = i end
+    end
+    local okT, texture = dpCall(function() return meshD:getTexture(frame, subset) end)
+    return splitCaptureSignature(vertices, indices, okT and texture or '')
+end
+
+function splitCaptureMesh(tEntry, meshD, box)
+    tEntry.tSplitCapturedSignatures = tEntry.tSplitCapturedSignatures or {}
+    -- addVertex() necessarily allocates a normal buffer while rebuilding subsets. Remember the
+    -- source characteristic so a mesh authored without normals does not silently become a
+    -- zero-normal, lighting-enabled mesh after Split.
+    local sourceHadNormals = tEntry.info and tEntry.info.hasNormal == true
+    local sourceNormalStateKnown = tEntry.info and tEntry.info.hasNormal ~= nil
+    local capturedFaces, capturedFrames = 0, 0
+    local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    if not okF or not nFrames then return 0, 0 end
+
+    for f = 1, nFrames do
+        local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+        if okS and nSubsets then
+            for s = nSubsets, 1, -1 do
+                -- A disabled subset is intentionally invisible in the Frame node and must not
+                -- participate in a later split capture.
+                if (tEntry.tCheckedRemove or {})[f * 100 + s] ~= false then
+                local okV, nVertices = dpCall(function() return meshD:getTotalVertex(f, s) end)
+                local okI, nIndices = dpCall(function() return meshD:getTotalIndex(f, s) end)
+                if okV and nVertices and nVertices > 0 then
+                    local vertices, indices = {}, {}
+                    for v = 1, nVertices do
+                        local ok, value = dpCall(function() return meshD:getVertex(f, s, v) end)
+                        if not ok or not value then vertices = nil; break end
+                        vertices[v] = value
+                    end
+                    if vertices then
+                        if okI and nIndices and nIndices > 0 then
+                            local ok, value = dpCall(function() return meshD:getIndex(f, s) end)
+                            indices = (ok and value) or {}
+                        else
+                            for i = 1, nVertices do indices[i] = i end
+                        end
+                        local okT, texture = dpCall(function() return meshD:getTexture(f, s) end)
+                        texture = okT and texture or ''
+                        local materialTextures = {}
+                        for _, role in ipairs({'normal', 'specular', 'emissive', 'mask'}) do
+                            local okM, value = dpCall(function() return meshD:getMaterialTexture(f, s, role) end)
+                            if okM and value and value ~= '' then materialTextures[role] = value end
+                        end
+                        local signature = splitCaptureSignature(vertices, indices, texture)
+                        local sourceKey = tostring(f) .. ':' .. signature
+                        if not tEntry.tSplitCapturedSignatures[sourceKey] then
+                            local inside, outside = {}, {}
+                            for i = 1, #indices - 2, 3 do
+                                local ia, ib, ic = indices[i], indices[i+1], indices[i+2]
+                                local a, b, c = vertices[ia], vertices[ib], vertices[ic]
+                                if a and b and c then
+                                    local cx, cy, cz = (a.x+b.x+c.x)/3, (a.y+b.y+c.y)/3, (a.z+b.z+c.z)/3
+                                    local target = (cx >= box.aabbMin.x and cx <= box.aabbMax.x and
+                                                    cy >= box.aabbMin.y and cy <= box.aabbMax.y and
+                                                    cz >= box.aabbMin.z and cz <= box.aabbMax.z) and inside or outside
+                                    table.insert(target, {ia, ib, ic})
+                                end
+                            end
+                            if #inside > 0 then
+                                local outsideV, outsideI = splitCaptureGroup(vertices, outside)
+                                local insideV, insideI = splitCaptureGroup(vertices, inside)
+                                dpCall(function() meshD:removeSubset(f, s) end)
+                                if #outsideI > 0 then
+                                    local newS = meshD:addSubSet(f)
+                                    meshD:addVertex(f, newS, outsideV)
+                                    meshD:addIndex(f, newS, outsideI)
+                                    splitCaptureSetSubsetTextures(meshD, f, newS, texture, materialTextures)
+                                end
+                                local newS = meshD:addSubSet(f)
+                                meshD:addVertex(f, newS, insideV)
+                                meshD:addIndex(f, newS, insideI)
+                                splitCaptureSetSubsetTextures(meshD, f, newS, texture, materialTextures)
+                                tEntry.tSplitCapturedSignatures[tostring(f) .. ':' .. splitCaptureSignature(insideV, insideI, texture)] = true
+                                capturedFaces = capturedFaces + #inside
+                                capturedFrames = capturedFrames + 1
+                            end
+                        end
+                    end
+                end
+                end
+            end
+        end
+    end
+    if capturedFrames > 0 and sourceNormalStateKnown and not sourceHadNormals then
+        meshD:removeNormals()
+        tEntry.info.hasNormal = false
+    end
+    return capturedFaces, capturedFrames
+end
+
+function saveCapturedSplitAs(tEntry)
+    local captured = tEntry.tSplitCapturedSignatures or {}
+    if next(captured) == nil then
+        tUtil.showMessageWarn('No captured groups to save.')
+        return
+    end
+    local newFile = mbm.saveFile(sLastMeshPath, 'msh')
+    if not newFile or newFile == '' then return end
+
+    local sourceD = tEntry.meshDebug
+    local tempPath
+    local sourceForCopy = sourceD
+    if tEntry.modified then
+        tempPath = os.tmpname() .. '.msh'
+        if not sourceD:save(tempPath, false, false) then
+            tUtil.showMessageWarn('Could not prepare captured groups for saving.')
+            return
+        end
+        sourceForCopy = meshDebug:new()
+        if not sourceForCopy:load(tempPath) then
+            meshDebug:fakeRelease(tempPath)
+            os.remove(tempPath)
+            tUtil.showMessageWarn('Could not reload captured groups for saving.')
+            return
+        end
+        meshDebug:fakeRelease(tempPath)
+        os.remove(tempPath)
+    else
+        sourceForCopy = meshDebug:new()
+        if not sourceForCopy:load(tEntry.fileName) then
+            tUtil.showMessageWarn('Could not load mesh for captured-group save.')
+            return
+        end
+    end
+
+    local okF, nFrames = dpCall(function() return sourceForCopy:getTotalFrame() end)
+    local keepFrame, oldToNew = {}, {}
+    local newFrame = 0
+    for f = 1, (okF and nFrames or 0) do
+        local okS, nSubsets = dpCall(function() return sourceForCopy:getTotalSubset(f) end)
+        local hasCaptured = false
+        for s = 1, (okS and nSubsets or 0) do
+            local signature = splitCaptureGetSubsetSignature(sourceForCopy, f, s)
+            if signature and captured[tostring(f) .. ':' .. signature] then hasCaptured = true; break end
+        end
+        if hasCaptured then
+            newFrame = newFrame + 1
+            keepFrame[f], oldToNew[f] = true, newFrame
+        end
+    end
+    if newFrame == 0 then
+        sourceForCopy = nil -- meshDebug userdata is released by Lua GC; it has no :destroy() method
+        tUtil.showMessageWarn('No captured groups remain to save.')
+        return
+    end
+
+    local nAnim = (tEntry.info and tEntry.info.animation) or 0
+    for i = nAnim, 1, -1 do
+        local ok, name, initial, final, time, typ = dpCall(function() return sourceForCopy:getAnim(i) end)
+        if ok and name and initial and final then
+            local newInitial, newFinal
+            for f = initial, final do
+                if oldToNew[f] then
+                    newInitial = newInitial or oldToNew[f]
+                    newFinal = oldToNew[f]
+                end
+            end
+            if not newInitial then sourceForCopy:removeAnim(i)
+            else sourceForCopy:updateAnim(i, name, newInitial, newFinal, time or 0.1, typ or 0) end
+        end
+    end
+
+    for f = (okF and nFrames or 0), 1, -1 do
+        if keepFrame[f] then
+            local okS, nSubsets = dpCall(function() return sourceForCopy:getTotalSubset(f) end)
+            for s = (okS and nSubsets or 0), 1, -1 do
+                local signature = splitCaptureGetSubsetSignature(sourceForCopy, f, s)
+                if not (signature and captured[tostring(f) .. ':' .. signature]) then
+                    sourceForCopy:removeSubset(f, s)
+                end
+            end
+        else
+            sourceForCopy:removeFrame(f)
+        end
+    end
+
+    local okSave = sourceForCopy:save(newFile, false, false)
+    sourceForCopy = nil -- meshDebug userdata is released by Lua GC; it has no :destroy() method
+    if okSave then
+        sLastMeshPath = newFile
+        tUtil.showMessage('Captured groups saved: ' .. tUtil.getShortName(newFile), 5)
+    else
+        tUtil.showMessageWarn('Could not save captured groups.')
+    end
+end
+
+function showSplitCapture(tEntry, meshD, index)
+    local sp = tEntry.tSplitCapture
+    if not sp then return end
+    tImGui.Separator()
+    tImGui.Text('Split')
+    local oldActive = sp.active == true
+    local newActive = tImGui.Checkbox('Start Capture##splitCapture-' .. index, oldActive)
+    sp.active = newActive
+    if newActive and not oldActive then
+        if not sp.initialized then
+            local aabb = computeMeshAABB(meshD)
+            local cx = aabb and (aabb.minX + aabb.maxX) * 0.5 or 0
+            local cy = aabb and (aabb.minY + aabb.maxY) * 0.5 or 0
+            local cz = aabb and (aabb.minZ + aabb.maxZ) * 0.5 or 0
+            sp.x, sp.y, sp.z = cx, cy, cz
+            sp.width = math.max(aabb and (aabb.maxX - aabb.minX) * 0.25 or 100, 1)
+            sp.height = math.max(aabb and (aabb.maxY - aabb.minY) * 0.25 or 100, 1)
+            sp.depth = math.max(aabb and (aabb.maxZ - aabb.minZ) * 0.25 or 100, 1)
+            sp.initialized = true
+        end
+        splitCaptureBuildBox(sp)
+        tEntry.sSplitDragging = nil
+        sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
+    elseif not newActive and oldActive then
+        local faces, frames = splitCaptureMesh(tEntry, meshD, sp)
+        splitCaptureDestroy(sp)
+        tEntry.sSplitDragging = nil
+        sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
+        sp.lastFaces, sp.lastFrames = faces, frames
+        if faces > 0 then
+            tEntry.modified = true
+            tEntry.bNormalsVizDirty = true
+            tEntry.bPhysicsVizDirty = true
+            iLastPreviewedIndex = 0
+            table.insert(tEntry.tSplitCaptures, {faces=faces, frames=frames, x=sp.x, y=sp.y, z=sp.z, width=sp.width, height=sp.height, depth=sp.depth})
+            tUtil.showMessage(string.format('Split capture: %d face(s) in %d frame(s).', faces, frames), 5)
+        else
+            tUtil.showMessage('Split capture: no faces found inside the cube.', 4)
+        end
+    end
+    if sp.active then
+        local hoverKind, hoverAxis = nil, nil
+        -- Keep numeric dragging perceptible for both tiny and very large imports.
+        local dragSpeed = math.max(math.max(sp.width, sp.height, sp.depth) * 0.0025, 0.01)
+        tImGui.Text('Center')
+        tImGui.PushItemWidth(120)
+        local changedX, x = tImGui.DragFloat('X##splitCenterX-' .. index, sp.x, dragSpeed, 0, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'center', 'x' end
+        tImGui.SameLine()
+        local changedY, y = tImGui.DragFloat('Y##splitCenterY-' .. index, sp.y, dragSpeed, 0, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'center', 'y' end
+        tImGui.SameLine()
+        local changedZ, z = tImGui.DragFloat('Z##splitCenterZ-' .. index, sp.z, dragSpeed, 0, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'center', 'z' end
+        tImGui.PopItemWidth()
+
+        tImGui.Text('Size')
+        tImGui.PushItemWidth(120)
+        local changedW, width = tImGui.DragFloat('X##splitSizeX-' .. index, sp.width, dragSpeed, 0.01, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'size', 'x' end
+        tImGui.SameLine()
+        local changedH, height = tImGui.DragFloat('Y##splitSizeY-' .. index, sp.height, dragSpeed, 0.01, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'size', 'y' end
+        tImGui.SameLine()
+        local changedD, depth = tImGui.DragFloat('Z##splitSizeZ-' .. index, sp.depth, dragSpeed, 0.01, 0, '%.2f')
+        if tImGui.IsItemHovered(0) then hoverKind, hoverAxis = 'size', 'z' end
+        tImGui.PopItemWidth()
+
+        local centerChanged = changedX or changedY or changedZ
+        local sizeChanged = changedW or changedH or changedD
+        if centerChanged or sizeChanged then
+            tEntry.sSplitDragging = nil
+            sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
+            sp.x, sp.y, sp.z = changedX and x or sp.x, changedY and y or sp.y, changedZ and z or sp.z
+            sp.width = changedW and math.max(width, 0.01) or sp.width
+            sp.height = changedH and math.max(height, 0.01) or sp.height
+            sp.depth = changedD and math.max(depth, 0.01) or sp.depth
+            if sizeChanged then
+                splitCaptureBuildBox(sp)
+            else
+                splitCaptureMoveBox(sp)
+            end
+        end
+        splitCaptureSetHover(sp, hoverKind, hoverAxis)
+        if sp.lastFaces then tImGui.Text(string.format('Last capture: %d face(s)', sp.lastFaces)) end
+    end
+    if tEntry.tSplitCaptures and #tEntry.tSplitCaptures > 0 then
+        tImGui.Text('Captured groups: ' .. tostring(#tEntry.tSplitCaptures))
+        for i, cap in ipairs(tEntry.tSplitCaptures) do
+            tImGui.Text(string.format('%d: %d face(s), %d frame(s)', i, cap.faces, cap.frames))
+        end
+        if tImGui.Button(tLang.L('save_captured_as') .. '##saveCaptured-' .. index) then
+            saveCapturedSplitAs(tEntry)
+        end
+    end
+end
+
+-- ---------------------------------------------------------------------------
 -- Frame tree node: view/queue removals, open Frame Pick
 -- ---------------------------------------------------------------------------
 function showFrameNode(tEntry, meshD, index)
@@ -6915,8 +8374,24 @@ function showFrameNode(tEntry, meshD, index)
         local okS, nSubs = dpCall(function() return meshD:getTotalSubset(f) end)
         for s = 1, (okS and nSubs or 0) do
             local okT, tex = dpCall(function() return meshD:getTexture(f, s) end)
+            local okV, vertexCount = dpCall(function() return meshD:getTotalVertex(f, s) end)
             local texName = (okT and tex and tex ~= '') and (' [' .. tUtil.getShortName(tex) .. ']') or ''
-            table.insert(allSubsets, {f=f, s=s, texName=texName})
+            table.insert(allSubsets, {
+                f = f,
+                s = s,
+                texName = texName,
+                vertexCount = okV and vertexCount or nil,
+            })
+        end
+    end
+    -- Newly-created subsets (including split-capture outputs) have no entry yet in the
+    -- visibility table. Missing means visible by default; only an explicit false disables it.
+    for f = 1, nFrames do
+        if tEntry.tCheckedRemove[f * 100] == nil then tEntry.tCheckedRemove[f * 100] = true end
+        local okS, nSubs = dpCall(function() return meshD:getTotalSubset(f) end)
+        for s = 1, (okS and nSubs or 0) do
+            local key = f * 100 + s
+            if tEntry.tCheckedRemove[key] == nil then tEntry.tCheckedRemove[key] = true end
         end
     end
 
@@ -6937,6 +8412,7 @@ function showFrameNode(tEntry, meshD, index)
     local listH      = math.min((nFrames + #allSubsets) * 22 + 8, 300)
     local tblFlags   = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_ScrollY')
     local frameSelChanged = false
+    local requestedSubsetMove = nil
 
     -- Precompute: which frames have at least one subset staged for removal
     local tImplicit = {}
@@ -6946,10 +8422,14 @@ function showFrameNode(tEntry, meshD, index)
         end
     end
 
-    if tImGui.BeginTable('fnOuter-' .. index, 2, tblFlags, {x=0, y=listH}) then
+    if tImGui.BeginTable('fnOuter-' .. index, 4, tblFlags, {x=0, y=listH}) then
         tImGui.TableSetupScrollFreeze(0, 1)
-        tImGui.TableSetupColumn(tLang.L('frame_node'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.4)
-        tImGui.TableSetupColumn(tLang.L('subsets'),   tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.6)
+        tImGui.TableSetupColumn(tLang.L('frame_node'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.35)
+        tImGui.TableSetupColumn(tLang.L('subsets'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.65)
+        tImGui.TableSetupColumn(tLang.L('subset_vertices'),
+            tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 64)
+        tImGui.TableSetupColumn(tLang.L('move_subset_up'),
+            tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 48)
         tImGui.TableHeadersRow()
 
         for f = 1, nFrames do
@@ -6988,6 +8468,22 @@ function showFrameNode(tEntry, meshD, index)
                 end
             end
 
+            local function renderMoveSubsetUp(sub)
+                if sub.s <= 1 or pendingFrames[f] then
+                    tImGui.TextDisabled('-')
+                    return
+                end
+                if tImGui.ArrowButton('##fnMoveUp-' .. index .. '-' .. sub.f .. '-' .. sub.s,
+                                      tImGui.Flags('ImGuiDir_Up')) then
+                    requestedSubsetMove = {frame = sub.f, subset = sub.s}
+                end
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('move_subset_up_tooltip'))
+                    tImGui.EndTooltip()
+                end
+            end
+
             -- ── First row of this frame group ────────────────────────────
             tImGui.TableNextRow()
             tImGui.TableSetColumnIndex(0)
@@ -7013,12 +8509,22 @@ function showFrameNode(tEntry, meshD, index)
             end
             tImGui.TableSetColumnIndex(1)
             if #fSubsets >= 1 then renderSubsetCell(fSubsets[1]) end
+            tImGui.TableSetColumnIndex(2)
+            if #fSubsets >= 1 then
+                tImGui.Text(fSubsets[1].vertexCount and tostring(fSubsets[1].vertexCount) or '-')
+            end
+            tImGui.TableSetColumnIndex(3)
+            if #fSubsets >= 1 then renderMoveSubsetUp(fSubsets[1]) end
 
             -- ── Additional rows: blank left, one more subset on right ────
             for i = 2, #fSubsets do
                 tImGui.TableNextRow()
                 tImGui.TableSetColumnIndex(1)
                 renderSubsetCell(fSubsets[i])
+                tImGui.TableSetColumnIndex(2)
+                tImGui.Text(fSubsets[i].vertexCount and tostring(fSubsets[i].vertexCount) or '-')
+                tImGui.TableSetColumnIndex(3)
+                renderMoveSubsetUp(fSubsets[i])
             end
 
             -- ── Thin separator row between frame groups ──────────────────
@@ -7028,10 +8534,44 @@ function showFrameNode(tEntry, meshD, index)
                 tImGui.Separator()
                 tImGui.TableSetColumnIndex(1)
                 tImGui.Separator()
+                tImGui.TableSetColumnIndex(2)
+                tImGui.Separator()
+                tImGui.TableSetColumnIndex(3)
+                tImGui.Separator()
             end
         end
 
         tImGui.EndTable()
+    end
+
+    if requestedSubsetMove then
+        local moveFrame = requestedSubsetMove.frame
+        local moveSubset = requestedSubsetMove.subset
+        local okMove, moved = dpCall(function()
+            return meshD:moveSubsetUp(moveFrame, moveSubset)
+        end)
+        if okMove and moved then
+            local previousSubset = moveSubset - 1
+            local currentKey = moveFrame * 100 + moveSubset
+            local previousKey = moveFrame * 100 + previousSubset
+            tEntry.tCheckedRemove[currentKey], tEntry.tCheckedRemove[previousKey] =
+                tEntry.tCheckedRemove[previousKey], tEntry.tCheckedRemove[currentKey]
+
+            -- Pending removals identify subset indices too, so keep them attached to the same
+            -- geometry while the two adjacent entries exchange positions.
+            for _, op in ipairs(tEntry.tPendingOps) do
+                if op.kind == 'removeSubset' and op.frame == moveFrame then
+                    if op.subset == moveSubset then
+                        op.subset = previousSubset
+                    elseif op.subset == previousSubset then
+                        op.subset = moveSubset
+                    end
+                end
+            end
+            tEntry.modified = true
+            tEntry.bFrameSelectionDirty = true
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+        end
     end
 
     -- Auto-refresh preview when any checkbox changed
@@ -7201,6 +8741,10 @@ function showFrameNode(tEntry, meshD, index)
         tEntry.bShowFramePick = true
         tEntry.tRightChecked  = {}
     end
+
+    tEntry.tSplitCapture = tEntry.tSplitCapture or {active=false, initialized=false}
+    tEntry.tSplitCaptures = tEntry.tSplitCaptures or {}
+    showSplitCapture(tEntry, meshD, index)
 
     -- Execute and Clear (when pending ops exist)
     if #tEntry.tPendingOps > 0 then
@@ -7606,12 +9150,21 @@ function showMeshOptions(tEntry, index)
     end
 
     if openNode(tEntry, 'transform', tLang.L("transform"), 0, 'transform-' .. index) then
+        -- Shared targeting state for every operation in this node. A selected subset is the
+        -- centralization anchor; all subsets in each targeted frame move by the same offset.
+        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false }
+        local xf = tEntry.tXformUI
+        xf.subset = xf.subset or 0
+        xf.dx = xf.dx or 0; xf.dy = xf.dy or 0; xf.dz = xf.dz or 0
+        if xf.hideOriginal == nil then xf.hideOriginal = false end
+        if xf.autoPreview == nil then xf.autoPreview = false end
+
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
-            -- Compute the offset meshD:centralize() is about to bake into vertices BEFORE calling
-            -- it (it derives its own offset from the CURRENT vertex state; frame 1's AABB, read
-            -- here, is exactly what it will use), so bones can be translated by the same delta.
-            local aabb = computeMeshAABB(meshD)
-            meshD:centralize()
+            -- Bones are mesh-wide rather than per-frame. Match the targeted frame when one is
+            -- selected; for "all frames", retain the established frame-1 reference behavior.
+            local boneReferenceFrame = xf.frame > 0 and xf.frame or 1
+            local aabb = computeMeshAABB(meshD, boneReferenceFrame, xf.subset)
+            meshD:centralize(xf.frame, xf.subset)
             if aabb then
                 local offX, offY, offZ = computeCentralizeOffset(aabb)
                 applyTranslateToBones(meshD, -offX, -offY, -offZ)
@@ -7623,12 +9176,6 @@ function showMeshOptions(tEntry, index)
         end
 
         -- Rotate/Scale/Translate with per-frame/per-subset targeting
-        tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false }
-        local xf = tEntry.tXformUI
-        xf.subset = xf.subset or 0
-        xf.dx = xf.dx or 0; xf.dy = xf.dy or 0; xf.dz = xf.dz or 0
-        if xf.hideOriginal == nil then xf.hideOriginal = false end
-        if xf.autoPreview == nil then xf.autoPreview = false end
         local totalFrames = info.totalFrames or 0
         local totalSubsets = 0
         do
@@ -7658,6 +9205,13 @@ function showMeshOptions(tEntry, index)
             ns = math.max(0, math.min(ns, totalSubsets))
             if ns ~= xf.subset then cancelXformPreview() end
             xf.subset = ns
+        end
+        if tImGui.Button(tLang.L("centralize_itself") .. '##' .. index) then
+            meshD:centralizeItself(xf.frame, xf.subset)
+            cancelXformPreview()
+            tEntry.modified = true
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+            tUtil.showMessage(string.format('%s: %s', tLang.L("centralize_itself"), shortName))
         end
 
         -- Rotation
@@ -8151,7 +9705,7 @@ function showMeshOptions(tEntry, index)
     end
 
     local nAnim = info.animation or 0
-    if openNode(tEntry, 'anims', tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
+    if openNode(tEntry, 'anims', tLang.L("frame_animation_node") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
         -- Frame-filter preview refresh controls (only for the currently selected mesh)
         if index == iSelectedMeshIndex then
             if tPreviewMesh then
@@ -8195,7 +9749,9 @@ function showMeshOptions(tEntry, index)
                     tAnimNames[i] = animMap[i] == false and ('[!] ' .. name) or name
                 end
                 tEntry.iSelectedAnim = tEntry.iSelectedAnim or 1
+                tImGui.PushItemWidth(180)
                 local changed, newIdx = tImGui.Combo(tLang.L("animation") .. '##animSel-' .. index, tEntry.iSelectedAnim, tAnimNames, -1)
+                tImGui.PopItemWidth()
                 if changed and newIdx and newIdx >= 1 and newIdx <= nAnim then
                     tEntry.iSelectedAnim = newIdx
                     local filteredIdx = animMap[newIdx]
@@ -8224,16 +9780,26 @@ function showMeshOptions(tEntry, index)
                 if ok and name then
                     if tImGui.TreeNodeEx(name or ('Anim ' .. i), 0, 'anim-' .. index .. '-' .. i) then
                         tImGui.Text(tLang.L("name"))
+                        tImGui.PushItemWidth(220)
                         local mod, newName = tImGui.InputText('##animName-' .. index .. '-' .. i, name or '', flags)
+                        tImGui.PopItemWidth()
                         tImGui.Text(tLang.L("initial_frame"))
+                        tImGui.PushItemWidth(70)
                         local ri, ni = tImGui.InputInt('##animInit-' .. index .. '-' .. i, initF or 1, 1, 1, flags)
+                        tImGui.PopItemWidth()
                         tImGui.Text(tLang.L("final_frame"))
+                        tImGui.PushItemWidth(70)
                         local rf, nf = tImGui.InputInt('##animFin-' .. index .. '-' .. i, finF or 1, 1, 1, flags)
+                        tImGui.PopItemWidth()
                         tImGui.Text(tLang.L("time_between_frames_anim"))
+                        tImGui.PushItemWidth(105)
                         local rt, nt = tImGui.InputFloat('##animTime-' .. index .. '-' .. i, time or 0.1, 0.01, 0.1, '%.3f', flags)
+                        tImGui.PopItemWidth()
                         tImGui.Text(tLang.L("type_label"))
                         local typIdx = math.max(1, math.min((typ or 0) + 1, #tAnimTypeOpts))
+                        tImGui.PushItemWidth(180)
                         local rty, newTypIdx = tImGui.Combo('##animType-' .. index .. '-' .. i, typIdx, tAnimTypeOpts, -1)
+                        tImGui.PopItemWidth()
                         local nty = (rty and newTypIdx and newTypIdx > 0) and (newTypIdx - 1) or (typ or 0)
                         if (mod or ri or rf or rt or rty) then
                             local totalFrames = info.totalFrames or 0
@@ -8269,7 +9835,9 @@ function showMeshOptions(tEntry, index)
                         end
                         tEntry.tFxFilenames = tEntry.tFxFilenames or {}
                         local fxFn = tEntry.tFxFilenames[i] or ''
+                        tImGui.PushItemWidth(220)
                         local modFxF, newFxF = tImGui.InputText('##animFxFile-' .. index .. '-' .. i, fxFn, 512, 0)
+                        tImGui.PopItemWidth()
                         if modFxF and newFxF ~= nil then tEntry.tFxFilenames[i] = newFxF end
                         tImGui.SameLine()
                         if tImGui.Button(tLang.L('tex_browse') .. '##animFxBrowse-' .. index .. '-' .. i) then
@@ -8345,6 +9913,9 @@ function showMeshOptions(tEntry, index)
 
     -- Bones node: view/add/edit/remove the mesh's optional skeleton (diagnostic-only)
     showBonesNode(tEntry, meshD, index)
+
+    -- Articulated Animation node: persistent parts/pivots and named clips
+    showArticulatedAnimationNode(tEntry, meshD, index)
 
     if openNode(tEntry, 'shader', tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
@@ -8605,6 +10176,16 @@ function doSaveAs(tEntry, index)
     local hasDeselected = false
     for f = 1, nFrames do
         if tSel[f] == false then hasDeselected = true; break end
+        local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+        if okS and nSubsets then
+            for s = 1, nSubsets do
+                if (tEntry.tCheckedRemove or {})[f * 100 + s] == false then
+                    hasDeselected = true
+                    break
+                end
+            end
+        end
+        if hasDeselected then break end
     end
 
     local ok = false
@@ -8613,7 +10194,7 @@ function doSaveAs(tEntry, index)
         -- All frames selected: simple save
         ok = meshD:save(newFile, false, false)
     else
-        local tempD = buildFilteredMesh(tEntry)
+        local tempD = buildFilteredMeshForSave(tEntry)
         if not tempD then
             tUtil.showMessageWarn('Nothing to save (all frames deselected)')
             return
@@ -8716,7 +10297,7 @@ local function buildCheckedRemoveDefaults(tEntry)
     return checked
 end
 
-local function buildFilteredMeshForSave(tEntry)
+function buildFilteredMeshForSave(tEntry)
     local oldCheckedRemove = tEntry.tCheckedRemove
     tEntry.tCheckedRemove = buildCheckedRemoveDefaults(tEntry)
 
@@ -9191,15 +10772,28 @@ local function applyAllRecomputeNormalsBulk(sType)
 end
 
 local function applyAllCentralize(sType)
+    local xf = tApplyAllWin.transform
     return runApplyAllOperation(sType, tLang.L('centralize'), function(tEntry, index)
         local meshD = tEntry.meshDebug
-        local aabb = computeMeshAABB(meshD)
-        meshD:centralize()
+        -- Bones are mesh-wide rather than per-frame. Match the targeted frame when one is
+        -- selected; for "all frames", retain the established frame-1 reference behavior.
+        local boneReferenceFrame = xf.frame > 0 and xf.frame or 1
+        local aabb = computeMeshAABB(meshD, boneReferenceFrame, xf.subset)
+        meshD:centralize(xf.frame, xf.subset)
         if aabb then
             local offX, offY, offZ = computeCentralizeOffset(aabb)
             applyTranslateToBones(meshD, -offX, -offY, -offZ)
             rebuildBoneGizmo(tEntry, meshD, index)
         end
+        tEntry.modified = true
+        return 'success'
+    end)
+end
+
+local function applyAllCentralizeItself(sType)
+    local xf = tApplyAllWin.transform
+    return runApplyAllOperation(sType, tLang.L('centralize_itself'), function(tEntry)
+        tEntry.meshDebug:centralizeItself(xf.frame, xf.subset)
         tEntry.modified = true
         return 'success'
     end)
@@ -9807,6 +11401,9 @@ function showApplyAllWindow()
                 tImGui.Text(tLang.L('target_subset_label'))
                 local _, ns = tImGui.InputInt('##applyAllXfSubset', xf.subset, 1, 1, 0)
                 if ns ~= nil then xf.subset = math.max(0, ns) end
+                if tImGui.Button(tLang.L('centralize_itself') .. '##applyAllCentralizeItself') then
+                    applyAllCentralizeItself(win.selectedType)
+                end
                 tImGui.Spacing()
                 tImGui.Text(tLang.L('rotate_xyz'))
                 local crx, rx = tImGui.DragFloat('X##applyAllRx', xf.rx, 1.0, 0, 0, '%.1f')
@@ -10228,9 +11825,15 @@ end
 function showMeshTreeWindow()
     if not bShowMeshTree then return end
 
-    local width = 350
+    -- The tree contains long articulated labels (frame/subset identity, pivot channels and
+    -- keyframe controls). Keep a usable minimum while still allowing the user to resize it.
+    local width = 520
     local iW, iH = mbm.getSizeScreen()
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_mesh_tree, 0, 0, width, width + 100, iH * 0.8)
+    local minTreeWidth = math.min(width, math.max(350, iW - 40))
+    local maxTreeWidth = math.max(minTreeWidth, iW - 10)
+    tImGui.SetNextWindowSizeConstraints({x = minTreeWidth, y = 260},
+        {x = maxTreeWidth, y = math.max(260, iH - 20)})
     local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_tree), true, 0)
 
     if is_opened then
@@ -10402,6 +12005,7 @@ function showCameraWindow()
                 end
                 tImGui.TextDisabled(tLang.L('cam_hint_3d'))
                 tImGui.TextDisabled('Scroll:zoom')
+                tImGui.TextDisabled(tLang.L('cam_hint_keyboard'))
             else
                 tImGui.TextDisabled(tLang.L('cam_no_mesh'))
             end
@@ -11010,12 +12614,14 @@ function onLoop(delta)
     showCameraWindow()
     showLightWindow()
     showMeshTreeWindow()
+    showArticulatedPivotWindow()
     sweepStaleBoneGizmos()
     showBonesWindow()
     showApplyAllWindow()
     showListTexturesWindow()
     showListMeshesWindow()
     updatePreviewMesh()
+    updateCam3dKeyboardMovement(delta)
     -- Frame Pick popup (per loaded mesh)
     for i = 1, #tLoadedMeshes do
         local tE = tLoadedMeshes[i]
@@ -11104,6 +12710,29 @@ end
 
 function onTouchDown(key, x, y)
     if not tImGui.IsAnyWindowHovered() then
+        if key == 0 and bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+            local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+            local sp = tEntry.tSplitCapture
+            if sp and sp.active and sp.aabbMin then
+                local okRay, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, x, y)
+                if okRay and splitCaptureRayHitsAABB(ox, oy, oz, dx, dy, dz,
+                        sp.aabbMin.x, sp.aabbMin.y, sp.aabbMin.z,
+                        sp.aabbMax.x, sp.aabbMax.y, sp.aabbMax.z) then
+                    local px, py, pz = cam3dGetPos(tEntry.cam3d)
+                    local nx, ny, nz = tEntry.cam3d.fx - px, tEntry.cam3d.fy - py, tEntry.cam3d.fz - pz
+                    local length = math.sqrt(nx*nx + ny*ny + nz*nz)
+                    if length > 0 then nx, ny, nz = nx/length, ny/length, nz/length end
+                    sp.dragPlaneNormal = {x=nx,y=ny,z=nz}
+                    sp.dragPlanePoint = {x=sp.x,y=sp.y,z=sp.z}
+                    sp.dragOffset = {x=sp.x,y=sp.y,z=sp.z}
+                    local wx, wy, wz = rayPlaneHit(x, y, sp.dragPlanePoint, sp.dragPlaneNormal)
+                    if wx then sp.dragOffset = {x=sp.x-wx,y=sp.y-wy,z=sp.z-wz} end
+                    tEntry.sSplitDragging = true
+                    camera2d.mx, camera2d.my = x, y
+                    return
+                end
+            end
+        end
         -- Axis-locked bone drag/drop takes priority over ordinary orbit, but only when a drag
         -- plane is actually checked -- otherwise every ordinary orbit-click would pay for a
         -- hit-test against bone spheres that aren't even a relevant target. Same
@@ -11133,6 +12762,16 @@ function onTouchMove(key, x, y)
     if tImGui.IsAnyWindowHovered() then return end
     if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
+        local sp = tDragEntry.tSplitCapture
+        if tDragEntry.sSplitDragging and sp and sp.active then
+            local wx, wy, wz = rayPlaneHit(x, y, sp.dragPlanePoint, sp.dragPlaneNormal)
+            if wx then
+                sp.x, sp.y, sp.z = wx + sp.dragOffset.x, wy + sp.dragOffset.y, wz + sp.dragOffset.z
+                splitCaptureMoveBox(sp)
+            end
+            camera2d.mx, camera2d.my = x, y
+            return
+        end
         if tDragEntry.sDraggingBoneName then
             local wx, wy, wz = rayPlaneHit(x, y, tDragEntry.tDragPlanePoint, tDragEntry.tDragPlaneNormal)
             if wx then
@@ -11211,6 +12850,12 @@ function onTouchUp(key, x, y)
     camera2d.my = y
     if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+        tEntry.sSplitDragging = nil
+        if tEntry.tSplitCapture then
+            tEntry.tSplitCapture.dragPlanePoint = nil
+            tEntry.tSplitCapture.dragPlaneNormal = nil
+            tEntry.tSplitCapture.dragOffset = nil
+        end
         -- Nothing to "commit" here -- onTouchMove's live updateBone/onBonesEdit already wrote
         -- every change as it happened. Just clear the drag state.
         tEntry.sDraggingBoneName = nil
@@ -11240,6 +12885,27 @@ function onKeyDown(key)
         selectMeshIndex(iSelectedMeshIndex + 1)
     elseif mbm.getKeyName(key) == 'UP' then
         selectMeshIndex(iSelectedMeshIndex - 1)
+    elseif key == mbm.getKeyCode('W') then
+        tCam3dMove.forward = 1
+    elseif key == mbm.getKeyCode('S') then
+        tCam3dMove.forward = -1
+    elseif key == mbm.getKeyCode('A') then
+        tCam3dMove.right = -1
+    elseif key == mbm.getKeyCode('D') then
+        tCam3dMove.right = 1
+    elseif key == mbm.getKeyCode('pageup') then
+        tCam3dMove.vertical = 1
+    elseif key == mbm.getKeyCode('pagedown') then
+        tCam3dMove.vertical = -1
     end
 end
-function onKeyUp() end
+
+function onKeyUp(key)
+    if key == mbm.getKeyCode('W') or key == mbm.getKeyCode('S') then
+        tCam3dMove.forward = 0
+    elseif key == mbm.getKeyCode('A') or key == mbm.getKeyCode('D') then
+        tCam3dMove.right = 0
+    elseif key == mbm.getKeyCode('pageup') or key == mbm.getKeyCode('pagedown') then
+        tCam3dMove.vertical = 0
+    end
+end

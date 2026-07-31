@@ -563,6 +563,8 @@ namespace util
         SECTION_FRAME_STATIC       = 10, // repeated: one per frame, in order
         SECTION_FRAME_SKINNED      = 11, // bundled joint hierarchy for editor/mesh_debug.lua's
                                           // Bones node round-trip diagnostic - never runtime skinning
+        SECTION_ARTICULATED_PARTS  = 12, // optional rigid-part identities, pivots, and hierarchy metadata
+        SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
         SECTION_DETAIL_PHYSICS     = 20,
         SECTION_DETAIL_FONT        = 21,
         SECTION_DETAIL_PARTICLE    = 22,
@@ -736,6 +738,87 @@ namespace util
         uint16_t    blendState;
         uint8_t     hasFx;           // bool - if 1, an FX_HEADER_V11 follows
         API_IMPL ANIMATION_HEADER_V11() noexcept;
+    };
+
+    struct ARTICULATED_PARTS_HEADER_V11 // payload header for SECTION_ARTICULATED_PARTS
+    {
+        uint32_t partCount;
+        API_IMPL ARTICULATED_PARTS_HEADER_V11() noexcept;
+    };
+
+    struct ARTICULATED_PART_V11 // one frame/subset occurrence; partId is globally unique in the asset
+    {
+        uint64_t    partId;
+        uint32_t    frameIndex;
+        uint32_t    subsetIndex;
+        uint64_t    parentPartId; // 0 means no parent; parent must belong to the same frame
+        std::string name;
+        float       pivotX, pivotY, pivotZ;
+        float       pivotQX, pivotQY, pivotQZ, pivotQW;
+        API_IMPL ARTICULATED_PART_V11() noexcept;
+    };
+
+    struct ARTICULATED_ANIMATION_HEADER_V11 // payload header for SECTION_ARTICULATED_ANIMATION
+    {
+        uint32_t clipCount;
+        API_IMPL ARTICULATED_ANIMATION_HEADER_V11() noexcept;
+    };
+
+    enum ARTICULATED_BLEND_MODE_V11 : uint8_t
+    {
+        ARTICULATED_BLEND_ABSOLUTE = 0,
+        ARTICULATED_BLEND_ADDITIVE = 1
+    };
+
+    struct ARTICULATED_CLIP_V11
+    {
+        std::string name;
+        float       duration;
+        float       speed;
+        int32_t     defaultPriority;
+        uint8_t     loop;
+        uint8_t     blendMode;
+        API_IMPL ARTICULATED_CLIP_V11() noexcept;
+    };
+
+    enum ARTICULATED_CHANNEL_MASK_V11 : uint8_t
+    {
+        ARTICULATED_CHANNEL_POSITION = 1,
+        ARTICULATED_CHANNEL_ROTATION = 2,
+        ARTICULATED_CHANNEL_SCALE    = 4,
+    };
+
+    enum ARTICULATED_EASING_V11 : uint8_t
+    {
+        ARTICULATED_EASING_LINEAR = 0,
+        ARTICULATED_EASING_IN = 1,
+        ARTICULATED_EASING_OUT = 2,
+        ARTICULATED_EASING_IN_OUT = 3,
+        ARTICULATED_EASING_SMOOTHSTEP = 4,
+        ARTICULATED_EASING_BEZIER = 5
+    };
+
+    struct ARTICULATED_TRACK_V11
+    {
+        uint64_t partId;
+        uint8_t  channelMask;
+        uint32_t keyCount;
+        API_IMPL ARTICULATED_TRACK_V11() noexcept;
+    };
+
+    struct ARTICULATED_KEY_V11
+    {
+        float time;
+        float positionX, positionY, positionZ;
+        float rotationX, rotationY, rotationZ, rotationW;
+        // Authoring rotation in degrees. Quaternion fields remain the runtime representation.
+        float rotationEulerX, rotationEulerY, rotationEulerZ;
+        uint8_t hasRotationEuler;
+        uint8_t easing;
+        float bezierX1, bezierY1;
+        float bezierX2, bezierY2;
+        float scaleX, scaleY, scaleZ;
+        API_IMPL ARTICULATED_KEY_V11() noexcept;
     };
 
     struct FONT_DETAIL_HEADER_V11 // payload header for SECTION_DETAIL_FONT

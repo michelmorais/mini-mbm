@@ -80,12 +80,14 @@ enum SECTION_TYPE : uint16_t
     SECTION_FRAME_STATIC       = 10,  // repeated: one per frame, in order
     SECTION_FRAME_SKINNED      = 11,  // bundled joint hierarchy, see Sec. 6e — diagnostic/editor
                                        // round-trip only, never consulted by rendering
+    SECTION_ARTICULATED_PARTS  = 12,  // optional rigid-part identities, pivots, and hierarchy metadata
+    SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
     SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / cube-complex / triangle bounding volumes
     SECTION_DETAIL_FONT        = 21,
     SECTION_DETAIL_PARTICLE    = 22,
     SECTION_DETAIL_TILE        = 23,
     SECTION_EXTRA_PATHS        = 30,  // replaces legacy EXTRA_HEADER type==1 path-registration hint
-    SECTION_VERTEX_SKIN_WEIGHTS = 40, // bundled per-vertex bone weight palette, see Sec. 6f —
+    SECTION_VERTEX_SKIN_WEIGHTS = 40, // bundled per-vertex bone weight palette, see Sec. 6g —
                                        // editor/diagnostic + FBX re-export round-trip only, same
                                        // scope as SECTION_FRAME_SKINNED (no GPU/CPU skinning
                                        // consumer exists in this engine)
@@ -98,7 +100,7 @@ unrecognized `type` is **not** actually a safe no-op for every reader — only t
 (`parse_v11_intermediate`, the shared runtime/`MESH_MBM` path, and `MESH_MBM_DEBUG::loadV11`, the
 editor path) hard-fail on a `type` they don't have an explicit branch for. Every section type above
 therefore needs explicit (if only parse-and-discard) handling in both of those functions before it's
-safe to write to disk — see `SECTION_VERTEX_SKIN_WEIGHTS`'s own rollout in Sec. 6f for the concrete
+safe to write to disk — see `SECTION_VERTEX_SKIN_WEIGHTS`'s own rollout in Sec. 6g for the concrete
 pattern this implies (a shared parse function, one real consumer, one "parsed but intentionally
 unused" consumer).
 
@@ -121,7 +123,7 @@ a skeleton with no special geometry origin, or both, e.g. a skeleton fitted onto
 from elsewhere). It is not runtime skeletal animation — the engine has no GPU/CPU skinning
 anywhere — purely a diagnostic round-trip mechanism for `editor/mesh_debug.lua`'s Bones node.
 
-`SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6f) persists real per-vertex bone weights — also one optional
+`SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6g) persists real per-vertex bone weights — also one optional
 section per mesh, same "diagnostic/editor + FBX re-export round-trip only" scope as
 `SECTION_FRAME_SKINNED`, not consumed by any renderer. Unlike the skeleton section, it's tied to a
 specific `SECTION_FRAME_STATIC` frame's own vertex topology (frame 1, always) rather than being
@@ -405,7 +407,54 @@ struct SKELETON_BONE_V11
 Same "no explicit index field" convention as every other repeated/bundled section (§4, Milestone 0
 Decision 3, §8 below): bone identity is by `name`, not by array position.
 
-## 6f. `SECTION_VERTEX_SKIN_WEIGHTS` payload
+## 6f. `SECTION_ARTICULATED_PARTS` and `SECTION_ARTICULATED_ANIMATION` payloads
+
+These are optional rigid/articulated-animation sections. They are omitted when the corresponding
+data does not exist, so old meshes without them remain valid and continue through the existing
+static/frame-animation path. Both the runtime and editor loaders parse them.
+
+`SECTION_ARTICULATED_PARTS` is one bundled section with `sectionVersion` `1` and a `uint32_t
+partCount`, followed by that many records. Other section versions are rejected. Every `partId` is
+nonzero and globally unique within the asset, and a frame/subset occurrence can have at most one
+Part. Part names are editable labels and may repeat:
+
+```cpp
+struct ARTICULATED_PART_V11
+{
+    uint64_t partId;
+    uint32_t frameIndex;
+    uint32_t subsetIndex;
+    uint64_t parentPartId; // 0 means no parent; nonzero parent must belong to the same frame
+    // name: length-prefixed string (§5)
+    float pivotX, pivotY, pivotZ;
+    float pivotQX, pivotQY, pivotQZ, pivotQW;
+};
+```
+
+`SECTION_ARTICULATED_ANIMATION` is one bundled section with a `uint32_t clipCount`. The current
+writer and readers use `sectionVersion` `1`; other versions are rejected. This is the first public
+layout for the optional section, so Euler authoring data, easing, Bezier controls, and clip
+composition mode are all present from version 1. Each clip contains a length-prefixed name,
+`float duration`, `float speed`, `int32_t defaultPriority`, a `uint8_t loop`, a
+`uint8_t blendMode`, and a
+`uint32_t trackCount`. Each track contains `uint64_t partId`, a `uint8_t` channel mask,
+`uint32_t keyCount`, and key records. Keys store a `float time`, position (`x/y/z`), quaternion
+rotation (`x/y/z/w`), authored Euler rotation in degrees (`x/y/z`), a `uint8_t hasRotationEuler`
+flag, an easing mode byte, four Bezier control-point floats (`x1/y1/x2/y2`), and scale (`x/y/z`).
+When the flag is present, runtime interpolation uses
+the authored Euler values and converts the result to a quaternion. The easing mode on a key controls
+the segment from that key to the next one: `0` Linear, `1` Ease In, `2` Ease Out, `3` Ease In Out,
+`4` Smoothstep, and `5` Cubic Bezier. Cubic Bezier
+uses normalized time on X and normalized interpolation progress on Y. X control values must remain
+within `0..1`; Y may leave that range to produce overshoot.
+
+Clip blend modes are `0` (`ARTICULATED_BLEND_ABSOLUTE`) and `1`
+(`ARTICULATED_BLEND_ADDITIVE`). Absolute clips establish the base pose through per-channel
+priority/start-order resolution. Additive clips are then composed over that pose: position is an
+offset from zero, rotation is a quaternion delta from identity, and scale is a multiplier from one.
+Runtime playback weight and fade progress are instance state and are not stored in this section.
+
+## 6g. `SECTION_VERTEX_SKIN_WEIGHTS` payload
 
 One optional section per mesh — present only when a Blender-imported source object had real
 `vertex_groups` and `--include-bones` was set (`editor/blender_mesh_export.py`'s

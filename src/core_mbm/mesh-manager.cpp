@@ -132,6 +132,8 @@ namespace mbm
         // (mesh-manager-impl.h) for where a debug-path load actually keeps this.
         std::vector<std::string> weightPalette;
         std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
+        std::vector<util::ARTICULATED_PART_V11> articulatedParts;
+        std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -169,7 +171,9 @@ namespace mbm
               angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
               extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
               skeleton(std::move(other.skeleton)), weightPalette(std::move(other.weightPalette)),
-              vertexWeights(std::move(other.vertexWeights))
+              vertexWeights(std::move(other.vertexWeights)),
+              articulatedParts(std::move(other.articulatedParts)),
+              articulatedClips(std::move(other.articulatedClips))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -193,6 +197,8 @@ namespace mbm
             skeleton       = std::move(other.skeleton);
             weightPalette  = std::move(other.weightPalette);
             vertexWeights  = std::move(other.vertexWeights);
+            articulatedParts = std::move(other.articulatedParts);
+            articulatedClips = std::move(other.articulatedClips);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -450,6 +456,87 @@ namespace
             infoHead->effectShader = fxOut;
         }
         return infoHead;
+    }
+
+    bool parse_articulated_parts_section_v11(util::MEM_CURSOR_V11 &tmp,
+                                             std::vector<util::ARTICULATED_PART_V11> &out)
+    {
+        util::ARTICULATED_PARTS_HEADER_V11 header;
+        if (!util::readArticulatedPartsHeaderV11(tmp, header))
+            return false;
+        out.clear();
+        out.reserve(header.partCount);
+        for (uint32_t i = 0; i < header.partCount; ++i)
+        {
+            util::ARTICULATED_PART_V11 part;
+            if (!util::readArticulatedPartV11(tmp, part))
+                return false;
+            out.push_back(std::move(part));
+        }
+
+        std::unordered_map<uint64_t, const util::ARTICULATED_PART_V11 *> partsById;
+        std::unordered_set<uint64_t> occurrences;
+        partsById.reserve(out.size());
+        occurrences.reserve(out.size());
+        for (const auto &part : out)
+        {
+            const uint64_t occurrence = (static_cast<uint64_t>(part.frameIndex) << 32) | part.subsetIndex;
+            if (part.partId == 0 || !partsById.emplace(part.partId, &part).second ||
+                !occurrences.insert(occurrence).second)
+                return false;
+        }
+        for (const auto &part : out)
+        {
+            uint64_t parentId = part.parentPartId;
+            for (size_t depth = 0; parentId != 0 && depth <= out.size(); ++depth)
+            {
+                const auto found = partsById.find(parentId);
+                if (found == partsById.end() || found->second->frameIndex != part.frameIndex ||
+                    parentId == part.partId)
+                    return false;
+                parentId = found->second->parentPartId;
+                if (depth == out.size() && parentId != 0)
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    bool parse_articulated_animation_section_v11(util::MEM_CURSOR_V11 &tmp,
+                                                 std::vector<mbm::ARTICULATED_CLIP_DATA> &out)
+    {
+        util::ARTICULATED_ANIMATION_HEADER_V11 header;
+        if (!util::readArticulatedAnimationHeaderV11(tmp, header))
+            return false;
+        out.clear();
+        out.reserve(header.clipCount);
+        for (uint32_t c = 0; c < header.clipCount; ++c)
+        {
+            mbm::ARTICULATED_CLIP_DATA clip;
+            if (!util::readArticulatedClipV11(tmp, clip.header))
+                return false;
+            uint32_t trackCount = 0;
+            if (!util::le_io::readU32LE(tmp, trackCount))
+                return false;
+            clip.tracks.reserve(trackCount);
+            for (uint32_t t = 0; t < trackCount; ++t)
+            {
+                mbm::ARTICULATED_TRACK_DATA track;
+                if (!util::readArticulatedTrackV11(tmp, track.header))
+                    return false;
+                track.keys.reserve(track.header.keyCount);
+                for (uint32_t k = 0; k < track.header.keyCount; ++k)
+                {
+                    util::ARTICULATED_KEY_V11 key;
+                    if (!util::readArticulatedKeyV11(tmp, key))
+                        return false;
+                    track.keys.push_back(key);
+                }
+                clip.tracks.push_back(std::move(track));
+            }
+            out.push_back(std::move(clip));
+        }
+        return true;
     }
 
     // Parses one SECTION_DETAIL_PARTICLE payload (already staged as `tmp`) into a freshly allocated
@@ -896,6 +983,24 @@ namespace
                 }
                 out.infoAnimation.lsHeaderAnim.push_back(infoHead);
             }
+            else if (staged.header.type == util::SECTION_ARTICULATED_PARTS)
+            {
+                if (staged.header.sectionVersion != 1 ||
+                    !parse_articulated_parts_section_v11(tmp, out.articulatedParts))
+                {
+                    errorOut = "failed to parse SECTION_ARTICULATED_PARTS";
+                    return false;
+                }
+            }
+            else if (staged.header.type == util::SECTION_ARTICULATED_ANIMATION)
+            {
+                if (staged.header.sectionVersion != 1 ||
+                    !parse_articulated_animation_section_v11(tmp, out.articulatedClips))
+                {
+                    errorOut = "failed to parse SECTION_ARTICULATED_ANIMATION";
+                    return false;
+                }
+            }
             else if (staged.header.type == util::SECTION_DETAIL_PARTICLE)
             {
                 std::vector<util::STAGE_PARTICLE*> *lsStage = parse_particle_detail_section_v11(tmp);
@@ -975,6 +1080,19 @@ namespace
 
 namespace mbm
 {
+    ARTICULATED_ANIMATION_PLAYER::ARTICULATED_ANIMATION_PLAYER()
+        : impl(std::make_unique<Impl>())
+    {
+    }
+
+    ARTICULATED_ANIMATION_PLAYER::~ARTICULATED_ANIMATION_PLAYER() = default;
+
+    void ARTICULATED_ANIMATION_PLAYER::reset() noexcept
+    {
+        impl->activeClips.clear();
+        impl->sequence = 0;
+    }
+
     struct MESH_MANAGER::Impl
     {
         std::unordered_map<std::string, MESH_MBM *> lsMeshes;
@@ -1826,6 +1944,31 @@ namespace mbm
         buf->headerFrame.sizeVertexBuffer -= vCount;
     }
 
+    bool MESH_MBM_DEBUG::moveSubsetUp(uint32_t indexFrame, uint32_t indexSubset)
+    {
+        if (indexFrame >= static_cast<uint32_t>(this->impl->buffer.size()) || indexSubset == 0)
+            return false;
+        util::BUFFER_MESH_DEBUG *buf = this->impl->buffer[indexFrame];
+        if (!buf || indexSubset >= static_cast<uint32_t>(buf->subset.size()))
+            return false;
+
+        const uint32_t previousSubsetIndex = indexSubset - 1;
+        std::swap(buf->subset[previousSubsetIndex], buf->subset[indexSubset]);
+
+        // Articulated tracks and hierarchy target stable part IDs. Keep each Part attached to
+        // the same geometry by remapping only the two subset occurrences whose order changed.
+        for (auto &part : this->impl->articulatedParts)
+        {
+            if (part.frameIndex != indexFrame)
+                continue;
+            if (part.subsetIndex == indexSubset)
+                part.subsetIndex = previousSubsetIndex;
+            else if (part.subsetIndex == previousSubsetIndex)
+                part.subsetIndex = indexSubset;
+        }
+        return true;
+    }
+
     uint32_t MESH_MBM_DEBUG::copyBufferFrom(MESH_MBM_DEBUG &src, uint32_t srcFrameIdx)
     {
         if (srcFrameIdx >= static_cast<uint32_t>(src.impl->buffer.size()))
@@ -2078,6 +2221,8 @@ namespace mbm
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
                                      + (impl->skeleton.empty() ? 0u : 1u)
                                      + (impl->vertexWeights.empty() ? 0u : 1u)
+                                     + (impl->articulatedParts.empty() ? 0u : 1u)
+                                     + (impl->articulatedClips.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
                                      + this->getTotalAnimationHeaders()
                                      + ((impl->typeMe == util::TYPE_MESH_PARTICLE) ? 1u : 0u)
@@ -2248,6 +2393,61 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileOut);
+        }
+
+        // SECTION_ARTICULATED_PARTS - optional rigid-part identities and pivots -----------------------
+        if (!impl->articulatedParts.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_ARTICULATED_PARTS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                util::ARTICULATED_PARTS_HEADER_V11 partsHeader;
+                partsHeader.partCount = static_cast<uint32_t>(this->impl->articulatedParts.size());
+                if (!util::writeArticulatedPartsHeaderV11(fp, partsHeader))
+                    return false;
+                for (const auto &part : this->impl->articulatedParts)
+                    if (!util::writeArticulatedPartV11(fp, part))
+                        return false;
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_ARTICULATED_PARTS [%s]", fileOut);
+        }
+
+        // SECTION_ARTICULATED_ANIMATION - optional named clips and transform tracks -------------------
+        if (!impl->articulatedClips.empty())
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_ARTICULATED_ANIMATION;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                util::ARTICULATED_ANIMATION_HEADER_V11 animationHeader;
+                animationHeader.clipCount = static_cast<uint32_t>(this->impl->articulatedClips.size());
+                if (!util::writeArticulatedAnimationHeaderV11(fp, animationHeader))
+                    return false;
+                for (const auto &clip : this->impl->articulatedClips)
+                {
+                    if (!util::writeArticulatedClipV11(fp, clip.header) ||
+                        !util::le_io::writeU32LE(fp, static_cast<uint32_t>(clip.tracks.size())))
+                        return false;
+                    for (const auto &track : clip.tracks)
+                    {
+                        util::ARTICULATED_TRACK_V11 trackHeader = track.header;
+                        trackHeader.keyCount = static_cast<uint32_t>(track.keys.size());
+                        if (!util::writeArticulatedTrackV11(fp, trackHeader))
+                            return false;
+                        for (const auto &key : track.keys)
+                            if (!util::writeArticulatedKeyV11(fp, key))
+                                return false;
+                    }
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_ARTICULATED_ANIMATION [%s]", fileOut);
         }
 
         // SECTION_ANIMATION, one per animation, including its FX block ---------------------------------------
@@ -2845,6 +3045,20 @@ namespace mbm
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ANIMATION [%s]", fileNamePath);
                 this->appendAnimationHeader(infoHead);
             }
+            else if (sectionHeader.type == util::SECTION_ARTICULATED_PARTS)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (sectionHeader.sectionVersion != 1 ||
+                    !parse_articulated_parts_section_v11(tmp, impl->articulatedParts))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ARTICULATED_PARTS [%s]", fileNamePath);
+            }
+            else if (sectionHeader.type == util::SECTION_ARTICULATED_ANIMATION)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (sectionHeader.sectionVersion != 1 ||
+                    !parse_articulated_animation_section_v11(tmp, impl->articulatedClips))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_ARTICULATED_ANIMATION [%s]", fileNamePath);
+            }
             else if (sectionHeader.type == util::SECTION_DETAIL_PARTICLE)
             {
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
@@ -3082,6 +3296,9 @@ namespace mbm
             const auto       s             = static_cast<uint32_t>(bufferCurrent->subset.size());
             VEC3                     maxSize(-FLT_MAX, -FLT_MAX, -FLT_MAX);
             VEC3                     minSize(FLT_MAX, FLT_MAX, FLT_MAX);
+            // indexSubset selects the geometry used to calculate the center. The resulting
+            // translation is always applied to the whole frame so the relative placement of
+            // its subsets is preserved.
             if (indexSubset < 0)
             {
                 for (uint32_t i = 0; i < s; ++i)
@@ -3172,32 +3389,106 @@ namespace mbm
             }
             const VEC3 middle(dist.x * 0.5f, dist.y * 0.5f, dist.z * 0.5f);
             const VEC3 offset(minSize.x + middle.x, minSize.y + middle.y, minSize.z + middle.z);
-            if (indexSubset < 0)
+            for (uint32_t i = 0; i < s; ++i)
             {
-                for (uint32_t i = 0; i < s; ++i)
-                {
-                    util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[i];
-                    const auto  n          = static_cast<uint32_t >(pTmpSubset->vertexStart + pTmpSubset->vertexCount);
-                    for (auto j = static_cast<uint32_t >(pTmpSubset->vertexStart); j < n; ++j)
-                    {
-                        VEC3 *pos = &pPosition[j];
-                        pos->x -= offset.x;
-                        pos->y -= offset.y;
-                        pos->z -= offset.z;
-                    }
-                }
-            }
-            else if (indexSubset < static_cast<int>(s))
-            {
-                util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[static_cast<std::vector<util::SUBSET_DEBUG *>::size_type>(indexSubset)];
-                const int  n          = pTmpSubset->vertexStart + pTmpSubset->vertexCount;
-                for (int j = pTmpSubset->vertexStart; j < n; ++j)
+                util::SUBSET_DEBUG *pTmpSubset = bufferCurrent->subset[i];
+                const auto n = static_cast<uint32_t>(pTmpSubset->vertexStart + pTmpSubset->vertexCount);
+                for (auto j = static_cast<uint32_t>(pTmpSubset->vertexStart); j < n; ++j)
                 {
                     VEC3 *pos = &pPosition[j];
                     pos->x -= offset.x;
                     pos->y -= offset.y;
                     pos->z -= offset.z;
                 }
+            }
+        }
+    }
+
+    void MESH_MBM_DEBUG::centralizeFrameItself(const int indexFrame, const int indexSubset)
+    {
+        if (indexFrame < 0)
+        {
+            for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
+                centralizeFrameItself(static_cast<int>(i), indexSubset);
+            return;
+        }
+        if (indexFrame >= static_cast<int>(this->impl->buffer.size()))
+            return;
+
+        util::BUFFER_MESH_DEBUG *bufferCurrent =
+            this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+        auto *const pPosition = reinterpret_cast<VEC3 *>(bufferCurrent->position);
+        const auto totalSubsets = static_cast<uint32_t>(bufferCurrent->subset.size());
+        if (indexSubset >= static_cast<int>(totalSubsets))
+            return;
+
+        const uint32_t firstSubset = indexSubset < 0 ? 0 : static_cast<uint32_t>(indexSubset);
+        const uint32_t endSubset = indexSubset < 0 ? totalSubsets : firstSubset + 1;
+        for (uint32_t i = firstSubset; i < endSubset; ++i)
+        {
+            util::SUBSET_DEBUG *subset = bufferCurrent->subset[i];
+            if (subset->vertexCount <= 0)
+                continue;
+
+            VEC3 maxSize(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+            VEC3 minSize(FLT_MAX, FLT_MAX, FLT_MAX);
+            const auto vertexEnd = static_cast<uint32_t>(subset->vertexStart + subset->vertexCount);
+            for (auto j = static_cast<uint32_t>(subset->vertexStart); j < vertexEnd; ++j)
+            {
+                const VEC3 &pos = pPosition[j];
+                if (pos.x < minSize.x)
+                    minSize.x = pos.x;
+                if (pos.y < minSize.y)
+                    minSize.y = pos.y;
+                if (pos.z < minSize.z)
+                    minSize.z = pos.z;
+                if (pos.x > maxSize.x)
+                    maxSize.x = pos.x;
+                if (pos.y > maxSize.y)
+                    maxSize.y = pos.y;
+                if (pos.z > maxSize.z)
+                    maxSize.z = pos.z;
+            }
+
+            VEC3 dist(maxSize - minSize);
+            const float xDif = maxSize.x < 0.0f ? -maxSize.x : maxSize.x;
+            const float yDif = maxSize.y < 0.0f ? -maxSize.y : maxSize.y;
+            const float zDif = maxSize.z < 0.0f ? -maxSize.z : maxSize.z;
+            const float xDiff = minSize.x < 0.0f ? -minSize.x : minSize.x;
+            const float yDiff = minSize.y < 0.0f ? -minSize.y : minSize.y;
+            const float zDiff = minSize.z < 0.0f ? -minSize.z : minSize.z;
+            const float xMin = xDiff < xDif ? xDiff : xDif;
+            const float xMax = xDiff > xDif ? xDiff : xDif;
+            const float yMin = yDiff < yDif ? yDiff : yDif;
+            const float yMax = yDiff > yDif ? yDiff : yDif;
+            const float zMin = zDiff < zDif ? zDiff : zDif;
+            const float zMax = zDiff > zDif ? zDiff : zDif;
+
+            if ((xMin / xMax) < 0.001f)
+            {
+                dist.x = xMin;
+                minSize.x = 0.0f;
+            }
+            if ((yMin / yMax) < 0.001f)
+            {
+                dist.y = yMin;
+                minSize.y = 0.0f;
+            }
+            if ((zMin / zMax) < 0.001f)
+            {
+                dist.z = zMin;
+                minSize.z = 0.0f;
+            }
+
+            const VEC3 offset(minSize.x + dist.x * 0.5f,
+                              minSize.y + dist.y * 0.5f,
+                              minSize.z + dist.z * 0.5f);
+            for (auto j = static_cast<uint32_t>(subset->vertexStart); j < vertexEnd; ++j)
+            {
+                VEC3 &pos = pPosition[j];
+                pos.x -= offset.x;
+                pos.y -= offset.y;
+                pos.z -= offset.z;
             }
         }
     }
@@ -4013,6 +4304,605 @@ namespace mbm
         impl->vertexWeights.clear();
     }
 
+    uint32_t MESH_MBM_DEBUG::getTotalArticulatedParts() const noexcept
+    {
+        return static_cast<uint32_t>(impl->articulatedParts.size());
+    }
+
+    const util::ARTICULATED_PART_V11 *MESH_MBM_DEBUG::getArticulatedPart(const uint32_t index) const noexcept
+    {
+        return index < impl->articulatedParts.size() ? &impl->articulatedParts[index] : nullptr;
+    }
+
+    uint32_t MESH_MBM_DEBUG::initializeArticulatedParts()
+    {
+        uint64_t nextPartId = 1;
+        for (const auto &part : impl->articulatedParts)
+            if (part.partId >= nextPartId)
+                nextPartId = part.partId + 1;
+
+        uint32_t added = 0;
+        for (uint32_t frameIndex = 0; frameIndex < impl->buffer.size(); ++frameIndex)
+        {
+            util::BUFFER_MESH_DEBUG *frame = impl->buffer[frameIndex];
+            if (!frame)
+                continue;
+            for (uint32_t subsetIndex = 0; subsetIndex < frame->subset.size(); ++subsetIndex)
+            {
+                bool exists = false;
+                for (const auto &part : impl->articulatedParts)
+                {
+                    if (part.frameIndex == frameIndex && part.subsetIndex == subsetIndex)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (exists)
+                    continue;
+
+                const util::SUBSET_DEBUG *subset = frame->subset[subsetIndex];
+                VEC3 pivot(0.0f, 0.0f, 0.0f);
+                if (subset && subset->vertexCount > 0)
+                {
+                    const VEC3 *positions = this->getPositionArray(frameIndex);
+                    if (positions)
+                    {
+                        VEC3 minValue(FLT_MAX, FLT_MAX, FLT_MAX);
+                        VEC3 maxValue(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+                        const int first = subset->vertexStart;
+                        const int last = first + subset->vertexCount;
+                        for (int vertex = first; vertex < last; ++vertex)
+                        {
+                            minValue.x = std::min(minValue.x, positions[vertex].x);
+                            minValue.y = std::min(minValue.y, positions[vertex].y);
+                            minValue.z = std::min(minValue.z, positions[vertex].z);
+                            maxValue.x = std::max(maxValue.x, positions[vertex].x);
+                            maxValue.y = std::max(maxValue.y, positions[vertex].y);
+                            maxValue.z = std::max(maxValue.z, positions[vertex].z);
+                        }
+                        pivot = (minValue + maxValue) * 0.5f;
+                    }
+                }
+                char errorOut[255] = "";
+                const std::string name = "Frame " + std::to_string(frameIndex + 1) +
+                                         " Subset " + std::to_string(subsetIndex + 1);
+                if (this->addArticulatedPart(nextPartId++, frameIndex, subsetIndex, name.c_str(),
+                                             pivot.x, pivot.y, pivot.z, 0.0f, 0.0f, 0.0f, 1.0f,
+                                             0, errorOut, static_cast<int>(sizeof(errorOut))) > 0)
+                    ++added;
+            }
+        }
+        return added;
+    }
+
+    uint32_t MESH_MBM_DEBUG::removeArticulatedParts() noexcept
+    {
+        if (impl->articulatedParts.empty())
+            return 0;
+        std::unordered_set<uint64_t> removedPartIds;
+        removedPartIds.reserve(impl->articulatedParts.size());
+        for (const auto &part : impl->articulatedParts)
+            removedPartIds.insert(part.partId);
+        const uint32_t removedCount = static_cast<uint32_t>(impl->articulatedParts.size());
+        impl->articulatedParts.clear();
+        for (auto &clip : impl->articulatedClips)
+        {
+            clip.tracks.erase(std::remove_if(clip.tracks.begin(), clip.tracks.end(),
+                                             [&removedPartIds](const ARTICULATED_TRACK_DATA &track)
+                                             {
+                                                 return removedPartIds.find(track.header.partId) != removedPartIds.end();
+                                             }),
+                               clip.tracks.end());
+        }
+        return removedCount;
+    }
+
+    int MESH_MBM_DEBUG::addArticulatedPart(const uint64_t partId, const uint32_t frameIndex,
+                                           const uint32_t subsetIndex, const char *name,
+                                           const float pivotX, const float pivotY, const float pivotZ,
+                                           const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
+                                           const uint64_t parentPartId, char *errorOut, const int errorOutLen)
+    {
+        if (partId == 0)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "partId must be non-zero");
+            return 0;
+        }
+        if (frameIndex >= impl->buffer.size() || !impl->buffer[frameIndex] ||
+            subsetIndex >= impl->buffer[frameIndex]->subset.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "frame/subset occurrence is out of range");
+            return 0;
+        }
+        for (const auto &part : impl->articulatedParts)
+        {
+            if (part.partId == partId)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "partId [%llu] already exists",
+                                       static_cast<unsigned long long>(partId));
+                return 0;
+            }
+            if (part.frameIndex == frameIndex && part.subsetIndex == subsetIndex)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "frame [%u] subset [%u] already has a part",
+                                       frameIndex + 1, subsetIndex + 1);
+                return 0;
+            }
+        }
+        if (parentPartId != 0)
+        {
+            bool parentExists = false;
+            for (const auto &part : impl->articulatedParts)
+            {
+                if (part.frameIndex == frameIndex && part.partId == parentPartId)
+                {
+                    parentExists = true;
+                    break;
+                }
+            }
+            if (!parentExists)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "parent part [%llu] does not exist in frame [%u]",
+                                       static_cast<unsigned long long>(parentPartId), frameIndex + 1);
+                return 0;
+            }
+            if (parentPartId == partId)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "a part cannot be its own parent");
+                return 0;
+            }
+        }
+        util::ARTICULATED_PART_V11 part;
+        part.partId = partId;
+        part.frameIndex = frameIndex;
+        part.subsetIndex = subsetIndex;
+        part.parentPartId = parentPartId;
+        part.name = name ? name : "";
+        part.pivotX = pivotX; part.pivotY = pivotY; part.pivotZ = pivotZ;
+        part.pivotQX = pivotQX; part.pivotQY = pivotQY; part.pivotQZ = pivotQZ; part.pivotQW = pivotQW;
+        impl->articulatedParts.push_back(std::move(part));
+        return static_cast<int>(impl->articulatedParts.size());
+    }
+
+    bool MESH_MBM_DEBUG::updateArticulatedPart(const uint32_t index, const char *name,
+                                               const float pivotX, const float pivotY, const float pivotZ,
+                                               const float pivotQX, const float pivotQY, const float pivotQZ, const float pivotQW,
+                                               const uint64_t parentPartId, char *errorOut, const int errorOutLen)
+    {
+        if (index >= impl->articulatedParts.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated part index out of range");
+            return false;
+        }
+        auto &part = impl->articulatedParts[index];
+        if (parentPartId != 0)
+        {
+            uint64_t candidateId = parentPartId;
+            for (size_t depth = 0; depth <= impl->articulatedParts.size(); ++depth)
+            {
+                if (candidateId == part.partId)
+                {
+                    if (errorOut) snprintf(errorOut, errorOutLen, "parent relationship would create a cycle");
+                    return false;
+                }
+                const util::ARTICULATED_PART_V11 *candidate = nullptr;
+                for (const auto &other : impl->articulatedParts)
+                {
+                    if (other.frameIndex == part.frameIndex && other.partId == candidateId)
+                    {
+                        candidate = &other;
+                        break;
+                    }
+                }
+                if (!candidate)
+                {
+                    if (errorOut) snprintf(errorOut, errorOutLen, "parent part [%llu] does not exist in frame [%u]",
+                                           static_cast<unsigned long long>(candidateId), part.frameIndex + 1);
+                    return false;
+                }
+                candidateId = candidate->parentPartId;
+                if (candidateId == 0)
+                    break;
+            }
+        }
+        part.name = name ? name : "";
+        part.pivotX = pivotX; part.pivotY = pivotY; part.pivotZ = pivotZ;
+        part.pivotQX = pivotQX; part.pivotQY = pivotQY; part.pivotQZ = pivotQZ; part.pivotQW = pivotQW;
+        part.parentPartId = parentPartId;
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalArticulatedAnimations() const noexcept
+    {
+        return static_cast<uint32_t>(impl->articulatedClips.size());
+    }
+
+    const char *MESH_MBM_DEBUG::getArticulatedAnimationName(const uint32_t index) const noexcept
+    {
+        return index < impl->articulatedClips.size() ? impl->articulatedClips[index].header.name.c_str() : nullptr;
+    }
+
+    bool MESH_MBM_DEBUG::getArticulatedAnimation(const uint32_t index, const char **name, float *duration,
+                                                 float *speed, int *priority, bool *loop,
+                                                 uint8_t *blendMode) const noexcept
+    {
+        if (index >= impl->articulatedClips.size() || !name || !duration || !speed ||
+            !priority || !loop || !blendMode)
+            return false;
+        const auto &clip = impl->articulatedClips[index].header;
+        *name = clip.name.c_str();
+        *duration = clip.duration;
+        *speed = clip.speed;
+        *priority = clip.defaultPriority;
+        *loop = clip.loop != 0;
+        *blendMode = clip.blendMode;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateArticulatedAnimation(const uint32_t index, const char *name, const float duration,
+                                                    const float speed, const int priority, const bool loop,
+                                                    const uint8_t blendMode,
+                                                    char *errorOut, const int errorOutLen)
+    {
+        if (index >= impl->articulatedClips.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation index out of range");
+            return false;
+        }
+        if (blendMode != util::ARTICULATED_BLEND_ABSOLUTE &&
+            blendMode != util::ARTICULATED_BLEND_ADDITIVE)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated blend mode [%u]", blendMode);
+            return false;
+        }
+        const std::string clipName = name ? name : "";
+        if (clipName.empty())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation name cannot be empty");
+            return false;
+        }
+        for (size_t i = 0; i < impl->articulatedClips.size(); ++i)
+        {
+            if (i != index && impl->articulatedClips[i].header.name == clipName)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation [%s] already exists", clipName.c_str());
+                return false;
+            }
+        }
+        auto &header = impl->articulatedClips[index].header;
+        header.name = clipName;
+        float greatestKeyTime = 0.0f;
+        for (const auto &track : impl->articulatedClips[index].tracks)
+            for (const auto &key : track.keys)
+                greatestKeyTime = std::max(greatestKeyTime, key.time);
+        header.duration = std::max(std::max(0.0f, duration), greatestKeyTime);
+        header.speed = speed;
+        header.defaultPriority = priority;
+        header.loop = loop ? 1 : 0;
+        header.blendMode = blendMode;
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalArticulatedTracks(const uint32_t animationIndex) const noexcept
+    {
+        return animationIndex < impl->articulatedClips.size()
+            ? static_cast<uint32_t>(impl->articulatedClips[animationIndex].tracks.size()) : 0;
+    }
+
+    bool MESH_MBM_DEBUG::getArticulatedTrack(const uint32_t animationIndex, const uint32_t trackIndex,
+                                             uint64_t *partId, uint8_t *channelMask, uint32_t *keyCount) const noexcept
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            !partId || !channelMask || !keyCount)
+            return false;
+        const auto &track = impl->articulatedClips[animationIndex].tracks[trackIndex];
+        *partId = track.header.partId;
+        *channelMask = track.header.channelMask;
+        *keyCount = static_cast<uint32_t>(track.keys.size());
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                           const uint32_t keyIndex, float *time,
+                                           float *positionX, float *positionY, float *positionZ,
+                                           float *rotationX, float *rotationY, float *rotationZ, float *rotationW,
+                                           float *scaleX, float *scaleY, float *scaleZ,
+                                           uint8_t *easing,
+                                           float *bezierX1, float *bezierY1,
+                                           float *bezierX2, float *bezierY2,
+                                           float *rotationEulerX, float *rotationEulerY,
+                                           float *rotationEulerZ, bool *hasRotationEuler) const noexcept
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size() ||
+            !time || !positionX || !positionY || !positionZ || !rotationX || !rotationY ||
+            !rotationZ || !rotationW || !scaleX || !scaleY || !scaleZ || !easing ||
+            !bezierX1 || !bezierY1 || !bezierX2 || !bezierY2 ||
+            !rotationEulerX || !rotationEulerY || !rotationEulerZ || !hasRotationEuler)
+            return false;
+        const auto &key = impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex];
+        *time = key.time;
+        *positionX = key.positionX; *positionY = key.positionY; *positionZ = key.positionZ;
+        *rotationX = key.rotationX; *rotationY = key.rotationY;
+        *rotationZ = key.rotationZ; *rotationW = key.rotationW;
+        *scaleX = key.scaleX; *scaleY = key.scaleY; *scaleZ = key.scaleZ;
+        *easing = key.easing;
+        *bezierX1 = key.bezierX1; *bezierY1 = key.bezierY1;
+        *bezierX2 = key.bezierX2; *bezierY2 = key.bezierY2;
+        *rotationEulerX = key.rotationEulerX;
+        *rotationEulerY = key.rotationEulerY;
+        *rotationEulerZ = key.rotationEulerZ;
+        *hasRotationEuler = key.hasRotationEuler != 0;
+        return true;
+    }
+
+    int MESH_MBM_DEBUG::addArticulatedAnimation(const char *name, const float duration, const float speed,
+                                                const int priority, const bool loop, const uint8_t blendMode,
+                                                char *errorOut, const int errorOutLen)
+    {
+        const std::string clipName = name ? name : "";
+        if (clipName.empty())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation name cannot be empty");
+            return 0;
+        }
+        if (blendMode != util::ARTICULATED_BLEND_ABSOLUTE &&
+            blendMode != util::ARTICULATED_BLEND_ADDITIVE)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated blend mode [%u]", blendMode);
+            return 0;
+        }
+        for (const auto &clip : impl->articulatedClips)
+        {
+            if (clip.header.name == clipName)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation [%s] already exists", clipName.c_str());
+                return 0;
+            }
+        }
+        ARTICULATED_CLIP_DATA clip;
+        clip.header.name = clipName;
+        clip.header.duration = duration < 0.0f ? 0.0f : duration;
+        clip.header.speed = speed;
+        clip.header.defaultPriority = priority;
+        clip.header.loop = loop ? 1 : 0;
+        clip.header.blendMode = blendMode;
+        impl->articulatedClips.push_back(std::move(clip));
+        return static_cast<int>(impl->articulatedClips.size());
+    }
+
+    bool MESH_MBM_DEBUG::removeArticulatedAnimation(const uint32_t animationIndex,
+                                                    char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation index out of range");
+            return false;
+        }
+        impl->articulatedClips.erase(impl->articulatedClips.begin() + animationIndex);
+        return true;
+    }
+
+    int MESH_MBM_DEBUG::addArticulatedTrack(const uint32_t animationIndex, const uint64_t partId,
+                                            const uint8_t channelMask, char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation index out of range");
+            return 0;
+        }
+        if (!channelMask || (channelMask & ~(util::ARTICULATED_CHANNEL_POSITION |
+                                             util::ARTICULATED_CHANNEL_ROTATION |
+                                             util::ARTICULATED_CHANNEL_SCALE)))
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated channel mask");
+            return 0;
+        }
+        auto &tracks = impl->articulatedClips[animationIndex].tracks;
+        for (const auto &track : tracks)
+        {
+            if (track.header.partId == partId)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen, "track for partId [%llu] already exists in clip",
+                                       static_cast<unsigned long long>(partId));
+                return 0;
+            }
+        }
+        ARTICULATED_TRACK_DATA track;
+        track.header.partId = partId;
+        track.header.channelMask = channelMask;
+        tracks.push_back(std::move(track));
+        return static_cast<int>(tracks.size());
+    }
+
+    bool MESH_MBM_DEBUG::setArticulatedTrackChannels(const uint32_t animationIndex,
+                                                     const uint32_t trackIndex,
+                                                     const uint8_t channelMask,
+                                                     char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track index out of range");
+            return false;
+        }
+        if (!channelMask || (channelMask & ~(util::ARTICULATED_CHANNEL_POSITION |
+                                             util::ARTICULATED_CHANNEL_ROTATION |
+                                             util::ARTICULATED_CHANNEL_SCALE)))
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated channel mask");
+            return false;
+        }
+        impl->articulatedClips[animationIndex].tracks[trackIndex].header.channelMask = channelMask;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                           const float time, const float positionX, const float positionY, const float positionZ,
+                                           const float rotationX, const float rotationY, const float rotationZ, const float rotationW,
+                                           const float scaleX, const float scaleY, const float scaleZ,
+                                           char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track index out of range");
+            return false;
+        }
+        auto &clip = impl->articulatedClips[animationIndex];
+        auto &keys = clip.tracks[trackIndex].keys;
+        util::ARTICULATED_KEY_V11 key;
+        key.time = time < 0.0f ? 0.0f : time;
+        key.positionX = positionX; key.positionY = positionY; key.positionZ = positionZ;
+        key.rotationX = rotationX; key.rotationY = rotationY; key.rotationZ = rotationZ; key.rotationW = rotationW;
+        key.scaleX = scaleX; key.scaleY = scaleY; key.scaleZ = scaleZ;
+        constexpr float keyTimeEpsilon = 0.00001f;
+        for (auto &existing : keys)
+        {
+            if (std::fabs(existing.time - key.time) <= keyTimeEpsilon)
+            {
+                existing = key;
+                clip.header.duration = std::max(clip.header.duration, key.time);
+                return true;
+            }
+        }
+        keys.push_back(key);
+        std::sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) { return a.time < b.time; });
+        clip.header.duration = std::max(clip.header.duration, key.time);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setArticulatedKeyEuler(const uint32_t animationIndex, const uint32_t trackIndex,
+                                                const float time, const float rotationEulerX,
+                                                const float rotationEulerY, const float rotationEulerZ,
+                                                char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track index out of range");
+            return false;
+        }
+        auto &keys = impl->articulatedClips[animationIndex].tracks[trackIndex].keys;
+        constexpr float keyTimeEpsilon = 0.00001f;
+        for (auto &key : keys)
+        {
+            if (std::fabs(key.time - time) <= keyTimeEpsilon)
+            {
+                key.rotationEulerX = rotationEulerX;
+                key.rotationEulerY = rotationEulerY;
+                key.rotationEulerZ = rotationEulerZ;
+                key.hasRotationEuler = 1;
+                return true;
+            }
+        }
+        if (errorOut) snprintf(errorOut, errorOutLen, "articulated key time not found");
+        return false;
+    }
+
+    bool MESH_MBM_DEBUG::setArticulatedKeyEasing(const uint32_t animationIndex, const uint32_t trackIndex,
+                                                 const uint32_t keyIndex, const uint8_t easing,
+                                                 char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated key index out of range");
+            return false;
+        }
+        if (easing > util::ARTICULATED_EASING_BEZIER)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated easing");
+            return false;
+        }
+        impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex].easing = easing;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setArticulatedKeyBezier(const uint32_t animationIndex, const uint32_t trackIndex,
+                                                 const uint32_t keyIndex,
+                                                 const float x1, const float y1,
+                                                 const float x2, const float y2,
+                                                 char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated key index out of range");
+            return false;
+        }
+        if (!std::isfinite(x1) || !std::isfinite(y1) || !std::isfinite(x2) || !std::isfinite(y2) ||
+            x1 < 0.0f || x1 > 1.0f || x2 < 0.0f || x2 > 1.0f)
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "invalid articulated Bezier control points");
+            return false;
+        }
+        auto &key = impl->articulatedClips[animationIndex].tracks[trackIndex].keys[keyIndex];
+        key.bezierX1 = x1; key.bezierY1 = y1;
+        key.bezierX2 = x2; key.bezierY2 = y2;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                              const uint32_t keyIndex, const float time,
+                                              const float positionX, const float positionY, const float positionZ,
+                                              const float rotationX, const float rotationY, const float rotationZ, const float rotationW,
+                                              const float scaleX, const float scaleY, const float scaleZ,
+                                              char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track/key index out of range");
+            return false;
+        }
+        auto &clip = impl->articulatedClips[animationIndex];
+        auto &keys = clip.tracks[trackIndex].keys;
+        util::ARTICULATED_KEY_V11 key = keys[keyIndex];
+        key.time = time < 0.0f ? 0.0f : time;
+        key.positionX = positionX; key.positionY = positionY; key.positionZ = positionZ;
+        key.rotationX = rotationX; key.rotationY = rotationY; key.rotationZ = rotationZ; key.rotationW = rotationW;
+        key.scaleX = scaleX; key.scaleY = scaleY; key.scaleZ = scaleZ;
+        constexpr float keyTimeEpsilon = 0.00001f;
+
+        keys.erase(keys.begin() + static_cast<ptrdiff_t>(keyIndex));
+        for (auto it = keys.begin(); it != keys.end(); ++it)
+        {
+            if (std::fabs(it->time - key.time) <= keyTimeEpsilon)
+            {
+                *it = key;
+                std::sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) { return a.time < b.time; });
+                clip.header.duration = std::max(clip.header.duration, key.time);
+                return true;
+            }
+        }
+        keys.push_back(key);
+        std::sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) { return a.time < b.time; });
+        clip.header.duration = std::max(clip.header.duration, key.time);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeArticulatedKey(const uint32_t animationIndex, const uint32_t trackIndex,
+                                              const uint32_t keyIndex, char *errorOut, const int errorOutLen)
+    {
+        if (animationIndex >= impl->articulatedClips.size() ||
+            trackIndex >= impl->articulatedClips[animationIndex].tracks.size() ||
+            keyIndex >= impl->articulatedClips[animationIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut) snprintf(errorOut, errorOutLen, "articulated animation/track/key index out of range");
+            return false;
+        }
+        auto &keys = impl->articulatedClips[animationIndex].tracks[trackIndex].keys;
+        keys.erase(keys.begin() + static_cast<ptrdiff_t>(keyIndex));
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept
     {
         if (index >= this->impl->infoAnimation.lsHeaderAnim.size())
@@ -4089,7 +4979,7 @@ namespace mbm
         }
         impl->extraInfo           = nullptr;
     }
-    
+
     void MESH_MBM_DEBUG::fixDefaultBoud()
     {
         if (this->impl->infoPhysics.lsCube.size() == 0)
@@ -4098,14 +4988,14 @@ namespace mbm
             impl->headerMesh.deprecated_typePhysics = 1;
         }
     }
-    
+
     void MESH_MBM_DEBUG::release()
     {
         deleteExtraInfo();
         if (this->impl->coordTexFrame_0)
             delete[] this->impl->coordTexFrame_0;
         this->impl->coordTexFrame_0 = nullptr;
-        
+
         for (auto meshBuffer : this->impl->buffer)
         {
             if (meshBuffer)
@@ -4129,6 +5019,8 @@ namespace mbm
         this->impl->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         this->impl->infoPhysics.release();
         this->impl->infoAnimation.release();
+        impl->articulatedParts.clear();
+        impl->articulatedClips.clear();
         impl->skeleton.clear();
     }
 
@@ -4409,6 +5301,8 @@ namespace mbm
         impl->buffer = nullptr;
         this->impl->infoPhysics.release();
         this->impl->infoAnimation.release();
+        impl->articulatedParts.clear();
+        impl->articulatedClips.clear();
 
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
@@ -4428,6 +5322,744 @@ namespace mbm
     bool MESH_MBM::isLoaded() const
     {
         return this->impl->buffer != nullptr;
+    }
+
+    bool MESH_MBM::hasArticulatedAnimationData() const noexcept
+    {
+        return !impl->articulatedClips.empty();
+    }
+
+    bool MESH_MBM::hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept
+    {
+        return !player.impl->activeClips.empty();
+    }
+
+    bool MESH_MBM::playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                            const char *name, const int priority,
+                                            const float blendDuration, const float weight) const
+    {
+        if (!name || !name[0])
+            return false;
+        uint32_t clipIndex = 0;
+        bool found = false;
+        for (uint32_t i = 0; i < impl->articulatedClips.size(); ++i)
+        {
+            if (impl->articulatedClips[i].header.name == name)
+            {
+                clipIndex = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return false;
+
+        for (auto &active : player.impl->activeClips)
+        {
+            if (active.clipIndex == clipIndex)
+            {
+                active.time = 0.0f;
+                active.priority = priority;
+                active.sequence = ++player.impl->sequence;
+                active.blendDuration = std::max(0.0f, blendDuration);
+                active.blendElapsed = 0.0f;
+                active.weight = std::max(0.0f, std::min(1.0f, weight));
+                active.paused = false;
+                active.ended = false;
+                return true;
+            }
+        }
+        ACTIVE_ARTICULATED_CLIP active;
+        active.clipIndex = clipIndex;
+        active.priority = priority;
+        active.sequence = ++player.impl->sequence;
+        active.blendDuration = std::max(0.0f, blendDuration);
+        active.weight = std::max(0.0f, std::min(1.0f, weight));
+        player.impl->activeClips.push_back(active);
+        return true;
+    }
+
+    bool MESH_MBM::pauseArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                             const char *name) const noexcept
+    {
+        if (!name)
+            return false;
+        for (auto &active : player.impl->activeClips)
+        {
+            if (active.clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[active.clipIndex].header.name == name)
+            {
+                active.paused = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::resumeArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                              const char *name) const noexcept
+    {
+        if (!name)
+            return false;
+        for (auto &active : player.impl->activeClips)
+        {
+            if (active.clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[active.clipIndex].header.name == name)
+            {
+                active.paused = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::disableArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                               const char *name) const noexcept
+    {
+        if (!name)
+            return false;
+        for (auto it = player.impl->activeClips.begin(); it != player.impl->activeClips.end(); ++it)
+        {
+            if (it->clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[it->clipIndex].header.name == name)
+            {
+                player.impl->activeClips.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::seekArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
+                                            const char *name, const float time) const noexcept
+    {
+        if (!name)
+            return false;
+        for (auto &active : player.impl->activeClips)
+        {
+            if (active.clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[active.clipIndex].header.name == name)
+            {
+                const float duration = impl->articulatedClips[active.clipIndex].header.duration;
+                active.time = std::max(0.0f, duration > 0.0f ? std::min(time, duration) : 0.0f);
+                active.ended = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::getArticulatedAnimationTime(const ARTICULATED_ANIMATION_PLAYER &player,
+                                               const char *name, float *time) const noexcept
+    {
+        if (!name || !time)
+            return false;
+        for (const auto &active : player.impl->activeClips)
+        {
+            if (active.clipIndex < impl->articulatedClips.size() &&
+                impl->articulatedClips[active.clipIndex].header.name == name)
+            {
+                *time = active.time;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void MESH_MBM::updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
+                                               const float delta, RENDERIZABLE *owner,
+                                               OnEndAnimation onEndAnimation) const
+    {
+        if (delta <= 0.0f)
+            return;
+        std::vector<std::string> endedClipNames;
+        for (auto &active : player.impl->activeClips)
+        {
+            if (active.paused || active.clipIndex >= impl->articulatedClips.size())
+                continue;
+            if (active.blendElapsed < active.blendDuration)
+                active.blendElapsed = std::min(active.blendDuration, active.blendElapsed + delta);
+            if (active.ended)
+                continue;
+            const ARTICULATED_CLIP_DATA &clip = impl->articulatedClips[active.clipIndex];
+            const float duration = clip.header.duration;
+            if (duration <= 0.0f)
+            {
+                active.time = 0.0f;
+                active.ended = !clip.header.loop;
+                if (active.ended && onEndAnimation)
+                    endedClipNames.push_back(clip.header.name);
+                continue;
+            }
+            const float speed = std::max(0.0f, clip.header.speed);
+            active.time += delta * speed;
+            if (active.time >= duration)
+            {
+                if (clip.header.loop)
+                    active.time = std::fmod(active.time, duration);
+                else
+                {
+                    active.time = duration;
+                    active.ended = true;
+                    if (onEndAnimation)
+                        endedClipNames.push_back(clip.header.name);
+                }
+            }
+        }
+        for (const std::string &clipName : endedClipNames)
+            onEndAnimation(clipName.c_str(), owner);
+    }
+
+    bool MESH_MBM::getArticulatedTransform(const ARTICULATED_ANIMATION_PLAYER &player,
+                                           const uint32_t frameIndex, const uint32_t subsetIndex,
+                                           VEC3 *translation, float rotationQuaternion[4], VEC3 *scale,
+                                           VEC3 *pivot, float pivotQuaternion[4]) const noexcept
+    {
+        if (!translation || !rotationQuaternion || !scale || !pivot || !pivotQuaternion)
+            return false;
+        const util::ARTICULATED_PART_V11 *part = nullptr;
+        for (const auto &candidate : impl->articulatedParts)
+        {
+            if (candidate.frameIndex == frameIndex && candidate.subsetIndex == subsetIndex)
+            {
+                part = &candidate;
+                break;
+            }
+        }
+        if (!part)
+            return false;
+
+        *translation = VEC3(0.0f, 0.0f, 0.0f);
+        *scale = VEC3(1.0f, 1.0f, 1.0f);
+        rotationQuaternion[0] = rotationQuaternion[1] = rotationQuaternion[2] = 0.0f;
+        rotationQuaternion[3] = 1.0f;
+        *pivot = VEC3(part->pivotX, part->pivotY, part->pivotZ);
+        pivotQuaternion[0] = part->pivotQX; pivotQuaternion[1] = part->pivotQY;
+        pivotQuaternion[2] = part->pivotQZ; pivotQuaternion[3] = part->pivotQW;
+
+        const auto applyEasing = [](float value, const util::ARTICULATED_KEY_V11 &key)
+        {
+            value = std::max(0.0f, std::min(1.0f, value));
+            switch (key.easing)
+            {
+                case util::ARTICULATED_EASING_IN:
+                    return value * value;
+                case util::ARTICULATED_EASING_OUT:
+                    return 1.0f - (1.0f - value) * (1.0f - value);
+                case util::ARTICULATED_EASING_IN_OUT:
+                    return value < 0.5f ? 2.0f * value * value
+                                       : 1.0f - 2.0f * (1.0f - value) * (1.0f - value);
+                case util::ARTICULATED_EASING_SMOOTHSTEP:
+                    return value * value * (3.0f - 2.0f * value);
+                case util::ARTICULATED_EASING_BEZIER:
+                {
+                    const auto cubic = [](const float t, const float p1, const float p2)
+                    {
+                        const float oneMinusT = 1.0f - t;
+                        return 3.0f * oneMinusT * oneMinusT * t * p1 +
+                               3.0f * oneMinusT * t * t * p2 +
+                               t * t * t;
+                    };
+                    const auto cubicDerivative = [](const float t, const float p1, const float p2)
+                    {
+                        const float oneMinusT = 1.0f - t;
+                        return 3.0f * oneMinusT * oneMinusT * p1 +
+                               6.0f * oneMinusT * t * (p2 - p1) +
+                               3.0f * t * t * (1.0f - p2);
+                    };
+                    float parameter = value;
+                    for (int i = 0; i < 6; ++i)
+                    {
+                        const float difference = cubic(parameter, key.bezierX1, key.bezierX2) - value;
+                        const float derivative = cubicDerivative(parameter, key.bezierX1, key.bezierX2);
+                        if (std::fabs(difference) < 0.00001f || std::fabs(derivative) < 0.00001f)
+                            break;
+                        parameter = std::max(0.0f, std::min(1.0f, parameter - difference / derivative));
+                    }
+                    float low = 0.0f;
+                    float high = 1.0f;
+                    for (int i = 0; i < 10; ++i)
+                    {
+                        const float currentX = cubic(parameter, key.bezierX1, key.bezierX2);
+                        if (std::fabs(currentX - value) < 0.00001f)
+                            break;
+                        if (currentX < value)
+                            low = parameter;
+                        else
+                            high = parameter;
+                        parameter = (low + high) * 0.5f;
+                    }
+                    return cubic(parameter, key.bezierY1, key.bezierY2);
+                }
+                default:
+                    return value;
+            }
+        };
+        const auto quaternionFromEulerDegrees = [](const float eulerX, const float eulerY,
+                                                   const float eulerZ, float out[4])
+        {
+            constexpr float degreesToRadians = 0.017453292519943295769f;
+            const float halfYaw = eulerY * degreesToRadians * 0.5f;
+            const float halfPitch = -eulerX * degreesToRadians * 0.5f;
+            const float halfRoll = eulerZ * degreesToRadians * 0.5f;
+            const float sy = std::sin(halfYaw), cy = std::cos(halfYaw);
+            const float sx = std::sin(halfPitch), cx = std::cos(halfPitch);
+            const float sz = std::sin(halfRoll), cz = std::cos(halfRoll);
+            const float yaw[4] = {0.0f, sy, 0.0f, cy};
+            const float pitch[4] = {sx, 0.0f, 0.0f, cx};
+            const float roll[4] = {0.0f, 0.0f, sz, cz};
+            const auto multiply = [](const float a[4], const float b[4], float result[4])
+            {
+                result[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
+                result[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
+                result[2] = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3];
+                result[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
+            };
+            float yawPitch[4];
+            multiply(yaw, pitch, yawPitch);
+            multiply(yawPitch, roll, out);
+        };
+
+        struct SAMPLED_TRACK
+        {
+            VEC3 translation = VEC3(0.0f, 0.0f, 0.0f);
+            VEC3 scale = VEC3(1.0f, 1.0f, 1.0f);
+            VEC3 rotationEuler = VEC3(0.0f, 0.0f, 0.0f);
+            float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            bool hasRotationEuler = false;
+        };
+        const auto sampleTrack = [&applyEasing, &quaternionFromEulerDegrees](
+                                     const ARTICULATED_TRACK_DATA &track, const float time,
+                                     SAMPLED_TRACK &sample)
+        {
+            const auto &keys = track.keys;
+            const util::ARTICULATED_KEY_V11 *a = &keys.front();
+            const util::ARTICULATED_KEY_V11 *b = &keys.front();
+            float factor = 0.0f;
+            if (time >= keys.back().time)
+                a = b = &keys.back();
+            else if (time > keys.front().time)
+            {
+                for (size_t i = 1; i < keys.size(); ++i)
+                {
+                    if (time <= keys[i].time)
+                    {
+                        a = &keys[i - 1];
+                        b = &keys[i];
+                        const float span = b->time - a->time;
+                        factor = span > 0.0f ? (time - a->time) / span : 0.0f;
+                        break;
+                    }
+                }
+            }
+            factor = applyEasing(factor, *a);
+            const auto lerp = [factor](const float x, const float y) { return x + (y - x) * factor; };
+            sample.translation.x = lerp(a->positionX, b->positionX);
+            sample.translation.y = lerp(a->positionY, b->positionY);
+            sample.translation.z = lerp(a->positionZ, b->positionZ);
+            sample.scale.x = lerp(a->scaleX, b->scaleX);
+            sample.scale.y = lerp(a->scaleY, b->scaleY);
+            sample.scale.z = lerp(a->scaleZ, b->scaleZ);
+            if (a->hasRotationEuler && b->hasRotationEuler)
+            {
+                sample.rotationEuler.x = lerp(a->rotationEulerX, b->rotationEulerX);
+                sample.rotationEuler.y = lerp(a->rotationEulerY, b->rotationEulerY);
+                sample.rotationEuler.z = lerp(a->rotationEulerZ, b->rotationEulerZ);
+                sample.hasRotationEuler = true;
+                quaternionFromEulerDegrees(
+                    sample.rotationEuler.x,
+                    sample.rotationEuler.y,
+                    sample.rotationEuler.z,
+                    sample.rotation);
+            }
+            else
+            {
+                float endQuaternion[4] = {b->rotationX, b->rotationY, b->rotationZ, b->rotationW};
+                const float dot = a->rotationX * endQuaternion[0] + a->rotationY * endQuaternion[1] +
+                                  a->rotationZ * endQuaternion[2] + a->rotationW * endQuaternion[3];
+                if (dot < 0.0f)
+                {
+                    endQuaternion[0] = -endQuaternion[0]; endQuaternion[1] = -endQuaternion[1];
+                    endQuaternion[2] = -endQuaternion[2]; endQuaternion[3] = -endQuaternion[3];
+                }
+                sample.rotation[0] = lerp(a->rotationX, endQuaternion[0]);
+                sample.rotation[1] = lerp(a->rotationY, endQuaternion[1]);
+                sample.rotation[2] = lerp(a->rotationZ, endQuaternion[2]);
+                sample.rotation[3] = lerp(a->rotationW, endQuaternion[3]);
+            }
+            const float length = std::sqrt(sample.rotation[0] * sample.rotation[0] +
+                                           sample.rotation[1] * sample.rotation[1] +
+                                           sample.rotation[2] * sample.rotation[2] +
+                                           sample.rotation[3] * sample.rotation[3]);
+            if (length > 0.000001f)
+            {
+                sample.rotation[0] /= length; sample.rotation[1] /= length;
+                sample.rotation[2] /= length; sample.rotation[3] /= length;
+            }
+        };
+
+        struct CHANNEL_CANDIDATE
+        {
+            const ACTIVE_ARTICULATED_CLIP *active = nullptr;
+            const ARTICULATED_TRACK_DATA *track = nullptr;
+        };
+        using CHANNEL_CANDIDATES = std::vector<CHANNEL_CANDIDATE>;
+        CHANNEL_CANDIDATES positionCandidates;
+        CHANNEL_CANDIDATES rotationCandidates;
+        CHANNEL_CANDIDATES scaleCandidates;
+        CHANNEL_CANDIDATES additivePositionCandidates;
+        CHANNEL_CANDIDATES additiveRotationCandidates;
+        CHANNEL_CANDIDATES additiveScaleCandidates;
+        const auto addCandidate = [](CHANNEL_CANDIDATES &candidates,
+                                     const ACTIVE_ARTICULATED_CLIP &active,
+                                     const ARTICULATED_TRACK_DATA &track)
+        {
+            for (auto &candidate : candidates)
+            {
+                if (candidate.active == &active)
+                {
+                    candidate.track = &track;
+                    return;
+                }
+            }
+            candidates.push_back({&active, &track});
+        };
+        for (const auto &active : player.impl->activeClips)
+        {
+            if (active.clipIndex >= impl->articulatedClips.size())
+                continue;
+            const ARTICULATED_CLIP_DATA &clip = impl->articulatedClips[active.clipIndex];
+            for (const auto &track : clip.tracks)
+            {
+                if (track.header.partId != part->partId || track.keys.empty())
+                    continue;
+                CHANNEL_CANDIDATES *positionTarget = clip.header.blendMode == util::ARTICULATED_BLEND_ADDITIVE
+                    ? &additivePositionCandidates : &positionCandidates;
+                CHANNEL_CANDIDATES *rotationTarget = clip.header.blendMode == util::ARTICULATED_BLEND_ADDITIVE
+                    ? &additiveRotationCandidates : &rotationCandidates;
+                CHANNEL_CANDIDATES *scaleTarget = clip.header.blendMode == util::ARTICULATED_BLEND_ADDITIVE
+                    ? &additiveScaleCandidates : &scaleCandidates;
+                const uint8_t mask = track.header.channelMask;
+                if (mask & util::ARTICULATED_CHANNEL_POSITION)
+                    addCandidate(*positionTarget, active, track);
+                if (mask & util::ARTICULATED_CHANNEL_ROTATION)
+                    addCandidate(*rotationTarget, active, track);
+                if (mask & util::ARTICULATED_CHANNEL_SCALE)
+                    addCandidate(*scaleTarget, active, track);
+            }
+        }
+        const auto sortCandidates = [](CHANNEL_CANDIDATES &candidates)
+        {
+            std::sort(candidates.begin(), candidates.end(),
+                [](const CHANNEL_CANDIDATE &left, const CHANNEL_CANDIDATE &right)
+                {
+                    return left.active->priority < right.active->priority ||
+                           (left.active->priority == right.active->priority &&
+                            left.active->sequence < right.active->sequence);
+                });
+        };
+        sortCandidates(positionCandidates);
+        sortCandidates(rotationCandidates);
+        sortCandidates(scaleCandidates);
+        sortCandidates(additivePositionCandidates);
+        sortCandidates(additiveRotationCandidates);
+        sortCandidates(additiveScaleCandidates);
+
+        const auto blendFactor = [](const ACTIVE_ARTICULATED_CLIP &active)
+        {
+            if (active.blendDuration <= 0.0f)
+                return 1.0f;
+            return std::max(0.0f, std::min(1.0f, active.blendElapsed / active.blendDuration));
+        };
+        const auto blendVector = [](const VEC3 &source, const VEC3 &target, const float factor)
+        {
+            return VEC3(source.x + (target.x - source.x) * factor,
+                        source.y + (target.y - source.y) * factor,
+                        source.z + (target.z - source.z) * factor);
+        };
+        const auto blendQuaternion = [](const float source[4], const float target[4],
+                                        const float factor, float out[4])
+        {
+            float end[4] = {target[0], target[1], target[2], target[3]};
+            float dot = source[0] * end[0] + source[1] * end[1] +
+                        source[2] * end[2] + source[3] * end[3];
+            if (dot < 0.0f)
+            {
+                dot = -dot;
+                end[0] = -end[0]; end[1] = -end[1]; end[2] = -end[2]; end[3] = -end[3];
+            }
+            dot = std::max(-1.0f, std::min(1.0f, dot));
+            if (dot > 0.9995f)
+            {
+                out[0] = source[0] + (end[0] - source[0]) * factor;
+                out[1] = source[1] + (end[1] - source[1]) * factor;
+                out[2] = source[2] + (end[2] - source[2]) * factor;
+                out[3] = source[3] + (end[3] - source[3]) * factor;
+            }
+            else
+            {
+                const float angle = std::acos(dot);
+                const float denominator = std::sin(angle);
+                const float sourceWeight = std::sin((1.0f - factor) * angle) / denominator;
+                const float targetWeight = std::sin(factor * angle) / denominator;
+                out[0] = source[0] * sourceWeight + end[0] * targetWeight;
+                out[1] = source[1] * sourceWeight + end[1] * targetWeight;
+                out[2] = source[2] * sourceWeight + end[2] * targetWeight;
+                out[3] = source[3] * sourceWeight + end[3] * targetWeight;
+            }
+            const float length = std::sqrt(out[0] * out[0] + out[1] * out[1] +
+                                           out[2] * out[2] + out[3] * out[3]);
+            if (length > 0.000001f)
+            {
+                out[0] /= length; out[1] /= length; out[2] /= length; out[3] /= length;
+            }
+        };
+        const auto multiplyQuaternion = [](const float left[4], const float right[4], float out[4])
+        {
+            out[0] = left[3] * right[0] + left[0] * right[3] +
+                     left[1] * right[2] - left[2] * right[1];
+            out[1] = left[3] * right[1] - left[0] * right[2] +
+                     left[1] * right[3] + left[2] * right[0];
+            out[2] = left[3] * right[2] + left[0] * right[1] -
+                     left[1] * right[0] + left[2] * right[3];
+            out[3] = left[3] * right[3] - left[0] * right[0] -
+                     left[1] * right[1] - left[2] * right[2];
+        };
+
+        const auto applyVectorChannel = [&sampleTrack, &blendFactor, &blendVector](
+                                            const CHANNEL_CANDIDATES &candidates,
+                                            const bool useScale, VEC3 &value)
+        {
+            for (const auto &candidate : candidates)
+            {
+                SAMPLED_TRACK targetSample;
+                sampleTrack(*candidate.track, candidate.active->time, targetSample);
+                const VEC3 &target = useScale ? targetSample.scale : targetSample.translation;
+                value = blendVector(value, target, blendFactor(*candidate.active));
+            }
+        };
+        applyVectorChannel(positionCandidates, false, *translation);
+        applyVectorChannel(scaleCandidates, true, *scale);
+
+        for (const auto &candidate : rotationCandidates)
+        {
+            SAMPLED_TRACK targetSample;
+            sampleTrack(*candidate.track, candidate.active->time, targetSample);
+            float source[4] = {rotationQuaternion[0], rotationQuaternion[1],
+                               rotationQuaternion[2], rotationQuaternion[3]};
+            blendQuaternion(source, targetSample.rotation,
+                            blendFactor(*candidate.active), rotationQuaternion);
+        }
+
+        for (const auto &candidate : additivePositionCandidates)
+        {
+            SAMPLED_TRACK sample;
+            sampleTrack(*candidate.track, candidate.active->time, sample);
+            const float effectiveWeight = candidate.active->weight * blendFactor(*candidate.active);
+            translation->x += sample.translation.x * effectiveWeight;
+            translation->y += sample.translation.y * effectiveWeight;
+            translation->z += sample.translation.z * effectiveWeight;
+        }
+        for (const auto &candidate : additiveScaleCandidates)
+        {
+            SAMPLED_TRACK sample;
+            sampleTrack(*candidate.track, candidate.active->time, sample);
+            const float effectiveWeight = candidate.active->weight * blendFactor(*candidate.active);
+            scale->x *= 1.0f + (sample.scale.x - 1.0f) * effectiveWeight;
+            scale->y *= 1.0f + (sample.scale.y - 1.0f) * effectiveWeight;
+            scale->z *= 1.0f + (sample.scale.z - 1.0f) * effectiveWeight;
+        }
+        for (const auto &candidate : additiveRotationCandidates)
+        {
+            SAMPLED_TRACK sample;
+            sampleTrack(*candidate.track, candidate.active->time, sample);
+            const float identity[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            float weightedDelta[4];
+            const float effectiveWeight = candidate.active->weight * blendFactor(*candidate.active);
+            if (sample.hasRotationEuler)
+            {
+                quaternionFromEulerDegrees(sample.rotationEuler.x * effectiveWeight,
+                                           sample.rotationEuler.y * effectiveWeight,
+                                           sample.rotationEuler.z * effectiveWeight,
+                                           weightedDelta);
+            }
+            else
+            {
+                blendQuaternion(identity, sample.rotation, effectiveWeight, weightedDelta);
+            }
+            float composed[4];
+            multiplyQuaternion(rotationQuaternion, weightedDelta, composed);
+            rotationQuaternion[0] = composed[0]; rotationQuaternion[1] = composed[1];
+            rotationQuaternion[2] = composed[2]; rotationQuaternion[3] = composed[3];
+        }
+        if (!additiveRotationCandidates.empty())
+        {
+            const float length = std::sqrt(rotationQuaternion[0] * rotationQuaternion[0] +
+                                           rotationQuaternion[1] * rotationQuaternion[1] +
+                                           rotationQuaternion[2] * rotationQuaternion[2] +
+                                           rotationQuaternion[3] * rotationQuaternion[3]);
+            if (length > 0.000001f)
+            {
+                rotationQuaternion[0] /= length; rotationQuaternion[1] /= length;
+                rotationQuaternion[2] /= length; rotationQuaternion[3] /= length;
+            }
+        }
+
+        return !positionCandidates.empty() || !rotationCandidates.empty() || !scaleCandidates.empty() ||
+               !additivePositionCandidates.empty() || !additiveRotationCandidates.empty() ||
+               !additiveScaleCandidates.empty();
+    }
+
+    bool MESH_MBM::buildArticulatedTransformMatrix(const ARTICULATED_ANIMATION_PLAYER &player,
+                                                   const uint32_t frameIndex, const uint32_t subsetIndex,
+                                                   MATRIX *out) const noexcept
+    {
+        if (!out)
+            return false;
+        MatrixIdentity(out);
+        const util::ARTICULATED_PART_V11 *part = nullptr;
+        for (const auto &candidate : impl->articulatedParts)
+        {
+            if (candidate.frameIndex == frameIndex && candidate.subsetIndex == subsetIndex)
+            {
+                part = &candidate;
+                break;
+            }
+        }
+        if (!part)
+            return false;
+
+        const auto normalizeQuaternion = [](float q[4])
+        {
+            const float length = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+            if (length > 0.000001f)
+            {
+                q[0] /= length; q[1] /= length; q[2] /= length; q[3] /= length;
+            }
+            else
+            {
+                q[0] = q[1] = q[2] = 0.0f; q[3] = 1.0f;
+            }
+        };
+        const auto multiplyQuaternion = [](const float a[4], const float b[4], float outQuaternion[4])
+        {
+            outQuaternion[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
+            outQuaternion[1] = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
+            outQuaternion[2] = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3];
+            outQuaternion[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
+        };
+        const auto quaternionMatrix = [](MATRIX *matrix, const float q[4])
+        {
+            const float xx = q[0] * q[0], yy = q[1] * q[1], zz = q[2] * q[2];
+            const float xy = q[0] * q[1], xz = q[0] * q[2], yz = q[1] * q[2];
+            const float xw = q[0] * q[3], yw = q[1] * q[3], zw = q[2] * q[3];
+            MatrixIdentity(matrix);
+            matrix->_11 = 1.0f - 2.0f * (yy + zz);
+            matrix->_12 = 2.0f * (xy + zw);
+            matrix->_13 = 2.0f * (xz - yw);
+            matrix->_21 = 2.0f * (xy - zw);
+            matrix->_22 = 1.0f - 2.0f * (xx + zz);
+            matrix->_23 = 2.0f * (yz + xw);
+            matrix->_31 = 2.0f * (xz + yw);
+            matrix->_32 = 2.0f * (yz - xw);
+            matrix->_33 = 1.0f - 2.0f * (xx + yy);
+        };
+        const auto buildLocal = [&](const util::ARTICULATED_PART_V11 *localPart, MATRIX *matrix)
+        {
+            VEC3 translation(0.0f, 0.0f, 0.0f), scale(1.0f, 1.0f, 1.0f), pivot;
+            float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            float pivotRotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            getArticulatedTransform(player, localPart->frameIndex, localPart->subsetIndex,
+                                    &translation, rotation, &scale, &pivot, pivotRotation);
+            normalizeQuaternion(rotation);
+            normalizeQuaternion(pivotRotation);
+            const float inversePivot[4] = {-pivotRotation[0], -pivotRotation[1], -pivotRotation[2], pivotRotation[3]};
+            float orientedRotation[4], combinedRotation[4];
+            multiplyQuaternion(pivotRotation, rotation, orientedRotation);
+            multiplyQuaternion(orientedRotation, inversePivot, combinedRotation);
+            normalizeQuaternion(combinedRotation);
+            MATRIX step;
+            MatrixTranslation(matrix, -pivot.x, -pivot.y, -pivot.z);
+            MatrixScaling(&step, scale.x, scale.y, scale.z);
+            MatrixMultiply(matrix, matrix, &step);
+            quaternionMatrix(&step, combinedRotation);
+            MatrixMultiply(matrix, matrix, &step);
+            MatrixTranslation(&step, pivot.x + translation.x, pivot.y + translation.y, pivot.z + translation.z);
+            MatrixMultiply(matrix, matrix, &step);
+        };
+        std::unordered_set<uint64_t> recursion;
+        const auto buildRecursive = [&](auto &&self, const util::ARTICULATED_PART_V11 *current,
+                                        MATRIX *matrix) -> bool
+        {
+            if (!current || !recursion.insert(current->partId).second)
+                return false;
+            MATRIX local;
+            buildLocal(current, &local);
+            if (current->parentPartId != 0)
+            {
+                const util::ARTICULATED_PART_V11 *parent = nullptr;
+                for (const auto &candidate : impl->articulatedParts)
+                {
+                    if (candidate.frameIndex == current->frameIndex &&
+                        candidate.partId == current->parentPartId)
+                    {
+                        parent = &candidate;
+                        break;
+                    }
+                }
+                if (parent)
+                {
+                    MATRIX parentMatrix;
+                    if (self(self, parent, &parentMatrix))
+                        // This engine uses row-vector transforms (translation lives in _41/_42/_43):
+                        // apply the child's local transform first, then its parent hierarchy.
+                        MatrixMultiply(matrix, &local, &parentMatrix);
+                    else
+                        *matrix = local;
+                }
+                else
+                    *matrix = local;
+            }
+            else
+                *matrix = local;
+            recursion.erase(current->partId);
+            return true;
+        };
+        return buildRecursive(buildRecursive, part, out);
+    }
+
+    bool MESH_MBM::renderArticulatedStatic(const ARTICULATED_ANIMATION_PLAYER &player,
+                                           const uint32_t indexFrame, const SHADER *pShader,
+                                           const MATRIX &viewMatrix, const MATRIX &perspectiveMatrix,
+                                           const RENDERIZABLE *renderizableOwner)
+    {
+        if (!pShader || !hasActiveArticulatedAnimations(player) || !impl->buffer ||
+            indexFrame >= impl->totalFramesMesh)
+            return false;
+
+        const BUFFER_MESH &frameBuffer = impl->buffer[indexFrame];
+        if (!frameBuffer.pBufferGL || frameBuffer.totalSubset == 0)
+            return false;
+
+        const MATRIX baseModelView = SHADER::modelView;
+
+        DEVICE *device = DEVICE::getInstance();
+        device->setRenderMaterial(this->impl->material);
+        bool rendered = true;
+        for (uint32_t subsetIndex = 0; subsetIndex < frameBuffer.totalSubset; ++subsetIndex)
+        {
+            MATRIX partTransform;
+            buildArticulatedTransformMatrix(player, indexFrame, subsetIndex, &partTransform);
+
+            MatrixMultiply(&SHADER::modelView, &partTransform, &baseModelView);
+            SHADER::updateMvpAndLightMatrices(viewMatrix, perspectiveMatrix);
+            if (!pShader->render(frameBuffer.pBufferGL, renderizableOwner, static_cast<int32_t>(subsetIndex)))
+                rendered = false;
+        }
+        device->clearRenderMaterial();
+        SHADER::modelView = baseModelView;
+        SHADER::updateMvpAndLightMatrices(viewMatrix, perspectiveMatrix);
+        return rendered;
     }
     
     bool MESH_MBM::render(const uint32_t indexFrame,const SHADER *pShader,
@@ -4554,6 +6186,8 @@ namespace mbm
         impl->infoPhysics.lsSphere      = std::move(in.infoPhysics.lsSphere);
         impl->infoPhysics.lsTriangle    = std::move(in.infoPhysics.lsTriangle);
         impl->infoAnimation.lsHeaderAnim = std::move(in.infoAnimation.lsHeaderAnim);
+        impl->articulatedParts = std::move(in.articulatedParts);
+        impl->articulatedClips = std::move(in.articulatedClips);
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;
 
