@@ -9329,16 +9329,22 @@ function showMeshOptions(tEntry, index)
         tImGui.BeginDisabled(not canDragSubset)
         xf.enableSubsetDrag = tImGui.Checkbox(tLang.L('drag_target_subset') .. '##xfDrag-' .. index, xf.enableSubsetDrag)
         tImGui.EndDisabled()
+        local iCountNewLine = 0
         if visibilityBlocksDrag then
             xf.enableSubsetDrag = false
             tImGui.TextDisabled(tLang.L('drag_target_subset_visibility_help'))
+            iCountNewLine = 0
         elseif not canDragSubset then
             xf.enableSubsetDrag = false
             tImGui.TextDisabled(tLang.L('drag_target_subset_select_help'))
         elseif xf.enableSubsetDrag then
             tImGui.TextWrapped(tLang.L('drag_target_subset_help'))
+        else
+            iCountNewLine = 2
         end
         local enableSubsetDragChanged = oldEnableSubsetDrag ~= xf.enableSubsetDrag
+        -- anoying the check box been repositioned, so add some new line to make the layout looks better
+        for i = 1, iCountNewLine do tImGui.NewLine() end
 
         -- Shared helper: build/rebuild the preview clone
         local function buildXformPreview()
