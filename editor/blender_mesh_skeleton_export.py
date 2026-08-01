@@ -138,25 +138,80 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
             vv = 1.0 - vv
         uv_layer.data[loop.index].uv = (u, vv)
 
-    # One material per subset, each wired to that subset's own texture (writeMeshDebugJson already
-    # resolved and existence-checked the path, so a missing file just means a plain untextured
-    # material here, not a load error). Without ANY material at all, the exported FBX's geometry
+    def load_texture_node(nodes, path: str | None, non_color: bool = False):
+        if not path:
+            return None
+        tex_node = nodes.new("ShaderNodeTexImage")
+        try:
+            tex_node.image = bpy.data.images.load(path, check_existing=True)
+            if non_color:
+                tex_node.image.colorspace_settings.name = "Non-Color"
+        except (RuntimeError, TypeError):
+            nodes.remove(tex_node)
+            return None
+        return tex_node
+
+    def find_input(bsdf, *names):
+        for name in names:
+            socket = bsdf.inputs.get(name)
+            if socket is not None:
+                return socket
+        return None
+
+    # One material per subset, wired to that subset's primary + v11 material-role textures
+    # (writeMeshDebugJson already resolved and existence-checked every path). A missing file is a
+    # plain untextured material here, not a load error.
+    # Without ANY material at all, the exported FBX's geometry
     # carries zero material/texture data -- confirmed via direct user testing that Mixamo's viewer
     # renders that as fully invisible (not a plain/gray fallback like Blender's own viewport would
     # show), so a material is required even when no texture is available.
     for subset_idx, subset in enumerate(subsets):
         mat = bpy.data.materials.new(name=f"MeshDebugMat_{subset_idx}")
         mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        bsdf = nodes.get("Principled BSDF")
         tex_path = subset.get("texture")
-        if tex_path:
-            bsdf = mat.node_tree.nodes.get("Principled BSDF")
-            tex_node = mat.node_tree.nodes.new("ShaderNodeTexImage")
-            try:
-                tex_node.image = bpy.data.images.load(tex_path, check_existing=True)
-            except RuntimeError:
-                tex_node.image = None
-            if bsdf and tex_node.image:
-                mat.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+        tex_node = load_texture_node(nodes, tex_path)
+        if bsdf and tex_node:
+            links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+
+        material_textures = subset.get("materialTextures") or {}
+        normal_node = load_texture_node(nodes, material_textures.get("normal"), True)
+        normal_input = find_input(bsdf, "Normal") if bsdf else None
+        if normal_node and normal_input:
+            normal_map = nodes.new("ShaderNodeNormalMap")
+            links.new(normal_node.outputs["Color"], normal_map.inputs["Color"])
+            links.new(normal_map.outputs["Normal"], normal_input)
+
+        specular_node = load_texture_node(nodes, material_textures.get("specular"))
+        specular_input = find_input(bsdf, "Specular IOR Level", "Specular") if bsdf else None
+        if specular_node and specular_input:
+            links.new(specular_node.outputs["Color"], specular_input)
+
+        emissive_node = load_texture_node(nodes, material_textures.get("emissive"))
+        emissive_input = find_input(bsdf, "Emission Color", "Emission") if bsdf else None
+        if emissive_node and emissive_input:
+            links.new(emissive_node.outputs["Color"], emissive_input)
+
+        mask_node = load_texture_node(nodes, material_textures.get("mask"), True)
+        roughness_input = find_input(bsdf, "Roughness") if bsdf else None
+        metallic_input = find_input(bsdf, "Metallic") if bsdf else None
+        if mask_node and (roughness_input or metallic_input):
+            separate = nodes.new("ShaderNodeSeparateColor")
+            links.new(mask_node.outputs["Color"], separate.inputs["Color"])
+            if roughness_input:
+                links.new(separate.outputs["Green"], roughness_input)
+            if metallic_input:
+                links.new(separate.outputs["Blue"], metallic_input)
+            # FBX has no metallic/roughness texture channel. When the material has no real
+            # specular map, also route the packed mask through FBX's specular channel so Blender
+            # embeds it instead of dropping the otherwise-PBR-only image. The custom property lets
+            # mini-mbm's Blender importer restore it to MASK rather than misclassifying it as a
+            # genuine specular texture on a later FBX -> MSH round trip.
+            if specular_node is None and specular_input:
+                links.new(mask_node.outputs["Color"], specular_input)
+                mat["mbm_mask_texture"] = mask_node.image.name
         mesh_data.materials.append(mat)
 
     for poly, subset_idx in zip(mesh_data.polygons, face_subset):
@@ -602,6 +657,7 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, debug: bool) ->
         # this machine's filesystem.
         path_mode='COPY',
         embed_textures=True,
+        use_custom_props=True,
     )
     debug_print(debug, f"exported: {output_path}")
 

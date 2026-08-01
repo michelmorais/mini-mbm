@@ -37,6 +37,11 @@ SECTION_DETAIL_PHYSICS = 20
 SECTION_EXTRA_PATHS = 30
 SECTION_VERTEX_SKIN_WEIGHTS = 40
 
+TEXTURE_ROLE_NORMAL = 2
+TEXTURE_ROLE_SPECULAR = 3
+TEXTURE_ROLE_EMISSIVE = 4
+TEXTURE_ROLE_MASK = 5
+
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
@@ -162,6 +167,20 @@ def resolve_image_sequence_path(image: Any, image_user: Any, scene_frame: int) -
 _EXTRACTED_IMAGE_PATHS: dict[int, str] = {}
 
 
+def _image_extension(image: Any) -> str:
+    format_extensions = {
+        "BMP": ".bmp",
+        "JPEG": ".jpg",
+        "JPEG2000": ".jp2",
+        "PNG": ".png",
+        "TARGA": ".tga",
+        "TARGA_RAW": ".tga",
+        "TIFF": ".tif",
+        "WEBP": ".webp",
+    }
+    return format_extensions.get(str(getattr(image, "file_format", "")).upper(), ".png")
+
+
 def _extract_embedded_image(image: Any, output_dir: str) -> str:
     """Mixamo (and other) FBX downloads commonly embed textures directly in the binary rather than
     shipping them as loose files -- Blender's importer unpacks these into memory fine
@@ -181,13 +200,13 @@ def _extract_embedded_image(image: Any, output_dir: str) -> str:
         return cached
     base_name = os.path.basename(image.filepath) if image.filepath else ""
     if not base_name or "." not in base_name:
-        base_name = re.sub(r"[^A-Za-z0-9_.-]", "_", image.name) + ".png"
+        safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", image.name) or "texture"
+        base_name = safe_name + _image_extension(image)
     out_path = os.path.join(output_dir, base_name)
     orig_filepath_raw = image.filepath_raw
     orig_format = image.file_format
     try:
         image.filepath_raw = out_path
-        image.file_format = "PNG"
         image.save()
     finally:
         image.filepath_raw = orig_filepath_raw
@@ -196,26 +215,106 @@ def _extract_embedded_image(image: Any, output_dir: str) -> str:
     return out_path
 
 
+def _texture_node_priority(node: Any) -> int:
+    """Prefer the color texture which the engine's single subset texture slot can represent.
+
+    A glTF material commonly contains base-color, metallic/roughness, normal and emissive image
+    nodes. Blender does not guarantee their node-tree iteration order, so taking the first image
+    can select a data map (or an emissive map) and leave the imported mesh looking untextured.
+    """
+    priority = 0
+    for output in getattr(node, "outputs", []):
+        for link in getattr(output, "links", []):
+            target_node = getattr(link, "to_node", None)
+            target_type = str(getattr(target_node, "type", ""))
+            socket_name = str(getattr(getattr(link, "to_socket", None), "name", "")).lower()
+            if target_type == "BSDF_PRINCIPLED" and socket_name in ("base color", "base_color"):
+                priority = max(priority, 100)
+            elif target_type == "BSDF_DIFFUSE" and socket_name == "color":
+                priority = max(priority, 90)
+            elif "base color" in socket_name or "diffuse" in socket_name:
+                priority = max(priority, 80)
+            elif socket_name in ("normal", "metallic", "roughness", "emission", "emission color"):
+                priority = max(priority, 10)
+            else:
+                priority = max(priority, 40)
+    return priority
+
+
+def _texture_node_role(node: Any) -> int | None:
+    """Map a Blender/glTF image node to the closest v11 extra material texture role."""
+    pending = list(getattr(node, "outputs", []))
+    visited_nodes: set[int] = set()
+    while pending:
+        output = pending.pop(0)
+        for link in getattr(output, "links", []):
+            target = getattr(link, "to_node", None)
+            target_type = str(getattr(target, "type", ""))
+            socket_name = str(getattr(getattr(link, "to_socket", None), "name", "")).lower()
+            if target_type == "NORMAL_MAP" or socket_name == "normal":
+                return TEXTURE_ROLE_NORMAL
+            if "emission" in socket_name:
+                return TEXTURE_ROLE_EMISSIVE
+            if "specular" in socket_name:
+                return TEXTURE_ROLE_SPECULAR
+            if target_type in ("SEPARATE_COLOR", "SEPRGB") or socket_name in ("metallic", "roughness"):
+                return TEXTURE_ROLE_MASK
+            if target is not None:
+                target_key = int(target.as_pointer()) if hasattr(target, "as_pointer") else id(target)
+                if target_key not in visited_nodes:
+                    visited_nodes.add(target_key)
+                    pending.extend(getattr(target, "outputs", []))
+    return None
+
+
+def _resolve_texture_path(image: Any, image_user: Any, scene_frame: int,
+                          output_dir: str | None) -> str:
+    if getattr(image, "source", "") == "SEQUENCE":
+        return resolve_image_sequence_path(image, image_user, scene_frame)
+    recorded_path = bpy.path.abspath(image.filepath)
+    needs_extraction = image.packed_file is not None or not os.path.isfile(recorded_path)
+    if needs_extraction and output_dir:
+        return _extract_embedded_image(image, output_dir)
+    return recorded_path
+
+
+def get_material_texture_paths(material: Any, scene_frame: int,
+                               output_dir: str | None = None) -> tuple[str, list[dict[str, Any]]]:
+    if material is None or not getattr(material, "use_nodes", False) or material.node_tree is None:
+        return "", []
+    image_nodes = [
+        node for node in material.node_tree.nodes
+        if node.type == "TEX_IMAGE" and getattr(node, "image", None) is not None
+    ]
+    image_nodes.sort(key=_texture_node_priority, reverse=True)
+    primary_node = next((node for node in image_nodes if _texture_node_priority(node) >= 80), None)
+    if primary_node is None and image_nodes:
+        primary_node = image_nodes[0]
+    primary = ""
+    extras: list[dict[str, Any]] = []
+    used_roles: set[int] = set()
+    mask_texture_hint = str(material.get("mbm_mask_texture", "")) if hasattr(material, "get") else ""
+    for node in image_nodes:
+        try:
+            path = _resolve_texture_path(node.image, getattr(node, "image_user", None), scene_frame, output_dir)
+        except Exception:
+            path = str(node.image.filepath or "")
+        if not path:
+            continue
+        if node is primary_node:
+            primary = path
+            continue
+        image_name = str(getattr(node.image, "name", ""))
+        role = TEXTURE_ROLE_MASK if mask_texture_hint and image_name == mask_texture_hint else _texture_node_role(node)
+        if role is not None and role not in used_roles:
+            extras.append({"role": role, "texture": path})
+            used_roles.add(role)
+    return primary, extras
+
+
 def get_first_texture_path(material: Any, scene_frame: int, output_dir: str | None = None) -> str:
-    if material is None or not getattr(material, "use_nodes", False):
-        return ""
-    ntree = material.node_tree
-    if ntree is None:
-        return ""
-    for node in ntree.nodes:
-        if node.type == "TEX_IMAGE" and getattr(node, "image", None) is not None:
-            try:
-                image = node.image
-                if getattr(image, "source", "") == "SEQUENCE":
-                    return resolve_image_sequence_path(image, getattr(node, "image_user", None), scene_frame)
-                recorded_path = bpy.path.abspath(node.image.filepath)
-                needs_extraction = image.packed_file is not None or not os.path.isfile(recorded_path)
-                if needs_extraction and output_dir:
-                    return _extract_embedded_image(image, output_dir)
-                return recorded_path
-            except Exception:
-                return str(node.image.filepath or "")
-    return ""
+    primary, _ = get_material_texture_paths(material, scene_frame, output_dir)
+    return primary
 
 
 def prepare_mesh_normals(mesh: Any) -> None:
@@ -676,9 +775,11 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                 if mat_idx not in buckets:
                     mat = mesh.materials[mat_idx] if mat_idx < len(mesh.materials) else None
                     mat_name = mat.name if mat else f"Material_{mat_idx}"
+                    primary_texture, extra_textures = get_material_texture_paths(mat, scene_frame, output_dir)
                     buckets[mat_idx] = {
                         "name": f"{obj.name}:{mat_name}",
-                        "texture": get_first_texture_path(mat, scene_frame, output_dir),
+                        "texture": primary_texture,
+                        "extraTextures": extra_textures,
                         "vertices": [],
                         "indices": [],
                         "_vmap": {},
@@ -863,6 +964,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError(f"Cannot bake mesh-cache animation: {details}")
 
     source_file = source_path
+    output_dir = os.path.dirname(os.path.abspath(args.output))
     clips = parse_animation_clips(args, scene)
 
     frames_out: list[dict[str, Any]] = []
@@ -880,7 +982,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
                 scene.frame_set(frame)
                 bpy.context.view_layer.update()
                 debug_print(args.debug_steps, f"export frame: {frame}")
-                frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
+                frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene, output_dir=output_dir)})
                 check_cancel_requested(args.cancel_file)
             append_animation_header_for_clip(animations, clip, target_start, len(frames_out), fps)
     else:
@@ -889,7 +991,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
         scene.frame_set(frame)
         bpy.context.view_layer.update()
         debug_print(args.debug_steps, f"export current frame: {frame}")
-        frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
+        frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene, output_dir=output_dir)})
         check_cancel_requested(args.cancel_file)
 
     return {
@@ -947,7 +1049,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
                 bpy.context.view_layer.update()
                 debug_print(args.debug_steps, f"export frame: {frame}")
                 rel_path = f"frames/frame_{out_index:06d}.lua"
-                frame_data = {"frame": frame, "subsets": export_frame_subsets(scene)}
+                frame_data = {"frame": frame, "subsets": export_frame_subsets(scene, output_dir=out_dir)}
                 write_lua_atomic(os.path.join(out_dir, rel_path), frame_data)
                 frames_manifest.append({"sourceFrame": frame, "path": rel_path})
                 check_cancel_requested(args.cancel_file)
@@ -959,7 +1061,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
         bpy.context.view_layer.update()
         debug_print(args.debug_steps, f"export current frame: {frame}")
         rel_path = "frames/frame_000001.lua"
-        frame_data = {"frame": frame, "subsets": export_frame_subsets(scene)}
+        frame_data = {"frame": frame, "subsets": export_frame_subsets(scene, output_dir=out_dir)}
         write_lua_atomic(os.path.join(out_dir, rel_path), frame_data)
         frames_manifest.append({"sourceFrame": frame, "path": rel_path})
         check_cancel_requested(args.cancel_file)
@@ -1308,15 +1410,18 @@ def write_texture_ref_v11(fp: Any, path: str) -> None:
     write_string_v11(fp, path)
 
 
-def write_subset_desc_v11(fp: Any, texture: str, vertex_count: int, vertex_start: int, index_start: int,
-                           index_count: int) -> None:
+def write_subset_desc_v11(fp: Any, texture: str, extra_textures: list[dict[str, Any]], vertex_count: int,
+                          vertex_start: int, index_start: int, index_count: int) -> None:
     write_texture_ref_v11(fp, texture)
     write_i32(fp, vertex_count)
     write_i32(fp, vertex_start)
     write_i32(fp, index_start)
     write_i32(fp, index_count)
     fp.write(bytes((1, 0, 0, 0)))  # alphaColor: hasAlpha forced on, matching saveV11's convention
-    write_u16(fp, 0)  # extraSlotCount - this exporter never authors extra PBR slots
+    write_u16(fp, len(extra_textures))
+    for extra in extra_textures:
+        fp.write(bytes((int(extra["role"]),)))
+        write_texture_ref_v11(fp, str(extra["texture"]))
 
 
 def build_detail_physics_payload_v11(bounds: dict[str, tuple[float, float, float]]) -> bytes:
@@ -1430,6 +1535,10 @@ def write_direct_frame_chunk_indexed(path: str, subsets: list[dict[str, Any]], a
         subset_headers.append(
             {
                 "texture": texture_name_for_msh(str(subset.get("texture") or "")),
+                "extraTextures": [
+                    {"role": int(extra["role"]), "texture": texture_name_for_msh(str(extra.get("texture") or ""))}
+                    for extra in (subset.get("extraTextures") or [])
+                ],
                 "vertexCount": len(vertices),
                 "vertexStart": vertex_start,
                 "indexStart": index_start,
@@ -1450,7 +1559,7 @@ def write_direct_frame_chunk_indexed(path: str, subsets: list[dict[str, Any]], a
         for index in index_buffer:
             write_u16(fp, index)
         for header in subset_headers:
-            write_subset_desc_v11(fp, header["texture"], header["vertexCount"], header["vertexStart"],
+            write_subset_desc_v11(fp, header["texture"], header["extraTextures"], header["vertexCount"], header["vertexStart"],
                                    header["indexStart"], header["indexCount"])
 
 
@@ -1477,6 +1586,10 @@ def write_direct_frame_chunk_vb_only(path: str, subsets: list[dict[str, Any]], a
         subset_headers.append(
             {
                 "texture": texture_name_for_msh(str(subset.get("texture") or "")),
+                "extraTextures": [
+                    {"role": int(extra["role"]), "texture": texture_name_for_msh(str(extra.get("texture") or ""))}
+                    for extra in (subset.get("extraTextures") or [])
+                ],
                 "vertexCount": len(indices),
                 "vertexStart": vertex_start,
                 "indexStart": 0,
@@ -1494,7 +1607,7 @@ def write_direct_frame_chunk_vb_only(path: str, subsets: list[dict[str, Any]], a
         for uv in uvs:
             write_vec2(fp, uv)
         for header in subset_headers:
-            write_subset_desc_v11(fp, header["texture"], header["vertexCount"], header["vertexStart"],
+            write_subset_desc_v11(fp, header["texture"], header["extraTextures"], header["vertexCount"], header["vertexStart"],
                                    header["indexStart"], header["indexCount"])
 
 
@@ -1553,6 +1666,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 validate_frame_vertex_limit(subsets)
             for subset in subsets:
                 add_texture_search_path(texture_paths, str(subset.get("texture") or ""))
+                for extra in (subset.get("extraTextures") or []):
+                    add_texture_search_path(texture_paths, str(extra.get("texture") or ""))
                 update_bounds(bounds, subset.get("vertices") or [])
             frame_path = os.path.join(temp_root, f"frame_{out_index:06d}.bin")
             write_direct_frame_chunk(frame_path, subsets, args)

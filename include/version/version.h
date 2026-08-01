@@ -182,8 +182,11 @@
     6.31.52 Added a Select column to Mesh Debug's preview-subset table for setting the Transform target subset directly.
     6.31.53 Extended the preview-subset center marker hover detection to each row's Select button.
     6.31.54 Filtered the Articulated Animation subset picker by a selected frame and added a per-frame subset selection table with always-on-top hover markers.
+    6.32.0 Extended Mesh Debug's Blender GLB import to extract packed material images and map Blender/glTF base-color, normal, emissive, and combined metallic/roughness textures onto mesh v11 primary, normal, emissive, and mask texture roles.
+    6.33.0 Extended Mesh Debug's Blender FBX export to carry primary, normal, specular, emissive, and mask material textures into Blender's material graph, and added File > Save As for the selected mesh.
+    6.33.1 Fixed Mesh Debug Save As suggesting the imported source extension instead of the selected mesh type and made it copy every referenced texture beside the saved mesh.
 */
-#define MBM_VERSION "6.31.54" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.33.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

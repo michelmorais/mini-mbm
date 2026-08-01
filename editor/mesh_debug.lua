@@ -1788,6 +1788,11 @@ local function addIntermediateFrameToMesh(meshD, frame, frameNumber, options)
         if subset.texture and subset.texture ~= '' then
             meshD:setTexture(frameIdx, subsetIdx, subset.texture)
         end
+        for _, extra in ipairs(subset.extraTextures or {}) do
+            if extra.texture and extra.texture ~= '' then
+                meshD:setMaterialTexture(frameIdx, subsetIdx, extra.role, extra.texture)
+            end
+        end
         applyImportVertexOptions(subset.vertices, options)
         blenderDebugPrint(tBlenderImportState, 'subset [%d/%d] vertices=%d indices=%d', si, #frame.subsets, #(subset.vertices or {}), #(subset.indices or {}))
         if not meshD:addVertex(frameIdx, subsetIdx, subset.vertices) then
@@ -5755,6 +5760,14 @@ local function writeMeshDebugJson(meshD, jsonPath)
         totalVerts = totalVerts + nVerts
     end
     f:write('\n    ],\n    "subsets": [\n')
+    local function resolveTextureForExport(texturePath)
+        if not texturePath or texturePath == '' then return nil end
+        local candidate = mbm.getFullPath(texturePath) or texturePath
+        local textureFile = io.open(candidate, 'rb')
+        if not textureFile then return nil end
+        textureFile:close()
+        return candidate
+    end
     for s = 1, nSubsets do
         local idx = tSubsetIndexLists[s] or {}
         -- Resolve+verify each subset's own texture so the exported FBX carries a real material
@@ -5764,14 +5777,18 @@ local function writeMeshDebugJson(meshD, jsonPath)
         -- before, see docs/future_investigation.md) -- verify with io.open before trusting it,
         -- same defensive check as copyMeshTexturesToFolder.
         local okTex, texPath = dpCall(function() return meshD:getTexture(1, s) end)
-        local resolvedTex = nil
-        if okTex and texPath and texPath ~= '' then
-            local candidate = mbm.getFullPath(texPath) or texPath
-            local fTex = io.open(candidate, 'rb')
-            if fTex then fTex:close(); resolvedTex = candidate end
+        local resolvedTex = okTex and resolveTextureForExport(texPath) or nil
+        local materialTextures = {}
+        for _, role in ipairs({'normal', 'specular', 'emissive', 'mask'}) do
+            local okRole, rolePath = dpCall(function() return meshD:getMaterialTexture(1, s, role) end)
+            local resolvedRole = okRole and resolveTextureForExport(rolePath) or nil
+            if resolvedRole then
+                table.insert(materialTextures, string.format('%s: %s', jsonStr(role), jsonStr(resolvedRole)))
+            end
         end
-        f:write(string.format('      { "indices": [%s], "texture": %s }',
-            table.concat(idx, ', '), resolvedTex and jsonStr(resolvedTex) or 'null'))
+        f:write(string.format('      { "indices": [%s], "texture": %s, "materialTextures": {%s} }',
+            table.concat(idx, ', '), resolvedTex and jsonStr(resolvedTex) or 'null',
+            table.concat(materialTextures, ', ')))
         f:write(s < nSubsets and ',\n' or '\n')
     end
     f:write('    ]\n  }\n}\n')
@@ -10459,6 +10476,10 @@ function showMeshOptions(tEntry, index)
     --tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
 end
 
+-- Defined later with the batch-save helpers; forward-declared so Save As can reuse the exact same
+-- primary/material-role/animation-FX texture collection and cross-platform binary copy behavior.
+local copyMeshTexturesToFolder
+
 function doSaveAs(tEntry, index)
     local info     = tEntry.info or {}
     local meshD    = tEntry.meshDebug
@@ -10466,7 +10487,8 @@ function doSaveAs(tEntry, index)
     local extMap   = { mesh = 'msh', sprite = 'spt', font = 'fnt', tile = 'tile', particle = 'ptl' }
     local suggestedExt = extMap[info.type] or 'msh'
 
-    local newFile = mbm.saveFile(sLastMeshPath, suggestedExt)
+    local suggestedFile = tostring(tEntry.fileName or ''):gsub('%.[^%.\\/]+$', '') .. '.' .. suggestedExt
+    local newFile = mbm.saveFile(suggestedFile, suggestedExt)
     if not newFile or newFile == '' then return end
 
     local animErr = collectAnimFrameErrors(tEntry)
@@ -10510,10 +10532,22 @@ function doSaveAs(tEntry, index)
 
     if ok then
         local newInfo = refreshEntryInfoFromFile(nil, newFile)
+        local outputFolder = newFile:match('^(.*)[/\\]') or '.'
+        local texturesCopied, texturesFailed = copyMeshTexturesToFolder(tEntry, outputFolder, {})
+        local message
         if wasLegacy and not isLegacyTextureAnimationEffectStorage(newInfo) then
-            tUtil.showMessage(string.format(tLang.L('mesh_migrated_save_fmt'), tUtil.getShortName(newFile)))
+            message = string.format(tLang.L('mesh_migrated_save_fmt'), tUtil.getShortName(newFile))
         else
-            tUtil.showMessage(string.format(tLang.L("save_as_success_fmt"), tUtil.getShortName(newFile)))
+            message = string.format(tLang.L("save_as_success_fmt"), tUtil.getShortName(newFile))
+        end
+        if texturesCopied > 0 then
+            message = message .. '\n' .. string.format(tLang.L('save_all_to_folder_textures_fmt'), texturesCopied)
+        end
+        if texturesFailed > 0 then
+            message = message .. '\n' .. string.format(tLang.L('save_all_to_folder_textures_failed_fmt'), texturesFailed)
+            tUtil.showMessageWarn(message)
+        else
+            tUtil.showMessage(message)
         end
         sLastMeshPath = newFile
     else
@@ -10715,7 +10749,7 @@ end
 -- file-util.cpp) rather than requiring the mesh's stored path to still exist, so a same-named
 -- copy next to the .msh is enough for it to be found -- no need to rewrite the path stored
 -- inside the mesh itself.
-local function copyMeshTexturesToFolder(tEntry, folder, copiedBasenames)
+copyMeshTexturesToFolder = function(tEntry, folder, copiedBasenames)
     -- mbm.getFullPath only finds a bare/relative texture filename if the mesh's own directory
     -- was already registered as a search path -- which normally only happens lazily, the first
     -- time this specific entry is previewed (updatePreviewMesh's mbm.addPath(dir) call). A mesh
@@ -11974,6 +12008,10 @@ function main_menu_mesh_debug()
                 onAddColoredCube()
             end
             tImGui.Separator()
+            if tImGui.MenuItem(tLang.L('save_as'), nil, false,
+                    iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes) then
+                doSaveAs(tLoadedMeshes[iSelectedMeshIndex], iSelectedMeshIndex)
+            end
             if tImGui.MenuItem(tLang.L("save_all_to_folder"), nil, false, #tLoadedMeshes > 0) then
                 onSaveAllToFolder()
             end
