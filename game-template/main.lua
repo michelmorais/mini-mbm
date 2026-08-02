@@ -58,8 +58,8 @@ function onInitScene()
     KEY_DOWN   = mbm.getKeyCode("DOWN")
     KEY_ESCAPE = mbm.getKeyCode("ESC")
 
-    -- Background clear color (R, G, B — 0..255)
-    mbm.setColor(30, 30, 50)
+    -- Background clear color (R, G, B — 0.0..1.0)
+    mbm.setColor(30 / 255, 30 / 255, 50 / 255)
 
     -- --- Background ---
     -- background = backGround:new("2dw")

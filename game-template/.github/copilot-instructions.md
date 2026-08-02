@@ -92,7 +92,7 @@ mbm.doCommands(cmd, param)          -- send native platform command
 ### Display
 
 ```lua
-mbm.setColor(r, g, b)           -- background clear color (0-255)
+mbm.setColor(r, g, b)           -- background clear color (0.0-1.0)
 mbm.enableClearScreen(bool)     -- toggle back-buffer clear each frame
 mbm.refresh()                   -- force window redraw
 mbm.getRealSizeScreen()         -- → w, h  (actual framebuffer pixels)
@@ -195,7 +195,7 @@ mbm.sortShader()
 mbm.messageBox(title, msg)
 mbm.inputBox(title, default?)       -- → string|nil
 mbm.inputPassword(title)            -- → string|nil (masked)
-mbm.colorDialog()                   -- → r, g, b  (0-255) | nil
+mbm.colorDialog()                   -- → r, g, b  (0.0-1.0) | nil
 ```
 
 ### System Info
@@ -420,7 +420,7 @@ sh:setPixelShader("tinted.ps", {color={1,0,0,1}})
 ```lua
 local ln = line:new("2dw", 0, 0)
 ln:add({0,0, 100,0, 100,100, 0,100, 0,0})  -- closed square
-ln:setColor(255, 255, 0)                    -- yellow
+ln:setColor(1.0, 1.0, 0.0)                  -- yellow
 -- update a segment:
 ln:set(1, {0,0, 200,0})
 ```
