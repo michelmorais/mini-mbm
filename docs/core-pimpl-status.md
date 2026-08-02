@@ -1,6 +1,6 @@
 # Core MBM PIMPL Status
 
-Updated: 2026-06-22
+Updated: 2026-08-02
 
 This document replaces the old milestone-style gap report. Its purpose is to describe the current PIMPL/header-hygiene status of `core_mbm`, the boundaries already established, and the rules for future work.
 
@@ -77,6 +77,10 @@ Only the areas below remain intentionally visible or intentionally deferred.
 | `MESH_MBM_DEBUG` | Lua/helper-prep slices are complete; storage remains direct. | Remaining direct use is debug-tool behavior, editing/storage mutation, and compatibility-facing payload/header state. | Revisit only with a broader debug-mesh editing/storage redesign. |
 | `PLUGIN::onSubscribe(void *context, void *renderDevice)` | Still uses opaque backend/platform handles. | This is a plugin ABI/design issue, not current backend-header leakage. | Revisit only if plugin ABI versioning/stable wrapper design becomes a formal goal. |
 | File-format structs such as `header-mesh.h` | Still public. | They describe serialized data and asset compatibility. | Do not PIMPL first. Revisit only during a file-format redesign. |
+
+`MESH_MBM::getTotalArticulatedAnimations()` and `getArticulatedAnimationName()` are narrow,
+read-only queries over existing `Impl`-owned clip metadata. They expose neither the clip container
+nor mutable storage and therefore preserve the completed PIMPL boundary.
 
 ## Stop Rules
 

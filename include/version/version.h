@@ -192,7 +192,7 @@
     6.36.1 Made the Texture-role radio table available for bulk frame/subset targets too, leaving filenames blank when no single target exists and narrowing the Role column.
     6.36.2 Moved Frame pending-operation Execute/Cancel controls directly below the pending list and stopped the current UI pass after Execute so stale pre-mutation frame/subset rows cannot be used.
 */
-#define MBM_VERSION "6.36.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.37.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

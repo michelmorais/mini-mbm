@@ -557,6 +557,8 @@ composition rules, editor workflow, and rendering design.
 | Method | Signature | Returns | Description |
 |---|---|---|---|
 | `obj:playArticulatedAnimation` | `(name, priority?, blendDuration?, weight?)` | bool | Start/restart a clip. Defaults: priority `0`, immediate blend, weight `1` |
+| `obj:getTotalArticulatedAnimations` | `()` | int | Number of articulated clips in the loaded asset |
+| `obj:getArticulatedAnimationName` | `(index: int)` | string or nil | Name of the 1-based articulated clip, or `nil` when out of range |
 | `obj:pauseArticulatedAnimation` | `(name)` | bool | Freeze an active clip and its blend progress |
 | `obj:resumeArticulatedAnimation` | `(name)` | bool | Resume a paused active clip |
 | `obj:disableArticulatedAnimation` | `(name)` | bool | Remove an active clip from pose composition |

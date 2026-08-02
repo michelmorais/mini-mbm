@@ -1514,6 +1514,8 @@ function copySelectedMeshes()
         table.insert(tCopyBuffer, {
             fileName = tPlaced.fileName, type = tPlaced.type,
             rotationY = tPlaced.rotationY or 0,
+            animationName = tPlaced.animationName or '',
+            articulatedAnimationNames = copyStringList(tPlaced.articulatedAnimationNames),
             sx = tPlaced.scale.x, sy = tPlaced.scale.y, sz = tPlaced.scale.z,
             dx = wx - ax, dy = wy - ay, dz = wz - az,
         })
@@ -1560,8 +1562,11 @@ function pasteCopiedMeshes()
         end
         if tNew then
             tNew.rotationY = tCopy.rotationY
+            tNew.animationName = tCopy.animationName
+            tNew.articulatedAnimationNames = copyStringList(tCopy.articulatedAnimationNames)
             tNew.scale = {x = tCopy.sx, y = tCopy.sy, z = tCopy.sz}
             syncPlacedMeshTransform(tNew)
+            applyPlacedMeshAnimations(tNew)
             table.insert(tNewlyPasted, tNew)
         end
     end
@@ -1595,6 +1600,39 @@ function syncPlacedMeshTransform(tPlaced)
     tPlaced.tObj:setPos(x + offset.x, y + offset.y, z + offset.z)
     tPlaced.tObj:setAngle(offset.rx, (tPlaced.rotationY or 0) + offset.ry, offset.rz)
     tPlaced.tObj:setScale(tPlaced.scale.x * offset.sx, tPlaced.scale.y * offset.sy, tPlaced.scale.z * offset.sz)
+end
+
+function copyStringList(value)
+    local out = {}
+    if type(value) == 'table' then
+        for _, item in ipairs(value) do out[#out + 1] = item end
+    end
+    return out
+end
+
+function getArticulatedAnimationNames(tInfo)
+    local names = copyStringList(tInfo and tInfo.articulatedAnimationNames)
+    -- Backward compatibility with scenes saved by the first single-selection implementation.
+    if #names == 0 and tInfo and tInfo.articulatedAnimationName and tInfo.articulatedAnimationName ~= '' then
+        names[1] = tInfo.articulatedAnimationName
+    end
+    return names
+end
+
+function formatLuaStringList(value)
+    local quoted = {}
+    for _, item in ipairs(value or {}) do quoted[#quoted + 1] = string.format('%q', item) end
+    return '{' .. table.concat(quoted, ',') .. '}'
+end
+
+function applyPlacedMeshAnimations(tPlaced)
+    if not tPlaced.tObj then return end
+    if tPlaced.animationName and tPlaced.animationName ~= '' then
+        pcall(function() tPlaced.tObj:setAnim(tPlaced.animationName) end)
+    end
+    for _, name in ipairs(tPlaced.articulatedAnimationNames or {}) do
+        pcall(function() tPlaced.tObj:playArticulatedAnimation(name) end)
+    end
 end
 
 -- Placed meshes are the scene being built (Map / Map edition) -- Mesh View is only ever supposed
@@ -1639,6 +1677,7 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
         freeX = freeX or 0, freeZ = freeZ or 0,
         bAttachedToLayer = true, freeY = 0,
         rotationY = 0, scale = {x = 1, y = 1, z = 1},
+        animationName = '', articulatedAnimationNames = {},
         isSelected = false, tObj = nil,
     }
     table.insert(tPlacedMeshes, tPlaced)
@@ -1654,6 +1693,7 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
             local sx, sy, sz = computeSnapScale(tObj)
             tPlaced.scale = {x = sx, y = sy, z = sz}
             syncPlacedMeshTransform(tPlaced)
+            applyPlacedMeshAnimations(tPlaced)
             applyPlacedMeshVisibility(tPlaced)
         end
     end
@@ -2534,6 +2574,73 @@ end
 -- selected mesh, so those controls would be redundant/out of place there.
 -- Returns true if this row deleted itself (index i is no longer valid -- caller must stop
 -- iterating tPlacedMeshes by that same index).
+function drawPlacedMeshAnimationControls(i, tPlaced)
+    local tObj = tPlaced.tObj
+    if not tObj then return end
+    local controlX = tImGui.GetCursorPosX()
+
+    local okTotal, total = pcall(function() return tObj:getTotalAnim() end)
+    if okTotal and total and total > 0 then
+        local names, selected = {}, 1
+        for animIndex = 1, total do
+            local okName, name = pcall(function() return tObj:getAnim(animIndex) end)
+            name = okName and name or tostring(animIndex)
+            names[#names + 1] = name
+            if name == tPlaced.animationName then selected = animIndex end
+        end
+        if tPlaced.animationName == '' then
+            local okCurrent, _, currentIndex = pcall(function() return tObj:getAnim() end)
+            if okCurrent and currentIndex then selected = currentIndex end
+        end
+        tImGui.SetCursorPosX(controlX)
+        local changed, newIndex = tImGui.Combo(tLang.L('animation') .. '##placed_anim' .. i,
+            selected, names, -1)
+        if changed then
+            tPlaced.animationName = names[newIndex]
+            tObj:setAnim(tPlaced.animationName)
+            pushUndoSnapshot()
+        end
+    end
+
+    local okArtTotal, artTotal = pcall(function() return tObj:getTotalArticulatedAnimations() end)
+    if okArtTotal and artTotal and artTotal > 0 then
+        local active = {}
+        for _, name in ipairs(tPlaced.articulatedAnimationNames or {}) do active[name] = true end
+        local names = {}
+        for animIndex = 1, artTotal do
+            local okName, name = pcall(function() return tObj:getArticulatedAnimationName(animIndex) end)
+            if okName and name then names[#names + 1] = name end
+        end
+        tImGui.SetCursorPosX(controlX)
+        tImGui.Text(tLang.L('articulated_animation'))
+        local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
+        tImGui.SetCursorPosX(controlX)
+        if tImGui.BeginTable('placed_art_anim_table' .. i, 1, tableFlags) then
+            for animIndex, name in ipairs(names) do
+                tImGui.TableNextRow()
+                tImGui.TableNextColumn()
+                local checked = tImGui.Checkbox(name .. '##placed_art_anim' .. i .. '_' .. animIndex,
+                    active[name] == true)
+                if checked ~= (active[name] == true) then
+                    active[name] = checked
+                    if checked then
+                        tObj:playArticulatedAnimation(name)
+                    else
+                        tObj:disableArticulatedAnimation(name)
+                    end
+                    local selectedNames = {}
+                    for _, orderedName in ipairs(names) do
+                        if active[orderedName] then selectedNames[#selectedNames + 1] = orderedName end
+                    end
+                    tPlaced.articulatedAnimationNames = selectedNames
+                    pushUndoSnapshot()
+                end
+            end
+            tImGui.EndTable()
+        end
+    end
+end
+
 function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
     -- Same cache/queue this mesh's entry already uses in the Mesh Selector (getOrCreateThumbnail
     -- keys by fileName) -- registerMeshSetEntry is idempotent, returning the existing
@@ -2617,6 +2724,16 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
         end
     end
     tImGui.EndGroup()
+    if not bFullControls then
+        -- The thumbnail and its property widgets share a group that begins after SameLine(), so
+        -- any controls drawn inside it inherit the thumbnail-width X offset even after NewLine().
+        -- End that group first, then explicitly return to this window's content origin so both
+        -- animation selectors use the full row width below the thumbnail.
+        tImGui.NewLine()
+        local cursorStart = tImGui.GetCursorStartPos()
+        tImGui.SetCursorPosX(cursorStart.x)
+        drawPlacedMeshAnimationControls(i, tPlaced)
+    end
     tImGui.Separator()
     return bDeleted
 end
@@ -3250,6 +3367,16 @@ tScene3d._addMesh = function(self, tInfo, onDone)
             tObj:setPos(tInfo.x + ox, tInfo.y + oy, tInfo.z + oz)
             tObj:setAngle(orx, (tInfo.rotationY or 0) + ory, orz)
             tObj:setScale((tInfo.sx or 1) * osx, (tInfo.sy or 1) * osy, (tInfo.sz or 1) * osz)
+            if tInfo.animationName and tInfo.animationName ~= '' then
+                tObj:setAnim(tInfo.animationName)
+            end
+            local articulatedNames = tInfo.articulatedAnimationNames or {}
+            if #articulatedNames == 0 and tInfo.articulatedAnimationName and tInfo.articulatedAnimationName ~= '' then
+                articulatedNames = {tInfo.articulatedAnimationName}
+            end
+            for _, name in ipairs(articulatedNames) do
+                tObj:playArticulatedAnimation(name)
+            end
             table.insert(self.tMeshesLoaded, tObj)
             self.tMeshesLoadedDictionary[tInfo.fileName] = self.tMeshesLoadedDictionary[tInfo.fileName] or {}
             table.insert(self.tMeshesLoadedDictionary[tInfo.fileName], tObj)
@@ -3407,6 +3534,8 @@ function captureScene3dSnapshot()
             freeX = tPlaced.freeX, freeZ = tPlaced.freeZ, freeY = tPlaced.freeY,
             bAttachedToLayer = tPlaced.bAttachedToLayer,
             rotationY = tPlaced.rotationY or 0,
+            animationName = tPlaced.animationName or '',
+            articulatedAnimationNames = copyStringList(tPlaced.articulatedAnimationNames),
             sx = tPlaced.scale.x, sy = tPlaced.scale.y, sz = tPlaced.scale.z,
         }
     end
@@ -3431,8 +3560,11 @@ function restoreScene3dSnapshot(snapshot)
         tPlaced.bAttachedToLayer = tInfo.bAttachedToLayer
         tPlaced.freeY            = tInfo.freeY
         tPlaced.rotationY        = tInfo.rotationY
+        tPlaced.animationName = tInfo.animationName or ''
+        tPlaced.articulatedAnimationNames = getArticulatedAnimationNames(tInfo)
         tPlaced.scale            = {x = tInfo.sx, y = tInfo.sy, z = tInfo.sz}
         syncPlacedMeshTransform(tPlaced)
+        applyPlacedMeshAnimations(tPlaced)
     end
 end
 
@@ -3573,18 +3705,21 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
         local x, y, z = resolvePlacedMeshWorldPos(tPlaced)
         if bIsExport then
             fp:write(string.format(
-                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g},\n',
+                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g,animationName=%q,articulatedAnimationNames=%s},\n',
                 i, tPlaced.fileName, tPlaced.type, x, y, z, tPlaced.rotationY or 0,
-                tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z))
+                tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
+                tPlaced.animationName or '', formatLuaStringList(tPlaced.articulatedAnimationNames)))
         else
             fp:write(string.format(
                 '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,sx=%g,sy=%g,sz=%g,'
-                .. 'layerIndex=%d,cellX=%d,cellZ=%d,freeX=%g,freeZ=%g,freeY=%g,bAttachedToLayer=%s},\n',
+                .. 'layerIndex=%d,cellX=%d,cellZ=%d,freeX=%g,freeZ=%g,freeY=%g,bAttachedToLayer=%s,'
+                .. 'animationName=%q,articulatedAnimationNames=%s},\n',
                 i, tPlaced.fileName, tPlaced.type, x, y, z, tPlaced.rotationY or 0,
                 tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
                 tPlaced.layerIndex or 1, tPlaced.cellX or 0, tPlaced.cellZ or 0,
                 tPlaced.freeX or 0, tPlaced.freeZ or 0, tPlaced.freeY or 0,
-                tostring(tPlaced.bAttachedToLayer == true)))
+                tostring(tPlaced.bAttachedToLayer == true),
+                tPlaced.animationName or '', formatLuaStringList(tPlaced.articulatedAnimationNames)))
         end
     end
     fp:write('}\n\n')
@@ -3677,6 +3812,8 @@ function applyLoadedScene3d(tLoaded)
         tPlaced.bAttachedToLayer = bAttached
         tPlaced.freeY = tInfo.freeY or tInfo.y
         tPlaced.rotationY = tInfo.rotationY
+        tPlaced.animationName = tInfo.animationName or ''
+        tPlaced.articulatedAnimationNames = getArticulatedAnimationNames(tInfo)
         tPlaced.scale = {x = tInfo.sx, y = tInfo.sy, z = tInfo.sz}
         -- Belt-and-suspenders on top of the per-folder registerMeshesFromFolder scan above (which
         -- covers the common case): register this exact placed file directly too, so it still shows
@@ -3688,6 +3825,7 @@ function applyLoadedScene3d(tLoaded)
         -- the patches above only updated the tPlaced data record, not the live object's transform.
         -- Re-sync now that the real saved values are in place.
         syncPlacedMeshTransform(tPlaced)
+        applyPlacedMeshAnimations(tPlaced)
     end
 
     -- Game-facing initial camera -- written by writeScene3d but never restored until now.

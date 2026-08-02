@@ -119,6 +119,26 @@ namespace mbm
         return 1;
     }
 
+    int onGetTotalArticulatedAnimationsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(mesh->getTotalArticulatedAnimations()));
+        return 1;
+    }
+
+    int onGetArticulatedAnimationNameLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const char *name = index > 0
+            ? mesh->getArticulatedAnimationName(static_cast<uint32_t>(index - 1)) : nullptr;
+        if (name)
+            lua_pushstring(lua, name);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     int onPauseArticulatedAnimationLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -220,6 +240,8 @@ namespace mbm
 		//table
 		luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {"loadAsync", onLoadAsyncMeshLua},
                                                      {"playArticulatedAnimation", onPlayArticulatedAnimationLua},
+                                                     {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsLua},
+                                                     {"getArticulatedAnimationName", onGetArticulatedAnimationNameLua},
                                                      {"pauseArticulatedAnimation", onPauseArticulatedAnimationLua},
                                                      {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
                                                      {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
@@ -268,6 +290,8 @@ namespace mbm
         const int                    top              = lua_gettop(lua);
         luaL_Reg                     regMeshMethods[] = {{"load", onLoadMeshLua}, {"loadAsync", onLoadAsyncMeshLua},
                                                          {"playArticulatedAnimation", onPlayArticulatedAnimationLua},
+                                                         {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsLua},
+                                                         {"getArticulatedAnimationName", onGetArticulatedAnimationNameLua},
                                                          {"pauseArticulatedAnimation", onPauseArticulatedAnimationLua},
                                                          {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
                                                          {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},

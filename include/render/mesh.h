@@ -52,6 +52,8 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool playArticulatedAnimation(const char *name, const int priority = 0,
                                            const float blendDuration = 0.0f,
                                            const float weight = 1.0f);
+    API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
+    API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
     API_IMPL bool pauseArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool resumeArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;

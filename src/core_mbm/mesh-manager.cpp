@@ -5329,6 +5329,16 @@ namespace mbm
         return !impl->articulatedClips.empty();
     }
 
+    uint32_t MESH_MBM::getTotalArticulatedAnimations() const noexcept
+    {
+        return static_cast<uint32_t>(impl->articulatedClips.size());
+    }
+
+    const char *MESH_MBM::getArticulatedAnimationName(const uint32_t index) const noexcept
+    {
+        return index < impl->articulatedClips.size() ? impl->articulatedClips[index].header.name.c_str() : nullptr;
+    }
+
     bool MESH_MBM::hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept
     {
         return !player.impl->activeClips.empty();

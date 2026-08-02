@@ -354,6 +354,8 @@ namespace mbm
         API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader,
                              const RENDERIZABLE *renderizableOwner = nullptr);
         API_IMPL bool hasArticulatedAnimationData() const noexcept;
+        API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
+        API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
         API_IMPL bool hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept;
         API_IMPL bool playArticulatedAnimation(ARTICULATED_ANIMATION_PLAYER &player,
                                                const char *name, const int priority,

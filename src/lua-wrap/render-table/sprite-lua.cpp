@@ -118,6 +118,26 @@ namespace mbm
         return 1;
     }
 
+    int onGetTotalArticulatedAnimationsSpriteLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(sprite->getTotalArticulatedAnimations()));
+        return 1;
+    }
+
+    int onGetArticulatedAnimationNameSpriteLua(lua_State *lua)
+    {
+        SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const char *name = index > 0
+            ? sprite->getArticulatedAnimationName(static_cast<uint32_t>(index - 1)) : nullptr;
+        if (name)
+            lua_pushstring(lua, name);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     int onPauseArticulatedAnimationSpriteLua(lua_State *lua)
     {
         SPRITE *sprite = getSpriteFromRawTable(lua, 1, 1);
@@ -211,6 +231,8 @@ namespace mbm
         const int top                = lua_gettop(lua);
         luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua},
                                         {"playArticulatedAnimation", onPlayArticulatedAnimationSpriteLua},
+                                        {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsSpriteLua},
+                                        {"getArticulatedAnimationName", onGetArticulatedAnimationNameSpriteLua},
                                         {"pauseArticulatedAnimation", onPauseArticulatedAnimationSpriteLua},
                                         {"resumeArticulatedAnimation", onResumeArticulatedAnimationSpriteLua},
                                         {"disableArticulatedAnimation", onDisableArticulatedAnimationSpriteLua},
@@ -292,6 +314,8 @@ namespace mbm
 		//table
 		luaL_Reg  regSpriteMethods[] = {{"load", onLoadSpriteLua}, {"loadAsync", onLoadAsyncSpriteLua},
                                         {"playArticulatedAnimation", onPlayArticulatedAnimationSpriteLua},
+                                        {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsSpriteLua},
+                                        {"getArticulatedAnimationName", onGetArticulatedAnimationNameSpriteLua},
                                         {"pauseArticulatedAnimation", onPauseArticulatedAnimationSpriteLua},
                                         {"resumeArticulatedAnimation", onResumeArticulatedAnimationSpriteLua},
                                         {"disableArticulatedAnimation", onDisableArticulatedAnimationSpriteLua},

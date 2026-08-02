@@ -131,6 +131,16 @@ namespace mbm
             this->getArticulatedAnimationPlayer(), name, priority, blendDuration, weight) : false;
     }
 
+    uint32_t MESH::getTotalArticulatedAnimations() const noexcept
+    {
+        return this->mesh ? this->mesh->getTotalArticulatedAnimations() : 0;
+    }
+
+    const char *MESH::getArticulatedAnimationName(const uint32_t index) const noexcept
+    {
+        return this->mesh ? this->mesh->getArticulatedAnimationName(index) : nullptr;
+    }
+
     bool MESH::pauseArticulatedAnimation(const char *name) noexcept
     {
         return this->mesh ? this->mesh->pauseArticulatedAnimation(this->getArticulatedAnimationPlayer(), name) : false;
