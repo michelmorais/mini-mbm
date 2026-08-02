@@ -8825,7 +8825,23 @@ function showFrameNode(tEntry, meshD, index)
             end
             tImGui.BulletText(i .. '. ' .. desc)
         end
+    end
+
+    -- Execute and Cancel immediately after the pending-operation list. Execute mutates frame and
+    -- subset counts, so stop drawing this node for the current ImGui pass; the next pass rebuilds
+    -- nFrames/allSubsets from the updated mesh instead of using the stale lists computed above.
+    if #tEntry.tPendingOps > 0 then
+        if tImGui.Button(tLang.L('execute_ops') .. '##fnex-' .. index) then
+            executeFrameOps(tEntry, meshD, index)
+            tImGui.TreePop()
+            return
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('cancel') .. '##fnclr-' .. index) then
+            tEntry.tPendingOps = {}
+        end
         tImGui.Separator()
+        tImGui.NewLine()
     end
 
     -- ── Buttons ────────────────────────────────────────────────────────
@@ -8932,17 +8948,6 @@ function showFrameNode(tEntry, meshD, index)
     tEntry.tSplitCaptures = tEntry.tSplitCaptures or {}
     showSplitCapture(tEntry, meshD, index)
 
-    -- Execute and Clear (when pending ops exist)
-    if #tEntry.tPendingOps > 0 then
-        tImGui.SameLine()
-        if tImGui.Button(tLang.L('execute_ops') .. '##fnex-' .. index) then
-            executeFrameOps(tEntry, meshD, index)
-        end
-        tImGui.SameLine()
-        if tImGui.Button('X##fnclr-' .. index) then
-            tEntry.tPendingOps = {}
-        end
-    end
     -- Save As (visible after Execute, when mesh is modified in-memory)
     if tEntry.modified then
         if tImGui.Button(tLang.L('save_frame_sel_as') .. '##fnsa-' .. index) then
