@@ -8924,6 +8924,9 @@ function showFrameNode(tEntry, meshD, index)
         tEntry.bShowFramePick = true
         tEntry.tRightChecked  = {}
     end
+    if tImGui.Button(tLang.L('export_frame_subset_files') .. '##fnExportSubset-' .. index) then
+        exportSelectedFrameSubsets(tEntry)
+    end
 
     tEntry.tSplitCapture = tEntry.tSplitCapture or {active=false, initialized=false}
     tEntry.tSplitCaptures = tEntry.tSplitCaptures or {}
@@ -9833,34 +9836,51 @@ function showMeshOptions(tEntry, index)
                     break
                 end
             end
-            tImGui.Text(tLang.L("tex_role_label"))
-            local roleRet, newRoleIndex = tImGui.Combo('##txRole-' .. index, roleIndex, roleOpts, -1)
-            if roleRet and newRoleIndex then
-                tx.role = roleValues[newRoleIndex] or 'primary'
-            end
-
-            -- Show current texture when a specific frame+subset is selected
-            if tx.frame > 0 and tx.subset > 0 then
-                local okG, curTex
-                if tx.role == 'primary' then
-                    okG, curTex = dpCall(function() return meshD:getTexture(tx.frame, tx.subset) end)
-                else
-                    okG, curTex = dpCall(function() return meshD:getMaterialTexture(tx.frame, tx.subset, tx.role) end)
-                end
-                if okG then
-                    tImGui.Text(tLang.L("tex_current_label"))
-                    tImGui.SameLine()
-                    if curTex and curTex ~= '' then
-                        tImGui.TextDisabled(tUtil.getShortName(curTex))
-                        if tImGui.IsItemHovered(0) then
-                            tImGui.BeginTooltip()
-                            tImGui.Text(curTex)
-                            tImGui.EndTooltip()
+            local specificTextureTarget = tx.frame > 0 and tx.subset > 0
+            local roleTableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
+            if tImGui.BeginTable('txRoleTable-' .. index, 3, roleTableFlags) then
+                tImGui.TableSetupColumn(tLang.L('select'),
+                    tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 55)
+                tImGui.TableSetupColumn(tLang.L('tex_role_label'),
+                    tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 105)
+                tImGui.TableSetupColumn(tLang.L('tex_texture_name'),
+                    tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
+                tImGui.TableHeadersRow()
+                for roleRow = 1, #roleValues do
+                        local roleValue = roleValues[roleRow]
+                        local okTexture, roleTexture
+                        if specificTextureTarget and roleValue == 'primary' then
+                            okTexture, roleTexture = dpCall(function()
+                                return meshD:getTexture(tx.frame, tx.subset)
+                            end)
+                        elseif specificTextureTarget then
+                            okTexture, roleTexture = dpCall(function()
+                                return meshD:getMaterialTexture(tx.frame, tx.subset, roleValue)
+                            end)
                         end
-                    else
-                        tImGui.TextDisabled('(none)')
-                    end
+
+                        tImGui.TableNextRow()
+                        tImGui.TableSetColumnIndex(0)
+                        roleIndex = tImGui.RadioButton(
+                            '##txRoleSelect-' .. index .. '-' .. roleRow, roleIndex, roleRow)
+                        tImGui.TableSetColumnIndex(1)
+                        tImGui.Text(roleOpts[roleRow])
+                        tImGui.TableSetColumnIndex(2)
+                        if not specificTextureTarget then
+                            tImGui.Text('')
+                        elseif okTexture and roleTexture and roleTexture ~= '' then
+                            tImGui.TextDisabled(tUtil.getShortName(roleTexture))
+                            if tImGui.IsItemHovered(0) then
+                                tImGui.BeginTooltip()
+                                tImGui.Text(roleTexture)
+                                tImGui.EndTooltip()
+                            end
+                        else
+                            tImGui.TextDisabled('(none)')
+                        end
                 end
+                tImGui.EndTable()
+                tx.role = roleValues[roleIndex] or 'primary'
             end
 
             -- Filename input + browse button
@@ -10780,6 +10800,135 @@ copyMeshTexturesToFolder = function(tEntry, folder, copiedBasenames)
         end
     end
     return copied, failed
+end
+
+-- Exports every checked (frame, subset) occurrence as an independent one-frame/one-subset mesh.
+function exportSelectedFrameSubsets(tEntry)
+    local meshD = tEntry.meshDebug
+    local selectedOccurrences = {}
+    local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    nFrames = (okF and nFrames) or 0
+    for f = 1, nFrames do
+        local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+        for s = 1, (okS and nSubsets or 0) do
+            if (tEntry.tCheckedRemove or {})[f * 100 + s] then
+                table.insert(selectedOccurrences, {frame = f, subset = s})
+            end
+        end
+    end
+
+    if #selectedOccurrences == 0 then
+        tUtil.showMessageWarn(tLang.L('export_subset_none_selected'))
+        return
+    end
+
+    local suggestedBase = tostring(tEntry.fileName or ''):gsub('%.[^%.\\/]+$', '') .. '.msh'
+    local pickedBase = mbm.saveFile(suggestedBase, 'msh')
+    if not pickedBase or pickedBase == '' then return end
+    pickedBase = pickedBase:gsub('%.[^%.\\/]+$', '') .. '.msh'
+    local stem = pickedBase:gsub('%.msh$', '')
+    local ext = 'msh'
+
+    local animErr = collectAnimFrameErrors(tEntry)
+    if animErr then
+        tUtil.showMessageWarn(tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr)
+        return
+    end
+
+    local success, failed = 0, 0
+    local outputFolder = pickedBase:match('^(.*)[/\\]') or '.'
+    local copiedTextures = {}
+    local texturesCopied, texturesFailed = 0, 0
+
+    -- Snapshot in-memory edits once. Each output loads its own copy and destructively removes
+    -- every occurrence except one exact source (frame, subset) pair.
+    local sourcePath = tEntry.fileName
+    local snapshotPath = nil
+    if tEntry.modified then
+        snapshotPath = os.tmpname() .. '.msh'
+        if not meshD:save(snapshotPath, false, false) then
+            tUtil.showMessageWarn(string.format(tLang.L('save_failed_fmt'), tUtil.getShortName(tEntry.fileName)))
+            return
+        end
+        sourcePath = snapshotPath
+    end
+
+    for _, occurrence in ipairs(selectedOccurrences) do
+        local sourceFrame = occurrence.frame
+        local sourceSubset = occurrence.subset
+        local isolatedMesh = meshDebug:new()
+        local loaded = isolatedMesh:load(sourcePath)
+        local hasExactlyOneOccurrence = loaded
+        if hasExactlyOneOccurrence then
+            local nAnim = (tEntry.info and tEntry.info.animation) or 0
+            for i = nAnim, 1, -1 do
+                local okAnim, name, initialFrame, finalFrame, time, animType =
+                    dpCall(function() return isolatedMesh:getAnim(i) end)
+                if okAnim and name and initialFrame and finalFrame then
+                    if sourceFrame >= initialFrame and sourceFrame <= finalFrame then
+                        isolatedMesh:updateAnim(i, name, 1, 1, time or 0.1, animType or 0)
+                    else
+                        isolatedMesh:removeAnim(i)
+                    end
+                end
+            end
+
+            local okS, sourceSubsetCount = dpCall(function()
+                return isolatedMesh:getTotalSubset(sourceFrame)
+            end)
+            for s = (okS and sourceSubsetCount or 0), 1, -1 do
+                if s ~= sourceSubset then isolatedMesh:removeSubset(sourceFrame, s) end
+            end
+            for f = nFrames, 1, -1 do
+                if f ~= sourceFrame then isolatedMesh:removeFrame(f) end
+            end
+
+            local okFrameCount, frameCount = dpCall(function() return isolatedMesh:getTotalFrame() end)
+            local okSubsetCount, subsetCount = dpCall(function() return isolatedMesh:getTotalSubset(1) end)
+            hasExactlyOneOccurrence = okFrameCount and frameCount == 1
+                and okSubsetCount and subsetCount == 1
+        end
+
+        local outputPath = string.format('%s-f%d-s%d.%s', stem, sourceFrame, sourceSubset, ext)
+        if hasExactlyOneOccurrence and isolatedMesh:save(outputPath, false, false) then
+            -- An earlier export with the same suffixed name may still be held by Mesh Debug's
+            -- file cache. Invalidate it so reopening the output immediately shows this newly
+            -- isolated one-subset file rather than the previous cached multi-subset version.
+            meshDebug:fakeRelease(outputPath)
+            success = success + 1
+        else
+            failed = failed + 1
+        end
+        isolatedMesh = nil
+    end
+
+    if snapshotPath then
+        meshDebug:fakeRelease(snapshotPath)
+        os.remove(snapshotPath)
+    end
+
+    if success > 0 then
+        texturesCopied, texturesFailed = copyMeshTexturesToFolder(
+            tEntry, outputFolder, copiedTextures)
+    end
+    sLastMeshPath = pickedBase
+
+    local message = string.format(
+        tLang.L('export_subset_result_fmt'), success, #selectedOccurrences, outputFolder)
+    if texturesCopied > 0 then
+        message = message .. '\n' .. string.format(tLang.L('save_all_to_folder_textures_fmt'), texturesCopied)
+    end
+    if failed > 0 then
+        message = message .. '\n' .. string.format(tLang.L('export_subset_failed_fmt'), failed)
+    end
+    if texturesFailed > 0 then
+        message = message .. '\n' .. string.format(tLang.L('save_all_to_folder_textures_failed_fmt'), texturesFailed)
+    end
+    if failed > 0 or texturesFailed > 0 then
+        tUtil.showMessageWarn(message)
+    else
+        tUtil.showMessage(message, 8)
+    end
 end
 
 function onSaveAllToFolder()

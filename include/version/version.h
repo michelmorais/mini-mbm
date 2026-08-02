@@ -185,8 +185,13 @@
     6.32.0 Extended Mesh Debug's Blender GLB import to extract packed material images and map Blender/glTF base-color, normal, emissive, and combined metallic/roughness textures onto mesh v11 primary, normal, emissive, and mask texture roles.
     6.33.0 Extended Mesh Debug's Blender FBX export to carry primary, normal, specular, emissive, and mask material textures into Blender's material graph, and added File > Save As for the selected mesh.
     6.33.1 Fixed Mesh Debug Save As suggesting the imported source extension instead of the selected mesh type and made it copy every referenced texture beside the saved mesh.
+    6.34.0 Added Frame > Export subset only to Mesh Debug, exporting every checked subset number as an individual suffixed mesh while preserving selected animation frames and copying referenced textures.
+    6.34.1 Fixed Export subset only placing its button on the import button's row and producing unfiltered meshes; each output is now built from a fresh snapshot with every non-target subset explicitly removed.
+    6.35.0 Reworked Mesh Debug's split export around exact checked frame/subset occurrences: each output contains one frame and one subset and uses the base-fN-sN.msh naming convention.
+    6.36.0 Replaced Mesh Debug's Texture-role combo for a specific frame/subset target with a three-column radio table showing every role and its current texture filename.
+    6.36.1 Made the Texture-role radio table available for bulk frame/subset targets too, leaving filenames blank when no single target exists and narrowing the Role column.
 */
-#define MBM_VERSION "6.33.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.36.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
