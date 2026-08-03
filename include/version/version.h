@@ -194,8 +194,10 @@
     6.37.0 Added one-level rollback for Mesh Debug Split Capture, backed by a temporary snapshot of the live in-memory mesh and exposed below Save Frame Selection As.
     6.37.1 Made Mesh Debug Split Capture numeric dragging scale with the current mesh bounds, keeping small capture cubes responsive on large meshes.
     6.37.2 Kept Revert Last Capture available after Save All overwrite while its temporary pre-capture snapshot remains alive in the editor session.
+    6.38.0 Added non-destructive Split Capture analysis with Face Center, Entire Face, Any Vertex, and triangle/AABB Intersecting Face algorithms, result comparison, connected-island filtering, and explicit Apply Capture.
+    6.38.1 Cached Split Capture comparison results instead of rebuilding filtered triangle groups every frame, and gave the disconnected-island tooltip a readable fixed wrap width.
 */
-#define MBM_VERSION "6.37.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.38.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

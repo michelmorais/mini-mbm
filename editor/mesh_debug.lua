@@ -8321,92 +8321,330 @@ function splitCaptureGetSubsetSignature(meshD, frame, subset)
     return splitCaptureSignature(vertices, indices, okT and texture or '')
 end
 
-function splitCaptureMesh(tEntry, meshD, box)
-    tEntry.tSplitCapturedSignatures = tEntry.tSplitCapturedSignatures or {}
-    -- addVertex() necessarily allocates a normal buffer while rebuilding subsets. Remember the
-    -- source characteristic so a mesh authored without normals does not silently become a
-    -- zero-normal, lighting-enabled mesh after Split.
-    local sourceHadNormals = tEntry.info and tEntry.info.hasNormal == true
-    local sourceNormalStateKnown = tEntry.info and tEntry.info.hasNormal ~= nil
-    local capturedFaces, capturedFrames = 0, 0
-    local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
-    if not okF or not nFrames then return 0, 0 end
+function splitCapturePointInside(p, box)
+    return p.x >= box.aabbMin.x and p.x <= box.aabbMax.x and
+           p.y >= box.aabbMin.y and p.y <= box.aabbMax.y and
+           p.z >= box.aabbMin.z and p.z <= box.aabbMax.z
+end
 
+-- Complete triangle/AABB overlap test (box axes, triangle normal, and the nine edge-cross-axis
+-- separating axes). It selects whole source triangles; it does not clip or invent vertices.
+function splitCaptureTriangleIntersectsBox(a, b, c, box)
+    local cx = (box.aabbMin.x + box.aabbMax.x) * 0.5
+    local cy = (box.aabbMin.y + box.aabbMax.y) * 0.5
+    local cz = (box.aabbMin.z + box.aabbMax.z) * 0.5
+    local hx = (box.aabbMax.x - box.aabbMin.x) * 0.5
+    local hy = (box.aabbMax.y - box.aabbMin.y) * 0.5
+    local hz = (box.aabbMax.z - box.aabbMin.z) * 0.5
+    local p = {
+        {x=a.x-cx, y=a.y-cy, z=a.z-cz},
+        {x=b.x-cx, y=b.y-cy, z=b.z-cz},
+        {x=c.x-cx, y=c.y-cy, z=c.z-cz},
+    }
+    local function overlapsAxis(x, y, z)
+        if x*x + y*y + z*z < 1e-18 then return true end
+        local p1 = p[1].x*x + p[1].y*y + p[1].z*z
+        local p2 = p[2].x*x + p[2].y*y + p[2].z*z
+        local p3 = p[3].x*x + p[3].y*y + p[3].z*z
+        local r = hx*math.abs(x) + hy*math.abs(y) + hz*math.abs(z)
+        return math.min(p1, p2, p3) <= r and math.max(p1, p2, p3) >= -r
+    end
+    if not overlapsAxis(1,0,0) or not overlapsAxis(0,1,0) or not overlapsAxis(0,0,1) then return false end
+    local edges = {
+        {x=p[2].x-p[1].x, y=p[2].y-p[1].y, z=p[2].z-p[1].z},
+        {x=p[3].x-p[2].x, y=p[3].y-p[2].y, z=p[3].z-p[2].z},
+        {x=p[1].x-p[3].x, y=p[1].y-p[3].y, z=p[1].z-p[3].z},
+    }
+    for _, e in ipairs(edges) do
+        if not overlapsAxis(0, e.z, -e.y) or
+           not overlapsAxis(-e.z, 0, e.x) or
+           not overlapsAxis(e.y, -e.x, 0) then return false end
+    end
+    local e1, e2 = edges[1], {x=p[3].x-p[1].x, y=p[3].y-p[1].y, z=p[3].z-p[1].z}
+    return overlapsAxis(e1.y*e2.z-e1.z*e2.y,
+                        e1.z*e2.x-e1.x*e2.z,
+                        e1.x*e2.y-e1.y*e2.x)
+end
+
+function splitCapturePositionKey(v)
+    return string.format('%.9g:%.9g:%.9g', v.x or 0, v.y or 0, v.z or 0)
+end
+
+function splitCaptureBuildIslands(triangles, vertices)
+    local tokenFaces = {}
+    for ti, tri in ipairs(triangles) do
+        for _, vi in ipairs(tri) do
+            local tokens = {'i:' .. tostring(vi), 'p:' .. splitCapturePositionKey(vertices[vi])}
+            for _, token in ipairs(tokens) do
+                tokenFaces[token] = tokenFaces[token] or {}
+                table.insert(tokenFaces[token], ti)
+            end
+        end
+    end
+    local visited, islands = {}, {}
+    for start = 1, #triangles do
+        if not visited[start] then
+            local island, queue, head = {}, {start}, 1
+            visited[start] = true
+            while head <= #queue do
+                local ti = queue[head]; head = head + 1
+                table.insert(island, triangles[ti])
+                for _, vi in ipairs(triangles[ti]) do
+                    local tokens = {'i:' .. tostring(vi), 'p:' .. splitCapturePositionKey(vertices[vi])}
+                    for _, token in ipairs(tokens) do
+                        for _, neighbor in ipairs(tokenFaces[token] or {}) do
+                            if not visited[neighbor] then visited[neighbor] = true; table.insert(queue, neighbor) end
+                        end
+                    end
+                end
+            end
+            table.insert(islands, island)
+        end
+    end
+    table.sort(islands, function(left, right) return #left > #right end)
+    return islands
+end
+
+function splitCaptureAnalyze(tEntry, meshD, box)
+    local okMode, mode = dpCall(function() return meshD:getModeDraw() end)
+    if not okMode or mode ~= 'TRIANGLES' then return nil, tLang.L('capture_requires_triangles') end
+    local algorithms = {
+        {id='center', label=tLang.L('capture_algorithm_center'), groups={}},
+        {id='entire', label=tLang.L('capture_algorithm_entire'), groups={}},
+        {id='vertex', label=tLang.L('capture_algorithm_vertex'), groups={}},
+        {id='intersect', label=tLang.L('capture_algorithm_intersect'), groups={}},
+    }
+    local captured = tEntry.tSplitCapturedSignatures or {}
+    local okF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    if not okF or not nFrames then return nil, tLang.L('capture_analysis_failed') end
     for f = 1, nFrames do
         local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
-        if okS and nSubsets then
-            for s = nSubsets, 1, -1 do
-                -- A disabled subset is intentionally invisible in the Frame node and must not
-                -- participate in a later split capture.
-                if (tEntry.tCheckedRemove or {})[f * 100 + s] ~= false then
+        for s = 1, (okS and nSubsets or 0) do
+            if (tEntry.tCheckedRemove or {})[f * 100 + s] ~= false then
                 local okV, nVertices = dpCall(function() return meshD:getTotalVertex(f, s) end)
-                local okI, nIndices = dpCall(function() return meshD:getTotalIndex(f, s) end)
-                if okV and nVertices and nVertices > 0 then
-                    local vertices, indices = {}, {}
-                    for v = 1, nVertices do
-                        local ok, value = dpCall(function() return meshD:getVertex(f, s, v) end)
-                        if not ok or not value then vertices = nil; break end
-                        vertices[v] = value
+                local vertices = {}
+                for v = 1, (okV and nVertices or 0) do
+                    local ok, value = dpCall(function() return meshD:getVertex(f, s, v) end)
+                    if not ok or not value then vertices = nil; break end
+                    vertices[v] = value
+                end
+                if vertices then
+                    local okI, nIndices = dpCall(function() return meshD:getTotalIndex(f, s) end)
+                    local indices = {}
+                    if okI and nIndices and nIndices > 0 then
+                        local ok, value = dpCall(function() return meshD:getIndex(f, s) end)
+                        indices = (ok and value) or {}
+                    else
+                        for v = 1, #vertices do indices[v] = v end
                     end
-                    if vertices then
-                        if okI and nIndices and nIndices > 0 then
-                            local ok, value = dpCall(function() return meshD:getIndex(f, s) end)
-                            indices = (ok and value) or {}
-                        else
-                            for i = 1, nVertices do indices[i] = i end
-                        end
-                        local okT, texture = dpCall(function() return meshD:getTexture(f, s) end)
-                        texture = okT and texture or ''
+                    local okT, texture = dpCall(function() return meshD:getTexture(f, s) end)
+                    texture = okT and texture or ''
+                    local signature = splitCaptureSignature(vertices, indices, texture)
+                    if not captured[tostring(f) .. ':' .. signature] then
                         local materialTextures = {}
                         for _, role in ipairs({'normal', 'specular', 'emissive', 'mask'}) do
                             local okM, value = dpCall(function() return meshD:getMaterialTexture(f, s, role) end)
                             if okM and value and value ~= '' then materialTextures[role] = value end
                         end
-                        local signature = splitCaptureSignature(vertices, indices, texture)
-                        local sourceKey = tostring(f) .. ':' .. signature
-                        if not tEntry.tSplitCapturedSignatures[sourceKey] then
-                            local inside, outside = {}, {}
-                            for i = 1, #indices - 2, 3 do
-                                local ia, ib, ic = indices[i], indices[i+1], indices[i+2]
-                                local a, b, c = vertices[ia], vertices[ib], vertices[ic]
-                                if a and b and c then
-                                    local cx, cy, cz = (a.x+b.x+c.x)/3, (a.y+b.y+c.y)/3, (a.z+b.z+c.z)/3
-                                    local target = (cx >= box.aabbMin.x and cx <= box.aabbMax.x and
-                                                    cy >= box.aabbMin.y and cy <= box.aabbMax.y and
-                                                    cz >= box.aabbMin.z and cz <= box.aabbMax.z) and inside or outside
-                                    table.insert(target, {ia, ib, ic})
-                                end
+                        local selected = {{}, {}, {}, {}}
+                        for i = 1, #indices - 2, 3 do
+                            local tri = {indices[i], indices[i+1], indices[i+2]}
+                            local a, b, c = vertices[tri[1]], vertices[tri[2]], vertices[tri[3]]
+                            if a and b and c then
+                                local ai, bi, ci = splitCapturePointInside(a, box), splitCapturePointInside(b, box), splitCapturePointInside(c, box)
+                                local center = {x=(a.x+b.x+c.x)/3, y=(a.y+b.y+c.y)/3, z=(a.z+b.z+c.z)/3}
+                                if splitCapturePointInside(center, box) then table.insert(selected[1], tri) end
+                                if ai and bi and ci then table.insert(selected[2], tri) end
+                                if ai or bi or ci then table.insert(selected[3], tri) end
+                                if splitCaptureTriangleIntersectsBox(a, b, c, box) then table.insert(selected[4], tri) end
                             end
-                            if #inside > 0 then
-                                local outsideV, outsideI = splitCaptureGroup(vertices, outside)
-                                local insideV, insideI = splitCaptureGroup(vertices, inside)
-                                dpCall(function() meshD:removeSubset(f, s) end)
-                                if #outsideI > 0 then
-                                    local newS = meshD:addSubSet(f)
-                                    meshD:addVertex(f, newS, outsideV)
-                                    meshD:addIndex(f, newS, outsideI)
-                                    splitCaptureSetSubsetTextures(meshD, f, newS, texture, materialTextures)
-                                end
-                                local newS = meshD:addSubSet(f)
-                                meshD:addVertex(f, newS, insideV)
-                                meshD:addIndex(f, newS, insideI)
-                                splitCaptureSetSubsetTextures(meshD, f, newS, texture, materialTextures)
-                                tEntry.tSplitCapturedSignatures[tostring(f) .. ':' .. splitCaptureSignature(insideV, insideI, texture)] = true
-                                capturedFaces = capturedFaces + #inside
-                                capturedFrames = capturedFrames + 1
+                        end
+                        for ai, algorithm in ipairs(algorithms) do
+                            if #selected[ai] > 0 then
+                                table.insert(algorithm.groups, {
+                                    frame=f, subset=s, vertices=vertices, indices=indices,
+                                    texture=texture, materialTextures=materialTextures,
+                                    signature=signature, triangles=selected[ai],
+                                    islands=splitCaptureBuildIslands(selected[ai], vertices),
+                                })
                             end
                         end
                     end
                 end
-                end
             end
         end
     end
-    if capturedFrames > 0 and sourceNormalStateKnown and not sourceHadNormals then
-        meshD:removeNormals()
-        tEntry.info.hasNormal = false
+    local analysis = {algorithms=algorithms, selected=1, filterIslands=false, threshold=10}
+    splitCaptureRefreshResolved(analysis)
+    return analysis
+end
+
+function splitCaptureResolveAlgorithm(algorithm, filterIslands, threshold)
+    local resolved = {groups={}, faces=0, vertices=0, islands=0, removed=0, frames=0}
+    local affectedFrames = {}
+    for _, group in ipairs(algorithm.groups) do
+        local kept, islands = {}, group.islands or {}
+        local largest = islands[1] and #islands[1] or 0
+        for islandIndex, island in ipairs(islands) do
+            local keep = not filterIslands or islandIndex == 1 or #island >= largest * threshold * 0.01
+            if keep then
+                for _, tri in ipairs(island) do table.insert(kept, tri) end
+            else
+                resolved.removed = resolved.removed + 1
+            end
+        end
+        if #kept > 0 then
+            local used = {}
+            for _, tri in ipairs(kept) do for _, vi in ipairs(tri) do used[vi] = true end end
+            local vertexCount = 0
+            for _ in pairs(used) do vertexCount = vertexCount + 1 end
+            table.insert(resolved.groups, {
+                frame=group.frame, subset=group.subset, vertices=group.vertices,
+                indices=group.indices, texture=group.texture,
+                materialTextures=group.materialTextures, signature=group.signature,
+                triangles=kept,
+            })
+            resolved.faces = resolved.faces + #kept
+            resolved.vertices = resolved.vertices + vertexCount
+            affectedFrames[group.frame] = true
+        end
+        resolved.islands = resolved.islands + #islands
     end
-    return capturedFaces, capturedFrames
+    for _ in pairs(affectedFrames) do resolved.frames = resolved.frames + 1 end
+    return resolved
+end
+
+-- Resolving an algorithm walks every selected triangle again to rebuild filtered groups and
+-- unique-vertex totals. Cache all four rows and redo that work only when a filter input changes,
+-- never once per rendered ImGui frame.
+function splitCaptureRefreshResolved(analysis)
+    local cacheKey = tostring(analysis.filterIslands == true) .. ':' .. tostring(analysis.threshold or 10)
+    if analysis.resolvedCacheKey == cacheKey and analysis.resolved then return analysis.resolved end
+    analysis.resolved = {}
+    for algorithmIndex, algorithm in ipairs(analysis.algorithms) do
+        analysis.resolved[algorithmIndex] = splitCaptureResolveAlgorithm(
+            algorithm, analysis.filterIslands, analysis.threshold)
+    end
+    analysis.resolvedCacheKey = cacheKey
+    return analysis.resolved
+end
+
+function splitCaptureApply(tEntry, meshD, resolved)
+    tEntry.tSplitCapturedSignatures = tEntry.tSplitCapturedSignatures or {}
+    local sourceHadNormals = tEntry.info and tEntry.info.hasNormal == true
+    local sourceNormalStateKnown = tEntry.info and tEntry.info.hasNormal ~= nil
+    table.sort(resolved.groups, function(left, right)
+        return left.frame > right.frame or (left.frame == right.frame and left.subset > right.subset)
+    end)
+    for _, group in ipairs(resolved.groups) do
+        if splitCaptureGetSubsetSignature(meshD, group.frame, group.subset) ~= group.signature then
+            return nil, tLang.L('capture_mesh_changed')
+        end
+    end
+    for _, group in ipairs(resolved.groups) do
+        local chosen, chosenSet = group.triangles, {}
+        for _, tri in ipairs(chosen) do chosenSet[table.concat(tri, ':')] = true end
+        local outside = {}
+        for i = 1, #group.indices - 2, 3 do
+            local tri = {group.indices[i], group.indices[i+1], group.indices[i+2]}
+            if not chosenSet[table.concat(tri, ':')] then table.insert(outside, tri) end
+        end
+        local outsideV, outsideI = splitCaptureGroup(group.vertices, outside)
+        local insideV, insideI = splitCaptureGroup(group.vertices, chosen)
+        meshD:removeSubset(group.frame, group.subset)
+        if #outsideI > 0 then
+            local newS = meshD:addSubSet(group.frame)
+            meshD:addVertex(group.frame, newS, outsideV); meshD:addIndex(group.frame, newS, outsideI)
+            splitCaptureSetSubsetTextures(meshD, group.frame, newS, group.texture, group.materialTextures)
+        end
+        local newS = meshD:addSubSet(group.frame)
+        meshD:addVertex(group.frame, newS, insideV); meshD:addIndex(group.frame, newS, insideI)
+        splitCaptureSetSubsetTextures(meshD, group.frame, newS, group.texture, group.materialTextures)
+        tEntry.tSplitCapturedSignatures[tostring(group.frame) .. ':' .. splitCaptureSignature(insideV, insideI, group.texture)] = true
+    end
+    if resolved.faces > 0 and sourceNormalStateKnown and not sourceHadNormals then
+        meshD:removeNormals(); tEntry.info.hasNormal = false
+    end
+    return resolved.faces, resolved.frames
+end
+
+function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
+    if resolved.faces == 0 then tUtil.showMessageWarn(tLang.L('capture_no_faces')); return end
+    local pendingBackup = splitCaptureCreateBackup(tEntry, meshD)
+    if not pendingBackup then tUtil.showMessageWarn(tLang.L('capture_backup_failed')); return end
+    local faces, framesOrError = splitCaptureApply(tEntry, meshD, resolved)
+    if not faces then
+        meshDebug:fakeRelease(pendingBackup.path); os.remove(pendingBackup.path)
+        tUtil.showMessageWarn(framesOrError or tLang.L('capture_analysis_failed'))
+        return
+    end
+    splitCaptureDiscardBackup(tEntry)
+    tEntry.tSplitCaptureBackup = pendingBackup
+    tEntry.modified = true
+    tEntry.bNormalsVizDirty = true
+    tEntry.bPhysicsVizDirty = true
+    iLastPreviewedIndex = 0
+    sp.lastFaces, sp.lastFrames = faces, framesOrError
+    table.insert(tEntry.tSplitCaptures, {
+        faces=faces, frames=framesOrError, x=sp.x, y=sp.y, z=sp.z,
+        width=sp.width, height=sp.height, depth=sp.depth,
+    })
+    sp.analysis = nil
+    tUtil.showMessage(string.format(tLang.L('capture_applied_fmt'), faces, framesOrError), 5)
+end
+
+function showSplitCaptureAnalysis(tEntry, meshD, index, sp)
+    local analysis = sp.analysis
+    if not analysis then return end
+    tImGui.Text(tLang.L('capture_results'))
+    local filtered = tImGui.Checkbox(tLang.L('capture_filter_islands') .. '##captureFilter-' .. index, analysis.filterIslands)
+    analysis.filterIslands = filtered
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.PushTextWrapPos(400)
+        tImGui.Text(tLang.L('capture_filter_islands_help'))
+        tImGui.PopTextWrapPos()
+        tImGui.EndTooltip()
+    end
+    if analysis.filterIslands then
+        tImGui.PushItemWidth(150)
+        local changed, threshold = tImGui.DragFloat(
+            tLang.L('capture_island_threshold') .. '##captureThreshold-' .. index,
+            analysis.threshold, 1, 1, 100, '%.0f%%')
+        tImGui.PopItemWidth()
+        if changed then analysis.threshold = math.max(1, math.min(100, threshold)) end
+    end
+    local resolvedResults = splitCaptureRefreshResolved(analysis)
+    local flags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollX')
+    if tImGui.BeginTable('captureResults-' .. index, 6, flags, {x=0, y=150}) then
+        tImGui.TableSetupColumn(tLang.L('select'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 45)
+        tImGui.TableSetupColumn(tLang.L('capture_algorithm'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 180)
+        tImGui.TableSetupColumn(tLang.L('capture_faces'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 55)
+        tImGui.TableSetupColumn(tLang.L('capture_vertices'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 65)
+        tImGui.TableSetupColumn(tLang.L('capture_islands'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 55)
+        tImGui.TableSetupColumn(tLang.L('capture_removed'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 100)
+        tImGui.TableHeadersRow()
+        for algorithmIndex, algorithm in ipairs(analysis.algorithms) do
+            local result = resolvedResults[algorithmIndex]
+            tImGui.TableNextRow()
+            tImGui.TableNextColumn()
+            analysis.selected = tImGui.RadioButton(
+                '##captureAlgorithm-' .. index .. '-' .. algorithmIndex,
+                analysis.selected, algorithmIndex)
+            tImGui.TableNextColumn(); tImGui.Text(algorithm.label)
+            tImGui.TableNextColumn(); tImGui.Text(tostring(result.faces))
+            tImGui.TableNextColumn(); tImGui.Text(tostring(result.vertices))
+            tImGui.TableNextColumn(); tImGui.Text(tostring(result.islands))
+            tImGui.TableNextColumn(); tImGui.Text(tostring(result.removed))
+        end
+        tImGui.EndTable()
+    end
+    local selected = resolvedResults[analysis.selected]
+    if tImGui.Button(tLang.L('capture_apply') .. '##captureApply-' .. index) then
+        splitCaptureCommitAnalysis(tEntry, meshD, index, sp, selected)
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('cancel') .. '##captureCancel-' .. index) then sp.analysis = nil end
 end
 
 function saveCapturedSplitAs(tEntry)
@@ -8514,6 +8752,7 @@ function showSplitCapture(tEntry, meshD, index)
     local newActive = tImGui.Checkbox('Start Capture##splitCapture-' .. index, oldActive)
     sp.active = newActive
     if newActive and not oldActive then
+        sp.analysis = nil
         -- Refresh this for every capture because the live mesh may have changed since the cube
         -- was first initialized. A tiny cube inside a very large mesh must still traverse the
         -- mesh at a useful speed instead of deriving its DragFloat step from the cube alone.
@@ -8537,31 +8776,12 @@ function showSplitCapture(tEntry, meshD, index)
         tEntry.sSplitDragging = nil
         sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
     elseif not newActive and oldActive then
-        local pendingBackup = splitCaptureCreateBackup(tEntry, meshD)
-        if not pendingBackup then
-            sp.active = true
-            tUtil.showMessageWarn(tLang.L('capture_backup_failed'))
-            return
-        end
-        local faces, frames = splitCaptureMesh(tEntry, meshD, sp)
+        local analysis, analysisError = splitCaptureAnalyze(tEntry, meshD, sp)
         splitCaptureDestroy(sp)
         tEntry.sSplitDragging = nil
         sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
-        sp.lastFaces, sp.lastFrames = faces, frames
-        if faces > 0 then
-            splitCaptureDiscardBackup(tEntry)
-            tEntry.tSplitCaptureBackup = pendingBackup
-            tEntry.modified = true
-            tEntry.bNormalsVizDirty = true
-            tEntry.bPhysicsVizDirty = true
-            iLastPreviewedIndex = 0
-            table.insert(tEntry.tSplitCaptures, {faces=faces, frames=frames, x=sp.x, y=sp.y, z=sp.z, width=sp.width, height=sp.height, depth=sp.depth})
-            tUtil.showMessage(string.format('Split capture: %d face(s) in %d frame(s).', faces, frames), 5)
-        else
-            meshDebug:fakeRelease(pendingBackup.path)
-            os.remove(pendingBackup.path)
-            tUtil.showMessage('Split capture: no faces found inside the cube.', 4)
-        end
+        sp.analysis = analysis
+        if not analysis then tUtil.showMessageWarn(analysisError or tLang.L('capture_analysis_failed')) end
     end
     if sp.active then
         local hoverKind, hoverAxis = nil, nil
@@ -8614,6 +8834,7 @@ function showSplitCapture(tEntry, meshD, index)
         splitCaptureSetHover(sp, hoverKind, hoverAxis)
         if sp.lastFaces then tImGui.Text(string.format('Last capture: %d face(s)', sp.lastFaces)) end
     end
+    if not sp.active then showSplitCaptureAnalysis(tEntry, meshD, index, sp) end
     if tEntry.tSplitCaptures and #tEntry.tSplitCaptures > 0 then
         tImGui.Text('Captured groups: ' .. tostring(#tEntry.tSplitCaptures))
         for i, cap in ipairs(tEntry.tSplitCaptures) do
