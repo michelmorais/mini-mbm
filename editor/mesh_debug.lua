@@ -3102,7 +3102,11 @@ function addMeshToTable(fileName)
         sNormalVizCoordType  = nil,
         tPhysicsLine         = nil,
         bPhysicsVizDirty     = true,
-        sPhysicsVizCoordType = nil
+        sPhysicsVizCoordType = nil,
+        tPhysicsCache        = nil,
+        tPhysicsCountsCache  = nil,
+        tPhysicsBoundsCache  = nil,
+        tPhysicsExtentCache  = nil
     })
     -- Auto-switch camera to 3D when a mesh (.msh) file is loaded
     if info.type == 'mesh' and not bCameraMode3D then
@@ -3700,7 +3704,14 @@ function destroyNormalVisualization(tEntry)
     if tEntry.tNormalLineBad then tEntry.tNormalLineBad:destroy() end
     tEntry.tNormalLineGood = nil
     tEntry.tNormalLineBad  = nil
+    tEntry.tNormalGeoCache = nil
+    tEntry.tNormalVertexCache = nil
+    tEntry.iNormalPreviewTotal = nil
+    tEntry.iNormalPreviewSegments = nil
 end
+
+NORMAL_PREVIEW_MAX_SEGMENTS = 500
+NORMAL_TABLE_PAGE_SIZE = 100
 
 -- Rebuilds the two line objects that visualize frame-1's per-vertex normals: green where the
 -- stored normal agrees with the geometric face normal (from triangle winding), red where it
@@ -3735,6 +3746,15 @@ function rebuildNormalVisualization(tEntry, meshD)
     lnGood:setColor(0, 1, 0)
     lnBad:setColor(1, 0, 0)
     local anySegment = false
+    local totalVertices = 0
+    for s = 1, nSubsets do
+        local okV, nV = dpCall(function() return meshD:getTotalVertex(1, s) end)
+        if okV and nV then totalVertices = totalVertices + nV end
+    end
+    local sampleStride = math.max(1, math.ceil(totalVertices / NORMAL_PREVIEW_MAX_SEGMENTS))
+    local globalVertexIndex, previewSegments = 0, 0
+    tEntry.tNormalGeoCache = {}
+    tEntry.tNormalVertexCache = {}
 
     for s = 1, nSubsets do
         local okV, nV = dpCall(function() return meshD:getTotalVertex(1, s) end)
@@ -3742,10 +3762,13 @@ function rebuildNormalVisualization(tEntry, meshD)
             local okVerts, verts = dpCall(function() return meshD:getVertex(1, s, 1, nV) end)
             if okVerts and verts then
                 local geo = triOk and computeGeoNormalsForSubset(meshD, 1, s) or nil
+                tEntry.tNormalVertexCache[s] = verts
+                tEntry.tNormalGeoCache[s] = geo or {}
                 for ii = 1, nV do
+                    globalVertexIndex = globalVertexIndex + 1
                     local vd = verts[ii]
                     local nx, ny, nz = normalizeVec3(vd.nx, vd.ny, vd.nz)
-                    if nx then
+                    if nx and (globalVertexIndex - 1) % sampleStride == 0 then
                         local isBad = false
                         if geo and geo[ii] then
                             local g = geo[ii]
@@ -3759,11 +3782,14 @@ function rebuildNormalVisualization(tEntry, meshD)
                             target:add({vd.x, vd.y, vd.x + nx * lineLen, vd.y + ny * lineLen})
                         end
                         anySegment = true
+                        previewSegments = previewSegments + 1
                     end
                 end
             end
         end
     end
+    tEntry.iNormalPreviewTotal = totalVertices
+    tEntry.iNormalPreviewSegments = previewSegments
 
     if anySegment then
         tEntry.tNormalLineGood = lnGood
@@ -9404,9 +9430,14 @@ end
 -- Renders one row's NX/NY/NZ DragFloats + status + Flip/Recompute buttons for local vertex
 -- `v` of subset (1, s). `geo` is the (possibly nil) result of computeGeoNormalsForSubset for
 -- this subset, reused for every row so it is computed once per subset per frame, not per row.
-function showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk)
-    local okVd, vd = dpCall(function() return meshD:getVertex(1, s, v) end)
-    if not okVd or not vd then return end
+function showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk, vertices)
+    local vd = vertices and vertices[v]
+    if not vd then
+        local okVd, loaded = dpCall(function() return meshD:getVertex(1, s, v) end)
+        if not okVd or not loaded then return end
+        vd = loaded
+        if vertices then vertices[v] = vd end
+    end
     local rid = index .. '-' .. s .. '-' .. v
 
     tImGui.TableNextRow()
@@ -9478,18 +9509,35 @@ end
 -- Renders the per-subset header (bulk Flip/Recompute buttons + a scrollable vertex table)
 -- for frame 1, subset s. Only called when meshType == 'mesh' and info.hasNormal.
 function showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
-    local okNV, nV = dpCall(function() return meshD:getTotalVertex(1, s) end)
-    if not okNV or not nV or nV <= 0 then return end
+    local vertices = (tEntry.tNormalVertexCache or {})[s]
+    local nV = vertices and #vertices or nil
+    if not nV then
+        local okNV, loadedCount = dpCall(function() return meshD:getTotalVertex(1, s) end)
+        if not okNV then return end
+        nV = loadedCount
+    end
+    if not nV or nV <= 0 then return end
 
     local label = string.format('%s %d (%d)', tLang.L('normal_subset_label'), s, nV)
     if not tImGui.TreeNodeEx(label .. '##nsub-' .. index .. '-' .. s, 0) then return end
 
-    local geo = triOk and computeGeoNormalsForSubset(meshD, 1, s) or {}
+    local geo = (tEntry.tNormalGeoCache or {})[s]
+    if not geo then
+        geo = triOk and computeGeoNormalsForSubset(meshD, 1, s) or {}
+        tEntry.tNormalGeoCache = tEntry.tNormalGeoCache or {}
+        tEntry.tNormalGeoCache[s] = geo
+    end
+    if not vertices then
+        local okVerts, loaded = dpCall(function() return meshD:getVertex(1, s, 1, nV) end)
+        vertices = (okVerts and loaded) or {}
+        tEntry.tNormalVertexCache = tEntry.tNormalVertexCache or {}
+        tEntry.tNormalVertexCache[s] = vertices
+    end
 
     local function bulkUpdate(fn)
         for v = 1, nV do
-            local okVd, vd = dpCall(function() return meshD:getVertex(1, s, v) end)
-            if okVd and vd then
+            local vd = vertices[v]
+            if vd then
                 local nx, ny, nz = fn(v, vd, geo[v])
                 if nx then
                     vd.nx, vd.ny, vd.nz = nx, ny, nz
@@ -9512,12 +9560,42 @@ function showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
         end
     end
 
+    -- ImGui still processes every submitted widget on every frame, even though the vertex data is
+    -- cached. Keep each expanded subset bounded so large meshes do not stall the editor.
+    tEntry.tNormalTablePages = tEntry.tNormalTablePages or {}
+    local totalPages = math.max(1, math.ceil(nV / NORMAL_TABLE_PAGE_SIZE))
+    local page = math.max(1, math.min(tEntry.tNormalTablePages[s] or 1, totalPages))
+
+    if totalPages > 1 then
+        tImGui.BeginDisabled(page <= 1)
+        if tImGui.Button(tLang.L('normal_page_previous') .. '##nprev-' .. index .. '-' .. s) then
+            page = page - 1
+        end
+        tImGui.EndDisabled()
+        tImGui.SameLine()
+        tImGui.BeginDisabled(page >= totalPages)
+        if tImGui.Button(tLang.L('normal_page_next') .. '##nnext-' .. index .. '-' .. s) then
+            page = page + 1
+        end
+        tImGui.EndDisabled()
+    end
+
+    page = math.max(1, math.min(page, totalPages))
+    tEntry.tNormalTablePages[s] = page
+    local firstVertex = (page - 1) * NORMAL_TABLE_PAGE_SIZE + 1
+    local lastVertex = math.min(nV, firstVertex + NORMAL_TABLE_PAGE_SIZE - 1)
+    if totalPages > 1 then
+        tImGui.SameLine()
+        tImGui.TextDisabled(string.format(tLang.L('normal_page_fmt'),
+            page, totalPages, firstVertex, lastVertex, nV))
+    end
+
     -- Kept intentionally narrow (Idx + NX/NY/NZ + one combined Status/Actions column) so the
     -- whole table fits inside the Mesh Tree window's default ~350px width; ScrollX is a safety
     -- net if the window is narrower still or a translation makes the status text wider.
     local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_ScrollY',
         'ImGuiTableFlags_ScrollX', 'ImGuiTableFlags_RowBg')
-    local listH = math.min(nV * 24 + 30, 260)
+    local listH = math.min((lastVertex - firstVertex + 1) * 24 + 30, 260)
     if tImGui.BeginTable('nsubTbl-' .. index .. '-' .. s, 5, tblFlags, {x = 0, y = listH}) then
         tImGui.TableSetupScrollFreeze(0, 1)
         tImGui.TableSetupColumn(tLang.L('normal_col_idx'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 30)
@@ -9526,8 +9604,8 @@ function showNormalSubsetEditor(tEntry, meshD, index, s, triOk)
         tImGui.TableSetupColumn('NZ', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 56)
         tImGui.TableSetupColumn(tLang.L('normal_col_status'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 110)
         tImGui.TableHeadersRow()
-        for v = 1, nV do
-            showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk)
+        for v = firstVertex, lastVertex do
+            showNormalVertexRow(tEntry, meshD, index, s, v, geo, triOk, vertices)
         end
         tImGui.EndTable()
     end
@@ -9550,6 +9628,10 @@ function showNormalsEditor(tEntry, meshD, index)
     local triOk = okMode and modeDraw == 'TRIANGLES'
     if not triOk then
         tImGui.TextDisabled(tLang.L('normal_non_triangle_note'))
+    end
+    if (tEntry.iNormalPreviewTotal or 0) > (tEntry.iNormalPreviewSegments or 0) then
+        tImGui.TextDisabled(string.format(tLang.L('normal_preview_sampled_fmt'),
+            tEntry.iNormalPreviewSegments or 0, tEntry.iNormalPreviewTotal or 0))
     end
 
     local okNS, nSubsets = dpCall(function() return meshD:getTotalSubset(1) end)
@@ -9639,23 +9721,40 @@ function showMeshOptions(tEntry, index)
     -- actually editing/authoring individual shapes stays in physic_editor.lua's own "Edit Physics"
     -- window, which is the only place with the primitive-by-primitive editing UI.
     if openNode(tEntry, 'physics', tLang.L("physics_label"), 0, 'physics-' .. index) then
-        local tPhysics = meshD:getPhysics() or {}
+        -- getPhysics() may materialize tens of thousands of triangle tables, while the true mesh
+        -- bounds walk every vertex. Neither value changes merely because this node stays open.
+        if tEntry.bPhysicsVizDirty then
+            tEntry.tPhysicsCache = nil
+            tEntry.tPhysicsCountsCache = nil
+            tEntry.tPhysicsBoundsCache = nil
+            tEntry.tPhysicsExtentCache = nil
+        end
+        if not tEntry.tPhysicsCache then
+            tEntry.tPhysicsCache = meshD:getPhysics() or {}
+            local counts = {}
+            for _, shape in ipairs(tEntry.tPhysicsCache) do
+                counts[shape.type] = (counts[shape.type] or 0) + 1
+            end
+            tEntry.tPhysicsCountsCache = counts
+            if #tEntry.tPhysicsCache > 0 then
+                tEntry.tPhysicsBoundsCache = computeMeshVertexBoundsFrame1(meshD)
+                tEntry.tPhysicsExtentCache = {computePhysicsExtent(tEntry.tPhysicsCache)}
+            end
+        end
+        local tPhysics = tEntry.tPhysicsCache
         -- Same rebuild-on-mismatch pattern as showNormalsEditor/rebuildNormalVisualization: the
         -- 2D/3D toggle (bCameraMode3D) changes the coord space the wireframe line must be created
         -- in, so a stale line built under the previous mode has to be thrown away and redrawn.
         local wantCoordType = bCameraMode3D and '3d' or '2dw'
         if not tEntry.tPhysicsLine or tEntry.bPhysicsVizDirty or tEntry.sPhysicsVizCoordType ~= wantCoordType then
-            rebuildPhysicsVisualization(tEntry, meshD)
+            rebuildPhysicsVisualization(tEntry, meshD, tPhysics)
         end
         tImGui.HelpMarker(string.format(tLang.L('physics_edit_elsewhere_fmt'), tLang.L('physic_editor')))
         tImGui.SameLine()
         if #tPhysics == 0 then
             tImGui.TextDisabled(tLang.L('no_physics_available'))
         else
-            local counts = {}
-            for _, shape in ipairs(tPhysics) do
-                counts[shape.type] = (counts[shape.type] or 0) + 1
-            end
+            local counts = tEntry.tPhysicsCountsCache or {}
             local tShapeLabels = {
                 {'cube',     tLang.L('physics_shape_cube')},
                 {'sphere',   tLang.L('physics_shape_sphere')},
@@ -9673,9 +9772,10 @@ function showMeshOptions(tEntry, index)
         -- computeMeshTrueVertexExtentFrame1): a hand-authored physics box much smaller than the
         -- mesh's real frame-1 vertex extents means anything reading physics-derived size (physics
         -- itself, but also getAABB/getSize/getWidthHeight on the loaded RENDERIZABLE) is unreliable.
-        local bounds = #tPhysics > 0 and computeMeshVertexBoundsFrame1(meshD) or nil
+        local bounds = tEntry.tPhysicsBoundsCache
         if bounds then
-            local pw2, ph2, pd2 = computePhysicsExtent(tPhysics)
+            local extent = tEntry.tPhysicsExtentCache or {}
+            local pw2, ph2, pd2 = extent[1], extent[2], extent[3]
             if pw2 then
                 local trueMax = math.max(bounds.width, bounds.height, bounds.depth)
                 local physMax = math.max(pw2, ph2, pd2)
@@ -9685,6 +9785,11 @@ function showMeshOptions(tEntry, index)
                     tImGui.PopStyleColor(1)
                 end
             end
+        end
+
+        if (tEntry.iPhysicsPreviewTotal or 0) > (tEntry.iPhysicsPreviewShapes or 0) then
+            tImGui.TextDisabled(string.format(tLang.L('physics_preview_sampled_fmt'),
+                tEntry.iPhysicsPreviewShapes or 0, tEntry.iPhysicsPreviewTotal or 0))
         end
 
         tImGui.Separator()
@@ -11682,6 +11787,7 @@ local function applyAllCentralize(sType)
             rebuildBoneGizmo(tEntry, meshD, index)
         end
         tEntry.modified = true
+        tEntry.bPhysicsVizDirty = true
         return 'success'
     end)
 end
@@ -11691,6 +11797,7 @@ local function applyAllCentralizeItself(sType)
     return runApplyAllOperation(sType, tLang.L('centralize_itself'), function(tEntry)
         tEntry.meshDebug:centralizeItself(xf.frame, xf.subset)
         tEntry.modified = true
+        tEntry.bPhysicsVizDirty = true
         return 'success'
     end)
 end
@@ -11723,6 +11830,7 @@ local function applyAllTransform(sType, sMode)
             -- bake regardless of which frame/subset the vertex bake targeted.
             rebuildBoneGizmo(tEntry, meshD, index)
             tEntry.modified = true
+            tEntry.bPhysicsVizDirty = true
             return 'success'
         end
         return 'failed', tLang.L('an_error_occurred')
@@ -11868,20 +11976,36 @@ end
 -- Rebuilds the wireframe line that visualizes every physics shape on frame 1. Drawn in whichever
 -- coord space the preview is currently using (2dw or 3d), matching bCameraMode3D -- same
 -- rebuild-on-mismatch pattern as rebuildNormalVisualization above.
-function rebuildPhysicsVisualization(tEntry, meshD)
+PHYSICS_PREVIEW_MAX_SHAPES = 200
+
+function rebuildPhysicsVisualization(tEntry, meshD, cachedPhysics)
     destroyPhysicsVisualization(tEntry)
     tEntry.bPhysicsVizDirty = false
-    local okP, tPhysics = dpCall(function() return meshD:getPhysics() end)
-    if not okP or not tPhysics or #tPhysics == 0 then return end
+    tEntry.iPhysicsPreviewTotal = 0
+    tEntry.iPhysicsPreviewShapes = 0
+    local tPhysics = cachedPhysics
+    if not tPhysics then
+        local okP, loaded = dpCall(function() return meshD:getPhysics() end)
+        if not okP then return end
+        tPhysics = loaded
+    end
+    if not tPhysics or #tPhysics == 0 then return end
 
     local coordType = bCameraMode3D and '3d' or '2dw'
     tEntry.sPhysicsVizCoordType = coordType
     local is3D = coordType == '3d'
     local ln = line:new(coordType, 0, 0, 0)
     ln:setColor(0, 1, 0)
-    for _, shape in ipairs(tPhysics) do
-        addPhysicsShapeWireframe(ln, shape, is3D)
+    local stride = math.max(1, math.ceil(#tPhysics / PHYSICS_PREVIEW_MAX_SHAPES))
+    local previewShapes = 0
+    for i, shape in ipairs(tPhysics) do
+        if (i - 1) % stride == 0 then
+            addPhysicsShapeWireframe(ln, shape, is3D)
+            previewShapes = previewShapes + 1
+        end
     end
+    tEntry.iPhysicsPreviewTotal = #tPhysics
+    tEntry.iPhysicsPreviewShapes = previewShapes
     tEntry.tPhysicsLine = ln
 end
 

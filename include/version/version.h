@@ -198,8 +198,11 @@
     6.38.1 Cached Split Capture comparison results instead of rebuilding filtered triangle groups every frame, and gave the disconnected-island tooltip a readable fixed wrap width.
     6.38.2 Deferred Split Capture island-threshold recalculation until its DragFloat is deactivated after editing, while keeping checkbox changes immediate.
     6.39.0 Added optional always-on-top Split Capture island-center spheres, cyan for retained islands and orange for filtered islands, plus complete island/threshold guidance.
+    6.39.1 Capped Mesh Debug's normal-line preview at 500 evenly sampled normals and cached frame-1 vertex/geometric-normal data, avoiding thousands of per-frame line draws and repeated table calculations on large meshes.
+    6.39.2 Paginated each expanded Mesh Debug normal-subset table to 100 editable rows per page, preventing every vertex widget from being submitted on every frame while retaining full-subset bulk actions.
+    6.39.3 Cached Mesh Debug's Physics-node shape summary, mesh bounds, and physics extent until an edit, and capped its wireframe to 200 evenly sampled shapes, avoiding repeated full-mesh scans and huge persistent line previews.
 */
-#define MBM_VERSION "6.39.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.39.3" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
