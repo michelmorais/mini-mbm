@@ -191,8 +191,11 @@
     6.36.0 Replaced Mesh Debug's Texture-role combo for a specific frame/subset target with a three-column radio table showing every role and its current texture filename.
     6.36.1 Made the Texture-role radio table available for bulk frame/subset targets too, leaving filenames blank when no single target exists and narrowing the Role column.
     6.36.2 Moved Frame pending-operation Execute/Cancel controls directly below the pending list and stopped the current UI pass after Execute so stale pre-mutation frame/subset rows cannot be used.
+    6.37.0 Added one-level rollback for Mesh Debug Split Capture, backed by a temporary snapshot of the live in-memory mesh and exposed below Save Frame Selection As.
+    6.37.1 Made Mesh Debug Split Capture numeric dragging scale with the current mesh bounds, keeping small capture cubes responsive on large meshes.
+    6.37.2 Kept Revert Last Capture available after Save All overwrite while its temporary pre-capture snapshot remains alive in the editor session.
 */
-#define MBM_VERSION "6.37.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.37.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

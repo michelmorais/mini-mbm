@@ -3204,6 +3204,7 @@ function removeMeshFromTable(index)
     local removed = table.remove(tLoadedMeshes, index)
     if removed then
         if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
+        splitCaptureDiscardBackup(removed)
         destroyTransformSubsetHoverMarker(removed)
         destroyNormalVisualization(removed)
         destroyPhysicsVisualization(removed)
@@ -8196,6 +8197,73 @@ function splitCaptureDestroy(t)
     t.tAxisEdgeLines, t.tAxisFaceShapes = nil, nil
 end
 
+function splitCaptureCopyTable(source)
+    local copy = {}
+    for key, value in pairs(source or {}) do
+        if type(value) == 'table' then
+            copy[key] = splitCaptureCopyTable(value)
+        else
+            copy[key] = value
+        end
+    end
+    return copy
+end
+
+function splitCaptureDiscardBackup(tEntry)
+    local backup = tEntry and tEntry.tSplitCaptureBackup
+    if not backup then return end
+    meshDebug:fakeRelease(backup.path)
+    os.remove(backup.path)
+    tEntry.tSplitCaptureBackup = nil
+end
+
+function splitCaptureCreateBackup(tEntry, meshD)
+    local backupPath = os.tmpname() .. '.msh'
+    if not meshD:save(backupPath, false, false) then
+        meshDebug:fakeRelease(backupPath)
+        os.remove(backupPath)
+        return nil
+    end
+    return {
+        path = backupPath,
+        modified = tEntry.modified == true,
+        info = splitCaptureCopyTable(tEntry.info),
+        checkedRemove = splitCaptureCopyTable(tEntry.tCheckedRemove),
+        capturedSignatures = splitCaptureCopyTable(tEntry.tSplitCapturedSignatures),
+        captures = splitCaptureCopyTable(tEntry.tSplitCaptures),
+        lastFaces = tEntry.tSplitCapture and tEntry.tSplitCapture.lastFaces or nil,
+        lastFrames = tEntry.tSplitCapture and tEntry.tSplitCapture.lastFrames or nil,
+    }
+end
+
+function splitCaptureRevert(tEntry, index)
+    local backup = tEntry.tSplitCaptureBackup
+    if not backup then return end
+    local restored = meshDebug:new()
+    if not restored:load(backup.path) then
+        tUtil.showMessageWarn(tLang.L('revert_last_capture_failed'))
+        return
+    end
+
+    tEntry.meshDebug = restored
+    tEntry.modified = backup.modified
+    tEntry.info = backup.info
+    tEntry.tCheckedRemove = backup.checkedRemove
+    tEntry.tSplitCapturedSignatures = backup.capturedSignatures
+    tEntry.tSplitCaptures = backup.captures
+    if tEntry.tSplitCapture then
+        tEntry.tSplitCapture.lastFaces = backup.lastFaces
+        tEntry.tSplitCapture.lastFrames = backup.lastFrames
+    end
+    splitCaptureDiscardBackup(tEntry)
+    destroyNormalVisualization(tEntry)
+    destroyPhysicsVisualization(tEntry)
+    tEntry.bNormalsVizDirty = true
+    tEntry.bPhysicsVizDirty = true
+    if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    tUtil.showMessage(tLang.L('revert_last_capture_success'), 5)
+end
+
 function splitCaptureSignature(vertices, indices, texture)
     local h = 2166136261
     local function add(v)
@@ -8446,8 +8514,16 @@ function showSplitCapture(tEntry, meshD, index)
     local newActive = tImGui.Checkbox('Start Capture##splitCapture-' .. index, oldActive)
     sp.active = newActive
     if newActive and not oldActive then
+        -- Refresh this for every capture because the live mesh may have changed since the cube
+        -- was first initialized. A tiny cube inside a very large mesh must still traverse the
+        -- mesh at a useful speed instead of deriving its DragFloat step from the cube alone.
+        local aabb = computeMeshAABB(meshD)
+        sp.dragReferenceSize = aabb and math.max(
+            aabb.maxX - aabb.minX,
+            aabb.maxY - aabb.minY,
+            aabb.maxZ - aabb.minZ
+        ) or nil
         if not sp.initialized then
-            local aabb = computeMeshAABB(meshD)
             local cx = aabb and (aabb.minX + aabb.maxX) * 0.5 or 0
             local cy = aabb and (aabb.minY + aabb.maxY) * 0.5 or 0
             local cz = aabb and (aabb.minZ + aabb.maxZ) * 0.5 or 0
@@ -8461,12 +8537,20 @@ function showSplitCapture(tEntry, meshD, index)
         tEntry.sSplitDragging = nil
         sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
     elseif not newActive and oldActive then
+        local pendingBackup = splitCaptureCreateBackup(tEntry, meshD)
+        if not pendingBackup then
+            sp.active = true
+            tUtil.showMessageWarn(tLang.L('capture_backup_failed'))
+            return
+        end
         local faces, frames = splitCaptureMesh(tEntry, meshD, sp)
         splitCaptureDestroy(sp)
         tEntry.sSplitDragging = nil
         sp.dragPlanePoint, sp.dragPlaneNormal, sp.dragOffset = nil, nil, nil
         sp.lastFaces, sp.lastFrames = faces, frames
         if faces > 0 then
+            splitCaptureDiscardBackup(tEntry)
+            tEntry.tSplitCaptureBackup = pendingBackup
             tEntry.modified = true
             tEntry.bNormalsVizDirty = true
             tEntry.bPhysicsVizDirty = true
@@ -8474,13 +8558,20 @@ function showSplitCapture(tEntry, meshD, index)
             table.insert(tEntry.tSplitCaptures, {faces=faces, frames=frames, x=sp.x, y=sp.y, z=sp.z, width=sp.width, height=sp.height, depth=sp.depth})
             tUtil.showMessage(string.format('Split capture: %d face(s) in %d frame(s).', faces, frames), 5)
         else
+            meshDebug:fakeRelease(pendingBackup.path)
+            os.remove(pendingBackup.path)
             tUtil.showMessage('Split capture: no faces found inside the cube.', 4)
         end
     end
     if sp.active then
         local hoverKind, hoverAxis = nil, nil
-        -- Keep numeric dragging perceptible for both tiny and very large imports.
-        local dragSpeed = math.max(math.max(sp.width, sp.height, sp.depth) * 0.0025, 0.01)
+        -- Use the larger of the whole mesh bounds and capture cube. The mesh reference keeps a
+        -- small cube responsive across a large model; the cube reference remains useful if the
+        -- user deliberately grows it beyond the original mesh bounds.
+        local dragSpeed = math.max(
+            math.max(sp.dragReferenceSize or 0, sp.width, sp.height, sp.depth) * 0.0025,
+            0.01
+        )
         tImGui.Text('Center')
         tImGui.PushItemWidth(120)
         local changedX, x = tImGui.DragFloat('X##splitCenterX-' .. index, sp.x, dragSpeed, 0, 0, '%.2f')
@@ -8970,6 +9061,13 @@ function showFrameNode(tEntry, meshD, index)
                 end
             end
         end
+    end
+    -- Saving clears `modified`, but it does not end the editor session or discard the temporary
+    -- pre-capture snapshot. Keep rollback available until it is used, superseded by another
+    -- successful capture, or the mesh is removed from the editor.
+    if tEntry.tSplitCaptureBackup and
+            tImGui.Button(tLang.L('revert_last_capture') .. '##revertCapture-' .. index) then
+        splitCaptureRevert(tEntry, index)
     end
 
     tImGui.TreePop()
