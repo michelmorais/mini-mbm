@@ -203,8 +203,9 @@
     6.39.3 Cached Mesh Debug's Physics-node shape summary, mesh bounds, and physics extent until an edit, and capped its wireframe to 200 evenly sampled shapes, avoiding repeated full-mesh scans and huge persistent line previews.
     6.40.0 Added cached Width/Height/Depth reporting and responsive per-axis exact-size scaling to Mesh Debug's Transform node, with equivalent per-mesh target sizing in Apply All.
     6.40.1 Exposed Mesh Debug's existing per-camera origin-axis lines in the main View menu, disabled by default and synchronized with the Camera-panel toggle.
+    6.40.2 Fixed Mesh Debug's Add Colored Cube failing when the launcher runs outside the repository root by saving its generated reference mesh in the platform's temporary directory instead of the process working directory.
 */
-#define MBM_VERSION "6.40.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.40.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

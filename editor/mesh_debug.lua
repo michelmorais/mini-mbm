@@ -836,7 +836,10 @@ local function showMaterialEditor(tEntry, index)
 end
 
 local function getTempDir()
-    return os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+    if package.config:sub(1, 1) == '\\' then
+        return os.getenv('TEMP') or os.getenv('TMP') or os.getenv('TMPDIR') or 'C:\\Temp'
+    end
+    return os.getenv('TMPDIR') or os.getenv('TEMP') or os.getenv('TMP') or '/tmp'
 end
 
 local function getEditorDir()
@@ -3203,7 +3206,9 @@ function onAddColoredCube()
         return
     end
 
-    local mshPath = 'src/test-lib/colored_cube.msh'
+    -- This is a generated editor reference, not a project asset. Keep it in the platform's temp
+    -- directory instead of depending on the launcher's working directory or modifying the tree.
+    local mshPath = joinPath(getTempDir(), 'mini-mbm-colored_cube.msh')
     local okCheck, errCheck = meshD:check()
     if not okCheck then
         tUtil.showMessage(string.format(tLang.L('colored_cube_check_failed_fmt'), tostring(errCheck)))
