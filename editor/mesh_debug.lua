@@ -3205,6 +3205,7 @@ function removeMeshFromTable(index)
     if removed then
         if removed.tSplitCapture then splitCaptureDestroy(removed.tSplitCapture) end
         splitCaptureDiscardBackup(removed)
+        destroySplitCaptureIslandMarkers(removed)
         destroyTransformSubsetHoverMarker(removed)
         destroyNormalVisualization(removed)
         destroyPhysicsVisualization(removed)
@@ -8474,19 +8475,45 @@ function splitCaptureAnalyze(tEntry, meshD, box)
             end
         end
     end
-    local analysis = {algorithms=algorithms, selected=1, filterIslands=false, threshold=10}
+    local analysis = {
+        algorithms=algorithms, selected=1, filterIslands=false,
+        threshold=10, appliedThreshold=10,
+    }
     splitCaptureRefreshResolved(analysis)
     return analysis
 end
 
 function splitCaptureResolveAlgorithm(algorithm, filterIslands, threshold)
-    local resolved = {groups={}, faces=0, vertices=0, islands=0, removed=0, frames=0}
+    local resolved = {groups={}, faces=0, vertices=0, islands=0, removed=0, frames=0, islandMarkers={}}
     local affectedFrames = {}
     for _, group in ipairs(algorithm.groups) do
         local kept, islands = {}, group.islands or {}
         local largest = islands[1] and #islands[1] or 0
         for islandIndex, island in ipairs(islands) do
             local keep = not filterIslands or islandIndex == 1 or #island >= largest * threshold * 0.01
+            if filterIslands then
+                local minX, minY, minZ, maxX, maxY, maxZ
+                for _, tri in ipairs(island) do
+                    for _, vi in ipairs(tri) do
+                        local vertex = group.vertices[vi]
+                        if vertex then
+                            minX = not minX and vertex.x or math.min(minX, vertex.x)
+                            minY = not minY and vertex.y or math.min(minY, vertex.y)
+                            minZ = not minZ and vertex.z or math.min(minZ, vertex.z)
+                            maxX = not maxX and vertex.x or math.max(maxX, vertex.x)
+                            maxY = not maxY and vertex.y or math.max(maxY, vertex.y)
+                            maxZ = not maxZ and vertex.z or math.max(maxZ, vertex.z)
+                        end
+                    end
+                end
+                if minX then
+                    local extent = math.max(maxX-minX, maxY-minY, maxZ-minZ)
+                    table.insert(resolved.islandMarkers, {
+                        x=(minX+maxX)*0.5, y=(minY+maxY)*0.5, z=(minZ+maxZ)*0.5,
+                        size=math.max(extent*0.06, 0.05), removed=not keep,
+                    })
+                end
+            end
             if keep then
                 for _, tri in ipairs(island) do table.insert(kept, tri) end
             else
@@ -8514,16 +8541,47 @@ function splitCaptureResolveAlgorithm(algorithm, filterIslands, threshold)
     return resolved
 end
 
+function destroySplitCaptureIslandMarkers(tEntry)
+    for _, marker in ipairs(tEntry.tSplitCaptureIslandMarkers or {}) do marker:destroy() end
+    tEntry.tSplitCaptureIslandMarkers = nil
+    tEntry.sSplitCaptureIslandMarkerKey = nil
+end
+
+function updateSplitCaptureIslandMarkers(tEntry, index, analysis, resolved)
+    if not analysis.filterIslands or not analysis.showIslandCenters then
+        destroySplitCaptureIslandMarkers(tEntry)
+        return
+    end
+    local markerKey = tostring(analysis.resolvedCacheKey) .. ':' .. tostring(analysis.selected)
+    if tEntry.sSplitCaptureIslandMarkerKey == markerKey and tEntry.tSplitCaptureIslandMarkers then return end
+    destroySplitCaptureIslandMarkers(tEntry)
+    tEntry.tSplitCaptureIslandMarkers = {}
+    tEntry.iSplitCaptureIslandMarkerGeneration = (tEntry.iSplitCaptureIslandMarkerGeneration or 0) + 1
+    for markerIndex, info in ipairs(resolved.islandMarkers or {}) do
+        local marker = shape:new('3d', info.x, info.y, dodgeAutoZOrder(info.z))
+        marker:create(unitSphereVerts(8, 12), nil, 'mesh_debug_capture_island_' .. index .. '_' ..
+            tEntry.iSplitCaptureIslandMarkerGeneration .. '_' .. markerIndex)
+        if info.removed then marker:setColor(1.0, 0.45, 0.05, 0.95)
+        else marker:setColor(0.1, 1.0, 1.0, 0.95) end
+        marker:setScale(info.size, info.size, info.size)
+        marker.alwaysOnTop = true
+        marker.visible = true
+        table.insert(tEntry.tSplitCaptureIslandMarkers, marker)
+    end
+    tEntry.sSplitCaptureIslandMarkerKey = markerKey
+end
+
 -- Resolving an algorithm walks every selected triangle again to rebuild filtered groups and
 -- unique-vertex totals. Cache all four rows and redo that work only when a filter input changes,
 -- never once per rendered ImGui frame.
 function splitCaptureRefreshResolved(analysis)
-    local cacheKey = tostring(analysis.filterIslands == true) .. ':' .. tostring(analysis.threshold or 10)
+    local appliedThreshold = analysis.appliedThreshold or analysis.threshold or 10
+    local cacheKey = tostring(analysis.filterIslands == true) .. ':' .. tostring(appliedThreshold)
     if analysis.resolvedCacheKey == cacheKey and analysis.resolved then return analysis.resolved end
     analysis.resolved = {}
     for algorithmIndex, algorithm in ipairs(analysis.algorithms) do
         analysis.resolved[algorithmIndex] = splitCaptureResolveAlgorithm(
-            algorithm, analysis.filterIslands, analysis.threshold)
+            algorithm, analysis.filterIslands, appliedThreshold)
     end
     analysis.resolvedCacheKey = cacheKey
     return analysis.resolved
@@ -8589,6 +8647,7 @@ function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
         faces=faces, frames=framesOrError, x=sp.x, y=sp.y, z=sp.z,
         width=sp.width, height=sp.height, depth=sp.depth,
     })
+    destroySplitCaptureIslandMarkers(tEntry)
     sp.analysis = nil
     tUtil.showMessage(string.format(tLang.L('capture_applied_fmt'), faces, framesOrError), 5)
 end
@@ -8613,6 +8672,22 @@ function showSplitCaptureAnalysis(tEntry, meshD, index, sp)
             analysis.threshold, 1, 1, 100, '%.0f%%')
         tImGui.PopItemWidth()
         if changed then analysis.threshold = math.max(1, math.min(100, threshold)) end
+        -- DragFloat reports changes continuously while dragging (and while its +/- controls
+        -- auto-repeat). Display that live value, but rebuild the expensive result sets only once
+        -- the drag or keyboard edit is committed/deactivated.
+        if tImGui.IsItemDeactivatedAfterEdit() then
+            analysis.appliedThreshold = analysis.threshold
+        end
+        analysis.showIslandCenters = tImGui.Checkbox(
+            tLang.L('capture_show_island_centers') .. '##captureIslandCenters-' .. index,
+            analysis.showIslandCenters == true)
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(400)
+            tImGui.Text(tLang.L('capture_show_island_centers_help'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
     end
     local resolvedResults = splitCaptureRefreshResolved(analysis)
     local flags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollX')
@@ -8640,11 +8715,15 @@ function showSplitCaptureAnalysis(tEntry, meshD, index, sp)
         tImGui.EndTable()
     end
     local selected = resolvedResults[analysis.selected]
+    updateSplitCaptureIslandMarkers(tEntry, index, analysis, selected)
     if tImGui.Button(tLang.L('capture_apply') .. '##captureApply-' .. index) then
         splitCaptureCommitAnalysis(tEntry, meshD, index, sp, selected)
     end
     tImGui.SameLine()
-    if tImGui.Button(tLang.L('cancel') .. '##captureCancel-' .. index) then sp.analysis = nil end
+    if tImGui.Button(tLang.L('cancel') .. '##captureCancel-' .. index) then
+        destroySplitCaptureIslandMarkers(tEntry)
+        sp.analysis = nil
+    end
 end
 
 function saveCapturedSplitAs(tEntry)
@@ -8752,6 +8831,7 @@ function showSplitCapture(tEntry, meshD, index)
     local newActive = tImGui.Checkbox('Start Capture##splitCapture-' .. index, oldActive)
     sp.active = newActive
     if newActive and not oldActive then
+        destroySplitCaptureIslandMarkers(tEntry)
         sp.analysis = nil
         -- Refresh this for every capture because the live mesh may have changed since the cube
         -- was first initialized. A tiny cube inside a very large mesh must still traverse the
@@ -8857,7 +8937,10 @@ function showFrameNode(tEntry, meshD, index)
     if tImGui.IsItemClicked() then
         tEntry.sOpenNode = wantOpen and nil or 'frameNode'
     end
-    if not isOpen then return end
+    if not isOpen then
+        destroySplitCaptureIslandMarkers(tEntry)
+        return
+    end
 
     local okTF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okTF then nFrames = 0 end
@@ -12721,6 +12804,7 @@ function showMeshTreeWindow()
                         tEntry.tXformPreviewMesh = nil
                     end
                     destroyTransformSubsetHoverMarker(tEntry)
+                    destroySplitCaptureIslandMarkers(tEntry)
                 end
             end
             for j = #tToRemove, 1, -1 do

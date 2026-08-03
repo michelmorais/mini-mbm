@@ -196,8 +196,10 @@
     6.37.2 Kept Revert Last Capture available after Save All overwrite while its temporary pre-capture snapshot remains alive in the editor session.
     6.38.0 Added non-destructive Split Capture analysis with Face Center, Entire Face, Any Vertex, and triangle/AABB Intersecting Face algorithms, result comparison, connected-island filtering, and explicit Apply Capture.
     6.38.1 Cached Split Capture comparison results instead of rebuilding filtered triangle groups every frame, and gave the disconnected-island tooltip a readable fixed wrap width.
+    6.38.2 Deferred Split Capture island-threshold recalculation until its DragFloat is deactivated after editing, while keeping checkbox changes immediate.
+    6.39.0 Added optional always-on-top Split Capture island-center spheres, cyan for retained islands and orange for filtered islands, plus complete island/threshold guidance.
 */
-#define MBM_VERSION "6.38.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.39.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
