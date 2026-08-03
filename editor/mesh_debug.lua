@@ -668,6 +668,20 @@ local function setMeshDebugCameraMode3d(enabled)
     end
 end
 
+function setMeshDebugOriginLinesVisible(visible)
+    visible = visible and true or false
+    if bCameraMode3D then
+        bShowOrigin3d = visible
+        originLine3dX.visible = visible
+        originLine3dY.visible = visible
+        originLine3dZ.visible = visible
+    else
+        bShowOrigin2d = visible
+        originLine2dX.visible = visible
+        originLine2dY.visible = visible
+    end
+end
+
 local function showEditorLightPanel(target, idSuffix)
     local lightState = getEditorLightUi(target)
     local lightColorFlags = tImGui.Flags('ImGuiColorEditFlags_NoInputs')
@@ -12929,6 +12943,11 @@ function main_menu_mesh_debug()
             if pressed then
                 bShowMeshTree = not bShowMeshTree
             end
+            local showOrigin = bCameraMode3D and bShowOrigin3d or bShowOrigin2d
+            local pressedOrigin = tImGui.MenuItem(tLang.L('enable_origin_lines'), nil, showOrigin)
+            if pressedOrigin then
+                setMeshDebugOriginLinesVisible(not showOrigin)
+            end
             tImGui.EndMenu()
         end
         if tImGui.BeginMenu(tLang.L("menu_options")) then
@@ -13135,16 +13154,7 @@ function showCameraWindow()
         if bCameraMode3D then showOrig = bShowOrigin3d else showOrig = bShowOrigin2d end
         local newOrig = tImGui.Checkbox(tLang.L('enable_origin_lines') .. '##origLines', showOrig)
         if newOrig ~= showOrig then
-            if bCameraMode3D then
-                bShowOrigin3d = newOrig
-                originLine3dX.visible = newOrig
-                originLine3dY.visible = newOrig
-                originLine3dZ.visible = newOrig
-            else
-                bShowOrigin2d = newOrig
-                originLine2dX.visible = newOrig
-                originLine2dY.visible = newOrig
-            end
+            setMeshDebugOriginLinesVisible(newOrig)
         end
         tImGui.Separator()
 
