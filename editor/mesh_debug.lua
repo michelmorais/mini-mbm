@@ -350,6 +350,9 @@ function onInitScene()
             sx = 1,
             sy = 1,
             sz = 1,
+            targetWidth = 1,
+            targetHeight = 1,
+            targetDepth = 1,
             dx = 0,
             dy = 0,
             dz = 0,
@@ -5251,6 +5254,37 @@ local function computeMeshAABB(meshD, targetFrame, targetSubset)
     return { minX = minX, minY = minY, minZ = minZ, maxX = maxX, maxY = maxY, maxZ = maxZ }
 end
 
+function computeExactAxisScale(currentSize, targetSize, axis)
+    currentSize = tonumber(currentSize) or 0
+    targetSize = tonumber(targetSize) or 0
+    if currentSize <= 1e-7 or targetSize <= 0 then return nil end
+    local factor = targetSize / currentSize
+    if axis == 'X' then return factor, 1, 1 end
+    if axis == 'Y' then return 1, factor, 1 end
+    if axis == 'Z' then return 1, 1, factor end
+    return nil
+end
+
+function getTransformBounds(tEntry, meshD, frame, subset)
+    local referenceFrame = math.max(1, frame or 0)
+    subset = subset or 0
+    local key = referenceFrame .. ':' .. subset
+    if tEntry.tTransformBoundsCache and tEntry.tTransformBoundsCache.key == key then
+        return tEntry.tTransformBoundsCache.bounds
+    end
+    local aabb = computeMeshAABB(meshD, referenceFrame, subset)
+    local bounds = nil
+    if aabb then
+        bounds = {
+            width = aabb.maxX - aabb.minX,
+            height = aabb.maxY - aabb.minY,
+            depth = aabb.maxZ - aabb.minZ,
+        }
+    end
+    tEntry.tTransformBoundsCache = {key = key, bounds = bounds}
+    return bounds
+end
+
 function destroyTransformSubsetHoverMarker(tEntry, owner)
     if owner and tEntry.sTransformSubsetHoverOwner ~= owner then return end
     if tEntry.tTransformSubsetHoverMarker then
@@ -8287,6 +8321,7 @@ function splitCaptureRevert(tEntry, index)
     destroyPhysicsVisualization(tEntry)
     tEntry.bNormalsVizDirty = true
     tEntry.bPhysicsVizDirty = true
+    tEntry.tTransformBoundsCache = nil
     if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     tUtil.showMessage(tLang.L('revert_last_capture_success'), 5)
 end
@@ -8667,6 +8702,7 @@ function splitCaptureCommitAnalysis(tEntry, meshD, index, sp, resolved)
     tEntry.modified = true
     tEntry.bNormalsVizDirty = true
     tEntry.bPhysicsVizDirty = true
+    tEntry.tTransformBoundsCache = nil
     iLastPreviewedIndex = 0
     sp.lastFaces, sp.lastFrames = faces, framesOrError
     table.insert(tEntry.tSplitCaptures, {
@@ -9859,6 +9895,9 @@ function showMeshOptions(tEntry, index)
         tEntry.tXformUI = tEntry.tXformUI or { frame=0, subset=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0, hideOriginal=false, autoPreview=false, previewTint=true, enableSubsetDrag=false, subsetVisibility={} }
         local xf = tEntry.tXformUI
         xf.subset = xf.subset or 0
+        xf.targetWidth = xf.targetWidth or 0
+        xf.targetHeight = xf.targetHeight or 0
+        xf.targetDepth = xf.targetDepth or 0
         xf.dx = xf.dx or 0; xf.dy = xf.dy or 0; xf.dz = xf.dz or 0
         if xf.hideOriginal == nil then xf.hideOriginal = false end
         if xf.autoPreview == nil then xf.autoPreview = false end
@@ -9878,6 +9917,8 @@ function showMeshOptions(tEntry, index)
                 rebuildBoneGizmo(tEntry, meshD, index)
             end
             tEntry.modified = true
+            tEntry.tTransformBoundsCache = nil
+            tEntry.bPhysicsVizDirty = true
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             tUtil.showMessage(string.format('Centralized: %s', shortName))
         end
@@ -9923,6 +9964,7 @@ function showMeshOptions(tEntry, index)
         if nf ~= nil then
             nf = math.max(0, math.min(nf, totalFrames))
             if nf ~= xf.frame then cancelXformPreview() end
+            if nf ~= xf.frame then tEntry.tTransformBoundsCache = nil end
             xf.frame = nf
         end
         tImGui.Text(tLang.L("target_subset_label"))
@@ -9930,12 +9972,15 @@ function showMeshOptions(tEntry, index)
         if ns ~= nil then
             ns = math.max(0, math.min(ns, totalSubsets))
             if ns ~= xf.subset then cancelXformPreview() end
+            if ns ~= xf.subset then tEntry.tTransformBoundsCache = nil end
             xf.subset = ns
         end
         if tImGui.Button(tLang.L("centralize_itself") .. '##' .. index) then
             meshD:centralizeItself(xf.frame, xf.subset)
             cancelXformPreview()
             tEntry.modified = true
+            tEntry.tTransformBoundsCache = nil
+            tEntry.bPhysicsVizDirty = true
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             tUtil.showMessage(string.format('%s: %s', tLang.L("centralize_itself"), shortName))
         end
@@ -9958,6 +10003,8 @@ function showMeshOptions(tEntry, index)
                 rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
                 onEdit()
+                tEntry.tTransformBoundsCache = nil
+                tEntry.bPhysicsVizDirty = true
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
                 tUtil.showMessage(string.format(tLang.L("rotation_applied_fmt"), target))
                 xf.rx = 0; xf.ry = 0; xf.rz = 0
@@ -9980,10 +10027,68 @@ function showMeshOptions(tEntry, index)
                 rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
                 onEdit()
+                tEntry.tTransformBoundsCache = nil
+                tEntry.bPhysicsVizDirty = true
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
                 tUtil.showMessage(string.format(tLang.L("scale_applied_fmt"), target))
                 xf.sx = 1; xf.sy = 1; xf.sz = 1
             end
+        end
+
+        -- Exact-size scaling. X controls width, Y controls height, and Z controls depth. Bounds
+        -- are cached for the current target and invalidated only by target/geometry changes.
+        local exactBounds = getTransformBounds(tEntry, meshD, xf.frame, xf.subset)
+        if exactBounds then
+            if xf.targetWidth <= 0 then xf.targetWidth = exactBounds.width end
+            if xf.targetHeight <= 0 then xf.targetHeight = exactBounds.height end
+            if xf.targetDepth <= 0 then xf.targetDepth = exactBounds.depth end
+            tImGui.TextWrapped(string.format(tLang.L('current_bounds_fmt'),
+                exactBounds.width, exactBounds.height, exactBounds.depth))
+
+            local function exactSizeRow(axis, field, labelKey, currentSize)
+                tImGui.TableNextRow()
+                tImGui.TableNextColumn()
+                tImGui.Text(tLang.L(labelKey))
+                tImGui.TableNextColumn()
+                tImGui.SetNextItemWidth(-1)
+                local changed, value = tImGui.InputFloat('##xfExact' .. axis .. '-' .. index,
+                    xf[field], 1, 10, '%.3f', 0)
+                if changed then xf[field] = value end
+                tImGui.TableNextColumn()
+                tImGui.BeginDisabled(xf[field] <= 0 or currentSize <= 1e-7)
+                if tImGui.Button(tLang.L('apply_btn') .. '##xfExactApply' .. axis .. '-' .. index) then
+                    local sxExact, syExact, szExact = computeExactAxisScale(currentSize, xf[field], axis)
+                    local ok = dpCall(function() meshD:scaleFrame(xf.frame, sxExact, syExact, szExact, xf.subset) end)
+                    if ok then
+                        applyScaleToBones(meshD, sxExact, syExact, szExact)
+                        rebuildBoneGizmo(tEntry, meshD, index)
+                        cancelXformPreview()
+                        onEdit()
+                        tEntry.tTransformBoundsCache = nil
+                        tEntry.bPhysicsVizDirty = true
+                        tUtil.showMessage(string.format(tLang.L('exact_size_applied_fmt'), axis, xf[field]))
+                    end
+                end
+                tImGui.EndDisabled()
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(string.format(tLang.L('scale_axis_to'), axis))
+                    tImGui.EndTooltip()
+                end
+            end
+
+            local exactFlags = tImGui.Flags('ImGuiTableFlags_SizingStretchProp')
+            if tImGui.BeginTable('xfExactSize-' .. index, 3, exactFlags) then
+                tImGui.TableSetupColumn('##xfExactLabel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 82)
+                tImGui.TableSetupColumn('##xfExactValue', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
+                tImGui.TableSetupColumn('##xfExactButton', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 58)
+                exactSizeRow('X', 'targetWidth', 'target_width', exactBounds.width)
+                exactSizeRow('Y', 'targetHeight', 'target_height', exactBounds.height)
+                exactSizeRow('Z', 'targetDepth', 'target_depth', exactBounds.depth)
+                tImGui.EndTable()
+            end
+        else
+            tImGui.TextDisabled(tLang.L('bounds_unavailable'))
         end
 
         -- Translate
@@ -10002,6 +10107,8 @@ function showMeshOptions(tEntry, index)
                 rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
                 onEdit()
+                tEntry.tTransformBoundsCache = nil
+                tEntry.bPhysicsVizDirty = true
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
                 tUtil.showMessage(string.format(tLang.L("translate_applied_fmt"), target))
                 xf.dx = 0; xf.dy = 0; xf.dz = 0
@@ -10186,6 +10293,8 @@ function showMeshOptions(tEntry, index)
                     xf.sx = 1; xf.sy = 1; xf.sz = 1
                     xf.dx = 0; xf.dy = 0; xf.dz = 0
                     onEdit()
+                    tEntry.tTransformBoundsCache = nil
+                    tEntry.bPhysicsVizDirty = true
                 end
             end
             tImGui.PopStyleColor(1)
@@ -11787,6 +11896,7 @@ local function applyAllCentralize(sType)
             rebuildBoneGizmo(tEntry, meshD, index)
         end
         tEntry.modified = true
+        tEntry.tTransformBoundsCache = nil
         tEntry.bPhysicsVizDirty = true
         return 'success'
     end)
@@ -11797,6 +11907,7 @@ local function applyAllCentralizeItself(sType)
     return runApplyAllOperation(sType, tLang.L('centralize_itself'), function(tEntry)
         tEntry.meshDebug:centralizeItself(xf.frame, xf.subset)
         tEntry.modified = true
+        tEntry.tTransformBoundsCache = nil
         tEntry.bPhysicsVizDirty = true
         return 'success'
     end)
@@ -11830,10 +11941,39 @@ local function applyAllTransform(sType, sMode)
             -- bake regardless of which frame/subset the vertex bake targeted.
             rebuildBoneGizmo(tEntry, meshD, index)
             tEntry.modified = true
+            tEntry.tTransformBoundsCache = nil
             tEntry.bPhysicsVizDirty = true
             return 'success'
         end
         return 'failed', tLang.L('an_error_occurred')
+    end)
+end
+
+function applyAllScaleToExactSize(sType, axis)
+    local xf = tApplyAllWin.transform
+    local field = axis == 'X' and 'targetWidth' or (axis == 'Y' and 'targetHeight' or 'targetDepth')
+    local targetSize = tonumber(xf[field]) or 0
+    if targetSize <= 0 then
+        tUtil.showMessageWarn(tLang.L('exact_size_positive_required'))
+        return
+    end
+    return runApplyAllOperation(sType, string.format(tLang.L('scale_axis_to'), axis), function(tEntry, index)
+        local meshD = tEntry.meshDebug
+        local referenceFrame = math.max(1, xf.frame or 0)
+        local aabb = computeMeshAABB(meshD, referenceFrame, xf.subset or 0)
+        if not aabb then return 'skipped', tLang.L('bounds_unavailable') end
+        local currentSize = axis == 'X' and (aabb.maxX - aabb.minX)
+            or (axis == 'Y' and (aabb.maxY - aabb.minY) or (aabb.maxZ - aabb.minZ))
+        if currentSize <= 1e-7 then return 'skipped', tLang.L('exact_size_zero_axis') end
+        local sx, sy, sz = computeExactAxisScale(currentSize, targetSize, axis)
+        local ok = dpCall(function() return meshD:scaleFrame(xf.frame, sx, sy, sz, xf.subset) end)
+        if not ok then return 'failed', tLang.L('an_error_occurred') end
+        applyScaleToBones(meshD, sx, sy, sz)
+        rebuildBoneGizmo(tEntry, meshD, index)
+        tEntry.modified = true
+        tEntry.tTransformBoundsCache = nil
+        tEntry.bPhysicsVizDirty = true
+        return 'success'
     end)
 end
 
@@ -12445,6 +12585,36 @@ function showApplyAllWindow()
                 if csz then xf.sz = sz end
                 if tImGui.Button(tLang.L('apply_scale') .. '##applyAllScale') then
                     applyAllTransform(win.selectedType, 'scale')
+                end
+                tImGui.TextWrapped(tLang.L('bulk_exact_size_help'))
+                local function bulkExactSizeRow(axis, field, labelKey)
+                    tImGui.TableNextRow()
+                    tImGui.TableNextColumn()
+                    tImGui.Text(tLang.L(labelKey))
+                    tImGui.TableNextColumn()
+                    tImGui.SetNextItemWidth(-1)
+                    local changed, value = tImGui.InputFloat('##applyAllExact' .. axis,
+                        xf[field], 1, 10, '%.3f', 0)
+                    if changed then xf[field] = value end
+                    tImGui.TableNextColumn()
+                    if tImGui.Button(tLang.L('apply_btn') .. '##applyAllExactBtn' .. axis) then
+                        applyAllScaleToExactSize(win.selectedType, axis)
+                    end
+                    if tImGui.IsItemHovered(0) then
+                        tImGui.BeginTooltip()
+                        tImGui.Text(string.format(tLang.L('scale_axis_to'), axis))
+                        tImGui.EndTooltip()
+                    end
+                end
+                local exactFlags = tImGui.Flags('ImGuiTableFlags_SizingStretchProp')
+                if tImGui.BeginTable('applyAllExactSize', 3, exactFlags) then
+                    tImGui.TableSetupColumn('##applyAllExactLabel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 82)
+                    tImGui.TableSetupColumn('##applyAllExactValue', tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
+                    tImGui.TableSetupColumn('##applyAllExactButton', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 58)
+                    bulkExactSizeRow('X', 'targetWidth', 'target_width')
+                    bulkExactSizeRow('Y', 'targetHeight', 'target_height')
+                    bulkExactSizeRow('Z', 'targetDepth', 'target_depth')
+                    tImGui.EndTable()
                 end
                 tImGui.Spacing()
                 tImGui.Text(tLang.L('translate_xyz'))
