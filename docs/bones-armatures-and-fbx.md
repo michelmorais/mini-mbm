@@ -279,6 +279,11 @@ never for anything the engine itself renders differently.
   set of vertices (picked either by proximity to that bone's own segment, reusing its `radius`, or
   by an existing material subset) — for a prop that shouldn't deform under `ARMATURE_ENVELOPE`'s
   geometric guess.
+  The optional **Sync Left/Right Drag** mode pairs bilateral joints by the naming conventions used
+  by the built-in armatures (`Left`/`Right` or `.l`/`.r`). In X/Y drag mode it copies Y and mirrors
+  X onto the paired joint; in Z/Y mode it copies both Y and Z so hands/feet move in the same depth
+  direction, preserving the paired joint's hidden axis. Center or otherwise unpaired bones are
+  moved normally without a second edit.
 - **Export** (`editor/blender_mesh_skeleton_export.py`, headless Blender): `build_armature`
   reconstructs real Blender edit-bones from the stored data (using the stored `rotX/Y/Z`/`length`
   directly when present — `length > EPS` is the "real orientation data available" sentinel — falling

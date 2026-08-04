@@ -6192,6 +6192,36 @@ local function findBoneByName(tBones, name)
     return nil
 end
 
+-- Returns the conventional opposite-side bone name, or nil for a center/unrecognized bone. The
+-- built-in humanoid armatures use Mixamo's Left/Right tokens or Blender-style .l/.r suffixes. Keep
+-- this name based: position alone cannot distinguish a deliberately off-center spine/head from a
+-- limb, and must never make a center bone mirror onto itself.
+function getOppositeSideBoneName(name)
+    if type(name) ~= 'string' then return nil end
+    local replacements = {
+        {'Left', 'Right'}, {'Right', 'Left'},
+        {'left', 'right'}, {'right', 'left'},
+    }
+    for _, pair in ipairs(replacements) do
+        local startPos, endPos = string.find(name, pair[1], 1, true)
+        if startPos then
+            return string.sub(name, 1, startPos - 1) .. pair[2] .. string.sub(name, endPos + 1)
+        end
+    end
+    local suffixPairs = { ['.l'] = '.r', ['.r'] = '.l', ['.L'] = '.R', ['.R'] = '.L' }
+    local suffix = string.sub(name, -2)
+    local opposite = suffixPairs[suffix]
+    if opposite then return string.sub(name, 1, -3) .. opposite end
+    return nil
+end
+
+function updateBonePosition(meshD, bone, x, y, z)
+    return dpCall(function()
+        return meshD:updateBone(bone.idx, bone.name, bone.parentName, x, y, z, bone.radius,
+            bone.rotX, bone.rotY, bone.rotZ, bone.scaleX, bone.scaleY, bone.scaleZ, bone.length)
+    end)
+end
+
 -- children_by_parent (blender_mesh_skeleton_export.py:200-203), ported to Lua so Recompute can
 -- mirror the exporter's own topology rules exactly.
 local function computeChildrenByParent(tBones)
@@ -6457,6 +6487,8 @@ function showBonesNode(tEntry, meshD, index)
     -- the cursor right now" hover indicator (see onTouchMove), so any stale selection from before
     -- would otherwise sit there misleadingly until the mouse next moves over the viewport.
     if isOpen and isMesh3DType(tEntry) and bCameraMode3D then
+        tEntry.bSyncLeftRightBoneDrag = tImGui.Checkbox(tLang.L('bones_sync_left_right_drag_checkbox') .. '##boneSyncLeftRightDrag-' .. index,
+            tEntry.bSyncLeftRightBoneDrag == true)
         local curPlane = tEntry.sBoneDragPlane
         local newXY = tImGui.Checkbox(tLang.L('bones_drag_xy_checkbox') .. '##boneDragXY-' .. index, curPlane == 'xy')
         if newXY and curPlane ~= 'xy' then
@@ -14088,10 +14120,18 @@ function onTouchMove(key, x, y)
                 local tBones = getBoneList(meshD)
                 for _, b in ipairs(tBones) do
                     if b.name == tDragEntry.sDraggingBoneName then
-                        local okU = dpCall(function()
-                            return meshD:updateBone(b.idx, b.name, b.parentName, wx, wy, wz, b.radius,
-                                b.rotX, b.rotY, b.rotZ, b.scaleX, b.scaleY, b.scaleZ, b.length)
-                        end)
+                        local okU = updateBonePosition(meshD, b, wx, wy, wz)
+                        if okU and tDragEntry.bSyncLeftRightBoneDrag then
+                            local oppositeName = getOppositeSideBoneName(b.name)
+                            local oppositeBone = oppositeName and findBoneByName(tBones, oppositeName) or nil
+                            if oppositeBone then
+                                if tDragEntry.sBoneDragPlane == 'xy' then
+                                    okU = updateBonePosition(meshD, oppositeBone, -wx, wy, oppositeBone.z)
+                                else
+                                    okU = updateBonePosition(meshD, oppositeBone, oppositeBone.x, wy, wz)
+                                end
+                            end
+                        end
                         if okU then onBonesEdit(tDragEntry, meshD, iSelectedMeshIndex) end
                         break
                     end

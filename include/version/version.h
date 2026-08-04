@@ -204,8 +204,10 @@
     6.40.0 Added cached Width/Height/Depth reporting and responsive per-axis exact-size scaling to Mesh Debug's Transform node, with equivalent per-mesh target sizing in Apply All.
     6.40.1 Exposed Mesh Debug's existing per-camera origin-axis lines in the main View menu, disabled by default and synchronized with the Camera-panel toggle.
     6.40.2 Fixed Mesh Debug's Add Colored Cube failing when the launcher runs outside the repository root by saving its generated reference mesh in the platform's temporary directory instead of the process working directory.
+    6.41.0 Added optional name-paired left/right joint dragging to Mesh Debug's Bones editor for X/Y and Z/Y planes.
+    6.41.1 Corrected Bones left/right drag synchronization so Z/Y moves paired joints in the same depth direction and clarified the option's label.
 */
-#define MBM_VERSION "6.40.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.41.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
