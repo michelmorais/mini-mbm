@@ -4366,15 +4366,23 @@ function showMeshInfoTable(tEntry, index)
     do local ok, v = dpCall(function() return meshD:getVersion() end); if ok and v and v > 0 then addRow('Loaded version', v) end end
     addRow(tLang.L('fx_texture_storage'), getTextureAnimationEffectStorageLabel(info))
     addRow('Type', info.type)
-    do local ok, v = dpCall(function() return meshD:getTotalFrame() end); addRow('Total frames', info.totalFrames or (ok and v)) end
+    local okFrames, totalFrames = dpCall(function() return meshD:getTotalFrame() end)
+    totalFrames = (okFrames and totalFrames) or tonumber(info.totalFrames) or 0
+    addRow('Total frames', totalFrames > 0 and totalFrames or nil)
     if info.type == 'particle' then addRow('Stages', info.stages) end
     if info.type == 'texture' and info.ext then addRow('Extension', info.ext) end
     addRow('Has normals', info.hasNormal ~= nil and (info.hasNormal and 'yes' or 'no') or nil)
     addRow('Has texture', info.hasTexture ~= nil and (info.hasTexture and 'yes' or 'no') or nil)
     local nVert = getMeshTotalVertices(meshD)
-    if nVert > 0 then addRow('Total vertices', nVert) end
+    if nVert > 0 then
+        addRow('Total vertices', nVert)
+        if totalFrames > 0 then addRow('Average vertices/frame', string.format('%.2f', nVert / totalFrames)) end
+    end
     local nTri = getMeshTotalTriangles(meshD)
-    if nTri > 0 then addRow('Total triangles', nTri) end
+    if nTri > 0 then
+        addRow('Total triangles', nTri)
+        if totalFrames > 0 then addRow('Average triangles/frame', string.format('%.2f', nTri / totalFrames)) end
+    end
     do local ok, ib = dpCall(function() return meshD:isIndexBuffer() end); if ok then addRow('Index buffer', ib and 'yes' or 'no') end end
     local texList = getMeshTextures(meshD)
     if #texList > 0 then addRow('Textures', table.concat(texList, ', ')) end
