@@ -278,7 +278,9 @@ never for anything the engine itself renders differently.
   section writes real weight 1.0 to one bone for a chosen
   set of vertices (picked either by proximity to that bone's own segment, reusing its `radius`, or
   by an existing material subset) — for a prop that shouldn't deform under `ARMATURE_ENVELOPE`'s
-  geometric guess.
+  geometric guess. **Remove Armature** deletes the complete bone hierarchy and all persisted vertex
+  weights together, leaving a clean mesh-only T-pose for Mixamo's auto-rigger; it requires an
+  explicit confirmation because the operation is destructive until the mesh is reloaded.
   The optional **Sync Left/Right Drag** mode pairs bilateral joints by the naming conventions used
   by the built-in armatures (`Left`/`Right` or `.l`/`.r`). In X/Y drag mode it copies Y and mirrors
   X onto the paired joint; in Z/Y mode it copies both Y and Z so hands/feet move in the same depth

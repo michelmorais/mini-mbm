@@ -208,8 +208,9 @@
     6.41.1 Corrected Bones left/right drag synchronization so Z/Y moves paired joints in the same depth direction and clarified the option's label.
     6.42.0 Added average vertices-per-frame and triangles-per-frame statistics to Mesh Debug's Mesh Info table.
     6.43.0 Added per-plane two-axis and single-axis radio constraints to Mesh Debug's Bones joint dragging.
+    6.44.0 Added a confirmed Remove Armature action to Mesh Debug that clears the complete skeleton and associated vertex Skin Weights for clean Mixamo auto-rig uploads.
 */
-#define MBM_VERSION "6.43.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.44.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

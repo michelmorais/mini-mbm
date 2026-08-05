@@ -5620,19 +5620,16 @@ local function applyArmatureTemplate(meshD, template)
         dpCall(function() return meshD:removeBone(i, false) end)
     end
 
-    -- Any existing SECTION_VERTEX_SKIN_WEIGHTS data (docs/mesh-v11-format.md Sec. 6f) references
+    -- Any existing SECTION_VERTEX_SKIN_WEIGHTS data (docs/mesh-v11-format.md Sec. 6g) references
     -- the OLD skeleton's own bone names by its own separate palette -- deliberately independent of
     -- SECTION_FRAME_SKINNED so ordinary bone edits (rename/reorder/add/remove a bone or two) don't
     -- silently corrupt it. Replacing the WHOLE skeleton with a different rig's bone names is not an
     -- ordinary edit: none of the old weight palette's names exist in the new skeleton at all, so
     -- every one of those weights is now orphaned. Confirmed via real user testing to cause a
-    -- concrete, silent export failure if left alone: build_mesh's export sees hasVertexWeights()
-    -- still true and trusts the (now-meaningless) old data completely, skipping
-    -- bind_mesh_to_armature's envelope-binding fallback entirely -- the exported FBX ends up with
-    -- vertex groups named after bones that don't exist in its own armature, so every vertex gets
-    -- zero real deform weight (mesh invisible in Mixamo) while the armature itself, being
-    -- structurally valid on its own, still animates fine. Clearing here forces export to correctly
-    -- fall back to fresh envelope binding for the newly-applied skeleton instead.
+    -- concrete, silent export failure if left alone: the export's final stored-weight override
+    -- would replace the valid envelope groups on those vertices with names that do not exist in
+    -- the new armature. Clearing here leaves the fresh envelope binding authoritative for the
+    -- newly-applied skeleton instead.
     dpCall(function() meshD:removeVertexWeights() end)
 
     local ref = template.referenceAABB
@@ -5654,6 +5651,20 @@ local function applyArmatureTemplate(meshD, template)
         if not okA then return false, err end
     end
     return true, nil
+end
+
+-- Removes the complete editor armature and its associated per-vertex weights, producing the
+-- genuinely mesh-only state expected when uploading a clean T-pose to Mixamo's auto-rigger.
+-- Skeleton order is always parent-before-child, so walking backward removes leaves before their
+-- parents and never needs removeBone's cascade path.
+function removeEntireArmature(meshD)
+    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
+    if not okTotal then return false end
+    for i = nBones, 1, -1 do
+        local okRemove, removed = dpCall(function() return meshD:removeBone(i, false) end)
+        if not okRemove or not removed then return false end
+    end
+    return dpCall(function() meshD:removeVertexWeights() end)
 end
 
 -- Dumps the CURRENT mesh's own skeleton as a standalone Lua chunk in exactly
@@ -6637,6 +6648,38 @@ function showBonesNode(tEntry, meshD, index)
                     tUtil.showMessageWarn(errImp or tLang.L('an_error_occurred'))
                 end
             end
+        end
+
+        if nBones > 0 then
+            tImGui.Spacing()
+            if tEntry.bRemoveArmatureConfirmPending then
+                tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.6, b = 0.2, a = 1})
+                tImGui.TextWrapped(tLang.L('bones_remove_armature_confirm'))
+                tImGui.PopStyleColor()
+                if tImGui.Button(tLang.L('bones_remove_armature_confirm_button') .. '##boneArmatureRemoveConfirm-' .. index) then
+                    if removeEntireArmature(meshD) then
+                        tEntry.bRemoveArmatureConfirmPending = false
+                        tEntry.tBoneHighlight = {}
+                        tEntry.tBonePendingRemove = nil
+                        onBonesEdit(tEntry, meshD, index)
+                    else
+                        tUtil.showMessageWarn(tLang.L('an_error_occurred'))
+                    end
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('cancel') .. '##boneArmatureRemoveCancel-' .. index) then
+                    tEntry.bRemoveArmatureConfirmPending = false
+                end
+            elseif tImGui.Button(tLang.L('bones_remove_armature_button') .. '##boneArmatureRemove-' .. index) then
+                tEntry.bRemoveArmatureConfirmPending = true
+            end
+            if tImGui.IsItemHovered(0) then
+                tImGui.BeginTooltip()
+                tImGui.Text(tLang.L('bones_remove_armature_tooltip'))
+                tImGui.EndTooltip()
+            end
+        else
+            tEntry.bRemoveArmatureConfirmPending = false
         end
 
         tImGui.Separator()
