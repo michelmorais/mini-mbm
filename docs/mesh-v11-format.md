@@ -458,14 +458,18 @@ Runtime playback weight and fade progress are instance state and are not stored 
 
 One optional section per mesh — present only when a Blender-imported source object had real
 `vertex_groups` and `--include-bones` was set (`editor/blender_mesh_export.py`'s
-`extract_vertex_skin_weights` capture pass), or when hand-set via
+`export_frame_subsets` weight-capture pass), or when hand-set via
 `meshDebug:setVertexWeight(...)`. **Diagnostic/editor + FBX re-export round-trip only — never
 consulted by rendering** (same "no GPU/CPU skinning anywhere" scope as `SECTION_FRAME_SKINNED`,
 §6e). Real motivation: `editor/mesh_debug.lua`'s "Export to FBX" previously had no choice but to
 *invent* new weights from scratch via Blender's `ARMATURE_ENVELOPE` geometric approximation for
 every export, because the format had nowhere to keep a mesh's own originally-authored weights past
-import. This section is what closes that gap — when present, export uses it directly and skips
-envelope binding entirely.
+import. This section is what closes that gap. Export still performs `ARMATURE_ENVELOPE` binding for
+the whole mesh first, so vertices without stored data retain a usable geometric fallback. It then
+applies the stored weights as a final per-vertex override: only vertices carrying real or
+editor-authored weights have their envelope-derived groups cleared and replaced. Thus a partially
+weighted mesh does not leave every other vertex undeformed, while persisted weights remain
+authoritative wherever they exist.
 
 Bundled like `SECTION_FRAME_SKINNED` (§6e): one section, an internal count prefix, followed by a
 flat run of entries. **Tied to `SECTION_FRAME_STATIC` frame 1's own vertex topology specifically**

@@ -200,7 +200,7 @@ serve.
 
 ### `SECTION_VERTEX_SKIN_WEIGHTS` — real per-vertex bone weights
 
-One optional bundled section per mesh (docs/mesh-v11-format.md §6f), tied specifically to
+One optional bundled section per mesh (docs/mesh-v11-format.md §6g), tied specifically to
 `SECTION_FRAME_STATIC` frame 1's own vertex topology (weights are a bind-pose property; they don't
 vary per frame, only bone *transforms* would, and this engine has none). Fixed at 4 influences per
 vertex (`VERTEX_BONE_WEIGHT_V11`: `paletteIndex[4]` + `weight[4]`), matching the industry-standard

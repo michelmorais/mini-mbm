@@ -8100,6 +8100,7 @@ function showBonesWindow()
     -- override pass keeps every OTHER vertex's normal envelope-derived weighting untouched.
     -- ---------------------------------------------------------------------------
     if #tBones > 0 then
+        tImGui.NewLine()
         tImGui.Separator()
         tImGui.Text(tLang.L('bones_rigid_bind_section'))
         tImGui.HelpMarker(tLang.L('bones_rigid_bind_help'))
