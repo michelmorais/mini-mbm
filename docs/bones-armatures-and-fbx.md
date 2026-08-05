@@ -7,6 +7,9 @@ whole feature area was built up over many sessions chasing a single symptom (Mix
 "Quick Mental Model" and "Pitfalls" sections below exist so the next person (human or AI) doesn't
 have to re-derive any of that from scratch.
 
+Planned region-based weight editing, rigid-core/falloff workflows, diagnostics, and user-test gates
+are tracked separately in [`skin-weight-lab-plan.md`](skin-weight-lab-plan.md).
+
 ## Quick Mental Model (Read This First)
 
 Skip this section if you already know how bones/skinning work in a modern engine — the rest of the

@@ -1,0 +1,539 @@
+# Skin Weight Lab — Product Discovery and Delivery Plan
+
+Document version: **0.1**  
+Status: **Discovery draft — not implemented**  
+Last updated: **2026-08-05**
+
+## 1. Purpose
+
+This document is the versioned reference for a proposed Skin Weight Lab in Mesh Debug. It records
+the problem, intended user workflow, phased scope, validation criteria, risks, decisions, hypotheses,
+and open questions before implementation begins.
+
+The plan comes from a concrete character: a stylized alien rat with a large head and torso, almost
+no visible neck, short legs, long arms, a tail, and a hollow rectangular abdominal cavity that must
+remain rigid. Mixamo can produce a usable humanoid rig for the character, but the resulting skin
+weights still show neck tearing and deformation of the abdominal cavity. Its standard humanoid
+skeleton also has no tail chain.
+
+This document deliberately separates confirmed requirements from ideas that still require hands-on
+user testing. A listed hypothesis is not an implementation commitment.
+
+## 2. Current State and Confirmed Facts
+
+- Mini MBM persists an editor-only bind-pose skeleton in `SECTION_FRAME_SKINNED`.
+- Mini MBM persists up to four named bone influences per frame-1 vertex in
+  `SECTION_VERTEX_SKIN_WEIGHTS`.
+- The runtime renderer does not perform skeletal deformation. Bones and weights exist for editor
+  diagnostics and Blender/FBX round trips; runtime animation remains pre-baked frame animation.
+- Mesh Debug can add, edit, recompute, and remove bones.
+- Recompute/Recompute All updates bone direction, orientation, and length. It does not generate or
+  smooth vertex weights.
+- Mesh Debug's Rigid Bind writes weight `1.0` to one bone for selected vertices. Its current
+  selection is by subset or proximity to a bone segment.
+- Split Capture already provides an interactive, resizable AABB and several face-selection modes:
+  Face Center, Entire Face, Any Vertex, and Intersecting Face. It also has preview, island filtering,
+  explicit Apply, and one-level rollback concepts worth reusing.
+- Blender/FBX import can preserve weights authored by Mixamo or another DCC tool. FBX export first
+  creates envelope fallback weights for the whole mesh and then applies persisted weights as
+  authoritative per-vertex overrides.
+- The reference rat armature is stored in
+  `T-BONE-rato-from-mixamo_armature.lua`. It contains a humanoid Mixamo hierarchy and no tail bones.
+
+## 3. Problem Statement
+
+Positioning a skeleton correctly is necessary but insufficient for good deformation. The editor
+does not currently provide a practical workflow to inspect, select, diagnose, smooth, or locally
+replace imported skin weights.
+
+The user can see a deformation problem in an animated FBX, but cannot answer these questions inside
+Mesh Debug:
+
+- Which vertices have missing, invalid, distant, or abruptly changing influences?
+- Which vertices will be affected before an edit is applied?
+- Can one local region be corrected without destroying good Mixamo weights elsewhere?
+- Can a mechanically rigid region remain rigid while nearby organic geometry transitions smoothly?
+- Can a hand-authored tail chain receive progressive weights without regenerating the entire body?
+
+## 4. Desired Outcome
+
+Mesh Debug should support a safe, visual, region-based workflow for improving existing skin weights
+without requiring a full re-rig and without silently replacing good imported data.
+
+Success means the user can:
+
+1. import a Mixamo-rigged character with its real weights;
+2. identify a problematic region visually;
+3. select vertices without changing or splitting geometry;
+4. preview a proposed weight operation;
+5. apply it only to the intended vertices;
+6. undo the last applied weight operation;
+7. export to FBX and validate the result in Mixamo or Blender;
+8. repeat the loop without losing unrelated good weights.
+
+## 5. Actors and Responsibilities
+
+### Primary user
+
+The Mesh Debug user positions bones, selects regions, chooses intended bone behavior, reviews the
+preview, applies changes, and validates exported animation externally.
+
+### Mesh Debug
+
+The editor must expose understandable selection, diagnostics, weight operations, warnings, preview,
+and rollback. It must not claim that a heuristic result is anatomically correct.
+
+### Blender/FBX bridge
+
+The existing bridge remains responsible for importing/exporting the armature and weights. It is an
+external dependency for animated validation and may later provide optional heavy calculations.
+
+### Mixamo
+
+Mixamo remains an external auto-rigging and animation service. Its output is test input, not a
+deterministic dependency controlled by Mini MBM.
+
+## 6. Product Principles
+
+1. **Preserve before regenerating.** Imported Mixamo/Blender weights remain unchanged outside the
+   explicit selection.
+2. **Preview before mutation.** Expensive analysis and destructive edits occur only on explicit
+   commands, never every frame merely because a panel is open.
+3. **Selection is not cutting.** Reusing Split Capture's volume must not create subsets, duplicate
+   geometry, or change topology.
+4. **Rigid core and flexible boundary are different concepts.** A rigid cavity must remain rigid;
+   any falloff belongs outside its protected core.
+5. **Diagnostics report suspicion, not truth.** Stylized anatomy and rigid props legitimately violate
+   rules that would be correct for ordinary organic skin.
+6. **Local repair before global replacement.** Full weight regeneration is a later, explicitly
+   destructive fallback.
+7. **User testing is a delivery gate.** A phase is not considered successful merely because its
+   calculations complete without errors.
+
+## 7. Core Domain Concepts
+
+### Weight set
+
+Up to four `(bone name, weight)` influences for one frame-1 vertex. Used weights should be
+non-negative, reference existing bones, and normally sum to approximately `1.0`.
+
+### Selection volume
+
+An editable AABB used to identify vertices or faces. It borrows interaction and visualization from
+Split Capture but produces only a temporary selection.
+
+### Rigid core
+
+Vertices that must all receive weight `1.0` from one selected bone. Example: every surface of the
+hollow rectangular abdominal cavity.
+
+### Transition shell
+
+An optional adjustable region outside the rigid core. Changes are progressively weaker toward the
+outer boundary while the core remains fully rigid.
+
+### Weight discontinuity
+
+A large difference between the weight sets of geometrically adjacent vertices. It is a diagnostic
+signal, not automatically an error.
+
+### Pose stress test
+
+A diagnostic preview that temporarily rotates a chosen bone and estimates or displays likely
+stretching/tearing without persisting an animation or changing the bind pose.
+
+## 8. Main User Flow
+
+1. Open the proposed **Skin Weights** node/window for a mesh containing a skeleton.
+2. Choose a selection method.
+3. Position the selection volume or choose a subset/bone-proximity source.
+4. Click **Analyze Selection**.
+5. Review the highlighted vertices/faces and the affected vertex count.
+6. Choose an operation and its inputs.
+7. Review a non-destructive result preview and warnings.
+8. Click **Apply** or **Cancel**.
+9. If necessary, use **Revert Last Weight Operation**.
+10. Save/export the mesh and validate animation externally.
+
+Changing selection geometry or relevant operation inputs invalidates the cached analysis. The user
+must analyze again before Apply becomes available.
+
+## 9. Selection Requirements
+
+### Initial selection methods
+
+- AABB/box selection, reusing the Split Capture interaction model.
+- Existing material subset.
+- Proximity to a selected bone segment.
+
+### AABB inclusion modes
+
+- Face Center.
+- Entire Face.
+- Any Vertex.
+- Intersecting Face.
+- Direct Vertex Inside Volume, if user testing shows face-derived selection is too broad for weight
+  editing.
+
+### Selection behavior
+
+- Show selected vertices/faces before any weight modification.
+- Report selected vertex count and affected subsets.
+- Do not split, duplicate, reorder, or remove vertices.
+- Use frame 1's vertex indexing, matching `SECTION_VERTEX_SKIN_WEIGHTS`.
+- Handle duplicate position entries created by UV seams or hard-normal edges predictably. Whether
+  coincident entries are selected together remains an open decision.
+- Island filtering should be available if direct reuse from Split Capture remains understandable in
+  user testing.
+
+## 10. Proposed Weight Operations
+
+### 10.1 Rigid Bind
+
+Set every selected core vertex to exactly one chosen bone with weight `1.0`, removing other
+influences from those vertices.
+
+Primary use cases:
+
+- hollow abdominal cavity;
+- weapons and accessories;
+- eyes or mechanical pieces;
+- rigid segments of a stylized character.
+
+### 10.2 Blend Bone Into Selection
+
+Introduce or strengthen one chosen bone while proportionally retaining existing influences. Final
+weights are normalized and limited to four influences.
+
+The exact meaning of the user input is not decided. Candidates include target weight, additive
+strength, and replacement strength.
+
+### 10.3 Smooth Selected Weights
+
+Reduce abrupt changes by blending a vertex's weights with geometrically adjacent vertices. The user
+must be able to restrict the allowed bones so smoothing a neck cannot accidentally introduce arm,
+jaw, or opposite-side influences.
+
+Potential inputs, pending user validation:
+
+- number of smoothing passes;
+- strength per pass;
+- allowed bone set;
+- locked bones or locked vertices;
+- whether the selection boundary is fixed or participates in smoothing.
+
+### 10.4 Remove Bone Influence
+
+Remove a selected bone from selected vertices and redistribute/normalize the remaining weights.
+The operation must warn if a vertex would become completely unweighted.
+
+### 10.5 Normalize and Limit
+
+Normalize selected vertices and retain at most four strongest influences. This is both a standalone
+repair and a mandatory finalization step for operations that can create or change influences.
+
+### 10.6 Full Regeneration
+
+Regenerate weights for the whole mesh or a broad selection. This is explicitly outside the first
+delivery because the appropriate algorithm and Blender dependency are unresolved. If introduced,
+it must preserve a restorable snapshot and clearly distinguish generated approximation from
+authored/imported data.
+
+## 11. Rigid Core and Falloff
+
+The cavity use case requires two independently visible regions:
+
+```text
+outer selection boundary
+┌───────────────────────────────────┐
+│ transition shell                  │
+│   ┌───────────────────────────┐   │
+│   │ rigid core                │   │
+│   │ target bone weight = 1.0  │   │
+│   └───────────────────────────┘   │
+│ progressively weaker adjustment  │
+└───────────────────────────────────┘
+```
+
+Rules:
+
+- A zero-width transition shell means a hard rigid selection.
+- Increasing shell width must not soften vertices inside the rigid core.
+- Existing weights outside the outer boundary remain byte-for-byte unchanged.
+- The falloff curve should initially offer a small understandable set: Linear and Smooth.
+- Preview must visually distinguish rigid core, transition shell, and unaffected vertices.
+- The behavior when the shell reaches unrelated/disconnected geometry is an open question; island
+  filtering may be the answer.
+
+## 12. Diagnostic Scope
+
+### Phase-one integrity diagnostics
+
+- vertex has no effective influence;
+- total weight is not approximately `1.0`;
+- negative or non-finite weight;
+- referenced bone name does not exist in the current skeleton;
+- more than four effective influences before finalization;
+- left/right bone mixture on the same vertex, using configurable naming conventions;
+- bone influence is suspiciously distant from its segment.
+
+### Transition diagnostics
+
+- compare adjacent vertices' weight distributions;
+- highlight large discontinuities;
+- allow the user to focus analysis on a selected region and selected allowed bones;
+- avoid labeling rigid-core boundaries as errors without user context.
+
+The discontinuity metric and default threshold are hypotheses requiring tests against the rat's
+neck and at least one ordinary humanoid mesh.
+
+### Pose stress test — later phase
+
+Proposed flow:
+
+1. choose one bone;
+2. choose one or more test axes and an angle range;
+3. preview positive and negative rotation;
+4. color vertices/triangles by estimated stretch or deformation severity;
+5. restore the unchanged bind pose when the preview closes.
+
+This feature must not be described as runtime skeletal animation. It is an editor-only diagnostic.
+Its feasibility depends on defining enough bind-pose math for trustworthy preview results without
+accidentally creating a second incomplete runtime skinning system.
+
+## 13. Use-Case Acceptance Scenarios
+
+### Alien-rat neck
+
+Given imported Mixamo weights and the `Spine2`, `Neck`, and `Head` bones, the user can select the
+neck region, restrict smoothing to those bones, preview the affected vertices, apply smoothing, and
+export without changing weights on the arms, face extremities, abdomen, or legs.
+
+Success is measured externally using at least:
+
+- head turn left/right;
+- head tilt;
+- torso bend combined with head rotation;
+- visual absence or meaningful reduction of face separation/tearing.
+
+### Hollow abdominal cavity
+
+The user can select all cavity-wall vertices, rigid-bind them to one torso bone, optionally apply a
+transition shell outside the cavity, and export while the rectangular interior retains its shape
+during torso animation.
+
+The cavity's rigid faces must not be smoothed merely because falloff is enabled.
+
+### Tail
+
+The user can add a parented tail chain manually and assign progressively changing weights along the
+tail using region operations. Export must preserve the custom bones and weights.
+
+Mixamo animations are not expected to animate custom tail bones. Tail animation/physics is a
+separate future concern.
+
+## 14. Phased Delivery
+
+### Phase 0 — Test assets and baseline
+
+- Preserve the original rat mesh, Mixamo-rigged mesh, armature export, and at least one problematic
+  animation as reference fixtures or documented external test inputs.
+- Record screenshots/video and the exact problem regions before editing.
+- Record whether the neck geometry is welded or consists of disconnected/duplicate surfaces.
+- Identify which torso bone should own the rigid cavity.
+
+Exit criterion: the deformation failures can be reproduced consistently.
+
+### Phase 1 — Region selection and rigid correction
+
+- Skin Weights node/window.
+- AABB selection preview without topology mutation.
+- Subset and bone-proximity selection where practical.
+- Rigid Bind to one bone.
+- Normalize/limit validation.
+- Explicit Analyze, Apply, Cancel, and one-level Revert.
+- Selected/affected counts and warnings.
+
+Primary validation: abdominal cavity.
+
+### Phase 2 — Transition shell and local blending
+
+- Inner rigid core plus adjustable outer shell.
+- Linear and Smooth falloff.
+- Blend a selected bone into existing weights.
+- Preserve all weights outside the outer boundary.
+
+Primary validation: cavity-to-abdomen boundary and tail segments.
+
+### Phase 3 — Local smoothing and diagnostics
+
+- Allowed-bone restriction.
+- Configurable local smoothing.
+- Integrity diagnostics.
+- Adjacency-based transition heat map.
+
+Primary validation: alien-rat neck.
+
+### Phase 4 — Pose stress preview
+
+- Controlled temporary bone rotations.
+- Visual deformation/stress heat map.
+- Guaranteed restoration of the unchanged bind pose.
+
+Primary validation: neck turns and torso/head combinations.
+
+### Phase 5 — Heavy regeneration investigation
+
+- Evaluate full-mesh and selected-region algorithms.
+- Re-evaluate Blender Automatic Weights failures on disconnected/non-manifold content.
+- Compare envelope, heat-map, voxel/geodesic, and other feasible strategies using real fixtures.
+- Decide whether heavy generation belongs inside Mesh Debug, in the Blender bridge, or remains an
+  external DCC workflow.
+
+This phase is research, not a promised feature.
+
+## 15. Safety and Non-Functional Requirements
+
+- Weight analysis must be cached and invalidated when geometry, skeleton, selection, or relevant
+  operation parameters change.
+- Opening the panel must not trigger full-mesh work every frame.
+- Large meshes must remain interactively navigable while positioning the selection volume.
+- Apply must be disabled when its preview is stale.
+- A weight edit must mark the mesh modified and invalidate cached weight statistics and previews.
+- Operations must never silently leave a vertex unweighted.
+- Unknown bone references must be reported before export or deliberately repaired by the user.
+- All generated results must use at most four normalized influences per vertex.
+- Undo scope must be stated accurately. The initial requirement is one-level rollback for the last
+  weight operation, not a general editor-wide history.
+- Canceling an analysis or closing the tool before Apply must leave mesh data unchanged.
+- English and Brazilian Portuguese UI text must be added together.
+- Documentation and `MBM_VERSION` must be updated when a phase ships.
+
+## 16. Dependencies and Constraints
+
+- Frame-1 vertex topology is the authoritative indexing space for persisted weights.
+- UV seams and hard normals may create multiple stored vertex entries at the same position.
+- Current Mesh Debug access supports reading and writing weights per vertex, but does not expose a
+  ready-made high-level smoothing or adjacency service.
+- Split Capture logic is a behavioral reference, but its apply path changes geometry and therefore
+  must not be reused for weight application.
+- A reliable pose preview may require bind/inverse-bind calculations that Mini MBM does not
+  currently perform.
+- Mixamo behavior and generated weights are external and may vary between uploads.
+- Automatic heat-map weighting has previously failed on combined meshes containing disconnected,
+  open, or thin surfaces. Heavy regeneration must not assume it is a universal solution.
+
+## 17. Risks
+
+| Risk | Impact | Mitigation direction |
+|---|---|---|
+| Volume selects hidden or unrelated geometry | Wrong vertices receive weights | Preview, island filter, selection modes, explicit Apply |
+| Smoothing contaminates a region with unrelated bones | New deformations appear | Allowed-bone list and locked influences |
+| Falloff softens the cavity itself | Rectangular cavity bends | Separate rigid core from external transition shell |
+| UV-seam duplicates receive inconsistent weights | Visible cracks along seams | Decide and test coincident-vertex grouping |
+| Full regeneration destroys good Mixamo weights | Whole-character regression | Keep it out of early phases; snapshot and explicit warning later |
+| Diagnostic threshold produces false positives | User loses trust in heat map | Adjustable thresholds and “suspicious,” not “wrong,” language |
+| Pose preview becomes an incomplete animation subsystem | Excess complexity and misleading results | Keep editor-only, validate math separately, phase-gate it |
+| Custom tail bones appear static under Mixamo clips | User expects automatic tail motion | State scope clearly; animation/physics remains separate |
+| Combined/non-manifold meshes defeat automatic algorithms | Heavy calculation produces unusable output | Local tools first; compare algorithms against real fixtures |
+
+## 18. Decisions Taken
+
+1. The work will be documented and delivered incrementally rather than implemented as one global
+   “Regenerate All” button.
+2. Existing imported weights should be preserved outside an explicit user selection.
+3. The Split Capture box interaction is the preferred starting point for spatial selection, but
+   weight editing must not cut or otherwise mutate topology.
+4. Rigid-core weighting and transition smoothing are separate behaviors.
+5. Manual tail-bone creation is already acceptable; tail weighting belongs in this tool, while tail
+   animation does not.
+6. User validation with the alien rat is part of each phase's completion criteria.
+
+## 19. Hypotheses to Validate
+
+1. Face-derived AABB selection is precise enough for weight editing without a dedicated vertex
+   selection mode.
+2. One outer falloff shell is sufficient for the cavity transition.
+3. Adjacency smoothing restricted to `Spine2`, `Neck`, and `Head` will materially improve the rat's
+   neck deformation.
+4. A simple weight-discontinuity metric correlates with visible tearing.
+5. Coincident stored vertices should normally be edited as one logical position group.
+6. One-level rollback is sufficient for the first delivery.
+7. The cavity can be owned rigidly by one existing torso bone rather than needing a dedicated bone.
+
+## 20. Open Questions
+
+These questions do not block saving this discovery document. They must be answered before their
+respective phase is implemented.
+
+### Before Phase 1
+
+1. Which exact rat mesh file and animation will be the canonical test fixture?
+2. Is the cavity already a separate material subset, or must AABB selection isolate it?
+3. Which bone should own the cavity: `Spine`, `Spine1`, `Spine2`, or a new dedicated bone?
+4. Should coincident vertices at UV/normal seams always be selected together?
+5. Should the first version edit only the currently selected mesh, with no Apply All equivalent?
+
+### Before Phase 2
+
+6. Should falloff be defined by an absolute world-space thickness, a percentage of box size, or
+   both?
+7. Should the transition shell grow only outward, or should the user be able to define separate
+   inner and outer volumes?
+8. For Blend Bone, should the main input mean target weight, additive strength, or interpolation
+   percentage?
+
+### Before Phase 3
+
+9. How will the user choose allowed bones: multi-select list, selected bone plus parent/children, or
+   a named preset?
+10. Should smoothing keep the outer selection boundary fixed by default?
+11. What diagnostic threshold is useful on the rat without overwhelming the display?
+
+### Before Phase 4
+
+12. Is a deformation preview inside Mesh Debug required, or would exporting scripted Blender test
+    poses be more trustworthy and easier to validate?
+
+## 21. User Test Protocol per Phase
+
+Each test round should record:
+
+- source mesh and source weights;
+- selected region and selection mode;
+- selected target/allowed bones;
+- operation parameters;
+- before/after affected vertex counts;
+- screenshots of the editor preview;
+- exported FBX result;
+- animation and pose used for validation;
+- observed improvement, regression, or ambiguity;
+- decision: accept, adjust defaults, redesign, or revert.
+
+The document version should be incremented when testing changes requirements or phase boundaries.
+
+## 22. Out of Scope for the Initial Delivery
+
+- Runtime skeletal animation in Mini MBM.
+- Automatic animation of custom tail bones from standard Mixamo clips.
+- General-purpose Blender-style weight painting with brush input.
+- A full multi-level editor undo/redo system.
+- Guaranteed anatomically correct automatic weights for arbitrary meshes.
+- Modifying Mixamo's service, marker interpretation, or animation library.
+- Animation of the sphere intended to float inside the cavity.
+
+## 23. Handoff Readiness
+
+Phase 1 can move to technical design after the five Phase-1 questions are answered and the canonical
+rat fixture is reproducible. Later phases must remain discovery items until their preceding phase
+has been tested by the user.
+
+The technical handoff for each phase should identify the smallest reusable selection/preview pieces,
+the weight-data snapshot boundary, cache invalidation triggers, and an executable verification plan.
+Those implementation decisions are intentionally not prescribed by this discovery document.
+
+## 24. Change Log
+
+| Version | Date | Change |
+|---|---|---|
+| 0.1 | 2026-08-05 | Initial discovery: region selection, rigid core/falloff, local smoothing, diagnostics, pose stress preview, tail scope, phased delivery, and user-test gates. |
