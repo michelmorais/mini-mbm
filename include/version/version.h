@@ -207,8 +207,9 @@
     6.41.0 Added optional name-paired left/right joint dragging to Mesh Debug's Bones editor for X/Y and Z/Y planes.
     6.41.1 Corrected Bones left/right drag synchronization so Z/Y moves paired joints in the same depth direction and clarified the option's label.
     6.42.0 Added average vertices-per-frame and triangles-per-frame statistics to Mesh Debug's Mesh Info table.
+    6.43.0 Added per-plane two-axis and single-axis radio constraints to Mesh Debug's Bones joint dragging.
 */
-#define MBM_VERSION "6.42.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.43.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -6490,6 +6490,8 @@ function showBonesNode(tEntry, meshD, index)
     -- mis-place a joint with (pushing it too far forward/back along the hidden depth axis). The two
     -- checkboxes are mutually exclusive (enforced below, not a RadioButton per direct user request)
     -- and only meaningful with the 3D camera active -- same gating orbit itself already requires.
+    -- Each plane also has an inline radio selection for moving both visible axes (the default) or
+    -- locking one of them while retaining the same plane intersection and camera orientation.
     -- Enabling either one clears any existing bone-table Highlight selection -- the Highlight
     -- checkbox column is repurposed while a drag plane is active as a live "which joint is under
     -- the cursor right now" hover indicator (see onTouchMove), so any stale selection from before
@@ -6510,6 +6512,15 @@ function showBonesNode(tEntry, meshD, index)
             tEntry.sBoneDragPlane = nil
             curPlane = nil
         end
+        if curPlane == 'xy' then
+            tEntry.iBoneDragXYAxis = tEntry.iBoneDragXYAxis or 0
+            tImGui.SameLine()
+            tEntry.iBoneDragXYAxis = tImGui.RadioButton('X/Y##boneDragXYBoth-' .. index, tEntry.iBoneDragXYAxis, 0)
+            tImGui.SameLine()
+            tEntry.iBoneDragXYAxis = tImGui.RadioButton('X##boneDragXOnly-' .. index, tEntry.iBoneDragXYAxis, 1)
+            tImGui.SameLine()
+            tEntry.iBoneDragXYAxis = tImGui.RadioButton('Y##boneDragXYOnlyY-' .. index, tEntry.iBoneDragXYAxis, 2)
+        end
         local newZY = tImGui.Checkbox(tLang.L('bones_drag_zy_checkbox') .. '##boneDragZY-' .. index, curPlane == 'zy')
         if newZY and curPlane ~= 'zy' then
             tEntry.sBoneDragPlane = 'zy'
@@ -6519,6 +6530,16 @@ function showBonesNode(tEntry, meshD, index)
             rebuildBoneGizmo(tEntry, meshD, index)
         elseif not newZY and curPlane == 'zy' then
             tEntry.sBoneDragPlane = nil
+            curPlane = nil
+        end
+        if curPlane == 'zy' then
+            tEntry.iBoneDragZYAxis = tEntry.iBoneDragZYAxis or 0
+            tImGui.SameLine()
+            tEntry.iBoneDragZYAxis = tImGui.RadioButton('Z/Y##boneDragZYBoth-' .. index, tEntry.iBoneDragZYAxis, 0)
+            tImGui.SameLine()
+            tEntry.iBoneDragZYAxis = tImGui.RadioButton('Z##boneDragZOnly-' .. index, tEntry.iBoneDragZYAxis, 1)
+            tImGui.SameLine()
+            tEntry.iBoneDragZYAxis = tImGui.RadioButton('Y##boneDragZYOnlyY-' .. index, tEntry.iBoneDragZYAxis, 2)
         end
     end
 
@@ -14128,15 +14149,26 @@ function onTouchMove(key, x, y)
                 local tBones = getBoneList(meshD)
                 for _, b in ipairs(tBones) do
                     if b.name == tDragEntry.sDraggingBoneName then
-                        local okU = updateBonePosition(meshD, b, wx, wy, wz)
+                        local axisMode = (tDragEntry.sBoneDragPlane == 'xy') and
+                            (tDragEntry.iBoneDragXYAxis or 0) or (tDragEntry.iBoneDragZYAxis or 0)
+                        local moveFirstAxis = axisMode ~= 2
+                        local moveY = axisMode ~= 1
+                        local newX = (tDragEntry.sBoneDragPlane == 'xy' and moveFirstAxis) and wx or b.x
+                        local newY = moveY and wy or b.y
+                        local newZ = (tDragEntry.sBoneDragPlane == 'zy' and moveFirstAxis) and wz or b.z
+                        local okU = updateBonePosition(meshD, b, newX, newY, newZ)
                         if okU and tDragEntry.bSyncLeftRightBoneDrag then
                             local oppositeName = getOppositeSideBoneName(b.name)
                             local oppositeBone = oppositeName and findBoneByName(tBones, oppositeName) or nil
                             if oppositeBone then
                                 if tDragEntry.sBoneDragPlane == 'xy' then
-                                    okU = updateBonePosition(meshD, oppositeBone, -wx, wy, oppositeBone.z)
+                                    local oppositeX = moveFirstAxis and -newX or oppositeBone.x
+                                    local oppositeY = moveY and newY or oppositeBone.y
+                                    okU = updateBonePosition(meshD, oppositeBone, oppositeX, oppositeY, oppositeBone.z)
                                 else
-                                    okU = updateBonePosition(meshD, oppositeBone, oppositeBone.x, wy, wz)
+                                    local oppositeY = moveY and newY or oppositeBone.y
+                                    local oppositeZ = moveFirstAxis and newZ or oppositeBone.z
+                                    okU = updateBonePosition(meshD, oppositeBone, oppositeBone.x, oppositeY, oppositeZ)
                                 end
                             end
                         end

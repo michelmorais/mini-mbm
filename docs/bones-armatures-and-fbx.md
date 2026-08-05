@@ -284,6 +284,9 @@ never for anything the engine itself renders differently.
   X onto the paired joint; in Z/Y mode it copies both Y and Z so hands/feet move in the same depth
   direction, preserving the paired joint's hidden axis. Center or otherwise unpaired bones are
   moved normally without a second edit.
+  Each drag plane has an inline radio selection: **X/Y**, **X**, or **Y** for the front plane and
+  **Z/Y**, **Z**, or **Y** for the side plane. The two-axis choice is the default; a single-axis
+  choice keeps the other visible coordinate locked even if the camera has been orbited.
 - **Export** (`editor/blender_mesh_skeleton_export.py`, headless Blender): `build_armature`
   reconstructs real Blender edit-bones from the stored data (using the stored `rotX/Y/Z`/`length`
   directly when present — `length > EPS` is the "real orientation data available" sentinel — falling
