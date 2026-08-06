@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS and DQS Plan
 
-Document version: **0.1**
+Document version: **0.2**
 Status: **Discovery and architecture plan — not implemented**
 Last updated: **2026-08-06**
 
@@ -33,8 +33,26 @@ confirmed facts, decisions, hypotheses, and open questions.
 - Articulated animation moves mesh parts. Skeletal skinning instead evaluates bones and blends
   transformed vertex positions/normals. The existing workflow is a reference, not an interchangeable
   storage format.
-- `docs/lua-api.md` currently links to a missing `docs/articulated-animation.md`. That documentation
-  debt should be resolved before using articulated behavior as a normative public API reference.
+- `docs/articulated-animation.md` never existed in Git history. A similarly named implementation
+  plan, `docs/articulated-animation-plan.md`, existed from commit `e3f41bf` until it was removed in
+  `729c193` after the feature was refined. The broken Lua API link introduced during that transition
+  now points to the normative Mesh V11 format section instead.
+
+### Initial rat study bundle
+
+The first versioned input set is under `src/test-lib/`:
+
+| File(s) | Runtime-skinning study role |
+|---|---|
+| `T-BONE-rato-from-mixamo.fbx` | Source-of-comparison for imported bind transforms, skin clusters, hierarchy, animation stack, and animated reference poses. |
+| `T-BONE-rato-from-mixamo.msh` | Candidate Mini MBM-side skeleton/weight baseline; first confirm which imported data survived conversion before using it for CPU/GPU comparisons. |
+| `T-BONE-rato-from-mixamo_armature.lua` | 41-bone hierarchy/placement reference for bind-pose reconstruction and import consistency checks. |
+| `Image_0.jpg`, `Image_1.jpg`, `Image_3.jpg`, `normal.png` | Stable material inputs so geometry, normal, and deformation comparisons are not obscured by missing resources. |
+
+These files are suitable for discovery and visual baseline work now. They become runtime acceptance
+fixtures only after expected clip names/timestamps, bind-pose values, selected reference vertices,
+expected deformed results/tolerances, and asset identity are recorded. Additional synthetic fixtures
+remain necessary for antipodality, single-bone equivalence, and non-uniform-scale behavior.
 
 ## 3. Problem and Objective
 
@@ -211,9 +229,13 @@ Mesh Debug's large Lua implementation.
 
 ### Phase 0 — Fixtures, documentation, and invariants
 
-- Preserve the rat, humanoid, rigid-cavity, tail, antipodal-quaternion, and non-uniform-scale cases.
+- Preserve and characterize the initial `src/test-lib/T-BONE-rato-from-mixamo.*` bundle and textures.
+- Derive rat bind-pose and animated-pose comparison points without modifying the source baseline.
+- Add separate minimal humanoid, rigid-cavity, tail, antipodal-quaternion, single-bone, and
+  non-uniform-scale fixtures where the rat bundle cannot isolate one invariant.
 - Document coordinate conventions, transform order, bind data, weight/index mapping, and tolerances.
-- Resolve or explicitly scope the missing articulated-animation documentation.
+- Decide whether a dedicated articulated-animation user guide is still needed and keep the Lua API
+  linked to the normative Mesh V11 format in the meantime.
 
 Exit: bind-pose and expected-deformation fixtures are reproducible.
 
@@ -345,7 +367,8 @@ Exit: bind-pose and expected-deformation fixtures are reproducible.
 12. Which Mesh Debug capabilities migrate, remain, or become shared modules?
 13. Is LBS/DQS comparison a toggle, split view, overlay/heat map, or all three?
 14. Which rat/animation files may be committed as canonical fixtures?
-15. When should the missing articulated-animation guide be authored?
+15. Is a separate user guide for articulated animation still needed beyond the Lua API, Mesh V11
+    format reference, and Mesh Debug UI?
 
 ## 17. Out of Scope for the Initial Runtime Delivery
 
@@ -371,4 +394,5 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.2 | 2026-08-06 | Registered the initial rat study bundle, defined what is still required before it becomes a runtime acceptance fixture, and corrected the historical articulated-document finding. |
 | 0.1 | 2026-08-06 | Initial plan: shared pose model, bind-pose invariant, LBS/DQS roles, antipodality, scale boundary, backend policy, standalone editor, articulated-animation relationship, milestones, and validation gates. |

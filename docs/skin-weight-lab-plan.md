@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.2**
+Document version: **0.3**
 Status: **Discovery draft — not implemented**  
 Last updated: **2026-08-06**
 
@@ -46,7 +46,8 @@ user testing. A listed hypothesis is not an implementation commitment.
   creates envelope fallback weights for the whole mesh and then applies persisted weights as
   authoritative per-vertex overrides.
 - The reference rat armature is stored in
-  `T-BONE-rato-from-mixamo_armature.lua`. It contains a humanoid Mixamo hierarchy and no tail bones.
+  `src/test-lib/T-BONE-rato-from-mixamo_armature.lua`. It contains a 41-bone humanoid Mixamo
+  hierarchy and no tail bones.
 - Mesh Debug already contains an articulated-animation workflow with hierarchical parts and pivots,
   clips, position/rotation/scale tracks, quaternion runtime rotation, easing, a timeline, looping,
   priority, and Absolute/Additive composition. These are useful product and interaction references,
@@ -340,6 +341,26 @@ bind pose must be restored unchanged when the preview closes.
 
 ## 13. Use-Case Acceptance Scenarios
 
+### Initial rat fixture set
+
+The following files under `src/test-lib/` form the initial versioned study set:
+
+| File | Initial role |
+|---|---|
+| `T-BONE-rato-from-mixamo.fbx` | Mixamo reference containing the skinned rat, humanoid hierarchy, skin clusters, and an animation stack; external baseline for visible deformation and round-trip comparison. |
+| `T-BONE-rato-from-mixamo.msh` | Mini MBM representation used to inspect which bones/weights survived conversion and exercise editor operations without requiring a new import for every test. |
+| `T-BONE-rato-from-mixamo_armature.lua` | Independently loadable 41-bone armature reference for hierarchy, bind placement, remove/reload, and bone-editing tests. |
+| `Image_0.jpg`, `Image_1.jpg`, `Image_3.jpg`, `normal.png` | Material textures referenced by the FBX; keep visual/material comparisons reproducible and prevent missing-texture noise from being confused with deformation errors. |
+
+This is a baseline asset bundle, not yet a complete automated fixture. Before Phase 1 exits, record:
+
+- the exact FBX animation/clip name and representative timestamps;
+- screenshots or video of the unedited neck and cavity failures;
+- the expected material-to-texture mapping after FBX and `.msh` loading;
+- whether `.msh` weights match the FBX clusters closely enough for before/after comparison;
+- hashes or another immutable fixture identity if these files will be replaced during experiments;
+- which generated exports are disposable results and must not overwrite this baseline.
+
 ### Alien-rat neck
 
 Given imported Mixamo weights and the `Spine2`, `Neck`, and `Head` bones, the user can select the
@@ -373,8 +394,9 @@ separate future concern.
 
 ### Phase 0 — Test assets and baseline
 
-- Preserve the original rat mesh, Mixamo-rigged mesh, armature export, and at least one problematic
-  animation as reference fixtures or documented external test inputs.
+- Preserve the initial `src/test-lib/T-BONE-rato-from-mixamo.*` bundle and its four textures as the
+  first versioned baseline. Keep the FBX, `.msh`, and armature Lua roles distinct.
+- Confirm and record the animation stack/clip and problematic timestamps present in the FBX.
 - Record screenshots/video and the exact problem regions before editing.
 - Record whether the neck geometry is welded or consists of disconnected/duplicate surfaces.
 - Identify which torso bone should own the rigid cavity.
@@ -546,7 +568,7 @@ respective phase is implemented.
 
 ### Before Phase 1
 
-1. Which exact rat mesh file and animation will be the canonical test fixture?
+1. Which FBX animation/clip and timestamps will be the canonical deformation cases?
 2. Is the cavity already a separate material subset, or must AABB selection isolate it?
 3. Which bone should own the cavity: `Spine`, `Spine1`, `Spine2`, or a new dedicated bone?
 4. Should coincident vertices at UV/normal seams always be selected together?
@@ -619,5 +641,6 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.3 | 2026-08-06 | Registered the initial versioned rat fixture bundle under `src/test-lib/`, assigned each file a study role, and added baseline characterization requirements. |
 | 0.2 | 2026-08-06 | Reframed Skin Weight Lab as a workspace in a standalone Real-Time Skinning Editor; linked the LBS/DQS runtime plan; added bind/preview, antipodality, scale, backend-capability, articulated-animation reference, and migration decisions. |
 | 0.1 | 2026-08-05 | Initial discovery: region selection, rigid core/falloff, local smoothing, diagnostics, pose stress preview, tail scope, phased delivery, and user-test gates. |
