@@ -406,10 +406,16 @@ Lab workspace. It currently provides:
 - one-level rollback backed by a complete temporary mesh snapshot;
 - English and Brazilian Portuguese UI.
 
-This is not the complete Phase 1. The AABB is currently positioned numerically rather than through
-a viewport gizmo, selection is direct-vertex based rather than the planned face inclusion modes,
-and LBS/DQS deformation preview is not present. Apply is intentionally limited to frame-1 weights,
-matching the persisted weight section.
+This is not the complete Phase 1. Selection is direct-vertex based rather than the planned face
+inclusion modes, and LBS/DQS deformation preview is not present. Apply is intentionally limited to
+frame-1 weights, matching the persisted weight section.
+
+The 6.45.1 interaction pass adds direct viewport dragging for the complete AABB while preserving
+explicit Min/Max controls for each axis. Numeric drag sensitivity is derived from the loaded mesh
+bounds, so the same controls remain useful for very small and very large assets. The editor panel
+is resizable, and a separate 3D camera panel exposes orbit, position, focus, reset, WASD horizontal
+movement, Page Up/Down elevation, and wheel zoom. Per-face/axis AABB resizing remains a later gizmo
+enhancement; Min/Max fields are the current precise sizing mechanism.
 
 ### Phase 0 — Test assets and baseline
 
@@ -660,6 +666,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.5 | 2026-08-06 | Recorded the resizable layout, compact selection combo, scale-aware AABB Min/Max controls, direct AABB viewport dragging, and orbit/position/focus camera controls. |
 | 0.4 | 2026-08-06 | Recorded the first Phase-1 implementation slice: standalone editor, three cached selection modes, integrity counts, visual markers, rigid binding, save flow, and snapshot rollback, with remaining Phase-1 gaps stated explicitly. |
 | 0.3 | 2026-08-06 | Registered the initial versioned rat fixture bundle under `src/test-lib/`, assigned each file a study role, and added baseline characterization requirements. |
 | 0.2 | 2026-08-06 | Reframed Skin Weight Lab as a workspace in a standalone Real-Time Skinning Editor; linked the LBS/DQS runtime plan; added bind/preview, antipodality, scale, backend-capability, articulated-animation reference, and migration decisions. |

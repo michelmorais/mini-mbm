@@ -40,6 +40,10 @@ local state = {
     rollbackModified = nil,
     selectionLines = nil,
     selectionBox = nil,
+    meshBounds = nil,
+    aabbDragging = false,
+    aabbDragPlane = nil,
+    aabbDragOffset = nil,
     status = nil,
     statusError = false,
     cam = {azimuth = 0.35, elevation = 0.25, distance = 5, fx = 0, fy = 0, fz = 0},
@@ -49,6 +53,7 @@ local camera3d
 local mouseDown = false
 local mouseX, mouseY = 0, 0
 local noMoveFlag = 0
+local cameraMove = {forward=0, right=0, vertical=0}
 
 local function safeCall(fn)
     local result = table.pack(pcall(fn))
@@ -143,6 +148,58 @@ local function frameCamera(bounds)
     local dx, dy, dz = bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, bounds.maxZ - bounds.minZ
     state.cam.distance = math.max(0.1, math.sqrt(dx * dx + dy * dy + dz * dz) * 1.4)
     applyCamera()
+end
+
+local function cameraPosition()
+    local c = state.cam
+    return c.fx + c.distance * math.cos(c.elevation) * math.sin(c.azimuth),
+           c.fy + c.distance * math.sin(c.elevation),
+           c.fz + c.distance * math.cos(c.elevation) * math.cos(c.azimuth)
+end
+
+local function updateCameraKeyboard(delta)
+    if cameraMove.forward == 0 and cameraMove.right == 0 and cameraMove.vertical == 0 then return end
+    if tImGui.GetWantCaptureKeyboard() then return end
+    local speed = state.cam.distance * 0.8 * math.max(delta or 0, 0)
+    local dx, dz = 0, 0
+    if cameraMove.forward ~= 0 or cameraMove.right ~= 0 then
+        local fw, rg = camera3d:getNormal('F'), camera3d:getNormal('R')
+        local fwLen = math.sqrt(fw.x*fw.x + fw.z*fw.z)
+        local rgLen = math.sqrt(rg.x*rg.x + rg.z*rg.z)
+        if fwLen > 1e-6 and rgLen > 1e-6 then
+            dx = (fw.x/fwLen*cameraMove.forward + rg.x/rgLen*cameraMove.right) * speed
+            dz = (fw.z/fwLen*cameraMove.forward + rg.z/rgLen*cameraMove.right) * speed
+        end
+    end
+    state.cam.fx = state.cam.fx + dx
+    state.cam.fy = state.cam.fy + cameraMove.vertical * speed
+    state.cam.fz = state.cam.fz + dz
+    applyCamera()
+end
+
+local function rayPlaneHit(sx, sy, point, normal)
+    local ok, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, sx, sy)
+    if not ok then return nil end
+    local denom = normal.x*dx + normal.y*dy + normal.z*dz
+    if math.abs(denom) < 1e-6 then return nil end
+    local distance = ((point.x-ox)*normal.x + (point.y-oy)*normal.y + (point.z-oz)*normal.z) / denom
+    if distance < 0 then return nil end
+    return ox+dx*distance, oy+dy*distance, oz+dz*distance
+end
+
+local function rayHitsAABB(sx, sy, b)
+    local ok, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, sx, sy)
+    if not ok then return false end
+    local near, far = -math.huge, math.huge
+    local function slab(origin, direction, minimum, maximum)
+        if math.abs(direction) < 1e-9 then return origin >= minimum and origin <= maximum end
+        local a, c = (minimum-origin)/direction, (maximum-origin)/direction
+        if a > c then a,c = c,a end
+        near, far = math.max(near,a), math.min(far,c)
+        return near <= far
+    end
+    return slab(ox,dx,b.minX,b.maxX) and slab(oy,dy,b.minY,b.maxY) and
+           slab(oz,dz,b.minZ,b.maxZ) and far >= 0
 end
 
 local function rebuildSelectionBox()
@@ -330,6 +387,7 @@ local function loadMesh(path)
     state.analysisDirty = true
     state.subsetIndex, state.boneIndex, state.targetBoneIndex = 1, 1, 1
     local bounds = computeAABB(meshD)
+    state.meshBounds = bounds
     state.aabb = bounds
     rebuildPreview()
     rebuildSelectionBox()
@@ -429,7 +487,9 @@ end
 
 local function showSelectionInputs()
     local labels = {tLang.L('swl_selection_aabb'), tLang.L('swl_selection_subset'), tLang.L('swl_selection_bone')}
+    tImGui.PushItemWidth(190)
     local changed, mode = tImGui.Combo(tLang.L('swl_selection_method'), state.selectionMode, labels, -1)
+    tImGui.PopItemWidth()
     if changed then
         state.selectionMode = mode
         invalidateAnalysis()
@@ -442,10 +502,16 @@ local function showSelectionInputs()
             {'Min X', 'minX'}, {'Min Y', 'minY'}, {'Min Z', 'minZ'},
             {'Max X', 'maxX'}, {'Max Y', 'maxY'}, {'Max Z', 'maxZ'},
         }
+        local reference = state.meshBounds
+        local extent = reference and math.max(reference.maxX-reference.minX,
+            reference.maxY-reference.minY, reference.maxZ-reference.minZ) or 1
+        local dragSpeed = math.max(extent * 0.0025, 0.0001)
+        tImGui.PushItemWidth(150)
         for _, field in ipairs(fields) do
-            local edited, value = tImGui.DragFloat(field[1], b[field[2]], 0.01, -1000000, 1000000, '%.4f')
+            local edited, value = tImGui.DragFloat(field[1], b[field[2]], dragSpeed, -1000000, 1000000, '%.4f')
             if edited then b[field[2]] = value; aabbChanged = true end
         end
+        tImGui.PopItemWidth()
         if aabbChanged then
             if b.minX > b.maxX then b.minX,b.maxX=b.maxX,b.minX end
             if b.minY > b.maxY then b.minY,b.maxY=b.maxY,b.minY end
@@ -471,9 +537,10 @@ local function showSelectionInputs()
 end
 
 local function showPanel()
-    local screenW, screenH = mbm.getSizeScreen()
-    tImGui.SetNextWindowPos({x=0,y=22}, tImGui.Flags('ImGuiCond_Always'))
-    tImGui.SetNextWindowSize({x=390,y=screenH-22}, tImGui.Flags('ImGuiCond_Always'))
+    local _, screenH = mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x=0,y=22}, tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSize({x=440,y=math.max(500,screenH-27)}, tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSizeConstraints({x=330,y=320}, {x=900,y=math.max(320,screenH-27)})
     local opened = tImGui.Begin(tLang.L('swl_title'), false, noMoveFlag)
     if opened then
         tImGui.Text(tLang.L('swl_workspace'))
@@ -534,10 +601,57 @@ local function showPanel()
     tImGui.End()
 end
 
+local function showCameraPanel()
+    local screenW = mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x=math.max(0,screenW-315),y=25}, tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSize({x=310,y=410}, tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSizeConstraints({x=270,y=260}, {x=600,y=800})
+    local opened = tImGui.Begin(tLang.L('camera_panel') .. ' 3D##swlCamera', false,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if opened then
+        if tUtil.drawOrbitGizmo(state.cam, {size=120}) then applyCamera() end
+        tImGui.Separator()
+        local px,py,pz = cameraPosition()
+        tImGui.PushItemWidth(105)
+        tImGui.Text(tLang.L('cam_position'))
+        local xChanged,nx = tImGui.InputFloat('X##swlCamPX',px,0,0,'%.3f',0)
+        tImGui.SameLine()
+        local yChanged,ny = tImGui.InputFloat('Y##swlCamPY',py,0,0,'%.3f',0)
+        local zChanged,nz = tImGui.InputFloat('Z##swlCamPZ',pz,0,0,'%.3f',0)
+        if xChanged or yChanged or zChanged then
+            nx,ny,nz = xChanged and nx or px, yChanged and ny or py, zChanged and nz or pz
+            local dx,dy,dz = nx-state.cam.fx,ny-state.cam.fy,nz-state.cam.fz
+            local distance = math.sqrt(dx*dx+dy*dy+dz*dz)
+            if distance > 1e-6 then
+                state.cam.distance = distance
+                state.cam.elevation = math.asin(math.max(-1,math.min(1,dy/distance)))
+                state.cam.azimuth = math.atan(dx,dz)
+                applyCamera()
+            end
+        end
+        tImGui.Text(tLang.L('cam_focus'))
+        local step = math.max(state.cam.distance*0.0025,0.0001)
+        local fxChanged,nfx = tImGui.DragFloat('X##swlCamFX',state.cam.fx,step,0,0,'%.3f')
+        tImGui.SameLine()
+        local fyChanged,nfy = tImGui.DragFloat('Y##swlCamFY',state.cam.fy,step,0,0,'%.3f')
+        local fzChanged,nfz = tImGui.DragFloat('Z##swlCamFZ',state.cam.fz,step,0,0,'%.3f')
+        tImGui.PopItemWidth()
+        if fxChanged then state.cam.fx=nfx end
+        if fyChanged then state.cam.fy=nfy end
+        if fzChanged then state.cam.fz=nfz end
+        if fxChanged or fyChanged or fzChanged then applyCamera() end
+        if tImGui.Button(tLang.L('reset_camera')) then frameCamera(state.meshBounds) end
+        tImGui.TextDisabled(tLang.L('cam_hint_3d'))
+        tImGui.TextDisabled(tLang.L('cam_hint_keyboard'))
+        tImGui.TextDisabled('Scroll: zoom  |  Drag AABB: move')
+    end
+    tImGui.End()
+end
+
 function onInitScene()
     camera3d = mbm.getCamera('3d')
     camera3d:setFar(9999999)
-    noMoveFlag = tImGui.Flags('ImGuiWindowFlags_NoMove', 'ImGuiWindowFlags_NoResize', 'ImGuiWindowFlags_NoCollapse')
+    noMoveFlag = tImGui.Flags('ImGuiWindowFlags_NoCollapse')
     tUtil.sMessageOverlay = tLang.L('swl_welcome')
     tUtil.bRightSide = true
     tUtil.tTimerOverlay:start()
@@ -546,19 +660,51 @@ function onInitScene()
 end
 
 function onLoop(delta)
+    updateCameraKeyboard(delta)
     showMenu()
     showPanel()
+    showCameraPanel()
     tUtil.showOverlayMessage()
 end
 
 function onTouchDown(key, x, y)
     if key == 0 and not tImGui.GetWantCaptureMouse() then
+        if state.meshD and state.selectionMode == 1 and state.aabb and rayHitsAABB(x,y,state.aabb) then
+            local px,py,pz = cameraPosition()
+            local nx,ny,nz = state.cam.fx-px,state.cam.fy-py,state.cam.fz-pz
+            local length = math.sqrt(nx*nx+ny*ny+nz*nz)
+            if length > 1e-6 then nx,ny,nz=nx/length,ny/length,nz/length end
+            local center = {x=(state.aabb.minX+state.aabb.maxX)*0.5,
+                y=(state.aabb.minY+state.aabb.maxY)*0.5,z=(state.aabb.minZ+state.aabb.maxZ)*0.5}
+            local plane = {point=center,normal={x=nx,y=ny,z=nz}}
+            local wx,wy,wz = rayPlaneHit(x,y,plane.point,plane.normal)
+            if wx then
+                state.aabbDragging = true
+                state.aabbDragPlane = plane
+                state.aabbDragOffset = {x=center.x-wx,y=center.y-wy,z=center.z-wz}
+                return
+            end
+        end
         mouseDown, mouseX, mouseY = true, x, y
     end
 end
 
 function onTouchMove(key, x, y)
-    if mouseDown and not tImGui.GetWantCaptureMouse() then
+    if state.aabbDragging and state.aabbDragPlane then
+        local wx,wy,wz = rayPlaneHit(x,y,state.aabbDragPlane.point,state.aabbDragPlane.normal)
+        if wx then
+            local b,o = state.aabb,state.aabbDragOffset
+            local cx,cy,cz = (b.minX+b.maxX)*0.5,(b.minY+b.maxY)*0.5,(b.minZ+b.maxZ)*0.5
+            local nx,ny,nz = wx+o.x,wy+o.y,wz+o.z
+            local dx,dy,dz = nx-cx,ny-cy,nz-cz
+            b.minX,b.maxX=b.minX+dx,b.maxX+dx
+            b.minY,b.maxY=b.minY+dy,b.maxY+dy
+            b.minZ,b.maxZ=b.minZ+dz,b.maxZ+dz
+            state.aabbDragPlane.point={x=nx,y=ny,z=nz}
+            invalidateAnalysis()
+            rebuildSelectionBox()
+        end
+    elseif mouseDown and not tImGui.GetWantCaptureMouse() then
         state.cam.azimuth = state.cam.azimuth + (x-mouseX) * 0.008
         state.cam.elevation = math.max(-1.45, math.min(1.45, state.cam.elevation + (y-mouseY) * 0.008))
         mouseX, mouseY = x, y
@@ -567,7 +713,12 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
-    if key == 0 then mouseDown = false end
+    if key == 0 then
+        mouseDown = false
+        state.aabbDragging = false
+        state.aabbDragPlane = nil
+        state.aabbDragOffset = nil
+    end
 end
 
 function onTouchZoom(zoom)
@@ -586,9 +737,19 @@ function onKeyDown(key)
         saveTo(state.fileName)
     elseif state.controlDown and key == mbm.getKeyCode('Q') then
         mbm.quit()
+    elseif not state.controlDown and key == mbm.getKeyCode('W') then cameraMove.forward=1
+    elseif not state.controlDown and key == mbm.getKeyCode('S') then cameraMove.forward=-1
+    elseif not state.controlDown and key == mbm.getKeyCode('A') then cameraMove.right=-1
+    elseif not state.controlDown and key == mbm.getKeyCode('D') then cameraMove.right=1
+    elseif key == mbm.getKeyCode('pageup') then cameraMove.vertical=1
+    elseif key == mbm.getKeyCode('pagedown') then cameraMove.vertical=-1
     end
 end
 
 function onKeyUp(key)
-    if key == mbm.getKeyCode('control') then state.controlDown = false end
+    if key == mbm.getKeyCode('control') then state.controlDown = false
+    elseif key == mbm.getKeyCode('W') or key == mbm.getKeyCode('S') then cameraMove.forward=0
+    elseif key == mbm.getKeyCode('A') or key == mbm.getKeyCode('D') then cameraMove.right=0
+    elseif key == mbm.getKeyCode('pageup') or key == mbm.getKeyCode('pagedown') then cameraMove.vertical=0
+    end
 end

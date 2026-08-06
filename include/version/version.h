@@ -210,8 +210,9 @@
     6.43.0 Added per-plane two-axis and single-axis radio constraints to Mesh Debug's Bones joint dragging.
     6.44.0 Added a confirmed Remove Armature action to Mesh Debug that clears the complete skeleton and associated vertex Skin Weights for clean Mixamo auto-rig uploads.
     6.45.0 Added the standalone Real-Time Skinning Editor with the Phase-1 Skin Weight Lab: cached AABB/subset/bone-proximity selection analysis, weight-integrity counts, visual selection markers, explicit rigid binding, save/save-as, and one-level snapshot rollback.
+    6.45.1 Improved the Skin Weight Lab with a resizable layout, scale-aware AABB numeric controls, direct viewport AABB dragging, and a dedicated orbit/position/focus camera panel with WASD movement.
 */
-#define MBM_VERSION "6.45.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.45.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
