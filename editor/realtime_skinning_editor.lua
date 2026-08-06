@@ -235,7 +235,7 @@ local function createSelectionBox(b, r, g, blue)
     local box = line:new('3d', 0, 0, 0)
     box:add(coords)
     box:setColor(r, g, blue, 1)
-    box.z = -10
+    box:setPos(0,0,0)
     return box
 end
 
@@ -332,7 +332,7 @@ local function buildVertexMarkers(vertices, r, g, b, extent)
         appendPoint(coords,p.x,p.y-size,p.z); appendPoint(coords,p.x,p.y+size,p.z)
     end
     local marks=line:new('3d',0,0,0)
-    marks:add(coords); marks:setColor(r,g,b,1); marks.z=-20
+    marks:add(coords); marks:setColor(r,g,b,1); marks:setPos(0,0,0)
     marks.alwaysOnTop=state.markersAlwaysOnTop
     return marks
 end
@@ -460,6 +460,7 @@ local function rebuildPreview()
     if not state.fileName then return end
     local preview = mesh:new('3d')
     if preview:load(state.fileName) then
+        preview:setPos(0,0,0)
         preview.visible=state.meshVisible
         state.preview = preview
     else
