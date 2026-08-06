@@ -211,8 +211,9 @@
     6.44.0 Added a confirmed Remove Armature action to Mesh Debug that clears the complete skeleton and associated vertex Skin Weights for clean Mixamo auto-rig uploads.
     6.45.0 Added the standalone Real-Time Skinning Editor with the Phase-1 Skin Weight Lab: cached AABB/subset/bone-proximity selection analysis, weight-integrity counts, visual selection markers, explicit rigid binding, save/save-as, and one-level snapshot rollback.
     6.45.1 Improved the Skin Weight Lab with a resizable layout, scale-aware AABB numeric controls, direct viewport AABB dragging, and a dedicated orbit/position/focus camera panel with WASD movement.
+    6.45.2 Fixed Mesh Debug whole-mesh scaling to synchronize a positive uniform bake with skeleton positions/radii/lengths without corrupting bone-local scaleX/Y/Z; partial transforms now leave the global skeleton unchanged, and unsupported non-uniform synchronization fails before mutation.
 */
-#define MBM_VERSION "6.45.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.45.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

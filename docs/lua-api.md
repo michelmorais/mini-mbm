@@ -1204,6 +1204,19 @@ with its predecessor, or `false` for the first subset or an invalid index. Artic
 occurrences are remapped automatically, so their stable IDs, tracks, pivots, and parent-child
 relationships remain attached to the same geometry.
 
+### Geometry scaling and the global skeleton
+
+```lua
+meshD:scaleFrame(frame, sx, sy, sz [, subset [, scaleSkeleton]])
+```
+
+`frame=0` and `subset=0` mean all frames/subsets. Existing calls omit `scaleSkeleton` and modify
+geometry only. Passing `true` also bakes the mesh-wide skeleton into the scaled coordinate space,
+but only for all frames, all subsets, and a positive uniform scale (`sx == sy == sz`). Invalid
+skeleton-synchronization requests raise a Lua error before changing geometry. A synchronized bake
+scales bone position, radius, and length while intentionally preserving each bone's local
+`scaleX/Y/Z`; partial geometry transforms leave the one global skeleton unchanged.
+
 ### 15.1 Articulated-animation authoring
 
 The object also exposes the Mesh V11 rigid-animation authoring API.
