@@ -1,7 +1,7 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.4**
-Status: **Phase 1 implementation started**
+Document version: **0.6**
+Status: **Phase 2 initial slice implemented**
 Last updated: **2026-08-06**
 
 ## 1. Purpose
@@ -417,6 +417,17 @@ is resizable, and a separate 3D camera panel exposes orbit, position, focus, res
 movement, Page Up/Down elevation, and wheel zoom. Per-face/axis AABB resizing remains a later gizmo
 enhancement; Min/Max fields are the current precise sizing mechanism.
 
+The 6.46.0 Phase-2 slice adds an adjustable outer transition shell around the AABB rigid core.
+Core vertices receive weight `1.0` from the target bone; shell vertices blend that target into
+their existing frame-1 influences using Linear or Smooth falloff. The result is sorted, limited to
+four influences, and normalized. Vertices outside the orange outer boundary remain unchanged.
+The preview distinguishes the red rigid core from orange transition vertices, reports both counts,
+and the existing one-level snapshot restores the complete pre-operation weight state.
+
+This first Phase-2 slice deliberately uses a uniform AABB shell and geometric distance. It does not
+yet provide topology/adjacency smoothing, a weight heat map, per-face inclusion, or LBS/DQS posed
+deformation preview; these remain later milestones.
+
 ### Phase 0 — Test assets and baseline
 
 - Preserve the initial `src/test-lib/T-BONE-rato-from-mixamo.*` bundle and its four textures as the
@@ -666,6 +677,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.6 | 2026-08-06 | Recorded the first Phase-2 slice: adjustable AABB transition shell, Linear/Smooth falloff, normalized four-influence blending, separate core/shell preview, outside-region preservation, and rollback verification on the 100× rat fixture. |
 | 0.5 | 2026-08-06 | Recorded the resizable layout, compact selection combo, scale-aware AABB Min/Max controls, direct AABB viewport dragging, and orbit/position/focus camera controls. |
 | 0.4 | 2026-08-06 | Recorded the first Phase-1 implementation slice: standalone editor, three cached selection modes, integrity counts, visual markers, rigid binding, save flow, and snapshot rollback, with remaining Phase-1 gaps stated explicitly. |
 | 0.3 | 2026-08-06 | Registered the initial versioned rat fixture bundle under `src/test-lib/`, assigned each file a study role, and added baseline characterization requirements. |

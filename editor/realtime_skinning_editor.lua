@@ -17,7 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Real-Time Skinning Editor — Phase 1 Skin Weight Lab
+   Real-Time Skinning Editor — Phase 2 Skin Weight Lab
 ]]--
 
 tImGui = require "ImGui"
@@ -39,7 +39,11 @@ local state = {
     rollbackPath = nil,
     rollbackModified = nil,
     selectionLines = nil,
+    transitionLines = nil,
     selectionBox = nil,
+    transitionBox = nil,
+    shellWidth = 0,
+    falloffMode = 2, -- 1 linear, 2 smooth
     meshBounds = nil,
     aabbDragging = false,
     aabbDragPlane = nil,
@@ -90,9 +94,13 @@ end
 
 local function clearSelectionVisuals()
     destroyObject(state.selectionLines)
+    destroyObject(state.transitionLines)
     destroyObject(state.selectionBox)
+    destroyObject(state.transitionBox)
     state.selectionLines = nil
+    state.transitionLines = nil
     state.selectionBox = nil
+    state.transitionBox = nil
 end
 
 local function clearRollback()
@@ -105,7 +113,9 @@ local function invalidateAnalysis()
     state.analysis = nil
     state.analysisDirty = true
     destroyObject(state.selectionLines)
+    destroyObject(state.transitionLines)
     state.selectionLines = nil
+    state.transitionLines = nil
 end
 
 local function computeAABB(meshD)
@@ -202,11 +212,7 @@ local function rayHitsAABB(sx, sy, b)
            slab(oz,dz,b.minZ,b.maxZ) and far >= 0
 end
 
-local function rebuildSelectionBox()
-    destroyObject(state.selectionBox)
-    state.selectionBox = nil
-    if not state.meshD or state.selectionMode ~= 1 or not state.aabb then return end
-    local b = state.aabb
+local function createSelectionBox(b, r, g, blue)
     local p = {
         {b.minX,b.minY,b.minZ}, {b.maxX,b.minY,b.minZ}, {b.maxX,b.maxY,b.minZ}, {b.minX,b.maxY,b.minZ},
         {b.minX,b.minY,b.maxZ}, {b.maxX,b.minY,b.maxZ}, {b.maxX,b.maxY,b.maxZ}, {b.minX,b.maxY,b.maxZ},
@@ -218,9 +224,24 @@ local function rebuildSelectionBox()
     end
     local box = line:new('3d', 0, 0, 0)
     box:add(coords)
-    box:setColor(0, 1, 1, 1)
+    box:setColor(r, g, blue, 1)
     box.z = -10
-    state.selectionBox = box
+    return box
+end
+
+local function rebuildSelectionBox()
+    destroyObject(state.selectionBox)
+    destroyObject(state.transitionBox)
+    state.selectionBox, state.transitionBox = nil, nil
+    if not state.meshD or state.selectionMode ~= 1 or not state.aabb then return end
+    state.selectionBox = createSelectionBox(state.aabb, 0, 1, 1)
+    if state.shellWidth > 0 then
+        local b, width = state.aabb, state.shellWidth
+        state.transitionBox = createSelectionBox({
+            minX=b.minX-width,minY=b.minY-width,minZ=b.minZ-width,
+            maxX=b.maxX+width,maxY=b.maxY+width,maxZ=b.maxZ+width,
+        }, 1, 0.65, 0)
+    end
 end
 
 local function getBones()
@@ -274,6 +295,37 @@ local function collectVertices()
     return vertices
 end
 
+local function pointInsideAABB(p, b)
+    return p.x >= b.minX and p.x <= b.maxX and p.y >= b.minY and p.y <= b.maxY and
+           p.z >= b.minZ and p.z <= b.maxZ
+end
+
+local function transitionAlpha(p, b, width)
+    if pointInsideAABB(p, b) then return 1, 'core' end
+    if width <= 0 then return nil end
+    local dx = math.max(b.minX-p.x, 0, p.x-b.maxX)
+    local dy = math.max(b.minY-p.y, 0, p.y-b.maxY)
+    local dz = math.max(b.minZ-p.z, 0, p.z-b.maxZ)
+    local t = math.max(dx,dy,dz) / width
+    if t >= 1 then return nil end
+    if state.falloffMode == 2 then t = t*t*(3-2*t) end
+    return math.max(0,math.min(1,1-t)), 'shell'
+end
+
+local function buildVertexMarkers(vertices, r, g, b, extent)
+    if #vertices == 0 then return nil end
+    local size = math.max(extent*0.006,0.001)
+    local coords,step={},math.max(1,math.ceil(#vertices/500))
+    for i=1,#vertices,step do
+        local p=vertices[i].point
+        appendPoint(coords,p.x-size,p.y,p.z); appendPoint(coords,p.x+size,p.y,p.z)
+        appendPoint(coords,p.x,p.y-size,p.z); appendPoint(coords,p.x,p.y+size,p.z)
+    end
+    local marks=line:new('3d',0,0,0)
+    marks:add(coords); marks:setColor(r,g,b,1); marks.z=-20
+    return marks
+end
+
 local function analyzeSelection()
     if not state.meshD then return end
     local allVertices = collectVertices()
@@ -281,13 +333,12 @@ local function analyzeSelection()
     if state.selectionMode == 1 then
         local b = state.aabb
         for _, v in ipairs(allVertices) do
-            local p = v.point
-            if p.x >= b.minX and p.x <= b.maxX and p.y >= b.minY and p.y <= b.maxY and
-               p.z >= b.minZ and p.z <= b.maxZ then selected[#selected+1] = v end
+            local alpha,region=transitionAlpha(v.point,b,state.shellWidth)
+            if alpha then v.blendAlpha,v.region=alpha,region; selected[#selected+1]=v end
         end
     elseif state.selectionMode == 2 then
         for _, v in ipairs(allVertices) do
-            if v.subset == state.subsetIndex then selected[#selected+1] = v end
+            if v.subset == state.subsetIndex then v.blendAlpha,v.region=1,'core'; selected[#selected+1] = v end
         end
     else
         local target = bones[state.boneIndex]
@@ -306,6 +357,7 @@ local function analyzeSelection()
                     end
                 end
                 if nearestName == target.name and nearestDistance <= radiusSquared then
+                    v.blendAlpha,v.region=1,'core'
                     selected[#selected+1] = v
                 end
             end
@@ -332,28 +384,21 @@ local function analyzeSelection()
             if math.abs(sum - 1) > 0.001 then invalidSum = invalidSum + 1 end
         end
     end
-    state.analysis = {vertices=selected, missing=missing, invalidSum=invalidSum, unknown=unknown, totalMesh=#allVertices}
+    local core,shell={},{}
+    for _,vertex in ipairs(selected) do
+        if vertex.region=='shell' then shell[#shell+1]=vertex else core[#core+1]=vertex end
+    end
+    state.analysis = {vertices=selected, core=core, shell=shell, missing=missing,
+        invalidSum=invalidSum, unknown=unknown, totalMesh=#allVertices}
     state.analysisDirty = false
     destroyObject(state.selectionLines)
+    destroyObject(state.transitionLines)
     state.selectionLines = nil
-    if #selected > 0 then
-        local extent = state.aabb and math.max(state.aabb.maxX-state.aabb.minX,
-            state.aabb.maxY-state.aabb.minY, state.aabb.maxZ-state.aabb.minZ) or 1
-        local size = math.max(extent * 0.006, 0.001)
-        local coords, step = {}, math.max(1, math.ceil(#selected / 500))
-        for i = 1, #selected, step do
-            local p = selected[i].point
-            appendPoint(coords, p.x-size, p.y, p.z)
-            appendPoint(coords, p.x+size, p.y, p.z)
-            appendPoint(coords, p.x, p.y-size, p.z)
-            appendPoint(coords, p.x, p.y+size, p.z)
-        end
-        local marks = line:new('3d', 0, 0, 0)
-        marks:add(coords)
-        marks:setColor(1, 0.15, 0.1, 1)
-        marks.z = -20
-        state.selectionLines = marks
-    end
+    state.transitionLines = nil
+    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+    state.selectionLines=buildVertexMarkers(core,1,0.15,0.1,extent)
+    state.transitionLines=buildVertexMarkers(shell,1,0.75,0.1,extent)
     setStatus(string.format(tLang.L('swl_analysis_complete_fmt'), #selected), false)
 end
 
@@ -405,6 +450,46 @@ local function snapshotForRollback()
     return true
 end
 
+local function blendedInfluences(globalIndex,targetName,alpha)
+    if alpha >= 0.999999 then return {{name=targetName,weight=1}} end
+    local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
+        return state.meshD:getVertexWeight(globalIndex)
+    end)
+    local byName={}
+    if ok then
+        for _,pair in ipairs({{n1,w1},{n2,w2},{n3,w3},{n4,w4}}) do
+            local name,weight=pair[1],tonumber(pair[2]) or 0
+            if name and weight>0 and weight==weight and weight<math.huge then
+                byName[name]=(byName[name] or 0)+weight*(1-alpha)
+            end
+        end
+    end
+    byName[targetName]=(byName[targetName] or 0)+alpha
+    local result={}
+    for name,weight in pairs(byName) do
+        if weight>0 then result[#result+1]={name=name,weight=weight} end
+    end
+    table.sort(result,function(a,b)
+        if a.weight==b.weight then return a.name<b.name end
+        return a.weight>b.weight
+    end)
+    while #result>4 do table.remove(result) end
+    local sum=0
+    for _,influence in ipairs(result) do sum=sum+influence.weight end
+    if sum<=0 then return {{name=targetName,weight=1}} end
+    for _,influence in ipairs(result) do influence.weight=influence.weight/sum end
+    return result
+end
+
+local function writeInfluences(globalIndex,influences)
+    local a,b,c,d=influences[1],influences[2],influences[3],influences[4]
+    return state.meshD:setVertexWeight(globalIndex,
+        a and a.name or nil,a and a.weight or 0,
+        b and b.name or nil,b and b.weight or 0,
+        c and c.name or nil,c and c.weight or 0,
+        d and d.name or nil,d and d.weight or 0)
+end
+
 local function applyRigidBind()
     if not state.analysis or state.analysisDirty or #state.analysis.vertices == 0 then return end
     local bones = getBones()
@@ -415,15 +500,18 @@ local function applyRigidBind()
         return
     end
     local applied = 0
+    local hasTransition = #state.analysis.shell > 0
     for _, vertex in ipairs(state.analysis.vertices) do
+        local influences=blendedInfluences(vertex.globalIndex,target.name,vertex.blendAlpha or 1)
         local ok, result = safeCall(function()
-            return state.meshD:setVertexWeight(vertex.globalIndex, target.name, 1, nil, 0, nil, 0, nil, 0)
+            return writeInfluences(vertex.globalIndex,influences)
         end)
         if ok and result then applied = applied + 1 end
     end
     state.modified = applied > 0
     invalidateAnalysis()
-    setStatus(string.format(tLang.L('swl_applied_fmt'), applied, target.name), applied == 0)
+    local statusKey = hasTransition and 'swl_applied_transition_fmt' or 'swl_applied_fmt'
+    setStatus(string.format(tLang.L(statusKey), applied, target.name), applied == 0)
 end
 
 local function revertLast()
@@ -512,6 +600,14 @@ local function showSelectionInputs()
             if edited then b[field[2]] = value; aabbChanged = true end
         end
         tImGui.PopItemWidth()
+        local shellChanged,shell=tImGui.DragFloat(tLang.L('swl_shell_width'),state.shellWidth,
+            dragSpeed,0,math.max(extent*2,dragSpeed),'%.4f')
+        if shellChanged then state.shellWidth=math.max(0,shell); aabbChanged=true end
+        local falloffLabels={tLang.L('swl_falloff_linear'),tLang.L('swl_falloff_smooth')}
+        tImGui.PushItemWidth(150)
+        local falloffChanged,falloff=tImGui.Combo(tLang.L('swl_falloff'),state.falloffMode,falloffLabels,-1)
+        tImGui.PopItemWidth()
+        if falloffChanged then state.falloffMode=falloff; aabbChanged=true end
         if aabbChanged then
             if b.minX > b.maxX then b.minX,b.maxX=b.maxX,b.minX end
             if b.minY > b.maxY then b.minY,b.maxY=b.maxY,b.minY end
@@ -565,6 +661,7 @@ local function showPanel()
             if state.analysis then
                 local a = state.analysis
                 tImGui.Text(string.format(tLang.L('swl_selected_fmt'), #a.vertices, a.totalMesh))
+                tImGui.Text(string.format(tLang.L('swl_core_shell_fmt'),#a.core,#a.shell))
                 tImGui.Text(string.format(tLang.L('swl_diagnostics_fmt'), a.missing, a.invalidSum, a.unknown))
             elseif state.analysisDirty then
                 tImGui.TextDisabled(tLang.L('swl_analysis_required'))
@@ -576,18 +673,19 @@ local function showPanel()
             if #names > 0 then
                 state.targetBoneIndex = math.min(state.targetBoneIndex, #names)
                 local edited, value = tImGui.Combo(tLang.L('swl_target_bone'), state.targetBoneIndex, names, -1)
-                if edited then state.targetBoneIndex=value end
+                if edited then state.targetBoneIndex=value; invalidateAnalysis() end
             end
             local canApply = state.analysis and not state.analysisDirty and #state.analysis.vertices > 0 and #bones > 0
             tImGui.BeginDisabled(not canApply)
-            if tImGui.Button(tLang.L('swl_apply_rigid')) then applyRigidBind() end
+            if tImGui.Button(state.selectionMode==1 and state.shellWidth>0 and tLang.L('swl_apply_transition') or
+                    tLang.L('swl_apply_rigid')) then applyRigidBind() end
             tImGui.EndDisabled()
             tImGui.SameLine()
             tImGui.BeginDisabled(state.rollbackPath == nil)
             if tImGui.Button(tLang.L('swl_revert')) then revertLast() end
             tImGui.EndDisabled()
             tImGui.Separator()
-            tImGui.TextDisabled(tLang.L('swl_phase1_notice'))
+            tImGui.TextDisabled(tLang.L('swl_phase2_notice'))
         end
         if state.status then
             tImGui.Separator()
