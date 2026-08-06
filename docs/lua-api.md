@@ -551,8 +551,9 @@ changes results for objects where `getAABBCenter() != getPosition()`.
 
 These methods are available on loaded `.msh` and `.spt` objects whose asset contains articulated
 Parts and clips. Playback state is local to the object instance even when several objects share the
-same cached asset. See [articulated-animation.md](articulated-animation.md) for the asset model,
-composition rules, editor workflow, and rendering design.
+same cached asset. See [Mesh V11 articulated parts and animation](mesh-v11-format.md#6f-section_articulated_parts-and-section_articulated_animation-payloads)
+for the persisted asset model, and the [Articulated Animation guide](articulated-animation.md) for
+composition, authoring, playback lifecycle, and examples.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
