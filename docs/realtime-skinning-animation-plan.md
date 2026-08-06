@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS and DQS Plan
 
-Document version: **0.2**
+Document version: **0.3**
 Status: **Discovery and architecture plan — not implemented**
 Last updated: **2026-08-06**
 
@@ -384,6 +384,8 @@ Exit: bind-pose and expected-deformation fixtures are reproducible.
 ## 18. Technical References
 
 - Kavan et al., [Skinning with Dual Quaternions](https://users.cs.utah.edu/~ladislav/kavan07skinning/kavan07skinning.html).
+- Ladislav Kavan et al., [Skinning with Dual Quaternions — overview, limitations, paper, and reference code](https://users.cs.utah.edu/~ladislav/dq/index.html). This is the practical reference for GPU-oriented DQS, its relationship to LBS, antipodality/flipping concerns, and the optional two-phase treatment of scale and shear.
+- Le and Hodgins, [Real-time Skeletal Skinning with Optimized Centers of Rotation](https://binh.graphics/papers/2016s-cor/). This is a later comparison and possible research direction that targets both LBS candy-wrapper artifacts and DQS bulging while retaining the existing weights/animation pipeline.
 - Khronos, [OpenGL ES 2.0 specification](https://registry.khronos.org/OpenGL/specs/es/2.0/es_full_spec_2.0.pdf).
 - Microsoft, [Shader Model 2 (Direct3D 9)](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx9-graphics-reference-asm-vs-2-0).
 - Apple, [Metal resource fundamentals](https://developer.apple.com/documentation/metal/resource_fundamentals).
@@ -395,5 +397,6 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.3 | 2026-08-06 | Added the practical DQS reference page and Optimized Centers of Rotation paper as study references for DQS implementation, scale/shear, and artifacts not fully addressed by either LBS or DQS. |
 | 0.2 | 2026-08-06 | Registered the initial rat study bundle, defined what is still required before it becomes a runtime acceptance fixture, and corrected the historical articulated-document finding. |
 | 0.1 | 2026-08-06 | Initial plan: shared pose model, bind-pose invariant, LBS/DQS roles, antipodality, scale boundary, backend policy, standalone editor, articulated-animation relationship, milestones, and validation gates. |
