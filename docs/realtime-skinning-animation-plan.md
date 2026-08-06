@@ -36,7 +36,8 @@ confirmed facts, decisions, hypotheses, and open questions.
 - `docs/articulated-animation.md` never existed in Git history. A similarly named implementation
   plan, `docs/articulated-animation-plan.md`, existed from commit `e3f41bf` until it was removed in
   `729c193` after the feature was refined. The broken Lua API link introduced during that transition
-  now points to the normative Mesh V11 format section instead.
+  was repaired and an implementation-backed [Articulated Animation guide](articulated-animation.md)
+  now documents the current feature.
 
 ### Initial rat study bundle
 
@@ -234,8 +235,8 @@ Mesh Debug's large Lua implementation.
 - Add separate minimal humanoid, rigid-cavity, tail, antipodal-quaternion, single-bone, and
   non-uniform-scale fixtures where the rat bundle cannot isolate one invariant.
 - Document coordinate conventions, transform order, bind data, weight/index mapping, and tolerances.
-- Decide whether a dedicated articulated-animation user guide is still needed and keep the Lua API
-  linked to the normative Mesh V11 format in the meantime.
+- Keep the dedicated articulated-animation guide, Lua API, and normative Mesh V11 format references
+  synchronized as the shared animation vocabulary evolves.
 
 Exit: bind-pose and expected-deformation fixtures are reproducible.
 
@@ -367,8 +368,8 @@ Exit: bind-pose and expected-deformation fixtures are reproducible.
 12. Which Mesh Debug capabilities migrate, remain, or become shared modules?
 13. Is LBS/DQS comparison a toggle, split view, overlay/heat map, or all three?
 14. Which rat/animation files may be committed as canonical fixtures?
-15. Is a separate user guide for articulated animation still needed beyond the Lua API, Mesh V11
-    format reference, and Mesh Debug UI?
+15. Which articulated clip/player concepts should become shared services instead of remaining only
+    aligned at the UX level?
 
 ## 17. Out of Scope for the Initial Runtime Delivery
 

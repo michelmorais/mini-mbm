@@ -51,7 +51,8 @@ user testing. A listed hypothesis is not an implementation commitment.
 - Mesh Debug already contains an articulated-animation workflow with hierarchical parts and pivots,
   clips, position/rotation/scale tracks, quaternion runtime rotation, easing, a timeline, looping,
   priority, and Absolute/Additive composition. These are useful product and interaction references,
-  but articulated parts and skeletal vertex deformation remain different data models.
+  but articulated parts and skeletal vertex deformation remain different data models. See the
+  [Articulated Animation guide](articulated-animation.md).
 
 ## 3. Problem Statement
 

@@ -12,6 +12,10 @@ are tracked in [`skin-weight-lab-plan.md`](skin-weight-lab-plan.md). The future 
 bind-pose pipeline, and runtime LBS/DQS delivery are tracked in
 [`realtime-skinning-animation-plan.md`](realtime-skinning-animation-plan.md).
 
+Rigid subset animation is a separate implemented feature documented in
+[`articulated-animation.md`](articulated-animation.md). It should not be confused with bone-weighted
+skeletal deformation.
+
 ## Quick Mental Model (Read This First)
 
 Skip this section if you already know how bones/skinning work in a modern engine — the rest of the
