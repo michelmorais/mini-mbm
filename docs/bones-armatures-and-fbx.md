@@ -8,7 +8,9 @@ whole feature area was built up over many sessions chasing a single symptom (Mix
 have to re-derive any of that from scratch.
 
 Planned region-based weight editing, rigid-core/falloff workflows, diagnostics, and user-test gates
-are tracked separately in [`skin-weight-lab-plan.md`](skin-weight-lab-plan.md).
+are tracked in [`skin-weight-lab-plan.md`](skin-weight-lab-plan.md). The future standalone editor,
+bind-pose pipeline, and runtime LBS/DQS delivery are tracked in
+[`realtime-skinning-animation-plan.md`](realtime-skinning-animation-plan.md).
 
 ## Quick Mental Model (Read This First)
 

@@ -1,14 +1,22 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.1**  
+Document version: **0.2**
 Status: **Discovery draft — not implemented**  
-Last updated: **2026-08-05**
+Last updated: **2026-08-06**
 
 ## 1. Purpose
 
-This document is the versioned reference for a proposed Skin Weight Lab in Mesh Debug. It records
-the problem, intended user workflow, phased scope, validation criteria, risks, decisions, hypotheses,
-and open questions before implementation begins.
+This document is the versioned reference for a proposed Skin Weight Lab inside a future standalone
+**Real-Time Skinning Editor**. Mesh Debug remains the source of proven interaction patterns and the
+temporary home of existing bone/weight tools, but is not the intended permanent home of this
+workflow. This document records the problem, intended user workflow, phased scope, validation
+criteria, risks, decisions, hypotheses, and open questions before implementation begins.
+
+The companion [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md) records the
+runtime and editor architecture needed to support both Linear Blend Skinning (LBS) and Dual
+Quaternion Skinning (DQS). The plans are deliberately linked: authoring weights without a
+trustworthy deformation preview is incomplete, while runtime skinning without usable authoring and
+diagnostics is difficult to validate.
 
 The plan comes from a concrete character: a stylized alien rat with a large head and torso, almost
 no visible neck, short legs, long arms, a tail, and a hollow rectangular abdominal cavity that must
@@ -39,6 +47,10 @@ user testing. A listed hypothesis is not an implementation commitment.
   authoritative per-vertex overrides.
 - The reference rat armature is stored in
   `T-BONE-rato-from-mixamo_armature.lua`. It contains a humanoid Mixamo hierarchy and no tail bones.
+- Mesh Debug already contains an articulated-animation workflow with hierarchical parts and pivots,
+  clips, position/rotation/scale tracks, quaternion runtime rotation, easing, a timeline, looping,
+  priority, and Absolute/Additive composition. These are useful product and interaction references,
+  but articulated parts and skeletal vertex deformation remain different data models.
 
 ## 3. Problem Statement
 
@@ -47,7 +59,7 @@ does not currently provide a practical workflow to inspect, select, diagnose, sm
 replace imported skin weights.
 
 The user can see a deformation problem in an animated FBX, but cannot answer these questions inside
-Mesh Debug:
+the current tools:
 
 - Which vertices have missing, invalid, distant, or abruptly changing influences?
 - Which vertices will be affected before an edit is applied?
@@ -57,8 +69,10 @@ Mesh Debug:
 
 ## 4. Desired Outcome
 
-Mesh Debug should support a safe, visual, region-based workflow for improving existing skin weights
-without requiring a full re-rig and without silently replacing good imported data.
+The standalone Real-Time Skinning Editor should support a safe, visual, region-based workflow for
+improving existing skin weights without requiring a full re-rig and without silently replacing good
+imported data. Skin Weight Lab is one workspace of that editor, alongside bind-pose, animation,
+preview, and backend-capability workspaces planned in the companion document.
 
 Success means the user can:
 
@@ -75,13 +89,20 @@ Success means the user can:
 
 ### Primary user
 
-The Mesh Debug user positions bones, selects regions, chooses intended bone behavior, reviews the
+The editor user positions bones, selects regions, chooses intended bone behavior, reviews the
 preview, applies changes, and validates exported animation externally.
+
+### Real-Time Skinning Editor
+
+The standalone editor must expose understandable selection, diagnostics, weight operations,
+warnings, preview, and rollback. Its Skin Weight Lab workspace owns this plan's workflow. It must
+not claim that a heuristic result is anatomically correct.
 
 ### Mesh Debug
 
-The editor must expose understandable selection, diagnostics, weight operations, warnings, preview,
-and rollback. It must not claim that a heuristic result is anatomically correct.
+Mesh Debug remains a behavioral reference and possible migration source for bone editing, Split
+Capture selection, and articulated-animation interaction. The new editor should reuse shared data
+and services where practical instead of copying an already large Lua implementation.
 
 ### Blender/FBX bridge
 
@@ -109,6 +130,11 @@ deterministic dependency controlled by Mini MBM.
    destructive fallback.
 7. **User testing is a delivery gate.** A phase is not considered successful merely because its
    calculations complete without errors.
+8. **Prepare LBS and DQS together.** Persisted weights, bind-pose validation, animation sampling,
+   diagnostics, and editor state must not assume only one deformation method.
+9. **Backend limits are capabilities, not global product limits.** A constrained OpenGL ES backend
+   may require a smaller palette, partitioning, or an explicit unsupported result; it must not force
+   omission of LBS/DQS from better-capable backends or cause a silent method switch.
 
 ## 7. Core Domain Concepts
 
@@ -142,9 +168,16 @@ signal, not automatically an error.
 A diagnostic preview that temporarily rotates a chosen bone and estimates or displays likely
 stretching/tearing without persisting an animation or changing the bind pose.
 
+### Skinning method
+
+The deformation method selected for preview or runtime: LBS or DQS. The weight authoring model is
+shared, but results can differ. The selected method and any fallback must always be visible to the
+user; backend capability handling must not silently change it.
+
 ## 8. Main User Flow
 
-1. Open the proposed **Skin Weights** node/window for a mesh containing a skeleton.
+1. Open a mesh containing a skeleton in the standalone **Real-Time Skinning Editor** and select the
+   **Skin Weight Lab** workspace.
 2. Choose a selection method.
 3. Position the selection volume or choose a subset/bone-proximity source.
 4. Click **Analyze Selection**.
@@ -154,6 +187,9 @@ stretching/tearing without persisting an animation or changing the bind pose.
 8. Click **Apply** or **Cancel**.
 9. If necessary, use **Revert Last Weight Operation**.
 10. Save/export the mesh and validate animation externally.
+
+When the runtime preview foundation exists, the same flow should allow comparing LBS and DQS using
+the same pose, clip, camera, and weight data.
 
 Changing selection geometry or relevant operation inputs invalidates the cached analysis. The user
 must analyze again before Apply becomes available.
@@ -297,9 +333,10 @@ Proposed flow:
 4. color vertices/triangles by estimated stretch or deformation severity;
 5. restore the unchanged bind pose when the preview closes.
 
-This feature must not be described as runtime skeletal animation. It is an editor-only diagnostic.
-Its feasibility depends on defining enough bind-pose math for trustworthy preview results without
-accidentally creating a second incomplete runtime skinning system.
+Before the shared runtime foundation exists, this is an editor-only diagnostic and must not be
+described as runtime skeletal animation. Once that foundation exists, the editor should use the
+canonical LBS/DQS deformation path rather than maintain a second approximation. In either case the
+bind pose must be restored unchanged when the preview closes.
 
 ## 13. Use-Case Acceptance Scenarios
 
@@ -344,9 +381,12 @@ separate future concern.
 
 Exit criterion: the deformation failures can be reproduced consistently.
 
-### Phase 1 — Region selection and rigid correction
+### Phase 1 — Standalone editor shell, region selection, and rigid correction
 
-- Skin Weights node/window.
+- Standalone Real-Time Skinning Editor shell with a Skin Weight Lab workspace.
+- Load/save integration that preserves the existing mesh, skeleton, and weight data.
+- Reuse or extract proven Mesh Debug camera, bone visualization, and selection behaviors without
+  duplicating the entire Mesh Debug implementation.
 - AABB selection preview without topology mutation.
 - Subset and bone-proximity selection where practical.
 - Rigid Bind to one bone.
@@ -387,10 +427,18 @@ Primary validation: neck turns and torso/head combinations.
 - Evaluate full-mesh and selected-region algorithms.
 - Re-evaluate Blender Automatic Weights failures on disconnected/non-manifold content.
 - Compare envelope, heat-map, voxel/geodesic, and other feasible strategies using real fixtures.
-- Decide whether heavy generation belongs inside Mesh Debug, in the Blender bridge, or remains an
-  external DCC workflow.
+- Decide whether heavy generation belongs inside the standalone editor, in the Blender bridge, or
+  remains an external DCC workflow.
 
 This phase is research, not a promised feature.
+
+### Companion runtime milestones — LBS and DQS
+
+Runtime deformation, clip playback, and backend shader delivery are tracked in
+[Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md). Skin Weight Lab phases may
+start before runtime skinning, but the pose-stress preview should converge on that shared path as
+soon as it is trustworthy. Bind-pose validation, influence limits, method selection, and diagnostic
+fixtures must therefore be designed as shared contracts rather than editor-only assumptions.
 
 ## 15. Safety and Non-Functional Requirements
 
@@ -403,6 +451,9 @@ This phase is research, not a promised feature.
 - Operations must never silently leave a vertex unweighted.
 - Unknown bone references must be reported before export or deliberately repaired by the user.
 - All generated results must use at most four normalized influences per vertex.
+- The active preview method (LBS or DQS) and backend limitations must be explicit.
+- The editor must never silently replace DQS with LBS, or LBS with DQS, because a backend limit was
+  reached. It may offer an explained fallback that the user explicitly accepts.
 - Undo scope must be stated accurately. The initial requirement is one-level rollback for the last
   weight operation, not a general editor-wide history.
 - Canceling an analysis or closing the tool before Apply must leave mesh data unchanged.
@@ -419,6 +470,14 @@ This phase is research, not a promised feature.
   must not be reused for weight application.
 - A reliable pose preview may require bind/inverse-bind calculations that Mini MBM does not
   currently perform.
+- Basic DQS represents rigid rotation and translation; non-uniform scale and shear require a
+  documented fallback or a later two-phase extension. The editor must not silently discard them.
+- DQS blending requires quaternion antipodality correction before accumulation and normalization
+  afterward; otherwise equivalent rotations can cancel and produce unstable deformation.
+- OpenGL ES 2 has a tighter guaranteed vertex-uniform budget than the other current backends. Bone
+  palette limits and capability reporting must be measured rather than inferred from desktop Linux.
+- The standalone editor should consume shared skeleton, weight, pose, and deformation services. A
+  large copy of Mesh Debug logic would create two implementations that drift.
 - Mixamo behavior and generated weights are external and may vary between uploads.
 - Automatic heat-map weighting has previously failed on combined meshes containing disconnected,
   open, or thin surfaces. Heavy regeneration must not assume it is a universal solution.
@@ -433,7 +492,11 @@ This phase is research, not a promised feature.
 | UV-seam duplicates receive inconsistent weights | Visible cracks along seams | Decide and test coincident-vertex grouping |
 | Full regeneration destroys good Mixamo weights | Whole-character regression | Keep it out of early phases; snapshot and explicit warning later |
 | Diagnostic threshold produces false positives | User loses trust in heat map | Adjustable thresholds and “suspicious,” not “wrong,” language |
-| Pose preview becomes an incomplete animation subsystem | Excess complexity and misleading results | Keep editor-only, validate math separately, phase-gate it |
+| Pose preview becomes an incomplete animation subsystem | Excess complexity and misleading results | Phase-gate it, validate math separately, then converge on the shared runtime path |
+| Standalone editor duplicates Mesh Debug internals | Fixes and behavior drift between tools | Extract shared services and migrate incrementally |
+| Quaternion signs are blended without antipodality correction | DQS collapses or flips unpredictably | Canonical reference sign, correction fixture, normalization checks |
+| DQS silently ignores non-uniform scale | Preview differs from authored animation | Detect scale/shear and expose fallback or unsupported state |
+| GLES palette limits differ by device | Works on one platform and fails on another | Capability report, explicit palette limit, partitioning investigation |
 | Custom tail bones appear static under Mixamo clips | User expects automatic tail motion | State scope clearly; animation/physics remains separate |
 | Combined/non-manifold meshes defeat automatic algorithms | Heavy calculation produces unusable output | Local tools first; compare algorithms against real fixtures |
 
@@ -448,6 +511,13 @@ This phase is research, not a promised feature.
 5. Manual tail-bone creation is already acceptable; tail weighting belongs in this tool, while tail
    animation does not.
 6. User validation with the alien rat is part of each phase's completion criteria.
+7. Skin Weight Lab will be planned as a workspace in a standalone Real-Time Skinning Editor, not as
+   another permanent expansion of Mesh Debug.
+8. The data and preview contracts will accommodate LBS and DQS from the initial design, even though
+   the methods may ship in different milestones.
+9. The existing articulated-animation editor is the interaction and domain-language reference for
+   clips, hierarchy, pivots, tracks, timeline, playback, and composition. Its part-animation format
+   will not be treated as if it were skeletal skinning data.
 
 ## 19. Hypotheses to Validate
 
@@ -460,6 +530,14 @@ This phase is research, not a promised feature.
 5. Coincident stored vertices should normally be edited as one logical position group.
 6. One-level rollback is sufficient for the first delivery.
 7. The cavity can be owned rigidly by one existing torso bone rather than needing a dedicated bone.
+8. DQS may be a useful preferred preview/runtime method on constrained GLES2 devices because a
+   rigid dual-quaternion palette uses fewer vertex-uniform vectors per bone than common matrix
+   palettes. This remains conditional on measured limits, reserved uniforms, and scale semantics.
+9. Linux/GLES can be the first implementation and feedback platform while the shared contracts stay
+   backend-neutral; Metal and DirectX validation should occur at explicit milestones rather than
+   only after a Linux-specific design reaches a dead end.
+10. A standalone editor can reuse enough shared Mesh Debug services to avoid duplicating its large
+    Lua codebase.
 
 ## 20. Open Questions
 
@@ -473,27 +551,30 @@ respective phase is implemented.
 3. Which bone should own the cavity: `Spine`, `Spine1`, `Spine2`, or a new dedicated bone?
 4. Should coincident vertices at UV/normal seams always be selected together?
 5. Should the first version edit only the currently selected mesh, with no Apply All equivalent?
+6. What is the final editor name and which existing Mesh Debug responsibilities migrate into it?
+7. Which functions become shared services, and which remain intentionally owned by Mesh Debug?
 
 ### Before Phase 2
 
-6. Should falloff be defined by an absolute world-space thickness, a percentage of box size, or
+8. Should falloff be defined by an absolute world-space thickness, a percentage of box size, or
    both?
-7. Should the transition shell grow only outward, or should the user be able to define separate
+9. Should the transition shell grow only outward, or should the user be able to define separate
    inner and outer volumes?
-8. For Blend Bone, should the main input mean target weight, additive strength, or interpolation
+10. For Blend Bone, should the main input mean target weight, additive strength, or interpolation
    percentage?
 
 ### Before Phase 3
 
-9. How will the user choose allowed bones: multi-select list, selected bone plus parent/children, or
+11. How will the user choose allowed bones: multi-select list, selected bone plus parent/children, or
    a named preset?
-10. Should smoothing keep the outer selection boundary fixed by default?
-11. What diagnostic threshold is useful on the rat without overwhelming the display?
+12. Should smoothing keep the outer selection boundary fixed by default?
+13. What diagnostic threshold is useful on the rat without overwhelming the display?
 
 ### Before Phase 4
 
-12. Is a deformation preview inside Mesh Debug required, or would exporting scripted Blender test
-    poses be more trustworthy and easier to validate?
+14. At what milestone must the editor preview stop using diagnostic-only deformation and use the
+    canonical runtime LBS/DQS path?
+15. Should LBS/DQS comparison be side-by-side, a toggle using one camera/pose, or both?
 
 ## 21. User Test Protocol per Phase
 
@@ -514,7 +595,8 @@ The document version should be incremented when testing changes requirements or 
 
 ## 22. Out of Scope for the Initial Delivery
 
-- Runtime skeletal animation in Mini MBM.
+- Shipping runtime skeletal animation in the initial Skin Weight Lab delivery. Its future design and
+  integration are explicitly in scope of the companion plan.
 - Automatic animation of custom tail bones from standard Mixamo clips.
 - General-purpose Blender-style weight painting with brush input.
 - A full multi-level editor undo/redo system.
@@ -524,8 +606,9 @@ The document version should be incremented when testing changes requirements or 
 
 ## 23. Handoff Readiness
 
-Phase 1 can move to technical design after the five Phase-1 questions are answered and the canonical
-rat fixture is reproducible. Later phases must remain discovery items until their preceding phase
+Phase 1 can move to technical design after the Phase-1 questions are answered and the canonical rat
+fixture is reproducible. The handoff must also define the boundary between the standalone editor and
+shared Mesh Debug/engine services. Later phases remain discovery items until their preceding phase
 has been tested by the user.
 
 The technical handoff for each phase should identify the smallest reusable selection/preview pieces,
@@ -536,4 +619,5 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.2 | 2026-08-06 | Reframed Skin Weight Lab as a workspace in a standalone Real-Time Skinning Editor; linked the LBS/DQS runtime plan; added bind/preview, antipodality, scale, backend-capability, articulated-animation reference, and migration decisions. |
 | 0.1 | 2026-08-05 | Initial discovery: region selection, rigid core/falloff, local smoothing, diagnostics, pose stress preview, tail scope, phased delivery, and user-test gates. |
