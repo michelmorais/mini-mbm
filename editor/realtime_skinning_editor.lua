@@ -599,9 +599,9 @@ local function showSelectionInputs()
             local edited, value = tImGui.DragFloat(field[1], b[field[2]], dragSpeed, -1000000, 1000000, '%.4f')
             if edited then b[field[2]] = value; aabbChanged = true end
         end
-        tImGui.PopItemWidth()
         local shellChanged,shell=tImGui.DragFloat(tLang.L('swl_shell_width'),state.shellWidth,
             dragSpeed,0,math.max(extent*2,dragSpeed),'%.4f')
+        tImGui.PopItemWidth()
         if shellChanged then state.shellWidth=math.max(0,shell); aabbChanged=true end
         local falloffLabels={tLang.L('swl_falloff_linear'),tLang.L('swl_falloff_smooth')}
         tImGui.PushItemWidth(150)
