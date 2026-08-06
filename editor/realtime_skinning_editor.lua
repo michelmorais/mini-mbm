@@ -52,6 +52,10 @@ local state = {
     allowedBones = {},
     smoothStrength = 0.5,
     smoothIterations = 1,
+    abruptThreshold = 0.35,
+    abruptDiagnostics = nil,
+    abruptLines = nil,
+    topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
     aabbDragPlane = nil,
@@ -105,11 +109,13 @@ local function clearSelectionVisuals()
     destroyObject(state.transitionLines)
     destroyObject(state.selectionBox)
     destroyObject(state.transitionBox)
+    destroyObject(state.abruptLines)
     for _, object in ipairs(state.heatmapLines) do destroyObject(object) end
     state.selectionLines = nil
     state.transitionLines = nil
     state.selectionBox = nil
     state.transitionBox = nil
+    state.abruptLines = nil
     state.heatmapLines = {}
 end
 
@@ -121,12 +127,15 @@ end
 
 local function invalidateAnalysis()
     state.analysis = nil
+    state.abruptDiagnostics = nil
     state.analysisDirty = true
     destroyObject(state.selectionLines)
     destroyObject(state.transitionLines)
+    destroyObject(state.abruptLines)
     for _, object in ipairs(state.heatmapLines) do destroyObject(object) end
     state.selectionLines = nil
     state.transitionLines = nil
+    state.abruptLines = nil
     state.heatmapLines = {}
 end
 
@@ -380,6 +389,8 @@ end
 
 local function analyzeSelection()
     if not state.meshD then return end
+    state.abruptDiagnostics=nil
+    destroyObject(state.abruptLines); state.abruptLines=nil
     local allVertices = collectVertices()
     local selected, bones = {}, getBones()
     if state.selectionMode == 1 then
@@ -488,6 +499,7 @@ local function loadMesh(path)
     state.analysisDirty = true
     state.subsetIndex, state.boneIndex, state.targetBoneIndex = 1, 1, 1
     state.allowedBones={}
+    state.topologyAdjacency=nil
     for _,bone in ipairs(getBones()) do state.allowedBones[bone.name]=true end
     local bounds = computeAABB(meshD)
     state.meshBounds = bounds
@@ -549,7 +561,7 @@ local function writeInfluences(globalIndex,influences)
         d and d.name or nil,d and d.weight or 0)
 end
 
-local function readInfluenceMap(globalIndex)
+local function readInfluenceMap(globalIndex,respectRestriction)
     local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
         return state.meshD:getVertexWeight(globalIndex)
     end)
@@ -558,7 +570,7 @@ local function readInfluenceMap(globalIndex)
     for _,pair in ipairs({{n1,w1},{n2,w2},{n3,w3},{n4,w4}}) do
         local name,weight=pair[1],tonumber(pair[2]) or 0
         if name and weight>0 and weight==weight and weight<math.huge and
-                (not state.restrictBones or state.allowedBones[name]) then
+                (respectRestriction==false or not state.restrictBones or state.allowedBones[name]) then
             result[name]=(result[name] or 0)+weight
         end
     end
@@ -585,6 +597,7 @@ local function normalizedInfluences(weightMap)
 end
 
 local function buildTopologyAdjacency()
+    if state.topologyAdjacency then return state.topologyAdjacency end
     local adjacency={}
     local okS,subsets=safeCall(function() return state.meshD:getTotalSubset(1) end)
     if not okS then return adjacency end
@@ -606,7 +619,53 @@ local function buildTopologyAdjacency()
         end
         offset=offset+total
     end
+    state.topologyAdjacency=adjacency
     return adjacency
+end
+
+local function influenceDistance(a,b)
+    local names={}
+    for name in pairs(a) do names[name]=true end
+    for name in pairs(b) do names[name]=true end
+    local total=0
+    for name in pairs(names) do total=total+math.abs((a[name] or 0)-(b[name] or 0)) end
+    return math.min(1,total*0.5)
+end
+
+local function diagnoseAbruptTransitions()
+    if not state.analysis or state.analysisDirty then return end
+    local okMode,mode=safeCall(function() return state.meshD:getModeDraw() end)
+    if not okMode or mode~='TRIANGLES' then
+        setStatus(tLang.L('swl_diagnostic_requires_triangles'),true); return
+    end
+    local adjacency=buildTopologyAdjacency()
+    local selected,points={},{}
+    for _,vertex in ipairs(state.analysis.vertices) do
+        selected[vertex.globalIndex]=true; points[vertex.globalIndex]=vertex
+    end
+    local weights={}
+    for index in pairs(selected) do weights[index]=readInfluenceMap(index,false) end
+    local affected,abruptEdges,maxDistance={},0,0
+    for index in pairs(selected) do
+        for neighbor in pairs(adjacency[index] or {}) do
+            if index<neighbor and selected[neighbor] then
+                local distance=influenceDistance(weights[index],weights[neighbor])
+                maxDistance=math.max(maxDistance,distance)
+                if distance>=state.abruptThreshold then
+                    abruptEdges=abruptEdges+1
+                    affected[index]=true; affected[neighbor]=true
+                end
+            end
+        end
+    end
+    local vertices={}
+    for index in pairs(affected) do vertices[#vertices+1]=points[index] end
+    state.abruptDiagnostics={edges=abruptEdges,vertices=#vertices,maxDistance=maxDistance}
+    destroyObject(state.abruptLines)
+    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+    state.abruptLines=buildVertexMarkers(vertices,1,0,1,extent)
+    setStatus(string.format(tLang.L('swl_abrupt_complete_fmt'),abruptEdges,#vertices),false)
 end
 
 local function applyLocalSmoothing()
@@ -628,7 +687,7 @@ local function applyLocalSmoothing()
         for neighbor in pairs(adjacency[index] or {}) do needed[neighbor]=true end
     end
     local current={}
-    for index in pairs(needed) do current[index]=readInfluenceMap(index) end
+    for index in pairs(needed) do current[index]=readInfluenceMap(index,true) end
     local strength=math.max(0,math.min(1,state.smoothStrength))
     for _=1,state.smoothIterations do
         local nextWeights={}
@@ -850,6 +909,7 @@ local function showPanel()
                 if state.selectionLines then state.selectionLines.alwaysOnTop=markersAlwaysOnTop end
                 if state.transitionLines then state.transitionLines.alwaysOnTop=markersAlwaysOnTop end
                 for _,marker in ipairs(state.heatmapLines) do marker.alwaysOnTop=markersAlwaysOnTop end
+                if state.abruptLines then state.abruptLines.alwaysOnTop=markersAlwaysOnTop end
             end
             tImGui.Separator()
             showSelectionInputs()
@@ -932,6 +992,26 @@ local function showPanel()
             if tImGui.Button(tLang.L('swl_apply_smoothing')) then applyLocalSmoothing() end
             tImGui.EndDisabled()
             tImGui.TextDisabled(tLang.L('swl_smoothing_scope'))
+            tImGui.Separator()
+            tImGui.Text(tLang.L('swl_transition_diagnostics'))
+            tImGui.PushItemWidth(190)
+            local thresholdChanged,threshold=tImGui.SliderFloat(tLang.L('swl_abrupt_threshold'),
+                state.abruptThreshold,0.05,1,'%.2f')
+            tImGui.PopItemWidth()
+            if thresholdChanged then
+                state.abruptThreshold=threshold
+                state.abruptDiagnostics=nil
+                destroyObject(state.abruptLines); state.abruptLines=nil
+            end
+            tImGui.BeginDisabled(not canSmooth)
+            if tImGui.Button(tLang.L('swl_diagnose_transitions')) then diagnoseAbruptTransitions() end
+            tImGui.EndDisabled()
+            if state.abruptDiagnostics then
+                local diagnostic=state.abruptDiagnostics
+                tImGui.Text(string.format(tLang.L('swl_abrupt_result_fmt'),diagnostic.edges,
+                    diagnostic.vertices,diagnostic.maxDistance))
+                tImGui.TextDisabled(tLang.L('swl_abrupt_marker_hint'))
+            end
             local canApply = state.analysis and not state.analysisDirty and #state.analysis.vertices > 0 and #bones > 0
             tImGui.BeginDisabled(not canApply)
             if tImGui.Button(state.selectionMode==1 and state.shellWidth>0 and tLang.L('swl_apply_transition') or

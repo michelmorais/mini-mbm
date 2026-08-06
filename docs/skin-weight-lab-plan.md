@@ -1,7 +1,7 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.8**
-Status: **Phase 3 topology smoothing implemented**
+Document version: **0.9**
+Status: **Phase 3 diagnostics and topology smoothing implemented**
 Last updated: **2026-08-06**
 
 ## 1. Purpose
@@ -447,6 +447,18 @@ This implementation follows index connectivity inside each subset. It deliberate
 subset boundaries or geometric seams represented by duplicated vertices; a later welded-position
 adjacency option may address those cases. Posed LBS/DQS preview remains future work.
 
+The 6.49.0 Phase-3 diagnostics slice compares each selected triangle edge using half the L1
+distance between its two complete weight vectors. This produces a normalized difference in
+`[0,1]`: `0` means identical influences and `1` means fully disjoint weight assignments. An
+adjustable threshold reports abrupt-edge count, unique affected-vertex count, and maximum observed
+difference; affected vertices receive magenta always-on-top markers. The diagnostic reads stored
+weights without allowed-bone filtering and never modifies the mesh. It shares a cached per-mesh
+adjacency with smoothing, so repeated operations do not rebuild triangle connectivity.
+
+Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity within each subset,
+and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
+not actual posed deformation; pose stress remains a separate LBS/DQS milestone.
+
 ### Phase 0 — Test assets and baseline
 
 - Preserve the initial `src/test-lib/T-BONE-rato-from-mixamo.*` bundle and its four textures as the
@@ -696,6 +708,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.9 | 2026-08-06 | Added abrupt-transition diagnostics using normalized half-L1 edge distance, threshold/count/max reporting, magenta affected-vertex markers, and cached adjacency shared with smoothing. |
 | 0.8 | 2026-08-06 | Recorded local one-ring topology smoothing with strength/iteration controls, Jacobi snapshots, rigid-core protection, allowed-bone filtering, four-weight normalization, rollback, and duplicate-seam limitations. |
 | 0.7 | 2026-08-06 | Recorded the first Phase-3 slice: target-bone weight heatmap, optional allowed-bone restriction, disallowed-reference diagnostics, and restriction-aware normalized blending. |
 | 0.6 | 2026-08-06 | Recorded the first Phase-2 slice: adjustable AABB transition shell, Linear/Smooth falloff, normalized four-influence blending, separate core/shell preview, outside-region preservation, and rollback verification on the 100× rat fixture. |
