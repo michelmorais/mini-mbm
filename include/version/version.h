@@ -209,8 +209,9 @@
     6.42.0 Added average vertices-per-frame and triangles-per-frame statistics to Mesh Debug's Mesh Info table.
     6.43.0 Added per-plane two-axis and single-axis radio constraints to Mesh Debug's Bones joint dragging.
     6.44.0 Added a confirmed Remove Armature action to Mesh Debug that clears the complete skeleton and associated vertex Skin Weights for clean Mixamo auto-rig uploads.
+    6.45.0 Added the standalone Real-Time Skinning Editor with the Phase-1 Skin Weight Lab: cached AABB/subset/bone-proximity selection analysis, weight-integrity counts, visual selection markers, explicit rigid binding, save/save-as, and one-level snapshot rollback.
 */
-#define MBM_VERSION "6.44.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.45.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

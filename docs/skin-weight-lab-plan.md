@@ -1,7 +1,7 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.3**
-Status: **Discovery draft — not implemented**  
+Document version: **0.4**
+Status: **Phase 1 implementation started**
 Last updated: **2026-08-06**
 
 ## 1. Purpose
@@ -393,6 +393,24 @@ separate future concern.
 
 ## 14. Phased Delivery
 
+### Implemented first slice (6.45.0)
+
+`editor/realtime_skinning_editor.lua` establishes the standalone editor and its first Skin Weight
+Lab workspace. It currently provides:
+
+- `.msh` load, save, and save-as;
+- cached explicit analysis using direct vertex-in-AABB, material subset, or nearest-bone proximity;
+- visual AABB and capped selected-vertex markers;
+- selected-region counts for missing weights, non-normalized sums, and unknown bone references;
+- Rigid Bind to one selected bone;
+- one-level rollback backed by a complete temporary mesh snapshot;
+- English and Brazilian Portuguese UI.
+
+This is not the complete Phase 1. The AABB is currently positioned numerically rather than through
+a viewport gizmo, selection is direct-vertex based rather than the planned face inclusion modes,
+and LBS/DQS deformation preview is not present. Apply is intentionally limited to frame-1 weights,
+matching the persisted weight section.
+
 ### Phase 0 — Test assets and baseline
 
 - Preserve the initial `src/test-lib/T-BONE-rato-from-mixamo.*` bundle and its four textures as the
@@ -642,6 +660,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.4 | 2026-08-06 | Recorded the first Phase-1 implementation slice: standalone editor, three cached selection modes, integrity counts, visual markers, rigid binding, save flow, and snapshot rollback, with remaining Phase-1 gaps stated explicitly. |
 | 0.3 | 2026-08-06 | Registered the initial versioned rat fixture bundle under `src/test-lib/`, assigned each file a study role, and added baseline characterization requirements. |
 | 0.2 | 2026-08-06 | Reframed Skin Weight Lab as a workspace in a standalone Real-Time Skinning Editor; linked the LBS/DQS runtime plan; added bind/preview, antipodality, scale, backend-capability, articulated-animation reference, and migration decisions. |
 | 0.1 | 2026-08-05 | Initial discovery: region selection, rigid core/falloff, local smoothing, diagnostics, pose stress preview, tail scope, phased delivery, and user-test gates. |

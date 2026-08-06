@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS and DQS Plan
 
-Document version: **0.3**
-Status: **Discovery and architecture plan — not implemented**
+Document version: **0.4**
+Status: **Editor foundation started; runtime skinning not implemented**
 Last updated: **2026-08-06**
 
 ## 1. Purpose
@@ -247,6 +247,10 @@ Exit: bind-pose and expected-deformation fixtures are reproducible.
 - Diagnose invalid hierarchy, missing bind data, cycles, unknown influences, and non-identity bind
   deformation.
 
+Implementation note: version 6.45.0 adds `editor/realtime_skinning_editor.lua` with the first Skin
+Weight Lab workspace and reuses the existing narrow `meshDebug` data API. It does not yet implement
+bind/inverse-bind evaluation, clip playback, LBS, or DQS; those phase boundaries remain unchanged.
+
 ### Phase 2 — Shared pose evaluation
 
 - Sample P/R/S tracks and compose the hierarchy on CPU.
@@ -397,6 +401,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.4 | 2026-08-06 | Recorded the standalone editor's first implemented Skin Weight Lab slice while retaining bind validation and all runtime LBS/DQS work as future milestones. |
 | 0.3 | 2026-08-06 | Added the practical DQS reference page and Optimized Centers of Rotation paper as study references for DQS implementation, scale/shear, and artifacts not fully addressed by either LBS or DQS. |
 | 0.2 | 2026-08-06 | Registered the initial rat study bundle, defined what is still required before it becomes a runtime acceptance fixture, and corrected the historical articulated-document finding. |
 | 0.1 | 2026-08-06 | Initial plan: shared pose model, bind-pose invariant, LBS/DQS roles, antipodality, scale boundary, backend policy, standalone editor, articulated-animation relationship, milestones, and validation gates. |
