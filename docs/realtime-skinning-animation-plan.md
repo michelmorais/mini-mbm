@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS and DQS Plan
 
-Document version: **0.6**
+Document version: **0.7**
 Status: **Weight-authoring Phase 3 started; runtime skinning not implemented**
 Last updated: **2026-08-06**
 
@@ -254,6 +254,8 @@ Version 6.46.0 adds local rigid-core/transition-shell weight blending to that wo
 authoring data for future runtime skinning, not pose evaluation or an LBS/DQS deformation preview.
 Version 6.47.0 adds a target-bone weight heatmap and allowed-bone filtering. The heatmap visualizes
 stored bind weights only; it must not be interpreted as runtime LBS/DQS deformation or pose stress.
+Version 6.48.0 adds local triangle-adjacency weight smoothing. It changes persisted authoring
+weights only and still does not evaluate a pose or deform vertices through LBS/DQS.
 
 ### Phase 2 — Shared pose evaluation
 
@@ -405,6 +407,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.7 | 2026-08-06 | Recorded local triangle-adjacency weight smoothing while retaining pose evaluation and LBS/DQS deformation as separate future runtime work. |
 | 0.6 | 2026-08-06 | Recorded the target-weight heatmap and allowed-bone filtering while distinguishing stored-weight visualization from future LBS/DQS deformation preview. |
 | 0.5 | 2026-08-06 | Recorded the editor's Phase-2 rigid-core/transition-shell authoring slice while explicitly preserving bind evaluation, pose evaluation, and LBS/DQS preview as future runtime work. |
 | 0.4 | 2026-08-06 | Recorded the standalone editor's first implemented Skin Weight Lab slice while retaining bind validation and all runtime LBS/DQS work as future milestones. |

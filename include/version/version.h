@@ -214,8 +214,9 @@
     6.45.2 Fixed Mesh Debug whole-mesh scaling to synchronize a positive uniform bake with skeleton positions/radii/lengths without corrupting bone-local scaleX/Y/Z; partial transforms now leave the global skeleton unchanged, and unsupported non-uniform synchronization fails before mutation.
     6.46.0 Added the Skin Weight Lab Phase-2 transition shell with adjustable width, Linear/Smooth falloff, normalized four-influence blending, separate rigid-core/shell previews, outside-region preservation, and snapshot rollback.
     6.47.0 Started Skin Weight Lab Phase 3 with a target-bone weight heatmap, optional allowed-bone filtering, vertical diagnostics, compact selection/bone controls, mesh-preview visibility control, optional always-on-top analysis markers, aligned 3D preview/selection coordinates, and disallowed-influence diagnostics for analyzed regions.
+    6.48.0 Added local triangle-adjacency skin-weight smoothing with configurable strength/iterations, stable per-iteration snapshots, rigid-core protection, allowed-bone filtering, normalized four-influence output, and rollback.
 */
-#define MBM_VERSION "6.47.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.48.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

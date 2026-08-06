@@ -1,7 +1,7 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.7**
-Status: **Phase 3 initial slice implemented**
+Document version: **0.8**
+Status: **Phase 3 topology smoothing implemented**
 Last updated: **2026-08-06**
 
 ## 1. Purpose
@@ -435,6 +435,18 @@ results during Apply; the target bone is always retained. Filtered results conti
 to four influences and normalized. The operation remains protected by the existing snapshot
 rollback. Topology/adjacency smoothing and posed LBS/DQS preview are still future work.
 
+The 6.48.0 Phase-3 continuation adds configurable local topology smoothing. For `TRIANGLES`
+meshes, each iteration reads a stable weight snapshot, averages one-ring triangle neighbors, and
+mixes that average by the selected strength before limiting to four normalized influences. When an
+AABB transition shell exists, only the shell is editable and the rigid core remains unchanged;
+otherwise the complete analyzed selection is editable. Neighbors outside the selection may guide
+the boundary, but their own weights are never written. Allowed-bone filtering, one-level rollback,
+and outside-region preservation remain active.
+
+This implementation follows index connectivity inside each subset. It deliberately does not cross
+subset boundaries or geometric seams represented by duplicated vertices; a later welded-position
+adjacency option may address those cases. Posed LBS/DQS preview remains future work.
+
 ### Phase 0 — Test assets and baseline
 
 - Preserve the initial `src/test-lib/T-BONE-rato-from-mixamo.*` bundle and its four textures as the
@@ -684,6 +696,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.8 | 2026-08-06 | Recorded local one-ring topology smoothing with strength/iteration controls, Jacobi snapshots, rigid-core protection, allowed-bone filtering, four-weight normalization, rollback, and duplicate-seam limitations. |
 | 0.7 | 2026-08-06 | Recorded the first Phase-3 slice: target-bone weight heatmap, optional allowed-bone restriction, disallowed-reference diagnostics, and restriction-aware normalized blending. |
 | 0.6 | 2026-08-06 | Recorded the first Phase-2 slice: adjustable AABB transition shell, Linear/Smooth falloff, normalized four-influence blending, separate core/shell preview, outside-region preservation, and rollback verification on the 100× rat fixture. |
 | 0.5 | 2026-08-06 | Recorded the resizable layout, compact selection combo, scale-aware AABB Min/Max controls, direct AABB viewport dragging, and orbit/position/focus camera controls. |

@@ -50,6 +50,8 @@ local state = {
     heatmapEnabled = true,
     restrictBones = false,
     allowedBones = {},
+    smoothStrength = 0.5,
+    smoothIterations = 1,
     meshBounds = nil,
     aabbDragging = false,
     aabbDragPlane = nil,
@@ -547,6 +549,128 @@ local function writeInfluences(globalIndex,influences)
         d and d.name or nil,d and d.weight or 0)
 end
 
+local function readInfluenceMap(globalIndex)
+    local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
+        return state.meshD:getVertexWeight(globalIndex)
+    end)
+    local result={}
+    if not ok then return result end
+    for _,pair in ipairs({{n1,w1},{n2,w2},{n3,w3},{n4,w4}}) do
+        local name,weight=pair[1],tonumber(pair[2]) or 0
+        if name and weight>0 and weight==weight and weight<math.huge and
+                (not state.restrictBones or state.allowedBones[name]) then
+            result[name]=(result[name] or 0)+weight
+        end
+    end
+    return result
+end
+
+local function normalizedInfluences(weightMap)
+    local result={}
+    for name,weight in pairs(weightMap) do
+        if weight>0 and weight==weight and weight<math.huge then
+            result[#result+1]={name=name,weight=weight}
+        end
+    end
+    table.sort(result,function(a,b)
+        if a.weight==b.weight then return a.name<b.name end
+        return a.weight>b.weight
+    end)
+    while #result>4 do table.remove(result) end
+    local sum=0
+    for _,influence in ipairs(result) do sum=sum+influence.weight end
+    if sum<=0 then return {} end
+    for _,influence in ipairs(result) do influence.weight=influence.weight/sum end
+    return result
+end
+
+local function buildTopologyAdjacency()
+    local adjacency={}
+    local okS,subsets=safeCall(function() return state.meshD:getTotalSubset(1) end)
+    if not okS then return adjacency end
+    local offset=0
+    local function connect(a,b)
+        if a==b then return end
+        adjacency[a]=adjacency[a] or {}; adjacency[b]=adjacency[b] or {}
+        adjacency[a][b]=true; adjacency[b][a]=true
+    end
+    for subset=1,subsets do
+        local okV,total=safeCall(function() return state.meshD:getTotalVertex(1,subset) end)
+        total=okV and total or 0
+        local okI,indices=safeCall(function() return state.meshD:getIndex(1,subset) end)
+        if okI and indices then
+            for i=1,#indices-2,3 do
+                local a,b,c=offset+indices[i],offset+indices[i+1],offset+indices[i+2]
+                connect(a,b); connect(b,c); connect(c,a)
+            end
+        end
+        offset=offset+total
+    end
+    return adjacency
+end
+
+local function applyLocalSmoothing()
+    if not state.analysis or state.analysisDirty then return end
+    local okMode,mode=safeCall(function() return state.meshD:getModeDraw() end)
+    if not okMode or mode~='TRIANGLES' then
+        setStatus(tLang.L('swl_smoothing_requires_triangles'),true)
+        return
+    end
+    local vertices=#state.analysis.shell>0 and state.analysis.shell or state.analysis.vertices
+    if #vertices==0 then return end
+    local adjacency=buildTopologyAdjacency()
+    if not snapshotForRollback() then setStatus(tLang.L('swl_snapshot_failed'),true); return end
+    local editable={}
+    for _,vertex in ipairs(vertices) do editable[vertex.globalIndex]=true end
+    local needed={}
+    for index in pairs(editable) do
+        needed[index]=true
+        for neighbor in pairs(adjacency[index] or {}) do needed[neighbor]=true end
+    end
+    local current={}
+    for index in pairs(needed) do current[index]=readInfluenceMap(index) end
+    local strength=math.max(0,math.min(1,state.smoothStrength))
+    for _=1,state.smoothIterations do
+        local nextWeights={}
+        for index in pairs(editable) do
+            local neighbors=adjacency[index] or {}
+            local average,count={},0
+            for neighbor in pairs(neighbors) do
+                count=count+1
+                for name,weight in pairs(current[neighbor] or {}) do
+                    average[name]=(average[name] or 0)+weight
+                end
+            end
+            local mixed={}
+            for name,weight in pairs(current[index] or {}) do mixed[name]=weight*(1-strength) end
+            if count>0 then
+                for name,weight in pairs(average) do
+                    mixed[name]=(mixed[name] or 0)+weight/count*strength
+                end
+            else
+                mixed=current[index] or {}
+            end
+            nextWeights[index]=mixed
+        end
+        for index,weights in pairs(nextWeights) do current[index]=weights end
+    end
+    local applied=0
+    local targetBone=getBones()[state.targetBoneIndex]
+    for index in pairs(editable) do
+        local influences=normalizedInfluences(current[index] or {})
+        if #influences==0 and state.restrictBones and targetBone then
+            influences={{name=targetBone.name,weight=1}}
+        end
+        if #influences>0 then
+            local ok,result=safeCall(function() return writeInfluences(index,influences) end)
+            if ok and result then applied=applied+1 end
+        end
+    end
+    state.modified=state.modified or applied>0
+    invalidateAnalysis()
+    setStatus(string.format(tLang.L('swl_smoothed_fmt'),applied,state.smoothIterations),applied==0)
+end
+
 local function applyRigidBind()
     if not state.analysis or state.analysisDirty or #state.analysis.vertices == 0 then return end
     local bones = getBones()
@@ -750,7 +874,11 @@ local function showPanel()
                 tImGui.PushItemWidth(190)
                 local edited, value = tImGui.Combo(tLang.L('swl_target_bone'), state.targetBoneIndex, names, -1)
                 tImGui.PopItemWidth()
-                if edited then state.targetBoneIndex=value; invalidateAnalysis() end
+                if edited then
+                    state.targetBoneIndex=value
+                    state.allowedBones[bones[value].name]=true
+                    invalidateAnalysis()
+                end
             end
             local heatmap=tImGui.Checkbox(tLang.L('swl_heatmap'),state.heatmapEnabled)
             if heatmap~=state.heatmapEnabled then
@@ -789,6 +917,21 @@ local function showPanel()
                 end
                 tImGui.EndChild()
             end
+            tImGui.Separator()
+            tImGui.Text(tLang.L('swl_local_smoothing'))
+            tImGui.PushItemWidth(190)
+            local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_smooth_strength'),
+                state.smoothStrength,0,1,'%.2f')
+            if strengthChanged then state.smoothStrength=strength end
+            local iterationsChanged,iterations=tImGui.SliderInt(tLang.L('swl_smooth_iterations'),
+                state.smoothIterations,1,10)
+            if iterationsChanged then state.smoothIterations=iterations end
+            tImGui.PopItemWidth()
+            local canSmooth=state.analysis and not state.analysisDirty and #state.analysis.vertices>0
+            tImGui.BeginDisabled(not canSmooth)
+            if tImGui.Button(tLang.L('swl_apply_smoothing')) then applyLocalSmoothing() end
+            tImGui.EndDisabled()
+            tImGui.TextDisabled(tLang.L('swl_smoothing_scope'))
             local canApply = state.analysis and not state.analysisDirty and #state.analysis.vertices > 0 and #bones > 0
             tImGui.BeginDisabled(not canApply)
             if tImGui.Button(state.selectionMode==1 and state.shellWidth>0 and tLang.L('swl_apply_transition') or
