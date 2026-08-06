@@ -17,7 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Real-Time Skinning Editor — Phase 2 Skin Weight Lab
+   Real-Time Skinning Editor — Phase 3 Skin Weight Lab
 ]]--
 
 tImGui = require "ImGui"
@@ -27,6 +27,8 @@ local state = {
     fileName = nil,
     meshD = nil,
     preview = nil,
+    meshVisible = true,
+    markersAlwaysOnTop = true,
     info = nil,
     modified = false,
     selectionMode = 1, -- 1 AABB, 2 subset, 3 bone proximity
@@ -40,10 +42,14 @@ local state = {
     rollbackModified = nil,
     selectionLines = nil,
     transitionLines = nil,
+    heatmapLines = {},
     selectionBox = nil,
     transitionBox = nil,
     shellWidth = 0,
     falloffMode = 2, -- 1 linear, 2 smooth
+    heatmapEnabled = true,
+    restrictBones = false,
+    allowedBones = {},
     meshBounds = nil,
     aabbDragging = false,
     aabbDragPlane = nil,
@@ -97,10 +103,12 @@ local function clearSelectionVisuals()
     destroyObject(state.transitionLines)
     destroyObject(state.selectionBox)
     destroyObject(state.transitionBox)
+    for _, object in ipairs(state.heatmapLines) do destroyObject(object) end
     state.selectionLines = nil
     state.transitionLines = nil
     state.selectionBox = nil
     state.transitionBox = nil
+    state.heatmapLines = {}
 end
 
 local function clearRollback()
@@ -114,8 +122,10 @@ local function invalidateAnalysis()
     state.analysisDirty = true
     destroyObject(state.selectionLines)
     destroyObject(state.transitionLines)
+    for _, object in ipairs(state.heatmapLines) do destroyObject(object) end
     state.selectionLines = nil
     state.transitionLines = nil
+    state.heatmapLines = {}
 end
 
 local function computeAABB(meshD)
@@ -323,7 +333,47 @@ local function buildVertexMarkers(vertices, r, g, b, extent)
     end
     local marks=line:new('3d',0,0,0)
     marks:add(coords); marks:setColor(r,g,b,1); marks.z=-20
+    marks.alwaysOnTop=state.markersAlwaysOnTop
     return marks
+end
+
+local heatmapColors = {
+    {0.1,0.25,1}, {0,0.85,1}, {0.1,1,0.25}, {1,0.9,0}, {1,0.1,0},
+}
+
+local function vertexWeightForBone(globalIndex,boneName)
+    local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
+        return state.meshD:getVertexWeight(globalIndex)
+    end)
+    if not ok then return 0,{} end
+    local influences={{n1,w1},{n2,w2},{n3,w3},{n4,w4}}
+    local weight=0
+    for _,pair in ipairs(influences) do
+        if pair[1]==boneName then weight=weight+(tonumber(pair[2]) or 0) end
+    end
+    return math.max(0,math.min(1,weight)),influences
+end
+
+local function rebuildAnalysisMarkers(core,shell,extent)
+    destroyObject(state.selectionLines); destroyObject(state.transitionLines)
+    for _,object in ipairs(state.heatmapLines) do destroyObject(object) end
+    state.selectionLines,state.transitionLines=nil,nil
+    state.heatmapLines={}
+    if not state.heatmapEnabled then
+        state.selectionLines=buildVertexMarkers(core,1,0.15,0.1,extent)
+        state.transitionLines=buildVertexMarkers(shell,1,0.75,0.1,extent)
+        return
+    end
+    local buckets={{},{},{},{},{}}
+    for _,vertex in ipairs(state.analysis.vertices) do
+        local index=math.min(5,math.floor((vertex.targetWeight or 0)*5)+1)
+        buckets[index][#buckets[index]+1]=vertex
+    end
+    for index,vertices in ipairs(buckets) do
+        local color=heatmapColors[index]
+        local marker=buildVertexMarkers(vertices,color[1],color[2],color[3],extent)
+        if marker then state.heatmapLines[#state.heatmapLines+1]=marker end
+    end
 end
 
 local function analyzeSelection()
@@ -364,13 +414,19 @@ local function analyzeSelection()
         end
     end
 
-    local missing, invalidSum, unknown = 0, 0, 0
+    local missing, invalidSum, unknown, disallowed = 0, 0, 0, 0
     local known = {}
     for _, bone in ipairs(bones) do known[bone.name] = true end
+    local analysisTarget=bones[state.targetBoneIndex]
     for _, vertex in ipairs(selected) do
-        local ok, n1,w1,n2,w2,n3,w3,n4,w4 = safeCall(function()
-            return state.meshD:getVertexWeight(vertex.globalIndex)
-        end)
+        local targetWeight,influences=vertexWeightForBone(vertex.globalIndex,
+            analysisTarget and analysisTarget.name or '')
+        vertex.targetWeight=targetWeight
+        local n1,w1=influences[1][1],influences[1][2]
+        local n2,w2=influences[2][1],influences[2][2]
+        local n3,w3=influences[3][1],influences[3][2]
+        local n4,w4=influences[4][1],influences[4][2]
+        local ok=#influences>0
         if not ok or not n1 then
             missing = missing + 1
         else
@@ -379,6 +435,7 @@ local function analyzeSelection()
                 if pair[1] then
                     sum = sum + (pair[2] or 0)
                     if not known[pair[1]] then unknown = unknown + 1 end
+                    if state.restrictBones and not state.allowedBones[pair[1]] then disallowed=disallowed+1 end
                 end
             end
             if math.abs(sum - 1) > 0.001 then invalidSum = invalidSum + 1 end
@@ -389,16 +446,11 @@ local function analyzeSelection()
         if vertex.region=='shell' then shell[#shell+1]=vertex else core[#core+1]=vertex end
     end
     state.analysis = {vertices=selected, core=core, shell=shell, missing=missing,
-        invalidSum=invalidSum, unknown=unknown, totalMesh=#allVertices}
+        invalidSum=invalidSum, unknown=unknown, disallowed=disallowed, totalMesh=#allVertices}
     state.analysisDirty = false
-    destroyObject(state.selectionLines)
-    destroyObject(state.transitionLines)
-    state.selectionLines = nil
-    state.transitionLines = nil
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
-    state.selectionLines=buildVertexMarkers(core,1,0.15,0.1,extent)
-    state.transitionLines=buildVertexMarkers(shell,1,0.75,0.1,extent)
+    rebuildAnalysisMarkers(core,shell,extent)
     setStatus(string.format(tLang.L('swl_analysis_complete_fmt'), #selected), false)
 end
 
@@ -408,6 +460,7 @@ local function rebuildPreview()
     if not state.fileName then return end
     local preview = mesh:new('3d')
     if preview:load(state.fileName) then
+        preview.visible=state.meshVisible
         state.preview = preview
     else
         preview:destroy()
@@ -431,6 +484,8 @@ local function loadMesh(path)
     state.analysis = nil
     state.analysisDirty = true
     state.subsetIndex, state.boneIndex, state.targetBoneIndex = 1, 1, 1
+    state.allowedBones={}
+    for _,bone in ipairs(getBones()) do state.allowedBones[bone.name]=true end
     local bounds = computeAABB(meshD)
     state.meshBounds = bounds
     state.aabb = bounds
@@ -459,7 +514,8 @@ local function blendedInfluences(globalIndex,targetName,alpha)
     if ok then
         for _,pair in ipairs({{n1,w1},{n2,w2},{n3,w3},{n4,w4}}) do
             local name,weight=pair[1],tonumber(pair[2]) or 0
-            if name and weight>0 and weight==weight and weight<math.huge then
+            if name and weight>0 and weight==weight and weight<math.huge and
+                    (not state.restrictBones or state.allowedBones[name] or name==targetName) then
                 byName[name]=(byName[name] or 0)+weight*(1-alpha)
             end
         end
@@ -618,13 +674,17 @@ local function showSelectionInputs()
     elseif state.selectionMode == 2 then
         local ok, total = safeCall(function() return state.meshD:getTotalSubset(1) end)
         total = ok and total or 1
+        tImGui.PushItemWidth(190)
         local edited, value = tImGui.SliderInt(tLang.L('swl_subset'), state.subsetIndex, 1, math.max(1,total))
+        tImGui.PopItemWidth()
         if edited then state.subsetIndex=value; invalidateAnalysis() end
     else
         local bones, names = getBones(), {}
         for _, bone in ipairs(bones) do names[#names+1] = bone.name end
         if #names > 0 then
+            tImGui.PushItemWidth(190)
             local edited, value = tImGui.Combo(tLang.L('swl_source_bone'), math.min(state.boneIndex,#names), names, -1)
+            tImGui.PopItemWidth()
             if edited then state.boneIndex=value; invalidateAnalysis() end
         else
             tImGui.TextDisabled(tLang.L('swl_no_bones'))
@@ -653,6 +713,19 @@ local function showPanel()
             local okW, hasWeights = safeCall(function() return state.meshD:hasVertexWeights() end)
             tImGui.Text(string.format(tLang.L('swl_summary_fmt'), state.aabb and state.aabb.total or 0,
                 #bones, okW and hasWeights and tLang.L('swl_yes') or tLang.L('swl_no')))
+            local meshVisible=tImGui.Checkbox(tLang.L('swl_show_mesh'),state.meshVisible)
+            if meshVisible~=state.meshVisible then
+                state.meshVisible=meshVisible
+                if state.preview then state.preview.visible=meshVisible end
+            end
+            local markersAlwaysOnTop=tImGui.Checkbox(tLang.L('swl_markers_always_on_top'),
+                state.markersAlwaysOnTop)
+            if markersAlwaysOnTop~=state.markersAlwaysOnTop then
+                state.markersAlwaysOnTop=markersAlwaysOnTop
+                if state.selectionLines then state.selectionLines.alwaysOnTop=markersAlwaysOnTop end
+                if state.transitionLines then state.transitionLines.alwaysOnTop=markersAlwaysOnTop end
+                for _,marker in ipairs(state.heatmapLines) do marker.alwaysOnTop=markersAlwaysOnTop end
+            end
             tImGui.Separator()
             showSelectionInputs()
             if tImGui.Button(tLang.L('swl_analyze')) then analyzeSelection() end
@@ -663,6 +736,7 @@ local function showPanel()
                 tImGui.Text(string.format(tLang.L('swl_selected_fmt'), #a.vertices, a.totalMesh))
                 tImGui.Text(string.format(tLang.L('swl_core_shell_fmt'),#a.core,#a.shell))
                 tImGui.Text(string.format(tLang.L('swl_diagnostics_fmt'), a.missing, a.invalidSum, a.unknown))
+                tImGui.Text(string.format(tLang.L('swl_disallowed_fmt'),a.disallowed))
             elseif state.analysisDirty then
                 tImGui.TextDisabled(tLang.L('swl_analysis_required'))
             end
@@ -672,8 +746,47 @@ local function showPanel()
             for _, bone in ipairs(bones) do names[#names+1] = bone.name end
             if #names > 0 then
                 state.targetBoneIndex = math.min(state.targetBoneIndex, #names)
+                tImGui.PushItemWidth(190)
                 local edited, value = tImGui.Combo(tLang.L('swl_target_bone'), state.targetBoneIndex, names, -1)
+                tImGui.PopItemWidth()
                 if edited then state.targetBoneIndex=value; invalidateAnalysis() end
+            end
+            local heatmap=tImGui.Checkbox(tLang.L('swl_heatmap'),state.heatmapEnabled)
+            if heatmap~=state.heatmapEnabled then
+                state.heatmapEnabled=heatmap
+                if state.analysis then
+                    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+                        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+                    rebuildAnalysisMarkers(state.analysis.core,state.analysis.shell,extent)
+                end
+            end
+            if state.heatmapEnabled then tImGui.TextDisabled(tLang.L('swl_heatmap_legend')) end
+            local restrict=tImGui.Checkbox(tLang.L('swl_restrict_bones'),state.restrictBones)
+            if restrict~=state.restrictBones then state.restrictBones=restrict; invalidateAnalysis() end
+            if state.restrictBones and #bones>0 then
+                if tImGui.Button(tLang.L('swl_allow_all')) then
+                    for _,bone in ipairs(bones) do state.allowedBones[bone.name]=true end
+                    invalidateAnalysis()
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('swl_target_only')) then
+                    state.allowedBones={}
+                    state.allowedBones[bones[state.targetBoneIndex].name]=true
+                    invalidateAnalysis()
+                end
+                tImGui.BeginChild('##swlAllowedBones',{x=190,y=115},true)
+                local targetName=bones[state.targetBoneIndex].name
+                for _,bone in ipairs(bones) do
+                    local isTarget=bone.name==targetName
+                    tImGui.BeginDisabled(isTarget)
+                    local allowed=tImGui.Checkbox(bone.name..'##swlAllowed',isTarget or state.allowedBones[bone.name]==true)
+                    tImGui.EndDisabled()
+                    if not isTarget and allowed~=(state.allowedBones[bone.name]==true) then
+                        state.allowedBones[bone.name]=allowed or nil
+                        invalidateAnalysis()
+                    end
+                end
+                tImGui.EndChild()
             end
             local canApply = state.analysis and not state.analysisDirty and #state.analysis.vertices > 0 and #bones > 0
             tImGui.BeginDisabled(not canApply)
@@ -685,7 +798,7 @@ local function showPanel()
             if tImGui.Button(tLang.L('swl_revert')) then revertLast() end
             tImGui.EndDisabled()
             tImGui.Separator()
-            tImGui.TextDisabled(tLang.L('swl_phase2_notice'))
+            tImGui.TextDisabled(tLang.L('swl_phase3_notice'))
         end
         if state.status then
             tImGui.Separator()

@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS and DQS Plan
 
-Document version: **0.5**
-Status: **Weight-authoring Phase 2 started; runtime skinning not implemented**
+Document version: **0.6**
+Status: **Weight-authoring Phase 3 started; runtime skinning not implemented**
 Last updated: **2026-08-06**
 
 ## 1. Purpose
@@ -252,6 +252,8 @@ Weight Lab workspace and reuses the existing narrow `meshDebug` data API. It doe
 bind/inverse-bind evaluation, clip playback, LBS, or DQS; those phase boundaries remain unchanged.
 Version 6.46.0 adds local rigid-core/transition-shell weight blending to that workspace. This is
 authoring data for future runtime skinning, not pose evaluation or an LBS/DQS deformation preview.
+Version 6.47.0 adds a target-bone weight heatmap and allowed-bone filtering. The heatmap visualizes
+stored bind weights only; it must not be interpreted as runtime LBS/DQS deformation or pose stress.
 
 ### Phase 2 — Shared pose evaluation
 
@@ -403,6 +405,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.6 | 2026-08-06 | Recorded the target-weight heatmap and allowed-bone filtering while distinguishing stored-weight visualization from future LBS/DQS deformation preview. |
 | 0.5 | 2026-08-06 | Recorded the editor's Phase-2 rigid-core/transition-shell authoring slice while explicitly preserving bind evaluation, pose evaluation, and LBS/DQS preview as future runtime work. |
 | 0.4 | 2026-08-06 | Recorded the standalone editor's first implemented Skin Weight Lab slice while retaining bind validation and all runtime LBS/DQS work as future milestones. |
 | 0.3 | 2026-08-06 | Added the practical DQS reference page and Optimized Centers of Rotation paper as study references for DQS implementation, scale/shear, and artifacts not fully addressed by either LBS or DQS. |

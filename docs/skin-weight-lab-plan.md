@@ -1,7 +1,7 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.6**
-Status: **Phase 2 initial slice implemented**
+Document version: **0.7**
+Status: **Phase 3 initial slice implemented**
 Last updated: **2026-08-06**
 
 ## 1. Purpose
@@ -428,6 +428,13 @@ This first Phase-2 slice deliberately uses a uniform AABB shell and geometric di
 yet provide topology/adjacency smoothing, a weight heat map, per-face inclusion, or LBS/DQS posed
 deformation preview; these remain later milestones.
 
+The 6.47.0 initial Phase-3 slice adds a five-band target-bone weight heatmap over the analyzed
+region, from blue (`0`) through cyan, green, and yellow to red (`1`). An optional allowed-bone list
+also diagnoses influence references outside that list and filters them from transition-shell
+results during Apply; the target bone is always retained. Filtered results continue to be limited
+to four influences and normalized. The operation remains protected by the existing snapshot
+rollback. Topology/adjacency smoothing and posed LBS/DQS preview are still future work.
+
 ### Phase 0 — Test assets and baseline
 
 - Preserve the initial `src/test-lib/T-BONE-rato-from-mixamo.*` bundle and its four textures as the
@@ -677,6 +684,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.7 | 2026-08-06 | Recorded the first Phase-3 slice: target-bone weight heatmap, optional allowed-bone restriction, disallowed-reference diagnostics, and restriction-aware normalized blending. |
 | 0.6 | 2026-08-06 | Recorded the first Phase-2 slice: adjustable AABB transition shell, Linear/Smooth falloff, normalized four-influence blending, separate core/shell preview, outside-region preservation, and rollback verification on the 100× rat fixture. |
 | 0.5 | 2026-08-06 | Recorded the resizable layout, compact selection combo, scale-aware AABB Min/Max controls, direct AABB viewport dragging, and orbit/position/focus camera controls. |
 | 0.4 | 2026-08-06 | Recorded the first Phase-1 implementation slice: standalone editor, three cached selection modes, integrity counts, visual markers, rigid binding, save flow, and snapshot rollback, with remaining Phase-1 gaps stated explicitly. |
