@@ -774,7 +774,7 @@ local function showPanel()
                     state.allowedBones[bones[state.targetBoneIndex].name]=true
                     invalidateAnalysis()
                 end
-                tImGui.BeginChild('##swlAllowedBones',{x=190,y=115},true)
+                tImGui.BeginChild('##swlAllowedBones',{x=300,y=115},true)
                 local targetName=bones[state.targetBoneIndex].name
                 for _,bone in ipairs(bones) do
                     local isTarget=bone.name==targetName
