@@ -952,6 +952,32 @@ local function applyAbruptTransitionSmoothing()
         before.edges,after.edges,before.vertices,after.vertices),applied==0)
 end
 
+local function applyNormalizeAndLimit()
+    if not state.analysis or state.analysisDirty or #state.analysis.vertices==0 then return end
+    if not snapshotForRollback() then
+        setStatus(tLang.L('swl_snapshot_failed'),true)
+        return
+    end
+    local applied,skipped=0,0
+    for _,vertex in ipairs(state.analysis.vertices) do
+        -- Read without the optional allowed-bone filter: this standalone cleanup preserves the
+        -- selected vertex's authored influence names while removing invalid/non-positive values,
+        -- merging duplicates, retaining the strongest four, and normalizing their sum.
+        local influences=normalizedInfluences(readInfluenceMap(vertex.globalIndex,false))
+        if #influences==0 then
+            skipped=skipped+1
+        else
+            local ok,result=safeCall(function()
+                return writeInfluences(vertex.globalIndex,influences)
+            end)
+            if ok and result then applied=applied+1 else skipped=skipped+1 end
+        end
+    end
+    state.modified=state.modified or applied>0
+    invalidateAnalysis()
+    setStatus(string.format(tLang.L('swl_normalized_fmt'),applied,skipped),applied==0)
+end
+
 local function applyRigidBind()
     if not state.analysis or state.analysisDirty or #state.analysis.vertices == 0 then return end
     local bones = getBones()
@@ -1071,6 +1097,22 @@ local function showSelectionInputs()
         for _, field in ipairs(fields) do
             local edited, value = tImGui.DragFloat(field[1], b[field[2]], dragSpeed, -1000000, 1000000, '%.4f')
             if edited then b[field[2]] = value; aabbChanged = true end
+        end
+        local sizeFields={
+            {tLang.L('swl_size_x'),'minX','maxX'},
+            {tLang.L('swl_size_y'),'minY','maxY'},
+            {tLang.L('swl_size_z'),'minZ','maxZ'},
+        }
+        for _,field in ipairs(sizeFields) do
+            local currentSize=math.max(0,b[field[3]]-b[field[2]])
+            local edited,value=tImGui.DragFloat(field[1],currentSize,dragSpeed,0,2000000,'%.4f')
+            showItemTooltip(tLang.L('swl_aabb_size_tooltip'))
+            if edited then
+                local center=(b[field[2]]+b[field[3]])*0.5
+                local halfSize=math.max(0,value)*0.5
+                b[field[2]],b[field[3]]=center-halfSize,center+halfSize
+                aabbChanged=true
+            end
         end
         local shellChanged,shell=tImGui.DragFloat(tLang.L('swl_shell_width'),state.shellWidth,
             dragSpeed,0,math.max(extent*2,dragSpeed),'%.4f')
@@ -1241,6 +1283,14 @@ local function showPanel()
             elseif state.analysisDirty then
                 tImGui.TextDisabled(tLang.L('swl_analysis_required'))
             end
+            tImGui.Separator()
+            tImGui.Text(tLang.L('swl_weight_cleanup'))
+            local canNormalize=state.analysis and not state.analysisDirty and #state.analysis.vertices>0
+            tImGui.BeginDisabled(not canNormalize)
+            local normalizePressed=tImGui.Button(tLang.L('swl_normalize_limit'))
+            showItemTooltip(tLang.L('swl_normalize_limit_tooltip'))
+            if normalizePressed then applyNormalizeAndLimit() end
+            tImGui.EndDisabled()
             tImGui.Separator()
             tImGui.Text(tLang.L('swl_rigid_bind'))
             local names = {}

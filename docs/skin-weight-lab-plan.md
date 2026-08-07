@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.11**
+Document version: **0.12**
 Status: **Phase 3 diagnostics and topology smoothing implemented**
 Last updated: **2026-08-07**
 
@@ -412,10 +412,12 @@ frame-1 weights, matching the persisted weight section.
 
 The 6.45.1 interaction pass adds direct viewport dragging for the complete AABB while preserving
 explicit Min/Max controls for each axis. Numeric drag sensitivity is derived from the loaded mesh
-bounds, so the same controls remain useful for very small and very large assets. The editor panel
-is resizable, and a separate 3D camera panel exposes orbit, position, focus, reset, WASD horizontal
-movement, Page Up/Down elevation, and wheel zoom. Per-face/axis AABB resizing remains a later gizmo
-enhancement; Min/Max fields are the current precise sizing mechanism.
+bounds, so the same controls remain useful for very small and very large assets. Size X/Y/Z
+controls provide symmetric per-axis resizing around the current center by moving the negative and
+positive faces together. The editor panel is resizable, and a separate 3D camera panel exposes
+orbit, position, focus, reset, WASD horizontal movement, Page Up/Down elevation, and wheel zoom.
+Direct per-face viewport resizing remains a later gizmo enhancement; Min/Max and symmetric Size
+fields are the current precise sizing mechanisms.
 
 The 6.46.0 Phase-2 slice adds an adjustable outer transition shell around the AABB rigid core.
 Core vertices receive weight `1.0` from the target bone; shell vertices blend that target into
@@ -465,6 +467,13 @@ Strength and Iterations controls, allowed-bone filtering, four-influence normali
 one-level rollback snapshot. After the write, selection analysis and abrupt-transition diagnosis
 run again automatically, reporting before/after abrupt-edge and affected-vertex counts and
 refreshing the magenta overlay from the new weights.
+
+The standalone **Normalize and Limit** cleanup operates on every vertex in the current explicit
+analysis. It drops non-positive/non-finite weights, merges duplicate bone names, keeps the four
+strongest effective influences, and normalizes their sum to `1.0` without applying the optional
+allowed-bone filter. Vertices with no effective influence remain unchanged and are reported as
+skipped rather than receiving an invented bone. The complete operation is protected by the same
+one-level rollback snapshot.
 
 Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity within each subset,
 and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
@@ -719,6 +728,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.12 | 2026-08-07 | Added standalone analyzed-selection Normalize and Limit with invalid-weight cleanup, duplicate merging, strongest-four normalization, skipped-unweighted reporting, and rollback; added symmetric center-preserving Size X/Y/Z controls for the AABB. |
 | 0.11 | 2026-08-07 | Added targeted smoothing of diagnosed magenta vertices with shared strength/iteration controls, allowed-bone filtering, rollback, automatic re-analysis/re-diagnosis, and before/after reporting; corrected the heatmap record to six bands and an independent analysis bone. |
 | 0.10 | 2026-08-07 | Added independent, default-enabled analysis/abrupt overlay visibility controls that stay disabled until their marker data exists, plus clearer separation before rigid apply. |
 | 0.9 | 2026-08-06 | Added abrupt-transition diagnostics using normalized half-L1 edge distance, threshold/count/max reporting, magenta affected-vertex markers, and cached adjacency shared with smoothing. |
