@@ -36,6 +36,7 @@ local state = {
     selectionMode = 1, -- 1 AABB, 2 subset, 3 bone proximity
     subsetIndex = 1,
     boneIndex = 1,
+    analysisBoneIndex = 1,
     targetBoneIndex = 1,
     aabb = nil,
     analysis = nil,
@@ -437,7 +438,7 @@ local function analyzeSelection()
     local missing, invalidSum, unknown, disallowed = 0, 0, 0, 0
     local known = {}
     for _, bone in ipairs(bones) do known[bone.name] = true end
-    local analysisTarget=bones[state.targetBoneIndex]
+    local analysisTarget=bones[state.analysisBoneIndex]
     for _, vertex in ipairs(selected) do
         local targetWeight,influences=vertexWeightForBone(vertex.globalIndex,
             analysisTarget and analysisTarget.name or '')
@@ -504,7 +505,7 @@ local function loadMesh(path)
     state.modified = false
     state.analysis = nil
     state.analysisDirty = true
-    state.subsetIndex, state.boneIndex, state.targetBoneIndex = 1, 1, 1
+    state.subsetIndex, state.boneIndex, state.analysisBoneIndex, state.targetBoneIndex = 1, 1, 1, 1
     state.allowedBones={}
     state.topologyAdjacency=nil
     for _,bone in ipairs(getBones()) do state.allowedBones[bone.name]=true end
@@ -893,6 +894,26 @@ local function showSelectionInputs()
             tImGui.TextDisabled(tLang.L('swl_no_bones'))
         end
     end
+    local bones, names = getBones(), {}
+    for _, bone in ipairs(bones) do names[#names+1] = bone.name end
+    if #names > 0 then
+        state.analysisBoneIndex=math.min(state.analysisBoneIndex,#names)
+        tImGui.PushItemWidth(190)
+        local edited,value=tImGui.Combo(tLang.L('swl_analysis_bone'),state.analysisBoneIndex,names,-1)
+        showItemTooltip(tLang.L('swl_analysis_bone_tooltip'))
+        tImGui.PopItemWidth()
+        if edited then state.analysisBoneIndex=value; invalidateAnalysis() end
+    end
+    local heatmap=tImGui.Checkbox(tLang.L('swl_heatmap'),state.heatmapEnabled)
+    if heatmap~=state.heatmapEnabled then
+        state.heatmapEnabled=heatmap
+        if state.analysis then
+            local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+                state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+            rebuildAnalysisMarkers(state.analysis.core,state.analysis.shell,extent)
+        end
+    end
+    if state.heatmapEnabled then tImGui.TextDisabled(tLang.L('swl_heatmap_legend')) end
 end
 
 local function showStatusMessage()
@@ -987,20 +1008,8 @@ local function showPanel()
                 tImGui.PopItemWidth()
                 if edited then
                     state.targetBoneIndex=value
-                    state.allowedBones[bones[value].name]=true
-                    invalidateAnalysis()
                 end
             end
-            local heatmap=tImGui.Checkbox(tLang.L('swl_heatmap'),state.heatmapEnabled)
-            if heatmap~=state.heatmapEnabled then
-                state.heatmapEnabled=heatmap
-                if state.analysis then
-                    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
-                        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
-                    rebuildAnalysisMarkers(state.analysis.core,state.analysis.shell,extent)
-                end
-            end
-            if state.heatmapEnabled then tImGui.TextDisabled(tLang.L('swl_heatmap_legend')) end
             local restrict=tImGui.Checkbox(tLang.L('swl_restrict_bones'),state.restrictBones)
             if restrict~=state.restrictBones then state.restrictBones=restrict; invalidateAnalysis() end
             if state.restrictBones and #bones>0 then
@@ -1015,13 +1024,9 @@ local function showPanel()
                     invalidateAnalysis()
                 end
                 tImGui.BeginChild('##swlAllowedBones',{x=300,y=115},true)
-                local targetName=bones[state.targetBoneIndex].name
                 for _,bone in ipairs(bones) do
-                    local isTarget=bone.name==targetName
-                    tImGui.BeginDisabled(isTarget)
-                    local allowed=tImGui.Checkbox(bone.name..'##swlAllowed',isTarget or state.allowedBones[bone.name]==true)
-                    tImGui.EndDisabled()
-                    if not isTarget and allowed~=(state.allowedBones[bone.name]==true) then
+                    local allowed=tImGui.Checkbox(bone.name..'##swlAllowed',state.allowedBones[bone.name]==true)
+                    if allowed~=(state.allowedBones[bone.name]==true) then
                         state.allowedBones[bone.name]=allowed or nil
                         invalidateAnalysis()
                     end
