@@ -28,6 +28,12 @@ local state = {
     meshD = nil,
     preview = nil,
     meshVisible = true,
+    skeletonVisible = true,
+    skeletonAlwaysOnTop = true,
+    skeletonGizmo = {spheres={}, bones={}},
+    skeletonGizmoGeneration = 0,
+    analysisBoneHighlight = false,
+    analysisBoneHighlightSphere = nil,
     markersAlwaysOnTop = true,
     analysisMarkersVisible = true,
     abruptMarkersVisible = true,
@@ -287,6 +293,152 @@ local function findBone(bones, name)
     return nil
 end
 
+local function unitSphereVerts(latSegments,lonSegments)
+    latSegments,lonSegments=latSegments or 8,lonSegments or 12
+    local vertices={}
+    local function push(x,y,z)
+        vertices[#vertices+1]=x
+        vertices[#vertices+1]=y
+        vertices[#vertices+1]=z
+    end
+    local function xyz(theta,phi)
+        local sine=math.sin(theta)
+        return sine*math.cos(phi),math.cos(theta),sine*math.sin(phi)
+    end
+    for latitude=0,latSegments-1 do
+        local theta1,theta2=latitude/latSegments*math.pi,(latitude+1)/latSegments*math.pi
+        for longitude=0,lonSegments-1 do
+            local phi1,phi2=longitude/lonSegments*math.pi*2,(longitude+1)/lonSegments*math.pi*2
+            local x1,y1,z1=xyz(theta1,phi1)
+            local x2,y2,z2=xyz(theta1,phi2)
+            local x3,y3,z3=xyz(theta2,phi1)
+            local x4,y4,z4=xyz(theta2,phi2)
+            push(x1,y1,z1); push(x3,y3,z3); push(x4,y4,z4)
+            push(x1,y1,z1); push(x4,y4,z4); push(x2,y2,z2)
+        end
+    end
+    return vertices
+end
+
+local function orientedCylinderVerts(dx,dy,dz,radiusTop,radiusBottom,segments)
+    segments=segments or 8
+    local height=math.sqrt(dx*dx+dy*dy+dz*dz)
+    if height<0.0001 then return {} end
+    local ax,ay,az=dx/height,dy/height,dz/height
+    local sx,sy,sz=0,1,0
+    if math.abs(ay)>0.999 then sx,sy,sz=1,0,0 end
+    local rx,ry,rz=ay*sz-az*sy,az*sx-ax*sz,ax*sy-ay*sx
+    local rightLength=math.sqrt(rx*rx+ry*ry+rz*rz)
+    rx,ry,rz=rx/rightLength,ry/rightLength,rz/rightLength
+    local fx,fy,fz=ry*az-rz*ay,rz*ax-rx*az,rx*ay-ry*ax
+    local vertices={}
+    local function push(u,v,w)
+        vertices[#vertices+1]=u*rx+v*ax+w*fx
+        vertices[#vertices+1]=u*ry+v*ay+w*fy
+        vertices[#vertices+1]=u*rz+v*az+w*fz
+    end
+    for index=0,segments-1 do
+        local a1,a2=index/segments*math.pi*2,(index+1)/segments*math.pi*2
+        local x1b,z1b=math.cos(a1)*radiusBottom,math.sin(a1)*radiusBottom
+        local x2b,z2b=math.cos(a2)*radiusBottom,math.sin(a2)*radiusBottom
+        local x1t,z1t=math.cos(a1)*radiusTop,math.sin(a1)*radiusTop
+        local x2t,z2t=math.cos(a2)*radiusTop,math.sin(a2)*radiusTop
+        push(x1b,0,z1b); push(x2t,height,z2t); push(x2b,0,z2b)
+        push(x1b,0,z1b); push(x1t,height,z1t); push(x2t,height,z2t)
+    end
+    return vertices
+end
+
+local function visualZ(z)
+    return z==0 and 0.0001 or z
+end
+
+local function destroySkeletonVisuals()
+    for _,object in pairs(state.skeletonGizmo.spheres) do destroyObject(object) end
+    for _,object in ipairs(state.skeletonGizmo.bones) do destroyObject(object) end
+    state.skeletonGizmo={spheres={},bones={}}
+    destroyObject(state.analysisBoneHighlightSphere)
+    state.analysisBoneHighlightSphere=nil
+end
+
+local function nextSkeletonNickname(prefix)
+    state.skeletonGizmoGeneration=state.skeletonGizmoGeneration+1
+    return prefix..state.skeletonGizmoGeneration
+end
+
+local function createBoneShape(x,y,z,vertices,nickname,r,g,b,a)
+    local object=shape:new('3d',x,y,visualZ(z))
+    object:create(vertices,nil,nextSkeletonNickname(nickname))
+    object:setColor(r,g,b,a)
+    object.visible=state.skeletonVisible
+    object.alwaysOnTop=state.skeletonAlwaysOnTop
+    return object
+end
+
+local function updateSkeletonVisibility()
+    local analyzedBone=state.analysisBoneHighlight and getBones()[state.analysisBoneIndex] or nil
+    for name,object in pairs(state.skeletonGizmo.spheres) do
+        -- The highlighted sphere replaces the regular joint instead of occupying the same
+        -- surface in the same always-on-top depth pass.
+        object.visible=state.skeletonVisible and (not analyzedBone or name~=analyzedBone.name)
+    end
+    for _,object in ipairs(state.skeletonGizmo.bones) do object.visible=state.skeletonVisible end
+end
+
+local function rebuildAnalysisBoneHighlight()
+    destroyObject(state.analysisBoneHighlightSphere)
+    state.analysisBoneHighlightSphere=nil
+    if not state.analysisBoneHighlight then
+        updateSkeletonVisibility()
+        return
+    end
+    local bone=getBones()[state.analysisBoneIndex]
+    if not bone then
+        updateSkeletonVisibility()
+        return
+    end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(bone.radius or 0,extent*0.018,0.001)
+    local sphere=createBoneShape(bone.x,bone.y,bone.z,unitSphereVerts(),
+        'swl_analysis_bone_highlight_',1,1,0,0.95)
+    sphere:setScale(radius*1.6,radius*1.6,radius*1.6)
+    sphere.visible=true
+    sphere.alwaysOnTop=true
+    state.analysisBoneHighlightSphere=sphere
+    updateSkeletonVisibility()
+end
+
+local function rebuildSkeletonVisuals()
+    destroySkeletonVisuals()
+    local bones=getBones()
+    local byName={}
+    for _,bone in ipairs(bones) do byName[bone.name]=bone end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    for _,bone in ipairs(bones) do
+        local radius=math.max(bone.radius or 0,extent*0.006,0.001)
+        local sphere=createBoneShape(bone.x,bone.y,bone.z,unitSphereVerts(),
+            'swl_bone_joint_',1,0,1,0.85)
+        sphere:setScale(radius,radius,radius)
+        state.skeletonGizmo.spheres[bone.name]=sphere
+        local parent=bone.parentName and byName[bone.parentName]
+        if parent then
+            local dx,dy,dz=bone.x-parent.x,bone.y-parent.y,bone.z-parent.z
+            local parentRadius=math.max(parent.radius or 0,extent*0.006,0.001)
+            if dx*dx+dy*dy+dz*dz>0.000001 then
+                local link=createBoneShape(parent.x,parent.y,parent.z,
+                    orientedCylinderVerts(dx,dy,dz,radius*0.5,parentRadius*0.5,8),
+                    'swl_bone_link_',1,0,1,0.75)
+                state.skeletonGizmo.bones[#state.skeletonGizmo.bones+1]=link
+            end
+        end
+    end
+    rebuildAnalysisBoneHighlight()
+end
+
 local function pointSegmentDistanceSquared(p, a, b)
     local dx, dy, dz = b.x-a.x, b.y-a.y, b.z-a.z
     local lengthSquared = dx*dx + dy*dy + dz*dz
@@ -352,7 +504,7 @@ local function buildVertexMarkers(vertices, r, g, b, extent)
 end
 
 local heatmapColors = {
-    {0.1,0.25,1}, {0,0.85,1}, {0.1,1,0.25}, {1,0.9,0}, {1,0.1,0},
+    {0.1,0.25,1}, {0,0.85,1}, {0.1,1,0.25}, {1,0.9,0}, {1,0.45,0}, {1,0.1,0},
 }
 
 local function vertexWeightForBone(globalIndex,boneName)
@@ -374,15 +526,15 @@ local function rebuildAnalysisMarkers(core,shell,extent)
     state.selectionLines,state.transitionLines=nil,nil
     state.heatmapLines={}
     if not state.heatmapEnabled then
-        state.selectionLines=buildVertexMarkers(core,1,0.15,0.1,extent)
-        state.transitionLines=buildVertexMarkers(shell,1,0.75,0.1,extent)
+        state.selectionLines=buildVertexMarkers(core,1,0,1,extent)
+        state.transitionLines=buildVertexMarkers(shell,0.9,0.9,0.9,extent)
         if state.selectionLines then state.selectionLines.visible=state.analysisMarkersVisible end
         if state.transitionLines then state.transitionLines.visible=state.analysisMarkersVisible end
         return
     end
-    local buckets={{},{},{},{},{}}
+    local buckets={{},{},{},{},{},{}}
     for _,vertex in ipairs(state.analysis.vertices) do
-        local index=math.min(5,math.floor((vertex.targetWeight or 0)*5)+1)
+        local index=math.min(6,math.floor((vertex.targetWeight or 0)*6)+1)
         buckets[index][#buckets[index]+1]=vertex
     end
     for index,vertices in ipairs(buckets) do
@@ -500,6 +652,7 @@ local function loadMesh(path)
     end
     clearRollback()
     clearSelectionVisuals()
+    destroySkeletonVisuals()
     state.fileName, state.meshD = path, meshD
     state.info = meshDebug:getInfo(path)
     state.modified = false
@@ -513,6 +666,7 @@ local function loadMesh(path)
     state.meshBounds = bounds
     state.aabb = bounds
     rebuildPreview()
+    rebuildSkeletonVisuals()
     rebuildSelectionBox()
     frameCamera(bounds)
     setStatus(string.format(tLang.L('swl_loaded_fmt'), shortName(path)), false)
@@ -902,9 +1056,20 @@ local function showSelectionInputs()
         local edited,value=tImGui.Combo(tLang.L('swl_analysis_bone'),state.analysisBoneIndex,names,-1)
         showItemTooltip(tLang.L('swl_analysis_bone_tooltip'))
         tImGui.PopItemWidth()
-        if edited then state.analysisBoneIndex=value; invalidateAnalysis() end
+        tImGui.SameLine()
+        local highlight=tImGui.Checkbox(tLang.L('swl_highlight'),state.analysisBoneHighlight)
+        if highlight~=state.analysisBoneHighlight then
+            state.analysisBoneHighlight=highlight
+            rebuildAnalysisBoneHighlight()
+        end
+        if edited then
+            state.analysisBoneIndex=value
+            invalidateAnalysis()
+            rebuildAnalysisBoneHighlight()
+        end
     end
     local heatmap=tImGui.Checkbox(tLang.L('swl_heatmap'),state.heatmapEnabled)
+    showItemTooltip(tLang.L('swl_heatmap_tooltip'))
     if heatmap~=state.heatmapEnabled then
         state.heatmapEnabled=heatmap
         if state.analysis then
@@ -951,6 +1116,25 @@ local function showPanel()
             if meshVisible~=state.meshVisible then
                 state.meshVisible=meshVisible
                 if state.preview then state.preview.visible=meshVisible end
+            end
+            local skeletonVisible=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.skeletonVisible)
+            if skeletonVisible~=state.skeletonVisible then
+                state.skeletonVisible=skeletonVisible
+                updateSkeletonVisibility()
+            end
+            tImGui.SameLine()
+            tImGui.BeginDisabled(not state.skeletonVisible)
+            local skeletonAlwaysOnTop=tImGui.Checkbox(tLang.L('swl_skeleton_always_on_top'),
+                state.skeletonAlwaysOnTop)
+            tImGui.EndDisabled()
+            if skeletonAlwaysOnTop~=state.skeletonAlwaysOnTop then
+                state.skeletonAlwaysOnTop=skeletonAlwaysOnTop
+                for _,object in pairs(state.skeletonGizmo.spheres) do
+                    object.alwaysOnTop=skeletonAlwaysOnTop
+                end
+                for _,object in ipairs(state.skeletonGizmo.bones) do
+                    object.alwaysOnTop=skeletonAlwaysOnTop
+                end
             end
             local markersAlwaysOnTop=tImGui.Checkbox(tLang.L('swl_markers_always_on_top'),
                 state.markersAlwaysOnTop)

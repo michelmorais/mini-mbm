@@ -215,7 +215,7 @@
     6.46.0 Added the Skin Weight Lab Phase-2 transition shell with adjustable width, Linear/Smooth falloff, normalized four-influence blending, separate rigid-core/shell previews, outside-region preservation, and snapshot rollback.
     6.47.0 Started Skin Weight Lab Phase 3 with a target-bone weight heatmap, optional allowed-bone filtering, vertical diagnostics, compact selection/bone controls, mesh-preview visibility control, optional always-on-top analysis markers, aligned 3D preview/selection coordinates, and disallowed-influence diagnostics for analyzed regions.
     6.48.0 Added local triangle-adjacency skin-weight smoothing with configurable strength/iterations, stable per-iteration snapshots, rigid-core protection, allowed-bone filtering, normalized four-influence output, and rollback.
-    6.49.0 Added abrupt neighbor-weight transition diagnostics with a normalized threshold, edge/vertex/max-difference reporting, independently toggleable analysis/abrupt overlays, magenta always-on-top markers, cached topology adjacency shared with smoothing, workflow-grouped editor sections/status/history, contextual tooltips, and independent analysis/rigid-target bones.
+    6.49.0 Added abrupt neighbor-weight transition diagnostics with a normalized threshold, edge/vertex/max-difference reporting, independently toggleable analysis/abrupt overlays, magenta always-on-top markers, cached topology adjacency shared with smoothing, workflow-grouped editor sections/status/history, contextual tooltips, independent analysis/rigid-target bones, skeleton visualization, collision-free analysis-bone highlighting, and a conventional six-band cold-to-hot weight palette.
 */
 #define MBM_VERSION "6.49.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
