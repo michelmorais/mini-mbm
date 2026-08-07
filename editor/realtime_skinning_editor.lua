@@ -34,6 +34,8 @@ local state = {
     skeletonGizmoGeneration = 0,
     analysisBoneHighlight = false,
     analysisBoneHighlightSphere = nil,
+    targetBoneHighlight = false,
+    targetBoneHighlightSphere = nil,
     markersAlwaysOnTop = true,
     analysisMarkersVisible = true,
     abruptMarkersVisible = true,
@@ -359,6 +361,8 @@ local function destroySkeletonVisuals()
     state.skeletonGizmo={spheres={},bones={}}
     destroyObject(state.analysisBoneHighlightSphere)
     state.analysisBoneHighlightSphere=nil
+    destroyObject(state.targetBoneHighlightSphere)
+    state.targetBoneHighlightSphere=nil
 end
 
 local function nextSkeletonNickname(prefix)
@@ -377,10 +381,13 @@ end
 
 local function updateSkeletonVisibility()
     local analyzedBone=state.analysisBoneHighlight and getBones()[state.analysisBoneIndex] or nil
+    local targetBone=state.targetBoneHighlight and getBones()[state.targetBoneIndex] or nil
     for name,object in pairs(state.skeletonGizmo.spheres) do
-        -- The highlighted sphere replaces the regular joint instead of occupying the same
-        -- surface in the same always-on-top depth pass.
-        object.visible=state.skeletonVisible and (not analyzedBone or name~=analyzedBone.name)
+        -- Highlight spheres replace their regular joints instead of occupying the same surface
+        -- in the same always-on-top depth pass.
+        local highlighted=(analyzedBone and name==analyzedBone.name) or
+            (targetBone and name==targetBone.name)
+        object.visible=state.skeletonVisible and not highlighted
     end
     for _,object in ipairs(state.skeletonGizmo.bones) do object.visible=state.skeletonVisible end
 end
@@ -407,6 +414,31 @@ local function rebuildAnalysisBoneHighlight()
     sphere.visible=true
     sphere.alwaysOnTop=true
     state.analysisBoneHighlightSphere=sphere
+    updateSkeletonVisibility()
+end
+
+local function rebuildTargetBoneHighlight()
+    destroyObject(state.targetBoneHighlightSphere)
+    state.targetBoneHighlightSphere=nil
+    if not state.targetBoneHighlight then
+        updateSkeletonVisibility()
+        return
+    end
+    local bone=getBones()[state.targetBoneIndex]
+    if not bone then
+        updateSkeletonVisibility()
+        return
+    end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(bone.radius or 0,extent*0.018,0.001)
+    local sphere=createBoneShape(bone.x,bone.y,bone.z,unitSphereVerts(),
+        'swl_target_bone_highlight_',0.1,1,0.2,0.9)
+    sphere:setScale(radius*1.75,radius*1.75,radius*1.75)
+    sphere.visible=true
+    sphere.alwaysOnTop=true
+    state.targetBoneHighlightSphere=sphere
     updateSkeletonVisibility()
 end
 
@@ -437,6 +469,7 @@ local function rebuildSkeletonVisuals()
         end
     end
     rebuildAnalysisBoneHighlight()
+    rebuildTargetBoneHighlight()
 end
 
 local function pointSegmentDistanceSquared(p, a, b)
@@ -822,26 +855,29 @@ local function diagnoseAbruptTransitions()
     end
     local vertices={}
     for index in pairs(affected) do vertices[#vertices+1]=points[index] end
-    state.abruptDiagnostics={edges=abruptEdges,vertices=#vertices,maxDistance=maxDistance}
+    state.abruptDiagnostics={edges=abruptEdges,vertices=#vertices,maxDistance=maxDistance,
+        affectedVertices=vertices}
     destroyObject(state.abruptLines)
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     state.abruptLines=buildVertexMarkers(vertices,1,0,1,extent)
     if state.abruptLines then state.abruptLines.visible=state.abruptMarkersVisible end
     setStatus(string.format(tLang.L('swl_abrupt_complete_fmt'),abruptEdges,#vertices),false)
+    return state.abruptDiagnostics
 end
 
-local function applyLocalSmoothing()
-    if not state.analysis or state.analysisDirty then return end
+local function smoothVertices(vertices)
     local okMode,mode=safeCall(function() return state.meshD:getModeDraw() end)
     if not okMode or mode~='TRIANGLES' then
         setStatus(tLang.L('swl_smoothing_requires_triangles'),true)
-        return
+        return nil
     end
-    local vertices=#state.analysis.shell>0 and state.analysis.shell or state.analysis.vertices
-    if #vertices==0 then return end
+    if #vertices==0 then return nil end
     local adjacency=buildTopologyAdjacency()
-    if not snapshotForRollback() then setStatus(tLang.L('swl_snapshot_failed'),true); return end
+    if not snapshotForRollback() then
+        setStatus(tLang.L('swl_snapshot_failed'),true)
+        return nil
+    end
     local editable={}
     for _,vertex in ipairs(vertices) do editable[vertex.globalIndex]=true end
     local needed={}
@@ -889,8 +925,31 @@ local function applyLocalSmoothing()
         end
     end
     state.modified=state.modified or applied>0
+    return applied
+end
+
+local function applyLocalSmoothing()
+    if not state.analysis or state.analysisDirty then return end
+    local vertices=#state.analysis.shell>0 and state.analysis.shell or state.analysis.vertices
+    local applied=smoothVertices(vertices)
+    if applied==nil then return end
     invalidateAnalysis()
     setStatus(string.format(tLang.L('swl_smoothed_fmt'),applied,state.smoothIterations),applied==0)
+end
+
+local function applyAbruptTransitionSmoothing()
+    local before=state.abruptDiagnostics
+    if not before or not before.affectedVertices or #before.affectedVertices==0 then return end
+    local applied=smoothVertices(before.affectedVertices)
+    if applied==nil then return end
+
+    -- Rebuild both layers from the edited weights so the magenta markers and summary immediately
+    -- describe the result, not the pre-operation diagnosis.
+    analyzeSelection()
+    local after=diagnoseAbruptTransitions()
+    if not after then return end
+    setStatus(string.format(tLang.L('swl_abrupt_smoothed_fmt'),applied,state.smoothIterations,
+        before.edges,after.edges,before.vertices,after.vertices),applied==0)
 end
 
 local function applyRigidBind()
@@ -1057,7 +1116,8 @@ local function showSelectionInputs()
         showItemTooltip(tLang.L('swl_analysis_bone_tooltip'))
         tImGui.PopItemWidth()
         tImGui.SameLine()
-        local highlight=tImGui.Checkbox(tLang.L('swl_highlight'),state.analysisBoneHighlight)
+        local highlight=tImGui.Checkbox(tLang.L('swl_highlight')..'##swlAnalysisBoneHighlight',
+            state.analysisBoneHighlight)
         if highlight~=state.analysisBoneHighlight then
             state.analysisBoneHighlight=highlight
             rebuildAnalysisBoneHighlight()
@@ -1190,8 +1250,16 @@ local function showPanel()
                 tImGui.PushItemWidth(190)
                 local edited, value = tImGui.Combo(tLang.L('swl_target_bone'), state.targetBoneIndex, names, -1)
                 tImGui.PopItemWidth()
+                tImGui.SameLine()
+                local highlight=tImGui.Checkbox(tLang.L('swl_highlight')..'##swlTargetBoneHighlight',
+                    state.targetBoneHighlight)
+                if highlight~=state.targetBoneHighlight then
+                    state.targetBoneHighlight=highlight
+                    rebuildTargetBoneHighlight()
+                end
                 if edited then
                     state.targetBoneIndex=value
+                    rebuildTargetBoneHighlight()
                 end
             end
             local restrict=tImGui.Checkbox(tLang.L('swl_restrict_bones'),state.restrictBones)
@@ -1257,13 +1325,20 @@ local function showPanel()
                 destroyObject(state.abruptLines); state.abruptLines=nil
             end
             tImGui.BeginDisabled(not canSmooth)
-            if tImGui.Button(tLang.L('swl_diagnose_transitions')) then diagnoseAbruptTransitions() end
+            local diagnosePressed=tImGui.Button(tLang.L('swl_diagnose_transitions'))
+            showItemTooltip(tLang.L('swl_diagnose_transitions_tooltip'))
+            if diagnosePressed then diagnoseAbruptTransitions() end
             tImGui.EndDisabled()
             if state.abruptDiagnostics then
                 local diagnostic=state.abruptDiagnostics
                 tImGui.Text(string.format(tLang.L('swl_abrupt_result_fmt'),diagnostic.edges,
                     diagnostic.vertices,diagnostic.maxDistance))
                 tImGui.TextDisabled(tLang.L('swl_abrupt_marker_hint'))
+                tImGui.BeginDisabled(diagnostic.vertices==0)
+                local smoothAbruptPressed=tImGui.Button(tLang.L('swl_smooth_abrupt_transitions'))
+                showItemTooltip(tLang.L('swl_smooth_abrupt_transitions_tooltip'))
+                if smoothAbruptPressed then applyAbruptTransitionSmoothing() end
+                tImGui.EndDisabled()
             end
             tImGui.Separator()
             tImGui.Text(tLang.L('swl_history'))

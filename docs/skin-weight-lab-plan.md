@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.10**
+Document version: **0.11**
 Status: **Phase 3 diagnostics and topology smoothing implemented**
 Last updated: **2026-08-07**
 
@@ -428,8 +428,9 @@ This first Phase-2 slice deliberately uses a uniform AABB shell and geometric di
 yet provide topology/adjacency smoothing, a weight heat map, per-face inclusion, or LBS/DQS posed
 deformation preview; these remain later milestones.
 
-The 6.47.0 initial Phase-3 slice adds a five-band target-bone weight heatmap over the analyzed
-region, from blue (`0`) through cyan, green, and yellow to red (`1`). An optional allowed-bone list
+The initial Phase-3 heatmap now uses six conventional cold-to-hot bands over the analyzed region,
+from blue (`0`) through cyan, green, yellow, and orange to red (`1`). Its analysis bone is
+independent from the rigid-bind target bone. An optional allowed-bone list
 also diagnoses influence references outside that list and filters them from transition-shell
 results during Apply; the target bone is always retained. Filtered results continue to be limited
 to four influences and normalized. The operation remains protected by the existing snapshot
@@ -456,6 +457,14 @@ weights without allowed-bone filtering and never modifies the mesh. It shares a 
 adjacency with smoothing, so repeated operations do not rebuild triangle connectivity. Analysis
 and abrupt-transition overlays have independent visibility controls; each control remains visibly
 disabled until its corresponding marker set exists.
+
+The follow-up targeted repair stores the diagnostic's actual affected-vertex set rather than only
+its counts. **Smooth Detected Transitions** edits exactly those magenta vertices, while their
+one-ring triangle neighbors participate as read-only averaging inputs. It reuses the existing
+Strength and Iterations controls, allowed-bone filtering, four-influence normalization, and
+one-level rollback snapshot. After the write, selection analysis and abrupt-transition diagnosis
+run again automatically, reporting before/after abrupt-edge and affected-vertex counts and
+refreshing the magenta overlay from the new weights.
 
 Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity within each subset,
 and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
@@ -710,6 +719,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.11 | 2026-08-07 | Added targeted smoothing of diagnosed magenta vertices with shared strength/iteration controls, allowed-bone filtering, rollback, automatic re-analysis/re-diagnosis, and before/after reporting; corrected the heatmap record to six bands and an independent analysis bone. |
 | 0.10 | 2026-08-07 | Added independent, default-enabled analysis/abrupt overlay visibility controls that stay disabled until their marker data exists, plus clearer separation before rigid apply. |
 | 0.9 | 2026-08-06 | Added abrupt-transition diagnostics using normalized half-L1 edge distance, threshold/count/max reporting, magenta affected-vertex markers, and cached adjacency shared with smoothing. |
 | 0.8 | 2026-08-06 | Recorded local one-ring topology smoothing with strength/iteration controls, Jacobi snapshots, rigid-core protection, allowed-bone filtering, four-weight normalization, rollback, and duplicate-seam limitations. |
