@@ -29,6 +29,8 @@ local state = {
     preview = nil,
     meshVisible = true,
     markersAlwaysOnTop = true,
+    analysisMarkersVisible = true,
+    abruptMarkersVisible = true,
     info = nil,
     modified = false,
     selectionMode = 1, -- 1 AABB, 2 subset, 3 bone proximity
@@ -373,6 +375,8 @@ local function rebuildAnalysisMarkers(core,shell,extent)
     if not state.heatmapEnabled then
         state.selectionLines=buildVertexMarkers(core,1,0.15,0.1,extent)
         state.transitionLines=buildVertexMarkers(shell,1,0.75,0.1,extent)
+        if state.selectionLines then state.selectionLines.visible=state.analysisMarkersVisible end
+        if state.transitionLines then state.transitionLines.visible=state.analysisMarkersVisible end
         return
     end
     local buckets={{},{},{},{},{}}
@@ -383,7 +387,10 @@ local function rebuildAnalysisMarkers(core,shell,extent)
     for index,vertices in ipairs(buckets) do
         local color=heatmapColors[index]
         local marker=buildVertexMarkers(vertices,color[1],color[2],color[3],extent)
-        if marker then state.heatmapLines[#state.heatmapLines+1]=marker end
+        if marker then
+            marker.visible=state.analysisMarkersVisible
+            state.heatmapLines[#state.heatmapLines+1]=marker
+        end
     end
 end
 
@@ -665,6 +672,7 @@ local function diagnoseAbruptTransitions()
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     state.abruptLines=buildVertexMarkers(vertices,1,0,1,extent)
+    if state.abruptLines then state.abruptLines.visible=state.abruptMarkersVisible end
     setStatus(string.format(tLang.L('swl_abrupt_complete_fmt'),abruptEdges,#vertices),false)
 end
 
@@ -813,10 +821,21 @@ local function showMenu()
     tImGui.EndMainMenuBar()
 end
 
+local function showItemTooltip(text)
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        -- Tooltip windows have no reliable wrap width in this ImGui binding.
+        -- Localized tooltip strings use explicit line breaks instead.
+        tImGui.Text(text)
+        tImGui.EndTooltip()
+    end
+end
+
 local function showSelectionInputs()
     local labels = {tLang.L('swl_selection_aabb'), tLang.L('swl_selection_subset'), tLang.L('swl_selection_bone')}
     tImGui.PushItemWidth(190)
     local changed, mode = tImGui.Combo(tLang.L('swl_selection_method'), state.selectionMode, labels, -1)
+    showItemTooltip(tLang.L('swl_selection_method_tooltip'))
     tImGui.PopItemWidth()
     if changed then
         state.selectionMode = mode
@@ -876,6 +895,16 @@ local function showSelectionInputs()
     end
 end
 
+local function showStatusMessage()
+    if not state.status then return end
+    tImGui.Separator()
+    if state.statusError then
+        tImGui.TextColored({r=1,g=0.3,b=0.2,a=1},state.status)
+    else
+        tImGui.TextWrapped(state.status)
+    end
+end
+
 local function showPanel()
     local _, screenH = mbm.getRealSizeScreen()
     tImGui.SetNextWindowPos({x=0,y=22}, tImGui.Flags('ImGuiCond_Once'))
@@ -911,7 +940,29 @@ local function showPanel()
                 for _,marker in ipairs(state.heatmapLines) do marker.alwaysOnTop=markersAlwaysOnTop end
                 if state.abruptLines then state.abruptLines.alwaysOnTop=markersAlwaysOnTop end
             end
+            local hasAnalysisMarkers=state.selectionLines~=nil or state.transitionLines~=nil or
+                #state.heatmapLines>0
+            tImGui.BeginDisabled(not hasAnalysisMarkers)
+            local analysisMarkersVisible=tImGui.Checkbox(tLang.L('swl_show_analysis_markers'),
+                state.analysisMarkersVisible)
+            if analysisMarkersVisible~=state.analysisMarkersVisible then
+                state.analysisMarkersVisible=analysisMarkersVisible
+                if state.selectionLines then state.selectionLines.visible=analysisMarkersVisible end
+                if state.transitionLines then state.transitionLines.visible=analysisMarkersVisible end
+                for _,marker in ipairs(state.heatmapLines) do marker.visible=analysisMarkersVisible end
+            end
+            tImGui.EndDisabled()
+            tImGui.BeginDisabled(state.abruptLines==nil)
+            local abruptMarkersVisible=tImGui.Checkbox(tLang.L('swl_show_abrupt_markers'),
+                state.abruptMarkersVisible)
+            if abruptMarkersVisible~=state.abruptMarkersVisible then
+                state.abruptMarkersVisible=abruptMarkersVisible
+                if state.abruptLines then state.abruptLines.visible=abruptMarkersVisible end
+            end
+            tImGui.EndDisabled()
+            showStatusMessage()
             tImGui.Separator()
+            tImGui.Text(tLang.L('swl_selection_analysis'))
             showSelectionInputs()
             if tImGui.Button(tLang.L('swl_analyze')) then analyzeSelection() end
             tImGui.SameLine()
@@ -977,14 +1028,26 @@ local function showPanel()
                 end
                 tImGui.EndChild()
             end
+            local canApply=state.analysis and not state.analysisDirty and
+                #state.analysis.vertices>0 and #bones>0
+            tImGui.BeginDisabled(not canApply)
+            local applyRigidPressed=tImGui.Button(state.selectionMode==1 and state.shellWidth>0 and
+                    tLang.L('swl_apply_transition') or tLang.L('swl_apply_rigid'))
+            showItemTooltip(tLang.L('swl_apply_rigid_tooltip'))
+            if applyRigidPressed then
+                applyRigidBind()
+            end
+            tImGui.EndDisabled()
             tImGui.Separator()
             tImGui.Text(tLang.L('swl_local_smoothing'))
             tImGui.PushItemWidth(190)
             local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_smooth_strength'),
                 state.smoothStrength,0,1,'%.2f')
+            showItemTooltip(tLang.L('swl_smooth_strength_tooltip'))
             if strengthChanged then state.smoothStrength=strength end
             local iterationsChanged,iterations=tImGui.SliderInt(tLang.L('swl_smooth_iterations'),
                 state.smoothIterations,1,10)
+            showItemTooltip(tLang.L('swl_smooth_iterations_tooltip'))
             if iterationsChanged then state.smoothIterations=iterations end
             tImGui.PopItemWidth()
             local canSmooth=state.analysis and not state.analysisDirty and #state.analysis.vertices>0
@@ -997,6 +1060,7 @@ local function showPanel()
             tImGui.PushItemWidth(190)
             local thresholdChanged,threshold=tImGui.SliderFloat(tLang.L('swl_abrupt_threshold'),
                 state.abruptThreshold,0.05,1,'%.2f')
+            showItemTooltip(tLang.L('swl_abrupt_threshold_tooltip'))
             tImGui.PopItemWidth()
             if thresholdChanged then
                 state.abruptThreshold=threshold
@@ -1012,26 +1076,15 @@ local function showPanel()
                     diagnostic.vertices,diagnostic.maxDistance))
                 tImGui.TextDisabled(tLang.L('swl_abrupt_marker_hint'))
             end
-            local canApply = state.analysis and not state.analysisDirty and #state.analysis.vertices > 0 and #bones > 0
-            tImGui.BeginDisabled(not canApply)
-            if tImGui.Button(state.selectionMode==1 and state.shellWidth>0 and tLang.L('swl_apply_transition') or
-                    tLang.L('swl_apply_rigid')) then applyRigidBind() end
-            tImGui.EndDisabled()
-            tImGui.SameLine()
+            tImGui.Separator()
+            tImGui.Text(tLang.L('swl_history'))
             tImGui.BeginDisabled(state.rollbackPath == nil)
             if tImGui.Button(tLang.L('swl_revert')) then revertLast() end
             tImGui.EndDisabled()
             tImGui.Separator()
             tImGui.TextDisabled(tLang.L('swl_phase3_notice'))
         end
-        if state.status then
-            tImGui.Separator()
-            if state.statusError then
-                tImGui.TextColored({r=1,g=0.3,b=0.2,a=1}, state.status)
-            else
-                tImGui.TextWrapped(state.status)
-            end
-        end
+        if not state.meshD then showStatusMessage() end
     end
     tImGui.End()
 end

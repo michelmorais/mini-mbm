@@ -1,8 +1,8 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.9**
+Document version: **0.10**
 Status: **Phase 3 diagnostics and topology smoothing implemented**
-Last updated: **2026-08-06**
+Last updated: **2026-08-07**
 
 ## 1. Purpose
 
@@ -453,7 +453,9 @@ distance between its two complete weight vectors. This produces a normalized dif
 adjustable threshold reports abrupt-edge count, unique affected-vertex count, and maximum observed
 difference; affected vertices receive magenta always-on-top markers. The diagnostic reads stored
 weights without allowed-bone filtering and never modifies the mesh. It shares a cached per-mesh
-adjacency with smoothing, so repeated operations do not rebuild triangle connectivity.
+adjacency with smoothing, so repeated operations do not rebuild triangle connectivity. Analysis
+and abrupt-transition overlays have independent visibility controls; each control remains visibly
+disabled until its corresponding marker set exists.
 
 Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity within each subset,
 and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
@@ -708,6 +710,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.10 | 2026-08-07 | Added independent, default-enabled analysis/abrupt overlay visibility controls that stay disabled until their marker data exists, plus clearer separation before rigid apply. |
 | 0.9 | 2026-08-06 | Added abrupt-transition diagnostics using normalized half-L1 edge distance, threshold/count/max reporting, magenta affected-vertex markers, and cached adjacency shared with smoothing. |
 | 0.8 | 2026-08-06 | Recorded local one-ring topology smoothing with strength/iteration controls, Jacobi snapshots, rigid-core protection, allowed-bone filtering, four-weight normalization, rollback, and duplicate-seam limitations. |
 | 0.7 | 2026-08-06 | Recorded the first Phase-3 slice: target-bone weight heatmap, optional allowed-bone restriction, disallowed-reference diagnostics, and restriction-aware normalized blending. |
