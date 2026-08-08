@@ -220,8 +220,9 @@
     6.49.2 Kept Skin Weight Lab analysis valid while editing allowed bones and added Clear All, persistent selected-bone highlighting, temporary hover highlighting, and operation-change highlight cleanup.
     6.49.3 Added contextual allowed-bone guidance based on per-bone heatmap inspection and clarified the AABB vertex-selection semantics.
     6.50.0 Added independent enablement and width for all six Skin Weight Lab AABB transition faces, with asymmetric outer preview and crossed-face-aware Linear/Smooth falloff.
+    6.50.1 Added an inline Normalize and Limit operation report with analyzed/corrected/already-valid/skipped/failed counts and stopped rewriting already-valid vertices.
 */
-#define MBM_VERSION "6.50.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.50.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

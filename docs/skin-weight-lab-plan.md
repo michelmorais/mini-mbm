@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.17**
+Document version: **0.18**
 Status: **Rigid-cavity milestone validated; Phase 3 diagnostics and topology smoothing implemented**
 Last updated: **2026-08-08**
 
@@ -500,6 +500,14 @@ allowed-bone filter. Vertices with no effective influence remain unchanged and a
 skipped rather than receiving an invented bone. The complete operation is protected by the same
 one-level rollback snapshot.
 
+The operation now performs a preflight comparison and writes only vertices that actually require
+cleanup; already-valid vertices are not rewritten. Its report remains visible directly below the
+button and separates analyzed, corrected, already valid, skipped-without-influence, and failed
+counts. This makes a healthy Mixamo mesh an explicit no-op rather than misleadingly reporting every
+selected vertex as normalized. The controlled invalid-weight fixture is expected to report three
+corrections, then zero non-normalized vertices on the next analysis, with rollback restoring the
+original three invalid sums.
+
 The editor panel now presents the workflow as three numbered, visually separated blocks:
 **1. Visualization**, **2. Selection and Analysis**, and **3. Operation**. The Operation block
 starts with an explicit action selector and displays only the controls relevant to Inspect
@@ -790,6 +798,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.18 | 2026-08-08 | Added a persistent local Normalize and Limit report with analyzed/corrected/already-valid/skipped/failed counts, and changed cleanup to avoid rewriting vertices that are already valid. |
 | 0.17 | 2026-08-08 | Implemented independent enablement and width for all six AABB transition faces, asymmetric outer preview, crossed-face blocking, and normalized edge/corner falloff; retained protected volumes and topology rings as future work pending Mixamo validation. |
 | 0.16 | 2026-08-08 | Accepted the abdominal rigid-core Mixamo milestone; recorded hard-boundary lateral separation and over-broad-transition chin deformation; prioritized selective per-face transition widths/enables, with protected volumes and topology-ring expansion as follow-ups. |
 | 0.15 | 2026-08-08 | Recorded the first neck-smoothing result and exported-FBX integrity inspection; added allowed-bone guidance based on per-bone heatmap inspection and clarified that AABB selects vertices rather than joint positions. |

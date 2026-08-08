@@ -41,6 +41,7 @@ local state = {
     abruptMarkersVisible = true,
     info = nil,
     modified = false,
+    normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
     selectionMode = 1, -- 1 AABB, 2 subset, 3 bone proximity
     subsetIndex = 1,
@@ -731,6 +732,7 @@ local function loadMesh(path)
     state.fileName, state.meshD = path, meshD
     state.info = meshDebug:getInfo(path)
     state.modified = false
+    state.normalizeReport=nil
     state.analysis = nil
     state.analysisDirty = true
     state.subsetIndex, state.boneIndex, state.analysisBoneIndex, state.targetBoneIndex = 1, 1, 1, 1
@@ -998,28 +1000,54 @@ end
 
 local function applyNormalizeAndLimit()
     if not state.analysis or state.analysisDirty or #state.analysis.vertices==0 then return end
-    if not snapshotForRollback() then
+    local jobs,unchanged,skipped,readFailed={},0,0,0
+    for _,vertex in ipairs(state.analysis.vertices) do
+        local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
+            return state.meshD:getVertexWeight(vertex.globalIndex)
+        end)
+        if not ok then
+            readFailed=readFailed+1
+        else
+            local weightMap,seen,sum,effective,needsCleanup={}, {},0,0,false
+            for _,pair in ipairs({{n1,w1},{n2,w2},{n3,w3},{n4,w4}}) do
+                local name,weight=pair[1],tonumber(pair[2]) or 0
+                if name then
+                    if weight<=0 or weight~=weight or weight==math.huge or weight==-math.huge then
+                        needsCleanup=true
+                    else
+                        if seen[name] then needsCleanup=true end
+                        seen[name]=true
+                        effective=effective+1
+                        sum=sum+weight
+                        weightMap[name]=(weightMap[name] or 0)+weight
+                    end
+                end
+            end
+            local influences=normalizedInfluences(weightMap)
+            if #influences==0 then
+                skipped=skipped+1
+            elseif needsCleanup or effective>4 or math.abs(sum-1)>0.001 then
+                jobs[#jobs+1]={index=vertex.globalIndex,influences=influences}
+            else
+                unchanged=unchanged+1
+            end
+        end
+    end
+    if #jobs>0 and not snapshotForRollback() then
         setStatus(tLang.L('swl_snapshot_failed'),true)
         return
     end
-    local applied,skipped=0,0
-    for _,vertex in ipairs(state.analysis.vertices) do
-        -- Read without the optional allowed-bone filter: this standalone cleanup preserves the
-        -- selected vertex's authored influence names while removing invalid/non-positive values,
-        -- merging duplicates, retaining the strongest four, and normalizing their sum.
-        local influences=normalizedInfluences(readInfluenceMap(vertex.globalIndex,false))
-        if #influences==0 then
-            skipped=skipped+1
-        else
-            local ok,result=safeCall(function()
-                return writeInfluences(vertex.globalIndex,influences)
-            end)
-            if ok and result then applied=applied+1 else skipped=skipped+1 end
-        end
+    local applied,writeFailed=0,0
+    for _,job in ipairs(jobs) do
+        local ok,result=safeCall(function() return writeInfluences(job.index,job.influences) end)
+        if ok and result then applied=applied+1 else writeFailed=writeFailed+1 end
     end
+    local failed=readFailed+writeFailed
     state.modified=state.modified or applied>0
-    invalidateAnalysis()
-    setStatus(string.format(tLang.L('swl_normalized_fmt'),applied,skipped),applied==0)
+    state.normalizeReport={total=#state.analysis.vertices,corrected=applied,unchanged=unchanged,
+        skipped=skipped,failed=failed}
+    if applied>0 then invalidateAnalysis() end
+    setStatus(string.format(tLang.L('swl_normalized_fmt'),applied,unchanged,skipped,failed),failed>0)
 end
 
 local function applyRigidBind()
@@ -1057,6 +1085,7 @@ local function revertLast()
     local restoredModified = state.rollbackModified == true
     clearRollback()
     state.modified = restoredModified
+    state.normalizeReport=nil
     invalidateAnalysis()
     rebuildSelectionBox()
     setStatus(tLang.L('swl_reverted'), false)
@@ -1500,6 +1529,12 @@ local function showPanel()
             showItemTooltip(tLang.L('swl_normalize_limit_tooltip'))
             if normalizePressed then applyNormalizeAndLimit() end
             tImGui.EndDisabled()
+            if state.normalizeReport then
+                local report=state.normalizeReport
+                tImGui.TextColored({r=0.25,g=0.80,b=1,a=1},tLang.L('swl_last_report'))
+                tImGui.Text(string.format(tLang.L('swl_normalize_report_fmt'),report.total,
+                    report.corrected,report.unchanged,report.skipped,report.failed))
+            end
             elseif state.operationMode==2 then
             tImGui.Text(tLang.L('swl_rigid_bind'))
             local names = {}
