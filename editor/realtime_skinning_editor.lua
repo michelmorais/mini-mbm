@@ -62,6 +62,8 @@ local state = {
     heatmapEnabled = true,
     restrictBones = false,
     allowedBones = {},
+    allowedBonesHighlight = false,
+    hoveredAllowedBone = nil,
     smoothStrength = 0.5,
     smoothIterations = 1,
     abruptThreshold = 0.35,
@@ -393,6 +395,18 @@ local function updateSkeletonVisibility()
     for _,object in ipairs(state.skeletonGizmo.bones) do object.visible=state.skeletonVisible end
 end
 
+local function updateAllowedBoneColors()
+    for name,object in pairs(state.skeletonGizmo.spheres) do
+        if name==state.hoveredAllowedBone then
+            object:setColor(1,0.45,0.05,1)
+        elseif state.allowedBonesHighlight and state.allowedBones[name] then
+            object:setColor(0.1,0.85,1,0.95)
+        else
+            object:setColor(1,0,1,0.85)
+        end
+    end
+end
+
 local function rebuildAnalysisBoneHighlight()
     destroyObject(state.analysisBoneHighlightSphere)
     state.analysisBoneHighlightSphere=nil
@@ -694,6 +708,8 @@ local function loadMesh(path)
     state.analysisDirty = true
     state.subsetIndex, state.boneIndex, state.analysisBoneIndex, state.targetBoneIndex = 1, 1, 1, 1
     state.allowedBones={}
+    state.allowedBonesHighlight=false
+    state.hoveredAllowedBone=nil
     state.topologyAdjacency=nil
     for _,bone in ipairs(getBones()) do state.allowedBones[bone.name]=true end
     local bounds = computeAABB(meshD)
@@ -1200,32 +1216,78 @@ local function showSectionTitle(key)
     tImGui.TextColored(sectionTitleColor,tLang.L(key))
 end
 
+local function refreshAllowedBoneDiagnostics()
+    if not state.analysis then updateAllowedBoneColors(); return end
+    local disallowed=0
+    if state.restrictBones then
+        for _,vertex in ipairs(state.analysis.vertices) do
+            local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
+                return state.meshD:getVertexWeight(vertex.globalIndex)
+            end)
+            if ok then
+                for _,pair in ipairs({{n1,w1},{n2,w2},{n3,w3},{n4,w4}}) do
+                    if pair[1] and (tonumber(pair[2]) or 0)>0 and not state.allowedBones[pair[1]] then
+                        disallowed=disallowed+1
+                    end
+                end
+            end
+        end
+    end
+    state.analysis.disallowed=disallowed
+    updateAllowedBoneColors()
+end
+
 local function showBoneRestrictions(bones,showTargetOnly)
     local restrict=tImGui.Checkbox(tLang.L('swl_restrict_bones'),state.restrictBones)
-    if restrict~=state.restrictBones then state.restrictBones=restrict; invalidateAnalysis() end
-    if not state.restrictBones or #bones==0 then return end
+    if restrict~=state.restrictBones then
+        state.restrictBones=restrict
+        refreshAllowedBoneDiagnostics()
+    end
+    if not state.restrictBones or #bones==0 then
+        state.hoveredAllowedBone=nil
+        updateAllowedBoneColors()
+        return
+    end
+    local highlight=tImGui.Checkbox(tLang.L('swl_highlight_allowed_bones'),state.allowedBonesHighlight)
+    showItemTooltip(tLang.L('swl_highlight_allowed_bones_tooltip'))
+    if highlight~=state.allowedBonesHighlight then
+        state.allowedBonesHighlight=highlight
+        if not highlight then state.hoveredAllowedBone=nil end
+        updateAllowedBoneColors()
+    end
     if tImGui.Button(tLang.L('swl_allow_all')) then
         for _,bone in ipairs(bones) do state.allowedBones[bone.name]=true end
-        invalidateAnalysis()
+        refreshAllowedBoneDiagnostics()
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('swl_clear_all')) then
+        state.allowedBones={}
+        refreshAllowedBoneDiagnostics()
     end
     if showTargetOnly then
         tImGui.SameLine()
         if tImGui.Button(tLang.L('swl_target_only')) then
             state.allowedBones={}
             state.allowedBones[bones[state.targetBoneIndex].name]=true
-            invalidateAnalysis()
+            refreshAllowedBoneDiagnostics()
         end
     end
+    local hoveredBone=nil
     tImGui.BeginChild('##swlAllowedBones',{x=300,y=115},true)
     for _,bone in ipairs(bones) do
         local wasAllowed=state.allowedBones[bone.name]==true
         local allowed=tImGui.Checkbox(bone.name..'##swlAllowed',wasAllowed)
         if allowed~=wasAllowed then
             state.allowedBones[bone.name]=allowed or nil
-            invalidateAnalysis()
+            refreshAllowedBoneDiagnostics()
         end
+        if tImGui.IsItemHovered(0) then hoveredBone=bone.name end
     end
     tImGui.EndChild()
+    if hoveredBone~=state.hoveredAllowedBone then
+        state.hoveredAllowedBone=hoveredBone
+        updateAllowedBoneColors()
+    end
 end
 
 local function showSmoothingControls()
@@ -1375,6 +1437,9 @@ local function showPanel()
             showItemTooltip(tLang.L('swl_operation_mode_tooltip'))
             if operationChanged then
                 state.operationMode=operation
+                state.allowedBonesHighlight=false
+                state.hoveredAllowedBone=nil
+                updateAllowedBoneColors()
                 if operation~=2 and state.targetBoneHighlight then
                     state.targetBoneHighlight=false
                     rebuildTargetBoneHighlight()
