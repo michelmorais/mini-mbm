@@ -1,7 +1,7 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.15**
-Status: **Phase 3 diagnostics and topology smoothing implemented**
+Document version: **0.16**
+Status: **Rigid-cavity milestone validated; Phase 3 diagnostics and topology smoothing implemented**
 Last updated: **2026-08-08**
 
 ## 1. Purpose
@@ -383,6 +383,28 @@ during torso animation.
 
 The cavity's rigid faces must not be smoothed merely because falloff is enabled.
 
+The first Mixamo cavity test validates the central Phase-1/Phase-2 behavior: after an AABB Rigid
+Bind, the hollow rectangular abdominal core becomes visibly rigid during animation. Two boundary
+tests also establish the current interaction limit. With zero transition width, the hard weight
+boundary produces visible separation along lateral faces. With an overly broad uniform transition,
+the target influence reaches unrelated upper-body geometry and can deform the chin. These are the
+expected opposite extremes of the current algorithm: the rigid core works, while authoring the
+flexible boundary precisely is still difficult.
+
+This milestone is therefore accepted as functional. The next cavity-focused work is selective
+transition authoring, not a replacement of Rigid Bind. The preferred investigation order is:
+
+1. independently adjustable transition widths for `-X`, `+X`, `-Y`, `+Y`, `-Z`, and `+Z`;
+2. per-face enable/disable controls so only chosen AABB faces emit falloff;
+3. an exclusion/protected volume whose vertices cannot be modified by the operation;
+4. topology-ring expansion as an alternative to world-space distance, with disconnected-island
+   protection.
+
+The first implementation should combine per-face enablement with independent face widths because
+it extends the existing AABB model directly and addresses the observed chin reach without requiring
+a new topology-selection model. A protected volume and topology rings remain follow-up options if
+per-face control is insufficient on the rat mesh.
+
 ### Tail
 
 The user can add a parented tail chain manually and assign progressively changing weights along the
@@ -543,6 +565,8 @@ Primary validation: abdominal cavity.
 - Linear and Smooth falloff.
 - Blend a selected bone into existing weights.
 - Preserve all weights outside the outer boundary.
+- Refine the currently uniform shell with per-face enablement and independent face widths, based on
+  the validated cavity test; evaluate protected exclusion volumes and topology rings afterward.
 
 Primary validation: cavity-to-abdomen boundary and tail segments.
 
@@ -664,7 +688,9 @@ fixtures must therefore be designed as shared contracts rather than editor-only 
 
 1. Face-derived AABB selection is precise enough for weight editing without a dedicated vertex
    selection mode.
-2. One outer falloff shell is sufficient for the cavity transition.
+2. **Rejected by the first cavity test:** one uniform outer falloff shell is not sufficiently
+   controllable. Zero width creates a hard lateral break, while a width large enough to soften that
+   boundary can reach unrelated geometry such as the chin. Per-face control is the next hypothesis.
 3. Adjacency smoothing restricted to `Spine2`, `Neck`, and `Head` will materially improve the rat's
    neck deformation.
 4. A simple weight-discontinuity metric correlates with visible tearing.
@@ -760,6 +786,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.16 | 2026-08-08 | Accepted the abdominal rigid-core Mixamo milestone; recorded hard-boundary lateral separation and over-broad-transition chin deformation; prioritized selective per-face transition widths/enables, with protected volumes and topology-ring expansion as follow-ups. |
 | 0.15 | 2026-08-08 | Recorded the first neck-smoothing result and exported-FBX integrity inspection; added allowed-bone guidance based on per-bone heatmap inspection and clarified that AABB selects vertices rather than joint positions. |
 | 0.14 | 2026-08-08 | Kept geometric analysis and raw-weight transition diagnostics valid while editing allowed bones, added in-place disallowed-count refresh, Allow All/Clear All actions, persistent cyan allowed-bone highlighting, temporary orange hover highlighting, and operation-change highlight cleanup. |
 | 0.13 | 2026-08-08 | Reorganized the editor into numbered Visualization, Selection and Analysis, and Operation blocks with colored titles and contextual action controls; made the rigid target exclusive to Rigid Bind; removed smoothing's implicit rigid-target fallback and added skipped-vertex reporting. |
