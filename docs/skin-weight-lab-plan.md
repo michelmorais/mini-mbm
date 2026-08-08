@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.19**
+Document version: **0.20**
 Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
 Last updated: **2026-08-08**
 
@@ -496,6 +496,15 @@ one-level rollback snapshot. After the write, selection analysis and abrupt-tran
 run again automatically, reporting before/after abrupt-edge and affected-vertex counts and
 refreshing the magenta overlay from the new weights.
 
+The first explicit targeted-repair validation used threshold `0.35`, Strength `0.15`, and one
+iteration on the rat neck. The diagnosis selected 396 magenta vertices from 372 abrupt edges;
+all 396 were smoothed, none were skipped, and automatic re-diagnosis reduced abrupt edges from
+`372` to `333` and affected vertices from `396` to `358`. One-level rollback restored the exact
+pre-operation result. The retained output is
+`src/test-lib/T-BONE-rato-suavizado-scale-100-from-mixamo.msh`; reopening that specific saved file
+remains an optional persistence confirmation, while general save/reopen persistence is already
+approved separately.
+
 The standalone **Normalize and Limit** cleanup operates on every vertex in the current explicit
 analysis. It drops non-positive/non-finite weights, merges duplicate bone names, keeps the four
 strongest effective influences, and normalizes their sum to `1.0` without applying the optional
@@ -565,6 +574,7 @@ future refinement or malformed-input branch has been tested.
 | Analysis-bone heatmap | **Approved** | Spine1, Spine2, Neck, Head, shoulders, and arms were inspected independently. |
 | Allowed-bone restriction workflow | **Approved for smoothing** | Analysis remains valid while choosing allowed bones; the list controlled the neck experiments. |
 | Abrupt-transition diagnosis | **Approved** | Neck baseline `461 / 479 / 1.000`; after smoothing `372 / 405 / 0.870`. |
+| Smooth Detected Transitions | **Approved** | At threshold `0.35`, Strength `0.15`, one iteration: 396/396 magenta vertices written, 0 skipped, abrupt edges `372 → 333`, affected vertices `396 → 358`, and rollback confirmed. |
 | Local smoothing of a complete selection | **Partially validated** | Reduced the neck tear, but including arm influences introduced stretching. The experiment was stopped without accepting a final neck asset. |
 | Rigid Bind | **Approved in Mixamo** | The hollow abdominal core remained visibly rigid during body animation. |
 | Uniform transition shell | **Superseded** | Zero width broke lateral faces; excessive uniform width reached the chin. This motivated per-face control. |
@@ -576,20 +586,18 @@ future refinement or malformed-input branch has been tested.
 
 The following behavior is implemented but still needs an explicit validation pass:
 
-1. **Smooth Detected Transitions:** confirm that only the magenta affected-vertex set is written,
-   automatic before/after diagnosis is correct, and rollback restores the exact prior weights.
-2. **Bone Proximity selection:** verify radius/segment selection on several bones and confirm that
+1. **Bone Proximity selection:** verify radius/segment selection on several bones and confirm that
    changing the proximity bone invalidates only the geometric analysis as intended.
-3. **Multi-subset selection:** use a mesh with at least two material subsets and prove isolation.
-4. **Per-face edge cases:** test one enabled face, unequal opposite widths, all faces disabled,
+2. **Multi-subset selection:** use a mesh with at least two material subsets and prove isolation.
+3. **Per-face edge cases:** test one enabled face, unequal opposite widths, all faces disabled,
    enabled width zero, a permitted two-face corner, and a corner blocked by one crossed face.
-5. **Allowed-bone visualization:** explicitly verify cyan persistent highlights, orange hover,
+4. **Allowed-bone visualization:** explicitly verify cyan persistent highlights, orange hover,
    and cleanup when switching operations.
-6. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
+5. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
    read/write failure if a safe fixture can represent one; ordinary and idempotent paths are done.
-7. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
+6. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
    and skeleton alignment on the unscaled rat rather than only the 100× working fixture.
-8. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
+7. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
    and absence of crashes.
 
 The following items remain future milestones rather than missing tests of current behavior:
@@ -854,6 +862,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.20 | 2026-08-08 | Approved Smooth Detected Transitions with the 396-vertex targeted neck test, automatic `372 → 333` edge / `396 → 358` vertex re-diagnosis, zero skipped vertices, confirmed rollback, and a retained smoothed `.msh` result. |
 | 0.19 | 2026-08-08 | Consolidated approved, partial, pending, and future validation status; approved per-face cavity transition and Normalize idempotence; recorded the 182-cleanup breakdown; corrected removed neck fixtures and listed the remaining editor test matrix. |
 | 0.18 | 2026-08-08 | Added a persistent local Normalize and Limit report with analyzed/corrected/already-valid/skipped/failed counts, and changed cleanup to avoid rewriting vertices that are already valid. |
 | 0.17 | 2026-08-08 | Implemented independent enablement and width for all six AABB transition faces, asymmetric outer preview, crossed-face blocking, and normalized edge/corner falloff; retained protected volumes and topology rings as future work pending Mixamo validation. |
