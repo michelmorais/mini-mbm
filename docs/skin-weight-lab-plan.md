@@ -1,7 +1,7 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.18**
-Status: **Rigid-cavity milestone validated; Phase 3 diagnostics and topology smoothing implemented**
+Document version: **0.19**
+Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
 Last updated: **2026-08-08**
 
 ## 1. Purpose
@@ -406,7 +406,10 @@ is excluded from the shell; at edges and corners, every crossed face must permit
 largest normalized face distance controls the existing Linear/Smooth falloff. The cyan AABB remains
 the unchanged rigid core, while the orange preview box shows the asymmetric outer limit. A
 protected volume and topology rings remain follow-up options if per-face control is insufficient
-on the rat mesh. Mixamo validation of this refinement is still pending.
+on the rat mesh. Mixamo validation approved the refinement: the cavity remained rigid, the lateral
+break diminished, and the transition no longer reached the chin when its upward face was constrained.
+A horizontal break elsewhere on the twisting torso remains visible and is not attributed to the
+rigid box without a selection-boundary diagnostic.
 
 ### Tail
 
@@ -504,9 +507,10 @@ The operation now performs a preflight comparison and writes only vertices that 
 cleanup; already-valid vertices are not rewritten. Its report remains visible directly below the
 button and separates analyzed, corrected, already valid, skipped-without-influence, and failed
 counts. This makes a healthy Mixamo mesh an explicit no-op rather than misleadingly reporting every
-selected vertex as normalized. The controlled invalid-weight fixture is expected to report three
-corrections, then zero non-normalized vertices on the next analysis, with rollback restoring the
-original three invalid sums.
+selected vertex as normalized. The controlled invalid-weight fixture initially reports three
+non-normalized sums. Cleanup corrects 182 vertices: the three deliberately invalid sums plus 179
+pre-existing named slots carrying weight zero. A second analysis reports zero non-normalized
+vertices, and a second cleanup reports 0 corrected / 36,149 already valid, confirming idempotence.
 
 The editor panel now presents the workflow as three numbered, visually separated blocks:
 **1. Visualization**, **2. Selection and Analysis**, and **3. Operation**. The Operation block
@@ -534,15 +538,67 @@ with Strength `0.25`, one iteration, and allowed influences selected by inspecti
 bone's heatmap. Spine1, Spine2, Neck, Head, LeftShoulder, and RightShoulder were retained because
 the shoulder bones also showed meaningful yellow/red influence inside the AABB. Abrupt edges fell
 from `461` to `372`, affected vertices from `479` to `405`, and maximum difference from `1.000` to
-`0.870`. The saved fixtures are `src/test-lib/T-BONE-rato-neck-central-f025-i1.msh` and `.fbx`.
-Blender inspection of the FBX confirmed the same 41-bone armature, 36,149 vertices, and 51,794
+`0.870`. The generated neck-test `.msh` and `.fbx` were intentionally removed after the experiment;
+the measurements remain historical evidence rather than permanent fixtures. Blender inspection of
+the temporary FBX confirmed the same 41-bone armature, 36,149 vertices, and 51,794
 polygons as the source, with zero unweighted vertices, zero non-normalized vertices, and no vertex
 above four effective influences. This is a successful integrity/continuity result, not yet proof
-of better posed deformation; the same Mixamo animation must still be compared visually.
+of a finished neck correction. Mixamo comparison showed less tearing during head rotation, but
+including arm influences introduced visible stretching; the experiment was closed without adopting
+a final corrected neck asset.
 
 Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity within each subset,
 and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
 not actual posed deformation; pose stress remains a separate LBS/DQS milestone.
+
+### Current validation status (2026-08-08)
+
+The following table distinguishes implemented code from behavior actually exercised by the user.
+“Approved” means the observed result matches the current milestone; it does not imply that every
+future refinement or malformed-input branch has been tested.
+
+| Area | Status | Evidence / remaining qualification |
+|---|---|---|
+| Load, Save As, close/reopen persistence | **Approved** | Edited weights and skeleton survive reopening. |
+| One-level rollback | **Approved** | Weight edits restore the preceding snapshot. |
+| AABB placement, symmetric sizing, dragging, and 100× camera interaction | **Approved** | Used repeatedly on the rat for neck and cavity selection. |
+| Analysis-bone heatmap | **Approved** | Spine1, Spine2, Neck, Head, shoulders, and arms were inspected independently. |
+| Allowed-bone restriction workflow | **Approved for smoothing** | Analysis remains valid while choosing allowed bones; the list controlled the neck experiments. |
+| Abrupt-transition diagnosis | **Approved** | Neck baseline `461 / 479 / 1.000`; after smoothing `372 / 405 / 0.870`. |
+| Local smoothing of a complete selection | **Partially validated** | Reduced the neck tear, but including arm influences introduced stretching. The experiment was stopped without accepting a final neck asset. |
+| Rigid Bind | **Approved in Mixamo** | The hollow abdominal core remained visibly rigid during body animation. |
+| Uniform transition shell | **Superseded** | Zero width broke lateral faces; excessive uniform width reached the chin. This motivated per-face control. |
+| Six independent AABB transition faces | **Approved in Mixamo for the cavity** | Prevented upward reach into the chin and reduced the lateral break while preserving the rigid core. A separate horizontal torso break remains. |
+| Material-subset selection | **Approved only for a single-subset mesh** | The rat's sole frame-1 subset selected all 36,149 vertices; multi-subset isolation is not yet tested. |
+| Normalize and Limit | **Approved** | Controlled fixture: 182 first-pass cleanups (`3` invalid sums + `179` named zero weights), then `0` corrected / `36,149` already valid on the second pass. |
+| Normalize report | **Approved** | Local analyzed/corrected/already-valid/skipped/failed counts were visible and consistent with the audit. |
+| FBX export after weight editing | **Approved structurally and in Mixamo** | 41 bones, 36,149 vertices, 51,794 polygons, no unweighted/non-normalized vertices, and at most four effective influences in the inspected export. |
+
+The following behavior is implemented but still needs an explicit validation pass:
+
+1. **Smooth Detected Transitions:** confirm that only the magenta affected-vertex set is written,
+   automatic before/after diagnosis is correct, and rollback restores the exact prior weights.
+2. **Bone Proximity selection:** verify radius/segment selection on several bones and confirm that
+   changing the proximity bone invalidates only the geometric analysis as intended.
+3. **Multi-subset selection:** use a mesh with at least two material subsets and prove isolation.
+4. **Per-face edge cases:** test one enabled face, unequal opposite widths, all faces disabled,
+   enabled width zero, a permitted two-face corner, and a corner blocked by one crossed face.
+5. **Allowed-bone visualization:** explicitly verify cyan persistent highlights, orange hover,
+   and cleanup when switching operations.
+6. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
+   read/write failure if a safe fixture can represent one; ordinary and idempotent paths are done.
+7. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
+   and skeleton alignment on the unscaled rat rather than only the 100× working fixture.
+8. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
+   and absence of crashes.
+
+The following items remain future milestones rather than missing tests of current behavior:
+
+- selection-boundary diagnosis comparing internal vertices with immediate external neighbors;
+- protected/exclusion volumes and topology-ring transition expansion;
+- welded/coincident-vertex adjacency across UV or subset seams;
+- tail-chain weighting and exported custom-tail preservation;
+- pose-stress preview and real LBS/DQS deformation preview/runtime skinning.
 
 ### Phase 0 — Test assets and baseline
 
@@ -577,7 +633,7 @@ Primary validation: abdominal cavity.
 - Blend a selected bone into existing weights.
 - Preserve all weights outside the outer boundary.
 - Refine the currently uniform shell with per-face enablement and independent face widths, based on
-  the validated cavity test. **Implemented in 6.50.0; Mixamo validation pending.** Evaluate
+  the validated cavity test. **Implemented in 6.50.0 and approved in the cavity Mixamo test.** Evaluate
   protected exclusion volumes and topology rings afterward.
 
 Primary validation: cavity-to-abdomen boundary and tail segments.
@@ -798,6 +854,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.19 | 2026-08-08 | Consolidated approved, partial, pending, and future validation status; approved per-face cavity transition and Normalize idempotence; recorded the 182-cleanup breakdown; corrected removed neck fixtures and listed the remaining editor test matrix. |
 | 0.18 | 2026-08-08 | Added a persistent local Normalize and Limit report with analyzed/corrected/already-valid/skipped/failed counts, and changed cleanup to avoid rewriting vertices that are already valid. |
 | 0.17 | 2026-08-08 | Implemented independent enablement and width for all six AABB transition faces, asymmetric outer preview, crossed-face blocking, and normalized edge/corner falloff; retained protected volumes and topology rings as future work pending Mixamo validation. |
 | 0.16 | 2026-08-08 | Accepted the abdominal rigid-core Mixamo milestone; recorded hard-boundary lateral separation and over-broad-transition chin deformation; prioritized selective per-face transition widths/enables, with protected volumes and topology-ring expansion as follow-ups. |
