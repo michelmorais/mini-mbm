@@ -1239,6 +1239,7 @@ end
 
 local function showBoneRestrictions(bones,showTargetOnly)
     local restrict=tImGui.Checkbox(tLang.L('swl_restrict_bones'),state.restrictBones)
+    showItemTooltip(tLang.L('swl_restrict_bones_tooltip'))
     if restrict~=state.restrictBones then
         state.restrictBones=restrict
         refreshAllowedBoneDiagnostics()

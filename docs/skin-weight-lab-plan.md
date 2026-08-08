@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.14**
+Document version: **0.15**
 Status: **Phase 3 diagnostics and topology smoothing implemented**
 Last updated: **2026-08-08**
 
@@ -496,6 +496,17 @@ actions, plus an optional viewport highlight: checked bones appear in cyan and t
 item temporarily appears in orange. Restriction highlights are cleared whenever the selected
 operation changes, so operation-specific visualization cannot leak into another workflow.
 
+The first recorded neck test used the rat's head base, short neck, and a small upper-torso region,
+with Strength `0.25`, one iteration, and allowed influences selected by inspecting each plausible
+bone's heatmap. Spine1, Spine2, Neck, Head, LeftShoulder, and RightShoulder were retained because
+the shoulder bones also showed meaningful yellow/red influence inside the AABB. Abrupt edges fell
+from `461` to `372`, affected vertices from `479` to `405`, and maximum difference from `1.000` to
+`0.870`. The saved fixtures are `src/test-lib/T-BONE-rato-neck-central-f025-i1.msh` and `.fbx`.
+Blender inspection of the FBX confirmed the same 41-bone armature, 36,149 vertices, and 51,794
+polygons as the source, with zero unweighted vertices, zero non-normalized vertices, and no vertex
+above four effective influences. This is a successful integrity/continuity result, not yet proof
+of better posed deformation; the same Mixamo animation must still be compared visually.
+
 Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity within each subset,
 and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
 not actual posed deformation; pose stress remains a separate LBS/DQS milestone.
@@ -749,6 +760,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.15 | 2026-08-08 | Recorded the first neck-smoothing result and exported-FBX integrity inspection; added allowed-bone guidance based on per-bone heatmap inspection and clarified that AABB selects vertices rather than joint positions. |
 | 0.14 | 2026-08-08 | Kept geometric analysis and raw-weight transition diagnostics valid while editing allowed bones, added in-place disallowed-count refresh, Allow All/Clear All actions, persistent cyan allowed-bone highlighting, temporary orange hover highlighting, and operation-change highlight cleanup. |
 | 0.13 | 2026-08-08 | Reorganized the editor into numbered Visualization, Selection and Analysis, and Operation blocks with colored titles and contextual action controls; made the rigid target exclusive to Rigid Bind; removed smoothing's implicit rigid-target fallback and added skipped-vertex reporting. |
 | 0.12 | 2026-08-07 | Added standalone analyzed-selection Normalize and Limit with invalid-weight cleanup, duplicate merging, strongest-four normalization, skipped-unweighted reporting, and rollback; added symmetric center-preserving Size X/Y/Z controls for the AABB. |
