@@ -219,8 +219,9 @@
     6.49.1 Reorganized Skin Weight Lab into numbered Visualization, Selection/Analysis, and contextual Operation blocks; made the rigid target exclusive to Rigid Bind; smoothing now preserves and reports vertices left without an allowed influence instead of silently assigning the rigid target.
     6.49.2 Kept Skin Weight Lab analysis valid while editing allowed bones and added Clear All, persistent selected-bone highlighting, temporary hover highlighting, and operation-change highlight cleanup.
     6.49.3 Added contextual allowed-bone guidance based on per-bone heatmap inspection and clarified the AABB vertex-selection semantics.
+    6.50.0 Added independent enablement and width for all six Skin Weight Lab AABB transition faces, with asymmetric outer preview and crossed-face-aware Linear/Smooth falloff.
 */
-#define MBM_VERSION "6.49.3" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.50.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

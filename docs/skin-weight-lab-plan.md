@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.16**
+Document version: **0.17**
 Status: **Rigid-cavity milestone validated; Phase 3 diagnostics and topology smoothing implemented**
 Last updated: **2026-08-08**
 
@@ -400,10 +400,13 @@ transition authoring, not a replacement of Rigid Bind. The preferred investigati
 4. topology-ring expansion as an alternative to world-space distance, with disconnected-island
    protection.
 
-The first implementation should combine per-face enablement with independent face widths because
-it extends the existing AABB model directly and addresses the observed chin reach without requiring
-a new topology-selection model. A protected volume and topology rings remain follow-up options if
-per-face control is insufficient on the rat mesh.
+Version 6.50.0 implements that first refinement. Each of the six faces (`-X`, `+X`, `-Y`, `+Y`,
+`-Z`, `+Z`) now has independent enablement and width. A vertex outside a disabled/zero-width face
+is excluded from the shell; at edges and corners, every crossed face must permit the vertex and the
+largest normalized face distance controls the existing Linear/Smooth falloff. The cyan AABB remains
+the unchanged rigid core, while the orange preview box shows the asymmetric outer limit. A
+protected volume and topology rings remain follow-up options if per-face control is insufficient
+on the rat mesh. Mixamo validation of this refinement is still pending.
 
 ### Tail
 
@@ -566,7 +569,8 @@ Primary validation: abdominal cavity.
 - Blend a selected bone into existing weights.
 - Preserve all weights outside the outer boundary.
 - Refine the currently uniform shell with per-face enablement and independent face widths, based on
-  the validated cavity test; evaluate protected exclusion volumes and topology rings afterward.
+  the validated cavity test. **Implemented in 6.50.0; Mixamo validation pending.** Evaluate
+  protected exclusion volumes and topology rings afterward.
 
 Primary validation: cavity-to-abdomen boundary and tail segments.
 
@@ -786,6 +790,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.17 | 2026-08-08 | Implemented independent enablement and width for all six AABB transition faces, asymmetric outer preview, crossed-face blocking, and normalized edge/corner falloff; retained protected volumes and topology rings as future work pending Mixamo validation. |
 | 0.16 | 2026-08-08 | Accepted the abdominal rigid-core Mixamo milestone; recorded hard-boundary lateral separation and over-broad-transition chin deformation; prioritized selective per-face transition widths/enables, with protected volumes and topology-ring expansion as follow-ups. |
 | 0.15 | 2026-08-08 | Recorded the first neck-smoothing result and exported-FBX integrity inspection; added allowed-bone guidance based on per-bone heatmap inspection and clarified that AABB selects vertices rather than joint positions. |
 | 0.14 | 2026-08-08 | Kept geometric analysis and raw-weight transition diagnostics valid while editing allowed bones, added in-place disallowed-count refresh, Allow All/Clear All actions, persistent cyan allowed-bone highlighting, temporary orange hover highlighting, and operation-change highlight cleanup. |

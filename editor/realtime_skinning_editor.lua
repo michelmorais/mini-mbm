@@ -57,7 +57,11 @@ local state = {
     heatmapLines = {},
     selectionBox = nil,
     transitionBox = nil,
-    shellWidth = 0,
+    shellFaces = {
+        minX={enabled=true,width=0}, maxX={enabled=true,width=0},
+        minY={enabled=true,width=0}, maxY={enabled=true,width=0},
+        minZ={enabled=true,width=0}, maxZ={enabled=true,width=0},
+    },
     falloffMode = 2, -- 1 linear, 2 smooth
     heatmapEnabled = true,
     restrictBones = false,
@@ -270,11 +274,20 @@ local function rebuildSelectionBox()
     state.selectionBox, state.transitionBox = nil, nil
     if not state.meshD or state.selectionMode ~= 1 or not state.aabb then return end
     state.selectionBox = createSelectionBox(state.aabb, 0, 1, 1)
-    if state.shellWidth > 0 then
-        local b, width = state.aabb, state.shellWidth
+    local b,faces=state.aabb,state.shellFaces
+    local outer={
+        minX=b.minX-(faces.minX.enabled and faces.minX.width or 0),
+        maxX=b.maxX+(faces.maxX.enabled and faces.maxX.width or 0),
+        minY=b.minY-(faces.minY.enabled and faces.minY.width or 0),
+        maxY=b.maxY+(faces.maxY.enabled and faces.maxY.width or 0),
+        minZ=b.minZ-(faces.minZ.enabled and faces.minZ.width or 0),
+        maxZ=b.maxZ+(faces.maxZ.enabled and faces.maxZ.width or 0),
+    }
+    if outer.minX<b.minX or outer.maxX>b.maxX or outer.minY<b.minY or
+            outer.maxY>b.maxY or outer.minZ<b.minZ or outer.maxZ>b.maxZ then
         state.transitionBox = createSelectionBox({
-            minX=b.minX-width,minY=b.minY-width,minZ=b.minZ-width,
-            maxX=b.maxX+width,maxY=b.maxY+width,maxZ=b.maxZ+width,
+            minX=outer.minX,minY=outer.minY,minZ=outer.minZ,
+            maxX=outer.maxX,maxY=outer.maxY,maxZ=outer.maxZ,
         }, 1, 0.65, 0)
     end
 end
@@ -524,13 +537,27 @@ local function pointInsideAABB(p, b)
            p.z >= b.minZ and p.z <= b.maxZ
 end
 
-local function transitionAlpha(p, b, width)
+local function hasTransitionShell()
+    for _,face in pairs(state.shellFaces) do
+        if face.enabled and face.width>0 then return true end
+    end
+    return false
+end
+
+local function transitionAlpha(p, b)
     if pointInsideAABB(p, b) then return 1, 'core' end
-    if width <= 0 then return nil end
-    local dx = math.max(b.minX-p.x, 0, p.x-b.maxX)
-    local dy = math.max(b.minY-p.y, 0, p.y-b.maxY)
-    local dz = math.max(b.minZ-p.z, 0, p.z-b.maxZ)
-    local t = math.max(dx,dy,dz) / width
+    local faces=state.shellFaces
+    local distances={
+        p.x<b.minX and {'minX',b.minX-p.x} or (p.x>b.maxX and {'maxX',p.x-b.maxX} or nil),
+        p.y<b.minY and {'minY',b.minY-p.y} or (p.y>b.maxY and {'maxY',p.y-b.maxY} or nil),
+        p.z<b.minZ and {'minZ',b.minZ-p.z} or (p.z>b.maxZ and {'maxZ',p.z-b.maxZ} or nil),
+    }
+    local t=0
+    for _,distance in pairs(distances) do
+        local face=faces[distance[1]]
+        if not face.enabled or face.width<=0 then return nil end
+        t=math.max(t,distance[2]/face.width)
+    end
     if t >= 1 then return nil end
     if state.falloffMode == 2 then t = t*t*(3-2*t) end
     return math.max(0,math.min(1,1-t)), 'shell'
@@ -604,7 +631,7 @@ local function analyzeSelection()
     if state.selectionMode == 1 then
         local b = state.aabb
         for _, v in ipairs(allVertices) do
-            local alpha,region=transitionAlpha(v.point,b,state.shellWidth)
+            local alpha,region=transitionAlpha(v.point,b)
             if alpha then v.blendAlpha,v.region=alpha,region; selected[#selected+1]=v end
         end
     elseif state.selectionMode == 2 then
@@ -1131,10 +1158,26 @@ local function showSelectionInputs()
                 aabbChanged=true
             end
         end
-        local shellChanged,shell=tImGui.DragFloat(tLang.L('swl_shell_width'),state.shellWidth,
-            dragSpeed,0,math.max(extent*2,dragSpeed),'%.4f')
         tImGui.PopItemWidth()
-        if shellChanged then state.shellWidth=math.max(0,shell); aabbChanged=true end
+        tImGui.Text(tLang.L('swl_transition_faces'))
+        showItemTooltip(tLang.L('swl_transition_faces_tooltip'))
+        local faceControls={
+            {'-X','minX'},{'+X','maxX'},{'-Y','minY'},
+            {'+Y','maxY'},{'-Z','minZ'},{'+Z','maxZ'},
+        }
+        for _,control in ipairs(faceControls) do
+            local face=state.shellFaces[control[2]]
+            local enabled=tImGui.Checkbox(control[1]..'##swlShellEnabled'..control[2],face.enabled)
+            if enabled~=face.enabled then face.enabled=enabled; aabbChanged=true end
+            tImGui.SameLine()
+            tImGui.BeginDisabled(not face.enabled)
+            tImGui.PushItemWidth(130)
+            local changed,width=tImGui.DragFloat(tLang.L('swl_shell_width')..'##'..control[2],
+                face.width,dragSpeed,0,math.max(extent*2,dragSpeed),'%.4f')
+            tImGui.PopItemWidth()
+            tImGui.EndDisabled()
+            if changed then face.width=math.max(0,width); aabbChanged=true end
+        end
         local falloffLabels={tLang.L('swl_falloff_linear'),tLang.L('swl_falloff_smooth')}
         tImGui.PushItemWidth(150)
         local falloffChanged,falloff=tImGui.Combo(tLang.L('swl_falloff'),state.falloffMode,falloffLabels,-1)
@@ -1482,7 +1525,7 @@ local function showPanel()
             local canApply=state.analysis and not state.analysisDirty and
                 #state.analysis.vertices>0 and #bones>0
             tImGui.BeginDisabled(not canApply)
-            local applyRigidPressed=tImGui.Button(state.selectionMode==1 and state.shellWidth>0 and
+            local applyRigidPressed=tImGui.Button(state.selectionMode==1 and hasTransitionShell() and
                     tLang.L('swl_apply_transition') or tLang.L('swl_apply_rigid'))
             showItemTooltip(tLang.L('swl_apply_rigid_tooltip'))
             if applyRigidPressed then
