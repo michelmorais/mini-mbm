@@ -216,8 +216,9 @@
     6.47.0 Started Skin Weight Lab Phase 3 with a target-bone weight heatmap, optional allowed-bone filtering, vertical diagnostics, compact selection/bone controls, mesh-preview visibility control, optional always-on-top analysis markers, aligned 3D preview/selection coordinates, and disallowed-influence diagnostics for analyzed regions.
     6.48.0 Added local triangle-adjacency skin-weight smoothing with configurable strength/iterations, stable per-iteration snapshots, rigid-core protection, allowed-bone filtering, normalized four-influence output, and rollback.
     6.49.0 Added abrupt neighbor-weight transition diagnostics with a normalized threshold, edge/vertex/max-difference reporting, targeted smoothing of detected vertices with automatic before/after re-diagnosis and rollback, standalone normalize/limit cleanup, symmetric per-axis AABB sizing, independently toggleable analysis/abrupt overlays, magenta always-on-top markers, cached topology adjacency shared with smoothing, workflow-grouped editor sections/status/history, contextual tooltips, independent analysis/rigid-target bones, skeleton visualization, collision-free analysis/target-bone highlighting, and a conventional six-band cold-to-hot weight palette.
+    6.49.1 Reorganized Skin Weight Lab into numbered Visualization, Selection/Analysis, and contextual Operation blocks; made the rigid target exclusive to Rigid Bind; smoothing now preserves and reports vertices left without an allowed influence instead of silently assigning the rigid target.
 */
-#define MBM_VERSION "6.49.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.49.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

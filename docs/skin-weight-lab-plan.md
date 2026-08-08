@@ -1,8 +1,8 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.12**
+Document version: **0.13**
 Status: **Phase 3 diagnostics and topology smoothing implemented**
-Last updated: **2026-08-07**
+Last updated: **2026-08-08**
 
 ## 1. Purpose
 
@@ -475,6 +475,19 @@ allowed-bone filter. Vertices with no effective influence remain unchanged and a
 skipped rather than receiving an invented bone. The complete operation is protected by the same
 one-level rollback snapshot.
 
+The editor panel now presents the workflow as three numbered, visually separated blocks:
+**1. Visualization**, **2. Selection and Analysis**, and **3. Operation**. The Operation block
+starts with an explicit action selector and displays only the controls relevant to Inspect
+Transitions, Rigid Bind, Normalize and Limit, Smooth Selection, or Repair Detected Transitions.
+The analysis bone therefore remains an inspection input in block 2, while the single target bone
+exists only for Rigid Bind. Smoothing and transition repair use the optional set of allowed bones;
+they never interpret the rigid-bind target as an implicit smoothing destination.
+
+If allowed-bone filtering leaves a vertex without any effective influence during smoothing, that
+vertex remains unchanged and is counted as skipped. Assigning it silently to a target bone would
+turn a neighborhood-average operation into a hidden rigid bind and could introduce precisely the
+neck discontinuity the operation is meant to reduce.
+
 Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity within each subset,
 and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
 not actual posed deformation; pose stress remains a separate LBS/DQS milestone.
@@ -728,6 +741,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.13 | 2026-08-08 | Reorganized the editor into numbered Visualization, Selection and Analysis, and Operation blocks with colored titles and contextual action controls; made the rigid target exclusive to Rigid Bind; removed smoothing's implicit rigid-target fallback and added skipped-vertex reporting. |
 | 0.12 | 2026-08-07 | Added standalone analyzed-selection Normalize and Limit with invalid-weight cleanup, duplicate merging, strongest-four normalization, skipped-unweighted reporting, and rollback; added symmetric center-preserving Size X/Y/Z controls for the AABB. |
 | 0.11 | 2026-08-07 | Added targeted smoothing of diagnosed magenta vertices with shared strength/iteration controls, allowed-bone filtering, rollback, automatic re-analysis/re-diagnosis, and before/after reporting; corrected the heatmap record to six bands and an independent analysis bone. |
 | 0.10 | 2026-08-07 | Added independent, default-enabled analysis/abrupt overlay visibility controls that stay disabled until their marker data exists, plus clearer separation before rigid apply. |

@@ -41,6 +41,7 @@ local state = {
     abruptMarkersVisible = true,
     info = nil,
     modified = false,
+    operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
     selectionMode = 1, -- 1 AABB, 2 subset, 3 bone proximity
     subsetIndex = 1,
     boneIndex = 1,
@@ -912,35 +913,35 @@ local function smoothVertices(vertices)
         end
         for index,weights in pairs(nextWeights) do current[index]=weights end
     end
-    local applied=0
-    local targetBone=getBones()[state.targetBoneIndex]
+    local applied,skipped=0,0
     for index in pairs(editable) do
         local influences=normalizedInfluences(current[index] or {})
-        if #influences==0 and state.restrictBones and targetBone then
-            influences={{name=targetBone.name,weight=1}}
-        end
         if #influences>0 then
             local ok,result=safeCall(function() return writeInfluences(index,influences) end)
-            if ok and result then applied=applied+1 end
+            if ok and result then applied=applied+1 else skipped=skipped+1 end
+        else
+            -- Smoothing has no destination bone. If an allowed-bone restriction removes every
+            -- effective influence, preserve the vertex instead of silently assigning a rigid target.
+            skipped=skipped+1
         end
     end
     state.modified=state.modified or applied>0
-    return applied
+    return applied,skipped
 end
 
 local function applyLocalSmoothing()
     if not state.analysis or state.analysisDirty then return end
     local vertices=#state.analysis.shell>0 and state.analysis.shell or state.analysis.vertices
-    local applied=smoothVertices(vertices)
+    local applied,skipped=smoothVertices(vertices)
     if applied==nil then return end
     invalidateAnalysis()
-    setStatus(string.format(tLang.L('swl_smoothed_fmt'),applied,state.smoothIterations),applied==0)
+    setStatus(string.format(tLang.L('swl_smoothed_fmt'),applied,state.smoothIterations,skipped),applied==0)
 end
 
 local function applyAbruptTransitionSmoothing()
     local before=state.abruptDiagnostics
     if not before or not before.affectedVertices or #before.affectedVertices==0 then return end
-    local applied=smoothVertices(before.affectedVertices)
+    local applied,skipped=smoothVertices(before.affectedVertices)
     if applied==nil then return end
 
     -- Rebuild both layers from the edited weights so the magenta markers and summary immediately
@@ -949,7 +950,7 @@ local function applyAbruptTransitionSmoothing()
     local after=diagnoseAbruptTransitions()
     if not after then return end
     setStatus(string.format(tLang.L('swl_abrupt_smoothed_fmt'),applied,state.smoothIterations,
-        before.edges,after.edges,before.vertices,after.vertices),applied==0)
+        before.edges,after.edges,before.vertices,after.vertices,skipped),applied==0)
 end
 
 local function applyNormalizeAndLimit()
@@ -1193,6 +1194,84 @@ local function showStatusMessage()
     end
 end
 
+local sectionTitleColor={r=0.25,g=0.80,b=1.0,a=1}
+
+local function showSectionTitle(key)
+    tImGui.TextColored(sectionTitleColor,tLang.L(key))
+end
+
+local function showBoneRestrictions(bones,showTargetOnly)
+    local restrict=tImGui.Checkbox(tLang.L('swl_restrict_bones'),state.restrictBones)
+    if restrict~=state.restrictBones then state.restrictBones=restrict; invalidateAnalysis() end
+    if not state.restrictBones or #bones==0 then return end
+    if tImGui.Button(tLang.L('swl_allow_all')) then
+        for _,bone in ipairs(bones) do state.allowedBones[bone.name]=true end
+        invalidateAnalysis()
+    end
+    if showTargetOnly then
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('swl_target_only')) then
+            state.allowedBones={}
+            state.allowedBones[bones[state.targetBoneIndex].name]=true
+            invalidateAnalysis()
+        end
+    end
+    tImGui.BeginChild('##swlAllowedBones',{x=300,y=115},true)
+    for _,bone in ipairs(bones) do
+        local wasAllowed=state.allowedBones[bone.name]==true
+        local allowed=tImGui.Checkbox(bone.name..'##swlAllowed',wasAllowed)
+        if allowed~=wasAllowed then
+            state.allowedBones[bone.name]=allowed or nil
+            invalidateAnalysis()
+        end
+    end
+    tImGui.EndChild()
+end
+
+local function showSmoothingControls()
+    tImGui.PushItemWidth(190)
+    local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_smooth_strength'),
+        state.smoothStrength,0,1,'%.2f')
+    showItemTooltip(tLang.L('swl_smooth_strength_tooltip'))
+    if strengthChanged then state.smoothStrength=strength end
+    local iterationsChanged,iterations=tImGui.SliderInt(tLang.L('swl_smooth_iterations'),
+        state.smoothIterations,1,10)
+    showItemTooltip(tLang.L('swl_smooth_iterations_tooltip'))
+    if iterationsChanged then state.smoothIterations=iterations end
+    tImGui.PopItemWidth()
+end
+
+local function showDiagnosticControls(canOperate,allowRepair)
+    tImGui.PushItemWidth(190)
+    local thresholdChanged,threshold=tImGui.SliderFloat(tLang.L('swl_abrupt_threshold'),
+        state.abruptThreshold,0.05,1,'%.2f')
+    showItemTooltip(tLang.L('swl_abrupt_threshold_tooltip'))
+    tImGui.PopItemWidth()
+    if thresholdChanged then
+        state.abruptThreshold=threshold
+        state.abruptDiagnostics=nil
+        destroyObject(state.abruptLines); state.abruptLines=nil
+    end
+    tImGui.BeginDisabled(not canOperate)
+    local diagnosePressed=tImGui.Button(tLang.L('swl_diagnose_transitions'))
+    showItemTooltip(tLang.L('swl_diagnose_transitions_tooltip'))
+    if diagnosePressed then diagnoseAbruptTransitions() end
+    tImGui.EndDisabled()
+    if state.abruptDiagnostics then
+        local diagnostic=state.abruptDiagnostics
+        tImGui.Text(string.format(tLang.L('swl_abrupt_result_fmt'),diagnostic.edges,
+            diagnostic.vertices,diagnostic.maxDistance))
+        tImGui.TextDisabled(tLang.L('swl_abrupt_marker_hint'))
+        if allowRepair then
+            tImGui.BeginDisabled(diagnostic.vertices==0)
+            local pressed=tImGui.Button(tLang.L('swl_smooth_abrupt_transitions'))
+            showItemTooltip(tLang.L('swl_smooth_abrupt_transitions_tooltip'))
+            if pressed then applyAbruptTransitionSmoothing() end
+            tImGui.EndDisabled()
+        end
+    end
+end
+
 local function showPanel()
     local _, screenH = mbm.getRealSizeScreen()
     tImGui.SetNextWindowPos({x=0,y=22}, tImGui.Flags('ImGuiCond_Once'))
@@ -1214,6 +1293,8 @@ local function showPanel()
             local okW, hasWeights = safeCall(function() return state.meshD:hasVertexWeights() end)
             tImGui.Text(string.format(tLang.L('swl_summary_fmt'), state.aabb and state.aabb.total or 0,
                 #bones, okW and hasWeights and tLang.L('swl_yes') or tLang.L('swl_no')))
+            showStatusMessage()
+            showSectionTitle('swl_visualization')
             local meshVisible=tImGui.Checkbox(tLang.L('swl_show_mesh'),state.meshVisible)
             if meshVisible~=state.meshVisible then
                 state.meshVisible=meshVisible
@@ -1267,9 +1348,8 @@ local function showPanel()
                 if state.abruptLines then state.abruptLines.visible=abruptMarkersVisible end
             end
             tImGui.EndDisabled()
-            showStatusMessage()
             tImGui.Separator()
-            tImGui.Text(tLang.L('swl_selection_analysis'))
+            showSectionTitle('swl_selection_analysis')
             showSelectionInputs()
             if tImGui.Button(tLang.L('swl_analyze')) then analyzeSelection() end
             tImGui.SameLine()
@@ -1284,6 +1364,26 @@ local function showPanel()
                 tImGui.TextDisabled(tLang.L('swl_analysis_required'))
             end
             tImGui.Separator()
+            showSectionTitle('swl_operation')
+            local operations={tLang.L('swl_operation_inspect'),tLang.L('swl_operation_rigid'),
+                tLang.L('swl_operation_normalize'),tLang.L('swl_operation_smooth'),
+                tLang.L('swl_operation_repair')}
+            tImGui.PushItemWidth(240)
+            local operationChanged,operation=tImGui.Combo(tLang.L('swl_operation_mode'),
+                state.operationMode,operations,-1)
+            tImGui.PopItemWidth()
+            showItemTooltip(tLang.L('swl_operation_mode_tooltip'))
+            if operationChanged then
+                state.operationMode=operation
+                if operation~=2 and state.targetBoneHighlight then
+                    state.targetBoneHighlight=false
+                    rebuildTargetBoneHighlight()
+                end
+            end
+            local canOperate=state.analysis and not state.analysisDirty and
+                #state.analysis.vertices>0
+
+            if state.operationMode==3 then
             tImGui.Text(tLang.L('swl_weight_cleanup'))
             local canNormalize=state.analysis and not state.analysisDirty and #state.analysis.vertices>0
             tImGui.BeginDisabled(not canNormalize)
@@ -1291,7 +1391,7 @@ local function showPanel()
             showItemTooltip(tLang.L('swl_normalize_limit_tooltip'))
             if normalizePressed then applyNormalizeAndLimit() end
             tImGui.EndDisabled()
-            tImGui.Separator()
+            elseif state.operationMode==2 then
             tImGui.Text(tLang.L('swl_rigid_bind'))
             local names = {}
             for _, bone in ipairs(bones) do names[#names+1] = bone.name end
@@ -1312,29 +1412,7 @@ local function showPanel()
                     rebuildTargetBoneHighlight()
                 end
             end
-            local restrict=tImGui.Checkbox(tLang.L('swl_restrict_bones'),state.restrictBones)
-            if restrict~=state.restrictBones then state.restrictBones=restrict; invalidateAnalysis() end
-            if state.restrictBones and #bones>0 then
-                if tImGui.Button(tLang.L('swl_allow_all')) then
-                    for _,bone in ipairs(bones) do state.allowedBones[bone.name]=true end
-                    invalidateAnalysis()
-                end
-                tImGui.SameLine()
-                if tImGui.Button(tLang.L('swl_target_only')) then
-                    state.allowedBones={}
-                    state.allowedBones[bones[state.targetBoneIndex].name]=true
-                    invalidateAnalysis()
-                end
-                tImGui.BeginChild('##swlAllowedBones',{x=300,y=115},true)
-                for _,bone in ipairs(bones) do
-                    local allowed=tImGui.Checkbox(bone.name..'##swlAllowed',state.allowedBones[bone.name]==true)
-                    if allowed~=(state.allowedBones[bone.name]==true) then
-                        state.allowedBones[bone.name]=allowed or nil
-                        invalidateAnalysis()
-                    end
-                end
-                tImGui.EndChild()
-            end
+            showBoneRestrictions(bones,true)
             local canApply=state.analysis and not state.analysisDirty and
                 #state.analysis.vertices>0 and #bones>0
             tImGui.BeginDisabled(not canApply)
@@ -1345,50 +1423,23 @@ local function showPanel()
                 applyRigidBind()
             end
             tImGui.EndDisabled()
-            tImGui.Separator()
+            elseif state.operationMode==4 then
             tImGui.Text(tLang.L('swl_local_smoothing'))
-            tImGui.PushItemWidth(190)
-            local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_smooth_strength'),
-                state.smoothStrength,0,1,'%.2f')
-            showItemTooltip(tLang.L('swl_smooth_strength_tooltip'))
-            if strengthChanged then state.smoothStrength=strength end
-            local iterationsChanged,iterations=tImGui.SliderInt(tLang.L('swl_smooth_iterations'),
-                state.smoothIterations,1,10)
-            showItemTooltip(tLang.L('swl_smooth_iterations_tooltip'))
-            if iterationsChanged then state.smoothIterations=iterations end
-            tImGui.PopItemWidth()
+            showBoneRestrictions(bones,false)
+            showSmoothingControls()
             local canSmooth=state.analysis and not state.analysisDirty and #state.analysis.vertices>0
             tImGui.BeginDisabled(not canSmooth)
             if tImGui.Button(tLang.L('swl_apply_smoothing')) then applyLocalSmoothing() end
             tImGui.EndDisabled()
             tImGui.TextDisabled(tLang.L('swl_smoothing_scope'))
-            tImGui.Separator()
+            elseif state.operationMode==1 then
             tImGui.Text(tLang.L('swl_transition_diagnostics'))
-            tImGui.PushItemWidth(190)
-            local thresholdChanged,threshold=tImGui.SliderFloat(tLang.L('swl_abrupt_threshold'),
-                state.abruptThreshold,0.05,1,'%.2f')
-            showItemTooltip(tLang.L('swl_abrupt_threshold_tooltip'))
-            tImGui.PopItemWidth()
-            if thresholdChanged then
-                state.abruptThreshold=threshold
-                state.abruptDiagnostics=nil
-                destroyObject(state.abruptLines); state.abruptLines=nil
-            end
-            tImGui.BeginDisabled(not canSmooth)
-            local diagnosePressed=tImGui.Button(tLang.L('swl_diagnose_transitions'))
-            showItemTooltip(tLang.L('swl_diagnose_transitions_tooltip'))
-            if diagnosePressed then diagnoseAbruptTransitions() end
-            tImGui.EndDisabled()
-            if state.abruptDiagnostics then
-                local diagnostic=state.abruptDiagnostics
-                tImGui.Text(string.format(tLang.L('swl_abrupt_result_fmt'),diagnostic.edges,
-                    diagnostic.vertices,diagnostic.maxDistance))
-                tImGui.TextDisabled(tLang.L('swl_abrupt_marker_hint'))
-                tImGui.BeginDisabled(diagnostic.vertices==0)
-                local smoothAbruptPressed=tImGui.Button(tLang.L('swl_smooth_abrupt_transitions'))
-                showItemTooltip(tLang.L('swl_smooth_abrupt_transitions_tooltip'))
-                if smoothAbruptPressed then applyAbruptTransitionSmoothing() end
-                tImGui.EndDisabled()
+            showDiagnosticControls(canOperate,false)
+            elseif state.operationMode==5 then
+            tImGui.Text(tLang.L('swl_transition_repair'))
+            showBoneRestrictions(bones,false)
+            showSmoothingControls()
+            showDiagnosticControls(canOperate,true)
             end
             tImGui.Separator()
             tImGui.Text(tLang.L('swl_history'))
