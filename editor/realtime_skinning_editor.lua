@@ -17,7 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Real-Time Skinning Editor — Phase 3 Skin Weight Lab
+   Real-Time Skinning Editor — Skin Weight Lab
 ]]--
 
 tImGui = require "ImGui"

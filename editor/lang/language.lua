@@ -29,7 +29,7 @@ M.en = {
     category = "Category",
     -- Real-Time Skinning Editor / Skin Weight Lab
     swl_title = "Real-Time Skinning Editor",
-    swl_workspace = "Skin Weight Lab — Phase 3",
+    swl_workspace = "Skin Weight Lab",
     swl_welcome = "Open a .msh file to inspect and repair its skin weights.",
     swl_open_mesh = "Open Mesh...",
     swl_save = "Save",
@@ -1775,7 +1775,7 @@ M.pt_br = {
     category = "Categoria",
     -- Editor de Skinning em Tempo Real / Laboratório de Pesos
     swl_title = "Editor de Skinning em Tempo Real",
-    swl_workspace = "Laboratório de Pesos — Fase 3",
+    swl_workspace = "Laboratório de Pesos",
     swl_welcome = "Abra um arquivo .msh para inspecionar e corrigir seus pesos de skinning.",
     swl_open_mesh = "Abrir Mesh...",
     swl_save = "Salvar",
