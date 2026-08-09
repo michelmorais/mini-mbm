@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS and DQS Plan
 
-Document version: **0.9**
+Document version: **1.0**
 Status: **Initial weight-authoring delivery completed; runtime skinning not implemented**
 Last updated: **2026-08-09**
 
@@ -14,6 +14,11 @@ interfaces do not accidentally encode only one method.
 The [Real-Time Skinning Editor guide](realtime-skinning-editor.md) documents the delivered Skin
 Weight Lab workflow for weight authoring, local repair, and validation. Runtime skinning work remains
 in the same standalone editor rather than continuing to inflate Mesh Debug.
+
+The companion
+[Skeleton and Animation Editor Plan](realtime-skinning-skeleton-and-animation-editor-plan.md)
+defines the editor's three-node product shape, audits Mesh Debug Bones as a reference, and owns
+local/imported skeleton and clip authoring workflows.
 
 This is a planning document, not a promise that LBS and DQS ship simultaneously. It separates
 confirmed facts, decisions, hypotheses, and open questions.
@@ -209,18 +214,19 @@ and which file sections remain distinct.
 
 ## 10. Standalone Editor Shape
 
-The proposed Real-Time Skinning Editor should eventually contain these workspaces:
+The Real-Time Skinning Editor will contain three primary nodes:
 
-1. **Skeleton and Bind Pose** — hierarchy, joints, parentage, local/global transforms, inverse-bind
-   validation, add/remove bones, and bind-pose diagnostics.
-2. **Skin Weight Lab** — selection, rigid regions, transitions, smoothing, diagnostics, regeneration
-   research, and rollback as specified in its companion plan.
-3. **Clips and Timeline** — clip list, bone tracks, P/R/S channels, easing, timeline playback/seek,
-   loop, speed, and composition controls aligned with articulated animation.
-4. **Deformation Preview** — LBS/DQS selection or comparison, stress poses, normals, heat maps, and
-   explicit scale/fallback diagnostics.
-5. **Backend Capabilities** — current backend, available methods, effective palette size, active
-   transport, warnings, and reproducible diagnostic export.
+1. **Skin Weight Lab** — delivered weight selection, rigid regions, transitions, smoothing,
+   diagnostics, and rollback.
+2. **Skeleton / Bind Pose** — hierarchy, joints, parentage, local/global transforms, inverse-bind
+   validation, safe correction, local creation, and bind-pose diagnostics.
+3. **Animation** — clip list, bone tracks, P/R/S channels, easing, timeline playback/seek, loop,
+   speed, composition, local authoring, and external animation import.
+
+**Deformation Preview** and **Backend Capabilities** cross these workflows and therefore remain
+shared services/panels rather than additional top-level nodes. Their runtime contracts stay in this
+plan; node behavior and the staged Mesh Debug Bones migration are owned by the companion
+[Skeleton and Animation Editor Plan](realtime-skinning-skeleton-and-animation-editor-plan.md).
 
 The standalone editor is a product decision. Its internal code-sharing boundary is not yet decided.
 The preferred direction is shared engine/editor services with incremental migration, not a copy of
@@ -409,6 +415,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.0 | 2026-08-09 | Defined the editor as three primary nodes (Skin Weight Lab, Skeleton / Bind Pose, Animation), moved deformation preview/backend capability reporting to shared concerns, and linked the dedicated Skeleton/Animation editor and Mesh Debug Bones migration plan. |
 | 0.9 | 2026-08-09 | Replaced the completed Skin Weight Lab discovery plan with the implementation-backed Real-Time Skinning Editor guide and recorded the initial weight-authoring delivery as approved. |
 | 0.8 | 2026-08-06 | Recorded abrupt neighbor-weight diagnostics while distinguishing authoring discontinuities from future posed LBS/DQS stress validation. |
 | 0.7 | 2026-08-06 | Recorded local triangle-adjacency weight smoothing while retaining pose evaluation and LBS/DQS deformation as separate future runtime work. |

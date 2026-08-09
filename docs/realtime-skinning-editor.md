@@ -13,6 +13,11 @@ The editor does not yet pose or deform the mesh through LBS or DQS. Runtime anim
 evaluation, pose preview, and GPU skinning are planned separately in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
+The editor will evolve into three primary nodes: **Skin Weight Lab**, **Skeleton / Bind Pose**, and
+**Animation**. Their product scope, the audited relationship to Mesh Debug's Bones node, and the
+migration sequence are defined in the
+[Skeleton and Animation Editor Plan](realtime-skinning-skeleton-and-animation-editor-plan.md).
+
 ## 2. Opening the editor
 
 Choose **Real-Time Skinning Editor** from the Mini MBM launcher, or start it directly:
@@ -246,4 +251,5 @@ The following are not defects in the delivered Skin Weight Lab:
 Future bind-pose validation, clip playback, pose stress, LBS/DQS selection, antipodality handling,
 and backend delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
-
+Skeleton authoring, animation authoring/import, and the migration from Mesh Debug Bones remain in
+the [Skeleton and Animation Editor Plan](realtime-skinning-skeleton-and-animation-editor-plan.md).
