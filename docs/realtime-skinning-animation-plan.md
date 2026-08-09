@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **1.5**
-Status: **Milestone 0.1–0.4 foundation implemented; runtime skinning not implemented**
+Document version: **1.6**
+Status: **Milestone 0.1–0.5 foundation implemented; runtime skinning not implemented**
 Last updated: **2026-08-09**
 
 ## 1. Purpose
@@ -360,12 +360,17 @@ translation, local quaternion rotation, local scale, and easing. Articulated eas
 quaternion interpolation, and player-state concepts may become shared services, while Part IDs,
 pivots, subset transforms, and articulated binary sections remain distinct.
 
-**Persistence direction.** Do not change the meaning of `SECTION_FRAME_SKINNED` v1/v2. Technical
-design must choose either a new version with an unambiguous runtime payload or a new skeletal
-resource section before any writer ships. The selected layout must specify stable IDs, local TRS,
-clip/track/key bytes, legacy conversion, section-count handling, CRC, and old-reader behavior.
-Inverse bind is derived from the canonical bind hierarchy; imported FBX cluster bind matrices are
-comparison evidence and must either agree within tolerance or produce an unsupported/import error.
+**Persistence decision.** Do not change the meaning of `SECTION_FRAME_SKINNED` v1/v2 or its legacy
+name-palette weights. The accepted design reserves three new version-1 V11 sections: canonical
+skeleton (`41`), runtime weights (`42`), and skeletal animation (`43`), joined by a nonzero
+`skeletonId`. Skeleton records persist stable bone IDs and parent-relative local TRS; weights use a
+`uint16` palette of stable `boneId` values; clips/tracks/keys persist quaternion-local channels and
+easing. The exact field order, presence rules, CRC/section-count handling, conversion boundary, and
+old-reader failure behavior are specified in `docs/mesh-v11-format.md` §6h. Values 41–43 remain
+reserved documentation—not enum values or writable content—until both loaders and validation tests
+exist. Inverse bind is derived from the canonical bind hierarchy; imported FBX cluster bind
+matrices are comparison evidence and must either agree within tolerance or produce an
+unsupported/import error.
 
 **Runtime ownership.** Compiled skeleton, lookup tables, bind matrices, diagnostics, and future
 instance poses stay in `Impl`/private implementation structures. Do not expose mutable STL storage,
@@ -657,6 +662,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.6 | 2026-08-09 | Completed the M0.5 persistence design gate: reserved separate canonical-skeleton, runtime-weight, and skeletal-animation V11 sections linked by `skeletonId`; fixed their byte order, ID-based hierarchy/palette references, quaternion clip records, validation and presence rules, CRC/section-count behavior, mandatory reader-before-writer rollout, and explicit old-reader failure boundary. No enum, serializer, reader, or writer was added. |
 | 1.5 | 2026-08-09 | Implemented M0.4's private skeletal clip/track/key contracts, structural and transform validation, bind-local fallback for absent channels/tracks, deterministic loop/clamp time handling, easing, antipodality-correct quaternion interpolation, and pure local-to-global pose evaluation. Non-unit quaternions are normalized with a diagnostic; scale capability findings remain explicit. No player, timeline, persistence, loader integration, blending, or deformation was added. |
 | 1.4 | 2026-08-09 | Implemented M0.3's non-mutating legacy-weight validation report: palette names resolve explicitly to compiled bone indices; vertex-count, unknown/out-of-range reference, non-finite/negative weight, sentinel misuse, and duplicate-influence findings are structural errors; zero coverage and non-unit sums remain measured quality diagnostics so partial editor data is preserved rather than silently repaired. The validator is not attached to ordinary `MESH_MBM` loading. |
 | 1.3 | 2026-08-09 | Started M0.1/M0.2 with private row-vector quaternion TRS math, an explicit legacy global-to-local conversion utility, stable hierarchy-path bone IDs, derived inverse bind, scale/shear diagnostics, scale-aware numeric comparisons, and headless synthetic fixtures. Ordinary `MESH_MBM` loading deliberately continues to parse and discard legacy v1/v2 skeleton data; promotion to a runtime skeleton requires an explicit converter or a future runtime format. Clip sampling and the remaining Milestone 0 gates are still pending. |

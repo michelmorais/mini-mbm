@@ -129,6 +129,22 @@ section per mesh, same "diagnostic/editor + FBX re-export round-trip only" scope
 specific `SECTION_FRAME_STATIC` frame's own vertex topology (frame 1, always) rather than being
 independent of geometry — skin weights only mean anything relative to one specific vertex layout.
 
+### Milestone-0.5 reserved skeletal-runtime types — not implemented yet
+
+The following values are reserved by the accepted persistence design but are deliberately **not yet
+present in `SECTION_TYPE` and must not be written by any tool** until both real loaders have explicit
+read/validate branches. This preserves the verified rule above that unknown sections currently make
+content loading fail:
+
+```cpp
+SECTION_SKELETAL_SKELETON  = 41,
+SECTION_SKELETAL_WEIGHTS   = 42,
+SECTION_SKELETAL_ANIMATION = 43,
+```
+
+All three initially use `sectionVersion == 1`. They form a new runtime family and do not change the
+meaning of legacy `SECTION_FRAME_SKINNED` or `SECTION_VERTEX_SKIN_WEIGHTS`.
+
 ## 5. Variable-length strings — replacing fixed char buffers
 
 Today: `nameTexture[64]` (63 usable chars), `nameAnimation[32]` (31 usable chars). Both are silent
@@ -527,6 +543,108 @@ stores the data for editing/re-export. An *older*, already-compiled engine binar
 for type `40` in either loader will still hard-fail on a file carrying this section (see the note
 in §4) — accepted as consistent with `SECTION_FRAME_SKINNED`'s own original rollout, not treated as
 a regression to fix retroactively.
+
+## 6h. Accepted skeletal-runtime persistence design (Milestone 0.5; not implemented)
+
+This section fixes the byte-level contract required before readers or writers are implemented.
+Every integer and float uses the existing V11 little-endian field serializers; records are written
+field-by-field and never struct-blitted. Strings use the length-prefixed UTF-8 encoding from §5.
+Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompressed bytes.
+
+### Shared identity and presence rules
+
+- `skeletonId` and every `boneId`/`clipId` are nonzero `uint64_t` values.
+- The three sections carry the same `skeletonId`; a mismatch is a fatal asset error.
+- At most one section of each of the three types may occur in a file.
+- Weights or animation require the skeleton section. A skeleton may exist without either.
+- If present, canonical order is skeleton, weights, animation. Readers must resolve by type rather
+  than relying on order because the current loader stages all payloads before dispatch.
+- Unknown section versions are fatal. A future version must receive explicit reader support.
+- `FILE_HEADER_V11.sectionCount` includes each emitted section normally; the V11 file magic and
+  `formatVersion` remain unchanged because section type/version provide the compatibility boundary.
+
+### `SECTION_SKELETAL_SKELETON = 41`, version 1
+
+```text
+uint64 skeletonId
+uint32 boneCount
+repeat boneCount times, in parent-before-child compiled order:
+    uint64 boneId
+    uint64 parentBoneId          // 0 only for a root
+    string name                  // required; unique within the skeleton in v1
+    float32 translation[3]       // parent-relative bind-local
+    float32 rotation[4]          // normalized quaternion x,y,z,w
+    float32 scale[3]
+    float32 radius               // authoring/display metadata
+    float32 length               // authoring/display metadata
+```
+
+IDs, not names or array positions, define identity and hierarchy. Every nonzero `parentBoneId` must
+refer to an earlier record. All numeric fields must be finite; quaternion, scale, hierarchy,
+local→global reconstruction, and inverse-bind validation use the Milestone-0 numerical policy.
+Global bind and inverse-global-bind matrices are derived and are not persisted.
+
+### `SECTION_SKELETAL_WEIGHTS = 42`, version 1
+
+```text
+uint64 skeletonId
+uint32 frameIndex                // v1 requires 0 (SECTION_FRAME_STATIC frame 1)
+uint32 vertexCount               // must equal that frame's vertexCount
+uint32 paletteCount              // 0..65535 entries; largest valid uint16 index is 65534
+uint64 paletteBoneId[paletteCount]
+repeat vertexCount times:
+    uint16 paletteIndex[4]       // 0xFFFF = unused
+    float32 weight[4]
+```
+
+Palette bone IDs must be nonzero, unique, and present in the associated skeleton. Used indices must
+be in range; unused slots have weight exactly zero; effective weights are finite, nonnegative, and
+sum to one within tolerance. The v1 runtime section does not preserve partial/envelope-fallback
+semantics: conversion from legacy editor weights must resolve or explicitly reject every uncovered
+vertex rather than silently inventing an influence. Four influences remain fixed for the initial
+GPU contract, while `uint16` removes the legacy name palette's 254-entry ceiling.
+
+### `SECTION_SKELETAL_ANIMATION = 43`, version 1
+
+```text
+uint64 skeletonId
+uint32 clipCount
+repeat clipCount times:
+    uint64 clipId
+    string name                  // required; unique within this section in v1
+    float32 duration
+    uint8 loop
+    uint8 reserved[3]            // zero
+    uint32 trackCount
+    repeat trackCount times:
+        uint64 boneId
+        uint8 channelMask        // bit 0=T, bit 1=R, bit 2=S; nonzero
+        uint8 reserved[3]        // zero
+        uint32 keyCount          // at least 1
+        repeat keyCount times:
+            float32 time
+            float32 translation[3]
+            float32 rotation[4]  // quaternion x,y,z,w
+            float32 scale[3]
+            uint8 easing         // 0 linear, 1 in, 2 out, 3 in-out, 4 smoothstep, 5 cubic Bézier
+            uint8 reserved[3]    // zero
+            float32 bezierX1, bezierY1, bezierX2, bezierY2
+```
+
+Track targets use `boneId`; one clip may contain at most one track per bone. Key times are finite,
+strictly increasing by more than `1e-6`, and within `[0,duration]`. Only channels selected by the
+mask affect sampling; absent channels/tracks use bind-local values. Quaternions are the functional
+rotation representation and use antipodal sign correction during interpolation. No Euler intent,
+player state, blend priority, fade, timeline selection, or backend data is persisted in version 1.
+
+### Rollout and old-reader behavior
+
+Implementation order is mandatory: add field serializers and payload validators; add parse support
+to `parse_v11_intermediate` and `MESH_MBM_DEBUG::loadV11`; add round-trip/corruption tests; only then
+add writer emission and `sectionCount` increments. Existing binaries that predate types 41–43 will
+reject files containing them. This is an explicit feature-version boundary, not silent fallback;
+tools must retain an option to save legacy/static-only meshes when compatibility with those binaries
+is required.
 
 ## 7. Index width (§6 `indexWidth`)
 
