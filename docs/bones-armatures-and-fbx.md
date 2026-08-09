@@ -219,6 +219,11 @@ section. The version-6.52.0 foundation provides a private explicit conversion ut
 automatically reinterpret v1/v2 data as a runtime skeleton. There is still no animated-pose or
 deformation consumer and no public mutable skeleton surface.
 
+The same private foundation also provides an explicit, non-mutating weight-validation report for
+conversion tooling. It resolves the legacy name palette against a deliberately compiled skeleton,
+separates structural reference errors from quality findings such as partial coverage or a non-unit
+sum, and is not invoked by ordinary `MESH_MBM` loading.
+
 ### `SECTION_VERTEX_SKIN_WEIGHTS` — real per-vertex bone weights
 
 One optional bundled section per mesh (docs/mesh-v11-format.md §6g), tied specifically to

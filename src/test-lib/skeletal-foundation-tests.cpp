@@ -52,6 +52,16 @@ namespace
         return false;
     }
 
+    bool hasDiagnostic(const WEIGHT_VALIDATION_REPORT &report, const DIAGNOSTIC_CODE code)
+    {
+        for (const DIAGNOSTIC &diagnostic : report.diagnostics)
+        {
+            if (diagnostic.code == code)
+                return true;
+        }
+        return false;
+    }
+
     util::SKELETON_BONE_V11 makeBone(const char *name, const char *parent,
                                      const float x, const float y, const float z)
     {
@@ -176,6 +186,75 @@ namespace
         expect(hasDiagnostic(compiled, DIAGNOSTIC_CODE::NEGATIVE_SCALE),
                "negative scale must produce a non-fatal capability diagnostic");
     }
+
+    util::VERTEX_BONE_WEIGHT_V11 makeWeights(const uint8_t firstIndex, const float firstWeight,
+                                             const uint8_t secondIndex = UINT8_MAX,
+                                             const float secondWeight = 0.0f)
+    {
+        util::VERTEX_BONE_WEIGHT_V11 weights;
+        weights.paletteIndex[0] = firstIndex;
+        weights.weight[0] = firstWeight;
+        weights.paletteIndex[1] = secondIndex;
+        weights.weight[1] = secondWeight;
+        return weights;
+    }
+
+    void testWeightValidation()
+    {
+        std::vector<util::SKELETON_BONE_V11> legacy = {
+            makeBone("root", "", 0.0f, 0.0f, 0.0f),
+            makeBone("child", "root", 0.0f, 1.0f, 0.0f)
+        };
+        COMPILED_SKELETON skeleton;
+        expect(compileLegacySkeleton(legacy, skeleton), "weight fixture skeleton must compile");
+
+        const std::vector<std::string> palette = {"root", "child"};
+        const std::vector<util::VERTEX_BONE_WEIGHT_V11> validWeights = {
+            makeWeights(0, 1.0f),
+            makeWeights(0, 0.25f, 1, 0.75f)
+        };
+        WEIGHT_VALIDATION_REPORT report;
+        expect(validateLegacyWeights(skeleton, palette, validWeights, 2, report),
+               "valid weights must pass structural validation");
+        expect(report.diagnostics.empty(), "valid weights must have no quality diagnostics");
+        expect(report.paletteBoneIndices.size() == 2 && report.paletteBoneIndices[0] == 0 &&
+               report.paletteBoneIndices[1] == 1, "weight palette names must resolve to compiled bone indices");
+        expect(validWeights[1].weight[0] == 0.25f && validWeights[1].weight[1] == 0.75f,
+               "validation must not mutate source weights");
+
+        std::vector<util::VERTEX_BONE_WEIGHT_V11> qualityWeights = {
+            makeWeights(0, 0.25f),
+            makeWeights(UINT8_MAX, 0.0f)
+        };
+        expect(validateLegacyWeights(skeleton, palette, qualityWeights, 2, report),
+               "weight-quality findings must remain non-fatal for legacy editor data");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::WEIGHT_SUM_MISMATCH),
+               "unnormalized weights must be reported without normalization");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::NO_EFFECTIVE_INFLUENCE),
+               "unweighted legacy vertices must be reported without inventing an influence");
+        expect(report.verticesWithInvalidWeightSum == 1 && report.verticesWithoutEffectiveInfluence == 1,
+               "weight-quality aggregate counts must be deterministic");
+
+        std::vector<util::VERTEX_BONE_WEIGHT_V11> invalidWeights = {
+            makeWeights(2, 1.0f)
+        };
+        const std::vector<std::string> invalidPalette = {"missing"};
+        expect(!validateLegacyWeights(skeleton, invalidPalette, invalidWeights, 2, report),
+               "invalid references and vertex count must fail structural validation");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::UNKNOWN_WEIGHT_BONE),
+               "unknown palette bone must be diagnosed");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::PALETTE_INDEX_OUT_OF_RANGE),
+               "out-of-range palette index must be diagnosed");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::VERTEX_COUNT_MISMATCH),
+               "weight/geometry vertex-count mismatch must be diagnosed");
+
+        invalidWeights = {makeWeights(0, -0.5f, 0, 1.5f)};
+        expect(!validateLegacyWeights(skeleton, palette, invalidWeights, 1, report),
+               "negative and duplicate influences must fail structural validation");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::NEGATIVE_WEIGHT), "negative weight must be diagnosed");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::DUPLICATE_BONE_INFLUENCE),
+               "duplicate bone influence must be diagnosed");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -184,6 +263,7 @@ int runSkeletalFoundationTests()
     testTrsRoundTrip();
     testHierarchyAndIdentity();
     testValidation();
+    testWeightValidation();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

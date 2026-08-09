@@ -139,11 +139,38 @@ namespace mbm::skeletal
         void addDiagnostic(COMPILED_SKELETON &out, const DIAGNOSTIC_CODE code, const uint32_t sourceIndex,
                            const std::string &name, const float error = 0.0f, const bool fatal = true)
         {
-            out.diagnostics.push_back({code, sourceIndex, name, error, fatal});
+            DIAGNOSTIC diagnostic;
+            diagnostic.code = code;
+            diagnostic.sourceIndex = sourceIndex;
+            diagnostic.boneName = name;
+            diagnostic.observedError = error;
+            diagnostic.fatal = fatal;
+            out.diagnostics.push_back(std::move(diagnostic));
+        }
+
+        void addWeightDiagnostic(WEIGHT_VALIDATION_REPORT &out, const DIAGNOSTIC_CODE code,
+                                 const uint32_t vertexIndex, const uint8_t slotIndex,
+                                 const std::string &boneName, const float error = 0.0f,
+                                 const bool fatal = true)
+        {
+            DIAGNOSTIC diagnostic;
+            diagnostic.code = code;
+            diagnostic.vertexIndex = vertexIndex;
+            diagnostic.slotIndex = slotIndex;
+            diagnostic.boneName = boneName;
+            diagnostic.observedError = error;
+            diagnostic.fatal = fatal;
+            out.diagnostics.push_back(std::move(diagnostic));
         }
     }
 
     bool COMPILED_SKELETON::hasFatalDiagnostics() const noexcept
+    {
+        return std::any_of(diagnostics.begin(), diagnostics.end(),
+                           [](const DIAGNOSTIC &diagnostic) { return diagnostic.fatal; });
+    }
+
+    bool WEIGHT_VALIDATION_REPORT::hasFatalDiagnostics() const noexcept
     {
         return std::any_of(diagnostics.begin(), diagnostics.end(),
                            [](const DIAGNOSTIC &diagnostic) { return diagnostic.fatal; });
@@ -266,6 +293,18 @@ namespace mbm::skeletal
             case DIAGNOSTIC_CODE::ID_COLLISION: return "id-collision";
             case DIAGNOSTIC_CODE::LOCAL_RECONSTRUCTION_MISMATCH: return "local-reconstruction-mismatch";
             case DIAGNOSTIC_CODE::BIND_IDENTITY_MISMATCH: return "bind-identity-mismatch";
+            case DIAGNOSTIC_CODE::EMPTY_PALETTE_NAME: return "empty-palette-name";
+            case DIAGNOSTIC_CODE::DUPLICATE_PALETTE_NAME: return "duplicate-palette-name";
+            case DIAGNOSTIC_CODE::UNKNOWN_WEIGHT_BONE: return "unknown-weight-bone";
+            case DIAGNOSTIC_CODE::VERTEX_COUNT_MISMATCH: return "vertex-count-mismatch";
+            case DIAGNOSTIC_CODE::PALETTE_INDEX_OUT_OF_RANGE: return "palette-index-out-of-range";
+            case DIAGNOSTIC_CODE::NON_FINITE_WEIGHT: return "non-finite-weight";
+            case DIAGNOSTIC_CODE::NEGATIVE_WEIGHT: return "negative-weight";
+            case DIAGNOSTIC_CODE::UNUSED_SLOT_NONZERO: return "unused-slot-nonzero";
+            case DIAGNOSTIC_CODE::ZERO_WEIGHT_USED_SLOT: return "zero-weight-used-slot";
+            case DIAGNOSTIC_CODE::DUPLICATE_BONE_INFLUENCE: return "duplicate-bone-influence";
+            case DIAGNOSTIC_CODE::NO_EFFECTIVE_INFLUENCE: return "no-effective-influence";
+            case DIAGNOSTIC_CODE::WEIGHT_SUM_MISMATCH: return "weight-sum-mismatch";
         }
         return "unknown";
     }
@@ -388,5 +427,113 @@ namespace mbm::skeletal
             out.indexById.emplace(out.bones.back().boneId, compiledIndex);
         }
         return out.bones.size() == legacy.size() && !out.hasFatalDiagnostics();
+    }
+
+    bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
+                               const std::vector<std::string> &palette,
+                               const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,
+                               const uint32_t expectedVertexCount,
+                               WEIGHT_VALIDATION_REPORT &out)
+    {
+        out = {};
+        out.paletteBoneIndices.assign(palette.size(), -1);
+        if (weights.size() != expectedVertexCount)
+        {
+            addWeightDiagnostic(out, DIAGNOSTIC_CODE::VERTEX_COUNT_MISMATCH, UINT32_MAX, UINT8_MAX,
+                                std::string(), static_cast<float>(weights.size()), true);
+        }
+
+        std::unordered_set<std::string> paletteNames;
+        paletteNames.reserve(palette.size());
+        for (size_t i = 0; i < palette.size(); ++i)
+        {
+            const std::string &name = palette[i];
+            if (name.empty())
+            {
+                addWeightDiagnostic(out, DIAGNOSTIC_CODE::EMPTY_PALETTE_NAME, UINT32_MAX,
+                                    static_cast<uint8_t>(i), name);
+                continue;
+            }
+            if (!paletteNames.insert(name).second)
+            {
+                addWeightDiagnostic(out, DIAGNOSTIC_CODE::DUPLICATE_PALETTE_NAME, UINT32_MAX,
+                                    static_cast<uint8_t>(i), name);
+                continue;
+            }
+            const auto bone = skeleton.indexByName.find(name);
+            if (bone == skeleton.indexByName.end())
+            {
+                addWeightDiagnostic(out, DIAGNOSTIC_CODE::UNKNOWN_WEIGHT_BONE, UINT32_MAX,
+                                    static_cast<uint8_t>(i), name);
+                continue;
+            }
+            out.paletteBoneIndices[i] = bone->second;
+        }
+
+        for (uint32_t vertexIndex = 0; vertexIndex < weights.size(); ++vertexIndex)
+        {
+            const util::VERTEX_BONE_WEIGHT_V11 &entry = weights[vertexIndex];
+            float sum = 0.0f;
+            uint8_t effectiveCount = 0;
+            std::unordered_set<uint8_t> usedPaletteIndices;
+            for (uint8_t slot = 0; slot < 4; ++slot)
+            {
+                const uint8_t paletteIndex = entry.paletteIndex[slot];
+                const float weight = entry.weight[slot];
+                if (!std::isfinite(weight))
+                {
+                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::NON_FINITE_WEIGHT, vertexIndex, slot,
+                                        std::string(), weight);
+                    continue;
+                }
+                if (paletteIndex == UINT8_MAX)
+                {
+                    if (weight != 0.0f)
+                        addWeightDiagnostic(out, DIAGNOSTIC_CODE::UNUSED_SLOT_NONZERO, vertexIndex,
+                                            slot, std::string(), weight);
+                    continue;
+                }
+                if (paletteIndex >= palette.size())
+                {
+                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::PALETTE_INDEX_OUT_OF_RANGE,
+                                        vertexIndex, slot, std::string(), paletteIndex);
+                    continue;
+                }
+                const std::string &boneName = palette[paletteIndex];
+                if (!usedPaletteIndices.insert(paletteIndex).second)
+                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::DUPLICATE_BONE_INFLUENCE,
+                                        vertexIndex, slot, boneName);
+                if (weight < 0.0f)
+                {
+                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::NEGATIVE_WEIGHT, vertexIndex, slot,
+                                        boneName, weight);
+                    continue;
+                }
+                if (weight == 0.0f)
+                {
+                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::ZERO_WEIGHT_USED_SLOT, vertexIndex,
+                                        slot, boneName, 0.0f, false);
+                    continue;
+                }
+                sum += weight;
+                ++effectiveCount;
+            }
+            if (effectiveCount == 0)
+            {
+                ++out.verticesWithoutEffectiveInfluence;
+                addWeightDiagnostic(out, DIAGNOSTIC_CODE::NO_EFFECTIVE_INFLUENCE, vertexIndex,
+                                    UINT8_MAX, std::string(), 0.0f, false);
+                continue;
+            }
+            const float sumError = std::fabs(sum - 1.0f);
+            out.maximumWeightSumError = std::max(out.maximumWeightSumError, sumError);
+            if (sumError > MATRIX_TOLERANCE)
+            {
+                ++out.verticesWithInvalidWeightSum;
+                addWeightDiagnostic(out, DIAGNOSTIC_CODE::WEIGHT_SUM_MISMATCH, vertexIndex,
+                                    UINT8_MAX, std::string(), sumError, false);
+            }
+        }
+        return !out.hasFatalDiagnostics();
     }
 }

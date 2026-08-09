@@ -60,13 +60,27 @@ namespace mbm::skeletal
         SHEAR_NOT_SUPPORTED,
         ID_COLLISION,
         LOCAL_RECONSTRUCTION_MISMATCH,
-        BIND_IDENTITY_MISMATCH
+        BIND_IDENTITY_MISMATCH,
+        EMPTY_PALETTE_NAME,
+        DUPLICATE_PALETTE_NAME,
+        UNKNOWN_WEIGHT_BONE,
+        VERTEX_COUNT_MISMATCH,
+        PALETTE_INDEX_OUT_OF_RANGE,
+        NON_FINITE_WEIGHT,
+        NEGATIVE_WEIGHT,
+        UNUSED_SLOT_NONZERO,
+        ZERO_WEIGHT_USED_SLOT,
+        DUPLICATE_BONE_INFLUENCE,
+        NO_EFFECTIVE_INFLUENCE,
+        WEIGHT_SUM_MISMATCH
     };
 
     struct DIAGNOSTIC
     {
         DIAGNOSTIC_CODE code = DIAGNOSTIC_CODE::NON_FINITE_TRANSFORM;
         uint32_t sourceIndex = 0;
+        uint32_t vertexIndex = UINT32_MAX;
+        uint8_t slotIndex = UINT8_MAX;
         std::string boneName;
         float observedError = 0.0f;
         bool fatal = true;
@@ -99,6 +113,17 @@ namespace mbm::skeletal
         bool hasFatalDiagnostics() const noexcept;
     };
 
+    struct WEIGHT_VALIDATION_REPORT
+    {
+        std::vector<int32_t> paletteBoneIndices;
+        std::vector<DIAGNOSTIC> diagnostics;
+        float maximumWeightSumError = 0.0f;
+        uint32_t verticesWithoutEffectiveInfluence = 0;
+        uint32_t verticesWithInvalidWeightSum = 0;
+
+        bool hasFatalDiagnostics() const noexcept;
+    };
+
     MATRIX buildTrsMatrix(const LOCAL_TRANSFORM &transform) noexcept;
     bool decomposeTrsMatrix(const MATRIX &matrix, LOCAL_TRANSFORM &out, bool &hasNegativeScale,
                             bool &hasShear) noexcept;
@@ -107,6 +132,11 @@ namespace mbm::skeletal
     const char *diagnosticCodeName(DIAGNOSTIC_CODE code) noexcept;
     bool compileLegacySkeleton(const std::vector<util::SKELETON_BONE_V11> &legacy,
                                COMPILED_SKELETON &out);
+    bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
+                               const std::vector<std::string> &palette,
+                               const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,
+                               uint32_t expectedVertexCount,
+                               WEIGHT_VALIDATION_REPORT &out);
 }
 
 #endif
