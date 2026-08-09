@@ -1872,8 +1872,6 @@ local function showPanel()
             tImGui.BeginDisabled(state.rollbackPath == nil)
             if tImGui.Button(tLang.L('swl_revert')) then revertLast() end
             tImGui.EndDisabled()
-            tImGui.Separator()
-            tImGui.TextDisabled(tLang.L('swl_phase3_notice'))
         end
         if not state.meshD then showStatusMessage() end
     end

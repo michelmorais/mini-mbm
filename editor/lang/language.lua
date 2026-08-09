@@ -151,7 +151,6 @@ M.en = {
     swl_check_failed = "Mesh validation failed.",
     swl_phase1_notice = "Phase 1: edits frame-1 weights only. LBS/DQS deformation preview is not implemented yet.",
     swl_phase2_notice = "Phase 2: the red core is rigid; the orange shell blends into existing frame-1 weights. LBS/DQS deformation preview is not implemented yet.",
-    swl_phase3_notice = "Phase 3: weight diagnostics and topology smoothing operate on frame 1. Posed LBS/DQS preview is not implemented yet.",
     -- Asset packager
     asset_packager = "Asset Packager",
     new_asset_from_folder = "New Asset (From Folder)",
@@ -1898,7 +1897,6 @@ M.pt_br = {
     swl_check_failed = "A validação da mesh falhou.",
     swl_phase1_notice = "Fase 1: edita somente os pesos do frame 1. A visualização LBS/DQS ainda não foi implementada.",
     swl_phase2_notice = "Fase 2: o núcleo vermelho é rígido; a área laranja mistura os pesos existentes do frame 1. A visualização LBS/DQS ainda não foi implementada.",
-    swl_phase3_notice = "Fase 3: diagnósticos de peso e suavização por topologia operam no frame 1. O preview em pose LBS/DQS ainda não foi implementado.",
     -- Asset packager
     asset_packager = "Empacotador de ativos",
     new_asset_from_folder = "Novo ativo (de pasta)",

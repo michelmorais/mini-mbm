@@ -227,8 +227,9 @@
     6.51.0 Added separate read-only selection-boundary weight diagnostics with orange crossing lines, internal/boundary reports, and independent overlay visibility.
     6.51.1 Added heatmap-bone influence counts, positive min/max weights, and a zero-influence warning that leaves full-weight transition diagnostics valid.
     6.51.2 Added exact external-boundary weight-slot auditing around targeted smoothing, with verified/modified/failure reporting and error status on contract violation.
+    6.51.3 Completed and approved the initial Skin Weight Lab delivery, including no-influence normalization coverage and removal of the redundant Phase-3 footer notice.
 */
-#define MBM_VERSION "6.51.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.51.3" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

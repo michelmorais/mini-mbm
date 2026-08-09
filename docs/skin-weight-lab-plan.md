@@ -1,7 +1,7 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.33**
-Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
+Document version: **0.34**
+Status: **Initial Skin Weight Lab delivery completed and approved; future refinements remain planned**
 Last updated: **2026-08-09**
 
 ## 1. Purpose
@@ -607,6 +607,7 @@ future refinement or malformed-input branch has been tested.
 | Abrupt-transition diagnosis | **Approved** | Neck baseline `461 / 479 / 1.000`; after smoothing `372 / 405 / 0.870`. |
 | Selection-boundary diagnosis | **Approved** | On the cavity selection, threshold `0.35` reported 258 internal edges / 303 internal vertices and 7 boundary edges / 9 boundary vertices; threshold `0.05` expanded these to 1,781 / 1,656 and 37 / 43. Orange crossing lines and their visibility toggle worked, and maximum differences remained stable when only the threshold changed. |
 | Smooth Detected Transitions | **Approved** | At threshold `0.35`, Strength `0.15`, one iteration: 396/396 magenta vertices written, 0 skipped, abrupt edges `372 → 333`, affected vertices `396 → 358`, and rollback confirmed. |
+| Boundary-safe targeted smoothing | **Approved** | Cavity retest at threshold `0.35`: internal abrupt edges `258 → 223`, affected internal vertices `303 → 264`, refreshed boundary report `6` edges / `9` vertices / maximum difference `0.883`; all `5` unique external neighbors were verified, with `0` modified and `0` audit failures. |
 | Local smoothing of a complete selection | **Partially validated** | Reduced the neck tear, but including arm influences introduced stretching. The experiment was stopped without accepting a final neck asset. |
 | Rigid Bind | **Approved in Mixamo** | The hollow abdominal core remained visibly rigid during body animation. |
 | Uniform transition shell | **Superseded** | Zero width broke lateral faces; excessive uniform width reached the chin. This motivated per-face control. |
@@ -614,17 +615,14 @@ future refinement or malformed-input branch has been tested.
 | Per-face transition edge cases | **Approved** | Confirmed one enabled face, unequal opposite widths, all faces disabled, enabled width zero, a permitted two-face corner, a corner blocked by a disabled crossed face, and analysis invalidation after edits. |
 | Material-subset selection | **Approved** | The rat's sole subset selected all 36,149 vertices; `Crate.msh` then proved isolation with subset counts `192` and `24`, visually distinct regions, and an exact `216`-vertex total. |
 | Mesh without bones or stored weights | **Approved** | `Crate.msh` loaded and supported AABB/subset analysis and map/no-map visualization without crashes or fabricated references. Bone-dependent edits were correctly unavailable or had no applicable influence to modify. |
-| Normalize and Limit | **Approved** | Controlled fixture: 182 first-pass cleanups (`3` invalid sums + `179` named zero weights), then `0` corrected / `36,149` already valid on the second pass. |
-| Normalize report | **Approved** | Local analyzed/corrected/already-valid/skipped/failed counts were visible and consistent with the audit. |
+| Normalize and Limit | **Approved** | Invalid-weight fixture: 182 first-pass cleanups (`3` invalid sums + `179` named zero weights), then `0` corrected / `36,149` already valid on the second pass. One-unweighted-vertex fixture: `179` corrected, `35,969` already valid, `1` skipped without invented influence, and `0` failures. |
+| Normalize report | **Approved** | Local analyzed/corrected/already-valid/skipped/failed counts were visible, mutually consistent, and summed to all `36,149` analyzed vertices in the exceptional no-influence test. |
 | FBX export after weight editing | **Approved structurally and in Mixamo** | 41 bones, 36,149 vertices, 51,794 polygons, no unweighted/non-normalized vertices, and at most four effective influences in the inspected export. |
 
-The following behavior is implemented but still needs an explicit validation pass:
-
-1. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
-   read/write failure if a safe fixture can represent one; ordinary and idempotent paths are done.
-2. **Boundary-safe targeted smoothing:** verify that “Smooth Detected Transitions” still edits only
-   the internal magenta set, never the orange external-neighbor endpoints, and that automatic
-   re-diagnosis refreshes both internal and boundary reports afterward.
+No mandatory interactive validation remains for the initial Skin Weight Lab delivery. A controlled
+read/write failure during normalization is retained as a future automated robustness test rather
+than an editor acceptance blocker; ordinary, idempotent, and no-effective-influence paths are
+approved.
 
 The following items remain future milestones rather than missing tests of current behavior:
 
@@ -887,6 +885,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.34 | 2026-08-09 | Closed and approved the initial Skin Weight Lab delivery: boundary-safe targeted smoothing verified 5 external neighbors with 0 modifications and 0 audit failures; the one-unweighted-vertex fixture was skipped without invented weights or failures; removed the redundant disabled Phase-3 notice from the editor and retained artificial read/write failure injection as future automated robustness coverage. |
 | 0.33 | 2026-08-09 | Added exact before/after auditing of every abrupt boundary's external neighbor during targeted smoothing, reporting verified, modified, and failed reads; any external change or audit failure now produces an error while preserving rollback. Interactive validation remains pending. |
 | 0.32 | 2026-08-09 | Approved selection-boundary diagnosis and overlay behavior at thresholds `0.35` and `0.05`, including monotonic edge/vertex expansion and stable maximum differences; retained boundary-safe targeted smoothing as a separate pending validation. |
 | 0.31 | 2026-08-09 | Added cached heatmap-bone relevance information after analysis: influenced/selected count, minimum and maximum positive weights, plus a wrapped zero-influence warning that explicitly preserves transition-diagnostic validity and avoids inferring relevance from joint position. |
