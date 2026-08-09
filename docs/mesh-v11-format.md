@@ -392,7 +392,8 @@ struct SKELETON_BONE_V11
                                   // X-then-Y-then-Z composition order (MatrixRotationX/Y/Z,
                                   // src/core_mbm/primitives.cpp), matching editor/mesh_debug.lua's
                                   // rotateX/Y/Z and MESH_MBM_DEBUG::rotateFrame exactly.
-    float scaleX, scaleY, scaleZ; // bone-local scale, default 1,1,1
+    float scaleX, scaleY, scaleZ; // bone-local scale, default 1,1,1. A whole-mesh coordinate-space
+                                  // scale bake changes x/y/z, radius, and length, not these fields.
     float length;                 // bone extent along its own local +Y axis (Blender's own
                                   // head→tail convention): tail = head + Rotate(rotX,rotY,rotZ)
                                   // applied to Vector(0, length, 0). `0` means "no orientation

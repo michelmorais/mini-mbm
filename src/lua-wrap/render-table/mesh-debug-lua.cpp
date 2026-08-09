@@ -1472,7 +1472,9 @@ namespace mbm
         return 0;
     }
 
-    // scaleFrame(frame, sx, sy, sz [,subset])  -- frame=0 means all; subset=0 means all
+    // scaleFrame(frame, sx, sy, sz [,subset [,scaleSkeleton]]) -- frame/subset=0 means all.
+    // scaleSkeleton=true is valid only for a whole-mesh positive uniform bake; invalid requests
+    // throw before either geometry or skeleton is changed.
     int onScaleFrameDebugLua(lua_State *lua)
     {
         const int       top         = lua_gettop(lua);
@@ -1484,7 +1486,11 @@ namespace mbm
         const float     sz          = top > 4 ? static_cast<float>(luaL_optnumber(lua, 5, 1.0)) : 1.0f;
         const int       subsetArg   = top > 5 ? luaL_optinteger(lua, 6, 0) : 0;
         const int       indexSubset = subsetArg <= 0 ? -1 : subsetArg - 1;
-        meshDebug->mesh.scaleFrame(indexFrame, indexSubset, sx, sy, sz);
+        const bool      scaleSkeleton = top > 6 ? lua_toboolean(lua, 7) != 0 : false;
+        char            errorOut[255] = "";
+        if (!meshDebug->mesh.scaleFrame(indexFrame, indexSubset, sx, sy, sz, scaleSkeleton,
+                                        errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
         return 0;
     }
 

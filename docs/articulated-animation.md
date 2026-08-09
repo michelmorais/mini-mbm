@@ -324,7 +324,7 @@ pivots, bind poses, or file sections. See the
 | Lua signatures and return values | [Lua API](lua-api.md#articulated-playback-mesh-and-sprite) |
 | Binary layout and persisted invariants | [Mesh V11 format](mesh-v11-format.md#6f-section_articulated_parts-and-section_articulated_animation-payloads) |
 | Future LBS/DQS relationship | [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md) |
-| Weight authoring | [Skin Weight Lab Plan](skin-weight-lab-plan.md) |
+| Weight authoring | [Real-Time Skinning Editor](realtime-skinning-editor.md) |
 
 ## 15. Change Log
 

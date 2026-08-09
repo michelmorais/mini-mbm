@@ -34,6 +34,7 @@
 #include "mesh-io-primitives.h"
 
 #include <cfloat>
+#include <cmath>
 #include <string>
 #include <algorithm> // std::sort
 #include <unordered_map>
@@ -3553,37 +3554,74 @@ namespace mbm
 
     void MESH_MBM_DEBUG::scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz)
     {
+        scaleFrame(indexFrame, indexSubset, sx, sy, sz, false, nullptr, 0);
+    }
+
+    bool MESH_MBM_DEBUG::scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy,
+                                    const float sz, const bool scaleSkeleton, char *errorOut, const int errorOutLen)
+    {
+        const bool hasSkeleton = !impl->skeleton.empty();
+        if (scaleSkeleton && hasSkeleton)
+        {
+            if (indexFrame >= 0 || indexSubset >= 0)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen,
+                    "skeleton synchronization requires all frames and all subsets");
+                return false;
+            }
+            const float tolerance = std::max(1.0f, std::max(std::abs(sx), std::max(std::abs(sy), std::abs(sz)))) * 0.000001f;
+            if (sx <= 0.0f || std::abs(sx - sy) > tolerance || std::abs(sx - sz) > tolerance)
+            {
+                if (errorOut) snprintf(errorOut, errorOutLen,
+                    "skeleton synchronization requires a positive uniform scale");
+                return false;
+            }
+        }
         if (indexFrame < 0)
         {
             for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
-                scaleFrame(static_cast<int>(i), indexSubset, sx, sy, sz);
-            return;
+                scaleFrame(static_cast<int>(i), indexSubset, sx, sy, sz, false, nullptr, 0);
         }
-        if (indexFrame >= static_cast<int>(this->impl->buffer.size())) return;
-        util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
-        auto *const              pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
-        const auto               s             = static_cast<uint32_t>(bufferCurrent->subset.size());
-        auto applyScale                         = [&](const uint32_t vertexStart, const uint32_t vertexCount) {
-            const uint32_t n = vertexStart + vertexCount;
-            for (uint32_t j = vertexStart; j < n; ++j)
-            {
-                VEC3 *p = &pPosition[j];
-                p->x *= sx; p->y *= sy; p->z *= sz;
-            }
-        };
-        if (indexSubset < 0)
+        else if (indexFrame < static_cast<int>(this->impl->buffer.size()))
         {
-            for (uint32_t i = 0; i < s; ++i)
+            util::BUFFER_MESH_DEBUG *bufferCurrent = this->impl->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+            auto *const              pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
+            const auto               s             = static_cast<uint32_t>(bufferCurrent->subset.size());
+            auto applyScale                         = [&](const uint32_t vertexStart, const uint32_t vertexCount) {
+                const uint32_t n = vertexStart + vertexCount;
+                for (uint32_t j = vertexStart; j < n; ++j)
+                {
+                    VEC3 *p = &pPosition[j];
+                    p->x *= sx; p->y *= sy; p->z *= sz;
+                }
+            };
+            if (indexSubset < 0)
             {
-                const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[i];
+                for (uint32_t i = 0; i < s; ++i)
+                {
+                    const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[i];
+                    applyScale(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
+                }
+            }
+            else if (indexSubset < static_cast<int>(s))
+            {
+                const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[static_cast<uint32_t>(indexSubset)];
                 applyScale(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
             }
         }
-        else if (indexSubset < static_cast<int>(s))
+
+        if (scaleSkeleton && hasSkeleton)
         {
-            const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[static_cast<uint32_t>(indexSubset)];
-            applyScale(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
+            for (auto &joint : impl->skeleton)
+            {
+                joint.x *= sx;
+                joint.y *= sy;
+                joint.z *= sz;
+                joint.radius *= sx;
+                joint.length *= sx;
+            }
         }
+        return true;
     }
 
     void MESH_MBM_DEBUG::translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz)

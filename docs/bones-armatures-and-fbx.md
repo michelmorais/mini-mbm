@@ -7,9 +7,9 @@ whole feature area was built up over many sessions chasing a single symptom (Mix
 "Quick Mental Model" and "Pitfalls" sections below exist so the next person (human or AI) doesn't
 have to re-derive any of that from scratch.
 
-Planned region-based weight editing, rigid-core/falloff workflows, diagnostics, and user-test gates
-are tracked in [`skin-weight-lab-plan.md`](skin-weight-lab-plan.md). The future standalone editor,
-bind-pose pipeline, and runtime LBS/DQS delivery are tracked in
+Region-based weight editing, rigid-core/falloff workflows, diagnostics, and validated usage are
+documented in the [Real-Time Skinning Editor guide](realtime-skinning-editor.md). The future
+bind-pose pipeline and runtime LBS/DQS delivery are tracked in
 [`realtime-skinning-animation-plan.md`](realtime-skinning-animation-plan.md).
 
 Rigid subset animation is a separate implemented feature documented in
@@ -310,6 +310,17 @@ never for anything the engine itself renders differently.
   override layered on top of envelope binding, not a mesh-wide either/or (see Pitfalls: "Weights are
   independent of the skeleton" for why the earlier either/or design silently zeroed the rest of a
   character whenever only a prop bone had real weights).
+
+### Scaling geometry and its skeleton
+
+The skeleton uses the same coordinate space as mesh vertices; its positions are not normalized.
+Mesh Debug's Transform node may therefore synchronize a positive uniform whole-mesh scale with the
+global skeleton. That bake scales joint positions, radius, and length, while preserving per-bone
+`scaleX/Y/Z`: changing coordinate units is not a local bone-scale transform. A frame-only,
+subset-only, negative, or non-uniform operation cannot faithfully update the one global rest
+skeleton and is not synchronized. The FBX exporter currently reconstructs Blender edit bones from
+position, `rotX/Y/Z`, length, and radius; although `scaleX/Y/Z` travel through the intermediate
+JSON, they are not consumed when constructing the FBX armature.
 
 ### Armature Templates — reusable named skeletons
 
