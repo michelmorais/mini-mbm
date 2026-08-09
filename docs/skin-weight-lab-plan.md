@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.25**
+Document version: **0.26**
 Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
 Last updated: **2026-08-09**
 
@@ -592,6 +592,7 @@ future refinement or malformed-input branch has been tested.
 | Rigid Bind | **Approved in Mixamo** | The hollow abdominal core remained visibly rigid during body animation. |
 | Uniform transition shell | **Superseded** | Zero width broke lateral faces; excessive uniform width reached the chin. This motivated per-face control. |
 | Six independent AABB transition faces | **Approved in Mixamo for the cavity** | Prevented upward reach into the chin and reduced the lateral break while preserving the rigid core. A separate horizontal torso break remains. |
+| Per-face transition edge cases | **Approved** | Confirmed one enabled face, unequal opposite widths, all faces disabled, enabled width zero, a permitted two-face corner, a corner blocked by a disabled crossed face, and analysis invalidation after edits. |
 | Material-subset selection | **Approved only for a single-subset mesh** | The rat's sole frame-1 subset selected all 36,149 vertices; multi-subset isolation is not yet tested. |
 | Normalize and Limit | **Approved** | Controlled fixture: 182 first-pass cleanups (`3` invalid sums + `179` named zero weights), then `0` corrected / `36,149` already valid on the second pass. |
 | Normalize report | **Approved** | Local analyzed/corrected/already-valid/skipped/failed counts were visible and consistent with the audit. |
@@ -600,13 +601,11 @@ future refinement or malformed-input branch has been tested.
 The following behavior is implemented but still needs an explicit validation pass:
 
 1. **Multi-subset selection:** use a mesh with at least two material subsets and prove isolation.
-2. **Per-face edge cases:** test one enabled face, unequal opposite widths, all faces disabled,
-   enabled width zero, a permitted two-face corner, and a corner blocked by one crossed face.
-3. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
+2. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
    read/write failure if a safe fixture can represent one; ordinary and idempotent paths are done.
-4. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
+3. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
    and skeleton alignment on the unscaled rat rather than only the 100× working fixture.
-5. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
+4. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
    and absence of crashes.
 
 The following items remain future milestones rather than missing tests of current behavior:
@@ -871,6 +870,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.26 | 2026-08-09 | Approved all six AABB transition-face edge cases: one-sided and asymmetric widths, all-disabled and zero-width behavior, permitted two-face corners, disabled crossed-face blocking, and analysis invalidation after edits. |
 | 0.25 | 2026-08-09 | Approved allowed-bone visualization: persistent cyan selection, orange hover, list actions, and visual cleanup when changing operations; clarified that the allowed-bone selection itself is intentionally preserved. |
 | 0.24 | 2026-08-09 | Exposed the bounds-derived AABB numeric-drag sensitivity as an editable value, with a compact Auto reset; changing sensitivity alone does not alter selection geometry or invalidate analysis. |
 | 0.23 | 2026-08-08 | Approved bone-proximity selection after the scale-aware radius/capsule retest confirmed coherent selection, bone-change invalidation, and optional nearest-segment filtering on the 100× rat. |
