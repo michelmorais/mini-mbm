@@ -121,12 +121,10 @@ namespace mbm
         util::INFO_ANIMATION     infoAnimation;
         std::vector<std::string> extraPaths;
         std::vector<IntermediateFrameV11> frames;
-        //TODO: check before merge PR
-        // Legacy world/armature-space source plus its immutable runtime-ready bind-pose form.
-        // The source is retained only through parsing; finishLoadFromIntermediate moves the
-        // compiled representation behind MESH_MBM::Impl.
+        // Parsed but intentionally unused by MESH_MBM. SECTION_FRAME_SKINNED v1/v2 is legacy
+        // editor/interchange data, not a runtime bind-pose contract. A future explicit conversion
+        // path may compile it, but ordinary mesh loading must preserve its historical acceptance.
         std::vector<util::SKELETON_BONE_V11> skeleton;
-        skeletal::COMPILED_SKELETON compiledSkeleton;
         // Same "parsed but intentionally unused by MESH_MBM" rationale as `skeleton` above, for
         // SECTION_VERTEX_SKIN_WEIGHTS - see MESH_MBM_DEBUG::Impl::weightPalette/vertexWeights
         // (mesh-manager-impl.h) for where a debug-path load actually keeps this.
@@ -170,8 +168,7 @@ namespace mbm
               positionOffset_deprecated(other.positionOffset_deprecated),
               angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
               extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
-              skeleton(std::move(other.skeleton)), compiledSkeleton(std::move(other.compiledSkeleton)),
-              weightPalette(std::move(other.weightPalette)),
+              skeleton(std::move(other.skeleton)), weightPalette(std::move(other.weightPalette)),
               vertexWeights(std::move(other.vertexWeights)),
               articulatedParts(std::move(other.articulatedParts)),
               articulatedClips(std::move(other.articulatedClips))
@@ -196,7 +193,6 @@ namespace mbm
             extraPaths     = std::move(other.extraPaths);
             frames         = std::move(other.frames);
             skeleton       = std::move(other.skeleton);
-            compiledSkeleton = std::move(other.compiledSkeleton);
             weightPalette  = std::move(other.weightPalette);
             vertexWeights  = std::move(other.vertexWeights);
             articulatedParts = std::move(other.articulatedParts);
@@ -1074,28 +1070,6 @@ namespace
                 errorOut = "loadV11 does not support this section type";
                 return false;
             }
-        }
-        if (!out.skeleton.empty() &&
-            !mbm::skeletal::compileLegacySkeleton(out.skeleton, out.compiledSkeleton))
-        {
-            errorOut = "invalid skeletal bind-pose contract";
-            for (const mbm::skeletal::DIAGNOSTIC &diagnostic : out.compiledSkeleton.diagnostics)
-            {
-                if (!diagnostic.fatal)
-                    continue;
-                errorOut += ": ";
-                errorOut += mbm::skeletal::diagnosticCodeName(diagnostic.code);
-                errorOut += " at source bone ";
-                errorOut += std::to_string(diagnostic.sourceIndex);
-                if (!diagnostic.boneName.empty())
-                {
-                    errorOut += " ('";
-                    errorOut += diagnostic.boneName;
-                    errorOut += "')";
-                }
-                break;
-            }
-            return false;
         }
         return true;
     }
@@ -5364,8 +5338,6 @@ namespace mbm
         this->impl->infoAnimation.release();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
-        impl->compiledSkeleton = {};
-
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
         impl->coordTexFrame_0 = nullptr;
@@ -6260,7 +6232,6 @@ namespace mbm
         impl->infoAnimation.lsHeaderAnim = std::move(in.infoAnimation.lsHeaderAnim);
         impl->articulatedParts = std::move(in.articulatedParts);
         impl->articulatedClips = std::move(in.articulatedClips);
-        impl->compiledSkeleton = std::move(in.compiledSkeleton);
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;
 

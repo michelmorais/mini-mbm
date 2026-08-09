@@ -214,10 +214,10 @@ node — either hand-built (`meshD:addBone(...)`), captured from a real Blender 
 (`editor/blender_mesh_export.py`'s `extract_armature_joints`), or stamped onto a mesh from a saved
 **Armature Template** (see below). `MESH_MBM_DEBUG::addBone/getBone/updateBone/removeBone` — the
 *editor* mesh class. **`MESH_MBM` — the runtime class every actual game loads meshes through — has
-no public bone accessors.** Since version 6.52.0 its loader privately compiles this legacy global
-bind data into stable IDs, parent-relative local TRS, global bind, and inverse global bind behind
-`MESH_MBM::Impl`. There is still no animated-pose or deformation consumer and no public mutable
-skeleton surface.
+no bone accessors at all.** Ordinary loading parses and discards this legacy editor/interchange
+section. The version-6.52.0 foundation provides a private explicit conversion utility, but does not
+automatically reinterpret v1/v2 data as a runtime skeleton. There is still no animated-pose or
+deformation consumer and no public mutable skeleton surface.
 
 ### `SECTION_VERTEX_SKIN_WEIGHTS` — real per-vertex bone weights
 
@@ -241,9 +241,9 @@ replacement of it — see the Editor Round-Trip Pipeline section below.
 
 None of the following exist anywhere in this codebase:
 
-- **No skinning-palette consumer.** The private Milestone 0 foundation now derives inverse global
-  bind matrices while loading a valid V11 skeleton, but no current pose or GPU/CPU deformation path
-  consumes them yet.
+- **No skinning-palette consumer.** The private Milestone 0 conversion utility can derive inverse
+  global bind matrices when invoked explicitly, but ordinary V11 mesh loading does not promote its
+  legacy skeleton and no current pose or GPU/CPU deformation path consumes them.
 - **No bone matrix palette upload.** No shader input, uniform, or buffer slot analogous to
   `docs/light.md`'s `LightColor[]`/`MaterialDiffuse` reserved names exists for bone matrices, in any
   backend (OpenGL ES, DirectX 9, Metal).
