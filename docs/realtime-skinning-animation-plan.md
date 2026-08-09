@@ -1,8 +1,8 @@
 # Real-Time Skinning Animation — LBS and DQS Plan
 
-Document version: **0.8**
-Status: **Weight-authoring Phase 3 started; runtime skinning not implemented**
-Last updated: **2026-08-06**
+Document version: **0.9**
+Status: **Initial weight-authoring delivery completed; runtime skinning not implemented**
+Last updated: **2026-08-09**
 
 ## 1. Purpose
 
@@ -11,9 +11,9 @@ skinning to Mini MBM. It plans Linear Blend Skinning (LBS) and Dual Quaternion S
 the initial design so that file data, pose evaluation, diagnostics, editor workflows, and backend
 interfaces do not accidentally encode only one method.
 
-The companion [Skin Weight Lab Plan](skin-weight-lab-plan.md) owns weight authoring, local repair,
-and validation. Both are intended to live in a standalone **Real-Time Skinning Editor** rather than
-continue inflating Mesh Debug.
+The [Real-Time Skinning Editor guide](realtime-skinning-editor.md) documents the delivered Skin
+Weight Lab workflow for weight authoring, local repair, and validation. Runtime skinning work remains
+in the same standalone editor rather than continuing to inflate Mesh Debug.
 
 This is a planning document, not a promise that LBS and DQS ship simultaneously. It separates
 confirmed facts, decisions, hypotheses, and open questions.
@@ -409,6 +409,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.9 | 2026-08-09 | Replaced the completed Skin Weight Lab discovery plan with the implementation-backed Real-Time Skinning Editor guide and recorded the initial weight-authoring delivery as approved. |
 | 0.8 | 2026-08-06 | Recorded abrupt neighbor-weight diagnostics while distinguishing authoring discontinuities from future posed LBS/DQS stress validation. |
 | 0.7 | 2026-08-06 | Recorded local triangle-adjacency weight smoothing while retaining pose evaluation and LBS/DQS deformation as separate future runtime work. |
 | 0.6 | 2026-08-06 | Recorded the target-weight heatmap and allowed-bone filtering while distinguishing stored-weight visualization from future LBS/DQS deformation preview. |
