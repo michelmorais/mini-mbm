@@ -62,6 +62,16 @@ namespace
         return false;
     }
 
+    bool hasDiagnostic(const std::vector<DIAGNOSTIC> &diagnostics, const DIAGNOSTIC_CODE code)
+    {
+        for (const DIAGNOSTIC &diagnostic : diagnostics)
+        {
+            if (diagnostic.code == code)
+                return true;
+        }
+        return false;
+    }
+
     util::SKELETON_BONE_V11 makeBone(const char *name, const char *parent,
                                      const float x, const float y, const float z)
     {
@@ -185,6 +195,16 @@ namespace
                "negative scale classification must be retained");
         expect(hasDiagnostic(compiled, DIAGNOSTIC_CODE::NEGATIVE_SCALE),
                "negative scale must produce a non-fatal capability diagnostic");
+
+        MATRIX sheared;
+        MatrixIdentity(&sheared);
+        sheared._12 = 0.25f;
+        LOCAL_TRANSFORM decomposed;
+        bool negativeScale = false;
+        bool hasShear = false;
+        expect(decomposeTrsMatrix(sheared, decomposed, negativeScale, hasShear),
+               "invertible sheared matrix must remain diagnosable");
+        expect(hasShear, "shear classification must be explicit");
     }
 
     util::VERTEX_BONE_WEIGHT_V11 makeWeights(const uint8_t firstIndex, const float firstWeight,
@@ -254,6 +274,25 @@ namespace
         expect(hasDiagnostic(report, DIAGNOSTIC_CODE::NEGATIVE_WEIGHT), "negative weight must be diagnosed");
         expect(hasDiagnostic(report, DIAGNOSTIC_CODE::DUPLICATE_BONE_INFLUENCE),
                "duplicate bone influence must be diagnosed");
+
+        invalidWeights = {makeWeights(UINT8_MAX, 0.25f)};
+        expect(!validateLegacyWeights(skeleton, palette, invalidWeights, 1, report),
+               "nonzero weight in an unused slot must fail structural validation");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::UNUSED_SLOT_NONZERO),
+               "unused-slot sentinel misuse must be diagnosed");
+
+        invalidWeights = {makeWeights(0, std::numeric_limits<float>::infinity())};
+        expect(!validateLegacyWeights(skeleton, palette, invalidWeights, 1, report),
+               "non-finite weight must fail structural validation");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::NON_FINITE_WEIGHT),
+               "non-finite weight must be diagnosed");
+
+        const std::vector<std::string> duplicatePalette = {"root", "root"};
+        invalidWeights = {makeWeights(0, 1.0f)};
+        expect(!validateLegacyWeights(skeleton, duplicatePalette, invalidWeights, 1, report),
+               "duplicate palette names must fail structural validation");
+        expect(hasDiagnostic(report, DIAGNOSTIC_CODE::DUPLICATE_PALETTE_NAME),
+               "duplicate palette name must be diagnosed");
     }
 
     void testClipSampling()
@@ -295,6 +334,16 @@ namespace
                std::fabs(pose.globalTransforms[1]._42) <= MATRIX_TOLERANCE,
                "sampled child global must use local * parentGlobal row-vector composition");
 
+        clip.tracks[0].keys[0].easing = SKELETAL_EASING::SMOOTHSTEP;
+        expect(sampleSkeletalClip(skeleton, clip, 0.25f, pose), "smoothstep clip must sample");
+        expect(std::fabs(pose.localTransforms[0].translation.x - 1.5625f) <= MATRIX_TOLERANCE,
+               "segment easing must be owned by the departing key");
+        clip.tracks[0].keys[0].easing = SKELETAL_EASING::LINEAR;
+
+        expect(sampleSkeletalClip(skeleton, clip, -1.0f, pose), "non-looping clip must clamp negative time");
+        expect(std::fabs(pose.localTransforms[0].translation.x) <= MATRIX_TOLERANCE,
+               "negative non-looping sample time must clamp to clip start");
+
         clip.loop = true;
         SKELETAL_POSE wrapped;
         expect(sampleSkeletalClip(skeleton, clip, 1.25f, wrapped), "looping clip must sample wrapped time");
@@ -322,6 +371,103 @@ namespace
             foundTimeDiagnostic = foundTimeDiagnostic || diagnostic.code == DIAGNOSTIC_CODE::NON_INCREASING_KEY_TIME;
         expect(foundTimeDiagnostic, "non-increasing key time must be diagnosed explicitly");
     }
+
+    void testClipCorruptionDiagnostics()
+    {
+        std::vector<util::SKELETON_BONE_V11> legacy = {makeBone("root", "", 0.0f, 0.0f, 0.0f)};
+        COMPILED_SKELETON skeleton;
+        expect(compileLegacySkeleton(legacy, skeleton), "clip corruption fixture skeleton must compile");
+
+        SKELETAL_CLIP clip;
+        clip.clipId = 1;
+        clip.name = "invalid-cases";
+        clip.duration = 1.0f;
+        SKELETAL_TRACK track;
+        track.boneId = skeleton.bones[0].boneId;
+        track.keys.push_back(SKELETAL_KEY());
+        clip.tracks.push_back(track);
+        std::vector<DIAGNOSTIC> diagnostics;
+
+        clip.tracks.push_back(track);
+        expect(!validateSkeletalClip(skeleton, clip, diagnostics), "duplicate tracks must fail validation");
+        expect(hasDiagnostic(diagnostics, DIAGNOSTIC_CODE::DUPLICATE_BONE_TRACK),
+               "duplicate track target must be diagnosed");
+        clip.tracks.resize(1);
+
+        clip.tracks[0].boneId = 999;
+        clip.tracks[0].channelMask = 0;
+        expect(!validateSkeletalClip(skeleton, clip, diagnostics), "unknown target and empty mask must fail");
+        expect(hasDiagnostic(diagnostics, DIAGNOSTIC_CODE::UNKNOWN_TRACK_BONE),
+               "unknown track bone must be diagnosed");
+        expect(hasDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_CHANNEL_MASK),
+               "empty channel mask must be diagnosed");
+        clip.tracks[0].boneId = skeleton.bones[0].boneId;
+        clip.tracks[0].channelMask = SKELETAL_CHANNEL_ROTATION | SKELETAL_CHANNEL_SCALE;
+
+        clip.tracks[0].keys[0].local.rotation = {0.0f, 0.0f, 0.0f, 0.0f};
+        clip.tracks[0].keys[0].local.scale.y = 0.0f;
+        expect(!validateSkeletalClip(skeleton, clip, diagnostics), "zero quaternion and scale must fail");
+        expect(hasDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_KEY_QUATERNION),
+               "zero quaternion must be diagnosed");
+        expect(hasDiagnostic(diagnostics, DIAGNOSTIC_CODE::SINGULAR_KEY_SCALE),
+               "singular animated scale must be diagnosed");
+
+        clip.tracks[0].keys[0].local.rotation = {0.0f, 0.0f, 0.0f, 1.0f};
+        clip.tracks[0].keys[0].local.scale = VEC3(1.0f, 2.0f, 1.0f);
+        expect(validateSkeletalClip(skeleton, clip, diagnostics),
+               "non-uniform scale must remain valid for an LBS-capable consumer");
+        expect(hasDiagnostic(diagnostics, DIAGNOSTIC_CODE::NON_UNIFORM_KEY_SCALE),
+               "non-uniform animated scale must produce a capability diagnostic");
+
+        SKELETAL_POSE pose;
+        expect(!sampleSkeletalClip(skeleton, clip, std::numeric_limits<float>::quiet_NaN(), pose, &diagnostics),
+               "non-finite sample time must fail");
+        expect(hasDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_SAMPLE_TIME),
+               "non-finite sample time must be diagnosed");
+    }
+
+    VEC3 sampleScaleFixture(const float assetScale)
+    {
+        std::vector<util::SKELETON_BONE_V11> legacy = {
+            makeBone("root", "", 2.0f * assetScale, 3.0f * assetScale, 4.0f * assetScale),
+            makeBone("child", "root", 2.0f * assetScale, 5.0f * assetScale, 4.0f * assetScale)
+        };
+        COMPILED_SKELETON skeleton;
+        expect(compileLegacySkeleton(legacy, skeleton), "scaled integration skeleton must compile");
+        if (skeleton.bones.size() != 2)
+            return VEC3();
+
+        SKELETAL_CLIP clip;
+        clip.clipId = 7;
+        clip.name = "scaled-translation";
+        clip.duration = 1.0f;
+        SKELETAL_TRACK track;
+        track.boneId = skeleton.bones[0].boneId;
+        track.channelMask = SKELETAL_CHANNEL_TRANSLATION;
+        SKELETAL_KEY start;
+        start.local = skeleton.bones[0].localBind;
+        SKELETAL_KEY end = start;
+        end.time = 1.0f;
+        end.local.translation.x += 2.0f * assetScale;
+        track.keys = {start, end};
+        clip.tracks.push_back(track);
+        SKELETAL_POSE pose;
+        expect(sampleSkeletalClip(skeleton, clip, 0.5f, pose), "scaled integration clip must sample");
+        if (pose.globalTransforms.size() != 2)
+            return VEC3();
+        return VEC3(pose.globalTransforms[1]._41, pose.globalTransforms[1]._42,
+                    pose.globalTransforms[1]._43);
+    }
+
+    void testScaleOneAndHundredEquivalence()
+    {
+        const VEC3 unit = sampleScaleFixture(1.0f);
+        const VEC3 hundred = sampleScaleFixture(100.0f);
+        expect(std::fabs(unit.x - hundred.x / 100.0f) <= MATRIX_TOLERANCE &&
+               std::fabs(unit.y - hundred.y / 100.0f) <= MATRIX_TOLERANCE &&
+               std::fabs(unit.z - hundred.z / 100.0f) <= MATRIX_TOLERANCE,
+               "scale-1 and scale-100 fixtures must produce equivalent normalized global poses");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -332,6 +478,8 @@ int runSkeletalFoundationTests()
     testValidation();
     testWeightValidation();
     testClipSampling();
+    testClipCorruptionDiagnostics();
+    testScaleOneAndHundredEquivalence();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

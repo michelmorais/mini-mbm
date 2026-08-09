@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **1.6**
-Status: **Milestone 0.1–0.5 foundation implemented; runtime skinning not implemented**
+Document version: **1.7**
+Status: **Milestone 0.1–0.6 foundation implemented; runtime skinning not implemented**
 Last updated: **2026-08-09**
 
 ## 1. Purpose
@@ -662,6 +662,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.7 | 2026-08-09 | Completed M0.6's synthetic regression matrix: scale-1/scale-100 normalized pose equivalence, bind hierarchy and inverse identity, scale/shear classification, palette resolution, partial and corrupt weights, invalid clip identity/target/channel/key/quaternion/scale/sample-time cases, easing ownership, clamp/loop behavior, absent-channel bind fallback, and quaternion antipodality. Persistence and the FBX/rat audit remain separate gates. |
 | 1.6 | 2026-08-09 | Completed the M0.5 persistence design gate: reserved separate canonical-skeleton, runtime-weight, and skeletal-animation V11 sections linked by `skeletonId`; fixed their byte order, ID-based hierarchy/palette references, quaternion clip records, validation and presence rules, CRC/section-count behavior, mandatory reader-before-writer rollout, and explicit old-reader failure boundary. No enum, serializer, reader, or writer was added. |
 | 1.5 | 2026-08-09 | Implemented M0.4's private skeletal clip/track/key contracts, structural and transform validation, bind-local fallback for absent channels/tracks, deterministic loop/clamp time handling, easing, antipodality-correct quaternion interpolation, and pure local-to-global pose evaluation. Non-unit quaternions are normalized with a diagnostic; scale capability findings remain explicit. No player, timeline, persistence, loader integration, blending, or deformation was added. |
 | 1.4 | 2026-08-09 | Implemented M0.3's non-mutating legacy-weight validation report: palette names resolve explicitly to compiled bone indices; vertex-count, unknown/out-of-range reference, non-finite/negative weight, sentinel misuse, and duplicate-influence findings are structural errors; zero coverage and non-unit sums remain measured quality diagnostics so partial editor data is preserved rather than silently repaired. The validator is not attached to ordinary `MESH_MBM` loading. |

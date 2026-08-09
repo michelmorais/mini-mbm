@@ -232,8 +232,9 @@
     6.52.0 Started the shared skeletal-animation foundation with private row-vector TRS math, an explicit legacy conversion utility, deterministic compiled skeleton identities, local/global and inverse-bind validation, scale diagnostics, and headless numeric fixtures without changing ordinary legacy mesh loading.
     6.53.0 Added non-mutating skeletal weight validation with explicit palette-to-bone resolution, structural reference diagnostics, weight-quality reports, aggregate counts, and deterministic fixtures.
     6.54.0 Added private skeletal clip, track, and key contracts with validation, pure sampling, easing, antipodal quaternion interpolation, bind-local channel fallback, and local-to-global pose evaluation fixtures.
+    6.54.1 Expanded skeletal-foundation regression coverage across corrupt weights/clips, easing, loop/clamp, scale/shear classification, and normalized scale-1/scale-100 pose equivalence.
 */
-#define MBM_VERSION "6.54.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.54.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
