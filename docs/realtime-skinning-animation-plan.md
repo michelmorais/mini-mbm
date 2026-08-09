@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **1.2**
-Status: **Milestone 0 technical foundation consolidated; runtime skinning not implemented**
+Document version: **1.3**
+Status: **Milestone 0.1/0.2 foundation started; runtime skinning not implemented**
 Last updated: **2026-08-09**
 
 ## 1. Purpose
@@ -657,6 +657,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.3 | 2026-08-09 | Started M0.1/M0.2 with private row-vector quaternion TRS math, legacy global-to-local compilation, stable hierarchy-path bone IDs, derived inverse bind, scale/shear diagnostics, scale-aware numeric comparisons, immutable compiled bind data behind `MESH_MBM::Impl`, and headless synthetic fixtures. Clip sampling and the remaining Milestone 0 gates are still pending. |
 | 1.2 | 2026-08-09 | Consolidated Milestone 0: fixed the normative row-vector bind/skinning order; selected parent-relative local TRS, quaternion rotation, stable bone IDs, derived inverse bind, distinct skeletal clips, legacy-global conversion, scale classification, numerical thresholds, PIMPL ownership, executable work packages, and the FBX handedness/bind audit gate. |
 | 1.1 | 2026-08-09 | Added Velocity Skinning as a post-LBS/DQS research extension, prepared optional backend-neutral bone-motion output and discontinuity rules, separated primary from propagated velocity influences, and defined a staged modern-backend migration that preserves GLES2/DirectX 9 as capability-limited profiles without making Vulkan a skinning prerequisite. |
 | 1.0 | 2026-08-09 | Defined the editor as three primary nodes (Skin Weight Lab, Skeleton / Bind Pose, Animation), moved deformation preview/backend capability reporting to shared concerns, and linked the dedicated Skeleton/Animation editor and Mesh Debug Bones migration plan. |

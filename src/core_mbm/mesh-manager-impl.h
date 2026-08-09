@@ -11,6 +11,7 @@
 #include <mesh-manager.h>
 #include <header-mesh.h>
 #include <physics.h>
+#include "private/skeletal-animation-foundation.h"
 #include <string>
 #include <vector>
 
@@ -73,6 +74,9 @@ namespace mbm
         void *extraInfo;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
+        // Immutable bind-pose foundation compiled from the legacy world/armature-space section.
+        // Kept private until the runtime animation API and player contracts are implemented.
+        skeletal::COMPILED_SKELETON compiledSkeleton;
     };
 
     struct MESH_MBM_DEBUG::Impl

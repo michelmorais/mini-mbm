@@ -26,6 +26,7 @@ include_directories(${INCLUDE}
                     ${GLES_INCLUDE}
                     ${RENDER_INCLUDES}
                     ${CORE_OPENGLES_INCLUDES}
+                    ${CMAKE_SOURCE_DIR}/src/core_mbm/private
                     ${THIRD_PARTY})
 
 file(GLOB SOURCES "*.cpp")
@@ -53,5 +54,4 @@ else()
 endif()
 
 target_link_libraries(testLib core_mbm)
-
 

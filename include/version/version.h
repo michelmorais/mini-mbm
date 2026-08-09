@@ -229,8 +229,9 @@
     6.51.2 Added exact external-boundary weight-slot auditing around targeted smoothing, with verified/modified/failure reporting and error status on contract violation.
     6.51.3 Completed and approved the initial Skin Weight Lab delivery, including no-influence normalization coverage and removal of the redundant Phase-3 footer notice.
     6.51.4 Renamed Real-Time Skinning Editor to Skeletal Animation Editor across the launcher, Lua entry point, generated shortcuts, localization, documentation, and product plans.
+    6.52.0 Started the shared skeletal-animation foundation with private row-vector TRS math, deterministic compiled skeleton identities, local/global and inverse-bind validation, scale diagnostics, and headless numeric fixtures.
 */
-#define MBM_VERSION "6.51.4" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.52.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

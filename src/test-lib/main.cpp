@@ -25,10 +25,12 @@
 #endif
 
 #include "my-scene-test.h"
+#include "skeletal-foundation-tests.h"
 #include <cstdlib>
 #include <cstring>
 
-// Usage: testLib [seconds] [mesh_file] [world]
+// Usage: testLib --skeletal-foundation-tests
+//        testLib [seconds] [mesh_file] [world]
 //   seconds    Exit on its own once this many seconds have elapsed in the
 //              render loop, instead of running forever. Meant for
 //              agent-driven / CI test runs, where nothing is present to
@@ -43,6 +45,9 @@
 //              (default "3d" when mesh_file is given but world is omitted).
 int main(int argc, char** argv)
 {
+    if (argc == 2 && std::strcmp(argv[1], "--skeletal-foundation-tests") == 0)
+        return runSkeletalFoundationTests();
+
     GAME game;
     if (argc > 1)
     {
@@ -73,4 +78,3 @@ int main(int argc, char** argv)
         return game.onLoop(singleLoop, doSwapBuffers);
     return -1;
 }
-
