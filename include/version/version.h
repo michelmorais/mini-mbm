@@ -231,8 +231,9 @@
     6.51.4 Renamed Real-Time Skinning Editor to Skeletal Animation Editor across the launcher, Lua entry point, generated shortcuts, localization, documentation, and product plans.
     6.52.0 Started the shared skeletal-animation foundation with private row-vector TRS math, an explicit legacy conversion utility, deterministic compiled skeleton identities, local/global and inverse-bind validation, scale diagnostics, and headless numeric fixtures without changing ordinary legacy mesh loading.
     6.53.0 Added non-mutating skeletal weight validation with explicit palette-to-bone resolution, structural reference diagnostics, weight-quality reports, aggregate counts, and deterministic fixtures.
+    6.54.0 Added private skeletal clip, track, and key contracts with validation, pure sampling, easing, antipodal quaternion interpolation, bind-local channel fallback, and local-to-global pose evaluation fixtures.
 */
-#define MBM_VERSION "6.53.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.54.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

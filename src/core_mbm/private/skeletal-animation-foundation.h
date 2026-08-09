@@ -33,6 +33,7 @@ namespace mbm::skeletal
     constexpr float QUATERNION_ZERO_EPSILON = 1.0e-8f;
     constexpr float MATRIX_TOLERANCE = 1.0e-5f;
     constexpr float SINGULAR_TOLERANCE = 1.0e-8f;
+    constexpr float KEY_TIME_TOLERANCE = 1.0e-6f;
 
     struct QUATERNION
     {
@@ -72,7 +73,25 @@ namespace mbm::skeletal
         ZERO_WEIGHT_USED_SLOT,
         DUPLICATE_BONE_INFLUENCE,
         NO_EFFECTIVE_INFLUENCE,
-        WEIGHT_SUM_MISMATCH
+        WEIGHT_SUM_MISMATCH,
+        INVALID_CLIP_ID,
+        EMPTY_CLIP_NAME,
+        INVALID_CLIP_DURATION,
+        UNKNOWN_TRACK_BONE,
+        DUPLICATE_BONE_TRACK,
+        INVALID_CHANNEL_MASK,
+        EMPTY_TRACK_KEYS,
+        INVALID_KEY_TIME,
+        NON_INCREASING_KEY_TIME,
+        NON_FINITE_KEY_TRANSFORM,
+        INVALID_KEY_QUATERNION,
+        NON_UNIT_KEY_QUATERNION,
+        SINGULAR_KEY_SCALE,
+        NON_UNIFORM_KEY_SCALE,
+        NEGATIVE_KEY_SCALE,
+        INVALID_EASING,
+        INVALID_BEZIER_CONTROL,
+        INVALID_SAMPLE_TIME
     };
 
     struct DIAGNOSTIC
@@ -80,6 +99,7 @@ namespace mbm::skeletal
         DIAGNOSTIC_CODE code = DIAGNOSTIC_CODE::NON_FINITE_TRANSFORM;
         uint32_t sourceIndex = 0;
         uint32_t vertexIndex = UINT32_MAX;
+        uint32_t keyIndex = UINT32_MAX;
         uint8_t slotIndex = UINT8_MAX;
         std::string boneName;
         float observedError = 0.0f;
@@ -124,6 +144,56 @@ namespace mbm::skeletal
         bool hasFatalDiagnostics() const noexcept;
     };
 
+    enum SKELETAL_CHANNEL : uint8_t
+    {
+        SKELETAL_CHANNEL_TRANSLATION = 1,
+        SKELETAL_CHANNEL_ROTATION = 2,
+        SKELETAL_CHANNEL_SCALE = 4
+    };
+
+    enum class SKELETAL_EASING : uint8_t
+    {
+        LINEAR,
+        EASE_IN,
+        EASE_OUT,
+        EASE_IN_OUT,
+        SMOOTHSTEP,
+        CUBIC_BEZIER
+    };
+
+    struct SKELETAL_KEY
+    {
+        float time = 0.0f;
+        LOCAL_TRANSFORM local;
+        SKELETAL_EASING easing = SKELETAL_EASING::LINEAR;
+        float bezierX1 = 0.0f;
+        float bezierY1 = 0.0f;
+        float bezierX2 = 1.0f;
+        float bezierY2 = 1.0f;
+    };
+
+    struct SKELETAL_TRACK
+    {
+        uint64_t boneId = 0;
+        uint8_t channelMask = SKELETAL_CHANNEL_TRANSLATION | SKELETAL_CHANNEL_ROTATION | SKELETAL_CHANNEL_SCALE;
+        std::vector<SKELETAL_KEY> keys;
+    };
+
+    struct SKELETAL_CLIP
+    {
+        uint64_t clipId = 0;
+        std::string name;
+        float duration = 0.0f;
+        bool loop = false;
+        std::vector<SKELETAL_TRACK> tracks;
+    };
+
+    struct SKELETAL_POSE
+    {
+        std::vector<LOCAL_TRANSFORM> localTransforms;
+        std::vector<MATRIX> globalTransforms;
+    };
+
     MATRIX buildTrsMatrix(const LOCAL_TRANSFORM &transform) noexcept;
     bool decomposeTrsMatrix(const MATRIX &matrix, LOCAL_TRANSFORM &out, bool &hasNegativeScale,
                             bool &hasShear) noexcept;
@@ -137,6 +207,10 @@ namespace mbm::skeletal
                                const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,
                                uint32_t expectedVertexCount,
                                WEIGHT_VALIDATION_REPORT &out);
+    bool validateSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
+                              std::vector<DIAGNOSTIC> &diagnostics);
+    bool sampleSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
+                            float time, SKELETAL_POSE &out, std::vector<DIAGNOSTIC> *diagnostics = nullptr);
 }
 
 #endif

@@ -255,6 +255,73 @@ namespace
         expect(hasDiagnostic(report, DIAGNOSTIC_CODE::DUPLICATE_BONE_INFLUENCE),
                "duplicate bone influence must be diagnosed");
     }
+
+    void testClipSampling()
+    {
+        std::vector<util::SKELETON_BONE_V11> legacy = {
+            makeBone("root", "", 0.0f, 0.0f, 0.0f),
+            makeBone("child", "root", 0.0f, 1.0f, 0.0f)
+        };
+        COMPILED_SKELETON skeleton;
+        expect(compileLegacySkeleton(legacy, skeleton), "clip fixture skeleton must compile");
+
+        SKELETAL_CLIP clip;
+        clip.clipId = 1;
+        clip.name = "turn-and-move";
+        clip.duration = 1.0f;
+        SKELETAL_TRACK rootTrack;
+        rootTrack.boneId = skeleton.bones[0].boneId;
+        rootTrack.channelMask = SKELETAL_CHANNEL_TRANSLATION | SKELETAL_CHANNEL_ROTATION;
+        SKELETAL_KEY start;
+        start.local.translation = VEC3(0.0f, 0.0f, 0.0f);
+        SKELETAL_KEY end = start;
+        end.time = 1.0f;
+        end.local.translation = VEC3(10.0f, 0.0f, 0.0f);
+        end.local.rotation = {0.0f, 0.0f, 1.0f, 0.0f};
+        rootTrack.keys = {start, end};
+        clip.tracks.push_back(rootTrack);
+
+        std::vector<DIAGNOSTIC> diagnostics;
+        expect(validateSkeletalClip(skeleton, clip, diagnostics), "valid skeletal clip must pass validation");
+        SKELETAL_POSE pose;
+        expect(sampleSkeletalClip(skeleton, clip, 0.5f, pose, &diagnostics), "valid clip must sample");
+        expect(pose.localTransforms.size() == 2 && pose.globalTransforms.size() == 2,
+               "sampled pose must contain every skeleton bone");
+        expect(std::fabs(pose.localTransforms[0].translation.x - 5.0f) <= MATRIX_TOLERANCE,
+               "translation channel must interpolate at the requested time");
+        expect(std::fabs(pose.localTransforms[0].scale.x - 1.0f) <= MATRIX_TOLERANCE,
+               "an absent scale channel must preserve bind-local scale");
+        expect(std::fabs(pose.globalTransforms[1]._41 - 4.0f) <= MATRIX_TOLERANCE &&
+               std::fabs(pose.globalTransforms[1]._42) <= MATRIX_TOLERANCE,
+               "sampled child global must use local * parentGlobal row-vector composition");
+
+        clip.loop = true;
+        SKELETAL_POSE wrapped;
+        expect(sampleSkeletalClip(skeleton, clip, 1.25f, wrapped), "looping clip must sample wrapped time");
+        expect(std::fabs(wrapped.localTransforms[0].translation.x - 2.5f) <= MATRIX_TOLERANCE,
+               "loop sampling must wrap deterministically by clip duration");
+
+        clip.tracks[0].keys[1].local.rotation = {0.0f, 0.0f, 0.0f, -1.0f};
+        expect(sampleSkeletalClip(skeleton, clip, 0.5f, pose), "antipodal quaternion clip must sample");
+        expect(std::fabs(pose.localTransforms[0].rotation.w - 1.0f) <= MATRIX_TOLERANCE,
+               "antipodal quaternion interpolation must select the deterministic short path");
+
+        clip.tracks[0].keys[1].local.rotation = {0.0f, 0.0f, 0.0f, 2.0f};
+        expect(validateSkeletalClip(skeleton, clip, diagnostics),
+               "non-unit nonzero quaternion must remain sampleable after normalization");
+        bool foundQuaternionDiagnostic = false;
+        for (const DIAGNOSTIC &diagnostic : diagnostics)
+            foundQuaternionDiagnostic = foundQuaternionDiagnostic ||
+                                        diagnostic.code == DIAGNOSTIC_CODE::NON_UNIT_KEY_QUATERNION;
+        expect(foundQuaternionDiagnostic, "non-unit quaternion normalization must be diagnosed");
+
+        clip.tracks[0].keys[1].time = 0.0f;
+        expect(!validateSkeletalClip(skeleton, clip, diagnostics), "duplicate key times must fail validation");
+        bool foundTimeDiagnostic = false;
+        for (const DIAGNOSTIC &diagnostic : diagnostics)
+            foundTimeDiagnostic = foundTimeDiagnostic || diagnostic.code == DIAGNOSTIC_CODE::NON_INCREASING_KEY_TIME;
+        expect(foundTimeDiagnostic, "non-increasing key time must be diagnosed explicitly");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -264,6 +331,7 @@ int runSkeletalFoundationTests()
     testHierarchyAndIdentity();
     testValidation();
     testWeightValidation();
+    testClipSampling();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

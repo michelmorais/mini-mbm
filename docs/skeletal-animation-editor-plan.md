@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **0.4**
-Status: **Product contracts consolidated; shared Milestone 0.1–0.3 foundation implemented**
+Document version: **0.5**
+Status: **Product contracts consolidated; shared Milestone 0.1–0.4 foundation implemented**
 Last updated: **2026-08-09**
 
 ## 1. Purpose
@@ -375,6 +375,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.5 | 2026-08-09 | Added M0.4's private skeletal clip/track/key validation and pure sampling foundation, including bind-local channel fallback, easing, antipodal quaternion interpolation, loop/clamp semantics, and local-to-global evaluation. This is not yet an editor timeline, player, persisted format, or deformation preview. |
 | 0.4 | 2026-08-09 | Added the non-mutating M0.3 legacy-weight validation report, separating structural conversion failures from measured legacy editor-data quality findings. It resolves palette names only against an explicitly compiled skeleton and does not alter ordinary mesh loading or repair assets. |
 | 0.3 | 2026-08-09 | Recorded the initial shared M0.1/M0.2 implementation: private explicit bind-pose conversion, stable IDs, local/global and inverse-bind validation, scale diagnostics, and synthetic fixtures. Legacy v1/v2 skeletons are not automatically promoted during ordinary runtime mesh loading. No destructive skeleton editing, clips, timeline, or deformation was added. |
 | 0.2 | 2026-08-09 | Adopted the consolidated Milestone 0 contracts: row-vector local/global math, stable bone IDs, local quaternion TRS, derived inverse bind, scale diagnostics, distinct skeletal clips, legacy conversion, numerical fixtures, executable M0.1-M0.7 work packages, and the FBX handedness/cluster-bind gate. |

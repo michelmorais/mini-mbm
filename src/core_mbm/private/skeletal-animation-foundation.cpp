@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -161,6 +162,93 @@ namespace mbm::skeletal
             diagnostic.observedError = error;
             diagnostic.fatal = fatal;
             out.diagnostics.push_back(std::move(diagnostic));
+        }
+
+        bool isFinite(const LOCAL_TRANSFORM &transform) noexcept
+        {
+            return isFinite(transform.translation.x) && isFinite(transform.translation.y) &&
+                   isFinite(transform.translation.z) && isFinite(transform.rotation.x) &&
+                   isFinite(transform.rotation.y) && isFinite(transform.rotation.z) &&
+                   isFinite(transform.rotation.w) && isFinite(transform.scale.x) &&
+                   isFinite(transform.scale.y) && isFinite(transform.scale.z);
+        }
+
+        float quaternionNorm(const QUATERNION &value) noexcept
+        {
+            return std::sqrt(value.x * value.x + value.y * value.y + value.z * value.z + value.w * value.w);
+        }
+
+        QUATERNION normalizedQuaternion(QUATERNION value) noexcept
+        {
+            const float norm = quaternionNorm(value);
+            if (norm > QUATERNION_ZERO_EPSILON)
+            {
+                value.x /= norm; value.y /= norm; value.z /= norm; value.w /= norm;
+            }
+            return value;
+        }
+
+        QUATERNION interpolateQuaternion(const QUATERNION &start, QUATERNION end, const float factor) noexcept
+        {
+            QUATERNION begin = normalizedQuaternion(start);
+            end = normalizedQuaternion(end);
+            float dot = begin.x * end.x + begin.y * end.y + begin.z * end.z + begin.w * end.w;
+            if (dot < 0.0f)
+            {
+                end.x = -end.x; end.y = -end.y; end.z = -end.z; end.w = -end.w;
+                dot = -dot;
+            }
+            if (dot > 0.9995f)
+            {
+                return normalizedQuaternion({begin.x + (end.x - begin.x) * factor,
+                                             begin.y + (end.y - begin.y) * factor,
+                                             begin.z + (end.z - begin.z) * factor,
+                                             begin.w + (end.w - begin.w) * factor});
+            }
+            dot = std::max(-1.0f, std::min(1.0f, dot));
+            const float angle = std::acos(dot);
+            const float sine = std::sin(angle);
+            const float a = std::sin((1.0f - factor) * angle) / sine;
+            const float b = std::sin(factor * angle) / sine;
+            return {begin.x * a + end.x * b, begin.y * a + end.y * b,
+                    begin.z * a + end.z * b, begin.w * a + end.w * b};
+        }
+
+        float applyEasing(float value, const SKELETAL_KEY &key) noexcept
+        {
+            value = std::max(0.0f, std::min(1.0f, value));
+            if (key.easing == SKELETAL_EASING::EASE_IN) return value * value;
+            if (key.easing == SKELETAL_EASING::EASE_OUT) return 1.0f - (1.0f - value) * (1.0f - value);
+            if (key.easing == SKELETAL_EASING::EASE_IN_OUT)
+                return value < 0.5f ? 2.0f * value * value : 1.0f - 2.0f * (1.0f - value) * (1.0f - value);
+            if (key.easing == SKELETAL_EASING::SMOOTHSTEP) return value * value * (3.0f - 2.0f * value);
+            if (key.easing != SKELETAL_EASING::CUBIC_BEZIER) return value;
+            const auto cubic = [](const float t, const float p1, const float p2)
+            {
+                const float u = 1.0f - t;
+                return 3.0f * u * u * t * p1 + 3.0f * u * t * t * p2 + t * t * t;
+            };
+            float low = 0.0f, high = 1.0f, parameter = value;
+            for (int i = 0; i < 16; ++i)
+            {
+                const float x = cubic(parameter, key.bezierX1, key.bezierX2);
+                if (x < value) low = parameter; else high = parameter;
+                parameter = (low + high) * 0.5f;
+            }
+            return cubic(parameter, key.bezierY1, key.bezierY2);
+        }
+
+        void addClipDiagnostic(std::vector<DIAGNOSTIC> &out, const DIAGNOSTIC_CODE code,
+                               const uint32_t trackIndex, const uint32_t keyIndex,
+                               const float observedError = 0.0f, const bool fatal = true)
+        {
+            DIAGNOSTIC diagnostic;
+            diagnostic.code = code;
+            diagnostic.sourceIndex = trackIndex;
+            diagnostic.keyIndex = keyIndex;
+            diagnostic.observedError = observedError;
+            diagnostic.fatal = fatal;
+            out.push_back(std::move(diagnostic));
         }
     }
 
@@ -305,6 +393,24 @@ namespace mbm::skeletal
             case DIAGNOSTIC_CODE::DUPLICATE_BONE_INFLUENCE: return "duplicate-bone-influence";
             case DIAGNOSTIC_CODE::NO_EFFECTIVE_INFLUENCE: return "no-effective-influence";
             case DIAGNOSTIC_CODE::WEIGHT_SUM_MISMATCH: return "weight-sum-mismatch";
+            case DIAGNOSTIC_CODE::INVALID_CLIP_ID: return "invalid-clip-id";
+            case DIAGNOSTIC_CODE::EMPTY_CLIP_NAME: return "empty-clip-name";
+            case DIAGNOSTIC_CODE::INVALID_CLIP_DURATION: return "invalid-clip-duration";
+            case DIAGNOSTIC_CODE::UNKNOWN_TRACK_BONE: return "unknown-track-bone";
+            case DIAGNOSTIC_CODE::DUPLICATE_BONE_TRACK: return "duplicate-bone-track";
+            case DIAGNOSTIC_CODE::INVALID_CHANNEL_MASK: return "invalid-channel-mask";
+            case DIAGNOSTIC_CODE::EMPTY_TRACK_KEYS: return "empty-track-keys";
+            case DIAGNOSTIC_CODE::INVALID_KEY_TIME: return "invalid-key-time";
+            case DIAGNOSTIC_CODE::NON_INCREASING_KEY_TIME: return "non-increasing-key-time";
+            case DIAGNOSTIC_CODE::NON_FINITE_KEY_TRANSFORM: return "non-finite-key-transform";
+            case DIAGNOSTIC_CODE::INVALID_KEY_QUATERNION: return "invalid-key-quaternion";
+            case DIAGNOSTIC_CODE::NON_UNIT_KEY_QUATERNION: return "non-unit-key-quaternion";
+            case DIAGNOSTIC_CODE::SINGULAR_KEY_SCALE: return "singular-key-scale";
+            case DIAGNOSTIC_CODE::NON_UNIFORM_KEY_SCALE: return "non-uniform-key-scale";
+            case DIAGNOSTIC_CODE::NEGATIVE_KEY_SCALE: return "negative-key-scale";
+            case DIAGNOSTIC_CODE::INVALID_EASING: return "invalid-easing";
+            case DIAGNOSTIC_CODE::INVALID_BEZIER_CONTROL: return "invalid-bezier-control";
+            case DIAGNOSTIC_CODE::INVALID_SAMPLE_TIME: return "invalid-sample-time";
         }
         return "unknown";
     }
@@ -535,5 +641,145 @@ namespace mbm::skeletal
             }
         }
         return !out.hasFatalDiagnostics();
+    }
+
+    bool validateSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
+                              std::vector<DIAGNOSTIC> &diagnostics)
+    {
+        diagnostics.clear();
+        if (clip.clipId == 0) addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_CLIP_ID, UINT32_MAX, UINT32_MAX);
+        if (clip.name.empty()) addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::EMPTY_CLIP_NAME, UINT32_MAX, UINT32_MAX);
+        if (!std::isfinite(clip.duration) || clip.duration < 0.0f)
+            addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_CLIP_DURATION, UINT32_MAX, UINT32_MAX, clip.duration);
+        std::unordered_set<uint64_t> targets;
+        for (uint32_t trackIndex = 0; trackIndex < clip.tracks.size(); ++trackIndex)
+        {
+            const SKELETAL_TRACK &track = clip.tracks[trackIndex];
+            if (skeleton.indexById.find(track.boneId) == skeleton.indexById.end())
+                addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::UNKNOWN_TRACK_BONE, trackIndex, UINT32_MAX);
+            if (!targets.insert(track.boneId).second)
+                addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::DUPLICATE_BONE_TRACK, trackIndex, UINT32_MAX);
+            if (track.channelMask == 0 || (track.channelMask & ~7u) != 0)
+                addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_CHANNEL_MASK, trackIndex, UINT32_MAX);
+            if (track.keys.empty())
+            {
+                addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::EMPTY_TRACK_KEYS, trackIndex, UINT32_MAX);
+                continue;
+            }
+            float previousTime = -std::numeric_limits<float>::infinity();
+            for (uint32_t keyIndex = 0; keyIndex < track.keys.size(); ++keyIndex)
+            {
+                const SKELETAL_KEY &key = track.keys[keyIndex];
+                if (!std::isfinite(key.time) || key.time < 0.0f || key.time > clip.duration + KEY_TIME_TOLERANCE)
+                    addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_KEY_TIME, trackIndex, keyIndex, key.time);
+                if (keyIndex > 0 && key.time - previousTime <= KEY_TIME_TOLERANCE)
+                    addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::NON_INCREASING_KEY_TIME, trackIndex, keyIndex,
+                                      key.time - previousTime);
+                previousTime = key.time;
+                if (!isFinite(key.local) || !std::isfinite(key.bezierX1) || !std::isfinite(key.bezierY1) ||
+                    !std::isfinite(key.bezierX2) || !std::isfinite(key.bezierY2))
+                    addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::NON_FINITE_KEY_TRANSFORM, trackIndex, keyIndex);
+                if ((track.channelMask & SKELETAL_CHANNEL_ROTATION) != 0 &&
+                    quaternionNorm(key.local.rotation) <= QUATERNION_ZERO_EPSILON)
+                    addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_KEY_QUATERNION, trackIndex, keyIndex);
+                else if ((track.channelMask & SKELETAL_CHANNEL_ROTATION) != 0 &&
+                         std::fabs(quaternionNorm(key.local.rotation) - 1.0f) > MATRIX_TOLERANCE)
+                    addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::NON_UNIT_KEY_QUATERNION,
+                                      trackIndex, keyIndex,
+                                      std::fabs(quaternionNorm(key.local.rotation) - 1.0f), false);
+                if ((track.channelMask & SKELETAL_CHANNEL_SCALE) != 0 &&
+                    (std::fabs(key.local.scale.x) <= SINGULAR_TOLERANCE ||
+                     std::fabs(key.local.scale.y) <= SINGULAR_TOLERANCE ||
+                     std::fabs(key.local.scale.z) <= SINGULAR_TOLERANCE))
+                    addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::SINGULAR_KEY_SCALE, trackIndex, keyIndex);
+                else if ((track.channelMask & SKELETAL_CHANNEL_SCALE) != 0)
+                {
+                    if (key.local.scale.x < 0.0f || key.local.scale.y < 0.0f || key.local.scale.z < 0.0f)
+                        addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::NEGATIVE_KEY_SCALE,
+                                          trackIndex, keyIndex, 0.0f, false);
+                    const float spread = std::max({key.local.scale.x, key.local.scale.y, key.local.scale.z}) -
+                                         std::min({key.local.scale.x, key.local.scale.y, key.local.scale.z});
+                    if (std::fabs(spread) > MATRIX_TOLERANCE)
+                        addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::NON_UNIFORM_KEY_SCALE,
+                                          trackIndex, keyIndex, std::fabs(spread), false);
+                }
+                if (static_cast<uint8_t>(key.easing) > static_cast<uint8_t>(SKELETAL_EASING::CUBIC_BEZIER))
+                    addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_EASING, trackIndex, keyIndex);
+                if (key.easing == SKELETAL_EASING::CUBIC_BEZIER &&
+                    (key.bezierX1 < 0.0f || key.bezierX1 > 1.0f || key.bezierX2 < 0.0f || key.bezierX2 > 1.0f))
+                    addClipDiagnostic(diagnostics, DIAGNOSTIC_CODE::INVALID_BEZIER_CONTROL, trackIndex, keyIndex);
+            }
+        }
+        return !std::any_of(diagnostics.begin(), diagnostics.end(),
+                            [](const DIAGNOSTIC &diagnostic) { return diagnostic.fatal; });
+    }
+
+    bool sampleSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
+                            float time, SKELETAL_POSE &out, std::vector<DIAGNOSTIC> *diagnostics)
+    {
+        std::vector<DIAGNOSTIC> localDiagnostics;
+        std::vector<DIAGNOSTIC> &resultDiagnostics = diagnostics ? *diagnostics : localDiagnostics;
+        if (!validateSkeletalClip(skeleton, clip, resultDiagnostics))
+            return false;
+        if (!std::isfinite(time))
+        {
+            addClipDiagnostic(resultDiagnostics, DIAGNOSTIC_CODE::INVALID_SAMPLE_TIME, UINT32_MAX, UINT32_MAX, time);
+            return false;
+        }
+        if (clip.loop && clip.duration > KEY_TIME_TOLERANCE)
+        {
+            time = std::fmod(time, clip.duration);
+            if (time < 0.0f) time += clip.duration;
+        }
+        else
+            time = std::max(0.0f, std::min(clip.duration, time));
+
+        out.localTransforms.clear();
+        out.globalTransforms.clear();
+        out.localTransforms.reserve(skeleton.bones.size());
+        out.globalTransforms.resize(skeleton.bones.size());
+        for (const COMPILED_BONE &bone : skeleton.bones)
+            out.localTransforms.push_back(bone.localBind);
+
+        for (const SKELETAL_TRACK &track : clip.tracks)
+        {
+            const int32_t boneIndex = skeleton.indexById.at(track.boneId);
+            const SKELETAL_KEY *a = &track.keys.front();
+            const SKELETAL_KEY *b = a;
+            if (time >= track.keys.back().time) a = b = &track.keys.back();
+            else if (time > track.keys.front().time)
+            {
+                for (size_t i = 1; i < track.keys.size(); ++i)
+                {
+                    if (time <= track.keys[i].time)
+                    {
+                        a = &track.keys[i - 1]; b = &track.keys[i]; break;
+                    }
+                }
+            }
+            float factor = 0.0f;
+            if (a != b) factor = applyEasing((time - a->time) / (b->time - a->time), *a);
+            LOCAL_TRANSFORM &sample = out.localTransforms[static_cast<size_t>(boneIndex)];
+            const auto lerp = [factor](const float x, const float y) { return x + (y - x) * factor; };
+            if ((track.channelMask & SKELETAL_CHANNEL_TRANSLATION) != 0)
+                sample.translation = VEC3(lerp(a->local.translation.x, b->local.translation.x),
+                                          lerp(a->local.translation.y, b->local.translation.y),
+                                          lerp(a->local.translation.z, b->local.translation.z));
+            if ((track.channelMask & SKELETAL_CHANNEL_ROTATION) != 0)
+                sample.rotation = interpolateQuaternion(a->local.rotation, b->local.rotation, factor);
+            if ((track.channelMask & SKELETAL_CHANNEL_SCALE) != 0)
+                sample.scale = VEC3(lerp(a->local.scale.x, b->local.scale.x),
+                                    lerp(a->local.scale.y, b->local.scale.y),
+                                    lerp(a->local.scale.z, b->local.scale.z));
+        }
+
+        for (size_t i = 0; i < skeleton.bones.size(); ++i)
+        {
+            const MATRIX local = buildTrsMatrix(out.localTransforms[i]);
+            const int32_t parent = skeleton.bones[i].parentIndex;
+            if (parent < 0) out.globalTransforms[i] = local;
+            else MatrixMultiply(&out.globalTransforms[i], &local, &out.globalTransforms[static_cast<size_t>(parent)]);
+        }
+        return true;
     }
 }
