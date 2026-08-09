@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **0.1**
-Status: **Product discovery consolidated; data and bind-pose contracts pending technical design**
+Document version: **0.2**
+Status: **Product and Milestone 0 contracts consolidated; implementation pending**
 Last updated: **2026-08-09**
 
 ## 1. Purpose
@@ -201,31 +201,46 @@ already trustworthy.
 
 ## 10. Data and correctness gates
 
-These questions must be answered before unrestricted Skeleton editing or clip persistence ships:
+The normative Milestone 0 contracts live in the
+[Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md#milestone-0-normative-contracts).
+The editor must consume them rather than infer runtime meaning from Mesh Debug fields:
 
-- What is the canonical local bind transform per bone?
-- Which stored or derived value defines the tail and display length?
-- How are global bind and inverse-global-bind transforms produced and validated?
-- Does a bone require a stable persisted identity separate from its display name?
-- What is the exact behavior of rename/remove/reparent for stored weights and clip tracks?
-- How are rotations represented for storage, authoring, interpolation, and runtime evaluation?
-- Which scale forms are supported by LBS, rigid DQS, or an explicit fallback?
-- Are skeleton and clips embedded in `.msh`, referenced resources, or separable reusable assets?
-- How are imported FBX animation stacks mapped to Mini MBM clips and coordinate conventions?
-- What data survives a template application, and what must be invalidated?
+- canonical bone transforms are parent-relative local translation, normalized quaternion rotation,
+  and three-component scale;
+- global bind and inverse-global-bind are derived using Mini MBM's row-vector convention;
+- every bone has a stable nonzero `uint64_t boneId`; names remain labels/interchange keys;
+- tail, length, and radius are visualization/authoring metadata, not deformation transforms;
+- skeletal clips are distinct bone-ID-targeted resources, even when easing/player services are
+  shared with articulated animation;
+- legacy version-1/2 skeleton globals and name-palette weights are compiled and diagnosed without
+  silent rewriting;
+- non-uniform, negative, singular, and shear-bearing transforms receive explicit capability or
+  invalid diagnostics;
+- bind/pose checks use the centralized numerical policy and report the worst observed error.
 
-These are technical-design gates, not choices to infer from Mesh Debug's current fields.
+The remaining persistence/import gates are: embedded versus referenced resources, exact new binary
+layout, FBX handedness conversion, FBX cluster-bind agreement, root motion/attachments/sharing, and
+transactional rename/remove/reparent behavior. None may be inferred from current name-based editor
+mutation behavior.
 
 ## 11. Delivery milestones
 
 ### Milestone 0 — Inventory and contracts
 
-- Complete the Bones behavior/code inventory and dependency map.
-- Characterize current skeleton serialization, FBX import/export, and animation loss points.
-- Decide bind transforms, stable identity, referential integrity, scale, and clip-resource contracts.
-- Define minimal fixtures and expected bind/pose values.
+- Treat the completed Bones behavior/code inventory and dependency map in Section 6 as input, not a
+  runtime model to copy.
+- Implement the plan's M0.1 shared row-vector math and M0.2 immutable compiled skeleton.
+- Convert current global Euler skeleton data to canonical local TRS without mutating source assets.
+- Implement M0.3 structural/bind/weight/scale diagnostics and inverse-bind validation.
+- Define M0.4 bone-ID-targeted clip structs and pure deterministic sampling without timeline UI.
+- Complete M0.5 persistence layout design before any skeleton/clip writer is implemented.
+- Add M0.6 synthetic numeric fixtures and scale-1/scale-100 comparisons.
+- Complete M0.7 FBX cluster-bind/handedness audit before promoting the rat to a normative fixture.
 
-Exit: no Skeleton/Animation UI field has an undefined storage or runtime meaning.
+Exit: a legacy skeleton compiles and round-trips global→local→global within tolerance, inverse bind
+is identity at bind pose, invalid identities/references/transforms produce deterministic reports,
+and a synthetic clip samples to expected local/global transforms. No Skeleton/Animation UI field
+may be introduced with an undefined storage or runtime meaning.
 
 ### Milestone 1 — Three-node editor shell
 
@@ -339,16 +354,15 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
 
 ## 15. Open decisions
 
-1. Canonical bind-transform and tail representation.
-2. Stable bone identity and rename/remap policy.
-3. Embedded versus referenced skeleton and clip resources.
-4. First supported external animation-import scope.
-5. Rotation authoring/storage/interpolation representation.
-6. Scale policy across LBS, DQS, import, and local clips.
-7. Shared service boundary with articulated-animation timeline/player code.
-8. Snapshot/undo scope across skeleton, weights, and clips.
-9. Template versioning and compatibility with existing armature Lua files.
-10. Which Mesh Debug interchange controls remain after migration.
+1. Embedded versus referenced skeleton and clip resources and their exact binary section layout.
+2. First supported FBX animation-import scope after handedness and cluster-bind validation.
+3. Root motion, attachment, multiple-root, and multi-mesh skeleton-sharing semantics.
+4. Whether initial LBS accepts non-uniform scale before the final normal-transform path exists.
+5. Exact shared service boundary with articulated-animation easing/player code.
+6. Transactional rename/remove/reparent remapping and snapshot/undo scope across skeleton, weights,
+   and clips.
+7. Template versioning and compatibility with existing armature Lua files.
+8. Which Mesh Debug interchange controls remain after migration.
 
 ## 16. Handoff readiness
 
@@ -361,4 +375,5 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.2 | 2026-08-09 | Adopted the consolidated Milestone 0 contracts: row-vector local/global math, stable bone IDs, local quaternion TRS, derived inverse bind, scale diagnostics, distinct skeletal clips, legacy conversion, numerical fixtures, executable M0.1-M0.7 work packages, and the FBX handedness/cluster-bind gate. |
 | 0.1 | 2026-08-09 | Initial plan: three-node product shape; Mesh Debug Bones audit boundary; Skeleton/Bind Pose and Animation scopes; local and imported workflows; shared contracts; staged migration; risks, gates, fixtures, and acceptance criteria. |

@@ -223,13 +223,14 @@ edit. Preserve the source mesh and save experiments under new names.
 
 ## 8. Validation fixtures
 
-The initial workflow was validated with assets under `src/test-lib/`:
+The initial workflow was validated with the following assets. Availability is stated explicitly so
+a historical validation artifact is not mistaken for a currently versioned fixture:
 
-| Fixture | Purpose |
-|---|---|
-| `T-BONE-rato-scale-100-from-mixamo.msh` | Main 41-bone alien-rat fixture for AABB, proximity, heatmap, smoothing, rigid cavity, persistence, and FBX tests. |
-| `T-BONE-rato-scale-100-one-unweighted-vertex.msh` | Normalize exceptional case: one vertex must be skipped without receiving an invented influence. |
-| `Crate.msh` | Mesh without skeleton/weights and two-subset isolation (`192 + 24 = 216` vertices). |
+| Fixture | Availability | Purpose |
+|---|---|---|
+| `T-BONE-rato-scale-100-from-mixamo.msh` | Versioned under `src/test-lib/` | Main 41-bone alien-rat fixture for AABB, proximity, heatmap, smoothing, rigid cavity, persistence, and FBX tests. |
+| `T-BONE-rato-scale-100-one-unweighted-vertex.msh` | Historical validation artifact; not currently versioned | Normalize exceptional case: one vertex must be skipped without receiving an invented influence. Recreate it deterministically before using it as an automated acceptance fixture. |
+| `Crate.msh` | Versioned under `src/test-lib/` | Mesh without skeleton/weights and two-subset isolation (`192 + 24 = 216` vertices). |
 
 Accepted normalization results for the one-unweighted-vertex fixture were `179` corrected,
 `35,969` already valid, `1` skipped, and `0` failures. Boundary-safe targeted smoothing verified

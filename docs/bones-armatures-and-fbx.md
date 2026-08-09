@@ -86,6 +86,12 @@ then applying the current pose:
 skinnedVertex = Σ (weight_i * boneCurrentWorld_i * inverse(boneBindWorld_i)) * bindVertex
 ```
 
+That expression uses the common column-vector notation. Mini MBM's matrices transform row vectors
+(`vertex * matrix`), so the planned runtime contract reverses the written product:
+`inverse(boneBindGlobal) * boneCurrentGlobal`, with child globals composed as
+`boneLocal * parentGlobal`. The normative foundation and legacy-global conversion are specified in
+the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md#milestone-0-normative-contracts).
+
 `inverse(boneBindWorld_i)` is the **inverse bind matrix** — captured once, at bind time, per bone.
 Multiplying it by the vertex first transforms the vertex out of world space into that bone's own
 *local* space (relative to wherever that bone was at bind time); then `boneCurrentWorld_i` moves it
@@ -163,6 +169,10 @@ struct SKELETON_BONE_V11 // one per bone; parentName empty ("") marks the root
 Name-based parent references (not indices) mirror how both Blender and FBX identify a bone: by name,
 not by array position — this is also why Mini MBM's own `SECTION_VERTEX_SKIN_WEIGHTS` (below)
 references bones by name too, not by index into this array (see Pitfalls).
+
+This describes the current editor/round-trip format, not the planned runtime identity contract.
+Runtime bones will use stable nonzero `uint64_t` IDs; names remain labels and legacy/interchange
+lookup keys so rename and clip targeting do not depend on vector position or display text.
 
 One real divergence from most engines: Mini MBM stores rotation as **Euler XYZ degrees**, not a
 quaternion. This is fine for a *bind pose* (a single static orientation, no interpolation ever
