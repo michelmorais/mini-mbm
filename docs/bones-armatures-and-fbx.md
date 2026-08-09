@@ -24,10 +24,11 @@ document is the precise reference.
 **Mini MBM's status in one sentence:** the engine stores everything a real skeletal-animation system
 needs (a bind-pose bone hierarchy, and real per-vertex bone weights), but nothing in the renderer
 ever *reads* that data to deform a mesh. It is 100% editor/diagnostic + FBX round-trip data. Mini
-MBM's only real animation model is **static frame swapping** — a flipbook of complete, pre-baked
-vertex snapshots (`SECTION_FRAME_STATIC`, repeated per frame), the same idea as a 2D sprite
-animation extended to 3D. There is no bone-matrix upload to any shader, no inverse-bind-matrix math,
-no per-frame pose evaluation, anywhere in this codebase.
+MBM's deforming animation model remains **static frame swapping** — a flipbook of complete,
+pre-baked vertex snapshots (`SECTION_FRAME_STATIC`, repeated per frame), while articulated animation
+moves rigid subsets. The private Milestone-0 foundation can explicitly derive inverse bind and
+sample a synthetic skeletal pose for validation, but there is no runtime skeletal player,
+bone-matrix shader upload, or vertex deformation consumer.
 
 Why store bones/weights at all, then? Because Mixamo (and every other rigged-character pipeline)
 needs them to work at all — a character with no skeleton can't be animated by anything, and a
@@ -630,10 +631,11 @@ joint via the X/Y/Z drag fields never updates its Length/rotation on its own, so
 can end up with a real but geometrically stale Length; forcing Recompute across all of them is no
 longer destructive to roll the way it would have been before this fix.
 
-## Known Open Issue: Left/Right Mirroring on Import (Confirmed, NOT Yet Fixed)
+## Audited Handedness Contract: Left/Right Import Fix Not Yet Implemented
 
-Unlike everything in Pitfalls above, this one is **diagnosed but not fixed** — flagged in its own
-section so nobody mistakes it for already-resolved. Revisit and fix as a dedicated piece of work.
+Unlike everything in Pitfalls above, the implementation remains **not fixed**. Milestone 0.7 has,
+however, resolved the conversion contract and added reproducible FBX evidence so the eventual fix no
+longer depends on a visual guess.
 
 **Symptom, confirmed via a controlled user test:** a Mixamo character with an asymmetric prop on the
 head (visually on the character's right side, facing the camera, both on the Mixamo website and in a
@@ -680,4 +682,47 @@ triangle is also swapped to compensate. The fix needs to consistently cover: ver
 vertex normals, bone positions, *and* bone rotations (`rotX/Y/Z` — a Euler triple encodes a
 handedness-dependent rotation too, not just a position) — doing only some of these would trade this
 bug for a worse, more confusing one (e.g. correct positions but inverted normals, or a correctly
-mirrored mesh with an now-incorrect skeleton).
+mirrored mesh with a now-incorrect skeleton).
+
+### Accepted conversion contract
+
+The existing default import rotation maps Blender `(x,y,z)` to Mini MBM `(x,z,-y)`: Blender +Z
+becomes engine +Y and Blender -Y becomes engine +Z. Preserving those established up and forward
+directions leaves X as the reflection axis. The accepted right-handed→left-handed mapping is:
+
+```text
+position_engine = (-x_blender, z_blender, -y_blender)
+normal_engine   = (-nx_blender, nz_blender, -ny_blender)
+```
+
+Because this mapping has determinant `-1`, each triangle must swap one index pair to preserve front
+faces under the existing culling convention. UVs are unchanged. Tangents, when runtime support is
+added, use the same linear transform and must update their handedness sign.
+
+Let `C` be the column-vector matrix for that mapping. Blender rest/pose/cluster matrices are
+converted as `M_engine_column = C * M_blender_column * inverse(C)`, then transposed at the engine
+boundary because Mini MBM evaluates row vectors. This applies equally to bind and animated bone
+matrices; reflecting only translations or Euler angles is invalid. The importer fix must land as one
+atomic positions/normals/winding/bones/animation change with controlled asymmetric fixtures.
+
+### Reproducible M0.7 evidence
+
+Run:
+
+```sh
+blender -b --factory-startup --python src/test-lib/skeletal-fbx-bind-audit.py -- \
+  src/test-lib/T-BONE-rato-from-mixamo.fbx \
+  src/test-lib/T-BONE-rato-from-mixamo-fbx-audit.json
+```
+
+The checked report is tied to FBX SHA-256
+`d9d99bec7286aaca94700526ce7f78e0fc23acd5101931edf88144ab38af143c` and Blender 5.1.2. It reads
+34 raw FBX clusters through Blender's bundled parser before scene import discards `Transform` and
+`TransformLink`, then compares selected link matrices with the 41-bone imported rest armature. The
+maximum selected comparison error is `7.63e-6`; REST bone/pose comparison error is zero. The mesh
+has 36,149 imported vertices and 51,794 triangles, with a positive first-triangle geometric versus
+loop-normal dot (`0.986664612`).
+
+The sole action, `Armature|mixamo.com|Layer0` at frames 1–2, has zero selected-bone matrix delta.
+Consequently this asset is a bind/weight/topology fixture only. It cannot validate animated FBX
+sampling; a genuinely animated source remains required for that later acceptance test.

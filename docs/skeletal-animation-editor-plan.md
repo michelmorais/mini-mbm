@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **0.7**
-Status: **Product contracts consolidated; shared Milestone 0.1–0.6 foundation implemented**
+Document version: **0.8**
+Status: **Product contracts consolidated; shared Milestone 0.1–0.7 foundation audited**
 Last updated: **2026-08-09**
 
 ## 1. Purpose
@@ -375,6 +375,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.8 | 2026-08-09 | Recorded M0.7's reproducible raw-cluster/rest-pose FBX audit and accepted the atomic handedness conversion contract. The rat is approved for bind/weight/topology evidence but disqualified as an animated-pose fixture because its action has zero sampled pose delta. No importer reflection or editor mutation was implemented. |
 | 0.7 | 2026-08-09 | Completed M0.6's headless synthetic regression coverage for hierarchy, bind identity, weights, clip validation/sampling, easing, loop/clamp, antipodality, scale/shear, and normalized scale-1/scale-100 pose equivalence. No editor UI or asset mutation was introduced. |
 | 0.6 | 2026-08-09 | Adopted M0.5's versioned persistence decision: new canonical skeleton, runtime weight, and skeletal animation sections linked by `skeletonId`, with readers and corruption tests required before any writer. Legacy editor sections retain their meaning and the new values remain reserved but unimplemented. |
 | 0.5 | 2026-08-09 | Added M0.4's private skeletal clip/track/key validation and pure sampling foundation, including bind-local channel fallback, easing, antipodal quaternion interpolation, loop/clamp semantics, and local-to-global evaluation. This is not yet an editor timeline, player, persisted format, or deformation preview. |
