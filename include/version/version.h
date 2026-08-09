@@ -223,8 +223,9 @@
     6.50.1 Added an inline Normalize and Limit operation report with analyzed/corrected/already-valid/skipped/failed counts and stopped rewriting already-valid vertices.
     6.50.2 Clarified bone-proximity selection versus heatmap inspection, added a proximity-joint highlight, and made heatmap bone controls contextual.
     6.50.3 Added scale-aware bone-proximity radius, exact capsule preview, and optional nearest-segment ownership filtering.
+    6.50.4 Exposed Skin Weight Lab AABB numeric-drag sensitivity with a bounds-derived default and Auto reset.
 */
-#define MBM_VERSION "6.50.3" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.50.4" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

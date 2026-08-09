@@ -1,8 +1,8 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.23**
+Document version: **0.24**
 Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
-Last updated: **2026-08-08**
+Last updated: **2026-08-09**
 
 ## 1. Purpose
 
@@ -440,7 +440,9 @@ frame-1 weights, matching the persisted weight section.
 
 The 6.45.1 interaction pass adds direct viewport dragging for the complete AABB while preserving
 explicit Min/Max controls for each axis. Numeric drag sensitivity is derived from the loaded mesh
-bounds, so the same controls remain useful for very small and very large assets. Size X/Y/Z
+bounds, but is exposed as an editor-local value so the user can trade precision for speed when the
+automatic result is unsuitable. Changing sensitivity alone neither moves the AABB nor invalidates
+its cached analysis; the Auto action restores the bounds-derived value. Size X/Y/Z
 controls provide symmetric per-axis resizing around the current center by moving the negative and
 positive faces together. The editor panel is resizable, and a separate 3D camera panel exposes
 orbit, position, focus, reset, WASD horizontal movement, Page Up/Down elevation, and wheel zoom.
@@ -870,6 +872,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.24 | 2026-08-09 | Exposed the bounds-derived AABB numeric-drag sensitivity as an editable value, with a compact Auto reset; changing sensitivity alone does not alter selection geometry or invalidate analysis. |
 | 0.23 | 2026-08-08 | Approved bone-proximity selection after the scale-aware radius/capsule retest confirmed coherent selection, bone-change invalidation, and optional nearest-segment filtering on the 100× rat. |
 | 0.22 | 2026-08-08 | Recorded the inconclusive one-vertex Neck proximity test, replaced the stored bone radius with a scale-aware editor-local selection radius, added an exact orange capsule preview, and made nearest-segment ownership an optional default-off filter. Functional retesting remains pending. |
 | 0.21 | 2026-08-08 | Disambiguated the proximity-selection bone from the heatmap-inspection bone; added an orange proximity-joint highlight, made the heatmap bone conditional on the heatmap checkbox, and recorded highlight cleanup when either context is left. Functional proximity validation remains pending. |

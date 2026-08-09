@@ -54,6 +54,7 @@ local state = {
     analysisBoneIndex = 1,
     targetBoneIndex = 1,
     aabb = nil,
+    aabbDragSensitivity = 0.001,
     analysis = nil,
     analysisDirty = true,
     rollbackPath = nil,
@@ -847,6 +848,7 @@ local function loadMesh(path)
     state.aabb = bounds
     local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
+    state.aabbDragSensitivity=math.max(extent*0.0025,0.0001)
     state.proximityRadius=math.max(extent*0.1,0.001)
     state.proximityNearestOnly=false
     rebuildPreview()
@@ -1275,7 +1277,19 @@ local function showSelectionInputs()
         local reference = state.meshBounds
         local extent = reference and math.max(reference.maxX-reference.minX,
             reference.maxY-reference.minY, reference.maxZ-reference.minZ) or 1
-        local dragSpeed = math.max(extent * 0.0025, 0.0001)
+        local automaticDragSpeed=math.max(extent*0.0025,0.0001)
+        tImGui.PushItemWidth(150)
+        local sensitivityChanged,sensitivity=tImGui.InputFloat(tLang.L('swl_aabb_drag_sensitivity'),
+            state.aabbDragSensitivity,automaticDragSpeed*0.1,automaticDragSpeed,'%.6f',0)
+        showItemTooltip(tLang.L('swl_aabb_drag_sensitivity_tooltip'))
+        tImGui.PopItemWidth()
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('swl_reset_auto')..'##swlAabbDragSensitivity') then
+            state.aabbDragSensitivity=automaticDragSpeed
+        elseif sensitivityChanged then
+            state.aabbDragSensitivity=math.max(sensitivity,0.000001)
+        end
+        local dragSpeed=math.max(state.aabbDragSensitivity,0.000001)
         tImGui.PushItemWidth(150)
         for _, field in ipairs(fields) do
             local edited, value = tImGui.DragFloat(field[1], b[field[2]], dragSpeed, -1000000, 1000000, '%.4f')
