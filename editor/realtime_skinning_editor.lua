@@ -48,6 +48,9 @@ local state = {
     selectionMode = 1, -- 1 AABB, 2 subset, 3 bone proximity
     subsetIndex = 1,
     boneIndex = 1,
+    proximityRadius = 1,
+    proximityNearestOnly = false,
+    proximityCapsule = nil,
     analysisBoneIndex = 1,
     targetBoneIndex = 1,
     aabb = nil,
@@ -130,12 +133,14 @@ local function clearSelectionVisuals()
     destroyObject(state.transitionLines)
     destroyObject(state.selectionBox)
     destroyObject(state.transitionBox)
+    destroyObject(state.proximityCapsule)
     destroyObject(state.abruptLines)
     for _, object in ipairs(state.heatmapLines) do destroyObject(object) end
     state.selectionLines = nil
     state.transitionLines = nil
     state.selectionBox = nil
     state.transitionBox = nil
+    state.proximityCapsule = nil
     state.abruptLines = nil
     state.heatmapLines = {}
 end
@@ -312,6 +317,59 @@ end
 local function findBone(bones, name)
     for _, bone in ipairs(bones) do if bone.name == name then return bone end end
     return nil
+end
+
+local function rebuildProximityCapsule()
+    destroyObject(state.proximityCapsule)
+    state.proximityCapsule=nil
+    if not state.meshD or state.selectionMode~=3 then return end
+    local bones=getBones()
+    local bone=bones[state.boneIndex]
+    if not bone then return end
+    local parent=findBone(bones,bone.parentName) or bone
+    local ax,ay,az=bone.x,bone.y,bone.z
+    local bx,by,bz=parent.x,parent.y,parent.z
+    local dx,dy,dz=bx-ax,by-ay,bz-az
+    local length=math.sqrt(dx*dx+dy*dy+dz*dz)
+    local ux,uy,uz
+    if length>1e-8 then ux,uy,uz=dx/length,dy/length,dz/length else ux,uy,uz=0,1,0 end
+    local rx,ry,rz=math.abs(uy)<0.9 and 0 or 1,math.abs(uy)<0.9 and 1 or 0,0
+    local vx,vy,vz=uy*rz-uz*ry,uz*rx-ux*rz,ux*ry-uy*rx
+    local vLength=math.sqrt(vx*vx+vy*vy+vz*vz)
+    vx,vy,vz=vx/vLength,vy/vLength,vz/vLength
+    local wx,wy,wz=uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx
+    local radius=math.max(tonumber(state.proximityRadius) or 0,0)
+    local coords,segments={},24
+    local function point(cx,cy,cz,angle)
+        local c,s=math.cos(angle)*radius,math.sin(angle)*radius
+        return cx+vx*c+wx*s,cy+vy*c+wy*s,cz+vz*c+wz*s
+    end
+    local function appendCircle(cx,cy,cz,p1x,p1y,p1z,p2x,p2y,p2z)
+        for index=0,segments-1 do
+            local a1,a2=index*math.pi*2/segments,(index+1)*math.pi*2/segments
+            local c1,s1=math.cos(a1)*radius,math.sin(a1)*radius
+            local c2,s2=math.cos(a2)*radius,math.sin(a2)*radius
+            appendPoint(coords,cx+p1x*c1+p2x*s1,cy+p1y*c1+p2y*s1,cz+p1z*c1+p2z*s1)
+            appendPoint(coords,cx+p1x*c2+p2x*s2,cy+p1y*c2+p2y*s2,cz+p1z*c2+p2z*s2)
+        end
+    end
+    for _,center in ipairs({{ax,ay,az},{bx,by,bz}}) do
+        appendCircle(center[1],center[2],center[3],vx,vy,vz,wx,wy,wz)
+        appendCircle(center[1],center[2],center[3],ux,uy,uz,vx,vy,vz)
+        appendCircle(center[1],center[2],center[3],ux,uy,uz,wx,wy,wz)
+    end
+    for index=0,7 do
+        local angle=index*math.pi*2/8
+        local x1,y1,z1=point(ax,ay,az,angle)
+        local x2,y2,z2=point(bx,by,bz,angle)
+        appendPoint(coords,x1,y1,z1); appendPoint(coords,x2,y2,z2)
+    end
+    local capsule=line:new('3d',0,0,0)
+    capsule:add(coords)
+    capsule:setColor(1,0.55,0,1)
+    capsule:setPos(0,0,0)
+    capsule.alwaysOnTop=true
+    state.proximityCapsule=capsule
 end
 
 local function unitSphereVerts(latSegments,lonSegments)
@@ -675,20 +733,29 @@ local function analyzeSelection()
     else
         local target = bones[state.boneIndex]
         if target then
-            local segments = {}
-            for _, bone in ipairs(bones) do
-                segments[bone.name] = {a=bone, b=findBone(bones, bone.parentName) or bone}
-            end
-            local radiusSquared = target.radius * target.radius
-            for _, v in ipairs(allVertices) do
-                local nearestName, nearestDistance
-                for name, segment in pairs(segments) do
-                    local distance = pointSegmentDistanceSquared(v.point, segment.a, segment.b)
-                    if not nearestDistance or distance < nearestDistance then
-                        nearestName, nearestDistance = name, distance
-                    end
+            local targetSegment={a=target,b=findBone(bones,target.parentName) or target}
+            local segments = nil
+            if state.proximityNearestOnly then
+                segments={}
+                for _, bone in ipairs(bones) do
+                    segments[bone.name] = {a=bone, b=findBone(bones, bone.parentName) or bone}
                 end
-                if nearestName == target.name and nearestDistance <= radiusSquared then
+            end
+            local radiusSquared = state.proximityRadius * state.proximityRadius
+            for _, v in ipairs(allVertices) do
+                local targetDistance=pointSegmentDistanceSquared(v.point,targetSegment.a,targetSegment.b)
+                local selectedByOwnership=true
+                if segments then
+                    local nearestName,nearestDistance
+                    for name,segment in pairs(segments) do
+                        local distance=pointSegmentDistanceSquared(v.point,segment.a,segment.b)
+                        if not nearestDistance or distance<nearestDistance then
+                            nearestName,nearestDistance=name,distance
+                        end
+                    end
+                    selectedByOwnership=nearestName==target.name
+                end
+                if selectedByOwnership and targetDistance<=radiusSquared then
                     v.blendAlpha,v.region=1,'core'
                     selected[#selected+1] = v
                 end
@@ -778,6 +845,10 @@ local function loadMesh(path)
     local bounds = computeAABB(meshD)
     state.meshBounds = bounds
     state.aabb = bounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    state.proximityRadius=math.max(extent*0.1,0.001)
+    state.proximityNearestOnly=false
     rebuildPreview()
     rebuildSkeletonVisuals()
     rebuildSelectionBox()
@@ -1192,6 +1263,7 @@ local function showSelectionInputs()
         end
         invalidateAnalysis()
         rebuildSelectionBox()
+        rebuildProximityCapsule()
     end
     if state.selectionMode == 1 and state.aabb then
         local b = state.aabb
@@ -1284,6 +1356,28 @@ local function showSelectionInputs()
                 state.boneIndex=value
                 invalidateAnalysis()
                 rebuildProximityBoneHighlight()
+                rebuildProximityCapsule()
+            end
+            local bounds=state.meshBounds
+            local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+                bounds.maxZ-bounds.minZ) or 1
+            local dragSpeed=math.max(extent*0.0025,0.0001)
+            tImGui.PushItemWidth(190)
+            local radiusChanged,radius=tImGui.DragFloat(tLang.L('swl_proximity_radius'),
+                state.proximityRadius,dragSpeed,0,math.max(extent*2,dragSpeed),'%.4f')
+            showItemTooltip(tLang.L('swl_proximity_radius_tooltip'))
+            tImGui.PopItemWidth()
+            if radiusChanged then
+                state.proximityRadius=math.max(0,radius)
+                invalidateAnalysis()
+                rebuildProximityCapsule()
+            end
+            local nearestOnly=tImGui.Checkbox(tLang.L('swl_proximity_nearest_only'),
+                state.proximityNearestOnly)
+            showItemTooltip(tLang.L('swl_proximity_nearest_only_tooltip'))
+            if nearestOnly~=state.proximityNearestOnly then
+                state.proximityNearestOnly=nearestOnly
+                invalidateAnalysis()
             end
         else
             tImGui.TextDisabled(tLang.L('swl_no_bones'))

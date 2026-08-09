@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.21**
+Document version: **0.23**
 Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
 Last updated: **2026-08-08**
 
@@ -528,7 +528,11 @@ Transitions, Rigid Bind, Normalize and Limit, Smooth Selection, or Repair Detect
 The heatmap bone therefore remains an inspection input in block 2 and is shown only while the
 weight heatmap is enabled, while the single target bone exists only for Rigid Bind. Bone-proximity
 selection has its own explicitly named selection bone: it defines the geometric segment/radius and
-can be highlighted with an orange joint marker. The heatmap bone independently chooses which
+can be highlighted with an orange joint marker. Its selection radius is editor-local, initialized
+to 10% of the largest mesh extent, and does not modify the radius persisted in the skeleton. An
+orange wireframe capsule previews the exact point-to-segment distance envelope. By default every
+vertex inside this capsule is eligible; an optional nearest-segment filter restricts ownership to
+vertices for which the selected bone segment is nearer than every other segment. The heatmap bone independently chooses which
 stored influence the colors inspect and can be highlighted with its yellow marker. Leaving the
 proximity method clears its orange highlight; disabling the heatmap hides its bone input and clears
 its yellow highlight. Smoothing and transition repair use the optional set of allowed bones;
@@ -576,6 +580,7 @@ future refinement or malformed-input branch has been tested.
 | Load, Save As, close/reopen persistence | **Approved** | Edited weights and skeleton survive reopening. |
 | One-level rollback | **Approved** | Weight edits restore the preceding snapshot. |
 | AABB placement, symmetric sizing, dragging, and 100× camera interaction | **Approved** | Used repeatedly on the rat for neck and cavity selection. |
+| Bone-proximity selection | **Approved** | Retest confirmed the scale-aware independent radius, orange capsule, bone switching/cache invalidation, and optional nearest-segment filter behave coherently on the 100× rat. |
 | Analysis-bone heatmap | **Approved** | Spine1, Spine2, Neck, Head, shoulders, and arms were inspected independently. |
 | Allowed-bone restriction workflow | **Approved for smoothing** | Analysis remains valid while choosing allowed bones; the list controlled the neck experiments. |
 | Abrupt-transition diagnosis | **Approved** | Neck baseline `461 / 479 / 1.000`; after smoothing `372 / 405 / 0.870`. |
@@ -591,20 +596,16 @@ future refinement or malformed-input branch has been tested.
 
 The following behavior is implemented but still needs an explicit validation pass:
 
-1. **Bone Proximity selection:** verify radius/segment selection on several bones, confirm the new
-   orange selection-joint highlight, and confirm that changing the proximity bone invalidates only
-   the geometric analysis as intended. Also verify that the independently named heatmap-bone input
-   appears only while the heatmap is enabled.
-2. **Multi-subset selection:** use a mesh with at least two material subsets and prove isolation.
-3. **Per-face edge cases:** test one enabled face, unequal opposite widths, all faces disabled,
+1. **Multi-subset selection:** use a mesh with at least two material subsets and prove isolation.
+2. **Per-face edge cases:** test one enabled face, unequal opposite widths, all faces disabled,
    enabled width zero, a permitted two-face corner, and a corner blocked by one crossed face.
-4. **Allowed-bone visualization:** explicitly verify cyan persistent highlights, orange hover,
+3. **Allowed-bone visualization:** explicitly verify cyan persistent highlights, orange hover,
    and cleanup when switching operations.
-5. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
+4. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
    read/write failure if a safe fixture can represent one; ordinary and idempotent paths are done.
-6. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
+5. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
    and skeleton alignment on the unscaled rat rather than only the 100× working fixture.
-7. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
+6. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
    and absence of crashes.
 
 The following items remain future milestones rather than missing tests of current behavior:
@@ -869,6 +870,8 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.23 | 2026-08-08 | Approved bone-proximity selection after the scale-aware radius/capsule retest confirmed coherent selection, bone-change invalidation, and optional nearest-segment filtering on the 100× rat. |
+| 0.22 | 2026-08-08 | Recorded the inconclusive one-vertex Neck proximity test, replaced the stored bone radius with a scale-aware editor-local selection radius, added an exact orange capsule preview, and made nearest-segment ownership an optional default-off filter. Functional retesting remains pending. |
 | 0.21 | 2026-08-08 | Disambiguated the proximity-selection bone from the heatmap-inspection bone; added an orange proximity-joint highlight, made the heatmap bone conditional on the heatmap checkbox, and recorded highlight cleanup when either context is left. Functional proximity validation remains pending. |
 | 0.20 | 2026-08-08 | Approved Smooth Detected Transitions with the 396-vertex targeted neck test, automatic `372 → 333` edge / `396 → 358` vertex re-diagnosis, zero skipped vertices, confirmed rollback, and a retained smoothed `.msh` result. |
 | 0.19 | 2026-08-08 | Consolidated approved, partial, pending, and future validation status; approved per-face cavity transition and Normalize idempotence; recorded the 182-cleanup breakdown; corrected removed neck fixtures and listed the remaining editor test matrix. |

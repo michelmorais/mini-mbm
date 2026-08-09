@@ -222,8 +222,9 @@
     6.50.0 Added independent enablement and width for all six Skin Weight Lab AABB transition faces, with asymmetric outer preview and crossed-face-aware Linear/Smooth falloff.
     6.50.1 Added an inline Normalize and Limit operation report with analyzed/corrected/already-valid/skipped/failed counts and stopped rewriting already-valid vertices.
     6.50.2 Clarified bone-proximity selection versus heatmap inspection, added a proximity-joint highlight, and made heatmap bone controls contextual.
+    6.50.3 Added scale-aware bone-proximity radius, exact capsule preview, and optional nearest-segment ownership filtering.
 */
-#define MBM_VERSION "6.50.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.50.3" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
