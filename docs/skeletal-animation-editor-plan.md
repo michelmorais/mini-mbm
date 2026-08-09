@@ -1,4 +1,4 @@
-# Real-Time Skinning Editor — Skeleton and Animation Plan
+# Skeletal Animation Editor — Product and Migration Plan
 
 Document version: **0.1**
 Status: **Product discovery consolidated; data and bind-pose contracts pending technical design**
@@ -6,7 +6,7 @@ Last updated: **2026-08-09**
 
 ## 1. Purpose
 
-This document plans the evolution of the standalone **Real-Time Skinning Editor** from its delivered
+This document plans the evolution of the standalone **Skeletal Animation Editor** from its delivered
 Skin Weight Lab into a sufficient local skeletal-animation tool. The objective is not to replace
 Blender, Mixamo, or other DCC tools. Mini MBM should be able to:
 
@@ -17,7 +17,7 @@ Blender, Mixamo, or other DCC tools. Mini MBM should be able to:
 5. preview the same LBS/DQS deformation path that the runtime will execute.
 
 The implemented weight-authoring workflow is documented in the
-[Real-Time Skinning Editor guide](realtime-skinning-editor.md). Runtime deformation, bind-pose math,
+[Skeletal Animation Editor guide](skeletal-animation-editor.md). Runtime deformation, bind-pose math,
 backend delivery, and LBS/DQS correctness remain planned in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
@@ -84,7 +84,7 @@ an interchange workflow and must not define the runtime skeleton model.
 
 ## 5. Decisions taken
 
-1. Real-Time Skinning Editor has three primary nodes: Skin Weight Lab, Skeleton / Bind Pose, and
+1. Skeletal Animation Editor has three primary nodes: Skin Weight Lab, Skeleton / Bind Pose, and
    Animation.
 2. Mesh Debug Bones is a reference implementation, not a module to copy wholesale.
 3. Existing, trustworthy imported bind and animation data must be preserved by default.
@@ -362,4 +362,3 @@ verification plan tied to both synthetic fixtures and the alien rat.
 | Version | Date | Change |
 |---|---|---|
 | 0.1 | 2026-08-09 | Initial plan: three-node product shape; Mesh Debug Bones audit boundary; Skeleton/Bind Pose and Animation scopes; local and imported workflows; shared contracts; staged migration; risks, gates, fixtures, and acceptance criteria. |
-

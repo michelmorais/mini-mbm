@@ -8,7 +8,7 @@ whole feature area was built up over many sessions chasing a single symptom (Mix
 have to re-derive any of that from scratch.
 
 Region-based weight editing, rigid-core/falloff workflows, diagnostics, and validated usage are
-documented in the [Real-Time Skinning Editor guide](realtime-skinning-editor.md). The future
+documented in the [Skeletal Animation Editor guide](skeletal-animation-editor.md). The future
 bind-pose pipeline and runtime LBS/DQS delivery are tracked in
 [`realtime-skinning-animation-plan.md`](realtime-skinning-animation-plan.md).
 

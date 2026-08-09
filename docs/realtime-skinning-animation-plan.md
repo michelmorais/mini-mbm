@@ -11,12 +11,12 @@ skinning to Mini MBM. It plans Linear Blend Skinning (LBS) and Dual Quaternion S
 the initial design so that file data, pose evaluation, diagnostics, editor workflows, and backend
 interfaces do not accidentally encode only one method.
 
-The [Real-Time Skinning Editor guide](realtime-skinning-editor.md) documents the delivered Skin
+The [Skeletal Animation Editor guide](skeletal-animation-editor.md) documents the delivered Skin
 Weight Lab workflow for weight authoring, local repair, and validation. Runtime skinning work remains
 in the same standalone editor rather than continuing to inflate Mesh Debug.
 
 The companion
-[Skeleton and Animation Editor Plan](realtime-skinning-skeleton-and-animation-editor-plan.md)
+[Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md)
 defines the editor's three-node product shape, audits Mesh Debug Bones as a reference, and owns
 local/imported skeleton and clip authoring workflows.
 
@@ -214,7 +214,7 @@ and which file sections remain distinct.
 
 ## 10. Standalone Editor Shape
 
-The Real-Time Skinning Editor will contain three primary nodes:
+The Skeletal Animation Editor will contain three primary nodes:
 
 1. **Skin Weight Lab** — delivered weight selection, rigid regions, transitions, smoothing,
    diagnostics, and rollback.
@@ -226,7 +226,7 @@ The Real-Time Skinning Editor will contain three primary nodes:
 **Deformation Preview** and **Backend Capabilities** cross these workflows and therefore remain
 shared services/panels rather than additional top-level nodes. Their runtime contracts stay in this
 plan; node behavior and the staged Mesh Debug Bones migration are owned by the companion
-[Skeleton and Animation Editor Plan](realtime-skinning-skeleton-and-animation-editor-plan.md).
+[Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
 The standalone editor is a product decision. Its internal code-sharing boundary is not yet decided.
 The preferred direction is shared engine/editor services with incremental migration, not a copy of
@@ -253,7 +253,8 @@ Exit: bind-pose and expected-deformation fixtures are reproducible.
 - Diagnose invalid hierarchy, missing bind data, cycles, unknown influences, and non-identity bind
   deformation.
 
-Implementation note: version 6.45.0 adds `editor/realtime_skinning_editor.lua` with the first Skin
+Implementation note: version 6.45.0 added the editor now named
+`editor/skeletal_animation_editor.lua` with the first Skin
 Weight Lab workspace and reuses the existing narrow `meshDebug` data API. It does not yet implement
 bind/inverse-bind evaluation, clip playback, LBS, or DQS; those phase boundaries remain unchanged.
 Version 6.46.0 adds local rigid-core/transition-shell weight blending to that workspace. This is
@@ -341,7 +342,7 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 1. LBS and DQS are planned from the initial data and architecture design.
 2. LBS is the correctness/reference baseline; DQS is a selectable quality method, not a replacement
    for weight authoring.
-3. Skin Weight Lab and skeletal animation belong in a standalone Real-Time Skinning Editor.
+3. Skin Weight Lab and skeletal animation belong in a standalone Skeletal Animation Editor.
 4. Editor preview and runtime must converge on one deformation implementation.
 5. Bind-pose identity, DQS antipodality correction, and explicit scale handling are required
    correctness contracts.
@@ -416,7 +417,7 @@ remain required before choosing palette sizes or fallbacks.
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-08-09 | Defined the editor as three primary nodes (Skin Weight Lab, Skeleton / Bind Pose, Animation), moved deformation preview/backend capability reporting to shared concerns, and linked the dedicated Skeleton/Animation editor and Mesh Debug Bones migration plan. |
-| 0.9 | 2026-08-09 | Replaced the completed Skin Weight Lab discovery plan with the implementation-backed Real-Time Skinning Editor guide and recorded the initial weight-authoring delivery as approved. |
+| 0.9 | 2026-08-09 | Replaced the completed Skin Weight Lab discovery plan with the implementation-backed editor guide and recorded the initial weight-authoring delivery as approved. |
 | 0.8 | 2026-08-06 | Recorded abrupt neighbor-weight diagnostics while distinguishing authoring discontinuities from future posed LBS/DQS stress validation. |
 | 0.7 | 2026-08-06 | Recorded local triangle-adjacency weight smoothing while retaining pose evaluation and LBS/DQS deformation as separate future runtime work. |
 | 0.6 | 2026-08-06 | Recorded the target-weight heatmap and allowed-bone filtering while distinguishing stored-weight visualization from future LBS/DQS deformation preview. |

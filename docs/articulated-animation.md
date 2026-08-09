@@ -305,7 +305,7 @@ for field order, types, versions, and loader invariants.
 
 ## 13. Relationship to Future Skeletal Skinning
 
-The planned Real-Time Skinning Editor may reuse the established vocabulary and interaction patterns
+The planned Skeletal Animation Editor nodes may reuse the established vocabulary and interaction patterns
 for hierarchy, clips, P/R/S tracks, easing, timeline, priority, blend, and Absolute/Additive
 composition. The underlying deformation remains different:
 
@@ -324,7 +324,7 @@ pivots, bind poses, or file sections. See the
 | Lua signatures and return values | [Lua API](lua-api.md#articulated-playback-mesh-and-sprite) |
 | Binary layout and persisted invariants | [Mesh V11 format](mesh-v11-format.md#6f-section_articulated_parts-and-section_articulated_animation-payloads) |
 | Future LBS/DQS relationship | [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md) |
-| Weight authoring | [Real-Time Skinning Editor](realtime-skinning-editor.md) |
+| Weight authoring | [Skeletal Animation Editor](skeletal-animation-editor.md) |
 
 ## 15. Change Log
 

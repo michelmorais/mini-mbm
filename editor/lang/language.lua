@@ -27,8 +27,8 @@ M.en = {
     show_alpha_pattern = "Show Alpha Pattern",
     extract = "Extract",
     category = "Category",
-    -- Real-Time Skinning Editor / Skin Weight Lab
-    swl_title = "Real-Time Skinning Editor",
+    -- Skeletal Animation Editor / Skin Weight Lab
+    swl_title = "Skeletal Animation Editor",
     swl_workspace = "Skin Weight Lab",
     swl_welcome = "Open a .msh file to inspect and repair its skin weights.",
     swl_open_mesh = "Open Mesh...",
@@ -1773,8 +1773,8 @@ M.pt_br = {
     show_alpha_pattern = "Mostrar padrão alpha",
     extract = "Extrair",
     category = "Categoria",
-    -- Editor de Skinning em Tempo Real / Laboratório de Pesos
-    swl_title = "Editor de Skinning em Tempo Real",
+    -- Editor de Animação Esquelética / Laboratório de Pesos
+    swl_title = "Editor de Animação Esquelética",
     swl_workspace = "Laboratório de Pesos",
     swl_welcome = "Abra um arquivo .msh para inspecionar e corrigir seus pesos de skinning.",
     swl_open_mesh = "Abrir Mesh...",

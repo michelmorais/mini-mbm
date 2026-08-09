@@ -209,7 +209,7 @@
     6.42.0 Added average vertices-per-frame and triangles-per-frame statistics to Mesh Debug's Mesh Info table.
     6.43.0 Added per-plane two-axis and single-axis radio constraints to Mesh Debug's Bones joint dragging.
     6.44.0 Added a confirmed Remove Armature action to Mesh Debug that clears the complete skeleton and associated vertex Skin Weights for clean Mixamo auto-rig uploads.
-    6.45.0 Added the standalone Real-Time Skinning Editor with the Phase-1 Skin Weight Lab: cached AABB/subset/bone-proximity selection analysis, weight-integrity counts, visual selection markers, explicit rigid binding, save/save-as, and one-level snapshot rollback.
+    6.45.0 Added the standalone editor now named Skeletal Animation Editor with the Phase-1 Skin Weight Lab: cached AABB/subset/bone-proximity selection analysis, weight-integrity counts, visual selection markers, explicit rigid binding, save/save-as, and one-level snapshot rollback.
     6.45.1 Improved the Skin Weight Lab with a resizable layout, scale-aware AABB numeric controls, direct viewport AABB dragging, and a dedicated orbit/position/focus camera panel with WASD movement.
     6.45.2 Fixed Mesh Debug whole-mesh scaling to synchronize a positive uniform bake with skeleton positions/radii/lengths without corrupting bone-local scaleX/Y/Z; partial transforms now leave the global skeleton unchanged, and unsupported non-uniform synchronization fails before mutation.
     6.46.0 Added the Skin Weight Lab Phase-2 transition shell with adjustable width, Linear/Smooth falloff, normalized four-influence blending, separate rigid-core/shell previews, outside-region preservation, and snapshot rollback.
@@ -228,8 +228,9 @@
     6.51.1 Added heatmap-bone influence counts, positive min/max weights, and a zero-influence warning that leaves full-weight transition diagnostics valid.
     6.51.2 Added exact external-boundary weight-slot auditing around targeted smoothing, with verified/modified/failure reporting and error status on contract violation.
     6.51.3 Completed and approved the initial Skin Weight Lab delivery, including no-influence normalization coverage and removal of the redundant Phase-3 footer notice.
+    6.51.4 Renamed Real-Time Skinning Editor to Skeletal Animation Editor across the launcher, Lua entry point, generated shortcuts, localization, documentation, and product plans.
 */
-#define MBM_VERSION "6.51.3" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.51.4" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

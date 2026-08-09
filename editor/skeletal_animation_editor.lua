@@ -17,7 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Real-Time Skinning Editor — Skin Weight Lab
+   Skeletal Animation Editor — Skin Weight Lab
 ]]--
 
 tImGui = require "ImGui"

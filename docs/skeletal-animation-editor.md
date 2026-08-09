@@ -1,11 +1,11 @@
-# Real-Time Skinning Editor
+# Skeletal Animation Editor
 
 Status: **Skin Weight Lab initial delivery available and validated**
 Last updated: **2026-08-09**
 
 ## 1. Purpose
 
-The Real-Time Skinning Editor is the standalone Mini MBM tool for inspecting and editing skeletal
+The Skeletal Animation Editor is the standalone Mini MBM tool for inspecting and editing skeletal
 mesh data. Its currently implemented workspace, **Skin Weight Lab**, repairs stored frame-1 vertex
 weights without expanding Mesh Debug into a general animation editor.
 
@@ -16,14 +16,14 @@ evaluation, pose preview, and GPU skinning are planned separately in the
 The editor will evolve into three primary nodes: **Skin Weight Lab**, **Skeleton / Bind Pose**, and
 **Animation**. Their product scope, the audited relationship to Mesh Debug's Bones node, and the
 migration sequence are defined in the
-[Skeleton and Animation Editor Plan](realtime-skinning-skeleton-and-animation-editor-plan.md).
+[Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
 ## 2. Opening the editor
 
-Choose **Real-Time Skinning Editor** from the Mini MBM launcher, or start it directly:
+Choose **Skeletal Animation Editor** from the Mini MBM launcher, or start it directly:
 
 ```sh
-./bin/debug/linux_x86/mini-mbm --scene editor/realtime_skinning_editor.lua
+./bin/debug/linux_x86/mini-mbm --scene editor/skeletal_animation_editor.lua
 ```
 
 Use **File > Open Mesh** to load a `.msh` file. The mesh should contain a frame-1 skeleton and
@@ -252,4 +252,4 @@ Future bind-pose validation, clip playback, pose stress, LBS/DQS selection, anti
 and backend delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Skeleton authoring, animation authoring/import, and the migration from Mesh Debug Bones remain in
-the [Skeleton and Animation Editor Plan](realtime-skinning-skeleton-and-animation-editor-plan.md).
+the [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
