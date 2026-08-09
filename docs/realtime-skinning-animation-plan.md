@@ -1,6 +1,6 @@
-# Real-Time Skinning Animation — LBS and DQS Plan
+# Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **1.0**
+Document version: **1.1**
 Status: **Initial weight-authoring delivery completed; runtime skinning not implemented**
 Last updated: **2026-08-09**
 
@@ -9,7 +9,9 @@ Last updated: **2026-08-09**
 This document is the versioned reference for adding skeletal animation and real-time vertex
 skinning to Mini MBM. It plans Linear Blend Skinning (LBS) and Dual Quaternion Skinning (DQS) from
 the initial design so that file data, pose evaluation, diagnostics, editor workflows, and backend
-interfaces do not accidentally encode only one method.
+interfaces do not accidentally encode only one method. It also reserves an explicit, non-blocking
+path for future Velocity Skinning and renderer modernization without expanding the initial runtime
+delivery gate.
 
 The [Skeletal Animation Editor guide](skeletal-animation-editor.md) documents the delivered Skin
 Weight Lab workflow for weight authoring, local repair, and validation. Runtime skinning work remains
@@ -114,7 +116,7 @@ weights are considered.
 
 Local bone transforms sampled from one or more clips and composed through the hierarchy into current
 global transforms. Composition semantics include loop, speed, priority, blend weight/fade, and
-Absolute/Additive behavior, subject to the decisions in Section 9.
+Absolute/Additive behavior, subject to the decisions in Section 10.
 
 ### Influences
 
@@ -169,7 +171,38 @@ either:
 Silently dropping scale is not acceptable. Corrective shapes and bulge preservation beyond basic
 DQS are later research topics.
 
-## 8. Backend Strategy
+## 8. Velocity Skinning Extension
+
+[Velocity Skinning](https://velocityskinning.com/) is a possible later secondary-deformation layer,
+not a replacement for LBS or DQS. It derives stylized per-vertex displacements from skeletal linear
+and angular velocity and adds them to the result of standard skinning. The initial runtime delivery
+does not depend on it.
+
+The shared pose evaluator should nevertheless avoid preventing this extension. Its backend-neutral
+result may optionally include global linear/angular bone motion or enough timestamped pose data to
+derive it. Motion history and its invalidation belong to animation-instance state, not to graphics
+backend state.
+
+Timeline discontinuities require explicit semantics. Seek, clip changes, loop wrap, pause/resume,
+speed changes, composition changes, invalid/zero delta, and the first evaluated frame must not
+produce unbounded finite-difference velocities. The initial safe policy is to invalidate motion
+history and emit zero velocity for the first sample after a discontinuity; later continuous-loop or
+analytic-derivative modes must be explicit options.
+
+Velocity Skinning data is distinct from the four primary skin influences:
+
+- primary influences remain sparse, normalized, persisted inputs for LBS/DQS;
+- hierarchy-propagated velocity influences are derived data and may be less sparse;
+- squash/floppy effect masks and clamps are optional authoring data;
+- derived influences should initially be rebuilt/cached at load or preprocessing time rather than
+  forcing an on-disk format decision before the prototype validates them.
+
+The research implementation demonstrates CPU and GPU viability, including a single-pass vertex
+shader, but does not establish viability for Mini MBM's GLES2 or DirectX 9 limits. Normal/tangent
+deformation is also a separate quality problem: a first prototype may retain the base-skinning
+normal under bounded displacement, but must report that approximation and test its visual impact.
+
+## 9. Backend Strategy
 
 | Backend | Initial planning concern | Direction |
 |---|---|---|
@@ -193,7 +226,40 @@ DQS are later research topics.
 Open questions include palette partitioning, texture-based palettes where available, CPU fallback
 for very small/diagnostic cases, and minimum supported bone counts per platform.
 
-## 9. Relationship to Articulated Animation
+### Modern-backend migration plan
+
+GLES2 and DirectX 9 are legacy implementations of a backend-neutral deformation contract; they do
+not define that contract. Logical poses, palettes, bone motion, deformation method, execution path,
+and data transport remain separate concepts. Public/core animation data must not expose uniform
+locations, shader registers, backend buffer handles, or a global bone limit derived from one API.
+
+The staged modernization direction is:
+
+1. deliver shared CPU pose evaluation and reference deformation independently of GPU transport;
+2. implement capability-limited LBS/DQS on GLES2, Metal, and DirectX 9;
+3. preserve GLES2/DirectX 9 as supported reduced profiles where practical;
+4. evaluate a modern OpenGL backend for an incremental Linux/Windows transition, or Vulkan for a
+   broader Linux/Windows/Android renderer modernization;
+5. add buffer-backed and optional compute deformation only through new backend capabilities.
+
+Metal already represents the modern Apple path. Vulkan must not be introduced solely to ship
+Velocity Skinning; it requires a separate renderer-modernization decision and plan. A future modern
+backend may support larger palettes, structured/storage buffers, dense derived influences, compute
+deformation, and reuse of already-deformed vertices without changing clips, skeletons, weights, or
+the conceptual runtime/Lua animation surface.
+
+Capability reporting should keep these axes independent:
+
+- primary method: LBS or DQS;
+- secondary deformation: none or Velocity Skinning;
+- execution path: CPU reference/fallback, vertex shader, or compute;
+- transport: uniforms, texture-backed data, or buffers.
+
+A reduced GLES2 Velocity Skinning profile may later cap active velocity bones/influences or expose
+only selected effects, but such limits must be explicit capabilities rather than canonical format
+limits or silent approximations.
+
+## 10. Relationship to Articulated Animation
 
 The existing articulated system provides a useful product vocabulary and proven interaction model:
 
@@ -212,7 +278,7 @@ mandatory, and the evaluated pose deforms shared vertices through weights. The p
 decide which clip/player structures can become shared services, which semantics are merely aligned,
 and which file sections remain distinct.
 
-## 10. Standalone Editor Shape
+## 11. Standalone Editor Shape
 
 The Skeletal Animation Editor will contain three primary nodes:
 
@@ -232,7 +298,7 @@ The standalone editor is a product decision. Its internal code-sharing boundary 
 The preferred direction is shared engine/editor services with incremental migration, not a copy of
 Mesh Debug's large Lua implementation.
 
-## 11. Delivery Plan
+## 12. Delivery Plan
 
 ### Phase 0 — Fixtures, documentation, and invariants
 
@@ -272,6 +338,9 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 - Decide concrete reuse/alignment with articulated clip, easing, timeline, priority, and
   Absolute/Additive semantics.
 - Produce a backend-neutral evaluated pose.
+- Define optional timestamped pose/bone-motion output and deterministic history invalidation for
+  seek, loop, pause, clip/composition changes, and invalid frame delta without implementing
+  Velocity Skinning itself.
 
 ### Phase 3 — CPU references
 
@@ -302,14 +371,32 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
   and appropriate Lua API.
 - Define resource ownership, instance state, and multi-mesh skeleton sharing.
 
-### Phase 8 — Advanced research
+### Phase 8 — Backend modernization decision
+
+- Record measured GLES2, Metal, and DirectX 9 limits after the initial delivery.
+- Decide whether modern OpenGL offers sufficient incremental value or whether the renderer goals
+  justify a separately planned Vulkan backend.
+- Keep the legacy backends available as reduced capability profiles where maintenance permits.
+- Validate that a new backend consumes the existing pose/deformation contracts without changing
+  serialized animation semantics.
+
+### Phase 9 — Velocity Skinning research
+
+- Implement a bounded CPU reference on small fixtures and selected rat regions.
+- Derive/cache hierarchy-propagated velocity influences separately from four-weight LBS/DQS input.
+- Validate motion-history reset, clamps, reverse/seek/loop behavior, and effect authoring masks.
+- Evaluate approximate normals/tangents and define the quality boundary before claiming delivery.
+- Measure a reduced GLES2 path only if useful; do not make it a release requirement.
+- Implement vertex-buffer or compute-backed paths only on backends whose capabilities justify them.
+
+### Phase 10 — Advanced research
 
 - Palette partitioning and larger skeleton transport.
 - Two-phase DQS for scale/stretch.
 - Corrective shapes, bulge compensation, and optional CPU/compute alternatives where appropriate.
 - Tail procedural animation/physics integration.
 
-## 12. Verification and Acceptance Invariants
+## 13. Verification and Acceptance Invariants
 
 - Bind-pose evaluation reproduces original positions and normals within documented tolerance.
 - One bone at weight `1.0` produces equivalent rigid LBS and DQS results.
@@ -322,8 +409,13 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 - A capability failure states the method, required/effective palette size, backend, and reason.
 - Runtime and editor preview use the same deformation path once Phase 4 is complete.
 - The rat tests include head turn/tilt, torso plus head, cavity rigidity, shoulders, wrists, and tail.
+- Enabling or disabling future secondary deformation does not change pose evaluation or the selected
+  LBS/DQS result before the secondary displacement is applied.
+- A temporal discontinuity never produces an unbounded velocity-driven displacement.
+- Four-influence validation applies to primary skinning input, not automatically to derived velocity
+  influences.
 
-## 13. Risks
+## 14. Risks
 
 | Risk | Impact | Mitigation direction |
 |---|---|---|
@@ -336,8 +428,13 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 | Editor duplicates runtime math | Preview and game disagree | Shared deformation path and CPU reference suite |
 | Articulated and skeletal formats are conflated | Bind/weight semantics become fragile | Reuse concepts/services selectively; keep explicit data boundaries |
 | Mesh Debug code is copied into a second large editor | Long-term drift and maintenance cost | Extract shared services and migrate in phases |
+| GLES2 limits become the deformation contract | Modern backends inherit legacy palette/data restrictions | Keep logical deformation, execution path, and transport separate |
+| Velocity Skinning enters the critical LBS/DQS path | Bind/pose bugs become mixed with temporal procedural artifacts | Ship primary skinning first; keep secondary deformation optional |
+| Seek/loop/clip changes create velocity spikes | Exploding or unstable deformation | Explicit motion-history invalidation, clamps, and discontinuity fixtures |
+| Propagated velocity weights are treated as four sparse influences | Incorrect effects or hidden backend cost | Model/cache them as separate derived data and capability-report their limits |
+| Positions are displaced without an accepted normal policy | Incorrect lighting under strong effects | Bound the prototype, expose approximation, and validate normals separately |
 
-## 14. Decisions Taken
+## 15. Decisions Taken
 
 1. LBS and DQS are planned from the initial data and architecture design.
 2. LBS is the correctness/reference baseline; DQS is a selectable quality method, not a replacement
@@ -349,8 +446,15 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 6. Backend limitations are reported as capabilities and must not silently select another method.
 7. Linux/GLES may lead implementation, with Metal and DirectX represented by planned milestones.
 8. Existing articulated animation is the UX/domain reference, while skeletal data remains distinct.
+9. Velocity Skinning is a post-LBS/DQS optional extension and is not part of the initial runtime
+   delivery gate.
+10. Pose evaluation may expose backend-neutral bone motion, while temporal history remains per
+    animation instance and is invalidated explicitly at discontinuities.
+11. GLES2 and DirectX 9 are reduced backend profiles, not sources of global data-model limits.
+12. Renderer modernization is planned separately; Vulkan is not justified by Velocity Skinning
+    alone.
 
-## 15. Hypotheses to Validate
+## 16. Hypotheses to Validate
 
 1. DQS's smaller rigid palette makes it a useful preferred option on some GLES2 devices.
 2. Four influences per vertex provide an acceptable quality/performance boundary for the target
@@ -362,8 +466,14 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 5. The standalone editor can reuse camera, selection, timeline, and visualization services rather
    than duplicating Mesh Debug.
 6. CPU reference deformation is fast enough for tests and selected-region diagnostics.
+7. A bounded CPU Velocity Skinning prototype can validate effect quality and authoring before any
+   backend-specific GPU representation is selected.
+8. A useful reduced Velocity Skinning profile may fit some GLES2 devices, but modern-backend support
+   provides the intended unconstrained path.
+9. The deformation contract can admit a future OpenGL-modern or Vulkan backend without changing
+   animation assets or public playback semantics.
 
-## 16. Open Questions
+## 17. Open Questions
 
 ### Data and animation
 
@@ -380,17 +490,29 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 8. Is any texture/buffer palette alternative viable on the actual GLES2 device baseline?
 9. When DQS cannot represent a clip's scale, is fallback selected per mesh, clip, pose, or draw?
 10. Should the runtime ever auto-fallback if an application explicitly opts in, or always fail?
+11. After measuring the delivered backends, is modern OpenGL a worthwhile incremental backend or do
+    broader renderer goals justify Vulkan?
+12. Which minimum reduced Velocity Skinning profile, if any, is useful on GLES2/DirectX 9?
+
+### Secondary deformation
+
+13. Are bone velocities analytic, finite-difference, or selectable per animation source?
+14. Are propagated velocity influences cached in memory, serialized in a future mesh section, or
+    generated offline only after profiling?
+15. What displacement/velocity clamps and normal/tangent policy define an acceptable first release?
+16. Are Velocity Skinning effect masks shared with Skin Weight Lab tooling or authored in a separate
+    secondary-deformation mode?
 
 ### Editor and delivery
 
-11. What is the editor's final public name?
-12. Which Mesh Debug capabilities migrate, remain, or become shared modules?
-13. Is LBS/DQS comparison a toggle, split view, overlay/heat map, or all three?
-14. Which rat/animation files may be committed as canonical fixtures?
-15. Which articulated clip/player concepts should become shared services instead of remaining only
+17. What is the editor's final public name?
+18. Which Mesh Debug capabilities migrate, remain, or become shared modules?
+19. Is LBS/DQS comparison a toggle, split view, overlay/heat map, or all three?
+20. Which rat/animation files may be committed as canonical fixtures?
+21. Which articulated clip/player concepts should become shared services instead of remaining only
     aligned at the UX level?
 
-## 17. Out of Scope for the Initial Runtime Delivery
+## 18. Out of Scope for the Initial Runtime Delivery
 
 - Guaranteed high-quality automatic weights for arbitrary meshes.
 - Brush-based Blender-equivalent weight painting.
@@ -399,8 +521,11 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 - Compute-shader skinning as a required baseline.
 - Unlimited skeleton sizes on every backend.
 - Silent approximation of unsupported transforms.
+- Velocity Skinning as a required feature on GLES2 or DirectX 9.
+- A new OpenGL-modern or Vulkan renderer introduced only for skeletal animation.
+- Physically based secondary motion; Velocity Skinning is a stylized procedural deformation.
 
-## 18. Technical References
+## 19. Technical References
 
 - Kavan et al., [Skinning with Dual Quaternions](https://users.cs.utah.edu/~ladislav/kavan07skinning/kavan07skinning.html).
 - Ladislav Kavan et al., [Skinning with Dual Quaternions — overview, limitations, paper, and reference code](https://users.cs.utah.edu/~ladislav/dq/index.html). This is the practical reference for GPU-oriented DQS, its relationship to LBS, antipodality/flipping concerns, and the optional two-phase treatment of scale and shear.
@@ -408,14 +533,16 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
 - Khronos, [OpenGL ES 2.0 specification](https://registry.khronos.org/OpenGL/specs/es/2.0/es_full_spec_2.0.pdf).
 - Microsoft, [Shader Model 2 (Direct3D 9)](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx9-graphics-reference-asm-vs-2-0).
 - Apple, [Metal resource fundamentals](https://developer.apple.com/documentation/metal/resource_fundamentals).
+- Rohmer et al., [Velocity Skinning for Real-time Stylized Skeletal Animation](https://velocityskinning.com/assets/Velocity_Skinning_EG2021.pdf), with the [project overview and demonstrations](https://velocityskinning.com/) and [GPU reference implementation](https://github.com/drohmer/velocity_skinning_gpu). This is a secondary additive deformation driven by skeletal velocity; its propagated weights, temporal semantics, normal limitations, and modern GPU implementation do not establish unrestricted GLES2/DX9 support.
 
 References constrain later technical design; measured Mini MBM backend behavior and project fixtures
 remain required before choosing palette sizes or fallbacks.
 
-## 19. Change Log
+## 20. Change Log
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1 | 2026-08-09 | Added Velocity Skinning as a post-LBS/DQS research extension, prepared optional backend-neutral bone-motion output and discontinuity rules, separated primary from propagated velocity influences, and defined a staged modern-backend migration that preserves GLES2/DirectX 9 as capability-limited profiles without making Vulkan a skinning prerequisite. |
 | 1.0 | 2026-08-09 | Defined the editor as three primary nodes (Skin Weight Lab, Skeleton / Bind Pose, Animation), moved deformation preview/backend capability reporting to shared concerns, and linked the dedicated Skeleton/Animation editor and Mesh Debug Bones migration plan. |
 | 0.9 | 2026-08-09 | Replaced the completed Skin Weight Lab discovery plan with the implementation-backed editor guide and recorded the initial weight-authoring delivery as approved. |
 | 0.8 | 2026-08-06 | Recorded abrupt neighbor-weight diagnostics while distinguishing authoring discontinuities from future posed LBS/DQS stress validation. |
