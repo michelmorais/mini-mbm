@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.24**
+Document version: **0.25**
 Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
 Last updated: **2026-08-09**
 
@@ -571,7 +571,7 @@ Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity wit
 and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
 not actual posed deformation; pose stress remains a separate LBS/DQS milestone.
 
-### Current validation status (2026-08-08)
+### Current validation status (2026-08-09)
 
 The following table distinguishes implemented code from behavior actually exercised by the user.
 “Approved” means the observed result matches the current milestone; it does not imply that every
@@ -585,6 +585,7 @@ future refinement or malformed-input branch has been tested.
 | Bone-proximity selection | **Approved** | Retest confirmed the scale-aware independent radius, orange capsule, bone switching/cache invalidation, and optional nearest-segment filter behave coherently on the 100× rat. |
 | Analysis-bone heatmap | **Approved** | Spine1, Spine2, Neck, Head, shoulders, and arms were inspected independently. |
 | Allowed-bone restriction workflow | **Approved for smoothing** | Analysis remains valid while choosing allowed bones; the list controlled the neck experiments. |
+| Allowed-bone visualization | **Approved** | Persistent cyan selection, temporary orange hover, Allow All/Clear All, and operation-change cleanup were confirmed. Changing operation disables the highlight and clears viewport colors while intentionally preserving the allowed-bone selection. |
 | Abrupt-transition diagnosis | **Approved** | Neck baseline `461 / 479 / 1.000`; after smoothing `372 / 405 / 0.870`. |
 | Smooth Detected Transitions | **Approved** | At threshold `0.35`, Strength `0.15`, one iteration: 396/396 magenta vertices written, 0 skipped, abrupt edges `372 → 333`, affected vertices `396 → 358`, and rollback confirmed. |
 | Local smoothing of a complete selection | **Partially validated** | Reduced the neck tear, but including arm influences introduced stretching. The experiment was stopped without accepting a final neck asset. |
@@ -601,13 +602,11 @@ The following behavior is implemented but still needs an explicit validation pas
 1. **Multi-subset selection:** use a mesh with at least two material subsets and prove isolation.
 2. **Per-face edge cases:** test one enabled face, unequal opposite widths, all faces disabled,
    enabled width zero, a permitted two-face corner, and a corner blocked by one crossed face.
-3. **Allowed-bone visualization:** explicitly verify cyan persistent highlights, orange hover,
-   and cleanup when switching operations.
-4. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
+3. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
    read/write failure if a safe fixture can represent one; ordinary and idempotent paths are done.
-5. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
+4. **Original-scale interaction regression:** repeat camera, numeric drag, AABB picking, markers,
    and skeleton alignment on the unscaled rat rather than only the 100× working fixture.
-6. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
+5. **Meshes without bones or without stored weights:** confirm useful diagnostics, disabled actions,
    and absence of crashes.
 
 The following items remain future milestones rather than missing tests of current behavior:
@@ -872,6 +871,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.25 | 2026-08-09 | Approved allowed-bone visualization: persistent cyan selection, orange hover, list actions, and visual cleanup when changing operations; clarified that the allowed-bone selection itself is intentionally preserved. |
 | 0.24 | 2026-08-09 | Exposed the bounds-derived AABB numeric-drag sensitivity as an editable value, with a compact Auto reset; changing sensitivity alone does not alter selection geometry or invalidate analysis. |
 | 0.23 | 2026-08-08 | Approved bone-proximity selection after the scale-aware radius/capsule retest confirmed coherent selection, bone-change invalidation, and optional nearest-segment filtering on the 100× rat. |
 | 0.22 | 2026-08-08 | Recorded the inconclusive one-vertex Neck proximity test, replaced the stored bone radius with a scale-aware editor-local selection radius, added an exact orange capsule preview, and made nearest-segment ownership an optional default-off filter. Functional retesting remains pending. |
