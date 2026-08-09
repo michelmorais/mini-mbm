@@ -34,6 +34,8 @@ local state = {
     skeletonGizmoGeneration = 0,
     analysisBoneHighlight = false,
     analysisBoneHighlightSphere = nil,
+    proximityBoneHighlight = false,
+    proximityBoneHighlightSphere = nil,
     targetBoneHighlight = false,
     targetBoneHighlightSphere = nil,
     markersAlwaysOnTop = true,
@@ -378,6 +380,8 @@ local function destroySkeletonVisuals()
     state.skeletonGizmo={spheres={},bones={}}
     destroyObject(state.analysisBoneHighlightSphere)
     state.analysisBoneHighlightSphere=nil
+    destroyObject(state.proximityBoneHighlightSphere)
+    state.proximityBoneHighlightSphere=nil
     destroyObject(state.targetBoneHighlightSphere)
     state.targetBoneHighlightSphere=nil
 end
@@ -399,14 +403,42 @@ end
 local function updateSkeletonVisibility()
     local analyzedBone=state.analysisBoneHighlight and getBones()[state.analysisBoneIndex] or nil
     local targetBone=state.targetBoneHighlight and getBones()[state.targetBoneIndex] or nil
+    local proximityBone=state.selectionMode==3 and state.proximityBoneHighlight and
+        getBones()[state.boneIndex] or nil
     for name,object in pairs(state.skeletonGizmo.spheres) do
         -- Highlight spheres replace their regular joints instead of occupying the same surface
         -- in the same always-on-top depth pass.
         local highlighted=(analyzedBone and name==analyzedBone.name) or
-            (targetBone and name==targetBone.name)
+            (targetBone and name==targetBone.name) or
+            (proximityBone and name==proximityBone.name)
         object.visible=state.skeletonVisible and not highlighted
     end
     for _,object in ipairs(state.skeletonGizmo.bones) do object.visible=state.skeletonVisible end
+end
+
+local function rebuildProximityBoneHighlight()
+    destroyObject(state.proximityBoneHighlightSphere)
+    state.proximityBoneHighlightSphere=nil
+    if state.selectionMode~=3 or not state.proximityBoneHighlight then
+        updateSkeletonVisibility()
+        return
+    end
+    local bone=getBones()[state.boneIndex]
+    if not bone then
+        updateSkeletonVisibility()
+        return
+    end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(bone.radius or 0,extent*0.018,0.001)
+    local sphere=createBoneShape(bone.x,bone.y,bone.z,unitSphereVerts(),
+        'swl_proximity_bone_highlight_',1,0.45,0.05,0.95)
+    sphere:setScale(radius*1.9,radius*1.9,radius*1.9)
+    sphere.visible=true
+    sphere.alwaysOnTop=true
+    state.proximityBoneHighlightSphere=sphere
+    updateSkeletonVisibility()
 end
 
 local function updateAllowedBoneColors()
@@ -498,6 +530,7 @@ local function rebuildSkeletonVisuals()
         end
     end
     rebuildAnalysisBoneHighlight()
+    rebuildProximityBoneHighlight()
     rebuildTargetBoneHighlight()
 end
 
@@ -733,6 +766,7 @@ local function loadMesh(path)
     state.info = meshDebug:getInfo(path)
     state.modified = false
     state.normalizeReport=nil
+    state.proximityBoneHighlight=false
     state.analysis = nil
     state.analysisDirty = true
     state.subsetIndex, state.boneIndex, state.analysisBoneIndex, state.targetBoneIndex = 1, 1, 1, 1
@@ -1152,6 +1186,10 @@ local function showSelectionInputs()
     tImGui.PopItemWidth()
     if changed then
         state.selectionMode = mode
+        if mode ~= 3 and state.proximityBoneHighlight then
+            state.proximityBoneHighlight = false
+            rebuildProximityBoneHighlight()
+        end
         invalidateAnalysis()
         rebuildSelectionBox()
     end
@@ -1232,44 +1270,63 @@ local function showSelectionInputs()
         if #names > 0 then
             tImGui.PushItemWidth(190)
             local edited, value = tImGui.Combo(tLang.L('swl_source_bone'), math.min(state.boneIndex,#names), names, -1)
+            showItemTooltip(tLang.L('swl_source_bone_tooltip'))
             tImGui.PopItemWidth()
-            if edited then state.boneIndex=value; invalidateAnalysis() end
+            tImGui.SameLine()
+            local highlight=tImGui.Checkbox(tLang.L('swl_highlight')..'##swlProximityBoneHighlight',
+                state.proximityBoneHighlight)
+            showItemTooltip(tLang.L('swl_source_bone_highlight_tooltip'))
+            if highlight~=state.proximityBoneHighlight then
+                state.proximityBoneHighlight=highlight
+                rebuildProximityBoneHighlight()
+            end
+            if edited then
+                state.boneIndex=value
+                invalidateAnalysis()
+                rebuildProximityBoneHighlight()
+            end
         else
             tImGui.TextDisabled(tLang.L('swl_no_bones'))
-        end
-    end
-    local bones, names = getBones(), {}
-    for _, bone in ipairs(bones) do names[#names+1] = bone.name end
-    if #names > 0 then
-        state.analysisBoneIndex=math.min(state.analysisBoneIndex,#names)
-        tImGui.PushItemWidth(190)
-        local edited,value=tImGui.Combo(tLang.L('swl_analysis_bone'),state.analysisBoneIndex,names,-1)
-        showItemTooltip(tLang.L('swl_analysis_bone_tooltip'))
-        tImGui.PopItemWidth()
-        tImGui.SameLine()
-        local highlight=tImGui.Checkbox(tLang.L('swl_highlight')..'##swlAnalysisBoneHighlight',
-            state.analysisBoneHighlight)
-        if highlight~=state.analysisBoneHighlight then
-            state.analysisBoneHighlight=highlight
-            rebuildAnalysisBoneHighlight()
-        end
-        if edited then
-            state.analysisBoneIndex=value
-            invalidateAnalysis()
-            rebuildAnalysisBoneHighlight()
         end
     end
     local heatmap=tImGui.Checkbox(tLang.L('swl_heatmap'),state.heatmapEnabled)
     showItemTooltip(tLang.L('swl_heatmap_tooltip'))
     if heatmap~=state.heatmapEnabled then
         state.heatmapEnabled=heatmap
+        if not heatmap and state.analysisBoneHighlight then
+            state.analysisBoneHighlight=false
+            rebuildAnalysisBoneHighlight()
+        end
         if state.analysis then
             local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
                 state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
             rebuildAnalysisMarkers(state.analysis.core,state.analysis.shell,extent)
         end
     end
-    if state.heatmapEnabled then tImGui.TextDisabled(tLang.L('swl_heatmap_legend')) end
+    if state.heatmapEnabled then
+        local bones, names = getBones(), {}
+        for _, bone in ipairs(bones) do names[#names+1] = bone.name end
+        if #names > 0 then
+            state.analysisBoneIndex=math.min(state.analysisBoneIndex,#names)
+            tImGui.PushItemWidth(190)
+            local edited,value=tImGui.Combo(tLang.L('swl_analysis_bone'),state.analysisBoneIndex,names,-1)
+            showItemTooltip(tLang.L('swl_analysis_bone_tooltip'))
+            tImGui.PopItemWidth()
+            tImGui.SameLine()
+            local highlight=tImGui.Checkbox(tLang.L('swl_highlight')..'##swlAnalysisBoneHighlight',
+                state.analysisBoneHighlight)
+            if highlight~=state.analysisBoneHighlight then
+                state.analysisBoneHighlight=highlight
+                rebuildAnalysisBoneHighlight()
+            end
+            if edited then
+                state.analysisBoneIndex=value
+                invalidateAnalysis()
+                rebuildAnalysisBoneHighlight()
+            end
+        end
+        tImGui.TextDisabled(tLang.L('swl_heatmap_legend'))
+    end
 end
 
 local function showStatusMessage()

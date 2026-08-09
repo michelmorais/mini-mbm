@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.20**
+Document version: **0.21**
 Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
 Last updated: **2026-08-08**
 
@@ -525,8 +525,13 @@ The editor panel now presents the workflow as three numbered, visually separated
 **1. Visualization**, **2. Selection and Analysis**, and **3. Operation**. The Operation block
 starts with an explicit action selector and displays only the controls relevant to Inspect
 Transitions, Rigid Bind, Normalize and Limit, Smooth Selection, or Repair Detected Transitions.
-The analysis bone therefore remains an inspection input in block 2, while the single target bone
-exists only for Rigid Bind. Smoothing and transition repair use the optional set of allowed bones;
+The heatmap bone therefore remains an inspection input in block 2 and is shown only while the
+weight heatmap is enabled, while the single target bone exists only for Rigid Bind. Bone-proximity
+selection has its own explicitly named selection bone: it defines the geometric segment/radius and
+can be highlighted with an orange joint marker. The heatmap bone independently chooses which
+stored influence the colors inspect and can be highlighted with its yellow marker. Leaving the
+proximity method clears its orange highlight; disabling the heatmap hides its bone input and clears
+its yellow highlight. Smoothing and transition repair use the optional set of allowed bones;
 they never interpret the rigid-bind target as an implicit smoothing destination.
 
 If allowed-bone filtering leaves a vertex without any effective influence during smoothing, that
@@ -586,8 +591,10 @@ future refinement or malformed-input branch has been tested.
 
 The following behavior is implemented but still needs an explicit validation pass:
 
-1. **Bone Proximity selection:** verify radius/segment selection on several bones and confirm that
-   changing the proximity bone invalidates only the geometric analysis as intended.
+1. **Bone Proximity selection:** verify radius/segment selection on several bones, confirm the new
+   orange selection-joint highlight, and confirm that changing the proximity bone invalidates only
+   the geometric analysis as intended. Also verify that the independently named heatmap-bone input
+   appears only while the heatmap is enabled.
 2. **Multi-subset selection:** use a mesh with at least two material subsets and prove isolation.
 3. **Per-face edge cases:** test one enabled face, unequal opposite widths, all faces disabled,
    enabled width zero, a permitted two-face corner, and a corner blocked by one crossed face.
@@ -862,6 +869,7 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.21 | 2026-08-08 | Disambiguated the proximity-selection bone from the heatmap-inspection bone; added an orange proximity-joint highlight, made the heatmap bone conditional on the heatmap checkbox, and recorded highlight cleanup when either context is left. Functional proximity validation remains pending. |
 | 0.20 | 2026-08-08 | Approved Smooth Detected Transitions with the 396-vertex targeted neck test, automatic `372 → 333` edge / `396 → 358` vertex re-diagnosis, zero skipped vertices, confirmed rollback, and a retained smoothed `.msh` result. |
 | 0.19 | 2026-08-08 | Consolidated approved, partial, pending, and future validation status; approved per-face cavity transition and Normalize idempotence; recorded the 182-cleanup breakdown; corrected removed neck fixtures and listed the remaining editor test matrix. |
 | 0.18 | 2026-08-08 | Added a persistent local Normalize and Limit report with analyzed/corrected/already-valid/skipped/failed counts, and changed cleanup to avoid rewriting vertices that are already valid. |
