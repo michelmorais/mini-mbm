@@ -1,6 +1,6 @@
 # Skin Weight Lab — Product Discovery and Delivery Plan
 
-Document version: **0.29**
+Document version: **0.33**
 Status: **Current editor validation in progress; rigid cavity and normalization milestones approved**
 Last updated: **2026-08-09**
 
@@ -468,6 +468,13 @@ results during Apply; the target bone is always retained. Filtered results conti
 to four influences and normalized. The operation remains protected by the existing snapshot
 rollback. Topology/adjacency smoothing and posed LBS/DQS preview are still future work.
 
+After analysis, an enabled heatmap also reports how many selected vertices have positive influence
+from its bone and the minimum/maximum positive weights found. A zero-influence result produces an
+informational warning rather than invalidating the selection. Relevance is determined from stored
+weights, not from whether the joint position lies inside the AABB: an external joint may legitimately
+influence internal vertices. The warning states that transition diagnostics remain valid because
+they compare complete influence sets independently of the heatmap bone.
+
 The 6.48.0 Phase-3 continuation adds configurable local topology smoothing. For `TRIANGLES`
 meshes, each iteration reads a stable weight snapshot, averages one-ring triangle neighbors, and
 mixes that average by the selected strength before limiting to four normalized influences. When an
@@ -567,9 +574,19 @@ of a finished neck correction. Mixamo comparison showed less tearing during head
 including arm influences introduced visible stretching; the experiment was closed without adopting
 a final corrected neck asset.
 
-Like smoothing, the diagnostic is limited to `TRIANGLES`, index connectivity within each subset,
-and edges whose two endpoints belong to the analyzed selection. It detects weight discontinuity,
-not actual posed deformation; pose stress remains a separate LBS/DQS milestone.
+Like smoothing, the diagnostic is limited to `TRIANGLES` and index connectivity within each
+subset. It reports internal selected-to-selected edges separately from selection-boundary edges
+whose other endpoint is the immediate external topology neighbor. Internal affected vertices remain
+magenta and are the only inputs to targeted repair; boundary crossings are orange lines and remain
+read-only. External neighbors are read for comparison but their weights are never written. The
+diagnostic detects weight discontinuity, not actual posed deformation; pose stress remains a
+separate LBS/DQS milestone.
+
+Targeted repair now audits that preservation contract directly. Before smoothing, it captures all
+four raw name/weight slots for every external endpoint of an abrupt orange boundary edge, then
+compares the same slots afterward. The operation report separates verified external neighbors,
+modified external neighbors, and audit read failures. Any external modification or audit failure
+marks the operation status as an error; rollback remains available from the pre-write snapshot.
 
 ### Current validation status (2026-08-09)
 
@@ -588,6 +605,7 @@ future refinement or malformed-input branch has been tested.
 | Allowed-bone restriction workflow | **Approved for smoothing** | Analysis remains valid while choosing allowed bones; the list controlled the neck experiments. |
 | Allowed-bone visualization | **Approved** | Persistent cyan selection, temporary orange hover, Allow All/Clear All, and operation-change cleanup were confirmed. Changing operation disables the highlight and clears viewport colors while intentionally preserving the allowed-bone selection. |
 | Abrupt-transition diagnosis | **Approved** | Neck baseline `461 / 479 / 1.000`; after smoothing `372 / 405 / 0.870`. |
+| Selection-boundary diagnosis | **Approved** | On the cavity selection, threshold `0.35` reported 258 internal edges / 303 internal vertices and 7 boundary edges / 9 boundary vertices; threshold `0.05` expanded these to 1,781 / 1,656 and 37 / 43. Orange crossing lines and their visibility toggle worked, and maximum differences remained stable when only the threshold changed. |
 | Smooth Detected Transitions | **Approved** | At threshold `0.35`, Strength `0.15`, one iteration: 396/396 magenta vertices written, 0 skipped, abrupt edges `372 → 333`, affected vertices `396 → 358`, and rollback confirmed. |
 | Local smoothing of a complete selection | **Partially validated** | Reduced the neck tear, but including arm influences introduced stretching. The experiment was stopped without accepting a final neck asset. |
 | Rigid Bind | **Approved in Mixamo** | The hollow abdominal core remained visibly rigid during body animation. |
@@ -604,10 +622,12 @@ The following behavior is implemented but still needs an explicit validation pas
 
 1. **Normalize exceptional branches:** test a vertex with no effective influence and a controlled
    read/write failure if a safe fixture can represent one; ordinary and idempotent paths are done.
+2. **Boundary-safe targeted smoothing:** verify that “Smooth Detected Transitions” still edits only
+   the internal magenta set, never the orange external-neighbor endpoints, and that automatic
+   re-diagnosis refreshes both internal and boundary reports afterward.
 
 The following items remain future milestones rather than missing tests of current behavior:
 
-- selection-boundary diagnosis comparing internal vertices with immediate external neighbors;
 - protected/exclusion volumes and topology-ring transition expansion;
 - welded/coincident-vertex adjacency across UV or subset seams;
 - tail-chain weighting and exported custom-tail preservation;
@@ -867,6 +887,10 @@ Those implementation decisions are intentionally not prescribed by this discover
 
 | Version | Date | Change |
 |---|---|---|
+| 0.33 | 2026-08-09 | Added exact before/after auditing of every abrupt boundary's external neighbor during targeted smoothing, reporting verified, modified, and failed reads; any external change or audit failure now produces an error while preserving rollback. Interactive validation remains pending. |
+| 0.32 | 2026-08-09 | Approved selection-boundary diagnosis and overlay behavior at thresholds `0.35` and `0.05`, including monotonic edge/vertex expansion and stable maximum differences; retained boundary-safe targeted smoothing as a separate pending validation. |
+| 0.31 | 2026-08-09 | Added cached heatmap-bone relevance information after analysis: influenced/selected count, minimum and maximum positive weights, plus a wrapped zero-influence warning that explicitly preserves transition-diagnostic validity and avoids inferring relevance from joint position. |
+| 0.30 | 2026-08-09 | Implemented read-only selection-boundary diagnosis: separate internal/boundary edge, vertex, and maximum-difference reporting; orange crossing lines with an independent overlay toggle; cached external-neighbor reads; and explicit exclusion of boundary vertices from targeted smoothing. Interactive validation remains pending. |
 | 0.29 | 2026-08-09 | Approved multi-subset isolation with `Crate.msh`: subsets selected visually distinct regions containing 192 and 24 vertices, whose sum exactly matched the 216 stored vertices. |
 | 0.28 | 2026-08-09 | Approved `Crate.msh` robustness without bones or stored weights: AABB/subset analysis and map/no-map visualization worked without crashes or fabricated data; weight operations correctly had no applicable skeleton/influences. Multi-subset isolation remains separate and pending. |
 | 0.27 | 2026-08-09 | Approved the original-scale rat regression for camera, AABB numeric/viewport interaction, scale-aware sensitivity, markers, and skeleton alignment; recorded the relatively higher camera sensitivity as accepted behavior requiring no change. |

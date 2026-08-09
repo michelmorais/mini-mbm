@@ -41,6 +41,7 @@ local state = {
     markersAlwaysOnTop = true,
     analysisMarkersVisible = true,
     abruptMarkersVisible = true,
+    boundaryMarkersVisible = true,
     info = nil,
     modified = false,
     normalizeReport = nil,
@@ -80,6 +81,7 @@ local state = {
     abruptThreshold = 0.35,
     abruptDiagnostics = nil,
     abruptLines = nil,
+    boundaryLines = nil,
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -136,6 +138,7 @@ local function clearSelectionVisuals()
     destroyObject(state.transitionBox)
     destroyObject(state.proximityCapsule)
     destroyObject(state.abruptLines)
+    destroyObject(state.boundaryLines)
     for _, object in ipairs(state.heatmapLines) do destroyObject(object) end
     state.selectionLines = nil
     state.transitionLines = nil
@@ -143,6 +146,7 @@ local function clearSelectionVisuals()
     state.transitionBox = nil
     state.proximityCapsule = nil
     state.abruptLines = nil
+    state.boundaryLines = nil
     state.heatmapLines = {}
 end
 
@@ -159,10 +163,12 @@ local function invalidateAnalysis()
     destroyObject(state.selectionLines)
     destroyObject(state.transitionLines)
     destroyObject(state.abruptLines)
+    destroyObject(state.boundaryLines)
     for _, object in ipairs(state.heatmapLines) do destroyObject(object) end
     state.selectionLines = nil
     state.transitionLines = nil
     state.abruptLines = nil
+    state.boundaryLines = nil
     state.heatmapLines = {}
 end
 
@@ -671,6 +677,21 @@ local function buildVertexMarkers(vertices, r, g, b, extent)
     return marks
 end
 
+local function buildEdgeLines(edges,r,g,b)
+    if #edges==0 then return nil end
+    local coords={}
+    for _,edge in ipairs(edges) do
+        appendPoint(coords,edge[1].point.x,edge[1].point.y,edge[1].point.z)
+        appendPoint(coords,edge[2].point.x,edge[2].point.y,edge[2].point.z)
+    end
+    local lines=line:new('3d',0,0,0)
+    lines:add(coords)
+    lines:setColor(r,g,b,1)
+    lines:setPos(0,0,0)
+    lines.alwaysOnTop=state.markersAlwaysOnTop
+    return lines
+end
+
 local heatmapColors = {
     {0.1,0.25,1}, {0,0.85,1}, {0.1,1,0.25}, {1,0.9,0}, {1,0.45,0}, {1,0.1,0},
 }
@@ -719,6 +740,7 @@ local function analyzeSelection()
     if not state.meshD then return end
     state.abruptDiagnostics=nil
     destroyObject(state.abruptLines); state.abruptLines=nil
+    destroyObject(state.boundaryLines); state.boundaryLines=nil
     local allVertices = collectVertices()
     local selected, bones = {}, getBones()
     if state.selectionMode == 1 then
@@ -765,6 +787,7 @@ local function analyzeSelection()
     end
 
     local missing, invalidSum, unknown, disallowed = 0, 0, 0, 0
+    local heatmapInfluenced,heatmapMinPositive,heatmapMax=0,math.huge,0
     local known = {}
     for _, bone in ipairs(bones) do known[bone.name] = true end
     local analysisTarget=bones[state.analysisBoneIndex]
@@ -772,6 +795,11 @@ local function analyzeSelection()
         local targetWeight,influences=vertexWeightForBone(vertex.globalIndex,
             analysisTarget and analysisTarget.name or '')
         vertex.targetWeight=targetWeight
+        if targetWeight>1e-8 then
+            heatmapInfluenced=heatmapInfluenced+1
+            heatmapMinPositive=math.min(heatmapMinPositive,targetWeight)
+            heatmapMax=math.max(heatmapMax,targetWeight)
+        end
         local n1,w1=influences[1][1],influences[1][2]
         local n2,w2=influences[2][1],influences[2][2]
         local n3,w3=influences[3][1],influences[3][2]
@@ -795,8 +823,12 @@ local function analyzeSelection()
     for _,vertex in ipairs(selected) do
         if vertex.region=='shell' then shell[#shell+1]=vertex else core[#core+1]=vertex end
     end
-    state.analysis = {vertices=selected, core=core, shell=shell, missing=missing,
-        invalidSum=invalidSum, unknown=unknown, disallowed=disallowed, totalMesh=#allVertices}
+    state.analysis = {vertices=selected, allVertices=allVertices, core=core, shell=shell, missing=missing,
+        invalidSum=invalidSum, unknown=unknown, disallowed=disallowed, totalMesh=#allVertices,
+        heatmapBoneName=analysisTarget and analysisTarget.name or nil,
+        heatmapInfluenced=heatmapInfluenced,
+        heatmapMinPositive=heatmapInfluenced>0 and heatmapMinPositive or 0,
+        heatmapMax=heatmapMax}
     state.analysisDirty = false
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
@@ -988,34 +1020,58 @@ local function diagnoseAbruptTransitions()
     end
     local adjacency=buildTopologyAdjacency()
     local selected,points={},{}
+    for _,vertex in ipairs(state.analysis.allVertices or {}) do points[vertex.globalIndex]=vertex end
     for _,vertex in ipairs(state.analysis.vertices) do
         selected[vertex.globalIndex]=true; points[vertex.globalIndex]=vertex
     end
     local weights={}
-    for index in pairs(selected) do weights[index]=readInfluenceMap(index,false) end
+    local function weightsFor(index)
+        if not weights[index] then weights[index]=readInfluenceMap(index,false) end
+        return weights[index]
+    end
     local affected,abruptEdges,maxDistance={},0,0
+    local boundaryAffected,boundaryInside,boundaryExternal,boundaryEdges,boundaryMaxDistance={},{},{},{},0
     for index in pairs(selected) do
         for neighbor in pairs(adjacency[index] or {}) do
             if index<neighbor and selected[neighbor] then
-                local distance=influenceDistance(weights[index],weights[neighbor])
+                local distance=influenceDistance(weightsFor(index),weightsFor(neighbor))
                 maxDistance=math.max(maxDistance,distance)
                 if distance>=state.abruptThreshold then
                     abruptEdges=abruptEdges+1
                     affected[index]=true; affected[neighbor]=true
+                end
+            elseif not selected[neighbor] then
+                local distance=influenceDistance(weightsFor(index),weightsFor(neighbor))
+                boundaryMaxDistance=math.max(boundaryMaxDistance,distance)
+                if distance>=state.abruptThreshold and points[index] and points[neighbor] then
+                    boundaryEdges[#boundaryEdges+1]={points[index],points[neighbor]}
+                    boundaryAffected[index]=true; boundaryAffected[neighbor]=true
+                    boundaryInside[index]=true
+                    boundaryExternal[neighbor]=true
                 end
             end
         end
     end
     local vertices={}
     for index in pairs(affected) do vertices[#vertices+1]=points[index] end
+    local boundaryVertices,boundaryInsideVertices,boundaryExternalVertices={},{},{}
+    for index in pairs(boundaryAffected) do boundaryVertices[#boundaryVertices+1]=points[index] end
+    for index in pairs(boundaryInside) do boundaryInsideVertices[#boundaryInsideVertices+1]=points[index] end
+    for index in pairs(boundaryExternal) do boundaryExternalVertices[#boundaryExternalVertices+1]=points[index] end
     state.abruptDiagnostics={edges=abruptEdges,vertices=#vertices,maxDistance=maxDistance,
-        affectedVertices=vertices}
+        affectedVertices=vertices,boundaryEdges=#boundaryEdges,boundaryVertices=#boundaryVertices,
+        boundaryInsideVertices=boundaryInsideVertices,boundaryExternalVertices=boundaryExternalVertices,
+        boundaryMaxDistance=boundaryMaxDistance}
     destroyObject(state.abruptLines)
+    destroyObject(state.boundaryLines)
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     state.abruptLines=buildVertexMarkers(vertices,1,0,1,extent)
     if state.abruptLines then state.abruptLines.visible=state.abruptMarkersVisible end
-    setStatus(string.format(tLang.L('swl_abrupt_complete_fmt'),abruptEdges,#vertices),false)
+    state.boundaryLines=buildEdgeLines(boundaryEdges,1,0.5,0)
+    if state.boundaryLines then state.boundaryLines.visible=state.boundaryMarkersVisible end
+    setStatus(string.format(tLang.L('swl_abrupt_complete_fmt'),abruptEdges,#vertices,
+        #boundaryEdges,#boundaryVertices),false)
     return state.abruptDiagnostics
 end
 
@@ -1090,11 +1146,46 @@ local function applyLocalSmoothing()
     setStatus(string.format(tLang.L('swl_smoothed_fmt'),applied,state.smoothIterations,skipped),applied==0)
 end
 
+local function readRawWeightRecord(globalIndex)
+    local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
+        return state.meshD:getVertexWeight(globalIndex)
+    end)
+    if not ok then return nil end
+    return {n1=n1,w1=w1,n2=n2,w2=w2,n3=n3,w3=w3,n4=n4,w4=w4}
+end
+
+local function sameRawWeightRecord(a,b)
+    if not a or not b then return false end
+    local function sameValue(x,y)
+        return x==y or (type(x)=='number' and type(y)=='number' and x~=x and y~=y)
+    end
+    for _,field in ipairs({'n1','w1','n2','w2','n3','w3','n4','w4'}) do
+        if not sameValue(a[field],b[field]) then return false end
+    end
+    return true
+end
+
 local function applyAbruptTransitionSmoothing()
     local before=state.abruptDiagnostics
     if not before or not before.affectedVertices or #before.affectedVertices==0 then return end
+    local externalBefore,auditFailures={},0
+    for _,vertex in ipairs(before.boundaryExternalVertices or {}) do
+        local record=readRawWeightRecord(vertex.globalIndex)
+        if record then externalBefore[vertex.globalIndex]=record else auditFailures=auditFailures+1 end
+    end
     local applied,skipped=smoothVertices(before.affectedVertices)
     if applied==nil then return end
+
+    local externalVerified,externalModified=0,0
+    for index,record in pairs(externalBefore) do
+        local afterRecord=readRawWeightRecord(index)
+        if afterRecord then
+            externalVerified=externalVerified+1
+            if not sameRawWeightRecord(record,afterRecord) then externalModified=externalModified+1 end
+        else
+            auditFailures=auditFailures+1
+        end
+    end
 
     -- Rebuild both layers from the edited weights so the magenta markers and summary immediately
     -- describe the result, not the pre-operation diagnosis.
@@ -1102,7 +1193,9 @@ local function applyAbruptTransitionSmoothing()
     local after=diagnoseAbruptTransitions()
     if not after then return end
     setStatus(string.format(tLang.L('swl_abrupt_smoothed_fmt'),applied,state.smoothIterations,
-        before.edges,after.edges,before.vertices,after.vertices,skipped),applied==0)
+        before.edges,after.edges,before.vertices,after.vertices,skipped,
+        externalVerified,externalModified,auditFailures),
+        applied==0 or externalModified>0 or auditFailures>0)
 end
 
 local function applyNormalizeAndLimit()
@@ -1551,6 +1644,7 @@ local function showDiagnosticControls(canOperate,allowRepair)
         state.abruptThreshold=threshold
         state.abruptDiagnostics=nil
         destroyObject(state.abruptLines); state.abruptLines=nil
+        destroyObject(state.boundaryLines); state.boundaryLines=nil
     end
     tImGui.BeginDisabled(not canOperate)
     local diagnosePressed=tImGui.Button(tLang.L('swl_diagnose_transitions'))
@@ -1561,6 +1655,8 @@ local function showDiagnosticControls(canOperate,allowRepair)
         local diagnostic=state.abruptDiagnostics
         tImGui.Text(string.format(tLang.L('swl_abrupt_result_fmt'),diagnostic.edges,
             diagnostic.vertices,diagnostic.maxDistance))
+        tImGui.Text(string.format(tLang.L('swl_boundary_result_fmt'),diagnostic.boundaryEdges,
+            diagnostic.boundaryVertices,diagnostic.boundaryMaxDistance))
         tImGui.TextDisabled(tLang.L('swl_abrupt_marker_hint'))
         if allowRepair then
             tImGui.BeginDisabled(diagnostic.vertices==0)
@@ -1627,6 +1723,7 @@ local function showPanel()
                 if state.transitionLines then state.transitionLines.alwaysOnTop=markersAlwaysOnTop end
                 for _,marker in ipairs(state.heatmapLines) do marker.alwaysOnTop=markersAlwaysOnTop end
                 if state.abruptLines then state.abruptLines.alwaysOnTop=markersAlwaysOnTop end
+                if state.boundaryLines then state.boundaryLines.alwaysOnTop=markersAlwaysOnTop end
             end
             local hasAnalysisMarkers=state.selectionLines~=nil or state.transitionLines~=nil or
                 #state.heatmapLines>0
@@ -1648,6 +1745,14 @@ local function showPanel()
                 if state.abruptLines then state.abruptLines.visible=abruptMarkersVisible end
             end
             tImGui.EndDisabled()
+            tImGui.BeginDisabled(state.boundaryLines==nil)
+            local boundaryMarkersVisible=tImGui.Checkbox(tLang.L('swl_show_boundary_markers'),
+                state.boundaryMarkersVisible)
+            if boundaryMarkersVisible~=state.boundaryMarkersVisible then
+                state.boundaryMarkersVisible=boundaryMarkersVisible
+                if state.boundaryLines then state.boundaryLines.visible=boundaryMarkersVisible end
+            end
+            tImGui.EndDisabled()
             tImGui.Separator()
             showSectionTitle('swl_selection_analysis')
             showSelectionInputs()
@@ -1660,6 +1765,18 @@ local function showPanel()
                 tImGui.Text(string.format(tLang.L('swl_core_shell_fmt'),#a.core,#a.shell))
                 tImGui.Text(string.format(tLang.L('swl_diagnostics_fmt'), a.missing, a.invalidSum, a.unknown))
                 tImGui.Text(string.format(tLang.L('swl_disallowed_fmt'),a.disallowed))
+                if state.heatmapEnabled and a.heatmapBoneName and #a.vertices>0 then
+                    if a.heatmapInfluenced>0 then
+                        tImGui.Text(string.format(tLang.L('swl_heatmap_analysis_stats_fmt'),
+                            a.heatmapBoneName,a.heatmapInfluenced,#a.vertices,
+                            a.heatmapMinPositive,a.heatmapMax))
+                    else
+                        tImGui.PushStyleColor('ImGuiCol_Text',{r=1,g=0.75,b=0.15,a=1})
+                        tImGui.TextWrapped(string.format(tLang.L('swl_heatmap_no_influence_fmt'),
+                            a.heatmapBoneName))
+                        tImGui.PopStyleColor()
+                    end
+                end
             elseif state.analysisDirty then
                 tImGui.TextDisabled(tLang.L('swl_analysis_required'))
             end
