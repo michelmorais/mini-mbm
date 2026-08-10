@@ -385,6 +385,7 @@ namespace mbm
     class MESH_MBM
     {
         friend class MESH_MANAGER;
+        friend class ANIMATION_MANAGER;
       public:
         API_IMPL BUFFER_MESH *getBuffer(const uint32_t index) const;
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
@@ -467,6 +468,7 @@ namespace mbm
         // below by reference; defined in mesh-manager.cpp only, same forward-declare-in-header
         // pattern as Impl.
         bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
+        uint32_t getPreparedSkeletalLbsPaletteSize() const noexcept;
 
         struct Impl;
         std::unique_ptr<Impl> impl;

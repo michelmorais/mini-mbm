@@ -503,8 +503,8 @@ mutate assets, evaluate clips, or deform vertices.
 
 - Measured GLES2 palette capability reporting is implemented privately at graphics initialization.
   Each GLES2 backend queries `GL_MAX_VERTEX_UNIFORM_VECTORS` and `GL_MAX_VERTEX_ATTRIBS`; the
-  conservative initial profile requires five vertex attributes and reserves eight uniform vectors
-  for the model-view and projection matrices before calculating three-`vec4` LBS and two-`vec4`
+  conservative initial unlit profile requires five vertex attributes and reserves eight uniform vectors
+  for scene/implementation overhead before calculating three-`vec4` LBS and two-`vec4`
   rigid-DQS palette capacities. Zero/invalid queries and insufficient attributes report zero
   capacity rather than claiming support. At the GLES2 minimum of 128 vertex uniform vectors this
   yields 40 LBS bones or 60 rigid-DQS bones, so the current 67-bone Mixamo fixture cannot use one
@@ -521,9 +521,16 @@ mutate assets, evaluate clips, or deform vertices.
   Indexed meshes own one bone-index and one weight stream parallel to their shared vertex buffer;
   non-indexed meshes own the same pair per subset. Both layouts retain four floats per attribute,
   validate exact vertex-count agreement, release their GL objects with the geometry buffer, and
-  hard-fail a canonical LBS-ready mesh if upload fails instead of drawing it statically. Shader
-  consumption is deliberately the next gate because the default-program cache key must include the
-  skeletal profile; reusing the existing static cache entry would bind incompatible attributes.
+  hard-fail a canonical LBS-ready mesh if upload fails instead of drawing it statically.
+- The first GLES2 LBS vertex-shader variant consumes those VBOs and a three-`vec4` affine palette.
+  Its default-program cache key includes the exact bone count, so static programs and skeletal
+  programs—or two skeletal palette sizes—cannot alias. Custom vertex shaders are rejected for now
+  instead of bypassing deformation. The initial draw uploads an identity palette and therefore
+  proves bind-pose equivalence only; clip evaluation and posed-palette upload remain next. Normals
+  use the palette's linear 3x3 component and are therefore restricted to rigid transforms or
+  uniform scale until an inverse-transpose strategy is delivered. A real Mesa/OpenGL ES 3.2 smoke
+  compiled, linked, bound, and drew the 23-bone Lorekeeper variant for three frames without a
+  skeletal error.
 - Add GPU LBS and DQS incrementally against CPU references.
 - Use the same runtime deformation in the editor preview.
 - Validate the rat and small skeletons before investigating palette expansion.
@@ -724,7 +731,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
-| 3.2 | 2026-08-10 | Added real private GLES2 vertex-buffer ownership for the prepared canonical LBS attributes. Indexed geometry now receives shared four-float bone-index and weight VBOs; non-indexed geometry receives equivalent per-subset pairs. Upload requires exact frame-zero vertex correspondence and a ready capability classification, GL resources are released with their owning `BUFFER_GL`, and upload failure rejects the canonical GPU-ready load rather than silently drawing REST geometry. Linux compilation and headless foundation tests pass. A real engine smoke launch was attempted, but this environment has neither the configured X display nor Xvfb, so context creation stopped before upload and no visual/runtime-GL claim is made. Shader consumption remains blocked on adding the skeletal profile to the default-program cache key. |
+| 3.3 | 2026-08-10 | Added the first real GLES2 LBS vertex-shader variant. The generated default vertex shader consumes four float bone indices/weights, blends positions and normals through a three-`vec4` affine palette, and initially uploads identity matrices to prove the bind-pose path. The default-program cache key and cached handles now include the exact skeletal palette size, preventing static/skinned and cross-size aliasing; custom vertex shaders reject canonical LBS until they have an explicit contract. A real Mesa/OpenGL ES 3.2 run compiled, linked, bound, and drew the 23-bone/9,435-vertex Lorekeeper for three frames with no skeletal error; a second run rendered two Lorekeeper instances plus a static Crate in the same process, covering both the shared skeletal-cache hit and separation from the static program. Normal deformation is explicitly rigid/uniform-scale-only in this compact profile; clip evaluation and posed palettes remain pending. |
+| 3.2 | 2026-08-10 | Added real private GLES2 vertex-buffer ownership for the prepared canonical LBS attributes. Indexed geometry now receives shared four-float bone-index and weight VBOs; non-indexed geometry receives equivalent per-subset pairs. Upload requires exact frame-zero vertex correspondence and a ready capability classification, GL resources are released with their owning `BUFFER_GL`, and upload failure rejects the canonical GPU-ready load rather than silently drawing REST geometry. Linux compilation and headless foundation tests pass. After restoring access to the X display, a real engine smoke on Mesa/OpenGL ES 3.2 measured 4096 vertex-uniform vectors and 16 attributes, classified the 23-bone/9,435-vertex Lorekeeper as `ready` against a 1,362-bone LBS capacity, uploaded/rendered three frames, and exited normally. Shader consumption remains blocked on adding the skeletal profile to the default-program cache key. |
 | 3.1 | 2026-08-10 | Added the private canonical-to-GLES2 LBS input preparation stage. Runtime mesh finalization now resolves stable type-42 palette IDs to compact type-41 compiled indices and retains four float indices plus four weights per vertex behind `MESH_MBM::Impl`. It classifies readiness and explicit capability/data failures without changing static loading, choosing a GLES2-compatible float attribute representation while preserving stable IDs on disk. Tests verify nontrivial reordered ID resolution, the 40-bone minimum capacity, oversized-palette rejection, and unmeasured-capability rejection. The new committed Lorekeeper walk was audited at 23 bones/31 frames and selected as the within-budget GPU fixture; no shader deformation or implicit clip playback was added. |
 | 3.0 | 2026-08-10 | Began Phase 4 with a private GLES2 capability gate shared by Linux/X11, Android, and Windows GLES initialization. It measures vertex-uniform-vector and vertex-attribute limits from the active context, conservatively reserves eight uniform vectors, and reports effective three-`vec4` LBS and two-`vec4` rigid-DQS palette capacities only when five skeletal vertex attributes fit. Numeric fixtures lock the GLES2-minimum result at 40 LBS/60 DQS bones and prove zero capacity for missing queries or attributes. This exposes that the 67-bone Mixamo fixture requires future palette partitioning or another transport; no GPU shader or silent fallback was added. |
 | 2.9 | 2026-08-10 | Completed the initial Phase-3 CPU reference pair with rigid DQS over the same canonical pose/weights consumed by LBS. The reference converts rigid skin matrices to dual quaternions, performs per-vertex hemisphere alignment, normalized real/dual blending with dual orthogonalization, and transforms positions/normals without translation leakage. Tests prove bind and weight-one LBS parity for translation/rotation, explicit scale rejection, and the `+170°/-170°` antipodal blend resolving to approximately `180°` instead of collapsing. |

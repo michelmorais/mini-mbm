@@ -1048,7 +1048,8 @@ namespace mbm
         this->vShader         = nullptr;
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
+    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
+                               mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t /*skeletalLbsPaletteSize*/)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
             return false;

@@ -1107,7 +1107,8 @@ namespace mbm
         RENDERIZABLE *renderizable = dynamic_cast<RENDERIZABLE*>(this);
         fx.defaultShaderMode = getDefaultShaderModeForRenderizable(renderizable);
         fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
-        if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf))
+        if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf,
+                                    mesh->getPreparedSkeletalLbsPaletteSize()))
         {
             if(infoHead->effectShader && infoHead->effectShader->blendOperation != 0)
                 fx.blendOperation = infoHead->effectShader->blendOperation;

@@ -5867,6 +5867,11 @@ namespace mbm
         return this->impl->buffer != nullptr;
     }
 
+    uint32_t MESH_MBM::getPreparedSkeletalLbsPaletteSize() const noexcept
+    {
+        return impl->gles2LbsInput.ready() ? impl->gles2LbsInput.requiredBoneCount : 0;
+    }
+
     bool MESH_MBM::hasArticulatedAnimationData() const noexcept
     {
         return !impl->articulatedClips.empty();

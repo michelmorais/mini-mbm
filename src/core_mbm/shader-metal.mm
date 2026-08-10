@@ -1127,7 +1127,7 @@ namespace mbm
     }
 
     bool SHADER::compileShader(BASE_SHADER* ptrPshader, BASE_SHADER* ptrVshader,
-                               FVF_PROVIDE_BY_ENGINE fvf)
+                               FVF_PROVIDE_BY_ENGINE fvf, const uint32_t /*skeletalLbsPaletteSize*/)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE) return false;
         void *backendShaderSpecific = getBackendShaderSpecific();
