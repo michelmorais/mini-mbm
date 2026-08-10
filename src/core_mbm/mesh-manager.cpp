@@ -5899,6 +5899,14 @@ namespace mbm
             ? impl->canonicalAnimations.clips[index].name.c_str() : nullptr;
     }
 
+    bool MESH_MBM::getSkeletalAnimationDuration(const uint32_t index, float *duration) const noexcept
+    {
+        if (!duration || index >= impl->canonicalAnimations.clips.size())
+            return false;
+        *duration = impl->canonicalAnimations.clips[index].duration;
+        return true;
+    }
+
     bool MESH_MBM::playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const
     {
         if (!impl->gles2LbsInput.ready() || !name || !name[0])

@@ -250,8 +250,9 @@
     6.67.0 Added the first GLES2 LBS default vertex-shader variant with four float bone indices/weights and a three-vec4 affine palette. Static and skeletal programs plus distinct palette sizes have separate cache keys/handles, custom vertex shaders reject unsupported canonical deformation, and a real Mesa GLES run compiled and drew the 23-bone Lorekeeper with an identity bind palette. Compact normal deformation is explicitly restricted to rigid/uniform-scale transforms; posed clip palettes remain pending.
     6.68.0 Added private canonical pose-to-LBS palette construction. It samples local clip tracks, composes global transforms, calculates row-vector inverseGlobalBind times posedGlobal for every bone, and packs the exact three-vec4 GLES shader layout. Tests prove bind identity, translation packing, midpoint clip sampling, and explicit non-uniform-scale rejection for compact normals. Per-instance playback/upload remains pending.
     6.69.0 Connected canonical clips to GLES LBS draws through an opaque per-instance player. Mesh instances now own active clip, time, pause state, and evaluated palette independently of cached assets; explicit C++/Lua count/name/play/pause/resume/seek/time controls avoid autoplay, honor authored looping, and advance while culled. A real two-instance Lorekeeper smoke verified independent paused/advancing times and per-draw palettes. Blending, speed, callbacks, DQS, and non-GLES execution remain pending.
+    6.70.0 Added shared-runtime skeletal preview controls to the Skeletal Animation Editor: clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber drive the preview mesh's per-instance GLES2 LBS player. The bind-pose gizmo remains explicitly static. Added read-only C++/Lua skeletal clip-duration queries; this is not a timeline or destructive skeleton editing.
 */
-#define MBM_VERSION "6.69.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.70.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

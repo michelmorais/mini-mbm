@@ -198,6 +198,18 @@ namespace mbm
         return 1;
     }
 
+    int onGetSkeletalAnimationDurationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        float duration = 0.0f;
+        if (index > 0 && mesh->getSkeletalAnimationDuration(static_cast<uint32_t>(index - 1), &duration))
+            lua_pushnumber(lua, duration);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     int onPlaySkeletalAnimationLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -303,6 +315,7 @@ namespace mbm
                                                      {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
                                                      {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                      {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
+                                                     {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
                                                      {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
                                                      {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
                                                      {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
@@ -360,6 +373,7 @@ namespace mbm
                                                          {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
                                                          {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                          {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
+                                                         {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
                                                          {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
                                                          {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
                                                          {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},

@@ -177,6 +177,11 @@ namespace mbm
         return mesh ? mesh->getSkeletalAnimationName(index) : nullptr;
     }
 
+    bool MESH::getSkeletalAnimationDuration(const uint32_t index, float *duration) const noexcept
+    {
+        return mesh ? mesh->getSkeletalAnimationDuration(index, duration) : false;
+    }
+
     bool MESH::playSkeletalAnimation(const char *name)
     {
         return mesh ? mesh->playSkeletalAnimation(getSkeletalAnimationPlayer(), name) : false;

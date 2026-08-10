@@ -27,6 +27,7 @@ local state = {
     fileName = nil,
     meshD = nil,
     preview = nil,
+    skeletalPreview = {clips={}, selected=1, duration=0, playing=false, paused=false},
     meshVisible = true,
     skeletonVisible = true,
     skeletonAlwaysOnTop = true,
@@ -847,15 +848,68 @@ end
 local function rebuildPreview()
     destroyObject(state.preview)
     state.preview = nil
+    local playback=state.skeletalPreview
+    playback.clips={}
+    playback.selected=1
+    playback.duration=0
+    playback.playing=false
+    playback.paused=false
     if not state.fileName then return end
     local preview = mesh:new('3d')
     if preview:load(state.fileName) then
         preview:setPos(0,0,0)
         preview.visible=state.meshVisible
         state.preview = preview
+        local total=preview:getTotalSkeletalAnimations()
+        for index=1,total do
+            playback.clips[index]=preview:getSkeletalAnimationName(index) or ('Clip '..index)
+        end
     else
         preview:destroy()
     end
+end
+
+local function playSelectedSkeletalClip()
+    local playback=state.skeletalPreview
+    local name=playback.clips[playback.selected]
+    if not state.preview or not name then return end
+    if state.preview:playSkeletalAnimation(name) then
+        playback.duration=state.preview:getSkeletalAnimationDuration(playback.selected) or 0
+        playback.playing=true
+        playback.paused=false
+    end
+end
+
+local function showSkeletalPreviewControls()
+    local playback=state.skeletalPreview
+    if #playback.clips==0 then
+        tImGui.TextDisabled(tLang.L('swl_no_skeletal_clips'))
+        return
+    end
+    local changed,selected=tImGui.Combo(tLang.L('swl_skeletal_clip'),playback.selected,
+        playback.clips,-1)
+    if changed then
+        playback.selected=selected
+        playSelectedSkeletalClip()
+    end
+    if tImGui.Button(tLang.L('swl_play_restart')) then playSelectedSkeletalClip() end
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not playback.playing)
+    if tImGui.Button(playback.paused and tLang.L('swl_resume') or tLang.L('swl_pause')) then
+        if playback.paused then
+            if state.preview:resumeSkeletalAnimation() then playback.paused=false end
+        elseif state.preview:pauseSkeletalAnimation() then
+            playback.paused=true
+        end
+    end
+    tImGui.EndDisabled()
+    local time=state.preview:getSkeletalAnimationTime() or 0
+    tImGui.PushItemWidth(240)
+    local seekChanged,seekTime=tImGui.SliderFloat(tLang.L('swl_preview_time'),time,
+        0,math.max(playback.duration,0.0001),'%.3f s')
+    tImGui.PopItemWidth()
+    if seekChanged and playback.playing then state.preview:seekSkeletalAnimation(seekTime) end
+    tImGui.TextDisabled(tLang.L('swl_bind_gizmo_note'))
 end
 
 local function loadMesh(path)
@@ -1765,6 +1819,10 @@ local function showPanel()
             showStatusMessage()
             if tImGui.TreeNode(tLang.L('swl_bind_pose_contract')..'##swlBindPoseContract') then
                 showBindPoseDiagnostics()
+                tImGui.TreePop()
+            end
+            if tImGui.TreeNode(tLang.L('swl_runtime_preview')..'##swlRuntimePreview') then
+                showSkeletalPreviewControls()
                 tImGui.TreePop()
             end
             showSectionTitle('swl_visualization')

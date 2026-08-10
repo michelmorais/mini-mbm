@@ -579,6 +579,7 @@ normals rejects a pose containing negative scale, shear, or non-uniform scale.
 |---|---|---|---|
 | `obj:getTotalSkeletalAnimations` | `()` | int | Number of canonical skeletal clips |
 | `obj:getSkeletalAnimationName` | `(index: int)` | string or nil | Name of the 1-based clip |
+| `obj:getSkeletalAnimationDuration` | `(index: int)` | number or nil | Duration in seconds of the 1-based clip |
 | `obj:playSkeletalAnimation` | `(name)` | bool | Start or restart one clip at time zero |
 | `obj:pauseSkeletalAnimation` | `()` | bool | Freeze the active clip and palette |
 | `obj:resumeSkeletalAnimation` | `()` | bool | Resume the active clip |

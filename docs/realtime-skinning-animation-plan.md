@@ -548,8 +548,13 @@ mutate assets, evaluate clips, or deform vertices.
   player advanced while the other stayed at `0.5s` paused, then resumed, despite both sharing the
   same cached asset/program. Blending, speed, completion callbacks, DQS, and other backends remain
   deliberately outside this initial player.
+- The Skeletal Animation Editor now drives that same per-instance runtime player on its preview
+  mesh. It exposes clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber;
+  the deformation is therefore the real GLES2 LBS result rather than an editor-side pose copy. The
+  separate skeleton diagnostic gizmo intentionally remains in bind pose. This small playback panel
+  is not the Animation node timeline planned for editor Milestone 6.
 - Add GPU LBS and DQS incrementally against CPU references.
-- Use the same runtime deformation in the editor preview.
+- Extend the shared preview with DQS/backend selection only when those runtime paths exist.
 - Validate the rat and small skeletons before investigating palette expansion.
 
 ### Phase 5 — Metal validation and delivery
@@ -748,6 +753,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.6 | 2026-08-10 | Connected the Skeletal Animation Editor preview mesh to the same per-instance GLES2 LBS player used at runtime. The panel selects canonical clips and provides play/restart, pause/resume, and duration-bounded seek through the public Lua surface; a new read-only duration query supplies the scrubber bound. The diagnostic skeleton gizmo remains bind-pose-only, and this control is explicitly not the future Animation-node timeline. |
 | 3.5 | 2026-08-10 | Connected evaluated palettes to real GLES draws through a per-instance single-clip player. `SKELETAL_ANIMATION_PLAYER` keeps active clip, time, pause state, and packed rows outside cached `MESH_MBM`; play/restart, pause/resume, clamped seek, time, clip count/name, authored looping, and Lua bindings are explicit, with no autoplay. Each draw uploads the owning instance's palette while inactive instances retain bind identity, and culled objects continue advancing. A real 60-frame Mesa GLES smoke used two objects sharing the same Lorekeeper asset/program: one advanced while the other remained exactly at `0.5s` paused, then resumed, proving palette/time isolation. Blending, speed, callbacks, DQS, and non-GLES execution remain pending. |
 | 3.4 | 2026-08-10 | Added private canonical pose-to-GLES2-LBS palette construction. It evaluates a clip into parent-relative local and composed global transforms, calculates `inverseGlobalBind * posedGlobal` per compiled bone, and packs the row-vector matrix columns/translation into the exact three-`vec4` shader layout. The function creates animated values from the sampled pose rather than sharing them by bone count. Compact-normal validation rejects negative scale, shear, and non-uniform scale. Tests prove bind identity, packed translation, midpoint clip sampling, and scale rejection. The draw still uploads its temporary identity palette until per-instance playback state is connected. |
 | 3.3 | 2026-08-10 | Added the first real GLES2 LBS vertex-shader variant. The generated default vertex shader consumes four float bone indices/weights, blends positions and normals through a three-`vec4` affine palette, and initially uploads identity matrices to prove the bind-pose path. The default-program cache key and cached handles now include the exact skeletal palette size, preventing static/skinned and cross-size aliasing; custom vertex shaders reject canonical LBS until they have an explicit contract. A real Mesa/OpenGL ES 3.2 run compiled, linked, bound, and drew the 23-bone/9,435-vertex Lorekeeper for three frames with no skeletal error; a second run rendered two Lorekeeper instances plus a static Crate in the same process, covering both the shared skeletal-cache hit and separation from the static program. Normal deformation is explicitly rigid/uniform-scale-only in this compact profile; clip evaluation and posed palettes remain pending. |

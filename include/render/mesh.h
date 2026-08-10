@@ -61,6 +61,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool getArticulatedAnimationTime(const char *name, float *time) const noexcept;
     API_IMPL uint32_t getTotalSkeletalAnimations() const noexcept;
     API_IMPL const char *getSkeletalAnimationName(uint32_t index) const noexcept;
+    API_IMPL bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;
     API_IMPL bool playSkeletalAnimation(const char *name);
     API_IMPL bool pauseSkeletalAnimation() noexcept;
     API_IMPL bool resumeSkeletalAnimation() noexcept;

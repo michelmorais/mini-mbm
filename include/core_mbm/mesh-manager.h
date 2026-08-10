@@ -487,6 +487,7 @@ namespace mbm
         uint32_t getPreparedSkeletalLbsPaletteSize() const noexcept;
         uint32_t getTotalSkeletalAnimations() const noexcept;
         const char *getSkeletalAnimationName(uint32_t index) const noexcept;
+        bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;
         bool playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const;
         bool hasActiveSkeletalAnimation(const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool pauseSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
