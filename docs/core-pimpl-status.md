@@ -136,6 +136,15 @@ The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the 
 
 `updateBone`/`removeBone` (added for `mesh_debug.lua`'s general-purpose Bones editor node) are pure `MESH_MBM_DEBUG` methods operating only on the existing `impl->skeleton` field above — no new header-visible state, so the PIMPL boundary itself doesn't move. `updateBone`'s reparent path calls a small anonymous-namespace helper, `resortSkeletonParentFirst` (`src/core_mbm/mesh-manager.cpp`), kept as a private translation-unit function rather than a class method per the same rule, since it's pure vector-reordering logic with no need to touch `Impl` directly beyond the vector reference it's passed.
 
+The read-only bind-pose diagnostic path follows the same boundary. `refreshSkeletonBindReport()`
+compiles `Impl::skeleton` into an `Impl`-owned `skeletal::COMPILED_SKELETON`; the public summary,
+bone, and diagnostic getters only copy fixed value records out. Compiled vectors, maps, strings,
+and lookup storage are not exposed. The explicit refresh makes snapshot lifetime visible and avoids
+silently coupling every legacy skeleton mutation to a cache-invalidation protocol.
+This is a description of the current temporary audit implementation, not a compatibility promise:
+the canonical-only skeletal delivery plan requires removing this snapshot and the exploratory Mesh
+Debug skeletal storage/API after canonical inspection is verified.
+
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade
 duration/progress, per-play additive weight, and tie-break sequence remain private in

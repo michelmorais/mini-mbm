@@ -4029,6 +4029,61 @@ namespace mbm
         return nullptr;
     }
 
+    bool MESH_MBM_DEBUG::refreshSkeletonBindReport() noexcept
+    {
+        impl->hasCompiledSkeletonBindReport = true;
+        return skeletal::compileLegacySkeleton(impl->skeleton, impl->compiledSkeletonBindReport);
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept
+    {
+        if (!impl->hasCompiledSkeletonBindReport)
+            return false;
+        const skeletal::COMPILED_SKELETON &report = impl->compiledSkeletonBindReport;
+        out.boneCount = static_cast<uint32_t>(report.bones.size());
+        out.diagnosticCount = static_cast<uint32_t>(report.diagnostics.size());
+        out.maximumReconstructionError = report.maximumReconstructionError;
+        out.maximumBindIdentityError = report.maximumBindIdentityError;
+        out.valid = !report.hasFatalDiagnostics();
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out) const noexcept
+    {
+        if (!impl->hasCompiledSkeletonBindReport || index >= impl->compiledSkeletonBindReport.bones.size())
+            return false;
+        const skeletal::COMPILED_BONE &bone = impl->compiledSkeletonBindReport.bones[index];
+        out.boneId = bone.boneId;
+        out.parentBoneId = bone.parentBoneId;
+        out.parentIndex = bone.parentIndex;
+        out.sourceIndex = bone.sourceIndex;
+        out.localTranslation = bone.localBind.translation;
+        out.localRotationX = bone.localBind.rotation.x;
+        out.localRotationY = bone.localBind.rotation.y;
+        out.localRotationZ = bone.localBind.rotation.z;
+        out.localRotationW = bone.localBind.rotation.w;
+        out.localScale = bone.localBind.scale;
+        out.localBindMatrix = bone.localBindMatrix;
+        out.globalBindMatrix = bone.globalBindMatrix;
+        out.inverseGlobalBindMatrix = bone.inverseGlobalBindMatrix;
+        out.hasNegativeScale = bone.hasNegativeScale;
+        out.hasShear = bone.hasShear;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletonBindDiagnostic(const uint32_t index,
+                                                    SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept
+    {
+        if (!impl->hasCompiledSkeletonBindReport || index >= impl->compiledSkeletonBindReport.diagnostics.size())
+            return false;
+        const skeletal::DIAGNOSTIC &diagnostic = impl->compiledSkeletonBindReport.diagnostics[index];
+        out.code = skeletal::diagnosticCodeName(diagnostic.code);
+        out.sourceIndex = diagnostic.sourceIndex;
+        out.observedError = diagnostic.observedError;
+        out.fatal = diagnostic.fatal;
+        return true;
+    }
+
     namespace
     {
         // Re-sorts a skeleton vector so every joint's parent appears earlier than the joint itself,

@@ -43,6 +43,7 @@ local state = {
     abruptMarkersVisible = true,
     boundaryMarkersVisible = true,
     info = nil,
+    bindReport = nil,
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -319,6 +320,13 @@ local function getBones()
         end
     end
     return bones
+end
+
+local function refreshBindReport()
+    state.bindReport = nil
+    if not state.meshD then return end
+    local ok, report = safeCall(function() return state.meshD:getSkeletonBindReport() end)
+    if ok then state.bindReport = report end
 end
 
 local function findBone(bones, name)
@@ -864,6 +872,7 @@ local function loadMesh(path)
     destroySkeletonVisuals()
     state.fileName, state.meshD = path, meshD
     state.info = meshDebug:getInfo(path)
+    refreshBindReport()
     state.modified = false
     state.normalizeReport=nil
     state.proximityBoneHighlight=false
@@ -1668,6 +1677,70 @@ local function showDiagnosticControls(canOperate,allowRepair)
     end
 end
 
+local function formatBindMatrix(matrix)
+    if not matrix or #matrix ~= 16 then return tLang.L('swl_bind_matrix_unavailable') end
+    return string.format('%.5g %.5g %.5g %.5g\n%.5g %.5g %.5g %.5g\n%.5g %.5g %.5g %.5g\n%.5g %.5g %.5g %.5g',
+        table.unpack(matrix))
+end
+
+local function showBindPoseDiagnostics()
+    local report=state.bindReport
+    if not report then
+        tImGui.TextDisabled(tLang.L('swl_bind_report_unavailable'))
+        return
+    end
+    local color=report.valid and {r=0.25,g=0.9,b=0.35,a=1} or {r=1,g=0.3,b=0.25,a=1}
+    tImGui.TextColored(color,report.valid and tLang.L('swl_bind_valid') or tLang.L('swl_bind_invalid'))
+    tImGui.Text(string.format(tLang.L('swl_bind_error_summary_fmt'),
+        report.maximumReconstructionError or 0,report.maximumBindIdentityError or 0,
+        report.diagnosticCount or 0))
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('swl_refresh')..'##swlBindRefresh') then refreshBindReport() end
+    if report.diagnostics and #report.diagnostics>0 and
+            tImGui.TreeNode(tLang.L('swl_bind_diagnostics')..'##swlBindDiagnostics') then
+        for _,diagnostic in ipairs(report.diagnostics) do
+            local label=string.format('%s: %s [%d] error=%.7g',
+                diagnostic.fatal and tLang.L('swl_fatal') or tLang.L('swl_warning'),
+                diagnostic.code or '?',diagnostic.sourceIndex or 0,diagnostic.observedError or 0)
+            tImGui.TextWrapped(label..((diagnostic.boneName and diagnostic.boneName~='') and
+                (' - '..diagnostic.boneName) or ''))
+        end
+        tImGui.TreePop()
+    end
+    if report.bones and tImGui.TreeNode(string.format('%s (%d)##swlBindBones',
+            tLang.L('swl_bind_compiled_bones'),#report.bones)) then
+        for index,bone in ipairs(report.bones) do
+            if tImGui.TreeNode(string.format('%d. %s##swlBindBone%d',index,bone.name or '?',index)) then
+                tImGui.Text(string.format('ID: %s  Parent: %s (%d)',bone.boneId or '?',
+                    bone.parentBoneId or '?',bone.parentIndex or 0))
+                local translation=bone.localTranslation or {}
+                local rotation=bone.localRotation or {}
+                local scale=bone.localScale or {}
+                tImGui.Text(string.format('T %.6g %.6g %.6g',translation.x or 0,
+                    translation.y or 0,translation.z or 0))
+                tImGui.Text(string.format('Q %.6g %.6g %.6g %.6g',rotation.x or 0,
+                    rotation.y or 0,rotation.z or 0,rotation.w or 1))
+                tImGui.Text(string.format('S %.6g %.6g %.6g',scale.x or 1,scale.y or 1,scale.z or 1))
+                if bone.hasNegativeScale then tImGui.TextColored({r=1,g=0.65,b=0.1,a=1},
+                    tLang.L('swl_bind_negative_scale')) end
+                if bone.hasShear then tImGui.TextColored({r=1,g=0.3,b=0.25,a=1},
+                    tLang.L('swl_bind_shear')) end
+                if tImGui.TreeNode(tLang.L('swl_bind_local_matrix')..'##local'..index) then
+                    tImGui.Text(formatBindMatrix(bone.localBindMatrix)); tImGui.TreePop()
+                end
+                if tImGui.TreeNode(tLang.L('swl_bind_global_matrix')..'##global'..index) then
+                    tImGui.Text(formatBindMatrix(bone.globalBindMatrix)); tImGui.TreePop()
+                end
+                if tImGui.TreeNode(tLang.L('swl_bind_inverse_matrix')..'##inverse'..index) then
+                    tImGui.Text(formatBindMatrix(bone.inverseGlobalBindMatrix)); tImGui.TreePop()
+                end
+                tImGui.TreePop()
+            end
+        end
+        tImGui.TreePop()
+    end
+end
+
 local function showPanel()
     local _, screenH = mbm.getRealSizeScreen()
     tImGui.SetNextWindowPos({x=0,y=22}, tImGui.Flags('ImGuiCond_Once'))
@@ -1690,6 +1763,10 @@ local function showPanel()
             tImGui.Text(string.format(tLang.L('swl_summary_fmt'), state.aabb and state.aabb.total or 0,
                 #bones, okW and hasWeights and tLang.L('swl_yes') or tLang.L('swl_no')))
             showStatusMessage()
+            if tImGui.TreeNode(tLang.L('swl_bind_pose_contract')..'##swlBindPoseContract') then
+                showBindPoseDiagnostics()
+                tImGui.TreePop()
+            end
             showSectionTitle('swl_visualization')
             local meshVisible=tImGui.Checkbox(tLang.L('swl_show_mesh'),state.meshVisible)
             if meshVisible~=state.meshVisible then

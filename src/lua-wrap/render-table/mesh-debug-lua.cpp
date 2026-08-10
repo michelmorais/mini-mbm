@@ -2278,6 +2278,106 @@ namespace mbm
         return 13;
     }
 
+    namespace
+    {
+        void pushSkeletonBindMatrix(lua_State *lua, const MATRIX &matrix)
+        {
+            lua_createtable(lua, 16, 0);
+            for (int index = 0; index < 16; ++index)
+            {
+                lua_pushnumber(lua, matrix.p[index]);
+                lua_rawseti(lua, -2, index + 1);
+            }
+        }
+
+        void pushSkeletonBindVector(lua_State *lua, const VEC3 &value)
+        {
+            lua_createtable(lua, 0, 3);
+            lua_pushnumber(lua, value.x); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, value.y); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, value.z); lua_setfield(lua, -2, "z");
+        }
+
+        void pushSkeletonBindId(lua_State *lua, const uint64_t id, const char *field)
+        {
+            char text[17] = "";
+            snprintf(text, sizeof(text), "%016llx", static_cast<unsigned long long>(id));
+            lua_pushstring(lua, text);
+            lua_setfield(lua, -2, field);
+        }
+    }
+
+    int onGetSkeletonBindReportDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        meshDebug->mesh.refreshSkeletonBindReport();
+        SKELETON_BIND_SUMMARY summary;
+        if (!meshDebug->mesh.getSkeletonBindSummary(summary))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+
+        lua_createtable(lua, 0, 7);
+        lua_pushboolean(lua, summary.valid); lua_setfield(lua, -2, "valid");
+        lua_pushinteger(lua, summary.boneCount); lua_setfield(lua, -2, "boneCount");
+        lua_pushinteger(lua, summary.diagnosticCount); lua_setfield(lua, -2, "diagnosticCount");
+        lua_pushnumber(lua, summary.maximumReconstructionError);
+        lua_setfield(lua, -2, "maximumReconstructionError");
+        lua_pushnumber(lua, summary.maximumBindIdentityError);
+        lua_setfield(lua, -2, "maximumBindIdentityError");
+
+        lua_createtable(lua, static_cast<int>(summary.boneCount), 0);
+        for (uint32_t index = 0; index < summary.boneCount; ++index)
+        {
+            SKELETON_BIND_BONE_INFO bone;
+            if (!meshDebug->mesh.getSkeletonBindBone(index, bone))
+                continue;
+            lua_createtable(lua, 0, 14);
+            lua_pushinteger(lua, bone.sourceIndex + 1); lua_setfield(lua, -2, "sourceIndex");
+            const util::SKELETON_BONE_V11 *source = meshDebug->mesh.getBone(bone.sourceIndex);
+            lua_pushstring(lua, source ? source->name.c_str() : ""); lua_setfield(lua, -2, "name");
+            pushSkeletonBindId(lua, bone.boneId, "boneId");
+            pushSkeletonBindId(lua, bone.parentBoneId, "parentBoneId");
+            lua_pushinteger(lua, bone.parentIndex + 1); lua_setfield(lua, -2, "parentIndex");
+            pushSkeletonBindVector(lua, bone.localTranslation); lua_setfield(lua, -2, "localTranslation");
+            lua_createtable(lua, 0, 4);
+            lua_pushnumber(lua, bone.localRotationX); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, bone.localRotationY); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, bone.localRotationZ); lua_setfield(lua, -2, "z");
+            lua_pushnumber(lua, bone.localRotationW); lua_setfield(lua, -2, "w");
+            lua_setfield(lua, -2, "localRotation");
+            pushSkeletonBindVector(lua, bone.localScale); lua_setfield(lua, -2, "localScale");
+            pushSkeletonBindMatrix(lua, bone.localBindMatrix); lua_setfield(lua, -2, "localBindMatrix");
+            pushSkeletonBindMatrix(lua, bone.globalBindMatrix); lua_setfield(lua, -2, "globalBindMatrix");
+            pushSkeletonBindMatrix(lua, bone.inverseGlobalBindMatrix);
+            lua_setfield(lua, -2, "inverseGlobalBindMatrix");
+            lua_pushboolean(lua, bone.hasNegativeScale); lua_setfield(lua, -2, "hasNegativeScale");
+            lua_pushboolean(lua, bone.hasShear); lua_setfield(lua, -2, "hasShear");
+            lua_rawseti(lua, -2, index + 1);
+        }
+        lua_setfield(lua, -2, "bones");
+
+        lua_createtable(lua, static_cast<int>(summary.diagnosticCount), 0);
+        for (uint32_t index = 0; index < summary.diagnosticCount; ++index)
+        {
+            SKELETON_BIND_DIAGNOSTIC_INFO diagnostic;
+            if (!meshDebug->mesh.getSkeletonBindDiagnostic(index, diagnostic))
+                continue;
+            lua_createtable(lua, 0, 5);
+            lua_pushstring(lua, diagnostic.code ? diagnostic.code : "unknown");
+            lua_setfield(lua, -2, "code");
+            lua_pushinteger(lua, diagnostic.sourceIndex + 1); lua_setfield(lua, -2, "sourceIndex");
+            const util::SKELETON_BONE_V11 *source = meshDebug->mesh.getBone(diagnostic.sourceIndex);
+            lua_pushstring(lua, source ? source->name.c_str() : ""); lua_setfield(lua, -2, "boneName");
+            lua_pushnumber(lua, diagnostic.observedError); lua_setfield(lua, -2, "observedError");
+            lua_pushboolean(lua, diagnostic.fatal); lua_setfield(lua, -2, "fatal");
+            lua_rawseti(lua, -2, index + 1);
+        }
+        lua_setfield(lua, -2, "diagnostics");
+        return 1;
+    }
+
     int onUpdateBoneDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2499,6 +2599,7 @@ namespace mbm
                                           {"addBone", onAddBoneDebugLua},
                                           {"getTotalBone", onGetTotalBoneDebugLua},
                                           {"getBone", onGetBoneDebugLua},
+                                          {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
                                           {"updateBone", onUpdateBoneDebugLua},
                                           {"removeBone", onRemoveBoneDebugLua},
                                           {"setVertexWeight", onSetVertexWeightDebugLua},

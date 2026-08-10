@@ -235,8 +235,9 @@
     6.54.1 Expanded skeletal-foundation regression coverage across corrupt weights/clips, easing, loop/clamp, scale/shear classification, and normalized scale-1/scale-100 pose equivalence.
     6.54.2 Added a reproducible raw-cluster/rest-pose FBX audit fixture for the rat asset and documented the accepted atomic handedness conversion contract without changing importer output.
     6.54.3 Added provisional audited Mixamo walking fixture evidence for frames 1, 16, and 32 while retaining the rat as the bind/weight/topology baseline.
+    6.55.0 Added a temporary read-only canonical bind-pose audit report to meshDebug and the Skeletal Animation Editor, exposing stable IDs, local/global/inverse-bind matrices, numeric errors, and diagnostics without exposing private compiled storage or modifying authored skeletons. This legacy-backed bridge is explicitly scheduled for removal after canonical-section inspection is verified; it is not a delivered compatibility API.
 */
-#define MBM_VERSION "6.54.3" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.55.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

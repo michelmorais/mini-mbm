@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
-Status: **Skin Weight Lab initial delivery available and validated**
-Last updated: **2026-08-09**
+Status: **Skin Weight Lab validated; read-only bind-pose diagnostics available**
+Last updated: **2026-08-10**
 
 ## 1. Purpose
 
@@ -9,8 +9,8 @@ The Skeletal Animation Editor is the standalone Mini MBM tool for inspecting and
 mesh data. Its currently implemented workspace, **Skin Weight Lab**, repairs stored frame-1 vertex
 weights without expanding Mesh Debug into a general animation editor.
 
-The editor does not yet pose or deform the mesh through LBS or DQS. Runtime animation, bind-pose
-evaluation, pose preview, and GPU skinning are planned separately in the
+The editor does not yet pose or deform the mesh through LBS or DQS. Runtime animation, pose
+preview, and GPU skinning are planned separately in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
 The editor will evolve into three primary nodes: **Skin Weight Lab**, **Skeleton / Bind Pose**, and
@@ -29,6 +29,16 @@ Choose **Skeletal Animation Editor** from the Mini MBM launcher, or start it dir
 Use **File > Open Mesh** to load a `.msh` file. The mesh should contain a frame-1 skeleton and
 stored vertex skin weights for all bone-dependent workflows. Meshes without bones or weights may
 still be inspected through AABB and material-subset selection.
+
+After loading a skeleton, expand **Bind Pose Contract** to inspect the canonical conversion without
+editing the source asset. The panel reports global-to-local TRS reconstruction error, bind-identity
+error, fatal/warning diagnostics, stable bone IDs, local quaternion TRS, and the local, global, and
+inverse-global bind matrices. Root parent indices are displayed as `0`; stable IDs are hexadecimal
+strings so their full 64-bit identity is preserved through Lua.
+
+This panel currently reads the exploratory Mesh Debug skeleton only as temporary audit scaffolding.
+It is not the editor's final compatibility path. Canonical section inspection will replace it, and
+skeletal assets using only the exploratory sections must be re-imported from FBX before delivery.
 
 The editor supports **Save**, **Save As**, and one-level **Revert Last Weight Operation**. Revert is
 available only for the latest weight-changing operation in the current editor session.

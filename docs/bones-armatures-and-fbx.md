@@ -207,6 +207,12 @@ that happen to target bone nodes' transform channels.
 
 ## What Mini MBM Has Today
 
+> **Delivery decision (2026-08-10):** the sections and Mesh Debug bone API described in this
+> “today” section are exploratory implementation, retained temporarily for audit only. The delivered
+> skeletal-animation feature uses canonical sections 41–43 exclusively. It will not retain a legacy
+> skeletal reader/writer/converter mode; affected `.msh` assets must be regenerated from source FBX.
+> Static meshes without skeletal sections are unaffected.
+
 ### `SECTION_FRAME_SKINNED` — bind-pose bone hierarchy
 
 One optional bundled section per mesh (docs/mesh-v11-format.md §6e). A flat list of

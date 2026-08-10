@@ -1,8 +1,8 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **0.9**
-Status: **Product contracts consolidated; shared Milestone 0.1–0.7 foundation audited**
-Last updated: **2026-08-09**
+Document version: **1.1**
+Status: **Milestone 0 audited; canonical-only editor delivery decided**
+Last updated: **2026-08-10**
 
 ## 1. Purpose
 
@@ -212,8 +212,9 @@ The editor must consume them rather than infer runtime meaning from Mesh Debug f
 - tail, length, and radius are visualization/authoring metadata, not deformation transforms;
 - skeletal clips are distinct bone-ID-targeted resources, even when easing/player services are
   shared with articulated animation;
-- legacy version-1/2 skeleton globals and name-palette weights are compiled and diagnosed without
-  silent rewriting;
+- legacy version-1/2 skeleton globals and name-palette weights are temporary audit inputs only;
+  they are not supported editor inputs or outputs in the delivered feature and are never silently
+  rewritten;
 - non-uniform, negative, singular, and shear-bearing transforms receive explicit capability or
   invalid diagnostics;
 - bind/pose checks use the centralized numerical policy and report the worst observed error.
@@ -230,20 +231,24 @@ mutation behavior.
 - Treat the completed Bones behavior/code inventory and dependency map in Section 6 as input, not a
   runtime model to copy.
 - Implement the plan's M0.1 shared row-vector math and M0.2 immutable compiled skeleton.
-- Convert current global Euler skeleton data to canonical local TRS without mutating source assets.
+- Use current global-Euler skeleton data only to validate canonical local-TRS conversion without
+  mutating source assets; do not retain this as a delivered compatibility workflow.
 - Implement M0.3 structural/bind/weight/scale diagnostics and inverse-bind validation.
 - Define M0.4 bone-ID-targeted clip structs and pure deterministic sampling without timeline UI.
 - Complete M0.5 persistence layout design before any skeleton/clip writer is implemented.
 - Add M0.6 synthetic numeric fixtures and scale-1/scale-100 comparisons.
 - Complete M0.7 FBX cluster-bind/handedness audit before promoting the rat to a normative fixture.
 
-Exit: a legacy skeleton compiles and round-trips global→local→global within tolerance, inverse bind
+Exit evidence: a legacy skeleton compiles and round-trips global→local→global within tolerance, inverse bind
 is identity at bind pose, invalid identities/references/transforms produce deterministic reports,
 and a synthetic clip samples to expected local/global transforms. No Skeleton/Animation UI field
-may be introduced with an undefined storage or runtime meaning.
+may be introduced with an undefined storage or runtime meaning. This evidence does not authorize a
+permanent legacy API or reader.
 
 ### Milestone 1 — Three-node editor shell
 
+- Add the canonical skeleton/weight readers and FBX import conversion required by the permanent
+  editor data path. Do not build the shell around the temporary Mesh Debug bone representation.
 - Introduce Skin Weight Lab, Skeleton / Bind Pose, and Animation navigation.
 - Move the accepted Skin Weight Lab GUI/state into its node without behavior regression.
 - Establish shared asset, viewport, camera, selection, status, and modified-state services.
@@ -257,6 +262,8 @@ Exit: all accepted Skin Weight Lab tests still pass inside the new navigation.
 - Show source/derived bind information and structural diagnostics.
 - Add identity bind validation against controlled fixtures when pose evaluation is available.
 - Preserve imported data without writes in inspection mode.
+- Read canonical sections only. Remove the temporary legacy bind-report bridge when equivalent
+  canonical inspection is verified.
 
 Exit: the rat and synthetic skeleton fixtures can be inspected and diagnosed reproducibly.
 
@@ -268,6 +275,17 @@ Exit: the rat and synthetic skeleton fixtures can be inspected and diagnosed rep
 - Keep import/export-only conversion controls outside routine bind editing.
 
 Exit: a corrected imported skeleton round-trips without unknown weight or hierarchy references.
+
+### Delivery compatibility gate
+
+Before the skeletal-animation feature is considered delivered:
+
+- remove `SECTION_FRAME_SKINNED`/legacy skeletal-weight read-write support and the exploratory
+  `meshDebug` bone mutation/report API;
+- reject skeletal assets that contain only the exploratory sections instead of silently converting
+  them;
+- regenerate test and user skeletal `.msh` assets from source FBX into the canonical format;
+- keep ordinary static `.msh` files with no skeletal sections valid.
 
 ### Milestone 4 — Local skeleton creation
 
@@ -305,7 +323,8 @@ Exit: editor and runtime produce matching reference vertices/normals for the sam
 
 - Retain or relocate only genuinely mesh-debug/interchange operations.
 - Remove duplicated Skeleton/weight authoring after the new workflows reach parity and fixtures pass.
-- Keep compatibility entry points or migration notes for existing armature templates as needed.
+- Convert useful armature-template concepts to the canonical model or remove them; do not retain
+  legacy skeletal entry points for template compatibility.
 
 Exit: there is one canonical implementation for each skeleton, weight, and animation responsibility.
 
@@ -375,6 +394,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1 | 2026-08-10 | Made canonical-only delivery normative: the Mesh Debug skeleton/weight representation and bind-report bridge are temporary audit scaffolding, not compatibility requirements. Canonical readers/import must precede permanent editor work; legacy skeletal APIs/sections are removed and affected assets regenerated from FBX before delivery. |
+| 1.0 | 2026-08-10 | Added the first non-mutating post-Milestone-0 integration: an explicit read-only `meshDebug` snapshot boundary and Bind Pose Contract panel for stable IDs, canonical local TRS, local/global/inverse-bind matrices, numeric errors, and structural diagnostics. This is groundwork for the future three-node shell, not destructive skeleton editing, pose preview, or timeline UI. |
 | 0.9 | 2026-08-10 | Registered the provisional 32-frame Mixamo walking source and its frames 1/16/32 audit for branch development. It complements rather than replaces the rat bind/weight/topology fixture and remains gated on provenance plus final handedness-converted expectations. |
 | 0.8 | 2026-08-09 | Recorded M0.7's reproducible raw-cluster/rest-pose FBX audit and accepted the atomic handedness conversion contract. The rat is approved for bind/weight/topology evidence but disqualified as an animated-pose fixture because its action has zero sampled pose delta. No importer reflection or editor mutation was implemented. |
 | 0.7 | 2026-08-09 | Completed M0.6's headless synthetic regression coverage for hierarchy, bind identity, weights, clip validation/sampling, easing, loop/clamp, antipodality, scale/shear, and normalized scale-1/scale-100 pose equivalence. No editor UI or asset mutation was introduced. |

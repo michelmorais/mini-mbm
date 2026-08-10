@@ -142,8 +142,10 @@ SECTION_SKELETAL_WEIGHTS   = 42,
 SECTION_SKELETAL_ANIMATION = 43,
 ```
 
-All three initially use `sectionVersion == 1`. They form a new runtime family and do not change the
-meaning of legacy `SECTION_FRAME_SKINNED` or `SECTION_VERTEX_SKIN_WEIGHTS`.
+All three initially use `sectionVersion == 1`. They form the sole skeletal family of the delivered
+runtime feature. The current meanings of legacy `SECTION_FRAME_SKINNED` and
+`SECTION_VERTEX_SKIN_WEIGHTS` remain documented below only so the temporary audit implementation
+can be understood and removed safely; coexistence is not a compatibility requirement.
 
 ## 5. Variable-length strings — replacing fixed char buffers
 
@@ -642,9 +644,14 @@ player state, blend priority, fade, timeline selection, or backend data is persi
 Implementation order is mandatory: add field serializers and payload validators; add parse support
 to `parse_v11_intermediate` and `MESH_MBM_DEBUG::loadV11`; add round-trip/corruption tests; only then
 add writer emission and `sectionCount` increments. Existing binaries that predate types 41–43 will
-reject files containing them. This is an explicit feature-version boundary, not silent fallback;
-tools must retain an option to save legacy/static-only meshes when compatibility with those binaries
-is required.
+reject files containing them. This is an explicit feature-version boundary, not silent fallback.
+
+There is deliberately no legacy skeletal writer mode. Once canonical read/import/write tests pass,
+remove the readers, writers, structs, and Mesh Debug APIs for `SECTION_FRAME_SKINNED` and
+`SECTION_VERTEX_SKIN_WEIGHTS`. A skeletal file carrying only those exploratory sections is rejected,
+not converted during ordinary loading. Its source FBX must be imported again to produce sections
+41–43. A static-only writer remains valid for genuinely static meshes, but it must not disguise a
+skeletal asset by dropping its skeleton or animation merely to target an older binary.
 
 ## 7. Index width (§6 `indexWidth`)
 

@@ -11,6 +11,7 @@
 #include <mesh-manager.h>
 #include <header-mesh.h>
 #include <physics.h>
+#include <skeletal-animation-foundation.h>
 #include <string>
 #include <vector>
 
@@ -100,6 +101,8 @@ namespace mbm
         // SECTION_FRAME_SKINNED (docs/mesh-v11-format.md Sec. 6e) - editor/diagnostic round-trip
         // only, never consulted by rendering. See MESH_MBM_DEBUG::addBone/getBone/getTotalBone.
         std::vector<util::SKELETON_BONE_V11> skeleton;
+        skeletal::COMPILED_SKELETON compiledSkeletonBindReport;
+        bool hasCompiledSkeletonBindReport = false;
         // SECTION_VERTEX_SKIN_WEIGHTS (docs/mesh-v11-format.md Sec. 6f) - editor/diagnostic + FBX
         // re-export round-trip only, never consulted by rendering. weightPalette holds the unique
         // bone names referenced by any entry in vertexWeights; vertexWeights[i].paletteIndex values

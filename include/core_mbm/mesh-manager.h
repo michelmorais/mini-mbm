@@ -78,6 +78,45 @@ namespace mbm
         std::unique_ptr<Impl> impl;
     };
 
+    // Read-only, copy-out view of the canonical bind-pose compiler. The compiled vectors and
+    // lookup tables remain private to MESH_MBM_DEBUG::Impl; these records expose only values that
+    // editor diagnostics need and are never consulted by rendering.
+    struct SKELETON_BIND_SUMMARY
+    {
+        uint32_t boneCount = 0;
+        uint32_t diagnosticCount = 0;
+        float maximumReconstructionError = 0.0f;
+        float maximumBindIdentityError = 0.0f;
+        bool valid = false;
+    };
+
+    struct SKELETON_BIND_BONE_INFO
+    {
+        uint64_t boneId = 0;
+        uint64_t parentBoneId = 0;
+        int32_t parentIndex = -1;
+        uint32_t sourceIndex = 0;
+        VEC3 localTranslation;
+        float localRotationX = 0.0f;
+        float localRotationY = 0.0f;
+        float localRotationZ = 0.0f;
+        float localRotationW = 1.0f;
+        VEC3 localScale = VEC3(1.0f, 1.0f, 1.0f);
+        MATRIX localBindMatrix;
+        MATRIX globalBindMatrix;
+        MATRIX inverseGlobalBindMatrix;
+        bool hasNegativeScale = false;
+        bool hasShear = false;
+    };
+
+    struct SKELETON_BIND_DIAGNOSTIC_INFO
+    {
+        const char *code = nullptr;
+        uint32_t sourceIndex = 0;
+        float observedError = 0.0f;
+        bool fatal = true;
+    };
+
     class MESH_MBM_DEBUG
     {
       public:
@@ -194,6 +233,14 @@ namespace mbm
                               char *errorOut, const int errorOutLen);
         API_IMPL uint32_t getTotalBone() const noexcept;
         API_IMPL const util::SKELETON_BONE_V11 *getBone(const uint32_t index) const noexcept;
+        // Rebuilds a private diagnostic snapshot from the persisted legacy skeleton. Subsequent
+        // summary/bone/diagnostic getters copy values out of that snapshot; no compiled storage is
+        // exposed and calling this method never modifies the authored skeleton.
+        API_IMPL bool refreshSkeletonBindReport() noexcept;
+        API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
+        API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out) const noexcept;
+        API_IMPL bool getSkeletonBindDiagnostic(const uint32_t index,
+                                                SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept;
         // Edits an existing bone in place (name/parent/position/radius/rotation/scale/length).
         // Rejects an empty/duplicate name, an unknown parent, self-parenting, and any reparent that
         // would create a cycle (the candidate parent is a descendant of `index`). On success,

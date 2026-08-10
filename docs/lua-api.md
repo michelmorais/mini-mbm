@@ -1217,6 +1217,27 @@ skeleton-synchronization requests raise a Lua error before changing geometry. A 
 scales bone position, radius, and length while intentionally preserving each bone's local
 `scaleX/Y/Z`; partial geometry transforms leave the one global skeleton unchanged.
 
+### Bind-pose diagnostics
+
+```lua
+local report = meshD:getSkeletonBindReport()
+```
+
+This temporary audit-only call recompiles the stored legacy skeleton through the canonical skeletal
+foundation and returns a table with `valid`, `boneCount`, `diagnosticCount`,
+`maximumReconstructionError`, `maximumBindIdentityError`, `bones`, and `diagnostics`. Each compiled
+bone contains its one-based `sourceIndex`, `name`, stable `boneId`/`parentBoneId` as 16-digit hex
+strings, one-based `parentIndex` (`0` for a root), local translation/quaternion/scale, row-major
+16-number `localBindMatrix`, `globalBindMatrix`, and `inverseGlobalBindMatrix`, plus
+`hasNegativeScale` and `hasShear`. IDs are strings because Lua numbers cannot preserve every
+`uint64` value exactly. Diagnostics contain `code`, one-based `sourceIndex`, `boneName`,
+`observedError`, and `fatal`.
+
+The call never edits the skeleton and the report is a detached Lua snapshot. The Skeletal
+Animation Editor currently uses it for its Bind Pose Contract panel. It is not a promised
+compatibility API: canonical-section inspection will replace it and this method will be removed
+together with the exploratory Mesh Debug skeleton surface before skeletal-animation delivery.
+
 ### 15.1 Articulated-animation authoring
 
 The object also exposes the Mesh V11 rigid-animation authoring API.

@@ -1,8 +1,8 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **1.9**
-Status: **Milestone 0.1–0.7 foundation audited; runtime skinning not implemented**
-Last updated: **2026-08-09**
+Document version: **2.1**
+Status: **Milestone 0 audited; canonical-only skeletal delivery decided; runtime skinning not implemented**
+Last updated: **2026-08-10**
 
 ## 1. Purpose
 
@@ -141,7 +141,7 @@ here indicates hierarchy, transform-order, coordinate-system, or imported-bind d
 weights are considered.
 
 The pre-runtime `SECTION_FRAME_SKINNED` version-1/2 fields are legacy global/armature-space data.
-They must not be reinterpreted as local transforms. A compatibility compiler converts them through
+They must not be reinterpreted as local transforms. The temporary audit compiler converts them through
 `bind_local_child = bind_global_child * inverse(bind_global_parent)` and verifies that rebuilding
 the globals reproduces the source values within the Milestone 0 tolerance policy.
 
@@ -355,14 +355,18 @@ authoring/visualization metadata and do not drive deformation.
 
 **Stable identity.** Each runtime bone has a nonzero, unique `uint64_t boneId`; `parentBoneId == 0`
 marks a root. Names remain required and initially unique for import/interchange, but are labels and
-legacy lookup keys rather than runtime identity. Array order is a compiled parent-first runtime
+import lookup keys rather than runtime identity. Array order is a compiled parent-first runtime
 order, not identity. Parents, future tracks, and future ID-based weight palettes use `boneId`.
 
-**Legacy compatibility.** Version-1/2 skeletons and version-1 name-palette weights remain readable.
-The compatibility compiler validates the hierarchy, assigns stable IDs for the compiled asset,
-converts legacy global transforms to canonical locals, resolves weight names, and reports unknown
-or ambiguous references. Persisting generated IDs requires the new versioned runtime format; an
-ordinary read must not silently rewrite the source asset.
+**No skeletal legacy compatibility in the delivered feature.** `SECTION_FRAME_SKINNED` v1/v2,
+`SECTION_VERTEX_SKIN_WEIGHTS` v1, `SKELETON_BONE_V11`, and the Mesh Debug bone API were exploratory
+editor/interchange infrastructure used to understand the problem. They are not an accepted input,
+fallback, migration path, or alternate writer mode for the delivered skeletal-animation feature.
+The existing compatibility compiler and `meshDebug:getSkeletonBindReport()` are temporary audit
+scaffolding only. They must be removed once the canonical readers/importer are verified, before the
+feature is considered delivered. Existing affected `.msh` files must be regenerated from their
+source FBX (the branch-local Mixamo fixture is available for this), not silently upgraded at load.
+Static meshes without skeletal sections remain unaffected.
 
 **Rotation.** Quaternion is the functional storage/evaluation/interpolation representation.
 Euler degrees may be preserved as optional authoring intent, using an explicitly declared order and
@@ -383,8 +387,8 @@ translation, local quaternion rotation, local scale, and easing. Articulated eas
 quaternion interpolation, and player-state concepts may become shared services, while Part IDs,
 pivots, subset transforms, and articulated binary sections remain distinct.
 
-**Persistence decision.** Do not change the meaning of `SECTION_FRAME_SKINNED` v1/v2 or its legacy
-name-palette weights. The accepted design reserves three new version-1 V11 sections: canonical
+**Persistence decision.** The accepted design replaces the exploratory skeletal sections with three
+new version-1 V11 sections: canonical
 skeleton (`41`), runtime weights (`42`), and skeletal animation (`43`), joined by a nonzero
 `skeletonId`. Skeleton records persist stable bone IDs and parent-relative local TRS; weights use a
 `uint16` palette of stable `boneId` values; clips/tracks/keys persist quaternion-local channels and
@@ -426,7 +430,8 @@ must update the fixtures and this policy together.
 2. **M0.2 — Compiled skeleton:** immutable identity/hierarchy, parent indices, local/global bind,
    inverse bind, name/ID lookup, provenance, and diagnostics behind PIMPL boundaries.
 3. **M0.3 — Validation:** structural, transform, inverse-bind, weight-reference, weight-quality,
-   scale-capability, and legacy-conversion reports with no asset mutation.
+   scale-capability, and temporary legacy-audit reports with no asset mutation. These reports prove
+   the canonical contracts but are not a delivered compatibility surface.
 4. **M0.4 — Clip contract and pure sampling:** skeletal structs plus
    `sample(clip,time,bindPose) -> localPose` and local-to-global evaluation, without timeline,
    playback UI, continuous blending, or deformation.
@@ -438,13 +443,16 @@ must update the fixtures and this policy together.
    positions/normals/winding/rotations, and record controlled Blender reference samples before the
    rat becomes a normative runtime acceptance fixture.
 
-Milestone 0 exits only when a legacy skeleton can be loaded, compiled without mutation, converted
+Milestone 0 evidence includes a legacy skeleton loaded, compiled without mutation, converted
 global-to-local, rebuilt local-to-global, inverse-bind validated, and reported deterministically;
-and when a synthetic skeletal clip can be sampled to expected local/global transforms. It does not
+and a synthetic skeletal clip sampled to expected local/global transforms. This validates the
+foundation but does not require retaining the legacy reader or API in the delivered feature. It does not
 include destructive skeleton editing, GPU LBS/DQS, timeline UI, or runtime playback delivery.
 
 ### Phase 1 — Standalone editor foundation and bind validation
 
+- Implement canonical section readers and an FBX-to-canonical import path before making bind
+  inspection a permanent editor surface.
 - Establish the editor shell and shared mesh/skeleton access boundary.
 - Visualize local/global bind transforms and inverse-bind results.
 - Diagnose invalid hierarchy, missing bind data, cycles, unknown influences, and non-identity bind
@@ -462,6 +470,12 @@ Version 6.48.0 adds local triangle-adjacency weight smoothing. It changes persis
 weights only and still does not evaluate a pose or deform vertices through LBS/DQS.
 Version 6.49.0 adds abrupt neighbor-weight diagnostics. Its normalized edge difference highlights
 likely authoring discontinuities, but is not a substitute for posed LBS/DQS stress validation.
+Version 6.55.0 adds the first read-only bridge from the private canonical compiler into editor
+diagnostics: stable identities, canonical local TRS, local/global/inverse-bind matrices, and numeric
+findings are copied into a detached Lua report. This is explicitly temporary audit scaffolding: it
+must be replaced by canonical-section inspection and removed together with the Mesh Debug legacy
+bone surface before delivery. It does not promote legacy skeleton data into the runtime mesh,
+mutate assets, evaluate clips, or deform vertices.
 
 ### Phase 2 — Shared pose evaluation
 
@@ -590,8 +604,9 @@ likely authoring discontinuities, but is not a substitute for posed LBS/DQS stre
     derived globals/inverse bind, and names only as labels/interchange keys.
 15. Skeletal clips use a distinct bone-ID-targeted resource model; articulated data structures are
     not repurposed as skeletal persistence.
-16. Existing global Euler skeleton sections remain legacy inputs and are converted explicitly; they
-    are not silently reinterpreted or rewritten.
+16. Existing global-Euler skeleton sections are temporary audit inputs only. They are removed from
+    the delivered reader/writer/API surface; affected assets are regenerated from source FBX rather
+    than converted during ordinary loading.
 
 ## 16. Hypotheses to Validate
 
@@ -681,6 +696,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 2.1 | 2026-08-10 | Decided that the delivered skeletal feature has no compatibility mode for the exploratory Mesh Debug skeleton/weight sections or bone API. Legacy compilation/reporting is temporary audit scaffolding; canonical readers/import must replace it, affected assets must be regenerated from FBX, and the legacy skeletal path must be removed before delivery. Static meshes remain unaffected. |
+| 2.0 | 2026-08-10 | Exposed the canonical bind compiler through a narrow read-only `MESH_MBM_DEBUG` snapshot and added the editor Bind Pose Contract diagnostic panel. Compiled storage remains PIMPL-owned; no runtime promotion, skeleton mutation, clip UI, or deformation was introduced. |
 | 1.9 | 2026-08-10 | Registered the branch-local `human-from-mixamo-walking.fbx` as a provisional animated source and recorded reproducible bind plus frames 1/16/32 evidence. Its real 32-frame pose delta fills the rat fixture's animation gap, but permanent normative status still requires provenance/licensing and post-handedness expected matrices. |
 | 1.8 | 2026-08-09 | Executed M0.7's reproducible Blender/FBX bind audit: captured raw cluster matrices, rest/local/global matrices, selected topology and pose samples, hashes and tool version; confirmed cluster/rest agreement and source winding; selected the future handedness conversion `(-x,z,-y)` with reflected normals, swapped winding, and conjugated bone transforms; and classified the current rat FBX as normative for bind/weights/topology but not animation because its two-frame action has zero pose delta. |
 | 1.7 | 2026-08-09 | Completed M0.6's synthetic regression matrix: scale-1/scale-100 normalized pose equivalence, bind hierarchy and inverse identity, scale/shear classification, palette resolution, partial and corrupt weights, invalid clip identity/target/channel/key/quaternion/scale/sample-time cases, easing ownership, clamp/loop behavior, absent-channel bind fallback, and quaternion antipodality. Persistence and the FBX/rat audit remain separate gates. |
