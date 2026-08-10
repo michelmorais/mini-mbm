@@ -1240,7 +1240,8 @@ namespace mbm
     }
 
     bool SHADER::render(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner,
-                        const int32_t subsetIndex) const
+                        const int32_t subsetIndex, const float * /*skeletalPaletteRows*/,
+                        const uint32_t /*skeletalPaletteFloatCount*/) const
     {
         const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();

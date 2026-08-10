@@ -566,6 +566,34 @@ composition, authoring, playback lifecycle, and examples.
 | `obj:seekArticulatedAnimation` | `(name, time)` | bool | Move an active clip's playback position to the specified time, clamped to `0..duration` |
 | `obj:getArticulatedAnimationTime` | `(name)` | number or nil | Current time for an active clip, or `nil` when it is inactive/unknown |
 
+#### Canonical skeletal playback (`mesh`, GLES2 LBS profile)
+
+These methods control type-43 skeletal clips on a loaded canonical type-41/42/43 `.msh`. Playback
+state and the evaluated GPU palette belong to the individual `mesh` instance even when several
+objects share the same cached asset and shader program. This initial surface supports one active
+clip, authored loop/clamp behavior, pause/resume, and seek. Speed, blending, priorities, completion
+callbacks, DQS selection, and non-GLES backends remain future work. A mesh with compact skinned
+normals rejects a pose containing negative scale, shear, or non-uniform scale.
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `obj:getTotalSkeletalAnimations` | `()` | int | Number of canonical skeletal clips |
+| `obj:getSkeletalAnimationName` | `(index: int)` | string or nil | Name of the 1-based clip |
+| `obj:playSkeletalAnimation` | `(name)` | bool | Start or restart one clip at time zero |
+| `obj:pauseSkeletalAnimation` | `()` | bool | Freeze the active clip and palette |
+| `obj:resumeSkeletalAnimation` | `()` | bool | Resume the active clip |
+| `obj:seekSkeletalAnimation` | `(time)` | bool | Seek the active clip, clamped to its duration |
+| `obj:getSkeletalAnimationTime` | `()` | number or nil | Current time, or `nil` when inactive |
+
+```lua
+local character = mesh:new("3d")
+assert(character:load("character-walk.msh"))
+assert(character:playSkeletalAnimation("Walk"))
+character:seekSkeletalAnimation(0.5)
+character:pauseSkeletalAnimation()
+character:resumeSkeletalAnimation()
+```
+
 ### 6.7 Depth / Ordering
 
 Draw order (depth-sorting) is controlled via the `obj.z` property:

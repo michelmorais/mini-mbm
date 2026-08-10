@@ -181,6 +181,60 @@ namespace mbm
         return 1;
     }
 
+    int onGetTotalSkeletalAnimationsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(mesh->getTotalSkeletalAnimations()));
+        return 1;
+    }
+
+    int onGetSkeletalAnimationNameLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const char *name = index > 0
+            ? mesh->getSkeletalAnimationName(static_cast<uint32_t>(index - 1)) : nullptr;
+        if (name) lua_pushstring(lua, name); else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onPlaySkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->playSkeletalAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onPauseSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->pauseSkeletalAnimation() ? 1 : 0);
+        return 1;
+    }
+
+    int onResumeSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->resumeSkeletalAnimation() ? 1 : 0);
+        return 1;
+    }
+
+    int onSeekSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->seekSkeletalAnimation(
+            static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalAnimationTimeLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float time = 0.0f;
+        if (mesh->getSkeletalAnimationTime(&time)) lua_pushnumber(lua, time); else lua_pushnil(lua);
+        return 1;
+    }
+
     // Background-thread-friendly equivalent of "load":
     // mesh:loadAsync(fileName, function(tmesh, success) ... end). The callback's refs (and a ref to
     // `self`) are held in the registry for the pending load's duration - this both lets the callback
@@ -247,6 +301,13 @@ namespace mbm
                                                      {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
                                                      {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
                                                      {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
+                                                     {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
+                                                     {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
+                                                     {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
+                                                     {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
+                                                     {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
+                                                     {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
+                                                     {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
                                                      {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
@@ -297,6 +358,13 @@ namespace mbm
                                                          {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
                                                          {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
                                                          {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
+                                                         {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
+                                                         {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
+                                                         {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
+                                                         {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
+                                                         {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
+                                                         {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
+                                                         {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();

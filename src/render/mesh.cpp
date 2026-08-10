@@ -50,6 +50,7 @@ namespace mbm
         this->setIndexAnimation(0);
         this->mesh                  = nullptr;
         this->resetArticulatedAnimationPlayer();
+        this->resetSkeletalAnimationPlayer();
     }
     
     bool MESH::load(const char *fileName)
@@ -166,6 +167,41 @@ namespace mbm
         return this->mesh ? this->mesh->getArticulatedAnimationTime(this->getArticulatedAnimationPlayer(), name, time) : false;
     }
 
+    uint32_t MESH::getTotalSkeletalAnimations() const noexcept
+    {
+        return mesh ? mesh->getTotalSkeletalAnimations() : 0;
+    }
+
+    const char *MESH::getSkeletalAnimationName(const uint32_t index) const noexcept
+    {
+        return mesh ? mesh->getSkeletalAnimationName(index) : nullptr;
+    }
+
+    bool MESH::playSkeletalAnimation(const char *name)
+    {
+        return mesh ? mesh->playSkeletalAnimation(getSkeletalAnimationPlayer(), name) : false;
+    }
+
+    bool MESH::pauseSkeletalAnimation() noexcept
+    {
+        return mesh ? mesh->pauseSkeletalAnimation(getSkeletalAnimationPlayer()) : false;
+    }
+
+    bool MESH::resumeSkeletalAnimation() noexcept
+    {
+        return mesh ? mesh->resumeSkeletalAnimation(getSkeletalAnimationPlayer()) : false;
+    }
+
+    bool MESH::seekSkeletalAnimation(const float time)
+    {
+        return mesh ? mesh->seekSkeletalAnimation(getSkeletalAnimationPlayer(), time) : false;
+    }
+
+    bool MESH::getSkeletalAnimationTime(float *time) const noexcept
+    {
+        return mesh ? mesh->getSkeletalAnimationTime(getSkeletalAnimationPlayer(), time) : false;
+    }
+
     bool MESH::render()
     {
         if (!mesh)
@@ -215,7 +251,12 @@ namespace mbm
             BUFFER_MESH *frameBuffer = this->mesh->getBuffer(static_cast<unsigned int>(anim->getIndexCurrentFrame()));
             fx.bindTextureAnimationEffect(frameBuffer ? frameBuffer->getRenderBuffer() : nullptr);
             const uint32_t frameIndex = static_cast<unsigned int>(anim->getIndexCurrentFrame());
-            const bool rendered = this->mesh->hasActiveArticulatedAnimations(this->getArticulatedAnimationPlayer())
+            const bool hasSkeletal = this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer());
+            if (hasSkeletal && !this->mesh->updateSkeletalAnimation(this->getSkeletalAnimationPlayer(), device->delta))
+                return false;
+            const bool rendered = hasSkeletal
+                ? this->mesh->renderSkeletal(this->getSkeletalAnimationPlayer(), frameIndex, &fx.shader, this)
+                : this->mesh->hasActiveArticulatedAnimations(this->getArticulatedAnimationPlayer())
                 ? this->mesh->renderArticulatedStatic(this->getArticulatedAnimationPlayer(), frameIndex, &fx.shader,
                                                       *viewMatrix, *perspectiveMatrix, this)
                 : this->mesh->render(frameIndex, &fx.shader, this);
@@ -259,6 +300,8 @@ namespace mbm
                 anim->updateAnimation(device->delta, this, this->getOnEndAnimation(), this->getOnEndFx());
                 this->mesh->updateArticulatedAnimations(this->getArticulatedAnimationPlayer(), device->delta,
                                                          this, this->getOnEndAnimation());
+                if (this->mesh->hasActiveSkeletalAnimation(this->getSkeletalAnimationPlayer()))
+                    this->mesh->updateSkeletalAnimation(this->getSkeletalAnimationPlayer(), device->delta);
             }
             return ret;
         }

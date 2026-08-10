@@ -405,7 +405,16 @@ namespace mbm
         return palettes.emplace(boneCount, std::move(values)).first->second;
     }
 
-    static bool bindAndUploadLbsIndexed(const GLES_PS_VS *gles, const BUFFER_SPECIFIC *buffer)
+    static const float *resolveLbsPalette(const GLES_PS_VS *gles, const float *rows,
+                                          const uint32_t floatCount)
+    {
+        if (rows)
+            return floatCount == gles->skeletalLbsPaletteSize * 12u ? rows : nullptr;
+        return getIdentityLbsPalette(gles->skeletalLbsPaletteSize).data();
+    }
+
+    static bool bindAndUploadLbsIndexed(const GLES_PS_VS *gles, const BUFFER_SPECIFIC *buffer,
+                                        const float *paletteRows, const uint32_t paletteFloatCount)
     {
         if (gles->skeletalLbsPaletteSize == 0)
             return true;
@@ -418,14 +427,17 @@ namespace mbm
         GLBindBuffer(GL_ARRAY_BUFFER, buffer->vboBoneWeightsIB);
         GLEnableVertexAttribArray(gles->boneWeightsHandle);
         GLVertexAttribPointer(gles->boneWeightsHandle, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
-        const std::vector<float> &palette = getIdentityLbsPalette(gles->skeletalLbsPaletteSize);
+        const float *palette = resolveLbsPalette(gles, paletteRows, paletteFloatCount);
+        if (!palette)
+            return false;
         glUniform4fv(gles->bonePaletteHandle, static_cast<GLsizei>(gles->skeletalLbsPaletteSize * 3u),
-                     palette.data());
+                     palette);
         return true;
     }
 
     static bool bindAndUploadLbsSubset(const GLES_PS_VS *gles, const BUFFER_SPECIFIC *buffer,
-                                       const uint32_t subset)
+                                       const uint32_t subset, const float *paletteRows,
+                                       const uint32_t paletteFloatCount)
     {
         if (gles->skeletalLbsPaletteSize == 0)
             return true;
@@ -440,9 +452,11 @@ namespace mbm
         GLBindBuffer(GL_ARRAY_BUFFER, buffer->vboBoneWeightsVB[subset]);
         GLEnableVertexAttribArray(gles->boneWeightsHandle);
         GLVertexAttribPointer(gles->boneWeightsHandle, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
-        const std::vector<float> &palette = getIdentityLbsPalette(gles->skeletalLbsPaletteSize);
+        const float *palette = resolveLbsPalette(gles, paletteRows, paletteFloatCount);
+        if (!palette)
+            return false;
         glUniform4fv(gles->bonePaletteHandle, static_cast<GLsizei>(gles->skeletalLbsPaletteSize * 3u),
-                     palette.data());
+                     palette);
         return true;
     }
 
@@ -1521,7 +1535,8 @@ namespace mbm
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
-                        const int32_t subsetIndex) const
+                        const int32_t subsetIndex, const float *skeletalPaletteRows,
+                        const uint32_t skeletalPaletteFloatCount) const
     {
         const ScopedRenderizableContext scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1556,7 +1571,8 @@ namespace mbm
                 GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             }
-            if (!bindAndUploadLbsIndexed(gles_shaderSpecific, backendBuffer))
+            if (!bindAndUploadLbsIndexed(gles_shaderSpecific, backendBuffer,
+                                         skeletalPaletteRows, skeletalPaletteFloatCount))
                 return false;
             //-----------------------------------------------------------------------------------------------------------
             if (gles_shaderSpecific->mvpMatrixHandle != -1)
@@ -1621,7 +1637,8 @@ namespace mbm
                     GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
                     GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
                 }
-                if (!bindAndUploadLbsSubset(gles_shaderSpecific, backendBuffer, i))
+                if (!bindAndUploadLbsSubset(gles_shaderSpecific, backendBuffer, i,
+                                            skeletalPaletteRows, skeletalPaletteFloatCount))
                     return false;
                 //-----------------------------------------------------------------------------------------------------------
                 if (gles_shaderSpecific->mvpMatrixHandle != -1)

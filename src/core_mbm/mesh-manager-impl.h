@@ -49,6 +49,15 @@ namespace mbm
         uint64_t sequence = 0;
     };
 
+    struct SKELETAL_ANIMATION_PLAYER::Impl
+    {
+        uint32_t clipIndex = UINT32_MAX;
+        float time = 0.0f;
+        bool active = false;
+        bool paused = false;
+        std::vector<float> paletteRows;
+    };
+
     struct MESH_MBM::Impl
     {
         // Deprecated: no longer applied to a loaded renderizable's position/angle at load time

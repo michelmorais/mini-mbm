@@ -44,6 +44,7 @@ namespace mbm
     class SHADER;
     class MESH_MBM;
     class ARTICULATED_ANIMATION_PLAYER;
+    class SKELETAL_ANIMATION_PLAYER;
     struct IMAGE_RESOURCE;
     // Defined in mesh-manager.cpp only - forward-declared here so MESH_MBM::finishLoadFromIntermediate
     // can be declared without exposing the type's layout in the public header, same PIMPL-style
@@ -73,6 +74,20 @@ namespace mbm
         API_IMPL void reset() noexcept;
         ARTICULATED_ANIMATION_PLAYER(const ARTICULATED_ANIMATION_PLAYER &) = delete;
         ARTICULATED_ANIMATION_PLAYER &operator=(const ARTICULATED_ANIMATION_PLAYER &) = delete;
+      private:
+        struct Impl;
+        std::unique_ptr<Impl> impl;
+    };
+
+    class SKELETAL_ANIMATION_PLAYER
+    {
+        friend class MESH_MBM;
+      public:
+        API_IMPL SKELETAL_ANIMATION_PLAYER();
+        API_IMPL ~SKELETAL_ANIMATION_PLAYER();
+        API_IMPL void reset() noexcept;
+        SKELETAL_ANIMATION_PLAYER(const SKELETAL_ANIMATION_PLAYER &) = delete;
+        SKELETAL_ANIMATION_PLAYER &operator=(const SKELETAL_ANIMATION_PLAYER &) = delete;
       private:
         struct Impl;
         std::unique_ptr<Impl> impl;
@@ -386,6 +401,7 @@ namespace mbm
     {
         friend class MESH_MANAGER;
         friend class ANIMATION_MANAGER;
+        friend class MESH;
       public:
         API_IMPL BUFFER_MESH *getBuffer(const uint32_t index) const;
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
@@ -469,6 +485,17 @@ namespace mbm
         // pattern as Impl.
         bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
         uint32_t getPreparedSkeletalLbsPaletteSize() const noexcept;
+        uint32_t getTotalSkeletalAnimations() const noexcept;
+        const char *getSkeletalAnimationName(uint32_t index) const noexcept;
+        bool playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const;
+        bool hasActiveSkeletalAnimation(const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool pauseSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool resumeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool seekSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float time) const;
+        bool getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player, float *time) const noexcept;
+        bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta) const;
+        bool renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player, uint32_t indexFrame,
+                            const SHADER *shader, const RENDERIZABLE *owner);
 
         struct Impl;
         std::unique_ptr<Impl> impl;

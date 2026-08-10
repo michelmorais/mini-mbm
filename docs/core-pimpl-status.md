@@ -173,3 +173,8 @@ duration/progress, per-play additive weight, and tie-break sequence remain priva
 `MESH_MBM::Impl` retains only cache-safe asset data (parts, authored clips, geometry, and scratch
 rendering storage); each `ANIMATION_MANAGER` instance owns a separate player, used by `MESH` and
 `SPRITE`, so cached assets never leak playback state between renderizable instances.
+Canonical skeletal playback follows the same ownership rule with its own opaque
+`SKELETAL_ANIMATION_PLAYER`. Active clip index, time, pause state, and evaluated palette rows live
+in the renderizable instance's `ANIMATION_MANAGER::Impl`; the cached `MESH_MBM::Impl` keeps only
+validated type-41/42/43 asset data and GLES-ready immutable vertex inputs. Shader draw calls accept
+a transient pointer/count for the owning instance's palette without retaining or exposing it.

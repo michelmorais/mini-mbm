@@ -1289,6 +1289,22 @@ namespace mbm
         impl->sequence = 0;
     }
 
+    SKELETAL_ANIMATION_PLAYER::SKELETAL_ANIMATION_PLAYER()
+        : impl(std::make_unique<Impl>())
+    {
+    }
+
+    SKELETAL_ANIMATION_PLAYER::~SKELETAL_ANIMATION_PLAYER() = default;
+
+    void SKELETAL_ANIMATION_PLAYER::reset() noexcept
+    {
+        impl->clipIndex = UINT32_MAX;
+        impl->time = 0.0f;
+        impl->active = false;
+        impl->paused = false;
+        impl->paletteRows.clear();
+    }
+
     struct MESH_MANAGER::Impl
     {
         std::unordered_map<std::string, MESH_MBM *> lsMeshes;
@@ -5870,6 +5886,115 @@ namespace mbm
     uint32_t MESH_MBM::getPreparedSkeletalLbsPaletteSize() const noexcept
     {
         return impl->gles2LbsInput.ready() ? impl->gles2LbsInput.requiredBoneCount : 0;
+    }
+
+    uint32_t MESH_MBM::getTotalSkeletalAnimations() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
+    }
+
+    const char *MESH_MBM::getSkeletalAnimationName(const uint32_t index) const noexcept
+    {
+        return index < impl->canonicalAnimations.clips.size()
+            ? impl->canonicalAnimations.clips[index].name.c_str() : nullptr;
+    }
+
+    bool MESH_MBM::playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const
+    {
+        if (!impl->gles2LbsInput.ready() || !name || !name[0])
+            return false;
+        for (uint32_t i = 0; i < impl->canonicalAnimations.clips.size(); ++i)
+        {
+            if (impl->canonicalAnimations.clips[i].name == name)
+            {
+                player.impl->clipIndex = i;
+                player.impl->time = 0.0f;
+                player.impl->active = true;
+                player.impl->paused = false;
+                return updateSkeletalAnimation(player, 0.0f);
+            }
+        }
+        return false;
+    }
+
+    bool MESH_MBM::hasActiveSkeletalAnimation(const SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        return player.impl->active;
+    }
+
+    bool MESH_MBM::pauseSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active)
+            return false;
+        player.impl->paused = true;
+        return true;
+    }
+
+    bool MESH_MBM::resumeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active)
+            return false;
+        player.impl->paused = false;
+        return true;
+    }
+
+    bool MESH_MBM::seekSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float time) const
+    {
+        if (!player.impl->active || !std::isfinite(time) ||
+            player.impl->clipIndex >= impl->canonicalAnimations.clips.size())
+            return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
+        player.impl->time = std::max(0.0f, std::min(clip.duration, time));
+        return updateSkeletalAnimation(player, 0.0f);
+    }
+
+    bool MESH_MBM::getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player,
+                                             float *time) const noexcept
+    {
+        if (!time || !player.impl->active)
+            return false;
+        *time = player.impl->time;
+        return true;
+    }
+
+    bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta) const
+    {
+        if (!player.impl->active || !std::isfinite(delta) || delta < 0.0f ||
+            player.impl->clipIndex >= impl->canonicalAnimations.clips.size())
+            return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[player.impl->clipIndex];
+        if (!player.impl->paused && delta > 0.0f)
+        {
+            player.impl->time += delta;
+            if (clip.loop && clip.duration > 0.0f)
+                player.impl->time = std::fmod(player.impl->time, clip.duration);
+            else
+                player.impl->time = std::min(player.impl->time, clip.duration);
+        }
+        const BUFFER_GL *buffer = impl->buffer && impl->totalFramesMesh > 0
+            ? impl->buffer[0].pBufferGL : nullptr;
+        const bool hasNormals = buffer &&
+            (buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
+             buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        return skeletal::sampleGles2LbsPalette(impl->canonicalSkeleton, clip, player.impl->time,
+                                              hasNormals, player.impl->paletteRows) ==
+               skeletal::GLES2_LBS_PALETTE_STATUS::READY;
+    }
+
+    bool MESH_MBM::renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player,
+                                  const uint32_t indexFrame, const SHADER *shader,
+                                  const RENDERIZABLE *owner)
+    {
+        if (!player.impl->active || player.impl->paletteRows.empty() ||
+            indexFrame >= impl->totalFramesMesh || !impl->buffer)
+            return false;
+        DEVICE *device = DEVICE::getInstance();
+        device->setRenderMaterial(impl->material);
+        const bool rendered = shader->render(impl->buffer[indexFrame].pBufferGL, owner, -1,
+                                             player.impl->paletteRows.data(),
+                                             static_cast<uint32_t>(player.impl->paletteRows.size()));
+        device->clearRenderMaterial();
+        return rendered;
     }
 
     bool MESH_MBM::hasArticulatedAnimationData() const noexcept

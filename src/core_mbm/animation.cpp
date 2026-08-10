@@ -971,6 +971,8 @@ namespace mbm
         OnEndEffect onEndFx = nullptr;
         std::unique_ptr<ARTICULATED_ANIMATION_PLAYER> articulatedPlayer =
             std::make_unique<ARTICULATED_ANIMATION_PLAYER>();
+        std::unique_ptr<SKELETAL_ANIMATION_PLAYER> skeletalPlayer =
+            std::make_unique<SKELETAL_ANIMATION_PLAYER>();
     };
 
     ANIMATION_MANAGER::ANIMATION_MANAGER() noexcept
@@ -997,6 +999,21 @@ namespace mbm
     void ANIMATION_MANAGER::resetArticulatedAnimationPlayer() noexcept
     {
         impl->articulatedPlayer->reset();
+    }
+
+    SKELETAL_ANIMATION_PLAYER &ANIMATION_MANAGER::getSkeletalAnimationPlayer() noexcept
+    {
+        return *impl->skeletalPlayer;
+    }
+
+    const SKELETAL_ANIMATION_PLAYER &ANIMATION_MANAGER::getSkeletalAnimationPlayer() const noexcept
+    {
+        return *impl->skeletalPlayer;
+    }
+
+    void ANIMATION_MANAGER::resetSkeletalAnimationPlayer() noexcept
+    {
+        impl->skeletalPlayer->reset();
     }
 
     void ANIMATION_MANAGER::populateTextureAnimationEffectFromMesh(MESH_MBM *mesh)

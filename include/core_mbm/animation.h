@@ -37,6 +37,7 @@ namespace util
 namespace mbm
 {
     class ARTICULATED_ANIMATION_PLAYER;
+    class SKELETAL_ANIMATION_PLAYER;
     class TEXTURE;
     class MESH_MBM;
     
@@ -189,6 +190,9 @@ namespace mbm
         API_IMPL ARTICULATED_ANIMATION_PLAYER &getArticulatedAnimationPlayer() noexcept;
         API_IMPL const ARTICULATED_ANIMATION_PLAYER &getArticulatedAnimationPlayer() const noexcept;
         API_IMPL void resetArticulatedAnimationPlayer() noexcept;
+        API_IMPL SKELETAL_ANIMATION_PLAYER &getSkeletalAnimationPlayer() noexcept;
+        API_IMPL const SKELETAL_ANIMATION_PLAYER &getSkeletalAnimationPlayer() const noexcept;
+        API_IMPL void resetSkeletalAnimationPlayer() noexcept;
 
       private:
         struct Impl;

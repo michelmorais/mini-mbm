@@ -59,6 +59,13 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool seekArticulatedAnimation(const char *name, const float time) noexcept;
     API_IMPL bool getArticulatedAnimationTime(const char *name, float *time) const noexcept;
+    API_IMPL uint32_t getTotalSkeletalAnimations() const noexcept;
+    API_IMPL const char *getSkeletalAnimationName(uint32_t index) const noexcept;
+    API_IMPL bool playSkeletalAnimation(const char *name);
+    API_IMPL bool pauseSkeletalAnimation() noexcept;
+    API_IMPL bool resumeSkeletalAnimation() noexcept;
+    API_IMPL bool seekSkeletalAnimation(float time);
+    API_IMPL bool getSkeletalAnimationTime(float *time) const noexcept;
     API_IMPL FX*  getFx() const override;
 	  API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
     FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
