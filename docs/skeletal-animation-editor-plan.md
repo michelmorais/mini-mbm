@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **1.5**
-Status: **Canonical read/write round-trip implemented; FBX import and permanent editor shell pending**
+Document version: **1.6**
+Status: **Canonical FBX skeleton/weight/clip import implemented; permanent editor shell pending**
 Last updated: **2026-08-10**
 
 ## 1. Purpose
@@ -394,6 +394,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.6 | 2026-08-10 | The direct Blender/FBX importer now emits canonical sections 41–43 directly from armature bind matrices, vertex groups, and sampled poses, with deterministic IDs, local quaternion TRS, strict influence coverage, and no legacy 11/40 output. The accepted reflection is applied atomically to geometry, winding, normals, bind, and poses. The 67-bone Mixamo walk now produces one REST bind frame plus 67×32 track keys; canonical load and save/reload passed. |
 | 1.5 | 2026-08-10 | Added canonical 41–43 writer round-trip with validation before file creation, correct `sectionCount`, deterministic section order, and save/reload coverage. It writes only canonical state already owned by Mesh Debug and deliberately does not convert the temporary legacy skeleton/weight representation. FBX-to-canonical import remains the prerequisite for permanent editor work. |
 | 1.4 | 2026-08-10 | Completed canonical read support with type 43 clips/tracks/keys and final section presence/identity validation in both loaders. The valid fixture proves order-independent resolution; mismatch target/easing fixtures prove deterministic rejection. Writer/import remains the next prerequisite for the permanent editor shell. |
 | 1.3 | 2026-08-10 | Added canonical type-42 weights to both loaders with order-independent skeleton/topology resolution and strict ID, palette, four-influence, coverage, and normalization validation. The permanent editor still waits for type 43 plus the canonical writer/import path. |

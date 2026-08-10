@@ -36,6 +36,9 @@ SECTION_FRAME_SKINNED = 11
 SECTION_DETAIL_PHYSICS = 20
 SECTION_EXTRA_PATHS = 30
 SECTION_VERTEX_SKIN_WEIGHTS = 40
+SECTION_SKELETAL_SKELETON = 41
+SECTION_SKELETAL_WEIGHTS = 42
+SECTION_SKELETAL_ANIMATION = 43
 
 TEXTURE_ROLE_NORMAL = 2
 TEXTURE_ROLE_SPECULAR = 3
@@ -729,7 +732,8 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | None = None,
-                          output_dir: str | None = None, capture_weights: bool = False) -> list[dict[str, Any]]:
+                          output_dir: str | None = None, capture_weights: bool = False,
+                          canonical_coordinates: bool = False) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
     scene_frame = int(scene.frame_current)
@@ -788,7 +792,10 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                 bucket = buckets[mat_idx]
                 vmap = bucket["_vmap"]
 
-                for loop_index in tri.loops:
+                # The canonical FBX boundary reflects X after the usual Z-up -> Y-up rotation.
+                # Reflection reverses handedness, so reverse every triangle to preserve its facing.
+                triangle_loops = tuple(reversed(tri.loops)) if canonical_coordinates else tri.loops
+                for loop_index in triangle_loops:
                     loop = mesh.loops[loop_index]
                     vert = mesh.vertices[loop.vertex_index]
                     loop_no = get_loop_normal(loop, vert)
@@ -800,6 +807,9 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                     if rotation_deg:
                         pos_x, pos_y, pos_z = rotate_point_deg(pos_x, pos_y, pos_z, *rotation_deg)
                         no_x, no_y, no_z = rotate_point_deg(no_x, no_y, no_z, *rotation_deg)
+                    if canonical_coordinates:
+                        pos_x = -pos_x
+                        no_x = -no_x
 
                     if uv_data is not None:
                         uv = uv_data[loop_index].uv
@@ -1095,6 +1105,10 @@ def write_u32(fp: Any, value: int) -> None:
     fp.write(struct.pack("<I", int(value)))
 
 
+def write_u64(fp: Any, value: int) -> None:
+    fp.write(struct.pack("<Q", int(value)))
+
+
 def write_f32(fp: Any, value: float) -> None:
     fp.write(struct.pack("<f", float(value)))
 
@@ -1385,6 +1399,250 @@ def build_vertex_skin_weights_payload_v11(subsets: list[dict[str, Any]]) -> byte
     return buf.getvalue()
 
 
+def stable_id(domain: str, value: str) -> int:
+    result = 14695981039346656037
+    for byte in (domain + value).encode("utf-8"):
+        result ^= byte
+        result = (result * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+    return result or 1
+
+
+def extract_canonical_skeleton(scene: Any,
+                               rotation_deg: tuple[float, float, float] | None = None) -> dict[str, Any] | None:
+    """Extract parent-relative bind-local TRS directly from Blender's armature.
+
+    This is the FBX import boundary for SECTION_SKELETAL_SKELETON, not a conversion from the
+    exploratory SECTION_FRAME_SKINNED representation. Blender uses column matrices; storing the
+    resulting quaternion components unchanged produces the equivalent transposed row rotation used
+    by mini-mbm's buildTrsMatrix.
+    """
+    from mathutils import Matrix
+
+    armature_obj = next((obj for obj in scene.objects if obj.type == "ARMATURE"), None)
+    if armature_obj is None or not armature_obj.data.bones:
+        return None
+
+    bones = list(armature_obj.data.bones)
+    by_name = {bone.name: bone for bone in bones}
+    children: dict[str, list[str]] = {}
+    roots: list[str] = []
+    for bone in bones:
+        if bone.parent:
+            children.setdefault(bone.parent.name, []).append(bone.name)
+        else:
+            roots.append(bone.name)
+    roots.sort()
+    for names in children.values():
+        names.sort()
+
+    ordered: list[str] = []
+    paths: dict[str, str] = {}
+    queue = list(roots)
+    while queue:
+        name = queue.pop(0)
+        bone = by_name[name]
+        paths[name] = f"{paths[bone.parent.name]}/{name}" if bone.parent else name
+        ordered.append(name)
+        queue.extend(children.get(name, []))
+
+    conversion = Matrix.Identity(4)
+    if rotation_deg:
+        ax, ay, az = (math.radians(float(value)) for value in rotation_deg)
+        conversion = Matrix.Rotation(az, 4, "Z") @ Matrix.Rotation(ay, 4, "Y") @ Matrix.Rotation(ax, 4, "X")
+    reflection = Matrix.Identity(4)
+    reflection[0][0] = -1.0
+    coordinate_change = reflection @ conversion
+    inverse_coordinate_change = coordinate_change.inverted()
+
+    global_bind: dict[str, Any] = {}
+    records: list[dict[str, Any]] = []
+    ids = {name: stable_id("mini-mbm.skeleton.bone/", paths[name]) for name in ordered}
+    if len(set(ids.values())) != len(ids):
+        raise RuntimeError("canonical skeleton bone ID collision")
+
+    for name in ordered:
+        bone = by_name[name]
+        # Coordinate changes transform matrices by conjugation. The X reflection is part of the
+        # accepted FBX boundary (-x,z,-y); unlike a one-sided multiplication, conjugation preserves
+        # a proper rotation and therefore does not manufacture a negative root scale.
+        world_bind = coordinate_change @ armature_obj.matrix_world @ bone.matrix_local @ inverse_coordinate_change
+        global_bind[name] = world_bind
+        local_bind = global_bind[bone.parent.name].inverted_safe() @ world_bind if bone.parent else world_bind
+        translation, rotation, scale = local_bind.decompose()
+        if min(abs(float(scale.x)), abs(float(scale.y)), abs(float(scale.z))) <= 1.0e-8:
+            raise RuntimeError(f"canonical bone '{name}' has singular bind scale")
+        if float(scale.x) < 0.0 or float(scale.y) < 0.0 or float(scale.z) < 0.0:
+            raise RuntimeError(f"canonical bone '{name}' has unsupported negative bind scale")
+        rotation.normalize()
+        world_head = coordinate_change @ (armature_obj.matrix_world @ bone.head_local)
+        world_tail = coordinate_change @ (armature_obj.matrix_world @ bone.tail_local)
+        length = float((world_tail - world_head).length)
+        records.append({
+            "boneId": ids[name],
+            "parentBoneId": ids[bone.parent.name] if bone.parent else 0,
+            "name": name,
+            "translation": (float(translation.x), float(translation.y), float(translation.z)),
+            "rotation": (float(rotation.x), float(rotation.y), float(rotation.z), float(rotation.w)),
+            "scale": (float(scale.x), float(scale.y), float(scale.z)),
+            "radius": max(0.001, length * 0.15),
+            "length": length,
+        })
+
+    identity = "|".join(paths[name] for name in ordered)
+    return {
+        "skeletonId": stable_id("mini-mbm.skeleton/", identity),
+        "bones": records,
+        "boneIdByName": ids,
+        "orderedNames": ordered,
+        "coordinateChange": coordinate_change,
+        "inverseCoordinateChange": inverse_coordinate_change,
+        "armatureObject": armature_obj,
+    }
+
+
+def build_canonical_skeleton_payload_v11(skeleton: dict[str, Any]) -> bytes:
+    buf = io.BytesIO()
+    bones = skeleton["bones"]
+    write_u64(buf, int(skeleton["skeletonId"]))
+    write_u32(buf, len(bones))
+    for bone in bones:
+        write_u64(buf, int(bone["boneId"]))
+        write_u64(buf, int(bone["parentBoneId"]))
+        write_string_v11(buf, str(bone["name"]))
+        write_vec3(buf, bone["translation"])
+        for value in bone["rotation"]:
+            write_f32(buf, value)
+        write_vec3(buf, bone["scale"])
+        write_f32(buf, bone["radius"])
+        write_f32(buf, bone["length"])
+    return buf.getvalue()
+
+
+def build_canonical_weights_payload_v11(subsets: list[dict[str, Any]],
+                                         skeleton: dict[str, Any]) -> bytes | None:
+    bone_ids = skeleton["boneIdByName"]
+    palette: list[int] = []
+    palette_index: dict[int, int] = {}
+    entries: list[tuple[list[int], list[float]]] = []
+    for subset in subsets:
+        for vertex in (subset.get("vertices") or []):
+            influences: list[tuple[int, float]] = []
+            for name, raw_weight in list(zip(vertex.get("boneNames") or [], vertex.get("weights") or []))[:4]:
+                weight = float(raw_weight)
+                if weight <= 0.0:
+                    continue
+                if name not in bone_ids:
+                    raise RuntimeError(f"vertex weight targets unknown canonical bone '{name}'")
+                bone_id = int(bone_ids[name])
+                if bone_id not in palette_index:
+                    if len(palette) >= 0xFFFF:
+                        raise RuntimeError("canonical weight palette exceeds 65535 bones")
+                    palette_index[bone_id] = len(palette)
+                    palette.append(bone_id)
+                influences.append((palette_index[bone_id], weight))
+            total = sum(weight for _, weight in influences)
+            if total <= 1.0e-8:
+                raise RuntimeError("canonical skinning requires at least one effective influence per vertex")
+            entries.append(([index for index, _ in influences], [weight / total for _, weight in influences]))
+
+    if not entries:
+        return None
+    buf = io.BytesIO()
+    write_u64(buf, int(skeleton["skeletonId"]))
+    write_u32(buf, 0)  # frameIndex: bind geometry is frame 0
+    write_u32(buf, len(entries))
+    write_u32(buf, len(palette))
+    for bone_id in palette:
+        write_u64(buf, bone_id)
+    for indices, weights in entries:
+        for slot in range(4):
+            write_u16(buf, indices[slot] if slot < len(indices) else 0xFFFF)
+        for slot in range(4):
+            write_f32(buf, weights[slot] if slot < len(weights) else 0.0)
+    return buf.getvalue()
+
+
+def extract_canonical_animations(scene: Any, clips: list[dict[str, Any]], fps: float,
+                                 skeleton: dict[str, Any]) -> list[dict[str, Any]]:
+    armature_obj = skeleton["armatureObject"]
+    coordinate_change = skeleton["coordinateChange"]
+    inverse_coordinate_change = skeleton["inverseCoordinateChange"]
+    ordered_names = skeleton["orderedNames"]
+    bone_ids = skeleton["boneIdByName"]
+    pose_by_name = {bone.name: bone for bone in armature_obj.pose.bones}
+    result: list[dict[str, Any]] = []
+    for clip in clips:
+        frames = clip_frame_numbers(clip)
+        if not frames:
+            continue
+        tracks = {name: [] for name in ordered_names}
+        for frame in frames:
+            scene.frame_set(frame)
+            bpy.context.view_layer.update()
+            global_pose: dict[str, Any] = {}
+            for name in ordered_names:
+                pose_bone = pose_by_name.get(name)
+                if pose_bone is None:
+                    raise RuntimeError(f"animation pose is missing canonical bone '{name}'")
+                world_pose = (coordinate_change @ armature_obj.matrix_world @ pose_bone.matrix @
+                              inverse_coordinate_change)
+                global_pose[name] = world_pose
+                parent_name = pose_bone.parent.name if pose_bone.parent else None
+                local_pose = global_pose[parent_name].inverted_safe() @ world_pose if parent_name else world_pose
+                translation, rotation, scale = local_pose.decompose()
+                rotation.normalize()
+                tracks[name].append({
+                    "time": float(frame - frames[0]) / fps,
+                    "translation": (float(translation.x), float(translation.y), float(translation.z)),
+                    "rotation": (float(rotation.x), float(rotation.y), float(rotation.z), float(rotation.w)),
+                    "scale": (float(scale.x), float(scale.y), float(scale.z)),
+                })
+        name = str(clip.get("name") or "Bake")
+        duration = max(float(int(clip.get("frameEnd", frames[-1])) -
+                             int(clip.get("frameStart", frames[0]))) / fps, 1.0 / fps)
+        result.append({
+            "clipId": stable_id("mini-mbm.skeleton.clip/", f"{skeleton['skeletonId']}/{name}"),
+            "name": name,
+            "duration": duration,
+            "loop": True,
+            "tracks": [{"boneId": bone_ids[bone_name], "keys": tracks[bone_name]}
+                       for bone_name in ordered_names],
+        })
+    return result
+
+
+def build_canonical_animations_payload_v11(skeleton_id: int, clips: list[dict[str, Any]]) -> bytes:
+    buf = io.BytesIO()
+    reserved = b"\x00\x00\x00"
+    write_u64(buf, skeleton_id)
+    write_u32(buf, len(clips))
+    for clip in clips:
+        write_u64(buf, clip["clipId"])
+        write_string_v11(buf, clip["name"])
+        write_f32(buf, clip["duration"])
+        write_u8(buf, 1 if clip["loop"] else 0)
+        buf.write(reserved)
+        write_u32(buf, len(clip["tracks"]))
+        for track in clip["tracks"]:
+            write_u64(buf, track["boneId"])
+            write_u8(buf, 7)  # translation | rotation | scale
+            buf.write(reserved)
+            write_u32(buf, len(track["keys"]))
+            for key in track["keys"]:
+                write_f32(buf, key["time"])
+                write_vec3(buf, key["translation"])
+                for value in key["rotation"]:
+                    write_f32(buf, value)
+                write_vec3(buf, key["scale"])
+                write_u8(buf, 0)  # linear
+                buf.write(reserved)
+                write_f32(buf, 0.0)
+                write_f32(buf, 0.0)
+                write_f32(buf, 1.0)
+                write_f32(buf, 1.0)
+    return buf.getvalue()
+
+
 def build_animation_payload_v11(anim: dict[str, Any]) -> bytes:
     buf = io.BytesIO()
     write_string_v11(buf, str(anim.get("name", "default")))
@@ -1640,6 +1898,9 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # written into SECTION_MATERIAL_TRANSFORM's angle field, which the engine no longer applies
         # at load time (see rotate_point_deg's own docstring).
         import_rotation_deg = (float(args.angle_x), float(args.angle_y), float(args.angle_z)) if args.post_process else None
+        canonical_skeleton = extract_canonical_skeleton(scene, import_rotation_deg) if args.include_bones else None
+        canonical_clips = (extract_canonical_animations(scene, clips, fps, canonical_skeleton)
+                           if canonical_skeleton and clips else [])
         # Embedded/packed textures (common in Mixamo downloads) get unpacked next to the output
         # .msh -- see get_first_texture_path/_extract_embedded_image -- rather than trusting the
         # FBX's own recorded source path, which points at wherever the original author's machine
@@ -1659,7 +1920,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
-            subsets = export_frame_subsets(scene, import_rotation_deg, output_dir, capture_weights)
+            subsets = export_frame_subsets(scene, import_rotation_deg, output_dir, capture_weights,
+                                           canonical_coordinates=bool(args.include_bones))
             if args.large_mesh_mode == "vb_only":
                 debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
             else:
@@ -1677,7 +1939,23 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             check_cancel_requested(args.cancel_file)
 
         out_index = 0
-        if clips:
+        if canonical_skeleton:
+            # Canonical weights and inverse bind target the undeformed bind geometry, never an
+            # arbitrary sampled pose. Animation lives in type-43 local tracks instead of duplicate
+            # SECTION_FRAME_STATIC geometry.
+            armature_obj = canonical_skeleton["armatureObject"]
+            previous_pose_position = armature_obj.data.pose_position
+            armature_obj.data.pose_position = "REST"
+            try:
+                out_index = 1
+                export_frame_to_chunk(max(1, int(args.frame_start)))
+            finally:
+                armature_obj.data.pose_position = previous_pose_position
+            animations = [{
+                "name": "default", "initialFrame": 1, "finalFrame": 1,
+                "timeBetweenFrame": 0.0, "typeAnimation": 1,
+            }]
+        elif clips:
             for clip in clips:
                 target_start = len(frame_paths) + 1
                 debug_print(
@@ -1710,13 +1988,18 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         angles = (0.0, 0.0, 0.0)
         texture_path_list = sorted(texture_paths)
 
-        joints = extract_armature_joints(scene, import_rotation_deg) if args.include_bones else []
-        if joints:
-            debug_print(args.debug_steps, f"extracted armature: {len(joints)} bone(s)")
+        if canonical_skeleton:
+            debug_print(args.debug_steps, f"extracted canonical armature: {len(canonical_skeleton['bones'])} bone(s)")
 
-        weights_payload = build_vertex_skin_weights_payload_v11(first_frame_subsets) if first_frame_subsets else None
-        if weights_payload is not None:
-            debug_print(args.debug_steps, "captured real per-vertex skin weights")
+        canonical_weights_payload = None
+        if canonical_skeleton and first_frame_subsets:
+            canonical_weights_payload = build_canonical_weights_payload_v11(first_frame_subsets, canonical_skeleton)
+        if canonical_weights_payload is not None:
+            debug_print(args.debug_steps, "captured canonical per-vertex skin weights")
+        canonical_animations_payload = (build_canonical_animations_payload_v11(
+            canonical_skeleton["skeletonId"], canonical_clips) if canonical_clips else None)
+        if canonical_animations_payload is not None:
+            debug_print(args.debug_steps, f"captured canonical animation: {len(canonical_clips)} clip(s)")
 
         section_count = 1  # SECTION_MATERIAL_TRANSFORM
         if texture_path_list:
@@ -1724,10 +2007,12 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         section_count += 1  # SECTION_DETAIL_PHYSICS
         section_count += len(animations)
         section_count += len(frame_paths)
-        if joints:
-            section_count += 1  # SECTION_FRAME_SKINNED
-        if weights_payload is not None:
-            section_count += 1  # SECTION_VERTEX_SKIN_WEIGHTS
+        if canonical_skeleton:
+            section_count += 1  # SECTION_SKELETAL_SKELETON
+        if canonical_weights_payload is not None:
+            section_count += 1  # SECTION_SKELETAL_WEIGHTS
+        if canonical_animations_payload is not None:
+            section_count += 1  # SECTION_SKELETAL_ANIMATION
 
         check_cancel_requested(args.cancel_file)
         debug_print(args.debug_steps, "writing output")
@@ -1751,13 +2036,15 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                     frame_payload = frame_fp.read()
                 write_section_v11(fp, SECTION_FRAME_STATIC, 1, frame_payload, True)
 
-            if joints:
-                # sectionVersion 2: adds rotX/Y/Z, scaleX/Y/Z, length - see SKELETON_BONE_V11 and
-                # build_skeleton_payload_v11's own docstring.
-                write_section_v11(fp, SECTION_FRAME_SKINNED, 2, build_skeleton_payload_v11(joints), False)
+            if canonical_skeleton:
+                write_section_v11(fp, SECTION_SKELETAL_SKELETON, 1,
+                                  build_canonical_skeleton_payload_v11(canonical_skeleton), False)
 
-            if weights_payload is not None:
-                write_section_v11(fp, SECTION_VERTEX_SKIN_WEIGHTS, 1, weights_payload, False)
+            if canonical_weights_payload is not None:
+                write_section_v11(fp, SECTION_SKELETAL_WEIGHTS, 1, canonical_weights_payload, False)
+
+            if canonical_animations_payload is not None:
+                write_section_v11(fp, SECTION_SKELETAL_ANIMATION, 1, canonical_animations_payload, False)
 
             fp.flush()
             os.fsync(fp.fileno())

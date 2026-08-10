@@ -550,8 +550,10 @@ a regression to fix retroactively.
 This section fixes the byte-level contract. Readers for types 41–43 are implemented, including
 shared `skeletonId`, frame-0 topology, palette, coverage, clip/track/key, and presence invariants.
 `MESH_MBM_DEBUG::saveV11` validates and emits an existing canonical 41–42–43 group in canonical
-order and includes it in `sectionCount`; it never promotes legacy editor data implicitly. The FBX
-import conversion remains pending.
+order and includes it in `sectionCount`; it never promotes legacy editor data implicitly. The
+direct Blender/FBX path now creates types 41 and 42 directly from armature bind matrices and vertex
+groups, and type 43 from sampled parent-relative pose matrices. An armature import writes one REST
+bind-geometry frame; it does not duplicate sampled poses as static geometry.
 Every integer and float uses the existing V11 little-endian field serializers; records are written
 field-by-field and never struct-blitted. Strings use the length-prefixed UTF-8 encoding from §5.
 Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompressed bytes.

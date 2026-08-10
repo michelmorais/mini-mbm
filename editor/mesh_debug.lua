@@ -1005,7 +1005,9 @@ local getBlenderImportOptionsForRow
 local function getRowImportEstimate(row)
     local options = getBlenderImportOptionsForRow(row)
     local targetFrames = 1
-    if options.bakeAnimation and type(options.animationClips) == 'table' and #options.animationClips > 0 then
+    if tBlenderImportState.bImportIncludeBones then
+        targetFrames = 1 -- one REST bind frame; examined animation becomes canonical type-43 tracks
+    elseif options.bakeAnimation and type(options.animationClips) == 'table' and #options.animationClips > 0 then
         targetFrames = 0
         for i = 1, #options.animationClips do
             local clip = options.animationClips[i]
@@ -2109,7 +2111,8 @@ local function blenderImportCoroutine()
             local lastWaitLog = -1
             local lastLogLinePrinted = nil
             local lastProgressLine = nil
-            local expectedFrames = importOptions.bakeAnimation and getBakedFrameCount(importOptions.frameStart, importOptions.frameEnd, importOptions.sampleStep) or 1
+            local expectedFrames = importOptions.includeBones and 1 or
+                (importOptions.bakeAnimation and getBakedFrameCount(importOptions.frameStart, importOptions.frameEnd, importOptions.sampleStep) or 1)
             local finished = false
             while not finished do
                 if st.bAbortRequested then
