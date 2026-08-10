@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **0.8**
+Document version: **0.9**
 Status: **Product contracts consolidated; shared Milestone 0.1–0.7 foundation audited**
 Last updated: **2026-08-09**
 
@@ -375,6 +375,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.9 | 2026-08-10 | Registered the provisional 32-frame Mixamo walking source and its frames 1/16/32 audit for branch development. It complements rather than replaces the rat bind/weight/topology fixture and remains gated on provenance plus final handedness-converted expectations. |
 | 0.8 | 2026-08-09 | Recorded M0.7's reproducible raw-cluster/rest-pose FBX audit and accepted the atomic handedness conversion contract. The rat is approved for bind/weight/topology evidence but disqualified as an animated-pose fixture because its action has zero sampled pose delta. No importer reflection or editor mutation was implemented. |
 | 0.7 | 2026-08-09 | Completed M0.6's headless synthetic regression coverage for hierarchy, bind identity, weights, clip validation/sampling, easing, loop/clamp, antipodality, scale/shear, and normalized scale-1/scale-100 pose equivalence. No editor UI or asset mutation was introduced. |
 | 0.6 | 2026-08-09 | Adopted M0.5's versioned persistence decision: new canonical skeleton, runtime weight, and skeletal animation sections linked by `skeletonId`, with readers and corruption tests required before any writer. Legacy editor sections retain their meaning and the new values remain reserved but unimplemented. |

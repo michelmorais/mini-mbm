@@ -234,8 +234,9 @@
     6.54.0 Added private skeletal clip, track, and key contracts with validation, pure sampling, easing, antipodal quaternion interpolation, bind-local channel fallback, and local-to-global pose evaluation fixtures.
     6.54.1 Expanded skeletal-foundation regression coverage across corrupt weights/clips, easing, loop/clamp, scale/shear classification, and normalized scale-1/scale-100 pose equivalence.
     6.54.2 Added a reproducible raw-cluster/rest-pose FBX audit fixture for the rat asset and documented the accepted atomic handedness conversion contract without changing importer output.
+    6.54.3 Added provisional audited Mixamo walking fixture evidence for frames 1, 16, and 32 while retaining the rat as the bind/weight/topology baseline.
 */
-#define MBM_VERSION "6.54.2" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.54.3" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

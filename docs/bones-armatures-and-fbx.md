@@ -726,3 +726,10 @@ loop-normal dot (`0.986664612`).
 The sole action, `Armature|mixamo.com|Layer0` at frames 1–2, has zero selected-bone matrix delta.
 Consequently this asset is a bind/weight/topology fixture only. It cannot validate animated FBX
 sampling; a genuinely animated source remains required for that later acceptance test.
+
+For work on the current feature branch, `src/test-lib/human-from-mixamo-walking.fbx` supplies that
+missing animated source. Its checked audit records a 32-frame Mixamo walk with selected-bone matrix
+delta `0.316282972`; frames 1, 16, and 32 are the provisional comparison samples. It has 67 bones,
+114 raw clusters across its skinned objects, and maximum selected cluster/rest error `4.5776e-5`.
+The source is provisional until provenance/licensing and post-handedness expected matrices are
+recorded; do not silently substitute it for the rat's bind/topology baselines.
