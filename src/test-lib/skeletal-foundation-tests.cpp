@@ -805,6 +805,63 @@ namespace
         expect(!validateCanonicalAnimations(skeleton, animations),
                "canonical animation collection must reject duplicate clip IDs and names");
     }
+
+    void testCpuLbsReference()
+    {
+        CANONICAL_BONE root;
+        root.boneId = 10; root.name = "root";
+        CANONICAL_SKELETON skeleton;
+        skeleton.skeletonId = 100; skeleton.sourceBones = {root};
+        expect(compileCanonicalSkeleton(skeleton.sourceBones, skeleton.compiled),
+               "CPU LBS fixture skeleton must compile");
+
+        CANONICAL_WEIGHTS weights;
+        weights.skeletonId = 100;
+        weights.paletteBoneIds = {10};
+        weights.vertices.resize(2);
+        for (CANONICAL_VERTEX_WEIGHT &vertex : weights.vertices)
+        {
+            vertex.paletteIndex[0] = 0;
+            vertex.weight[0] = 1.0f;
+        }
+        const std::vector<VEC3> positions = {VEC3(1, 2, 3), VEC3(-2, 0.5f, 4)};
+        const std::vector<VEC3> normals = {VEC3(0, 1, 0), VEC3(1, 0, 0)};
+        SKELETAL_POSE pose;
+        pose.localTransforms = {root.localBind};
+        pose.globalTransforms = {skeleton.compiled.bones[0].globalBindMatrix};
+        std::vector<VEC3> skinnedPositions, skinnedNormals;
+        expect(skinVerticesLbsReference(skeleton, weights, pose, positions, normals,
+                                        skinnedPositions, skinnedNormals),
+               "CPU LBS bind pose must evaluate");
+        expect(std::fabs(skinnedPositions[0].x - positions[0].x) <= MATRIX_TOLERANCE &&
+                   std::fabs(skinnedPositions[0].y - positions[0].y) <= MATRIX_TOLERANCE &&
+                   std::fabs(skinnedPositions[0].z - positions[0].z) <= MATRIX_TOLERANCE &&
+                   std::fabs(skinnedNormals[0].y - 1.0f) <= MATRIX_TOLERANCE,
+               "CPU LBS bind pose must preserve positions and normals");
+
+        LOCAL_TRANSFORM moved = root.localBind;
+        moved.translation = VEC3(2, 3, 4);
+        pose.globalTransforms[0] = buildTrsMatrix(moved);
+        expect(skinVerticesLbsReference(skeleton, weights, pose, positions, normals,
+                                        skinnedPositions, skinnedNormals) &&
+                   std::fabs(skinnedPositions[0].x - 3.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(skinnedPositions[0].y - 5.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(skinnedPositions[0].z - 7.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(skinnedNormals[0].x) <= MATRIX_TOLERANCE &&
+                   std::fabs(skinnedNormals[0].y - 1.0f) <= MATRIX_TOLERANCE,
+               "CPU LBS weight-one motion must match rigid translation without translating normals");
+
+        moved.translation = VEC3(0, 0, 0);
+        moved.scale = VEC3(2, 1, 1);
+        pose.globalTransforms[0] = buildTrsMatrix(moved);
+        const float diagonal = 0.70710678118f;
+        const std::vector<VEC3> diagonalNormal = {VEC3(diagonal, diagonal, 0), VEC3(1, 0, 0)};
+        expect(skinVerticesLbsReference(skeleton, weights, pose, positions, diagonalNormal,
+                                        skinnedPositions, skinnedNormals) &&
+                   std::fabs(skinnedNormals[0].x - 0.4472135955f) <= MATRIX_TOLERANCE &&
+                   std::fabs(skinnedNormals[0].y - 0.894427191f) <= MATRIX_TOLERANCE,
+               "CPU LBS normals must use inverse-transpose under non-uniform scale");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -824,6 +881,7 @@ int runSkeletalFoundationTests()
     testCanonicalAnimationReader();
     testCanonicalAnimationValidation();
     testCanonicalWriterRoundTrip();
+    testCpuLbsReference();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

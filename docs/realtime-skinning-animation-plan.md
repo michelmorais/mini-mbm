@@ -493,7 +493,8 @@ mutate assets, evaluate clips, or deform vertices.
 
 ### Phase 3 — CPU references
 
-- Implement test-oriented CPU LBS and rigid DQS references.
+- CPU LBS reference implemented privately for positions and inverse-transpose normals; rigid DQS
+  remains next.
 - Add antipodality, normalization, scale-detection, normal, and bind-pose tests.
 - Establish expected cross-method results for single-bone rigid motion.
 
@@ -700,6 +701,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 2.8 | 2026-08-10 | Began Phase 3 with a private CPU LBS oracle over canonical skeleton/weights and an evaluated pose. It composes row-vector `inverseGlobalBind * posedGlobal`, blends four-influence positions, transforms normals with per-bone inverse-transpose matrices, and rejects inconsistent topology/palette/pose input. Fixtures prove bind identity, weight-one rigid translation, untranslated normals, and correct non-uniform-scale normal handling. No renderer, GPU path, or Lua runtime surface was added. |
 | 2.7 | 2026-08-10 | Connected Mesh Debug's Bone inspector and gizmo to canonical section 41 through a detached, canonical-first bind report. Canonical names, hierarchy, global positions, local quaternion-derived orientation, scale, radius, and length are visible read-only; destructive legacy controls are hidden/disabled, and `getTotalBone/getBone` remain empty rather than manufacturing a compatibility skeleton. |
 | 2.6 | 2026-08-10 | Replaced the direct FBX importer's legacy/static skeletal output with canonical types 41–43. Bind-local TRS is derived directly from Blender armature matrices; hierarchy-path IDs are deterministic; weights resolve to a `uint16` stable-ID palette with four normalized influences; the accepted `(-x,z,-y)` conversion reflects geometry/normals, reverses winding, and conjugates bone matrices atomically. Examined poses become parent-relative quaternion-local tracks while geometry is emitted once in REST. The 67-bone, 32-frame Mixamo walk produced one bind frame plus 67 tracks × 32 keys, no `11/40`, passed canonical load and save/reload, and reduced output from about 28 MB to 1.4 MB. |
 | 2.5 | 2026-08-10 | Added canonical writer round-trip in `MESH_MBM_DEBUG::saveV11`: preflight validation prevents partial output for inconsistent skeleton/weight/animation data, `sectionCount` includes every present canonical section, and payloads are emitted exactly once in 41–42–43 order. A save/reload fixture verifies the complete group and confirms that the writer never promotes legacy editor sections implicitly. FBX-to-canonical import remains next. |

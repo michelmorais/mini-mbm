@@ -913,4 +913,90 @@ namespace mbm::skeletal
         }
         return true;
     }
+
+    bool skinVerticesLbsReference(const CANONICAL_SKELETON &skeleton, const CANONICAL_WEIGHTS &weights,
+                                  const SKELETAL_POSE &pose, const std::vector<VEC3> &bindPositions,
+                                  const std::vector<VEC3> &bindNormals, std::vector<VEC3> &outPositions,
+                                  std::vector<VEC3> &outNormals) noexcept
+    {
+        outPositions.clear();
+        outNormals.clear();
+        const size_t vertexCount = bindPositions.size();
+        if (weights.vertices.size() != vertexCount ||
+            (!bindNormals.empty() && bindNormals.size() != vertexCount) ||
+            pose.globalTransforms.size() != skeleton.compiled.bones.size() ||
+            !validateCanonicalWeights(skeleton, weights, static_cast<uint32_t>(vertexCount)))
+            return false;
+
+        std::vector<MATRIX> paletteMatrices(weights.paletteBoneIds.size());
+        std::vector<MATRIX> paletteNormalMatrices;
+        if (!bindNormals.empty())
+            paletteNormalMatrices.resize(weights.paletteBoneIds.size());
+        for (size_t paletteIndex = 0; paletteIndex < weights.paletteBoneIds.size(); ++paletteIndex)
+        {
+            const auto found = skeleton.compiled.indexById.find(weights.paletteBoneIds[paletteIndex]);
+            if (found == skeleton.compiled.indexById.end())
+                return false;
+            const size_t boneIndex = static_cast<size_t>(found->second);
+            MatrixMultiply(&paletteMatrices[paletteIndex],
+                           &skeleton.compiled.bones[boneIndex].inverseGlobalBindMatrix,
+                           &pose.globalTransforms[boneIndex]);
+            if (!bindNormals.empty())
+            {
+                MATRIX inverse;
+                float determinant = 0.0f;
+                MatrixInverse(&inverse, &determinant, &paletteMatrices[paletteIndex]);
+                if (!std::isfinite(determinant) || std::fabs(determinant) <= SINGULAR_TOLERANCE)
+                    return false;
+                MATRIX &normalMatrix = paletteNormalMatrices[paletteIndex];
+                for (uint8_t row = 0; row < 4; ++row)
+                    for (uint8_t column = 0; column < 4; ++column)
+                        normalMatrix.m[row][column] = inverse.m[column][row];
+            }
+        }
+
+        outPositions.resize(vertexCount);
+        if (!bindNormals.empty())
+            outNormals.resize(vertexCount);
+        for (size_t vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+        {
+            VEC3 position(0.0f, 0.0f, 0.0f);
+            VEC3 normal(0.0f, 0.0f, 0.0f);
+            const CANONICAL_VERTEX_WEIGHT &influence = weights.vertices[vertexIndex];
+            for (uint8_t slot = 0; slot < 4; ++slot)
+            {
+                if (influence.paletteIndex[slot] == UINT16_MAX)
+                    continue;
+                const MATRIX &matrix = paletteMatrices[influence.paletteIndex[slot]];
+                const float weight = influence.weight[slot];
+                const VEC3 &sourcePosition = bindPositions[vertexIndex];
+                position.x += (sourcePosition.x * matrix._11 + sourcePosition.y * matrix._21 +
+                               sourcePosition.z * matrix._31 + matrix._41) * weight;
+                position.y += (sourcePosition.x * matrix._12 + sourcePosition.y * matrix._22 +
+                               sourcePosition.z * matrix._32 + matrix._42) * weight;
+                position.z += (sourcePosition.x * matrix._13 + sourcePosition.y * matrix._23 +
+                               sourcePosition.z * matrix._33 + matrix._43) * weight;
+                if (!bindNormals.empty())
+                {
+                    const MATRIX &normalMatrix = paletteNormalMatrices[influence.paletteIndex[slot]];
+                    const VEC3 &sourceNormal = bindNormals[vertexIndex];
+                    normal.x += (sourceNormal.x * normalMatrix._11 + sourceNormal.y * normalMatrix._21 +
+                                 sourceNormal.z * normalMatrix._31) * weight;
+                    normal.y += (sourceNormal.x * normalMatrix._12 + sourceNormal.y * normalMatrix._22 +
+                                 sourceNormal.z * normalMatrix._32) * weight;
+                    normal.z += (sourceNormal.x * normalMatrix._13 + sourceNormal.y * normalMatrix._23 +
+                                 sourceNormal.z * normalMatrix._33) * weight;
+                }
+            }
+            outPositions[vertexIndex] = position;
+            if (!bindNormals.empty())
+            {
+                const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+                if (length <= QUATERNION_ZERO_EPSILON)
+                    return false;
+                outNormals[vertexIndex] = VEC3(normal.x / length, normal.y / length, normal.z / length);
+            }
+        }
+        return true;
+    }
 }
