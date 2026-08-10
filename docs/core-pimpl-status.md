@@ -151,6 +151,8 @@ mutable canonical storage or lookup container is exposed through the public head
 The type-42 reader follows the same boundary: its stable-ID palette and per-vertex four-influence
 records remain `Impl`-owned and are validated against the compiled type-41 skeleton and frame-1
 topology before being retained.
+Type-43 follows identically: canonical clips, tracks, keys, easing, and lookup validation remain
+private in `Impl`; the public mesh headers expose neither the vectors nor mutable animation state.
 
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade

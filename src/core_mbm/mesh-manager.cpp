@@ -134,6 +134,7 @@ namespace mbm
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
+        skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -175,7 +176,8 @@ namespace mbm
               articulatedParts(std::move(other.articulatedParts)),
               articulatedClips(std::move(other.articulatedClips)),
               canonicalSkeleton(std::move(other.canonicalSkeleton)),
-              canonicalWeights(std::move(other.canonicalWeights))
+              canonicalWeights(std::move(other.canonicalWeights)),
+              canonicalAnimations(std::move(other.canonicalAnimations))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -203,6 +205,7 @@ namespace mbm
             articulatedClips = std::move(other.articulatedClips);
             canonicalSkeleton = std::move(other.canonicalSkeleton);
             canonicalWeights = std::move(other.canonicalWeights);
+            canonicalAnimations = std::move(other.canonicalAnimations);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -944,6 +947,80 @@ namespace
             mbm::skeletal::validateCanonicalWeights(skeleton, out, expectedVertexCount);
     }
 
+    bool read_zero_reserved3(util::MEM_CURSOR_V11 &fp)
+    {
+        uint8_t reserved[3] = {0, 0, 0};
+        return util::le_io::readBytes(fp, reserved, sizeof(reserved)) &&
+            reserved[0] == 0 && reserved[1] == 0 && reserved[2] == 0;
+    }
+
+    bool parse_canonical_animation_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
+                                                const mbm::skeletal::CANONICAL_SKELETON &skeleton,
+                                                mbm::skeletal::CANONICAL_ANIMATIONS &out)
+    {
+        if (sectionVersion != 1)
+            return false;
+        out = {};
+        uint32_t clipCount = 0;
+        if (!util::le_io::readU64LE(fp, out.skeletonId) ||
+            !util::le_io::readU32LE(fp, clipCount) || clipCount > (fp.size - fp.pos) / 22u)
+            return false;
+        out.clips.reserve(clipCount);
+        for (uint32_t clipIndex = 0; clipIndex < clipCount; ++clipIndex)
+        {
+            mbm::skeletal::SKELETAL_CLIP clip;
+            uint8_t loop = 0;
+            uint32_t trackCount = 0;
+            if (!util::le_io::readU64LE(fp, clip.clipId) || !util::readStringV11(fp, clip.name) ||
+                !util::le_io::readF32LE(fp, clip.duration) ||
+                !util::le_io::readBytes(fp, &loop, sizeof(loop)) || loop > 1 ||
+                !read_zero_reserved3(fp) || !util::le_io::readU32LE(fp, trackCount) ||
+                trackCount > (fp.size - fp.pos) / 16u)
+                return false;
+            clip.loop = loop != 0;
+            clip.tracks.reserve(trackCount);
+            for (uint32_t trackIndex = 0; trackIndex < trackCount; ++trackIndex)
+            {
+                mbm::skeletal::SKELETAL_TRACK track;
+                uint32_t keyCount = 0;
+                if (!util::le_io::readU64LE(fp, track.boneId) ||
+                    !util::le_io::readBytes(fp, &track.channelMask, sizeof(track.channelMask)) ||
+                    !read_zero_reserved3(fp) || !util::le_io::readU32LE(fp, keyCount) ||
+                    keyCount == 0 || keyCount > (fp.size - fp.pos) / 64u)
+                    return false;
+                track.keys.reserve(keyCount);
+                for (uint32_t keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+                {
+                    mbm::skeletal::SKELETAL_KEY key;
+                    uint8_t easing = 0;
+                    if (!util::le_io::readF32LE(fp, key.time) ||
+                        !util::le_io::readF32LE(fp, key.local.translation.x) ||
+                        !util::le_io::readF32LE(fp, key.local.translation.y) ||
+                        !util::le_io::readF32LE(fp, key.local.translation.z) ||
+                        !util::le_io::readF32LE(fp, key.local.rotation.x) ||
+                        !util::le_io::readF32LE(fp, key.local.rotation.y) ||
+                        !util::le_io::readF32LE(fp, key.local.rotation.z) ||
+                        !util::le_io::readF32LE(fp, key.local.rotation.w) ||
+                        !util::le_io::readF32LE(fp, key.local.scale.x) ||
+                        !util::le_io::readF32LE(fp, key.local.scale.y) ||
+                        !util::le_io::readF32LE(fp, key.local.scale.z) ||
+                        !util::le_io::readBytes(fp, &easing, sizeof(easing)) ||
+                        !read_zero_reserved3(fp) ||
+                        !util::le_io::readF32LE(fp, key.bezierX1) ||
+                        !util::le_io::readF32LE(fp, key.bezierY1) ||
+                        !util::le_io::readF32LE(fp, key.bezierX2) ||
+                        !util::le_io::readF32LE(fp, key.bezierY2))
+                        return false;
+                    key.easing = static_cast<mbm::skeletal::SKELETAL_EASING>(easing);
+                    track.keys.push_back(std::move(key));
+                }
+                clip.tracks.push_back(std::move(track));
+            }
+            out.clips.push_back(std::move(clip));
+        }
+        return fp.pos == fp.size && mbm::skeletal::validateCanonicalAnimations(skeleton, out);
+    }
+
     // Worker-thread-safe equivalent of MESH_MBM::loadV11's section loop - see the struct comment
     // above for the main-thread-only calls this deliberately omits (deferred to
     // MESH_MBM::finishLoadFromIntermediate instead). fileNamePath must already be a resolved path
@@ -993,6 +1070,7 @@ namespace
         int               frame0UvCount = 0;
         bool              sawCanonicalSkeleton = false;
         bool              sawCanonicalWeights = false;
+        bool              sawCanonicalAnimations = false;
         uint32_t          canonicalFrame0VertexCount = UINT32_MAX;
 
         // Canonical sections resolve by type, not file order. Pre-read the skeleton and frame-0
@@ -1173,6 +1251,14 @@ namespace
                         out.canonicalSkeleton, canonicalFrame0VertexCount, out.canonicalWeights))
                 { errorOut = "failed to parse SECTION_SKELETAL_WEIGHTS"; return false; }
                 sawCanonicalWeights = true;
+            }
+            else if (staged.header.type == util::SECTION_SKELETAL_ANIMATION)
+            {
+                if (sawCanonicalAnimations || !sawCanonicalSkeleton ||
+                    !parse_canonical_animation_section_v11(tmp, staged.header.sectionVersion,
+                        out.canonicalSkeleton, out.canonicalAnimations))
+                { errorOut = "failed to parse SECTION_SKELETAL_ANIMATION"; return false; }
+                sawCanonicalAnimations = true;
             }
             else
             {
@@ -3084,6 +3170,7 @@ namespace mbm
         bool    sawFirstFrame  = false;
         bool    sawCanonicalSkeleton = false;
         bool    sawCanonicalWeights = false;
+        bool    sawCanonicalAnimations = false;
         uint32_t canonicalFrame0VertexCount = UINT32_MAX;
         util::BUFFER_MESH_DEBUG *frame0 = nullptr;
 
@@ -3266,6 +3353,15 @@ namespace mbm
                         impl->canonicalSkeleton, canonicalFrame0VertexCount, impl->canonicalWeights))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_WEIGHTS [%s]", fileNamePath);
                 sawCanonicalWeights = true;
+            }
+            else if (sectionHeader.type == util::SECTION_SKELETAL_ANIMATION)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
+                if (sawCanonicalAnimations || !sawCanonicalSkeleton ||
+                    !parse_canonical_animation_section_v11(tmp, sectionHeader.sectionVersion,
+                        impl->canonicalSkeleton, impl->canonicalAnimations))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_ANIMATION [%s]", fileNamePath);
+                sawCanonicalAnimations = true;
             }
             else
             {
@@ -5269,6 +5365,7 @@ namespace mbm
         impl->skeleton.clear();
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
+        impl->canonicalAnimations = {};
         impl->compiledSkeletonBindReport = {};
         impl->hasCompiledSkeletonBindReport = false;
     }
@@ -5554,6 +5651,7 @@ namespace mbm
         impl->articulatedClips.clear();
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
+        impl->canonicalAnimations = {};
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
         impl->coordTexFrame_0 = nullptr;
@@ -6450,6 +6548,7 @@ namespace mbm
         impl->articulatedClips = std::move(in.articulatedClips);
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
         impl->canonicalWeights = std::move(in.canonicalWeights);
+        impl->canonicalAnimations = std::move(in.canonicalAnimations);
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;
 

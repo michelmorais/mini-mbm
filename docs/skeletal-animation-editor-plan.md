@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **1.3**
-Status: **Canonical skeleton/weight readers implemented; permanent editor shell still pending**
+Document version: **1.4**
+Status: **Canonical readers implemented; writer/import and permanent editor shell pending**
 Last updated: **2026-08-10**
 
 ## 1. Purpose
@@ -394,6 +394,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.4 | 2026-08-10 | Completed canonical read support with type 43 clips/tracks/keys and final section presence/identity validation in both loaders. The valid fixture proves order-independent resolution; mismatch target/easing fixtures prove deterministic rejection. Writer/import remains the next prerequisite for the permanent editor shell. |
 | 1.3 | 2026-08-10 | Added canonical type-42 weights to both loaders with order-independent skeleton/topology resolution and strict ID, palette, four-influence, coverage, and normalization validation. The permanent editor still waits for type 43 plus the canonical writer/import path. |
 | 1.2 | 2026-08-10 | Began Milestone 1's canonical data dependency with the type-41 reader in both real loaders and deterministic valid/invalid/duplicate fixtures. Canonical weights, clips, cross-section validation, writer/import, and the permanent three-node shell remain pending. |
 | 1.1 | 2026-08-10 | Made canonical-only delivery normative: the Mesh Debug skeleton/weight representation and bind-report bridge are temporary audit scaffolding, not compatibility requirements. Canonical readers/import must precede permanent editor work; legacy skeletal APIs/sections are removed and affected assets regenerated from FBX before delivery. |

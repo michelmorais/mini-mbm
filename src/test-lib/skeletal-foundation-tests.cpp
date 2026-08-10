@@ -592,14 +592,39 @@ namespace
     }
 
     bool writeCanonicalWeightedFixture(const char *path, const uint64_t weightSkeletonId,
-                                       const float weightValue)
+                                       const float weightValue, const uint64_t animationSkeletonId = 100,
+                                       const uint64_t animationBoneId = 10, const uint8_t easing = 0)
     {
         FILE *fp = std::fopen(path, "wb+");
         if (!fp) return false;
         util::FILE_HEADER_V11 fileHeader;
         fileHeader.typeMesh = util::TYPE_MESH_3D;
-        fileHeader.sectionCount = 3;
+        fileHeader.sectionCount = 4;
         bool ok = util::writeFileHeaderV11(fp, fileHeader);
+
+        util::SECTION_HEADER_V11 animationHeader;
+        animationHeader.type = util::SECTION_SKELETAL_ANIMATION;
+        animationHeader.sectionVersion = 1;
+        ok = ok && util::writeSectionV11Streamed(fp, animationHeader,
+            [animationSkeletonId, animationBoneId, easing](FILE *payload)
+            {
+                const uint8_t loop = 1, reserved[3] = {0, 0, 0}, channel = 1;
+                return util::le_io::writeU64LE(payload, animationSkeletonId) &&
+                    util::le_io::writeU32LE(payload, 1) && util::le_io::writeU64LE(payload, 200) &&
+                    util::writeStringV11(payload, "walk") && util::le_io::writeF32LE(payload, 1) &&
+                    util::le_io::writeBytes(payload, &loop, 1) && util::le_io::writeBytes(payload, reserved, 3) &&
+                    util::le_io::writeU32LE(payload, 1) && util::le_io::writeU64LE(payload, animationBoneId) &&
+                    util::le_io::writeBytes(payload, &channel, 1) && util::le_io::writeBytes(payload, reserved, 3) &&
+                    util::le_io::writeU32LE(payload, 1) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                    util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                    util::le_io::writeBytes(payload, &easing, 1) && util::le_io::writeBytes(payload, reserved, 3) &&
+                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1);
+            });
 
         util::SECTION_HEADER_V11 weightsHeader;
         weightsHeader.type = util::SECTION_SKELETAL_WEIGHTS;
@@ -665,6 +690,44 @@ namespace
                "canonical weight reader must reject non-unit vertex sums");
         std::remove(valid); std::remove(wrongId); std::remove(badSum);
     }
+
+    void testCanonicalAnimationReader()
+    {
+        const char *wrongId = "/tmp/mini-mbm-canonical-animation-id.msh";
+        const char *unknownBone = "/tmp/mini-mbm-canonical-animation-bone.msh";
+        const char *badEasing = "/tmp/mini-mbm-canonical-animation-easing.msh";
+        MESH_MBM_DEBUG mesh;
+        expect(writeCanonicalWeightedFixture(wrongId, 100, 1.0f, 101) && !mesh.loadV11(wrongId),
+               "canonical animation reader must reject skeletonId mismatch");
+        expect(writeCanonicalWeightedFixture(unknownBone, 100, 1.0f, 100, 999) && !mesh.loadV11(unknownBone),
+               "canonical animation reader must reject unknown track bone IDs");
+        expect(writeCanonicalWeightedFixture(badEasing, 100, 1.0f, 100, 10, 9) && !mesh.loadV11(badEasing),
+               "canonical animation reader must reject invalid easing values");
+        std::remove(wrongId); std::remove(unknownBone); std::remove(badEasing);
+    }
+
+    void testCanonicalAnimationValidation()
+    {
+        CANONICAL_BONE root;
+        root.boneId = 10; root.name = "root";
+        CANONICAL_SKELETON skeleton;
+        skeleton.skeletonId = 100; skeleton.sourceBones = {root};
+        expect(compileCanonicalSkeleton(skeleton.sourceBones, skeleton.compiled),
+               "canonical animation fixture skeleton must compile");
+        SKELETAL_CLIP clip;
+        clip.clipId = 200; clip.name = "idle"; clip.duration = 1.0f;
+        SKELETAL_TRACK track;
+        track.boneId = 10; track.channelMask = SKELETAL_CHANNEL_TRANSLATION;
+        track.keys.push_back({});
+        clip.tracks.push_back(track);
+        CANONICAL_ANIMATIONS animations;
+        animations.skeletonId = 100; animations.clips = {clip};
+        expect(validateCanonicalAnimations(skeleton, animations),
+               "valid canonical animation collection must validate");
+        animations.clips.push_back(clip);
+        expect(!validateCanonicalAnimations(skeleton, animations),
+               "canonical animation collection must reject duplicate clip IDs and names");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -681,6 +744,8 @@ int runSkeletalFoundationTests()
     testCanonicalSkeletonReader();
     testCanonicalWeightValidation();
     testCanonicalWeightReader();
+    testCanonicalAnimationReader();
+    testCanonicalAnimationValidation();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

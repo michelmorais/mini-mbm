@@ -221,6 +221,12 @@ namespace mbm::skeletal
         std::vector<SKELETAL_TRACK> tracks;
     };
 
+    struct CANONICAL_ANIMATIONS
+    {
+        uint64_t skeletonId = 0;
+        std::vector<SKELETAL_CLIP> clips;
+    };
+
     struct SKELETAL_POSE
     {
         std::vector<LOCAL_TRANSFORM> localTransforms;
@@ -240,6 +246,8 @@ namespace mbm::skeletal
     bool validateCanonicalWeights(const CANONICAL_SKELETON &skeleton,
                                   const CANONICAL_WEIGHTS &weights,
                                   uint32_t expectedVertexCount) noexcept;
+    bool validateCanonicalAnimations(const CANONICAL_SKELETON &skeleton,
+                                     const CANONICAL_ANIMATIONS &animations) noexcept;
     bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
                                const std::vector<std::string> &palette,
                                const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,

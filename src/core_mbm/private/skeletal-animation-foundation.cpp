@@ -648,6 +648,24 @@ namespace mbm::skeletal
         return true;
     }
 
+    bool validateCanonicalAnimations(const CANONICAL_SKELETON &skeleton,
+                                     const CANONICAL_ANIMATIONS &animations) noexcept
+    {
+        if (animations.skeletonId == 0 || animations.skeletonId != skeleton.skeletonId)
+            return false;
+        std::unordered_set<uint64_t> clipIds;
+        std::unordered_set<std::string> clipNames;
+        for (const SKELETAL_CLIP &clip : animations.clips)
+        {
+            if (!clipIds.insert(clip.clipId).second || !clipNames.insert(clip.name).second)
+                return false;
+            std::vector<DIAGNOSTIC> diagnostics;
+            if (!validateSkeletalClip(skeleton.compiled, clip, diagnostics))
+                return false;
+        }
+        return true;
+    }
+
     bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
                                const std::vector<std::string> &palette,
                                const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,

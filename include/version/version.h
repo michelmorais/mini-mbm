@@ -238,8 +238,9 @@
     6.55.0 Added a temporary read-only canonical bind-pose audit report to meshDebug and the Skeletal Animation Editor, exposing stable IDs, local/global/inverse-bind matrices, numeric errors, and diagnostics without exposing private compiled storage or modifying authored skeletons. This legacy-backed bridge is explicitly scheduled for removal after canonical-section inspection is verified; it is not a delivered compatibility API.
     6.56.0 Started canonical skeletal persistence with section enum values 41-43 and a strict type-41 reader shared by runtime staging and Mesh Debug loading; validates stable IDs, parent-first hierarchy, names, local quaternion TRS, inverse bind, duplicate sections, versions, and payload boundaries. Types 42/43 and all writers remain intentionally unavailable.
     6.57.0 Added the canonical type-42 weight reader to runtime staging and Mesh Debug, with order-independent type resolution and strict skeletonId, frame-1 topology, stable-ID palette, four-slot sentinel, finite/nonnegative/positive-used weight, duplicate influence, full coverage, unit-sum, duplicate-section, version, and payload-boundary validation. Type 43 and every canonical writer remain unavailable.
+    6.58.0 Completed canonical read support with type-43 skeletal clips in both real loaders, validating shared skeletonId, unique clip IDs/names, bone targets, channels, nonempty ordered keys, finite quaternion-local TRS, easing/Bezier controls, reserved bytes, booleans, versions, duplicate sections, counts, and payload boundaries. Types 41-43 now resolve independent of file order; writers/import remain unavailable.
 */
-#define MBM_VERSION "6.57.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.58.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -131,10 +131,9 @@ independent of geometry — skin weights only mean anything relative to one spec
 
 ### Canonical skeletal-runtime section types — reader rollout in progress
 
-The following values are present in `SECTION_TYPE`. Types 41 and 42 have explicit read/validate
-support in both real loaders; type 43 remains rejected until its reader and cross-section
-validation land. No tool may write any of the three until all readers, presence checks, and
-corruption fixtures are complete:
+The following values are present in `SECTION_TYPE` and all three have explicit read/validate
+support in both real loaders. No tool may write them until the writer/import rollout and its
+round-trip/corruption fixtures are complete:
 
 ```cpp
 SECTION_SKELETAL_SKELETON  = 41,
@@ -549,8 +548,8 @@ a regression to fix retroactively.
 ## 6h. Canonical skeletal-runtime persistence design and implementation status
 
 This section fixes the byte-level contract. The type-41 skeleton and type-42 weight readers are
-implemented, including their shared `skeletonId`, frame-0 topology, palette, and coverage
-invariants. Type-43 animation, the final three-section presence pass, and every writer remain pending.
+implemented, including shared `skeletonId`, frame-0 topology, palette, coverage, clip/track/key, and
+presence invariants. Every canonical writer and the FBX import conversion remain pending.
 Every integer and float uses the existing V11 little-endian field serializers; records are written
 field-by-field and never struct-blitted. Strings use the length-prefixed UTF-8 encoding from §5.
 Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompressed bytes.
@@ -571,7 +570,7 @@ Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompre
 
 ```text
 uint64 skeletonId
-uint32 boneCount
+uint32 boneCount                  // at least 1 in version 1
 repeat boneCount times, in parent-before-child compiled order:
     uint64 boneId
     uint64 parentBoneId          // 0 only for a root
