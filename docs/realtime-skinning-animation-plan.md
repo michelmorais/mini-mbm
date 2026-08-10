@@ -509,6 +509,14 @@ mutate assets, evaluate clips, or deform vertices.
   capacity rather than claiming support. At the GLES2 minimum of 128 vertex uniform vectors this
   yields 40 LBS bones or 60 rigid-DQS bones, so the current 67-bone Mixamo fixture cannot use one
   uniform palette and must be rejected until palette partitioning or another transport exists.
+- Canonical GPU-LBS input preparation is implemented privately during runtime mesh finalization.
+  It resolves each type-42 stable bone ID to the type-41 compiled bone index and materializes two
+  four-float vertex streams (indices and weights), deliberately using floats because GLES2 vertex
+  attributes do not provide the integer-input contract used by modern APIs. Preparation records
+  `ready`, capability unavailable, insufficient attributes, oversized palette, invalid canonical
+  data, or absent skeletal data without failing ordinary static mesh loading. The committed
+  23-bone `Lorekeeper-walk.fbx` is the first within-budget animated fixture; the 67-bone humanoid
+  remains the oversized-palette fixture.
 - Add GPU LBS and DQS incrementally against CPU references.
 - Use the same runtime deformation in the editor preview.
 - Validate the rat and small skeletons before investigating palette expansion.
@@ -709,6 +717,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.1 | 2026-08-10 | Added the private canonical-to-GLES2 LBS input preparation stage. Runtime mesh finalization now resolves stable type-42 palette IDs to compact type-41 compiled indices and retains four float indices plus four weights per vertex behind `MESH_MBM::Impl`. It classifies readiness and explicit capability/data failures without changing static loading, choosing a GLES2-compatible float attribute representation while preserving stable IDs on disk. Tests verify nontrivial reordered ID resolution, the 40-bone minimum capacity, oversized-palette rejection, and unmeasured-capability rejection. The new committed Lorekeeper walk was audited at 23 bones/31 frames and selected as the within-budget GPU fixture; no shader deformation or implicit clip playback was added. |
 | 3.0 | 2026-08-10 | Began Phase 4 with a private GLES2 capability gate shared by Linux/X11, Android, and Windows GLES initialization. It measures vertex-uniform-vector and vertex-attribute limits from the active context, conservatively reserves eight uniform vectors, and reports effective three-`vec4` LBS and two-`vec4` rigid-DQS palette capacities only when five skeletal vertex attributes fit. Numeric fixtures lock the GLES2-minimum result at 40 LBS/60 DQS bones and prove zero capacity for missing queries or attributes. This exposes that the 67-bone Mixamo fixture requires future palette partitioning or another transport; no GPU shader or silent fallback was added. |
 | 2.9 | 2026-08-10 | Completed the initial Phase-3 CPU reference pair with rigid DQS over the same canonical pose/weights consumed by LBS. The reference converts rigid skin matrices to dual quaternions, performs per-vertex hemisphere alignment, normalized real/dual blending with dual orthogonalization, and transforms positions/normals without translation leakage. Tests prove bind and weight-one LBS parity for translation/rotation, explicit scale rejection, and the `+170°/-170°` antipodal blend resolving to approximately `180°` instead of collapsing. |
 | 2.8 | 2026-08-10 | Began Phase 3 with a private CPU LBS oracle over canonical skeleton/weights and an evaluated pose. It composes row-vector `inverseGlobalBind * posedGlobal`, blends four-influence positions, transforms normals with per-bone inverse-transpose matrices, and rejects inconsistent topology/palette/pose input. Fixtures prove bind identity, weight-one rigid translation, untranslated normals, and correct non-uniform-scale normal handling. No renderer, GPU path, or Lua runtime surface was added. |

@@ -5843,6 +5843,7 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
+        impl->gles2LbsInput = {};
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
         impl->coordTexFrame_0 = nullptr;
@@ -6740,6 +6741,17 @@ namespace mbm
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
         impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
+        if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0)
+        {
+            const skeletal::GLES2_SKINNING_CAPABILITY capability =
+                skeletal::getMeasuredGles2SkinningCapability();
+            const skeletal::GLES2_LBS_PREPARATION_STATUS status = skeletal::prepareGles2LbsInput(
+                impl->canonicalSkeleton, impl->canonicalWeights, capability, impl->gles2LbsInput);
+            INFO_LOG("GLES2 LBS input: status=%s bones=%u capacity=%u vertices=%u [%s]",
+                     skeletal::gles2LbsPreparationStatusName(status), impl->gles2LbsInput.requiredBoneCount,
+                     impl->gles2LbsInput.effectiveBoneCapacity,
+                     static_cast<uint32_t>(impl->gles2LbsInput.vertices.size()), fileNamePath);
+        }
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;
 

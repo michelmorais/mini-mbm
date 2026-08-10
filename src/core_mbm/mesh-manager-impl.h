@@ -12,6 +12,7 @@
 #include <header-mesh.h>
 #include <physics.h>
 #include <skeletal-animation-foundation.h>
+#include <skeletal-gpu-lbs.h>
 #include <string>
 #include <vector>
 
@@ -77,6 +78,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        skeletal::GLES2_LBS_INPUT gles2LbsInput;
     };
 
     struct MESH_MBM_DEBUG::Impl

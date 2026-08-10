@@ -21,6 +21,7 @@
 
 #include <skeletal-animation-foundation.h>
 #include <skeletal-render-capability.h>
+#include <skeletal-gpu-lbs.h>
 #include <core_mbm/mesh-manager.h>
 #include <mesh-v11-io.h>
 #include <mesh-io-primitives.h>
@@ -943,6 +944,45 @@ namespace
         expect(!unavailable.measured && unavailable.lbsMatrixPaletteBones == 0,
                "GLES2 zero query results must remain unmeasured rather than claiming support");
     }
+
+    void testGles2LbsInputPreparation()
+    {
+        CANONICAL_BONE root, child;
+        root.boneId = 10; root.name = "root";
+        child.boneId = 20; child.parentBoneId = 10; child.name = "child";
+        CANONICAL_SKELETON skeleton;
+        skeleton.skeletonId = 100; skeleton.sourceBones = {root, child};
+        expect(compileCanonicalSkeleton(skeleton.sourceBones, skeleton.compiled),
+               "GPU LBS input fixture skeleton must compile");
+        CANONICAL_WEIGHTS weights;
+        weights.skeletonId = 100;
+        weights.paletteBoneIds = {20, 10};
+        weights.vertices.resize(1);
+        weights.vertices[0].paletteIndex[0] = 0;
+        weights.vertices[0].paletteIndex[1] = 1;
+        weights.vertices[0].weight[0] = 0.75f;
+        weights.vertices[0].weight[1] = 0.25f;
+
+        GLES2_LBS_INPUT input;
+        const GLES2_SKINNING_CAPABILITY sufficient = calculateGles2SkinningCapability(128, 8);
+        expect(prepareGles2LbsInput(skeleton, weights, sufficient, input) ==
+                   GLES2_LBS_PREPARATION_STATUS::READY && input.ready() &&
+                   input.requiredBoneCount == 2 && input.effectiveBoneCapacity == 40 &&
+                   input.vertices.size() == 1 && input.vertices[0].boneIndex[0] == 1.0f &&
+                   input.vertices[0].boneIndex[1] == 0.0f &&
+                   std::fabs(input.vertices[0].weight[0] - 0.75f) <= MATRIX_TOLERANCE,
+               "GPU LBS input must resolve stable palette IDs to compiled float attributes");
+
+        GLES2_SKINNING_CAPABILITY tooSmall = sufficient;
+        tooSmall.lbsMatrixPaletteBones = 1;
+        expect(prepareGles2LbsInput(skeleton, weights, tooSmall, input) ==
+                   GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE && input.vertices.empty() &&
+                   input.requiredBoneCount == 2 && input.effectiveBoneCapacity == 1,
+               "GPU LBS input must reject a skeleton larger than the measured uniform palette");
+        expect(prepareGles2LbsInput(skeleton, weights, {}, input) ==
+                   GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE && input.vertices.empty(),
+               "GPU LBS input must not claim readiness before backend capability measurement");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -964,6 +1004,7 @@ int runSkeletalFoundationTests()
     testCanonicalWriterRoundTrip();
     testCpuLbsReference();
     testGles2SkinningCapability();
+    testGles2LbsInputPreparation();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

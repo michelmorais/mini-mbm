@@ -132,7 +132,7 @@ If the work is redesign-shaped, write the redesign plan first instead of treatin
 
 The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the branch is no longer tracking active gap burn-down. The useful output now is the current boundary/status, not the chronological milestone log.
 
-`MESH_MBM_DEBUG::Impl::skeleton` (`std::vector<util::SKELETON_BONE_V11>`, `SECTION_FRAME_SKINNED` persistence for `mesh_debug.lua`'s Bones node round-trip, added alongside `addBone`/`getBone`/`getTotalBone`) follows the standard Impl-only rule from "Repo Rule For Future Core Work" below — noted here explicitly so a future reader doesn't have to re-derive that this was a deliberate, rule-compliant addition rather than an oversight. `MESH_MBM::Impl` was deliberately NOT given an equivalent field (no runtime skinning consumer exists); the shared parse path merely tolerates and discards the section for that class.
+`MESH_MBM_DEBUG::Impl::skeleton` (`std::vector<util::SKELETON_BONE_V11>`, `SECTION_FRAME_SKINNED` persistence for `mesh_debug.lua`'s Bones node round-trip, added alongside `addBone`/`getBone`/`getTotalBone`) follows the standard Impl-only rule from "Repo Rule For Future Core Work" below — noted here explicitly so a future reader doesn't have to re-derive that this was a deliberate, rule-compliant addition rather than an oversight. `MESH_MBM::Impl` deliberately has no equivalent legacy field; the runtime skeletal path consumes only canonical sections 41–43, while the shared parser merely tolerates and discards the exploratory legacy section for that class.
 
 `updateBone`/`removeBone` (added for `mesh_debug.lua`'s general-purpose Bones editor node) are pure `MESH_MBM_DEBUG` methods operating only on the existing `impl->skeleton` field above — no new header-visible state, so the PIMPL boundary itself doesn't move. `updateBone`'s reparent path calls a small anonymous-namespace helper, `resortSkeletonParentFirst` (`src/core_mbm/mesh-manager.cpp`), kept as a private translation-unit function rather than a class method per the same rule, since it's pure vector-reordering logic with no need to touch `Impl` directly beyond the vector reference it's passed.
 
@@ -153,6 +153,10 @@ records remain `Impl`-owned and are validated against the compiled type-41 skele
 topology before being retained.
 Type-43 follows identically: canonical clips, tracks, keys, easing, and lookup validation remain
 private in `Impl`; the public mesh headers expose neither the vectors nor mutable animation state.
+The GLES2 LBS preparation cache follows that boundary as well. Resolved float bone-index/weight
+streams, required/effective palette counts, and readiness status live only in `MESH_MBM::Impl` via
+the private `skeletal-gpu-lbs.h` contract. No backend handle, mutable vector, or convenience accessor
+was added to the public mesh header.
 
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade
