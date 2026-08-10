@@ -148,6 +148,9 @@ Debug skeletal storage/API after canonical inspection is verified.
 The canonical type-41 reader stores its source records plus compiled hierarchy exclusively in
 `MESH_MBM::Impl` or `MESH_MBM_DEBUG::Impl`. Runtime and debug parse paths share validation, while no
 mutable canonical storage or lookup container is exposed through the public header.
+The type-42 reader follows the same boundary: its stable-ID palette and per-vertex four-influence
+records remain `Impl`-owned and are validated against the compiled type-41 skeleton and frame-1
+topology before being retained.
 
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade

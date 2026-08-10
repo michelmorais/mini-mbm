@@ -152,6 +152,20 @@ namespace mbm::skeletal
         COMPILED_SKELETON compiled;
     };
 
+    struct CANONICAL_VERTEX_WEIGHT
+    {
+        uint16_t paletteIndex[4] = {UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX};
+        float weight[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    };
+
+    struct CANONICAL_WEIGHTS
+    {
+        uint64_t skeletonId = 0;
+        uint32_t frameIndex = 0;
+        std::vector<uint64_t> paletteBoneIds;
+        std::vector<CANONICAL_VERTEX_WEIGHT> vertices;
+    };
+
     struct WEIGHT_VALIDATION_REPORT
     {
         std::vector<int32_t> paletteBoneIndices;
@@ -223,6 +237,9 @@ namespace mbm::skeletal
                                COMPILED_SKELETON &out);
     bool compileCanonicalSkeleton(const std::vector<CANONICAL_BONE> &source,
                                   COMPILED_SKELETON &out);
+    bool validateCanonicalWeights(const CANONICAL_SKELETON &skeleton,
+                                  const CANONICAL_WEIGHTS &weights,
+                                  uint32_t expectedVertexCount) noexcept;
     bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
                                const std::vector<std::string> &palette,
                                const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,

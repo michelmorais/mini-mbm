@@ -605,6 +605,49 @@ namespace mbm::skeletal
         return out.bones.size() == source.size() && !out.hasFatalDiagnostics();
     }
 
+    bool validateCanonicalWeights(const CANONICAL_SKELETON &skeleton,
+                                  const CANONICAL_WEIGHTS &weights,
+                                  const uint32_t expectedVertexCount) noexcept
+    {
+        if (weights.skeletonId == 0 || weights.skeletonId != skeleton.skeletonId ||
+            weights.frameIndex != 0 || weights.vertices.size() != expectedVertexCount ||
+            weights.paletteBoneIds.size() > 65535)
+            return false;
+        std::unordered_set<uint64_t> paletteIds;
+        for (const uint64_t boneId : weights.paletteBoneIds)
+        {
+            if (boneId == 0 || skeleton.compiled.indexById.find(boneId) == skeleton.compiled.indexById.end() ||
+                !paletteIds.insert(boneId).second)
+                return false;
+        }
+        for (const CANONICAL_VERTEX_WEIGHT &vertex : weights.vertices)
+        {
+            float sum = 0.0f;
+            uint32_t influenceCount = 0;
+            std::unordered_set<uint16_t> used;
+            for (uint32_t slot = 0; slot < 4; ++slot)
+            {
+                const uint16_t paletteIndex = vertex.paletteIndex[slot];
+                const float weight = vertex.weight[slot];
+                if (!std::isfinite(weight) || weight < 0.0f)
+                    return false;
+                if (paletteIndex == UINT16_MAX)
+                {
+                    if (weight != 0.0f) return false;
+                    continue;
+                }
+                if (paletteIndex >= weights.paletteBoneIds.size() || weight <= 0.0f ||
+                    !used.insert(paletteIndex).second)
+                    return false;
+                sum += weight;
+                ++influenceCount;
+            }
+            if (influenceCount == 0 || std::fabs(sum - 1.0f) > MATRIX_TOLERANCE)
+                return false;
+        }
+        return true;
+    }
+
     bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
                                const std::vector<std::string> &palette,
                                const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,

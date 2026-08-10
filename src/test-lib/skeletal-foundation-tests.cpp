@@ -555,6 +555,116 @@ namespace
         expect(!mesh.loadV11(duplicatePath), "canonical reader must reject duplicate skeleton sections");
         std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);
     }
+
+    void testCanonicalWeightValidation()
+    {
+        CANONICAL_BONE root;
+        root.boneId = 10; root.name = "root";
+        CANONICAL_SKELETON skeleton;
+        skeleton.skeletonId = 100;
+        skeleton.sourceBones = {root};
+        expect(compileCanonicalSkeleton(skeleton.sourceBones, skeleton.compiled),
+               "canonical weight fixture skeleton must compile");
+        CANONICAL_WEIGHTS weights;
+        weights.skeletonId = 100;
+        weights.paletteBoneIds = {10};
+        weights.vertices.resize(1);
+        weights.vertices[0].paletteIndex[0] = 0;
+        weights.vertices[0].weight[0] = 1.0f;
+        expect(validateCanonicalWeights(skeleton, weights, 1),
+               "complete canonical weights must validate");
+        weights.skeletonId = 101;
+        expect(!validateCanonicalWeights(skeleton, weights, 1),
+               "canonical weights must match skeletonId");
+        weights.skeletonId = 100;
+        weights.vertices[0].weight[0] = 0.5f;
+        expect(!validateCanonicalWeights(skeleton, weights, 1),
+               "canonical weights must sum to one");
+        weights.vertices[0].weight[0] = 1.0f;
+        weights.paletteBoneIds[0] = 999;
+        expect(!validateCanonicalWeights(skeleton, weights, 1),
+               "canonical palette must target an existing bone ID");
+        weights.paletteBoneIds[0] = 10;
+        weights.vertices[0].paletteIndex[1] = 0;
+        weights.vertices[0].weight[1] = 0.1f;
+        expect(!validateCanonicalWeights(skeleton, weights, 1),
+               "canonical vertex must not repeat a palette influence");
+    }
+
+    bool writeCanonicalWeightedFixture(const char *path, const uint64_t weightSkeletonId,
+                                       const float weightValue)
+    {
+        FILE *fp = std::fopen(path, "wb+");
+        if (!fp) return false;
+        util::FILE_HEADER_V11 fileHeader;
+        fileHeader.typeMesh = util::TYPE_MESH_3D;
+        fileHeader.sectionCount = 3;
+        bool ok = util::writeFileHeaderV11(fp, fileHeader);
+
+        util::SECTION_HEADER_V11 weightsHeader;
+        weightsHeader.type = util::SECTION_SKELETAL_WEIGHTS;
+        weightsHeader.sectionVersion = 1;
+        ok = ok && util::writeSectionV11Streamed(fp, weightsHeader,
+            [weightSkeletonId, weightValue](FILE *payload)
+            {
+                return util::le_io::writeU64LE(payload, weightSkeletonId) &&
+                    util::le_io::writeU32LE(payload, 0) && util::le_io::writeU32LE(payload, 1) &&
+                    util::le_io::writeU32LE(payload, 1) && util::le_io::writeU64LE(payload, 10) &&
+                    util::le_io::writeU16LE(payload, 0) &&
+                    util::le_io::writeU16LE(payload, UINT16_MAX) &&
+                    util::le_io::writeU16LE(payload, UINT16_MAX) &&
+                    util::le_io::writeU16LE(payload, UINT16_MAX) &&
+                    util::le_io::writeF32LE(payload, weightValue) &&
+                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, 0);
+            });
+
+        util::SECTION_HEADER_V11 frameSection;
+        frameSection.type = util::SECTION_FRAME_STATIC;
+        frameSection.sectionVersion = 1;
+        ok = ok && util::writeSectionV11Streamed(fp, frameSection, [](FILE *payload)
+        {
+            util::FRAME_HEADER_V11 frame;
+            frame.totalSubset = 0; frame.vertexCount = 1; frame.indexWidth = 16;
+            frame.hasNormal = 0; frame.hasUv = 0; frame.uvSource = 0; frame.indexCount = 0;
+            return util::writeFrameHeaderV11(payload, frame) &&
+                util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                util::le_io::writeF32LE(payload, 0);
+        });
+
+        util::SECTION_HEADER_V11 skeletonHeader;
+        skeletonHeader.type = util::SECTION_SKELETAL_SKELETON;
+        skeletonHeader.sectionVersion = 1;
+        ok = ok && util::writeSectionV11Streamed(fp, skeletonHeader, [](FILE *payload)
+        {
+            return util::le_io::writeU64LE(payload, 100) && util::le_io::writeU32LE(payload, 1) &&
+                util::le_io::writeU64LE(payload, 10) && util::le_io::writeU64LE(payload, 0) &&
+                util::writeStringV11(payload, "root") &&
+                util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                util::le_io::writeF32LE(payload, 0.1f) && util::le_io::writeF32LE(payload, 1.0f);
+        });
+        std::fclose(fp);
+        return ok;
+    }
+
+    void testCanonicalWeightReader()
+    {
+        const char *valid = "/tmp/mini-mbm-canonical-weights-valid.msh";
+        const char *wrongId = "/tmp/mini-mbm-canonical-weights-id.msh";
+        const char *badSum = "/tmp/mini-mbm-canonical-weights-sum.msh";
+        MESH_MBM_DEBUG mesh;
+        expect(writeCanonicalWeightedFixture(valid, 100, 1.0f) && mesh.loadV11(valid),
+               "canonical weight reader must resolve sections independent of file order");
+        expect(writeCanonicalWeightedFixture(wrongId, 101, 1.0f) && !mesh.loadV11(wrongId),
+               "canonical weight reader must reject skeletonId mismatch");
+        expect(writeCanonicalWeightedFixture(badSum, 100, 0.5f) && !mesh.loadV11(badSum),
+               "canonical weight reader must reject non-unit vertex sums");
+        std::remove(valid); std::remove(wrongId); std::remove(badSum);
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -569,6 +679,8 @@ int runSkeletalFoundationTests()
     testScaleOneAndHundredEquivalence();
     testCanonicalSkeletonCompilation();
     testCanonicalSkeletonReader();
+    testCanonicalWeightValidation();
+    testCanonicalWeightReader();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

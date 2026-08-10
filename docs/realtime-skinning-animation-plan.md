@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **2.2**
-Status: **Canonical skeleton reader started; weights/clips/writer/runtime skinning pending**
+Document version: **2.3**
+Status: **Canonical skeleton/weight readers implemented; clips/writer/runtime skinning pending**
 Last updated: **2026-08-10**
 
 ## 1. Purpose
@@ -394,8 +394,8 @@ skeleton (`41`), runtime weights (`42`), and skeletal animation (`43`), joined b
 `uint16` palette of stable `boneId` values; clips/tracks/keys persist quaternion-local channels and
 easing. The exact field order, presence rules, CRC/section-count handling, conversion boundary, and
 old-reader failure behavior are specified in `docs/mesh-v11-format.md` §6h. Values 41–43 are now
-enum values; type 41 has reader/validation support in both loaders, while 42/43 and every writer
-remain blocked on their readers and cross-section tests. Inverse bind is derived from the canonical bind hierarchy; imported FBX cluster bind
+enum values; types 41/42 have reader/validation support in both loaders, while type 43 and every
+writer remain blocked on the clip reader and final cross-section tests. Inverse bind is derived from the canonical bind hierarchy; imported FBX cluster bind
 matrices are comparison evidence and must either agree within tolerance or produce an
 unsupported/import error.
 
@@ -696,6 +696,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 2.3 | 2026-08-10 | Added the canonical type-42 reader to runtime staging and Mesh Debug. It resolves sections independent of file order and validates matching nonzero `skeletonId`, frame index zero, exact frame-1 vertex count, palette limits/uniqueness/existing bone IDs, four-slot sentinel semantics, finite nonnegative positive-used weights, no duplicate influence, effective coverage, unit sums, versions, duplicate sections, and full payload consumption. Type 43 and all writers remain blocked. |
 | 2.2 | 2026-08-10 | Started the canonical persistence rollout: section types 41–43 now exist, and type 41 is read and validated by both runtime staging and Mesh Debug loading. Validation covers skeleton/bone IDs, parent-first hierarchy, unique names, finite local TRS/metadata, quaternion normalization, scale invertibility, inverse bind, duplicate sections, versions, and full payload consumption. Types 42/43 and all writers remain blocked. |
 | 2.1 | 2026-08-10 | Decided that the delivered skeletal feature has no compatibility mode for the exploratory Mesh Debug skeleton/weight sections or bone API. Legacy compilation/reporting is temporary audit scaffolding; canonical readers/import must replace it, affected assets must be regenerated from FBX, and the legacy skeletal path must be removed before delivery. Static meshes remain unaffected. |
 | 2.0 | 2026-08-10 | Exposed the canonical bind compiler through a narrow read-only `MESH_MBM_DEBUG` snapshot and added the editor Bind Pose Contract diagnostic panel. Compiled storage remains PIMPL-owned; no runtime promotion, skeleton mutation, clip UI, or deformation was introduced. |

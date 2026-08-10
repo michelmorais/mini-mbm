@@ -131,8 +131,8 @@ independent of geometry — skin weights only mean anything relative to one spec
 
 ### Canonical skeletal-runtime section types — reader rollout in progress
 
-The following values are present in `SECTION_TYPE`. Type 41 has explicit read/validate support in
-both real loaders; types 42 and 43 remain rejected until their own readers and cross-section
+The following values are present in `SECTION_TYPE`. Types 41 and 42 have explicit read/validate
+support in both real loaders; type 43 remains rejected until its reader and cross-section
 validation land. No tool may write any of the three until all readers, presence checks, and
 corruption fixtures are complete:
 
@@ -548,9 +548,9 @@ a regression to fix retroactively.
 
 ## 6h. Canonical skeletal-runtime persistence design and implementation status
 
-This section fixes the byte-level contract. The type-41 skeleton reader is implemented; type-42
-weights, type-43 animation, cross-section identity/presence validation, and every writer remain
-pending.
+This section fixes the byte-level contract. The type-41 skeleton and type-42 weight readers are
+implemented, including their shared `skeletonId`, frame-0 topology, palette, and coverage
+invariants. Type-43 animation, the final three-section presence pass, and every writer remain pending.
 Every integer and float uses the existing V11 little-endian field serializers; records are written
 field-by-field and never struct-blitted. Strings use the length-prefixed UTF-8 encoding from §5.
 Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompressed bytes.

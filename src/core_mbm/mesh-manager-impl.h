@@ -75,6 +75,7 @@ namespace mbm
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
+        skeletal::CANONICAL_WEIGHTS canonicalWeights;
     };
 
     struct MESH_MBM_DEBUG::Impl
@@ -105,6 +106,7 @@ namespace mbm
         skeletal::COMPILED_SKELETON compiledSkeletonBindReport;
         bool hasCompiledSkeletonBindReport = false;
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
+        skeletal::CANONICAL_WEIGHTS canonicalWeights;
         // SECTION_VERTEX_SKIN_WEIGHTS (docs/mesh-v11-format.md Sec. 6f) - editor/diagnostic + FBX
         // re-export round-trip only, never consulted by rendering. weightPalette holds the unique
         // bone names referenced by any entry in vertexWeights; vertexWeights[i].paletteIndex values

@@ -133,6 +133,7 @@ namespace mbm
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
+        skeletal::CANONICAL_WEIGHTS canonicalWeights;
         // FONT (INFO_BOUND_FONT*) or PARTICLE (std::vector<util::STAGE_PARTICLE*>*) detail data,
         // tagged by `typeMe` - same opaque-by-type shape as MESH_MBM_DEBUG/MESH_MBM's impl->extraInfo.
         // A trivial void* (no destructor pitfall like infoPhysics/infoAnimation above), but still
@@ -173,7 +174,8 @@ namespace mbm
               vertexWeights(std::move(other.vertexWeights)),
               articulatedParts(std::move(other.articulatedParts)),
               articulatedClips(std::move(other.articulatedClips)),
-              canonicalSkeleton(std::move(other.canonicalSkeleton))
+              canonicalSkeleton(std::move(other.canonicalSkeleton)),
+              canonicalWeights(std::move(other.canonicalWeights))
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
@@ -200,6 +202,7 @@ namespace mbm
             articulatedParts = std::move(other.articulatedParts);
             articulatedClips = std::move(other.articulatedClips);
             canonicalSkeleton = std::move(other.canonicalSkeleton);
+            canonicalWeights = std::move(other.canonicalWeights);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
@@ -912,6 +915,35 @@ namespace
         return fp.pos == fp.size && mbm::skeletal::compileCanonicalSkeleton(out.sourceBones, out.compiled);
     }
 
+    bool parse_canonical_weights_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
+                                              const mbm::skeletal::CANONICAL_SKELETON &skeleton,
+                                              const uint32_t expectedVertexCount,
+                                              mbm::skeletal::CANONICAL_WEIGHTS &out)
+    {
+        if (sectionVersion != 1)
+            return false;
+        out = {};
+        uint32_t vertexCount = 0, paletteCount = 0;
+        if (!util::le_io::readU64LE(fp, out.skeletonId) ||
+            !util::le_io::readU32LE(fp, out.frameIndex) ||
+            !util::le_io::readU32LE(fp, vertexCount) ||
+            !util::le_io::readU32LE(fp, paletteCount) || paletteCount > 65535)
+            return false;
+        out.paletteBoneIds.resize(paletteCount);
+        for (uint64_t &boneId : out.paletteBoneIds)
+            if (!util::le_io::readU64LE(fp, boneId)) return false;
+        out.vertices.resize(vertexCount);
+        for (mbm::skeletal::CANONICAL_VERTEX_WEIGHT &vertex : out.vertices)
+        {
+            for (uint16_t &paletteIndex : vertex.paletteIndex)
+                if (!util::le_io::readU16LE(fp, paletteIndex)) return false;
+            for (float &weight : vertex.weight)
+                if (!util::le_io::readF32LE(fp, weight)) return false;
+        }
+        return fp.pos == fp.size &&
+            mbm::skeletal::validateCanonicalWeights(skeleton, out, expectedVertexCount);
+    }
+
     // Worker-thread-safe equivalent of MESH_MBM::loadV11's section loop - see the struct comment
     // above for the main-thread-only calls this deliberately omits (deferred to
     // MESH_MBM::finishLoadFromIntermediate instead). fileNamePath must already be a resolved path
@@ -960,6 +992,31 @@ namespace
         const mbm::VEC2 *frame0Uv      = nullptr;
         int               frame0UvCount = 0;
         bool              sawCanonicalSkeleton = false;
+        bool              sawCanonicalWeights = false;
+        uint32_t          canonicalFrame0VertexCount = UINT32_MAX;
+
+        // Canonical sections resolve by type, not file order. Pre-read the skeleton and frame-0
+        // topology so weights can appear anywhere in the staged section list.
+        for (const auto &staged : sections)
+        {
+            if (staged.header.type == util::SECTION_SKELETAL_SKELETON)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                if (sawCanonicalSkeleton || !parse_canonical_skeleton_section_v11(
+                        tmp, staged.header.sectionVersion, out.canonicalSkeleton))
+                { errorOut = "failed to parse SECTION_SKELETAL_SKELETON"; return false; }
+                sawCanonicalSkeleton = true;
+            }
+            else if (staged.header.type == util::SECTION_FRAME_STATIC &&
+                     canonicalFrame0VertexCount == UINT32_MAX)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                util::FRAME_HEADER_V11 header;
+                if (!util::readFrameHeaderV11(tmp, header))
+                { errorOut = "failed to inspect SECTION_FRAME_STATIC"; return false; }
+                canonicalFrame0VertexCount = header.vertexCount;
+            }
+        }
 
         for (const auto &staged : sections)
         {
@@ -1106,14 +1163,16 @@ namespace
             }
             else if (staged.header.type == util::SECTION_SKELETAL_SKELETON)
             {
-                if (sawCanonicalSkeleton ||
-                    !parse_canonical_skeleton_section_v11(tmp, staged.header.sectionVersion,
-                                                          out.canonicalSkeleton))
-                {
-                    errorOut = "failed to parse SECTION_SKELETAL_SKELETON";
-                    return false;
-                }
-                sawCanonicalSkeleton = true;
+                // Parsed in the order-independent pre-pass above.
+            }
+            else if (staged.header.type == util::SECTION_SKELETAL_WEIGHTS)
+            {
+                if (sawCanonicalWeights || !sawCanonicalSkeleton ||
+                    canonicalFrame0VertexCount == UINT32_MAX ||
+                    !parse_canonical_weights_section_v11(tmp, staged.header.sectionVersion,
+                        out.canonicalSkeleton, canonicalFrame0VertexCount, out.canonicalWeights))
+                { errorOut = "failed to parse SECTION_SKELETAL_WEIGHTS"; return false; }
+                sawCanonicalWeights = true;
             }
             else
             {
@@ -3024,14 +3083,45 @@ namespace mbm
         int16_t hasTextureFlag = HAS_TEX_NO;
         bool    sawFirstFrame  = false;
         bool    sawCanonicalSkeleton = false;
+        bool    sawCanonicalWeights = false;
+        uint32_t canonicalFrame0VertexCount = UINT32_MAX;
         util::BUFFER_MESH_DEBUG *frame0 = nullptr;
 
-        for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
+        struct DebugStagedSection
         {
-            util::SECTION_HEADER_V11 sectionHeader;
+            util::SECTION_HEADER_V11 header;
             std::vector<uint8_t> payload;
-            if (!util::readSectionV11(fp, sectionHeader, payload))
+        };
+        std::vector<DebugStagedSection> sections(fileHeader.sectionCount);
+        for (uint32_t i = 0; i < fileHeader.sectionCount; ++i)
+            if (!util::readSectionV11(fp, sections[i].header, sections[i].payload))
                 return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read section %u [%s]", i, fileNamePath);
+
+        for (const DebugStagedSection &staged : sections)
+        {
+            if (staged.header.type == util::SECTION_SKELETAL_SKELETON)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                if (sawCanonicalSkeleton || !parse_canonical_skeleton_section_v11(
+                        tmp, staged.header.sectionVersion, impl->canonicalSkeleton))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_SKELETON [%s]", fileNamePath);
+                sawCanonicalSkeleton = true;
+            }
+            else if (staged.header.type == util::SECTION_FRAME_STATIC &&
+                     canonicalFrame0VertexCount == UINT32_MAX)
+            {
+                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+                util::FRAME_HEADER_V11 header;
+                if (!util::readFrameHeaderV11(tmp, header))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to inspect SECTION_FRAME_STATIC [%s]", fileNamePath);
+                canonicalFrame0VertexCount = header.vertexCount;
+            }
+        }
+
+        for (const DebugStagedSection &staged : sections)
+        {
+            const util::SECTION_HEADER_V11 &sectionHeader = staged.header;
+            const std::vector<uint8_t> &payload = staged.payload;
 
             if (sectionHeader.type == util::SECTION_MATERIAL_TRANSFORM)
             {
@@ -3165,12 +3255,17 @@ namespace mbm
             }
             else if (sectionHeader.type == util::SECTION_SKELETAL_SKELETON)
             {
+                // Parsed in the order-independent pre-pass above.
+            }
+            else if (sectionHeader.type == util::SECTION_SKELETAL_WEIGHTS)
+            {
                 util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (sawCanonicalSkeleton ||
-                    !parse_canonical_skeleton_section_v11(tmp, sectionHeader.sectionVersion,
-                                                          impl->canonicalSkeleton))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_SKELETON [%s]", fileNamePath);
-                sawCanonicalSkeleton = true;
+                if (sawCanonicalWeights || !sawCanonicalSkeleton ||
+                    canonicalFrame0VertexCount == UINT32_MAX ||
+                    !parse_canonical_weights_section_v11(tmp, sectionHeader.sectionVersion,
+                        impl->canonicalSkeleton, canonicalFrame0VertexCount, impl->canonicalWeights))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_WEIGHTS [%s]", fileNamePath);
+                sawCanonicalWeights = true;
             }
             else
             {
@@ -5173,6 +5268,7 @@ namespace mbm
         impl->articulatedClips.clear();
         impl->skeleton.clear();
         impl->canonicalSkeleton = {};
+        impl->canonicalWeights = {};
         impl->compiledSkeletonBindReport = {};
         impl->hasCompiledSkeletonBindReport = false;
     }
@@ -5457,6 +5553,7 @@ namespace mbm
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
         impl->canonicalSkeleton = {};
+        impl->canonicalWeights = {};
         if (impl->coordTexFrame_0)
             delete[] impl->coordTexFrame_0;
         impl->coordTexFrame_0 = nullptr;
@@ -6352,6 +6449,7 @@ namespace mbm
         impl->articulatedParts = std::move(in.articulatedParts);
         impl->articulatedClips = std::move(in.articulatedClips);
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
+        impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->extraInfo = in.extraInfo;
         in.extraInfo    = nullptr;
 
