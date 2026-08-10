@@ -52,11 +52,27 @@ namespace mbm::skeletal
         bool ready() const noexcept { return status == GLES2_LBS_PREPARATION_STATUS::READY; }
     };
 
+    enum class GLES2_LBS_PALETTE_STATUS : uint8_t
+    {
+        READY,
+        INVALID_POSE,
+        UNSUPPORTED_NORMAL_TRANSFORM
+    };
+
     GLES2_LBS_PREPARATION_STATUS prepareGles2LbsInput(const CANONICAL_SKELETON &skeleton,
                                                        const CANONICAL_WEIGHTS &weights,
                                                        const GLES2_SKINNING_CAPABILITY &capability,
                                                        GLES2_LBS_INPUT &out) noexcept;
     const char *gles2LbsPreparationStatusName(GLES2_LBS_PREPARATION_STATUS status) noexcept;
+    GLES2_LBS_PALETTE_STATUS buildGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
+                                                   const SKELETAL_POSE &pose,
+                                                   bool requireCompactNormalTransform,
+                                                   std::vector<float> &outRows) noexcept;
+    GLES2_LBS_PALETTE_STATUS sampleGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
+                                                    const SKELETAL_CLIP &clip, float time,
+                                                    bool requireCompactNormalTransform,
+                                                    std::vector<float> &outRows,
+                                                    SKELETAL_POSE *outPose = nullptr) noexcept;
 }
 
 #endif

@@ -982,6 +982,48 @@ namespace
         expect(prepareGles2LbsInput(skeleton, weights, {}, input) ==
                    GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE && input.vertices.empty(),
                "GPU LBS input must not claim readiness before backend capability measurement");
+
+        SKELETAL_POSE pose;
+        pose.localTransforms = {root.localBind, child.localBind};
+        pose.globalTransforms = {skeleton.compiled.bones[0].globalBindMatrix,
+                                 skeleton.compiled.bones[1].globalBindMatrix};
+        std::vector<float> palette;
+        expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
+                   GLES2_LBS_PALETTE_STATUS::READY && palette.size() == 24 &&
+                   std::fabs(palette[0] - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(palette[5] - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(palette[10] - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(palette[15]) <= MATRIX_TOLERANCE,
+               "GPU LBS bind palette must pack identity in three row-vector output columns");
+
+        LOCAL_TRANSFORM movedChild = child.localBind;
+        movedChild.translation = VEC3(3, 0, 0);
+        pose.globalTransforms[1] = buildTrsMatrix(movedChild);
+        expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
+                   GLES2_LBS_PALETTE_STATUS::READY &&
+                   std::fabs(palette[15] - 3.0f) <= MATRIX_TOLERANCE,
+               "GPU LBS palette must pack row-vector translation for the shader dot decoder");
+
+        movedChild.scale = VEC3(2, 1, 1);
+        pose.globalTransforms[1] = buildTrsMatrix(movedChild);
+        expect(buildGles2LbsPalette(skeleton, pose, true, palette) ==
+                   GLES2_LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM && palette.empty(),
+               "compact GPU LBS normal palette must reject non-uniform scale");
+
+        SKELETAL_CLIP clip;
+        clip.clipId = 300; clip.name = "move"; clip.duration = 1.0f;
+        SKELETAL_TRACK track;
+        track.boneId = 20; track.channelMask = SKELETAL_CHANNEL_TRANSLATION;
+        SKELETAL_KEY first, last;
+        first.time = 0.0f; first.local = child.localBind;
+        last.time = 1.0f; last.local = child.localBind; last.local.translation = VEC3(4, 0, 0);
+        track.keys = {first, last}; clip.tracks = {track};
+        SKELETAL_POSE sampled;
+        expect(sampleGles2LbsPalette(skeleton, clip, 0.5f, true, palette, &sampled) ==
+                   GLES2_LBS_PALETTE_STATUS::READY && palette.size() == 24 &&
+                   std::fabs(palette[15] - 2.0f) <= MATRIX_TOLERANCE &&
+                   sampled.globalTransforms.size() == 2,
+               "GPU LBS palette sampling must evaluate local clips before packing skin matrices");
     }
 }
 

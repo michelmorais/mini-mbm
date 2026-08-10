@@ -18,6 +18,9 @@
 
 #include "skeletal-gpu-lbs.h"
 
+#include <cmath>
+#include <utility>
+
 namespace mbm::skeletal
 {
     GLES2_LBS_PREPARATION_STATUS prepareGles2LbsInput(const CANONICAL_SKELETON &skeleton,
@@ -83,5 +86,66 @@ namespace mbm::skeletal
             case GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA: return "invalid-canonical-data";
         }
         return "unknown";
+    }
+
+    GLES2_LBS_PALETTE_STATUS buildGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
+                                                   const SKELETAL_POSE &pose,
+                                                   const bool requireCompactNormalTransform,
+                                                   std::vector<float> &outRows) noexcept
+    {
+        outRows.clear();
+        const size_t boneCount = skeleton.compiled.bones.size();
+        if (skeleton.skeletonId == 0 || boneCount == 0 || pose.globalTransforms.size() != boneCount)
+            return GLES2_LBS_PALETTE_STATUS::INVALID_POSE;
+        outRows.resize(boneCount * 12u);
+        for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            MATRIX skinMatrix;
+            MatrixMultiply(&skinMatrix,
+                           &skeleton.compiled.bones[boneIndex].inverseGlobalBindMatrix,
+                           &pose.globalTransforms[boneIndex]);
+            if (requireCompactNormalTransform)
+            {
+                LOCAL_TRANSFORM decomposed;
+                bool hasNegativeScale = false, hasShear = false;
+                if (!decomposeTrsMatrix(skinMatrix, decomposed, hasNegativeScale, hasShear) ||
+                    hasNegativeScale || hasShear ||
+                    std::fabs(decomposed.scale.x - decomposed.scale.y) > MATRIX_TOLERANCE ||
+                    std::fabs(decomposed.scale.x - decomposed.scale.z) > MATRIX_TOLERANCE)
+                {
+                    outRows.clear();
+                    return GLES2_LBS_PALETTE_STATUS::UNSUPPORTED_NORMAL_TRANSFORM;
+                }
+            }
+            float *rows = &outRows[boneIndex * 12u];
+            // The engine transforms row vectors. GLSL's dot-based decoder therefore receives the
+            // three output columns, including row-vector translation from _41/_42/_43.
+            rows[0] = skinMatrix._11; rows[1] = skinMatrix._21;
+            rows[2] = skinMatrix._31; rows[3] = skinMatrix._41;
+            rows[4] = skinMatrix._12; rows[5] = skinMatrix._22;
+            rows[6] = skinMatrix._32; rows[7] = skinMatrix._42;
+            rows[8] = skinMatrix._13; rows[9] = skinMatrix._23;
+            rows[10] = skinMatrix._33; rows[11] = skinMatrix._43;
+        }
+        return GLES2_LBS_PALETTE_STATUS::READY;
+    }
+
+    GLES2_LBS_PALETTE_STATUS sampleGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
+                                                    const SKELETAL_CLIP &clip, const float time,
+                                                    const bool requireCompactNormalTransform,
+                                                    std::vector<float> &outRows,
+                                                    SKELETAL_POSE *outPose) noexcept
+    {
+        SKELETAL_POSE sampled;
+        if (!sampleSkeletalClip(skeleton.compiled, clip, time, sampled))
+        {
+            outRows.clear();
+            return GLES2_LBS_PALETTE_STATUS::INVALID_POSE;
+        }
+        const GLES2_LBS_PALETTE_STATUS status = buildGles2LbsPalette(
+            skeleton, sampled, requireCompactNormalTransform, outRows);
+        if (status == GLES2_LBS_PALETTE_STATUS::READY && outPose)
+            *outPose = std::move(sampled);
+        return status;
     }
 }

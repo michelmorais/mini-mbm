@@ -248,8 +248,9 @@
     6.65.0 Added private canonical-to-GLES2 LBS input preparation during runtime mesh finalization. Stable type-42 palette IDs are resolved to compact type-41 bone indices and retained as four float indices plus four weights per vertex behind MESH_MBM::Impl. Readiness distinguishes unavailable capability, insufficient attributes, oversized palettes, and invalid data without changing static mesh loading. Tests verify reordered ID resolution and deterministic capacity rejection; shader deformation and clip playback remain pending.
     6.66.0 Added private GLES2 VBO ownership and upload for canonical LBS bone-index/weight attributes. Indexed meshes use one shared stream pair and non-indexed meshes use one pair per subset, both with exact vertex-count validation and lifecycle cleanup. A ready canonical mesh now fails explicitly if attribute upload fails instead of silently rendering REST geometry. Shader consumption remains pending a skeletal-aware default-program cache key.
     6.67.0 Added the first GLES2 LBS default vertex-shader variant with four float bone indices/weights and a three-vec4 affine palette. Static and skeletal programs plus distinct palette sizes have separate cache keys/handles, custom vertex shaders reject unsupported canonical deformation, and a real Mesa GLES run compiled and drew the 23-bone Lorekeeper with an identity bind palette. Compact normal deformation is explicitly restricted to rigid/uniform-scale transforms; posed clip palettes remain pending.
+    6.68.0 Added private canonical pose-to-LBS palette construction. It samples local clip tracks, composes global transforms, calculates row-vector inverseGlobalBind times posedGlobal for every bone, and packs the exact three-vec4 GLES shader layout. Tests prove bind identity, translation packing, midpoint clip sampling, and explicit non-uniform-scale rejection for compact normals. Per-instance playback/upload remains pending.
 */
-#define MBM_VERSION "6.67.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.68.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
