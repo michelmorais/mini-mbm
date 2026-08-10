@@ -593,7 +593,8 @@ namespace
 
     bool writeCanonicalWeightedFixture(const char *path, const uint64_t weightSkeletonId,
                                        const float weightValue, const uint64_t animationSkeletonId = 100,
-                                       const uint64_t animationBoneId = 10, const uint8_t easing = 0)
+                                       const uint64_t animationBoneId = 10, const uint8_t easing = 0,
+                                       const bool writeRenderableSubset = false)
     {
         FILE *fp = std::fopen(path, "wb+");
         if (!fp) return false;
@@ -630,31 +631,57 @@ namespace
         weightsHeader.type = util::SECTION_SKELETAL_WEIGHTS;
         weightsHeader.sectionVersion = 1;
         ok = ok && util::writeSectionV11Streamed(fp, weightsHeader,
-            [weightSkeletonId, weightValue](FILE *payload)
+            [weightSkeletonId, weightValue, writeRenderableSubset](FILE *payload)
             {
+                const uint32_t vertexCount = writeRenderableSubset ? 3 : 1;
                 return util::le_io::writeU64LE(payload, weightSkeletonId) &&
-                    util::le_io::writeU32LE(payload, 0) && util::le_io::writeU32LE(payload, 1) &&
+                    util::le_io::writeU32LE(payload, 0) && util::le_io::writeU32LE(payload, vertexCount) &&
                     util::le_io::writeU32LE(payload, 1) && util::le_io::writeU64LE(payload, 10) &&
-                    util::le_io::writeU16LE(payload, 0) &&
-                    util::le_io::writeU16LE(payload, UINT16_MAX) &&
-                    util::le_io::writeU16LE(payload, UINT16_MAX) &&
-                    util::le_io::writeU16LE(payload, UINT16_MAX) &&
-                    util::le_io::writeF32LE(payload, weightValue) &&
-                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
-                    util::le_io::writeF32LE(payload, 0);
+                    [&]()
+                    {
+                        for (uint32_t vertex = 0; vertex < vertexCount; ++vertex)
+                        {
+                            if (!util::le_io::writeU16LE(payload, 0) ||
+                                !util::le_io::writeU16LE(payload, UINT16_MAX) ||
+                                !util::le_io::writeU16LE(payload, UINT16_MAX) ||
+                                !util::le_io::writeU16LE(payload, UINT16_MAX) ||
+                                !util::le_io::writeF32LE(payload, weightValue) ||
+                                !util::le_io::writeF32LE(payload, 0) || !util::le_io::writeF32LE(payload, 0) ||
+                                !util::le_io::writeF32LE(payload, 0))
+                                return false;
+                        }
+                        return true;
+                    }();
             });
 
         util::SECTION_HEADER_V11 frameSection;
         frameSection.type = util::SECTION_FRAME_STATIC;
         frameSection.sectionVersion = 1;
-        ok = ok && util::writeSectionV11Streamed(fp, frameSection, [](FILE *payload)
+        ok = ok && util::writeSectionV11Streamed(fp, frameSection, [writeRenderableSubset](FILE *payload)
         {
             util::FRAME_HEADER_V11 frame;
-            frame.totalSubset = 0; frame.vertexCount = 1; frame.indexWidth = 16;
+            frame.totalSubset = writeRenderableSubset ? 1 : 0;
+            frame.vertexCount = writeRenderableSubset ? 3 : 1;
+            frame.indexWidth = 16;
             frame.hasNormal = 0; frame.hasUv = 0; frame.uvSource = 0; frame.indexCount = 0;
-            return util::writeFrameHeaderV11(payload, frame) &&
-                util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
-                util::le_io::writeF32LE(payload, 0);
+            if (!util::writeFrameHeaderV11(payload, frame))
+                return false;
+            for (uint32_t vertex = 0; vertex < frame.vertexCount; ++vertex)
+                if (!util::le_io::writeF32LE(payload, static_cast<float>(vertex == 1)) ||
+                    !util::le_io::writeF32LE(payload, static_cast<float>(vertex == 2)) ||
+                    !util::le_io::writeF32LE(payload, 0))
+                    return false;
+            if (!writeRenderableSubset)
+                return true;
+            util::SUBSET_DESC_V11 subset;
+            subset.primaryTexture.storage = util::TEXTURE_REF_STORAGE_PATH;
+            subset.primaryTexture.path = "#FFFFFFFF";
+            subset.vertexCount = 3;
+            subset.vertexStart = 0;
+            subset.indexStart = 0;
+            subset.indexCount = 0;
+            subset.alphaColor[0] = 1;
+            return util::writeSubsetDescV11(payload, subset);
         });
 
         util::SECTION_HEADER_V11 skeletonHeader;
@@ -706,6 +733,48 @@ namespace
         std::remove(wrongId); std::remove(unknownBone); std::remove(badEasing);
     }
 
+    void testCanonicalWriterRoundTrip()
+    {
+        const char *source = "/tmp/mini-mbm-canonical-writer-source.msh";
+        const char *roundTrip = "/tmp/mini-mbm-canonical-writer-round-trip.msh";
+        MESH_MBM_DEBUG mesh;
+        char error[512] = "";
+        expect(writeCanonicalWeightedFixture(source, 100, 1.0f, 100, 10, 0, true) && mesh.loadV11(source),
+               "canonical writer source fixture must load");
+        expect(mesh.saveV11(roundTrip, false, false, false, error, sizeof(error) - 1),
+               "canonical writer must save validated sections 41-43");
+
+        MESH_MBM_DEBUG reloaded;
+        expect(reloaded.loadV11(roundTrip),
+               "canonical writer output must reload with all dependencies intact");
+
+        FILE *fp = std::fopen(roundTrip, "rb");
+        util::FILE_HEADER_V11 fileHeader;
+        uint32_t canonicalTypes[3] = {0, 0, 0};
+        uint32_t canonicalCount = 0;
+        bool inspected = fp && util::readFileHeaderV11(fp, fileHeader);
+        for (uint32_t index = 0; inspected && index < fileHeader.sectionCount; ++index)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            std::vector<uint8_t> payload;
+            inspected = util::readSectionV11(fp, sectionHeader, payload);
+            if (inspected && sectionHeader.type >= util::SECTION_SKELETAL_SKELETON &&
+                sectionHeader.type <= util::SECTION_SKELETAL_ANIMATION)
+            {
+                if (canonicalCount < 3)
+                    canonicalTypes[canonicalCount] = sectionHeader.type;
+                ++canonicalCount;
+            }
+        }
+        if (fp) std::fclose(fp);
+        expect(inspected && canonicalCount == 3 &&
+                   canonicalTypes[0] == util::SECTION_SKELETAL_SKELETON &&
+                   canonicalTypes[1] == util::SECTION_SKELETAL_WEIGHTS &&
+                   canonicalTypes[2] == util::SECTION_SKELETAL_ANIMATION,
+               "canonical writer must emit exactly one ordered 41-42-43 section group");
+        std::remove(source); std::remove(roundTrip);
+    }
+
     void testCanonicalAnimationValidation()
     {
         CANONICAL_BONE root;
@@ -746,6 +815,7 @@ int runSkeletalFoundationTests()
     testCanonicalWeightReader();
     testCanonicalAnimationReader();
     testCanonicalAnimationValidation();
+    testCanonicalWriterRoundTrip();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

@@ -2390,6 +2390,39 @@ namespace mbm
                 return log_util::onFailed(file,__FILE__, __LINE__, "Invalid mode [%s] for [%s]",which_mode.c_str(),fileOut);
         }
 
+        const bool hasCanonicalSkeleton = impl->canonicalSkeleton.skeletonId != 0;
+        const bool hasCanonicalWeights = impl->canonicalWeights.skeletonId != 0;
+        const bool hasCanonicalAnimations = impl->canonicalAnimations.skeletonId != 0;
+        if (hasCanonicalWeights || hasCanonicalAnimations)
+        {
+            if (!hasCanonicalSkeleton)
+                return log_util::onFailed(file, __FILE__, __LINE__,
+                                          "canonical weights or animations require a canonical skeleton [%s]", fileOut);
+        }
+        if (hasCanonicalSkeleton)
+        {
+            skeletal::COMPILED_SKELETON compiled;
+            if (!skeletal::compileCanonicalSkeleton(impl->canonicalSkeleton.sourceBones, compiled))
+                return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical skeleton [%s]", fileOut);
+
+            skeletal::CANONICAL_SKELETON skeleton = impl->canonicalSkeleton;
+            skeleton.compiled = std::move(compiled);
+            if (hasCanonicalWeights)
+            {
+                if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                    return log_util::onFailed(file, __FILE__, __LINE__, "canonical weight frame is out of range [%s]", fileOut);
+                const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+                uint32_t vertexCount = 0;
+                for (const util::SUBSET_DEBUG *subset : frame->subset)
+                    vertexCount += static_cast<uint32_t>(subset->vertexCount);
+                if (!skeletal::validateCanonicalWeights(skeleton, impl->canonicalWeights, vertexCount))
+                    return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical weights [%s]", fileOut);
+            }
+            if (hasCanonicalAnimations &&
+                !skeletal::validateCanonicalAnimations(skeleton, impl->canonicalAnimations))
+                return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical animations [%s]", fileOut);
+        }
+
         std::vector<std::string> ls_paths = this->getKnowPathsToExtraHeader();
 
         int totalBounding = static_cast<int>(this->impl->infoPhysics.lsCube.size())
@@ -2414,6 +2447,9 @@ namespace mbm
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
                                      + (impl->skeleton.empty() ? 0u : 1u)
                                      + (impl->vertexWeights.empty() ? 0u : 1u)
+                                     + (hasCanonicalSkeleton ? 1u : 0u)
+                                     + (hasCanonicalWeights ? 1u : 0u)
+                                     + (hasCanonicalAnimations ? 1u : 0u)
                                      + (impl->articulatedParts.empty() ? 0u : 1u)
                                      + (impl->articulatedClips.empty() ? 0u : 1u)
                                      + static_cast<uint32_t>(impl->headerMesh.totalFrames)
@@ -2586,6 +2622,135 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileOut);
+        }
+
+        // Canonical skeletal sections are emitted only from canonical data already loaded/imported.
+        // Legacy editor-only joints and name palettes are deliberately not converted here.
+        if (hasCanonicalSkeleton)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_SKELETAL_SKELETON;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                const skeletal::CANONICAL_SKELETON &skeleton = this->impl->canonicalSkeleton;
+                if (!util::le_io::writeU64LE(fp, skeleton.skeletonId) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(skeleton.sourceBones.size())))
+                    return false;
+                for (const skeletal::CANONICAL_BONE &bone : skeleton.sourceBones)
+                {
+                    const skeletal::LOCAL_TRANSFORM &local = bone.localBind;
+                    if (!util::le_io::writeU64LE(fp, bone.boneId) ||
+                        !util::le_io::writeU64LE(fp, bone.parentBoneId) ||
+                        !util::writeStringV11(fp, bone.name) ||
+                        !util::le_io::writeF32LE(fp, local.translation.x) ||
+                        !util::le_io::writeF32LE(fp, local.translation.y) ||
+                        !util::le_io::writeF32LE(fp, local.translation.z) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.x) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.y) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.z) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.w) ||
+                        !util::le_io::writeF32LE(fp, local.scale.x) ||
+                        !util::le_io::writeF32LE(fp, local.scale.y) ||
+                        !util::le_io::writeF32LE(fp, local.scale.z) ||
+                        !util::le_io::writeF32LE(fp, bone.radius) ||
+                        !util::le_io::writeF32LE(fp, bone.length))
+                        return false;
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_SKELETON [%s]", fileOut);
+        }
+
+        if (hasCanonicalWeights)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_SKELETAL_WEIGHTS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                const skeletal::CANONICAL_WEIGHTS &weights = this->impl->canonicalWeights;
+                if (!util::le_io::writeU64LE(fp, weights.skeletonId) ||
+                    !util::le_io::writeU32LE(fp, weights.frameIndex) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(weights.vertices.size())) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(weights.paletteBoneIds.size())))
+                    return false;
+                for (const uint64_t boneId : weights.paletteBoneIds)
+                    if (!util::le_io::writeU64LE(fp, boneId))
+                        return false;
+                for (const skeletal::CANONICAL_VERTEX_WEIGHT &vertex : weights.vertices)
+                {
+                    for (uint8_t slot = 0; slot < 4; ++slot)
+                        if (!util::le_io::writeU16LE(fp, vertex.paletteIndex[slot]))
+                            return false;
+                    for (uint8_t slot = 0; slot < 4; ++slot)
+                        if (!util::le_io::writeF32LE(fp, vertex.weight[slot]))
+                            return false;
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_WEIGHTS [%s]", fileOut);
+        }
+
+        if (hasCanonicalAnimations)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_SKELETAL_ANIMATION;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                const skeletal::CANONICAL_ANIMATIONS &animations = this->impl->canonicalAnimations;
+                const uint8_t reserved[3] = {0, 0, 0};
+                if (!util::le_io::writeU64LE(fp, animations.skeletonId) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(animations.clips.size())))
+                    return false;
+                for (const skeletal::SKELETAL_CLIP &clip : animations.clips)
+                {
+                    const uint8_t loop = clip.loop ? 1 : 0;
+                    if (!util::le_io::writeU64LE(fp, clip.clipId) || !util::writeStringV11(fp, clip.name) ||
+                        !util::le_io::writeF32LE(fp, clip.duration) ||
+                        !util::le_io::writeBytes(fp, &loop, 1) ||
+                        !util::le_io::writeBytes(fp, reserved, sizeof(reserved)) ||
+                        !util::le_io::writeU32LE(fp, static_cast<uint32_t>(clip.tracks.size())))
+                        return false;
+                    for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                    {
+                        if (!util::le_io::writeU64LE(fp, track.boneId) ||
+                            !util::le_io::writeBytes(fp, &track.channelMask, 1) ||
+                            !util::le_io::writeBytes(fp, reserved, sizeof(reserved)) ||
+                            !util::le_io::writeU32LE(fp, static_cast<uint32_t>(track.keys.size())))
+                            return false;
+                        for (const skeletal::SKELETAL_KEY &key : track.keys)
+                        {
+                            const uint8_t easing = static_cast<uint8_t>(key.easing);
+                            const skeletal::LOCAL_TRANSFORM &local = key.local;
+                            if (!util::le_io::writeF32LE(fp, key.time) ||
+                                !util::le_io::writeF32LE(fp, local.translation.x) ||
+                                !util::le_io::writeF32LE(fp, local.translation.y) ||
+                                !util::le_io::writeF32LE(fp, local.translation.z) ||
+                                !util::le_io::writeF32LE(fp, local.rotation.x) ||
+                                !util::le_io::writeF32LE(fp, local.rotation.y) ||
+                                !util::le_io::writeF32LE(fp, local.rotation.z) ||
+                                !util::le_io::writeF32LE(fp, local.rotation.w) ||
+                                !util::le_io::writeF32LE(fp, local.scale.x) ||
+                                !util::le_io::writeF32LE(fp, local.scale.y) ||
+                                !util::le_io::writeF32LE(fp, local.scale.z) ||
+                                !util::le_io::writeBytes(fp, &easing, 1) ||
+                                !util::le_io::writeBytes(fp, reserved, sizeof(reserved)) ||
+                                !util::le_io::writeF32LE(fp, key.bezierX1) ||
+                                !util::le_io::writeF32LE(fp, key.bezierY1) ||
+                                !util::le_io::writeF32LE(fp, key.bezierX2) ||
+                                !util::le_io::writeF32LE(fp, key.bezierY2))
+                                return false;
+                        }
+                    }
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_ANIMATION [%s]", fileOut);
         }
 
         // SECTION_ARTICULATED_PARTS - optional rigid-part identities and pivots -----------------------

@@ -129,11 +129,11 @@ section per mesh, same "diagnostic/editor + FBX re-export round-trip only" scope
 specific `SECTION_FRAME_STATIC` frame's own vertex topology (frame 1, always) rather than being
 independent of geometry — skin weights only mean anything relative to one specific vertex layout.
 
-### Canonical skeletal-runtime section types — reader rollout in progress
+### Canonical skeletal-runtime section types — reader/writer rollout in progress
 
-The following values are present in `SECTION_TYPE` and all three have explicit read/validate
-support in both real loaders. No tool may write them until the writer/import rollout and its
-round-trip/corruption fixtures are complete:
+The following values are present in `SECTION_TYPE`; all three have explicit read/validate support
+in both real loaders, and `MESH_MBM_DEBUG::saveV11` round-trips already-canonical data. The FBX
+importer does not produce them yet:
 
 ```cpp
 SECTION_SKELETAL_SKELETON  = 41,
@@ -547,9 +547,11 @@ a regression to fix retroactively.
 
 ## 6h. Canonical skeletal-runtime persistence design and implementation status
 
-This section fixes the byte-level contract. The type-41 skeleton and type-42 weight readers are
-implemented, including shared `skeletonId`, frame-0 topology, palette, coverage, clip/track/key, and
-presence invariants. Every canonical writer and the FBX import conversion remain pending.
+This section fixes the byte-level contract. Readers for types 41–43 are implemented, including
+shared `skeletonId`, frame-0 topology, palette, coverage, clip/track/key, and presence invariants.
+`MESH_MBM_DEBUG::saveV11` validates and emits an existing canonical 41–42–43 group in canonical
+order and includes it in `sectionCount`; it never promotes legacy editor data implicitly. The FBX
+import conversion remains pending.
 Every integer and float uses the existing V11 little-endian field serializers; records are written
 field-by-field and never struct-blitted. Strings use the length-prefixed UTF-8 encoding from §5.
 Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompressed bytes.
@@ -642,10 +644,11 @@ player state, blend priority, fade, timeline selection, or backend data is persi
 
 ### Rollout and old-reader behavior
 
-Implementation order is mandatory: add field serializers and payload validators; add parse support
-to `parse_v11_intermediate` and `MESH_MBM_DEBUG::loadV11`; add round-trip/corruption tests; only then
-add writer emission and `sectionCount` increments. Existing binaries that predate types 41–43 will
-reject files containing them. This is an explicit feature-version boundary, not silent fallback.
+The completed rollout order was: field serializers and payload validators; parse support in
+`parse_v11_intermediate` and `MESH_MBM_DEBUG::loadV11`; corruption tests; then writer emission,
+`sectionCount` increments, and a save/reload section-order fixture. Existing binaries that predate
+types 41–43 will reject files containing them. This is an explicit feature-version boundary, not
+silent fallback.
 
 There is deliberately no legacy skeletal writer mode. Once canonical read/import/write tests pass,
 remove the readers, writers, structs, and Mesh Debug APIs for `SECTION_FRAME_SKINNED` and
