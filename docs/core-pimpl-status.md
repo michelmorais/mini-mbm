@@ -157,6 +157,10 @@ The GLES2 LBS preparation cache follows that boundary as well. Resolved float bo
 streams, required/effective palette counts, and readiness status live only in `MESH_MBM::Impl` via
 the private `skeletal-gpu-lbs.h` contract. No backend handle, mutable vector, or convenience accessor
 was added to the public mesh header.
+Its uploaded vertex streams preserve the backend boundary: GLES2 bone-index/weight buffer handles
+and per-subset arrays live only in private `BUFFER_SPECIFIC` storage and are created through the
+private `skeletal-gpu-lbs-opengl_es.h` bridge. `BUFFER_GL`'s public layout/API did not acquire a GL
+handle or a skeletal-data container.
 
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade

@@ -477,7 +477,12 @@ namespace mbm
         vboIndexSubsetIB(nullptr),
         vboVertexSubsetVB(nullptr),
         vboNormalSubsetVB(nullptr),
-        vboTextureSubsetVB(nullptr)
+        vboTextureSubsetVB(nullptr),
+        vboBoneIndicesIB(0),
+        vboBoneWeightsIB(0),
+        vboBoneIndicesVB(nullptr),
+        vboBoneWeightsVB(nullptr),
+        skinSubsetCount(0)
     {
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
     }
@@ -510,6 +515,30 @@ namespace mbm
         if (vboTextureSubsetVB)
             delete[] vboTextureSubsetVB;
         vboTextureSubsetVB = nullptr;
+
+        if (vboBoneIndicesIB)
+        {
+            GLDeleteBuffers(1, &vboBoneIndicesIB);
+        }
+        if (vboBoneWeightsIB)
+        {
+            GLDeleteBuffers(1, &vboBoneWeightsIB);
+        }
+        vboBoneIndicesIB = 0;
+        vboBoneWeightsIB = 0;
+        if (vboBoneIndicesVB)
+        {
+            GLDeleteBuffers(static_cast<GLsizei>(skinSubsetCount), vboBoneIndicesVB);
+            delete[] vboBoneIndicesVB;
+        }
+        if (vboBoneWeightsVB)
+        {
+            GLDeleteBuffers(static_cast<GLsizei>(skinSubsetCount), vboBoneWeightsVB);
+            delete[] vboBoneWeightsVB;
+        }
+        vboBoneIndicesVB = nullptr;
+        vboBoneWeightsVB = nullptr;
+        skinSubsetCount = 0;
     }
 
     void BUFFER_GL::release()

@@ -19,6 +19,9 @@
 
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
+#if defined(USE_OPENGL_ES)
+#include <skeletal-gpu-lbs-opengl_es.h>
+#endif
 #include <draw-compatibility.h>
 #include <shader-var-cfg.h>
 #include <texture-manager.h>
@@ -6837,6 +6840,14 @@ namespace mbm
             }
             if (!loadOk)
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "error on load buffer for frame %u [%s]", currentFrame, fileNamePath);
+
+#if defined(USE_OPENGL_ES)
+            if (currentFrame == 0 && impl->gles2LbsInput.ready() &&
+                !skeletal::uploadGles2LbsVertexStreams(impl->buffer[currentFrame].pBufferGL,
+                                                       impl->gles2LbsInput))
+                return log_util::onFailed(nullptr, __FILE__, __LINE__,
+                                          "failed to upload GLES2 LBS vertex streams [%s]", fileNamePath);
+#endif
 
             const std::vector<TEXTURE *>::size_type totalIdTexture =
                 (impl->buffer[currentFrame].pBufferGL->totalSubset > lsIdTexture.size())
