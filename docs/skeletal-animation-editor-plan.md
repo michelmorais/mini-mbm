@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **1.1**
-Status: **Milestone 0 audited; canonical-only editor delivery decided**
+Document version: **1.2**
+Status: **Canonical skeleton reader started; permanent editor shell still pending**
 Last updated: **2026-08-10**
 
 ## 1. Purpose
@@ -394,6 +394,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.2 | 2026-08-10 | Began Milestone 1's canonical data dependency with the type-41 reader in both real loaders and deterministic valid/invalid/duplicate fixtures. Canonical weights, clips, cross-section validation, writer/import, and the permanent three-node shell remain pending. |
 | 1.1 | 2026-08-10 | Made canonical-only delivery normative: the Mesh Debug skeleton/weight representation and bind-report bridge are temporary audit scaffolding, not compatibility requirements. Canonical readers/import must precede permanent editor work; legacy skeletal APIs/sections are removed and affected assets regenerated from FBX before delivery. |
 | 1.0 | 2026-08-10 | Added the first non-mutating post-Milestone-0 integration: an explicit read-only `meshDebug` snapshot boundary and Bind Pose Contract panel for stable IDs, canonical local TRS, local/global/inverse-bind matrices, numeric errors, and structural diagnostics. This is groundwork for the future three-node shell, not destructive skeleton editing, pose preview, or timeline UI. |
 | 0.9 | 2026-08-10 | Registered the provisional 32-frame Mixamo walking source and its frames 1/16/32 audit for branch development. It complements rather than replaces the rat bind/weight/topology fixture and remains gated on provenance plus final handedness-converted expectations. |

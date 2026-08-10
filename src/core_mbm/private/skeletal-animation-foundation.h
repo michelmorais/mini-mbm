@@ -62,6 +62,8 @@ namespace mbm::skeletal
         ID_COLLISION,
         LOCAL_RECONSTRUCTION_MISMATCH,
         BIND_IDENTITY_MISMATCH,
+        INVALID_BIND_QUATERNION,
+        NON_UNIT_BIND_QUATERNION,
         EMPTY_PALETTE_NAME,
         DUPLICATE_PALETTE_NAME,
         UNKNOWN_WEIGHT_BONE,
@@ -133,6 +135,23 @@ namespace mbm::skeletal
         bool hasFatalDiagnostics() const noexcept;
     };
 
+    struct CANONICAL_BONE
+    {
+        uint64_t boneId = 0;
+        uint64_t parentBoneId = 0;
+        std::string name;
+        LOCAL_TRANSFORM localBind;
+        float radius = 0.0f;
+        float length = 0.0f;
+    };
+
+    struct CANONICAL_SKELETON
+    {
+        uint64_t skeletonId = 0;
+        std::vector<CANONICAL_BONE> sourceBones;
+        COMPILED_SKELETON compiled;
+    };
+
     struct WEIGHT_VALIDATION_REPORT
     {
         std::vector<int32_t> paletteBoneIndices;
@@ -202,6 +221,8 @@ namespace mbm::skeletal
     const char *diagnosticCodeName(DIAGNOSTIC_CODE code) noexcept;
     bool compileLegacySkeleton(const std::vector<util::SKELETON_BONE_V11> &legacy,
                                COMPILED_SKELETON &out);
+    bool compileCanonicalSkeleton(const std::vector<CANONICAL_BONE> &source,
+                                  COMPILED_SKELETON &out);
     bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
                                const std::vector<std::string> &palette,
                                const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,

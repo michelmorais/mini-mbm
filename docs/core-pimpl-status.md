@@ -145,6 +145,10 @@ This is a description of the current temporary audit implementation, not a compa
 the canonical-only skeletal delivery plan requires removing this snapshot and the exploratory Mesh
 Debug skeletal storage/API after canonical inspection is verified.
 
+The canonical type-41 reader stores its source records plus compiled hierarchy exclusively in
+`MESH_MBM::Impl` or `MESH_MBM_DEBUG::Impl`. Runtime and debug parse paths share validation, while no
+mutable canonical storage or lookup container is exposed through the public header.
+
 `ARTICULATED_ANIMATION_PLAYER` follows the same boundary: its public class exposes only lifecycle
 operations and an opaque `Impl`. Active clips, time, pause state, priority, crossfade
 duration/progress, per-play additive weight, and tie-break sequence remain private in

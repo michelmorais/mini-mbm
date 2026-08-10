@@ -381,6 +381,8 @@ namespace mbm::skeletal
             case DIAGNOSTIC_CODE::ID_COLLISION: return "id-collision";
             case DIAGNOSTIC_CODE::LOCAL_RECONSTRUCTION_MISMATCH: return "local-reconstruction-mismatch";
             case DIAGNOSTIC_CODE::BIND_IDENTITY_MISMATCH: return "bind-identity-mismatch";
+            case DIAGNOSTIC_CODE::INVALID_BIND_QUATERNION: return "invalid-bind-quaternion";
+            case DIAGNOSTIC_CODE::NON_UNIT_BIND_QUATERNION: return "non-unit-bind-quaternion";
             case DIAGNOSTIC_CODE::EMPTY_PALETTE_NAME: return "empty-palette-name";
             case DIAGNOSTIC_CODE::DUPLICATE_PALETTE_NAME: return "duplicate-palette-name";
             case DIAGNOSTIC_CODE::UNKNOWN_WEIGHT_BONE: return "unknown-weight-bone";
@@ -533,6 +535,74 @@ namespace mbm::skeletal
             out.indexById.emplace(out.bones.back().boneId, compiledIndex);
         }
         return out.bones.size() == legacy.size() && !out.hasFatalDiagnostics();
+    }
+
+    bool compileCanonicalSkeleton(const std::vector<CANONICAL_BONE> &source, COMPILED_SKELETON &out)
+    {
+        out = {};
+        out.bones.reserve(source.size());
+        std::unordered_set<uint64_t> ids;
+        std::unordered_set<std::string> names;
+        for (uint32_t i = 0; i < source.size(); ++i)
+        {
+            const CANONICAL_BONE &input = source[i];
+            if (input.name.empty()) { addDiagnostic(out, DIAGNOSTIC_CODE::EMPTY_NAME, i, input.name); continue; }
+            if (!names.insert(input.name).second) { addDiagnostic(out, DIAGNOSTIC_CODE::DUPLICATE_NAME, i, input.name); continue; }
+            if (input.boneId == 0 || !ids.insert(input.boneId).second)
+            { addDiagnostic(out, DIAGNOSTIC_CODE::ID_COLLISION, i, input.name); continue; }
+            int32_t parentIndex = -1;
+            if (input.parentBoneId != 0)
+            {
+                const auto parent = out.indexById.find(input.parentBoneId);
+                if (parent == out.indexById.end())
+                { addDiagnostic(out, DIAGNOSTIC_CODE::UNKNOWN_PARENT, i, input.name); continue; }
+                parentIndex = parent->second;
+            }
+            const LOCAL_TRANSFORM &local = input.localBind;
+            const bool finite = isFinite(local.translation.x) && isFinite(local.translation.y) &&
+                isFinite(local.translation.z) && isFinite(local.rotation.x) && isFinite(local.rotation.y) &&
+                isFinite(local.rotation.z) && isFinite(local.rotation.w) && isFinite(local.scale.x) &&
+                isFinite(local.scale.y) && isFinite(local.scale.z) && isFinite(input.radius) && isFinite(input.length);
+            if (!finite) { addDiagnostic(out, DIAGNOSTIC_CODE::NON_FINITE_TRANSFORM, i, input.name); continue; }
+            const float quaternionNorm = std::sqrt(local.rotation.x * local.rotation.x +
+                local.rotation.y * local.rotation.y + local.rotation.z * local.rotation.z +
+                local.rotation.w * local.rotation.w);
+            if (quaternionNorm <= QUATERNION_ZERO_EPSILON)
+            { addDiagnostic(out, DIAGNOSTIC_CODE::INVALID_BIND_QUATERNION, i, input.name, quaternionNorm); continue; }
+            if (std::fabs(quaternionNorm - 1.0f) > MATRIX_TOLERANCE)
+                addDiagnostic(out, DIAGNOSTIC_CODE::NON_UNIT_BIND_QUATERNION, i, input.name, quaternionNorm, false);
+            if (std::fabs(local.scale.x) <= SINGULAR_TOLERANCE ||
+                std::fabs(local.scale.y) <= SINGULAR_TOLERANCE || std::fabs(local.scale.z) <= SINGULAR_TOLERANCE)
+            { addDiagnostic(out, DIAGNOSTIC_CODE::SINGULAR_TRANSFORM, i, input.name); continue; }
+
+            COMPILED_BONE compiled;
+            compiled.boneId = input.boneId; compiled.parentBoneId = input.parentBoneId;
+            compiled.parentIndex = parentIndex; compiled.sourceIndex = i; compiled.name = input.name;
+            compiled.localBind = local;
+            compiled.localBind.rotation.x /= quaternionNorm; compiled.localBind.rotation.y /= quaternionNorm;
+            compiled.localBind.rotation.z /= quaternionNorm; compiled.localBind.rotation.w /= quaternionNorm;
+            compiled.hasNegativeScale = local.scale.x < 0.0f || local.scale.y < 0.0f || local.scale.z < 0.0f;
+            if (compiled.hasNegativeScale)
+                addDiagnostic(out, DIAGNOSTIC_CODE::NEGATIVE_SCALE, i, input.name, 0.0f, false);
+            compiled.localBindMatrix = buildTrsMatrix(compiled.localBind);
+            if (parentIndex < 0) compiled.globalBindMatrix = compiled.localBindMatrix;
+            else MatrixMultiply(&compiled.globalBindMatrix, &compiled.localBindMatrix,
+                &out.bones[static_cast<size_t>(parentIndex)].globalBindMatrix);
+            float determinant = 0.0f;
+            MatrixInverse(&compiled.inverseGlobalBindMatrix, &determinant, &compiled.globalBindMatrix);
+            MATRIX identity, observed;
+            MatrixIdentity(&identity);
+            MatrixMultiply(&observed, &compiled.inverseGlobalBindMatrix, &compiled.globalBindMatrix);
+            const float identityError = maximumMatrixDifference(observed, identity);
+            out.maximumBindIdentityError = std::max(out.maximumBindIdentityError, identityError);
+            if (identityError > matrixComparisonTolerance(observed, identity))
+                addDiagnostic(out, DIAGNOSTIC_CODE::BIND_IDENTITY_MISMATCH, i, input.name, identityError);
+            const int32_t compiledIndex = static_cast<int32_t>(out.bones.size());
+            out.indexByName.emplace(input.name, compiledIndex);
+            out.indexById.emplace(input.boneId, compiledIndex);
+            out.bones.push_back(std::move(compiled));
+        }
+        return out.bones.size() == source.size() && !out.hasFatalDiagnostics();
     }
 
     bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,

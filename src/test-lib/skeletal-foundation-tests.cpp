@@ -20,6 +20,9 @@
 #include "skeletal-foundation-tests.h"
 
 #include <skeletal-animation-foundation.h>
+#include <core_mbm/mesh-manager.h>
+#include <mesh-v11-io.h>
+#include <mesh-io-primitives.h>
 
 #include <cmath>
 #include <cstdio>
@@ -468,6 +471,90 @@ namespace
                std::fabs(unit.z - hundred.z / 100.0f) <= MATRIX_TOLERANCE,
                "scale-1 and scale-100 fixtures must produce equivalent normalized global poses");
     }
+
+    void testCanonicalSkeletonCompilation()
+    {
+        CANONICAL_BONE root;
+        root.boneId = 10;
+        root.name = "root";
+        root.localBind.translation = VEC3(1.0f, 2.0f, 3.0f);
+        CANONICAL_BONE child;
+        child.boneId = 20;
+        child.parentBoneId = 10;
+        child.name = "child";
+        child.localBind.translation = VEC3(0.0f, 2.0f, 0.0f);
+        COMPILED_SKELETON compiled;
+        expect(compileCanonicalSkeleton({root, child}, compiled),
+               "valid canonical parent-first skeleton must compile");
+        expect(compiled.bones.size() == 2 && compiled.bones[1].parentIndex == 0,
+               "canonical skeleton must preserve IDs and resolve parent index");
+        expect(compiled.maximumBindIdentityError <= MATRIX_TOLERANCE,
+               "canonical inverse bind must produce identity");
+
+        child.parentBoneId = 999;
+        expect(!compileCanonicalSkeleton({root, child}, compiled) &&
+               hasDiagnostic(compiled, DIAGNOSTIC_CODE::UNKNOWN_PARENT),
+               "canonical skeleton must reject a forward or missing parent");
+        child.parentBoneId = 10;
+        child.localBind.rotation = {0.0f, 0.0f, 0.0f, 0.0f};
+        expect(!compileCanonicalSkeleton({root, child}, compiled) &&
+               hasDiagnostic(compiled, DIAGNOSTIC_CODE::INVALID_BIND_QUATERNION),
+               "canonical skeleton must reject a zero bind quaternion");
+        child = root;
+        child.name = "duplicate-id";
+        expect(!compileCanonicalSkeleton({root, child}, compiled) &&
+               hasDiagnostic(compiled, DIAGNOSTIC_CODE::ID_COLLISION),
+               "canonical skeleton must reject duplicate bone IDs");
+    }
+
+    bool writeCanonicalSkeletonFixture(const char *path, const bool zeroQuaternion,
+                                       const uint32_t sectionCount)
+    {
+        FILE *fp = std::fopen(path, "wb+");
+        if (!fp) return false;
+        util::FILE_HEADER_V11 fileHeader;
+        fileHeader.typeMesh = util::TYPE_MESH_3D;
+        fileHeader.sectionCount = sectionCount;
+        bool ok = util::writeFileHeaderV11(fp, fileHeader);
+        for (uint32_t section = 0; ok && section < sectionCount; ++section)
+        {
+            util::SECTION_HEADER_V11 header;
+            header.type = util::SECTION_SKELETAL_SKELETON;
+            header.sectionVersion = 1;
+            ok = util::writeSectionV11Streamed(fp, header, [zeroQuaternion](FILE *payload)
+            {
+                return util::le_io::writeU64LE(payload, 100) &&
+                    util::le_io::writeU32LE(payload, 1) &&
+                    util::le_io::writeU64LE(payload, 10) &&
+                    util::le_io::writeU64LE(payload, 0) &&
+                    util::writeStringV11(payload, "root") &&
+                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                    util::le_io::writeF32LE(payload, zeroQuaternion ? 0.0f : 1.0f) &&
+                    util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                    util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 0.1f) &&
+                    util::le_io::writeF32LE(payload, 1.0f);
+            });
+        }
+        std::fclose(fp);
+        return ok;
+    }
+
+    void testCanonicalSkeletonReader()
+    {
+        const char *validPath = "/tmp/mini-mbm-canonical-skeleton-valid.msh";
+        const char *invalidPath = "/tmp/mini-mbm-canonical-skeleton-invalid.msh";
+        const char *duplicatePath = "/tmp/mini-mbm-canonical-skeleton-duplicate.msh";
+        expect(writeCanonicalSkeletonFixture(validPath, false, 1), "canonical fixture must write");
+        MESH_MBM_DEBUG mesh;
+        expect(mesh.loadV11(validPath), "both-loader canonical skeleton reader must accept valid payload");
+        expect(writeCanonicalSkeletonFixture(invalidPath, true, 1), "invalid canonical fixture must write");
+        expect(!mesh.loadV11(invalidPath), "canonical reader must reject zero bind quaternion");
+        expect(writeCanonicalSkeletonFixture(duplicatePath, false, 2), "duplicate canonical fixture must write");
+        expect(!mesh.loadV11(duplicatePath), "canonical reader must reject duplicate skeleton sections");
+        std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -480,6 +567,8 @@ int runSkeletalFoundationTests()
     testClipSampling();
     testClipCorruptionDiagnostics();
     testScaleOneAndHundredEquivalence();
+    testCanonicalSkeletonCompilation();
+    testCanonicalSkeletonReader();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

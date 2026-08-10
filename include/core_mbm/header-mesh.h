@@ -583,6 +583,9 @@ namespace util
                                           // MESH_MBM_DEBUG::getInfo probe truly skips unknown types) -
                                           // this section type has explicit handling in both real
                                           // loaders precisely because of that.
+        SECTION_SKELETAL_SKELETON  = 41, // canonical runtime skeleton, docs Sec. 6h
+        SECTION_SKELETAL_WEIGHTS   = 42, // canonical runtime weights, docs Sec. 6h
+        SECTION_SKELETAL_ANIMATION = 43, // canonical skeletal clips, docs Sec. 6h
     };
 
     enum SECTION_COMPRESSION : uint8_t

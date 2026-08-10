@@ -23,9 +23,11 @@ if(OPENGLES2_INCLUDE_DIR AND NOT OPENGLES2_INCLUDE_DIR STREQUAL "OPENGLES2_INCLU
     include_directories(${OPENGLES2_INCLUDE_DIR})
 endif()
 include_directories(${INCLUDE}
+                    ${CORE_MBM_INCLUDES}
                     ${GLES_INCLUDE}
                     ${RENDER_INCLUDES}
                     ${CORE_OPENGLES_INCLUDES}
+                    ${CMAKE_SOURCE_DIR}/src/core_mbm
                     ${CMAKE_SOURCE_DIR}/src/core_mbm/private
                     ${THIRD_PARTY})
 
@@ -54,4 +56,3 @@ else()
 endif()
 
 target_link_libraries(testLib core_mbm)
-

@@ -129,12 +129,12 @@ section per mesh, same "diagnostic/editor + FBX re-export round-trip only" scope
 specific `SECTION_FRAME_STATIC` frame's own vertex topology (frame 1, always) rather than being
 independent of geometry — skin weights only mean anything relative to one specific vertex layout.
 
-### Milestone-0.5 reserved skeletal-runtime types — not implemented yet
+### Canonical skeletal-runtime section types — reader rollout in progress
 
-The following values are reserved by the accepted persistence design but are deliberately **not yet
-present in `SECTION_TYPE` and must not be written by any tool** until both real loaders have explicit
-read/validate branches. This preserves the verified rule above that unknown sections currently make
-content loading fail:
+The following values are present in `SECTION_TYPE`. Type 41 has explicit read/validate support in
+both real loaders; types 42 and 43 remain rejected until their own readers and cross-section
+validation land. No tool may write any of the three until all readers, presence checks, and
+corruption fixtures are complete:
 
 ```cpp
 SECTION_SKELETAL_SKELETON  = 41,
@@ -546,9 +546,11 @@ for type `40` in either loader will still hard-fail on a file carrying this sect
 in §4) — accepted as consistent with `SECTION_FRAME_SKINNED`'s own original rollout, not treated as
 a regression to fix retroactively.
 
-## 6h. Accepted skeletal-runtime persistence design (Milestone 0.5; not implemented)
+## 6h. Canonical skeletal-runtime persistence design and implementation status
 
-This section fixes the byte-level contract required before readers or writers are implemented.
+This section fixes the byte-level contract. The type-41 skeleton reader is implemented; type-42
+weights, type-43 animation, cross-section identity/presence validation, and every writer remain
+pending.
 Every integer and float uses the existing V11 little-endian field serializers; records are written
 field-by-field and never struct-blitted. Strings use the length-prefixed UTF-8 encoding from §5.
 Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompressed bytes.
