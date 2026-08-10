@@ -711,6 +711,14 @@ namespace
         MESH_MBM_DEBUG mesh;
         expect(writeCanonicalWeightedFixture(valid, 100, 1.0f) && mesh.loadV11(valid),
                "canonical weight reader must resolve sections independent of file order");
+        SKELETON_BIND_SUMMARY summary;
+        SKELETON_BIND_BONE_INFO bone;
+        expect(mesh.refreshSkeletonBindReport() && mesh.getSkeletonBindSummary(summary) &&
+                   summary.valid && summary.canonical && summary.boneCount == 1 && mesh.getSkeletonBindBone(0, bone) &&
+                   std::string(mesh.getSkeletonBindBoneName(0)) == "root",
+               "bind report must inspect canonical section 41 without populating legacy bones");
+        expect(mesh.getTotalBone() == 0,
+               "canonical bind inspection must not create a legacy skeleton compatibility copy");
         expect(writeCanonicalWeightedFixture(wrongId, 101, 1.0f) && !mesh.loadV11(wrongId),
                "canonical weight reader must reject skeletonId mismatch");
         expect(writeCanonicalWeightedFixture(badSum, 100, 0.5f) && !mesh.loadV11(badSum),

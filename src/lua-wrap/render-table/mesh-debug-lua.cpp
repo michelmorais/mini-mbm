@@ -2322,6 +2322,8 @@ namespace mbm
         lua_pushboolean(lua, summary.valid); lua_setfield(lua, -2, "valid");
         lua_pushinteger(lua, summary.boneCount); lua_setfield(lua, -2, "boneCount");
         lua_pushinteger(lua, summary.diagnosticCount); lua_setfield(lua, -2, "diagnosticCount");
+        lua_pushboolean(lua, summary.canonical);
+        lua_setfield(lua, -2, "canonical");
         lua_pushnumber(lua, summary.maximumReconstructionError);
         lua_setfield(lua, -2, "maximumReconstructionError");
         lua_pushnumber(lua, summary.maximumBindIdentityError);
@@ -2335,8 +2337,8 @@ namespace mbm
                 continue;
             lua_createtable(lua, 0, 14);
             lua_pushinteger(lua, bone.sourceIndex + 1); lua_setfield(lua, -2, "sourceIndex");
-            const util::SKELETON_BONE_V11 *source = meshDebug->mesh.getBone(bone.sourceIndex);
-            lua_pushstring(lua, source ? source->name.c_str() : ""); lua_setfield(lua, -2, "name");
+            const char *boneName = meshDebug->mesh.getSkeletonBindBoneName(index);
+            lua_pushstring(lua, boneName ? boneName : ""); lua_setfield(lua, -2, "name");
             pushSkeletonBindId(lua, bone.boneId, "boneId");
             pushSkeletonBindId(lua, bone.parentBoneId, "parentBoneId");
             lua_pushinteger(lua, bone.parentIndex + 1); lua_setfield(lua, -2, "parentIndex");
@@ -2352,6 +2354,8 @@ namespace mbm
             pushSkeletonBindMatrix(lua, bone.globalBindMatrix); lua_setfield(lua, -2, "globalBindMatrix");
             pushSkeletonBindMatrix(lua, bone.inverseGlobalBindMatrix);
             lua_setfield(lua, -2, "inverseGlobalBindMatrix");
+            lua_pushnumber(lua, bone.radius); lua_setfield(lua, -2, "radius");
+            lua_pushnumber(lua, bone.length); lua_setfield(lua, -2, "length");
             lua_pushboolean(lua, bone.hasNegativeScale); lua_setfield(lua, -2, "hasNegativeScale");
             lua_pushboolean(lua, bone.hasShear); lua_setfield(lua, -2, "hasShear");
             lua_rawseti(lua, -2, index + 1);
@@ -2368,8 +2372,8 @@ namespace mbm
             lua_pushstring(lua, diagnostic.code ? diagnostic.code : "unknown");
             lua_setfield(lua, -2, "code");
             lua_pushinteger(lua, diagnostic.sourceIndex + 1); lua_setfield(lua, -2, "sourceIndex");
-            const util::SKELETON_BONE_V11 *source = meshDebug->mesh.getBone(diagnostic.sourceIndex);
-            lua_pushstring(lua, source ? source->name.c_str() : ""); lua_setfield(lua, -2, "boneName");
+            const char *boneName = meshDebug->mesh.getSkeletonBindBoneName(diagnostic.sourceIndex);
+            lua_pushstring(lua, boneName ? boneName : ""); lua_setfield(lua, -2, "boneName");
             lua_pushnumber(lua, diagnostic.observedError); lua_setfield(lua, -2, "observedError");
             lua_pushboolean(lua, diagnostic.fatal); lua_setfield(lua, -2, "fatal");
             lua_rawseti(lua, -2, index + 1);

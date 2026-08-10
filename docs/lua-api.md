@@ -1223,20 +1223,21 @@ scales bone position, radius, and length while intentionally preserving each bon
 local report = meshD:getSkeletonBindReport()
 ```
 
-This temporary audit-only call recompiles the stored legacy skeleton through the canonical skeletal
-foundation and returns a table with `valid`, `boneCount`, `diagnosticCount`,
+This read-only call inspects section 41 directly when a canonical skeleton is present; only older
+editor assets fall back to recompiling the stored legacy skeleton through the canonical foundation.
+It returns a table with `canonical`, `valid`, `boneCount`, `diagnosticCount`,
 `maximumReconstructionError`, `maximumBindIdentityError`, `bones`, and `diagnostics`. Each compiled
 bone contains its one-based `sourceIndex`, `name`, stable `boneId`/`parentBoneId` as 16-digit hex
 strings, one-based `parentIndex` (`0` for a root), local translation/quaternion/scale, row-major
 16-number `localBindMatrix`, `globalBindMatrix`, and `inverseGlobalBindMatrix`, plus
 `hasNegativeScale` and `hasShear`. IDs are strings because Lua numbers cannot preserve every
-`uint64` value exactly. Diagnostics contain `code`, one-based `sourceIndex`, `boneName`,
+`uint64` value exactly. Canonical bone entries also expose authoring metadata `radius` and `length`.
+Diagnostics contain `code`, one-based `sourceIndex`, `boneName`,
 `observedError`, and `fatal`.
 
-The call never edits the skeleton and the report is a detached Lua snapshot. The Skeletal
-Animation Editor currently uses it for its Bind Pose Contract panel. It is not a promised
-compatibility API: canonical-section inspection will replace it and this method will be removed
-together with the exploratory Mesh Debug skeleton surface before skeletal-animation delivery.
+The call never edits the skeleton and the report is a detached Lua snapshot. Mesh Debug and the
+Skeletal Animation Editor use it for canonical bind inspection. `getTotalBone/getBone` remain
+legacy-only and are never populated from section 41.
 
 ### 15.1 Articulated-animation authoring
 

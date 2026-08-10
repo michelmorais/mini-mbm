@@ -4448,6 +4448,13 @@ namespace mbm
     bool MESH_MBM_DEBUG::refreshSkeletonBindReport() noexcept
     {
         impl->hasCompiledSkeletonBindReport = true;
+        if (impl->canonicalSkeleton.skeletonId != 0)
+        {
+            impl->compiledSkeletonBindReportIsCanonical = true;
+            impl->compiledSkeletonBindReport = impl->canonicalSkeleton.compiled;
+            return !impl->compiledSkeletonBindReport.hasFatalDiagnostics();
+        }
+        impl->compiledSkeletonBindReportIsCanonical = false;
         return skeletal::compileLegacySkeleton(impl->skeleton, impl->compiledSkeletonBindReport);
     }
 
@@ -4461,6 +4468,7 @@ namespace mbm
         out.maximumReconstructionError = report.maximumReconstructionError;
         out.maximumBindIdentityError = report.maximumBindIdentityError;
         out.valid = !report.hasFatalDiagnostics();
+        out.canonical = impl->compiledSkeletonBindReportIsCanonical;
         return true;
     }
 
@@ -4482,9 +4490,26 @@ namespace mbm
         out.localBindMatrix = bone.localBindMatrix;
         out.globalBindMatrix = bone.globalBindMatrix;
         out.inverseGlobalBindMatrix = bone.inverseGlobalBindMatrix;
+        if (impl->compiledSkeletonBindReportIsCanonical && bone.sourceIndex < impl->canonicalSkeleton.sourceBones.size())
+        {
+            out.radius = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].radius;
+            out.length = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].length;
+        }
+        else if (bone.sourceIndex < impl->skeleton.size())
+        {
+            out.radius = impl->skeleton[bone.sourceIndex].radius;
+            out.length = impl->skeleton[bone.sourceIndex].length;
+        }
         out.hasNegativeScale = bone.hasNegativeScale;
         out.hasShear = bone.hasShear;
         return true;
+    }
+
+    const char *MESH_MBM_DEBUG::getSkeletonBindBoneName(const uint32_t index) const noexcept
+    {
+        if (!impl->hasCompiledSkeletonBindReport || index >= impl->compiledSkeletonBindReport.bones.size())
+            return nullptr;
+        return impl->compiledSkeletonBindReport.bones[index].name.c_str();
     }
 
     bool MESH_MBM_DEBUG::getSkeletonBindDiagnostic(const uint32_t index,
@@ -5533,6 +5558,7 @@ namespace mbm
         impl->canonicalAnimations = {};
         impl->compiledSkeletonBindReport = {};
         impl->hasCompiledSkeletonBindReport = false;
+        impl->compiledSkeletonBindReportIsCanonical = false;
     }
 
     void MESH_MBM_DEBUG::fillAtLeastOneBound()

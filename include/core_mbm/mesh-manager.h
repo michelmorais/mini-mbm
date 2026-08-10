@@ -88,6 +88,7 @@ namespace mbm
         float maximumReconstructionError = 0.0f;
         float maximumBindIdentityError = 0.0f;
         bool valid = false;
+        bool canonical = false;
     };
 
     struct SKELETON_BIND_BONE_INFO
@@ -105,6 +106,8 @@ namespace mbm
         MATRIX localBindMatrix;
         MATRIX globalBindMatrix;
         MATRIX inverseGlobalBindMatrix;
+        float radius = 0.0f;
+        float length = 0.0f;
         bool hasNegativeScale = false;
         bool hasShear = false;
     };
@@ -239,6 +242,7 @@ namespace mbm
         API_IMPL bool refreshSkeletonBindReport() noexcept;
         API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
         API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out) const noexcept;
+        API_IMPL const char *getSkeletonBindBoneName(const uint32_t index) const noexcept;
         API_IMPL bool getSkeletonBindDiagnostic(const uint32_t index,
                                                 SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept;
         // Edits an existing bone in place (name/parent/position/radius/rotation/scale/length).

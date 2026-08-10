@@ -5124,22 +5124,20 @@ end
 -- position (onTouchMove, via onBonesEdit -- same call path the DragFloat X/Y/Z fields already use
 -- on every frame while being click-dragged in ImGui, so a full rebuild on every 3D-viewport drag
 -- frame too is consistent with existing, already-shipped behavior for this exact mutation).
+local getBoneList
 function rebuildBoneGizmo(tEntry, meshD, index)
     destroyBoneGizmo(tEntry)
     if tEntry.sOpenNode ~= 'bones' or index ~= iSelectedMeshIndex then return end
 
-    local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
-    nBones = (okTotal and nBones) or 0
+    local boneList, nBones = getBoneList(meshD)
     if nBones == 0 then return end
 
     local tBones = {}
-    for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ = dpCall(function() return meshD:getBone(i) end)
-        if okG and name then
-            local wx, wy, wz = boneToWorld(meshD, x, y, z)
-            tBones[name] = { wx = wx, wy = wy, wz = wz, radius = radius or 1, parentName = parentName,
-                rotX = rotX or 0, rotY = rotY or 0, rotZ = rotZ or 0 }
-        end
+    for _, bone in ipairs(boneList) do
+        local wx, wy, wz = boneToWorld(meshD, bone.x, bone.y, bone.z)
+        tBones[bone.name] = { wx = wx, wy = wy, wz = wz, radius = bone.radius or 1,
+            parentName = bone.parentName, rotX = bone.rotX or 0, rotY = bone.rotY or 0,
+            rotZ = bone.rotZ or 0 }
     end
 
     local tHighlight = tEntry.tBoneHighlight or {}
@@ -6172,7 +6170,7 @@ end
 -- Shared by showBonesNode (Up axis/Humanoid/bake/add-bone) and showBonesWindow (the table) -- both
 -- need the current skeleton's bone list read fresh every frame (tens of joints at most, same idiom
 -- as showFrameNode's per-frame subset read).
-local function getBoneList(meshD)
+getBoneList = function(meshD)
     local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
     nBones = (okTotal and nBones) or 0
     local tBones = {}
@@ -6184,7 +6182,41 @@ local function getBoneList(meshD)
                 rotX = rotX, rotY = rotY, rotZ = rotZ, scaleX = scaleX, scaleY = scaleY, scaleZ = scaleZ, length = length })
         end
     end
-    return tBones, nBones
+    if nBones > 0 then return tBones, nBones, false end
+
+    -- Canonical section 41 is intentionally not copied into the destructive legacy bone model.
+    -- Use the detached bind report as the read-only inspection source instead.
+    local okReport, report = dpCall(function() return meshD:getSkeletonBindReport() end)
+    if not okReport or type(report) ~= 'table' or report.canonical ~= true or type(report.bones) ~= 'table' then
+        return tBones, nBones, false
+    end
+    for i, bone in ipairs(report.bones) do
+        local global = bone.globalBindMatrix or {}
+        local parentName = nil
+        if (bone.parentIndex or 0) > 0 and report.bones[bone.parentIndex] then
+            parentName = report.bones[bone.parentIndex].name
+        end
+        local q = bone.localRotation or {}
+        local qx, qy, qz, qw = q.x or 0, q.y or 0, q.z or 0, q.w or 1
+        local yx = 2 * (qx * qy - qz * qw)
+        local yy = 1 - 2 * (qx * qx + qz * qz)
+        local yz = 2 * (qy * qz + qx * qw)
+        local zx = 2 * (qx * qz + qy * qw)
+        local zy = 2 * (qy * qz - qx * qw)
+        local zz = 1 - 2 * (qx * qx + qy * qy)
+        local rotX, rotY, rotZ = boneFrameToEuler( yx, yy, yz, zx, zy, zz)
+        table.insert(tBones, {
+            idx = i, name = bone.name, parentName = parentName,
+            x = global[13] or 0, y = global[14] or 0, z = global[15] or 0,
+            radius = bone.radius or 0, length = bone.length or 0,
+            rotX = rotX, rotY = rotY, rotZ = rotZ,
+            scaleX = bone.localScale and bone.localScale.x or 1,
+            scaleY = bone.localScale and bone.localScale.y or 1,
+            scaleZ = bone.localScale and bone.localScale.z or 1,
+            canonical = true,
+        })
+    end
+    return tBones, #tBones, true
 end
 
 -- Shared by every bone-mutating action in showBonesNode/showBonesWindow -- keeps the "no
@@ -6590,7 +6622,11 @@ function showBonesNode(tEntry, meshD, index)
         tImGui.TextDisabled(tLang.L('bones_moved_to_window_label'))
         tImGui.HelpMarker(tLang.L('bones_transform_warning'))
 
-        local tBones, nBones = getBoneList(meshD)
+        local tBones, nBones, canonicalReadOnly = getBoneList(meshD)
+
+        if canonicalReadOnly then
+            tImGui.TextWrapped(tLang.L('bones_canonical_read_only'))
+        else
 
         tImGui.Separator()
         tEntry.iArmatureTemplateIndex = tEntry.iArmatureTemplateIndex or 1
@@ -6823,6 +6859,7 @@ function showBonesNode(tEntry, meshD, index)
         -- Export to FBX moved to File menu (next to Import via Blender) -- it isn't specific to
         -- bones (a bone-less mesh still exports fine), so it doesn't belong buried in this node.
 
+        end
         tImGui.TreePop()
     end
 end
@@ -7859,7 +7896,7 @@ function showBonesWindow()
         return
     end
 
-    local tBones = getBoneList(meshD)
+    local tBones, _, canonicalReadOnly = getBoneList(meshD)
     local tParentNames = { tLang.L('bones_root_label') }
     for _, b in ipairs(tBones) do table.insert(tParentNames, b.name) end
 
@@ -7876,6 +7913,7 @@ function showBonesWindow()
     end
 
     if #tBones > 0 then
+        if canonicalReadOnly then tImGui.BeginDisabled(true) end
         -- ScrollX + fixed-width columns (not the default stretch sizing) so a wide row (name +
         -- parent combo + 3 drag floats + remove button) scrolls horizontally within the panel
         -- instead of forcing the whole Mesh Tree window wider or clipping the rightmost columns.
@@ -8138,6 +8176,7 @@ function showBonesWindow()
             end
             tImGui.EndTable()
         end
+        if canonicalReadOnly then tImGui.EndDisabled() end
     else
         tImGui.TextDisabled(tLang.L('bones_none_label'))
     end
