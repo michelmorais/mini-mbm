@@ -244,8 +244,9 @@
     6.61.0 Connected Mesh Debug's Bone inspector and gizmo to canonical section 41 through the canonical-first detached bind report. Canonical hierarchy, global positions, quaternion-derived orientation, scale, radius, and length are visible read-only without populating or enabling the destructive legacy skeleton model.
     6.62.0 Added the private canonical CPU LBS reference used as the future GPU oracle. It composes inverse-global-bind with evaluated global pose in row-vector order, blends four-influence positions, applies inverse-transpose normal matrices, and verifies bind identity, rigid weight-one motion, and non-uniform-scale normals without changing rendering or Lua APIs.
     6.63.0 Added the private rigid CPU DQS reference alongside LBS. It converts rigid skin matrices to dual quaternions, aligns antipodal hemispheres per vertex, normalizes and orthogonalizes blended real/dual parts, transforms positions and normals, rejects scale/shear explicitly, and verifies bind/weight-one LBS parity plus the +170/-170 degree antipodal case.
+    6.64.0 Began the GLES2 runtime integration with a private capability gate shared by Linux/X11, Android, and Windows GLES initialization. It measures vertex-uniform-vector and vertex-attribute budgets from the active context, reserves eight uniform vectors for scene matrices, and reports conservative three-vec4 LBS and two-vec4 rigid-DQS palette capacities only when five skeletal vertex attributes fit. Tests lock the GLES2-minimum result at 40 LBS/60 DQS bones and reject missing limits or insufficient attributes without adding a GPU shader or fallback.
 */
-#define MBM_VERSION "6.63.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.64.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

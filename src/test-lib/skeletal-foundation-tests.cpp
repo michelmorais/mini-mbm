@@ -20,6 +20,7 @@
 #include "skeletal-foundation-tests.h"
 
 #include <skeletal-animation-foundation.h>
+#include <skeletal-render-capability.h>
 #include <core_mbm/mesh-manager.h>
 #include <mesh-v11-io.h>
 #include <mesh-io-primitives.h>
@@ -924,6 +925,24 @@ namespace
                    std::fabs(dqsPositions[0].y) <= MATRIX_TOLERANCE,
                "CPU rigid DQS must antipodally align equivalent hemisphere rotations before blending");
     }
+
+    void testGles2SkinningCapability()
+    {
+        const GLES2_SKINNING_CAPABILITY minimum = calculateGles2SkinningCapability(128, 8);
+        expect(minimum.measured && minimum.hasRequiredVertexAttributes &&
+                   minimum.reservedVertexUniformVectors == 8 &&
+                   minimum.lbsMatrixPaletteBones == 40 && minimum.dqsRigidPaletteBones == 60,
+               "GLES2 minimum capability must reserve scene matrices before calculating palettes");
+        const GLES2_SKINNING_CAPABILITY insufficientAttributes =
+            calculateGles2SkinningCapability(256, 4);
+        expect(insufficientAttributes.measured && !insufficientAttributes.hasRequiredVertexAttributes &&
+                   insufficientAttributes.lbsMatrixPaletteBones == 0 &&
+                   insufficientAttributes.dqsRigidPaletteBones == 0,
+               "GLES2 skeletal capability must reject an insufficient vertex-attribute budget");
+        const GLES2_SKINNING_CAPABILITY unavailable = calculateGles2SkinningCapability(0, 0);
+        expect(!unavailable.measured && unavailable.lbsMatrixPaletteBones == 0,
+               "GLES2 zero query results must remain unmeasured rather than claiming support");
+    }
 }
 
 int runSkeletalFoundationTests()
@@ -944,6 +963,7 @@ int runSkeletalFoundationTests()
     testCanonicalAnimationValidation();
     testCanonicalWriterRoundTrip();
     testCpuLbsReference();
+    testGles2SkinningCapability();
     if (failures == 0)
         std::fprintf(stdout, "[skeletal-foundation] PASS\n");
     return failures == 0 ? 0 : 1;

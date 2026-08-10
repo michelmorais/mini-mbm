@@ -27,6 +27,7 @@
 #include <device.h>
 #include <specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
+#include <skeletal-render-capability.h>
 
 
 namespace mbm
@@ -80,6 +81,15 @@ namespace mbm
         TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
         GLint maxTextureSize = 0;
         GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        GLint maxVertexUniformVectors = 0, maxVertexAttributes = 0;
+        GLGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &maxVertexUniformVectors);
+        GLGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttributes);
+        skeletal::setMeasuredGles2SkinningCapability(static_cast<uint32_t>(maxVertexUniformVectors),
+                                                      static_cast<uint32_t>(maxVertexAttributes));
+        const skeletal::GLES2_SKINNING_CAPABILITY skinning = skeletal::getMeasuredGles2SkinningCapability();
+        INFO_LOG("GLES2 skeletal capability: vertexUniformVectors=%u vertexAttributes=%u LBS=%u DQS=%u",
+                 skinning.maxVertexUniformVectors, skinning.maxVertexAttributes,
+                 skinning.lbsMatrixPaletteBones, skinning.dqsRigidPaletteBones);
         //const GLint MaxTextureWidth = static_cast<GLint>(std::sqrt(static_cast<float>(maxTextureSize)));
         const GLint MaxTextureWidth = maxTextureSize;
         const GLint MaxTextureHeight = MaxTextureWidth;
