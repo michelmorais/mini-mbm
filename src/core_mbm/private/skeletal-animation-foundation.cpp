@@ -188,6 +188,29 @@ namespace mbm::skeletal
             return value;
         }
 
+        QUATERNION multiplyQuaternion(const QUATERNION &left, const QUATERNION &right) noexcept
+        {
+            return {
+                left.w * right.x + left.x * right.w + left.y * right.z - left.z * right.y,
+                left.w * right.y - left.x * right.z + left.y * right.w + left.z * right.x,
+                left.w * right.z + left.x * right.y - left.y * right.x + left.z * right.w,
+                left.w * right.w - left.x * right.x - left.y * right.y - left.z * right.z
+            };
+        }
+
+        QUATERNION conjugateQuaternion(const QUATERNION &value) noexcept
+        {
+            return {-value.x, -value.y, -value.z, value.w};
+        }
+
+        VEC3 rotateVectorByQuaternion(const VEC3 &value, const QUATERNION &rotation) noexcept
+        {
+            const QUATERNION vector = {value.x, value.y, value.z, 0.0f};
+            const QUATERNION rotated = multiplyQuaternion(
+                multiplyQuaternion(rotation, vector), conjugateQuaternion(rotation));
+            return VEC3(rotated.x, rotated.y, rotated.z);
+        }
+
         QUATERNION interpolateQuaternion(const QUATERNION &start, QUATERNION end, const float factor) noexcept
         {
             QUATERNION begin = normalizedQuaternion(start);
@@ -995,6 +1018,120 @@ namespace mbm::skeletal
                 if (length <= QUATERNION_ZERO_EPSILON)
                     return false;
                 outNormals[vertexIndex] = VEC3(normal.x / length, normal.y / length, normal.z / length);
+            }
+        }
+        return true;
+    }
+
+    bool skinVerticesDqsRigidReference(const CANONICAL_SKELETON &skeleton, const CANONICAL_WEIGHTS &weights,
+                                       const SKELETAL_POSE &pose, const std::vector<VEC3> &bindPositions,
+                                       const std::vector<VEC3> &bindNormals, std::vector<VEC3> &outPositions,
+                                       std::vector<VEC3> &outNormals) noexcept
+    {
+        struct DUAL_QUATERNION
+        {
+            QUATERNION real;
+            QUATERNION dual;
+        };
+
+        outPositions.clear();
+        outNormals.clear();
+        const size_t vertexCount = bindPositions.size();
+        if (weights.vertices.size() != vertexCount ||
+            (!bindNormals.empty() && bindNormals.size() != vertexCount) ||
+            pose.globalTransforms.size() != skeleton.compiled.bones.size() ||
+            !validateCanonicalWeights(skeleton, weights, static_cast<uint32_t>(vertexCount)))
+            return false;
+
+        std::vector<DUAL_QUATERNION> palette(weights.paletteBoneIds.size());
+        for (size_t paletteIndex = 0; paletteIndex < weights.paletteBoneIds.size(); ++paletteIndex)
+        {
+            const auto found = skeleton.compiled.indexById.find(weights.paletteBoneIds[paletteIndex]);
+            if (found == skeleton.compiled.indexById.end())
+                return false;
+            const size_t boneIndex = static_cast<size_t>(found->second);
+            MATRIX skinMatrix;
+            MatrixMultiply(&skinMatrix, &skeleton.compiled.bones[boneIndex].inverseGlobalBindMatrix,
+                           &pose.globalTransforms[boneIndex]);
+            LOCAL_TRANSFORM rigid;
+            bool hasNegativeScale = false, hasShear = false;
+            if (!decomposeTrsMatrix(skinMatrix, rigid, hasNegativeScale, hasShear) ||
+                hasNegativeScale || hasShear ||
+                std::fabs(rigid.scale.x - 1.0f) > MATRIX_TOLERANCE ||
+                std::fabs(rigid.scale.y - 1.0f) > MATRIX_TOLERANCE ||
+                std::fabs(rigid.scale.z - 1.0f) > MATRIX_TOLERANCE)
+                return false;
+            palette[paletteIndex].real = normalizedQuaternion(rigid.rotation);
+            const QUATERNION translation = {rigid.translation.x, rigid.translation.y,
+                                            rigid.translation.z, 0.0f};
+            palette[paletteIndex].dual = multiplyQuaternion(translation, palette[paletteIndex].real);
+            palette[paletteIndex].dual.x *= 0.5f;
+            palette[paletteIndex].dual.y *= 0.5f;
+            palette[paletteIndex].dual.z *= 0.5f;
+            palette[paletteIndex].dual.w *= 0.5f;
+        }
+
+        outPositions.resize(vertexCount);
+        if (!bindNormals.empty())
+            outNormals.resize(vertexCount);
+        for (size_t vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+        {
+            QUATERNION blendedReal = {0, 0, 0, 0};
+            QUATERNION blendedDual = {0, 0, 0, 0};
+            QUATERNION reference;
+            bool hasReference = false;
+            const CANONICAL_VERTEX_WEIGHT &influence = weights.vertices[vertexIndex];
+            for (uint8_t slot = 0; slot < 4; ++slot)
+            {
+                if (influence.paletteIndex[slot] == UINT16_MAX)
+                    continue;
+                const DUAL_QUATERNION &source = palette[influence.paletteIndex[slot]];
+                if (!hasReference)
+                {
+                    reference = source.real;
+                    hasReference = true;
+                }
+                const float dot = reference.x * source.real.x + reference.y * source.real.y +
+                                  reference.z * source.real.z + reference.w * source.real.w;
+                const float signedWeight = dot < 0.0f ? -influence.weight[slot] : influence.weight[slot];
+                blendedReal.x += source.real.x * signedWeight;
+                blendedReal.y += source.real.y * signedWeight;
+                blendedReal.z += source.real.z * signedWeight;
+                blendedReal.w += source.real.w * signedWeight;
+                blendedDual.x += source.dual.x * signedWeight;
+                blendedDual.y += source.dual.y * signedWeight;
+                blendedDual.z += source.dual.z * signedWeight;
+                blendedDual.w += source.dual.w * signedWeight;
+            }
+            const float norm = std::sqrt(blendedReal.x * blendedReal.x + blendedReal.y * blendedReal.y +
+                                         blendedReal.z * blendedReal.z + blendedReal.w * blendedReal.w);
+            if (!hasReference || norm <= QUATERNION_ZERO_EPSILON)
+                return false;
+            blendedReal.x /= norm; blendedReal.y /= norm; blendedReal.z /= norm; blendedReal.w /= norm;
+            blendedDual.x /= norm; blendedDual.y /= norm; blendedDual.z /= norm; blendedDual.w /= norm;
+            const float dualProjection = blendedReal.x * blendedDual.x + blendedReal.y * blendedDual.y +
+                                         blendedReal.z * blendedDual.z + blendedReal.w * blendedDual.w;
+            blendedDual.x -= blendedReal.x * dualProjection;
+            blendedDual.y -= blendedReal.y * dualProjection;
+            blendedDual.z -= blendedReal.z * dualProjection;
+            blendedDual.w -= blendedReal.w * dualProjection;
+
+            const QUATERNION translationQ = multiplyQuaternion(
+                blendedDual, conjugateQuaternion(blendedReal));
+            const VEC3 translation(2.0f * translationQ.x, 2.0f * translationQ.y,
+                                   2.0f * translationQ.z);
+            const VEC3 rotatedPosition = rotateVectorByQuaternion(bindPositions[vertexIndex], blendedReal);
+            outPositions[vertexIndex] = VEC3(rotatedPosition.x + translation.x,
+                                             rotatedPosition.y + translation.y,
+                                             rotatedPosition.z + translation.z);
+            if (!bindNormals.empty())
+            {
+                VEC3 normal = rotateVectorByQuaternion(bindNormals[vertexIndex], blendedReal);
+                const float normalLength = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+                if (normalLength <= QUATERNION_ZERO_EPSILON)
+                    return false;
+                outNormals[vertexIndex] = VEC3(normal.x / normalLength, normal.y / normalLength,
+                                               normal.z / normalLength);
             }
         }
         return true;

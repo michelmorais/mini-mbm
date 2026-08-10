@@ -830,6 +830,7 @@ namespace
         pose.localTransforms = {root.localBind};
         pose.globalTransforms = {skeleton.compiled.bones[0].globalBindMatrix};
         std::vector<VEC3> skinnedPositions, skinnedNormals;
+        std::vector<VEC3> dqsPositions, dqsNormals;
         expect(skinVerticesLbsReference(skeleton, weights, pose, positions, normals,
                                         skinnedPositions, skinnedNormals),
                "CPU LBS bind pose must evaluate");
@@ -838,6 +839,14 @@ namespace
                    std::fabs(skinnedPositions[0].z - positions[0].z) <= MATRIX_TOLERANCE &&
                    std::fabs(skinnedNormals[0].y - 1.0f) <= MATRIX_TOLERANCE,
                "CPU LBS bind pose must preserve positions and normals");
+        expect(skinVerticesDqsRigidReference(skeleton, weights, pose, positions, normals,
+                                             dqsPositions, dqsNormals) &&
+                   maximumMatrixDifference(buildTrsMatrix(root.localBind),
+                                           skeleton.compiled.bones[0].globalBindMatrix) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsPositions[0].x - skinnedPositions[0].x) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsPositions[0].y - skinnedPositions[0].y) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsPositions[0].z - skinnedPositions[0].z) <= MATRIX_TOLERANCE,
+               "CPU rigid DQS bind pose must match LBS");
 
         LOCAL_TRANSFORM moved = root.localBind;
         moved.translation = VEC3(2, 3, 4);
@@ -850,8 +859,30 @@ namespace
                    std::fabs(skinnedNormals[0].x) <= MATRIX_TOLERANCE &&
                    std::fabs(skinnedNormals[0].y - 1.0f) <= MATRIX_TOLERANCE,
                "CPU LBS weight-one motion must match rigid translation without translating normals");
+        expect(skinVerticesDqsRigidReference(skeleton, weights, pose, positions, normals,
+                                             dqsPositions, dqsNormals) &&
+                   std::fabs(dqsPositions[0].x - skinnedPositions[0].x) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsPositions[0].y - skinnedPositions[0].y) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsPositions[0].z - skinnedPositions[0].z) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsNormals[0].y - skinnedNormals[0].y) <= MATRIX_TOLERANCE,
+               "CPU rigid DQS weight-one motion must match LBS");
+
+        moved.translation = VEC3(2, 3, 0);
+        moved.rotation = {0, 0, 0.70710678118f, 0.70710678118f};
+        pose.globalTransforms[0] = buildTrsMatrix(moved);
+        expect(skinVerticesLbsReference(skeleton, weights, pose, positions, normals,
+                                        skinnedPositions, skinnedNormals) &&
+                   skinVerticesDqsRigidReference(skeleton, weights, pose, positions, normals,
+                                                 dqsPositions, dqsNormals) &&
+                   std::fabs(dqsPositions[0].x - skinnedPositions[0].x) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsPositions[0].y - skinnedPositions[0].y) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsPositions[0].z - skinnedPositions[0].z) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsNormals[0].x - skinnedNormals[0].x) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsNormals[0].y - skinnedNormals[0].y) <= MATRIX_TOLERANCE,
+               "CPU rigid DQS rotation and translation must match weight-one LBS");
 
         moved.translation = VEC3(0, 0, 0);
+        moved.rotation = {};
         moved.scale = VEC3(2, 1, 1);
         pose.globalTransforms[0] = buildTrsMatrix(moved);
         const float diagonal = 0.70710678118f;
@@ -861,6 +892,37 @@ namespace
                    std::fabs(skinnedNormals[0].x - 0.4472135955f) <= MATRIX_TOLERANCE &&
                    std::fabs(skinnedNormals[0].y - 0.894427191f) <= MATRIX_TOLERANCE,
                "CPU LBS normals must use inverse-transpose under non-uniform scale");
+        expect(!skinVerticesDqsRigidReference(skeleton, weights, pose, positions, diagonalNormal,
+                                              dqsPositions, dqsNormals),
+               "CPU rigid DQS must reject scale instead of silently discarding it");
+
+        CANONICAL_BONE rootB;
+        rootB.boneId = 20; rootB.name = "rootB";
+        CANONICAL_SKELETON antipodalSkeleton;
+        antipodalSkeleton.skeletonId = 200;
+        antipodalSkeleton.sourceBones = {root, rootB};
+        expect(compileCanonicalSkeleton(antipodalSkeleton.sourceBones, antipodalSkeleton.compiled),
+               "DQS antipodal fixture skeleton must compile");
+        CANONICAL_WEIGHTS antipodalWeights;
+        antipodalWeights.skeletonId = 200;
+        antipodalWeights.paletteBoneIds = {10, 20};
+        antipodalWeights.vertices.resize(1);
+        antipodalWeights.vertices[0].paletteIndex[0] = 0;
+        antipodalWeights.vertices[0].paletteIndex[1] = 1;
+        antipodalWeights.vertices[0].weight[0] = 0.5f;
+        antipodalWeights.vertices[0].weight[1] = 0.5f;
+        const float angle170 = 1.4835298642f;
+        LOCAL_TRANSFORM plus170, minus170;
+        plus170.rotation = {0, 0, std::sin(angle170), std::cos(angle170)};
+        minus170.rotation = {0, 0, -std::sin(angle170), std::cos(angle170)};
+        SKELETAL_POSE antipodalPose;
+        antipodalPose.globalTransforms = {buildTrsMatrix(plus170), buildTrsMatrix(minus170)};
+        const std::vector<VEC3> antipodalPosition = {VEC3(1, 0, 0)};
+        expect(skinVerticesDqsRigidReference(antipodalSkeleton, antipodalWeights, antipodalPose,
+                                             antipodalPosition, {}, dqsPositions, dqsNormals) &&
+                   std::fabs(dqsPositions[0].x + 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(dqsPositions[0].y) <= MATRIX_TOLERANCE,
+               "CPU rigid DQS must antipodally align equivalent hemisphere rotations before blending");
     }
 }
 

@@ -243,8 +243,9 @@
     6.60.0 Replaced the direct Blender/FBX importer's exploratory/static skeletal output with canonical sections 41-43. Armature imports now emit one reflected REST bind geometry, deterministic hierarchy-path identities, parent-relative quaternion bind TRS, stable-ID four-influence weights, and sampled parent-relative clip tracks; geometry, normals, winding, bind, and poses share the accepted (-x,z,-y) conversion. A real 67-bone/32-frame Mixamo walk passed canonical load plus save/reload without legacy 11/40 and shrank from about 28 MB static-baked to 1.4 MB canonical.
     6.61.0 Connected Mesh Debug's Bone inspector and gizmo to canonical section 41 through the canonical-first detached bind report. Canonical hierarchy, global positions, quaternion-derived orientation, scale, radius, and length are visible read-only without populating or enabling the destructive legacy skeleton model.
     6.62.0 Added the private canonical CPU LBS reference used as the future GPU oracle. It composes inverse-global-bind with evaluated global pose in row-vector order, blends four-influence positions, applies inverse-transpose normal matrices, and verifies bind identity, rigid weight-one motion, and non-uniform-scale normals without changing rendering or Lua APIs.
+    6.63.0 Added the private rigid CPU DQS reference alongside LBS. It converts rigid skin matrices to dual quaternions, aligns antipodal hemispheres per vertex, normalizes and orthogonalizes blended real/dual parts, transforms positions and normals, rejects scale/shear explicitly, and verifies bind/weight-one LBS parity plus the +170/-170 degree antipodal case.
 */
-#define MBM_VERSION "6.62.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.63.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

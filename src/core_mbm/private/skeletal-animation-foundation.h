@@ -261,6 +261,10 @@ namespace mbm::skeletal
                                   const SKELETAL_POSE &pose, const std::vector<VEC3> &bindPositions,
                                   const std::vector<VEC3> &bindNormals, std::vector<VEC3> &outPositions,
                                   std::vector<VEC3> &outNormals) noexcept;
+    bool skinVerticesDqsRigidReference(const CANONICAL_SKELETON &skeleton, const CANONICAL_WEIGHTS &weights,
+                                       const SKELETAL_POSE &pose, const std::vector<VEC3> &bindPositions,
+                                       const std::vector<VEC3> &bindNormals, std::vector<VEC3> &outPositions,
+                                       std::vector<VEC3> &outNormals) noexcept;
 }
 
 #endif
