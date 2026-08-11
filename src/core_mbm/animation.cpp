@@ -1124,8 +1124,10 @@ namespace mbm
         RENDERIZABLE *renderizable = dynamic_cast<RENDERIZABLE*>(this);
         fx.defaultShaderMode = getDefaultShaderModeForRenderizable(renderizable);
         fx.shader.setUseReservedLightDefault(fx.defaultShaderMode == DEFAULT_SHADER_MODE_LIT);
+        const SKELETAL_SHADER_METHOD skeletalMethod =
+            getSkeletalAnimationPlayer().getResolvedSkinningMethod();
         if (fx.shader.compileShader(fx.fxPS->getCurrentShader(), fx.fxVS->getCurrentShader(), fvf,
-                                    mesh->getPreparedSkeletalLbsPaletteSize()))
+                                    mesh->getPreparedSkeletalPaletteSize(skeletalMethod), skeletalMethod))
         {
             if(infoHead->effectShader && infoHead->effectShader->blendOperation != 0)
                 fx.blendOperation = infoHead->effectShader->blendOperation;

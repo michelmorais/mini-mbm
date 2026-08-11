@@ -41,7 +41,8 @@ namespace mbm
     {
         NONE,
         LBS,
-        DQS_RIGID
+        DQS_RIGID,
+        AUTO
     };
     class TEXTURE;
     class RENDERIZABLE;

@@ -27,7 +27,7 @@ local state = {
     fileName = nil,
     meshD = nil,
     preview = nil,
-    skeletalPreview = {clips={}, selected=1, duration=0, playing=false, paused=false},
+    skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false},
     meshVisible = true,
     skeletonVisible = true,
     skeletonAlwaysOnTop = true,
@@ -856,6 +856,11 @@ local function rebuildPreview()
     playback.paused=false
     if not state.fileName then return end
     local preview = mesh:new('3d')
+    local method=playback.method==1 and 'auto' or playback.method==3 and 'dqs' or 'lbs'
+    if not preview:setSkeletalSkinningMethod(method) then
+        preview:destroy()
+        return
+    end
     if preview:load(state.fileName) then
         preview:setPos(0,0,0)
         preview.visible=state.meshVisible
@@ -882,8 +887,22 @@ end
 
 local function showSkeletalPreviewControls()
     local playback=state.skeletalPreview
-    local lbsReport=state.preview:getSkeletalLbsReport()
-    tImGui.Text(string.format(tLang.L('swl_lbs_report_fmt'),lbsReport.status or 'unknown'))
+    local methods={tLang.L('swl_skinning_auto'),tLang.L('swl_skinning_lbs'),tLang.L('swl_skinning_dqs')}
+    local methodChanged,method=tImGui.Combo(tLang.L('swl_skinning_method'),playback.method,methods,-1)
+    if methodChanged then
+        playback.method=method
+        rebuildPreview()
+    end
+    if not state.preview then
+        tImGui.TextDisabled(tLang.L('swl_runtime_preview_unavailable'))
+        return
+    end
+    local lbsReport=state.preview:getSkeletalSkinningReport()
+    tImGui.Text(string.format(tLang.L('swl_lbs_report_fmt'),
+        (lbsReport.requestedMethod or 'unknown'):upper(),
+        (lbsReport.resolvedMethod or 'unknown'):upper(),lbsReport.status or 'unknown'))
+    tImGui.TextDisabled(string.format(tLang.L('swl_skinning_reason_fmt'),
+        lbsReport.resolutionReason or 'unknown'))
     tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
         lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
     tImGui.TextDisabled(tLang.L('swl_lbs_capacity_note'))

@@ -153,10 +153,13 @@ records remain `Impl`-owned and are validated against the compiled type-41 skele
 topology before being retained.
 Type-43 follows identically: canonical clips, tracks, keys, easing, and lookup validation remain
 private in `Impl`; the public mesh headers expose neither the vectors nor mutable animation state.
-The GLES2 LBS preparation cache follows that boundary as well. Resolved float bone-index/weight
-streams, required/effective palette counts, and readiness status live only in `MESH_MBM::Impl` via
+The GLES2 skeletal preparation cache follows that boundary as well. Resolved float bone-index/weight
+streams, method-specific palette counts, and readiness status live only in `MESH_MBM::Impl` via
 the private `skeletal-gpu-lbs.h` contract. No backend handle, mutable vector, or convenience accessor
-was added to the public mesh header.
+was added to the public mesh header. Each instance's selected LBS/rigid-DQS method and evaluated
+palette remain in `SKELETAL_ANIMATION_PLAYER::Impl`; public reports copy only scalar status/counts.
+The requested Auto/LBS/DQS policy, resolved backend method, and static resolution-reason pointer are
+also instance-private; Auto scans immutable canonical data before shader compilation.
 Its uploaded vertex streams preserve the backend boundary: GLES2 bone-index/weight buffer handles
 and per-subset arrays live only in private `BUFFER_SPECIFIC` storage and are created through the
 private `skeletal-gpu-lbs-opengl_es.h` bridge. `BUFFER_GL`'s public layout/API did not acquire a GL

@@ -566,21 +566,27 @@ composition, authoring, playback lifecycle, and examples.
 | `obj:seekArticulatedAnimation` | `(name, time)` | bool | Move an active clip's playback position to the specified time, clamped to `0..duration` |
 | `obj:getArticulatedAnimationTime` | `(name)` | number or nil | Current time for an active clip, or `nil` when it is inactive/unknown |
 
-#### Canonical skeletal playback (`mesh`, GLES2 LBS profile)
+#### Canonical skeletal playback (`mesh`, GLES2 LBS/DQS profile)
 
 These methods control type-43 skeletal clips on a loaded canonical type-41/42/43 `.msh`. Playback
 state and the evaluated GPU palette belong to the individual `mesh` instance even when several
 objects share the same cached asset and shader program. This initial surface supports one active
-clip, authored loop/clamp behavior, pause/resume, and seek. Speed, blending, priorities, completion
-callbacks, DQS selection, and non-GLES backends remain future work. A mesh with compact skinned
-normals rejects a pose containing negative scale, shear, or non-uniform scale.
+clip, authored loop/clamp behavior, pause/resume, and seek. Choose `"lbs"` (the engine default),
+rigid `"dqs"`, or `"auto"` before `load`. Auto resolves once to DQS only when bind and every clip
+contain unit scale; otherwise it resolves to LBS. Changing method after load returns `false`, because
+the resolved method is part of the compiled default-shader variant. Speed, blending, priorities, completion callbacks, and non-GLES
+backends remain future work. LBS compact normals reject negative scale, shear, or non-uniform scale;
+rigid DQS rejects any scale/shear.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
 | `obj:getTotalSkeletalAnimations` | `()` | int | Number of canonical skeletal clips |
 | `obj:getSkeletalAnimationName` | `(index: int)` | string or nil | Name of the 1-based clip |
 | `obj:getSkeletalAnimationDuration` | `(index: int)` | number or nil | Duration in seconds of the 1-based clip |
-| `obj:getSkeletalLbsReport` | `()` | table | Preparation `status`, bones required by this mesh, and measured maximum bones per mesh draw; it is not a scene-wide total |
+| `obj:setSkeletalSkinningMethod` | `(method: "auto"|"lbs"|"dqs")` | bool | Select requested policy before `load`; returns `false` after the mesh is loaded |
+| `obj:getSkeletalSkinningMethod` | `()` | string | Requested method/policy |
+| `obj:getResolvedSkeletalSkinningMethod` | `()` | string | Actual compiled method (`"lbs"` or `"dqs"`), or `"unresolved"` before an Auto mesh is loaded |
+| `obj:getSkeletalSkinningReport` | `()` | table | `requestedMethod`, `resolvedMethod`, `resolutionReason`, preparation `status`, required bones, and resolved-method maximum bones per draw |
 | `obj:playSkeletalAnimation` | `(name)` | bool | Start or restart one clip at time zero |
 | `obj:pauseSkeletalAnimation` | `()` | bool | Freeze the active clip and palette |
 | `obj:resumeSkeletalAnimation` | `()` | bool | Resume the active clip |
@@ -590,7 +596,10 @@ normals rejects a pose containing negative scale, shear, or non-uniform scale.
 
 ```lua
 local character = mesh:new("3d")
+assert(character:setSkeletalSkinningMethod("auto"))
 assert(character:load("character-walk.msh"))
+local report = character:getSkeletalSkinningReport()
+print(report.requestedMethod, report.resolvedMethod, report.resolutionReason)
 assert(character:playSkeletalAnimation("Walk"))
 character:seekSkeletalAnimation(0.5)
 character:pauseSkeletalAnimation()

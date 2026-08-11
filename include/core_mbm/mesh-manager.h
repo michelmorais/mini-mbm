@@ -86,6 +86,10 @@ namespace mbm
         API_IMPL SKELETAL_ANIMATION_PLAYER();
         API_IMPL ~SKELETAL_ANIMATION_PLAYER();
         API_IMPL void reset() noexcept;
+        API_IMPL void setSkinningMethod(SKELETAL_SHADER_METHOD method) noexcept;
+        API_IMPL SKELETAL_SHADER_METHOD getSkinningMethod() const noexcept;
+        API_IMPL SKELETAL_SHADER_METHOD getResolvedSkinningMethod() const noexcept;
+        API_IMPL const char *getSkinningResolutionReason() const noexcept;
         SKELETAL_ANIMATION_PLAYER(const SKELETAL_ANIMATION_PLAYER &) = delete;
         SKELETAL_ANIMATION_PLAYER &operator=(const SKELETAL_ANIMATION_PLAYER &) = delete;
       private:
@@ -484,9 +488,11 @@ namespace mbm
         // below by reference; defined in mesh-manager.cpp only, same forward-declare-in-header
         // pattern as Impl.
         bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
-        uint32_t getPreparedSkeletalLbsPaletteSize() const noexcept;
-        void getSkeletalLbsReport(const char **status, uint32_t *requiredBoneCount,
-                                  uint32_t *effectiveBoneCapacity) const noexcept;
+        uint32_t getPreparedSkeletalPaletteSize(SKELETAL_SHADER_METHOD method) const noexcept;
+        void resolveSkeletalSkinningMethod(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        void getSkeletalSkinningReport(SKELETAL_SHADER_METHOD method, const char **status,
+                                       uint32_t *requiredBoneCount,
+                                       uint32_t *effectiveBoneCapacity) const noexcept;
         uint32_t getTotalSkeletalAnimations() const noexcept;
         const char *getSkeletalAnimationName(uint32_t index) const noexcept;
         bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;

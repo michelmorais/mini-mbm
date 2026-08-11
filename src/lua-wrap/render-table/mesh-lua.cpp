@@ -25,6 +25,8 @@ extern "C"
 }
 
 #include <lua-wrap/render-table/mesh-lua.h>
+
+#include <cstring>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
 #include <render/mesh.h>
@@ -210,19 +212,65 @@ namespace mbm
         return 1;
     }
 
-    int onGetSkeletalLbsReportLua(lua_State *lua)
+    int onSetSkeletalSkinningMethodLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
-        const char *status = nullptr;
+        const char *method = luaL_checkstring(lua, 2);
+        SKELETAL_SHADER_METHOD selected;
+        if (std::strcmp(method, "lbs") == 0)
+            selected = SKELETAL_SHADER_METHOD::LBS;
+        else if (std::strcmp(method, "dqs") == 0)
+            selected = SKELETAL_SHADER_METHOD::DQS_RIGID;
+        else if (std::strcmp(method, "auto") == 0)
+            selected = SKELETAL_SHADER_METHOD::AUTO;
+        else
+            return luaL_error(lua, "skeletal skinning method must be 'lbs', 'dqs', or 'auto'");
+        lua_pushboolean(lua, mesh->setSkeletalSkinningMethod(selected) ? 1 : 0);
+        return 1;
+    }
+
+    int onGetSkeletalSkinningMethodLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const SKELETAL_SHADER_METHOD method = mesh->getSkeletalSkinningMethod();
+        lua_pushstring(lua, method == SKELETAL_SHADER_METHOD::AUTO ? "auto" :
+            method == SKELETAL_SHADER_METHOD::DQS_RIGID ? "dqs" : "lbs");
+        return 1;
+    }
+
+    int onGetResolvedSkeletalSkinningMethodLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const SKELETAL_SHADER_METHOD method = mesh->getResolvedSkeletalSkinningMethod();
+        lua_pushstring(lua, method == SKELETAL_SHADER_METHOD::NONE ? "unresolved" :
+            method == SKELETAL_SHADER_METHOD::DQS_RIGID ? "dqs" : "lbs");
+        return 1;
+    }
+
+    int onGetSkeletalSkinningReportLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *status = nullptr, *resolutionReason = nullptr;
         uint32_t requiredBoneCount = 0, effectiveBoneCapacity = 0;
-        mesh->getSkeletalLbsReport(&status, &requiredBoneCount, &effectiveBoneCapacity);
-        lua_createtable(lua, 0, 3);
+        mesh->getSkeletalSkinningReport(&status, &resolutionReason, &requiredBoneCount,
+                                        &effectiveBoneCapacity);
+        lua_createtable(lua, 0, 6);
         lua_pushstring(lua, status ? status : "unknown");
         lua_setfield(lua, -2, "status");
         lua_pushinteger(lua, static_cast<lua_Integer>(requiredBoneCount));
         lua_setfield(lua, -2, "requiredBoneCount");
         lua_pushinteger(lua, static_cast<lua_Integer>(effectiveBoneCapacity));
         lua_setfield(lua, -2, "effectiveBoneCapacity");
+        const SKELETAL_SHADER_METHOD requested = mesh->getSkeletalSkinningMethod();
+        lua_pushstring(lua, requested == SKELETAL_SHADER_METHOD::AUTO ? "auto" :
+            requested == SKELETAL_SHADER_METHOD::DQS_RIGID ? "dqs" : "lbs");
+        lua_setfield(lua, -2, "requestedMethod");
+        const SKELETAL_SHADER_METHOD resolved = mesh->getResolvedSkeletalSkinningMethod();
+        lua_pushstring(lua, resolved == SKELETAL_SHADER_METHOD::NONE ? "unresolved" :
+            resolved == SKELETAL_SHADER_METHOD::DQS_RIGID ? "dqs" : "lbs");
+        lua_setfield(lua, -2, "resolvedMethod");
+        lua_pushstring(lua, resolutionReason ? resolutionReason : "unknown");
+        lua_setfield(lua, -2, "resolutionReason");
         return 1;
     }
 
@@ -339,7 +387,10 @@ namespace mbm
                                                      {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                      {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
                                                      {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
-                                                     {"getSkeletalLbsReport", onGetSkeletalLbsReportLua},
+                                                     {"setSkeletalSkinningMethod", onSetSkeletalSkinningMethodLua},
+                                                     {"getSkeletalSkinningMethod", onGetSkeletalSkinningMethodLua},
+                                                     {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
+                                                     {"getSkeletalSkinningReport", onGetSkeletalSkinningReportLua},
                                                      {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
                                                      {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
                                                      {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
@@ -399,7 +450,10 @@ namespace mbm
                                                          {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                          {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
                                                          {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
-                                                         {"getSkeletalLbsReport", onGetSkeletalLbsReportLua},
+                                                         {"setSkeletalSkinningMethod", onSetSkeletalSkinningMethodLua},
+                                                         {"getSkeletalSkinningMethod", onGetSkeletalSkinningMethodLua},
+                                                         {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
+                                                         {"getSkeletalSkinningReport", onGetSkeletalSkinningReportLua},
                                                          {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
                                                          {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
                                                          {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},

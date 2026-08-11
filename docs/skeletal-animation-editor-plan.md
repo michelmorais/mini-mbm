@@ -317,12 +317,13 @@ Exit: a clip can be authored, saved, reopened, and sampled deterministically ins
 - The first GLES2 LBS slice is implemented in the existing Skin Weight Lab preview: canonical clip
   selection, play/restart, pause/resume, and bounded seek call the runtime `mesh` player directly.
   It deliberately adds no tracks, keyframes, or timeline and leaves the bind diagnostic gizmo static.
-- Bind-pose restoration now stops the player instead of assuming the clip's zero-time pose is bind,
-  and the panel reports GLES2 LBS preparation status, required bones, and measured capacity.
-- Expose LBS/DQS choice, scale restrictions/fallbacks, normals, and backend capability information.
-- The private rigid-DQS palette foundation and distinct GLES shader now exist and share clip
-  evaluation/input attributes with LBS, but the editor must not expose a DQS choice until
-  per-instance runtime selection and real palette draw verification exist.
+- Bind-pose restoration now stops the player instead of assuming the clip's zero-time pose is bind.
+- LBS/rigid-DQS choice is exposed by rebuilding the preview with the selected method before load;
+  the panel reports that method's preparation status, required bones, and measured per-draw capacity.
+  Scale/shear rejection is explicit and there is no silent fallback.
+- Auto is the editor preview default and displays both requested and resolved methods plus the
+  one-time resolution reason; explicit DQS remains available for strict validation.
+- Add backend capability selection/reporting when another runtime backend is delivered.
 - Add pose-stress comparison and bind-pose restoration.
 
 Exit: editor and runtime produce matching reference vertices/normals for the same clip and time.
@@ -402,6 +403,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 2.3 | 2026-08-11 | Added Auto to the runtime preview. It resolves once before load to DQS for wholly rigid content or LBS when bind/clip scale exists, and displays the requested method, resolved method, and reason. Explicit DQS stays strict. |
+| 2.2 | 2026-08-11 | Exposed the delivered per-instance LBS/rigid-DQS runtime choice in the preview. Changing method rebuilds the preview and selects its shader before load; the report uses the chosen method's per-draw capacity. No backend selector, timeline, destructive skeleton editing, or silent scale fallback was added. |
 | 2.1 | 2026-08-11 | Added the separately cached GLES2 rigid-DQS shader and real driver compile/link coverage. The editor remains LBS-only until the next gate connects per-instance method selection and an authored DQS palette draw. |
 | 2.0 | 2026-08-11 | Started the DQS prerequisite behind Milestone 7: a tested private rigid pose-to-dual-quaternion palette now packs two `vec4` values per bone and rejects non-rigid transforms. No editor selector is exposed before the corresponding runtime shader exists. Reworded the LBS capacity display as a per-mesh-draw device limit rather than an ambiguous fraction. |
 | 1.9 | 2026-08-11 | Extended the shared runtime preview with explicit bind-pose restoration and visible GLES2 LBS readiness/capacity evidence. Restoration deactivates the player and identity palette rather than seeking to zero; no timeline, DQS selector, or destructive skeleton operation was added. |

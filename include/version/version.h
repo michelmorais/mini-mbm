@@ -254,8 +254,10 @@
     6.71.0 Added explicit skeletal bind-pose restoration by stopping and clearing a mesh instance's active player, plus a read-only GLES2 LBS preparation report with status, required bones, and measured capacity. The Skeletal Animation Editor exposes both in its runtime preview and no longer claims that LBS preview is unavailable in legacy weight-workflow notices.
     6.72.0 Began GPU rigid-DQS delivery with a private tested pose/clip-to-dual-quaternion palette builder. It packs real and dual vec4 values per bone, shares canonical sampling with LBS, and rejects scale/shear. The CPU DQS reference reuses the same rigid conversion contract; no DQS shader or method selector is exposed yet. The editor now explains LBS capacity as required bones versus the current device's per-mesh-draw limit, not an ambiguous fraction or scene-wide budget.
     6.73.0 Added a separately cached GLES2 rigid-DQS default vertex-shader variant with antipodal four-influence blending, dual-quaternion normalization/orthogonalization, rigid position transformation, and quaternion normal rotation. A dedicated Mesa GLES test compiles and links the lit 23-bone variant. Runtime/editor method selection and actual DQS palette draws remain pending.
+    6.74.0 Connected explicit pre-load LBS/rigid-DQS selection to mesh instances, method-specific capability reporting, default-shader selection, canonical clip sampling, and real per-draw palette upload. Lua and the Skeletal Animation Editor expose the choice without runtime shader recompilation or silent scale fallback; the selected method is immutable after load.
+    6.75.0 Added explicit pre-load Auto skinning resolution. Auto audits canonical bind and every clip scale key once, resolves rigid content to DQS and scaled content to LBS, and exposes requested method, resolved method, and reason through C++/Lua/editor reporting. Forced DQS remains strict and no per-frame shader switching occurs.
 */
-#define MBM_VERSION "6.73.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.75.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

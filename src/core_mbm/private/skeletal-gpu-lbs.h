@@ -21,6 +21,7 @@
 
 #include "skeletal-animation-foundation.h"
 #include "skeletal-render-capability.h"
+#include <core_mbm/shader.h>
 
 #include <vector>
 
@@ -47,9 +48,18 @@ namespace mbm::skeletal
         GLES2_LBS_PREPARATION_STATUS status = GLES2_LBS_PREPARATION_STATUS::NO_SKELETAL_DATA;
         uint32_t requiredBoneCount = 0;
         uint32_t effectiveBoneCapacity = 0;
+        uint32_t lbsBoneCapacity = 0;
+        uint32_t dqsBoneCapacity = 0;
         std::vector<GPU_LBS_VERTEX> vertices;
 
         bool ready() const noexcept { return status == GLES2_LBS_PREPARATION_STATUS::READY; }
+        bool supports(SKELETAL_SHADER_METHOD method) const noexcept
+        {
+            if (!ready()) return false;
+            const uint32_t capacity = method == SKELETAL_SHADER_METHOD::DQS_RIGID
+                ? dqsBoneCapacity : lbsBoneCapacity;
+            return requiredBoneCount <= capacity;
+        }
     };
 
     enum class GLES2_LBS_PALETTE_STATUS : uint8_t
@@ -65,6 +75,17 @@ namespace mbm::skeletal
         INVALID_POSE,
         UNSUPPORTED_NON_RIGID_TRANSFORM
     };
+
+    enum class DQS_COMPATIBILITY_STATUS : uint8_t
+    {
+        RIGID,
+        BIND_CONTAINS_SCALE,
+        CLIP_CONTAINS_SCALE
+    };
+
+    DQS_COMPATIBILITY_STATUS getDqsCompatibility(const CANONICAL_SKELETON &skeleton,
+                                                  const CANONICAL_ANIMATIONS &animations) noexcept;
+    const char *dqsCompatibilityStatusName(DQS_COMPATIBILITY_STATUS status) noexcept;
 
     GLES2_LBS_PREPARATION_STATUS prepareGles2LbsInput(const CANONICAL_SKELETON &skeleton,
                                                        const CANONICAL_WEIGHTS &weights,

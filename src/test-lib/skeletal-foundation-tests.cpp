@@ -967,14 +967,25 @@ namespace
         const GLES2_SKINNING_CAPABILITY sufficient = calculateGles2SkinningCapability(128, 8);
         expect(prepareGles2LbsInput(skeleton, weights, sufficient, input) ==
                    GLES2_LBS_PREPARATION_STATUS::READY && input.ready() &&
-                   input.requiredBoneCount == 2 && input.effectiveBoneCapacity == 40 &&
+                   input.requiredBoneCount == 2 && input.effectiveBoneCapacity == 60 &&
+                   input.lbsBoneCapacity == 40 && input.dqsBoneCapacity == 60 &&
                    input.vertices.size() == 1 && input.vertices[0].boneIndex[0] == 1.0f &&
                    input.vertices[0].boneIndex[1] == 0.0f &&
                    std::fabs(input.vertices[0].weight[0] - 0.75f) <= MATRIX_TOLERANCE,
                "GPU LBS input must resolve stable palette IDs to compiled float attributes");
 
+        GLES2_SKINNING_CAPABILITY dqsOnly = sufficient;
+        dqsOnly.lbsMatrixPaletteBones = 1;
+        dqsOnly.dqsRigidPaletteBones = 2;
+        expect(prepareGles2LbsInput(skeleton, weights, dqsOnly, input) ==
+                   GLES2_LBS_PREPARATION_STATUS::READY && input.ready() &&
+                   !input.supports(SKELETAL_SHADER_METHOD::LBS) &&
+                   input.supports(SKELETAL_SHADER_METHOD::DQS_RIGID),
+               "GPU skeletal input must distinguish the LBS and rigid-DQS palette limits");
+
         GLES2_SKINNING_CAPABILITY tooSmall = sufficient;
         tooSmall.lbsMatrixPaletteBones = 1;
+        tooSmall.dqsRigidPaletteBones = 1;
         expect(prepareGles2LbsInput(skeleton, weights, tooSmall, input) ==
                    GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE && input.vertices.empty() &&
                    input.requiredBoneCount == 2 && input.effectiveBoneCapacity == 1,
@@ -982,6 +993,26 @@ namespace
         expect(prepareGles2LbsInput(skeleton, weights, {}, input) ==
                    GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE && input.vertices.empty(),
                "GPU LBS input must not claim readiness before backend capability measurement");
+
+        CANONICAL_ANIMATIONS rigidAnimations;
+        expect(getDqsCompatibility(skeleton, rigidAnimations) == DQS_COMPATIBILITY_STATUS::RIGID,
+               "auto skinning must select DQS for unit-scale bind and clips");
+        skeleton.sourceBones[1].localBind.scale = VEC3(2.0f, 2.0f, 2.0f);
+        expect(getDqsCompatibility(skeleton, rigidAnimations) ==
+                   DQS_COMPATIBILITY_STATUS::BIND_CONTAINS_SCALE,
+               "auto skinning must select LBS when bind contains scale");
+        skeleton.sourceBones[1].localBind.scale = VEC3(1.0f, 1.0f, 1.0f);
+        SKELETAL_CLIP scaledClip;
+        SKELETAL_TRACK scaledTrack;
+        scaledTrack.channelMask = SKELETAL_CHANNEL_SCALE;
+        SKELETAL_KEY scaledKey;
+        scaledKey.local.scale = VEC3(1.0f, 1.25f, 1.0f);
+        scaledTrack.keys.push_back(scaledKey);
+        scaledClip.tracks.push_back(scaledTrack);
+        rigidAnimations.clips.push_back(scaledClip);
+        expect(getDqsCompatibility(skeleton, rigidAnimations) ==
+                   DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE,
+               "auto skinning must select LBS when any clip contains scale");
 
         SKELETAL_POSE pose;
         pose.localTransforms = {root.localBind, child.localBind};

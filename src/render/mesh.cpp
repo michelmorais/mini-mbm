@@ -61,6 +61,7 @@ namespace mbm
         this->mesh               = mehManager->load(fileName, this);
         if (this->mesh)
         {
+            this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
             const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {
@@ -96,6 +97,7 @@ namespace mbm
                 return;
             }
             this->mesh = mesh;
+            this->mesh->resolveSkeletalSkinningMethod(this->getSkeletalAnimationPlayer());
             const MeshLoadFinishResult result = this->populateAnimationsFromMesh(this->mesh, nullptr, "mesh");
             if (result == MeshLoadFinishResult::ANIMATION_FAILED)
             {
@@ -182,11 +184,35 @@ namespace mbm
         return mesh ? mesh->getSkeletalAnimationDuration(index, duration) : false;
     }
 
-    void MESH::getSkeletalLbsReport(const char **status, uint32_t *requiredBoneCount,
-                                    uint32_t *effectiveBoneCapacity) const noexcept
+    bool MESH::setSkeletalSkinningMethod(const SKELETAL_SHADER_METHOD method) noexcept
     {
+        if (mesh || (method != SKELETAL_SHADER_METHOD::LBS &&
+                     method != SKELETAL_SHADER_METHOD::DQS_RIGID &&
+                     method != SKELETAL_SHADER_METHOD::AUTO))
+            return false;
+        getSkeletalAnimationPlayer().setSkinningMethod(method);
+        return true;
+    }
+
+    SKELETAL_SHADER_METHOD MESH::getSkeletalSkinningMethod() const noexcept
+    {
+        return getSkeletalAnimationPlayer().getSkinningMethod();
+    }
+
+    SKELETAL_SHADER_METHOD MESH::getResolvedSkeletalSkinningMethod() const noexcept
+    {
+        return getSkeletalAnimationPlayer().getResolvedSkinningMethod();
+    }
+
+    void MESH::getSkeletalSkinningReport(const char **status, const char **resolutionReason,
+                                         uint32_t *requiredBoneCount,
+                                         uint32_t *effectiveBoneCapacity) const noexcept
+    {
+        if (resolutionReason)
+            *resolutionReason = getSkeletalAnimationPlayer().getSkinningResolutionReason();
         if (mesh)
-            mesh->getSkeletalLbsReport(status, requiredBoneCount, effectiveBoneCapacity);
+            mesh->getSkeletalSkinningReport(getResolvedSkeletalSkinningMethod(), status,
+                                             requiredBoneCount, effectiveBoneCapacity);
         else
         {
             if (status) *status = "not-loaded";

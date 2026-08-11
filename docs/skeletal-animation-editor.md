@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
-Status: **Skin Weight Lab validated; bind diagnostics and runtime GLES2 LBS preview available**
-Last updated: **2026-08-10**
+Status: **Skin Weight Lab validated; bind diagnostics and runtime GLES2 LBS/DQS preview available**
+Last updated: **2026-08-11**
 
 ## 1. Purpose
 
@@ -10,8 +10,8 @@ mesh data. Its currently implemented workspace, **Skin Weight Lab**, repairs sto
 weights without expanding Mesh Debug into a general animation editor.
 
 For canonical skeletal meshes within the GLES2 palette limit, the preview can play the same
-per-instance LBS deformation path used by the runtime. DQS and non-GLES backend delivery remain in
-the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
+per-instance LBS or rigid-DQS deformation path used by the runtime. Non-GLES backend delivery
+remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
 The editor will evolve into three primary nodes: **Skin Weight Lab**, **Skeleton / Bind Pose**, and
 **Animation**. Their product scope, the audited relationship to Mesh Debug's Bones node, and the
@@ -41,14 +41,16 @@ It is not the editor's final compatibility path. Canonical section inspection wi
 skeletal assets using only the exploratory sections must be re-imported from FBX before delivery.
 
 Expand **Runtime Skeletal Preview** to select a canonical clip, play or restart it, pause/resume,
-seek by time, or explicitly return the mesh to bind pose. The panel reports the GLES2 LBS
-preparation status and explains the limits directly: how many bones this mesh requires and the
+seek by time, or explicitly return the mesh to bind pose. Choose Auto, LBS, or rigid DQS in the same panel;
+changing it rebuilds the preview so the method is selected before mesh loading and shader creation.
+Auto selects DQS only if bind and all clips use unit scale; otherwise it selects LBS and shows the
+reason. The panel reports requested/resolved methods and explains the limits directly: how many bones this mesh requires and the
 maximum accepted by the current device for one mesh draw. Multiple mesh instances are evaluated
 separately; the capacity is not a combined scene-wide bone budget. Bind restoration stops
 the active player; it does not assume that time zero of an authored clip is the bind pose.
 The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and
-GLES2 LBS palette. The separately drawn skeleton gizmo continues to show the bind pose so it is not
+matching GLES2 LBS or DQS palette. The separately drawn skeleton gizmo continues to show the bind pose so it is not
 mistaken for a second pose evaluator.
 
 The editor supports **Save**, **Save As**, and one-level **Revert Last Weight Operation**. Revert is
@@ -261,7 +263,7 @@ five external neighbors with zero modifications and zero audit failures.
 
 The following are not defects in the delivered Skin Weight Lab:
 
-- runtime preview is currently GLES2 LBS only; there is no DQS/backend selector;
+- runtime preview is currently GLES2 only; there is no non-GLES backend selector;
 - the diagnostic skeleton gizmo remains in bind pose during runtime preview;
 - no protected/exclusion volumes;
 - no topology-ring selection expansion;
@@ -270,7 +272,7 @@ The following are not defects in the delivered Skin Weight Lab:
 - no custom-tail animation generation;
 - one-level revert rather than general undo/redo.
 
-Future animation authoring/timeline, pose stress, LBS/DQS selection, antipodality tooling, and
+Future animation authoring/timeline, pose stress comparison, antipodality tooling, and non-GLES
 backend delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Skeleton authoring, animation authoring/import, and the migration from Mesh Debug Bones remain in

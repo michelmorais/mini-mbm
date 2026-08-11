@@ -579,8 +579,10 @@ be rejected until the renderer carries an inverse-transpose normal strategy. Cus
 do not yet participate in canonical skinning and fail explicitly instead of silently drawing REST
 pose. A separate rigid-DQS default-shader variant is compiled with two quaternion `vec4` values per
 bone, performs per-vertex antipodal alignment and normalized/orthogonalized dual-quaternion blending,
-and rotates normals through the blended real quaternion. It currently has compile/link coverage but
-is not selected by runtime mesh instances yet; therefore delivered playback remains LBS-only.
+and rotates normals through the blended real quaternion. A mesh instance selects LBS or rigid DQS
+before loading; `auto` resolves once to DQS only when the bind and every clip use unit scale, falling
+back visibly to LBS otherwise. The resolved choice compiles the matching default shader and uploads
+the matching per-instance palette. It cannot be switched after load without rebuilding the instance.
 
 Current default-lit shading behavior:
 

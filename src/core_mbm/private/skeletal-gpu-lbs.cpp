@@ -23,6 +23,38 @@
 
 namespace mbm::skeletal
 {
+    DQS_COMPATIBILITY_STATUS getDqsCompatibility(const CANONICAL_SKELETON &skeleton,
+                                                  const CANONICAL_ANIMATIONS &animations) noexcept
+    {
+        const auto isUnitScale = [](const VEC3 &scale) noexcept
+        {
+            return std::fabs(scale.x - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(scale.y - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(scale.z - 1.0f) <= MATRIX_TOLERANCE;
+        };
+        for (const CANONICAL_BONE &bone : skeleton.sourceBones)
+            if (!isUnitScale(bone.localBind.scale))
+                return DQS_COMPATIBILITY_STATUS::BIND_CONTAINS_SCALE;
+        for (const SKELETAL_CLIP &clip : animations.clips)
+            for (const SKELETAL_TRACK &track : clip.tracks)
+                if ((track.channelMask & SKELETAL_CHANNEL_SCALE) != 0)
+                    for (const SKELETAL_KEY &key : track.keys)
+                        if (!isUnitScale(key.local.scale))
+                            return DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE;
+        return DQS_COMPATIBILITY_STATUS::RIGID;
+    }
+
+    const char *dqsCompatibilityStatusName(const DQS_COMPATIBILITY_STATUS status) noexcept
+    {
+        switch (status)
+        {
+            case DQS_COMPATIBILITY_STATUS::RIGID: return "all-transforms-rigid";
+            case DQS_COMPATIBILITY_STATUS::BIND_CONTAINS_SCALE: return "bind-contains-scale";
+            case DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE: return "clip-contains-scale";
+        }
+        return "unknown";
+    }
+
     GLES2_LBS_PREPARATION_STATUS prepareGles2LbsInput(const CANONICAL_SKELETON &skeleton,
                                                        const CANONICAL_WEIGHTS &weights,
                                                        const GLES2_SKINNING_CAPABILITY &capability,
@@ -30,14 +62,16 @@ namespace mbm::skeletal
     {
         out = {};
         out.requiredBoneCount = static_cast<uint32_t>(skeleton.compiled.bones.size());
-        out.effectiveBoneCapacity = capability.lbsMatrixPaletteBones;
+        out.lbsBoneCapacity = capability.lbsMatrixPaletteBones;
+        out.dqsBoneCapacity = capability.dqsRigidPaletteBones;
+        out.effectiveBoneCapacity = std::max(out.lbsBoneCapacity, out.dqsBoneCapacity);
         if (skeleton.skeletonId == 0 && weights.skeletonId == 0)
             return out.status;
         if (!capability.measured)
             return out.status = GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE;
         if (!capability.hasRequiredVertexAttributes)
             return out.status = GLES2_LBS_PREPARATION_STATUS::INSUFFICIENT_VERTEX_ATTRIBUTES;
-        if (out.requiredBoneCount > out.effectiveBoneCapacity)
+        if (out.requiredBoneCount > out.lbsBoneCapacity && out.requiredBoneCount > out.dqsBoneCapacity)
             return out.status = GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE;
         if (skeleton.skeletonId == 0 || weights.skeletonId != skeleton.skeletonId ||
             !validateCanonicalWeights(skeleton, weights, static_cast<uint32_t>(weights.vertices.size())))

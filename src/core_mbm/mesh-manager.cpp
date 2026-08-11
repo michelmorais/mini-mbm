@@ -1305,6 +1305,31 @@ namespace mbm
         impl->paletteRows.clear();
     }
 
+    void SKELETAL_ANIMATION_PLAYER::setSkinningMethod(const SKELETAL_SHADER_METHOD method) noexcept
+    {
+        impl->requestedSkinningMethod = method;
+        impl->resolvedSkinningMethod = method == SKELETAL_SHADER_METHOD::AUTO
+            ? SKELETAL_SHADER_METHOD::NONE : method;
+        impl->skinningResolutionReason = method == SKELETAL_SHADER_METHOD::AUTO
+            ? "not-resolved" : method == SKELETAL_SHADER_METHOD::DQS_RIGID
+            ? "explicit-dqs" : "explicit-lbs";
+    }
+
+    SKELETAL_SHADER_METHOD SKELETAL_ANIMATION_PLAYER::getSkinningMethod() const noexcept
+    {
+        return impl->requestedSkinningMethod;
+    }
+
+    SKELETAL_SHADER_METHOD SKELETAL_ANIMATION_PLAYER::getResolvedSkinningMethod() const noexcept
+    {
+        return impl->resolvedSkinningMethod;
+    }
+
+    const char *SKELETAL_ANIMATION_PLAYER::getSkinningResolutionReason() const noexcept
+    {
+        return impl->skinningResolutionReason;
+    }
+
     struct MESH_MANAGER::Impl
     {
         std::unordered_map<std::string, MESH_MBM *> lsMeshes;
@@ -5883,20 +5908,45 @@ namespace mbm
         return this->impl->buffer != nullptr;
     }
 
-    uint32_t MESH_MBM::getPreparedSkeletalLbsPaletteSize() const noexcept
+    uint32_t MESH_MBM::getPreparedSkeletalPaletteSize(const SKELETAL_SHADER_METHOD method) const noexcept
     {
-        return impl->gles2LbsInput.ready() ? impl->gles2LbsInput.requiredBoneCount : 0;
+        return impl->gles2LbsInput.supports(method) ? impl->gles2LbsInput.requiredBoneCount : 0;
     }
 
-    void MESH_MBM::getSkeletalLbsReport(const char **status, uint32_t *requiredBoneCount,
-                                         uint32_t *effectiveBoneCapacity) const noexcept
+    void MESH_MBM::resolveSkeletalSkinningMethod(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (player.impl->requestedSkinningMethod != SKELETAL_SHADER_METHOD::AUTO)
+        {
+            player.impl->resolvedSkinningMethod = player.impl->requestedSkinningMethod;
+            player.impl->skinningResolutionReason = player.impl->requestedSkinningMethod ==
+                SKELETAL_SHADER_METHOD::DQS_RIGID ? "explicit-dqs" : "explicit-lbs";
+            return;
+        }
+
+        const skeletal::DQS_COMPATIBILITY_STATUS compatibility =
+            skeletal::getDqsCompatibility(impl->canonicalSkeleton, impl->canonicalAnimations);
+        player.impl->resolvedSkinningMethod = compatibility == skeletal::DQS_COMPATIBILITY_STATUS::RIGID
+            ? SKELETAL_SHADER_METHOD::DQS_RIGID : SKELETAL_SHADER_METHOD::LBS;
+        player.impl->skinningResolutionReason = skeletal::dqsCompatibilityStatusName(compatibility);
+    }
+
+    void MESH_MBM::getSkeletalSkinningReport(const SKELETAL_SHADER_METHOD method, const char **status,
+                                              uint32_t *requiredBoneCount,
+                                              uint32_t *effectiveBoneCapacity) const noexcept
     {
         if (status)
-            *status = skeletal::gles2LbsPreparationStatusName(impl->gles2LbsInput.status);
+        {
+            const skeletal::GLES2_LBS_PREPARATION_STATUS selectedStatus =
+                impl->gles2LbsInput.ready() && !impl->gles2LbsInput.supports(method)
+                    ? skeletal::GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE
+                    : impl->gles2LbsInput.status;
+            *status = skeletal::gles2LbsPreparationStatusName(selectedStatus);
+        }
         if (requiredBoneCount)
             *requiredBoneCount = impl->gles2LbsInput.requiredBoneCount;
         if (effectiveBoneCapacity)
-            *effectiveBoneCapacity = impl->gles2LbsInput.effectiveBoneCapacity;
+            *effectiveBoneCapacity = method == SKELETAL_SHADER_METHOD::DQS_RIGID
+                ? impl->gles2LbsInput.dqsBoneCapacity : impl->gles2LbsInput.lbsBoneCapacity;
     }
 
     uint32_t MESH_MBM::getTotalSkeletalAnimations() const noexcept
@@ -5920,7 +5970,7 @@ namespace mbm
 
     bool MESH_MBM::playSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const char *name) const
     {
-        if (!impl->gles2LbsInput.ready() || !name || !name[0])
+        if (!impl->gles2LbsInput.supports(player.impl->resolvedSkinningMethod) || !name || !name[0])
             return false;
         for (uint32_t i = 0; i < impl->canonicalAnimations.clips.size(); ++i)
         {
@@ -6007,8 +6057,12 @@ namespace mbm
         const bool hasNormals = buffer &&
             (buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR ||
              buffer->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        if (player.impl->resolvedSkinningMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
+            return skeletal::sampleGles2DqsPalette(impl->canonicalSkeleton, clip, player.impl->time,
+                                                   player.impl->paletteRows) ==
+                   skeletal::GLES2_DQS_PALETTE_STATUS::READY;
         return skeletal::sampleGles2LbsPalette(impl->canonicalSkeleton, clip, player.impl->time,
-                                              hasNormals, player.impl->paletteRows) ==
+                                               hasNormals, player.impl->paletteRows) ==
                skeletal::GLES2_LBS_PALETTE_STATUS::READY;
     }
 
@@ -6911,9 +6965,9 @@ namespace mbm
                 skeletal::getMeasuredGles2SkinningCapability();
             const skeletal::GLES2_LBS_PREPARATION_STATUS status = skeletal::prepareGles2LbsInput(
                 impl->canonicalSkeleton, impl->canonicalWeights, capability, impl->gles2LbsInput);
-            INFO_LOG("GLES2 LBS input: status=%s bones=%u capacity=%u vertices=%u [%s]",
+            INFO_LOG("GLES2 skeletal input: status=%s bones=%u lbs-capacity=%u dqs-capacity=%u vertices=%u [%s]",
                      skeletal::gles2LbsPreparationStatusName(status), impl->gles2LbsInput.requiredBoneCount,
-                     impl->gles2LbsInput.effectiveBoneCapacity,
+                     impl->gles2LbsInput.lbsBoneCapacity, impl->gles2LbsInput.dqsBoneCapacity,
                      static_cast<uint32_t>(impl->gles2LbsInput.vertices.size()), fileNamePath);
         }
         impl->extraInfo = in.extraInfo;

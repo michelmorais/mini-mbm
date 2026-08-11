@@ -546,7 +546,7 @@ mutate assets, evaluate clips, or deform vertices.
   palette to the GLES draw; inactive instances retain bind identity. Authored loop behavior is
   honored and culled meshes still advance. A real two-instance Lorekeeper smoke verified that one
   player advanced while the other stayed at `0.5s` paused, then resumed, despite both sharing the
-  same cached asset/program. Blending, speed, completion callbacks, DQS, and other backends remain
+  same cached asset/program. Blending, speed, completion callbacks, and other backends remain
   deliberately outside this initial player.
 - The Skeletal Animation Editor now drives that same per-instance runtime player on its preview
   mesh. It exposes clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber;
@@ -555,7 +555,7 @@ mutate assets, evaluate clips, or deform vertices.
   is not the Animation node timeline planned for editor Milestone 6.
 - The preview can explicitly stop its instance player to restore the identity/bind deformation;
   seeking to clip time zero is deliberately not used as a substitute. A read-only preparation
-  report exposes the exact GLES2 LBS status plus required and measured-capacity bone counts, so an
+  report exposes the selected GLES2 method plus required and measured-capacity bone counts, so an
   unavailable or oversized path is visible rather than inferred from a failed Play action.
 - Add GPU LBS and DQS incrementally against CPU references.
 - Rigid pose-to-DQS palette construction is now implemented privately as the first GPU-DQS gate.
@@ -567,10 +567,17 @@ mutate assets, evaluate clips, or deform vertices.
   It antipodally aligns four influences, normalizes and orthogonalizes the blended dual quaternion,
   transforms positions with its recovered translation, and rotates normals without translation.
   Shader-cache identity includes method as well as palette size, preventing LBS/DQS aliasing. A
-  real Mesa GLES 3.2 test compiled and linked the lit position/normal/UV variant for 23 bones. The
-  shader is not yet selected by runtime mesh instances and has not drawn an authored palette, so
-  playback/editor selection remain LBS-only.
-- Extend the shared preview with DQS/backend selection only when those runtime paths exist.
+  real Mesa GLES 3.2 test compiled and linked the lit position/normal/UV variant for 23 bones.
+- Runtime mesh instances now select LBS or rigid DQS before `load`. The selection is immutable for
+  the loaded instance, participates in shader-cache identity and palette capacity validation, and
+  samples the active clip directly into the selected three- or two-`vec4` palette. The editor
+  rebuilds its preview instance when the method changes and reports the selected method's per-draw
+  capacity. Explicit LBS/DQS modes never fall back: invalid transforms fail explicitly.
+- An explicit `auto` policy now audits the canonical bind and all clip scale keys before shader
+  compilation. It resolves once to rigid DQS only when every transform has unit scale; otherwise it
+  resolves to LBS with `bind-contains-scale` or `clip-contains-scale` reported publicly. Forced DQS
+  remains strict and never falls back, and no per-frame shader switching occurs.
+- Extend the shared preview with backend selection when additional runtime paths exist.
 - Validate the rat and small skeletons before investigating palette expansion.
 
 ### Phase 5 — Metal validation and delivery
@@ -715,8 +722,10 @@ mutate assets, evaluate clips, or deform vertices.
 4. What minimum bone count must each backend guarantee after reserving other vertex uniforms?
 5. Should meshes be partitioned by palette when they exceed that count?
 6. Is any texture/buffer palette alternative viable on the actual GLES2 device baseline?
-7. When DQS cannot represent a clip's scale, is fallback selected per mesh, clip, pose, or draw?
-8. Should the runtime ever auto-fallback if an application explicitly opts in, or always fail?
+Resolved in Phase 4: explicit DQS always fails on incompatible scale; the opt-in `auto` policy
+audits the whole loaded mesh once and resolves to LBS before shader compilation. It never falls back
+per clip, pose, or draw.
+
 9. After measuring the delivered backends, is modern OpenGL a worthwhile incremental backend or do
     broader renderer goals justify Vulkan?
 10. Which minimum reduced Velocity Skinning profile, if any, is useful on GLES2/DirectX 9?
@@ -769,6 +778,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.1 | 2026-08-11 | Added an explicit pre-load `auto` policy. It audits bind and every clip once, resolves to rigid DQS only for unit-scale content, otherwise resolves visibly to LBS, and reports requested method, resolved method, and reason. Forced DQS remains strict; no runtime shader switching or silent per-frame fallback was introduced. |
+| 4.0 | 2026-08-11 | Connected explicit per-instance LBS/rigid-DQS selection before mesh load. The selected method determines capability validation, shader-cache identity, clip-to-palette sampling, and real GLES draw upload; it cannot change after load without rebuilding the instance. Lua and the editor expose the choice and selected-method per-draw limit. No silent scale fallback, runtime shader recompilation, timeline, or non-GLES implementation was added. |
 | 3.9 | 2026-08-11 | Added the distinct GLES2 rigid-DQS default vertex-shader variant. It consumes two `vec4` values per bone, performs four-influence antipodal alignment, normalized/orthogonalized dual-quaternion blending, rigid point transformation, and quaternion normal rotation. Default-program cache keys now distinguish LBS from DQS at equal bone count. A dedicated real Mesa GLES 3.2 test compiled and linked the lit 23-bone DQS variant successfully. Runtime instances still select LBS; actual DQS palette upload/draw and editor selection remain the next gate. |
 | 3.8 | 2026-08-11 | Began the GPU rigid-DQS path with a private pose/clip-to-palette builder. Every skin matrix is validated as rigid and packed into real+dual quaternion `vec4` rows; bind identity, translation encoding, shared midpoint clip sampling, and scale rejection are locked by deterministic tests. The CPU reference now reuses the same matrix-to-dual-quaternion conversion contract. This does not yet add a GLES shader or runtime/editor method selector. Also replaced the editor's terse `23 / capacity` display with explicit per-mesh-draw wording and clarified that multiple instances are evaluated separately. |
 | 3.7 | 2026-08-11 | Added explicit bind-pose restoration to the skeletal player and editor preview by deactivating the instance clip and clearing its evaluated palette; this does not assume clip time zero equals bind pose. Added a read-only GLES2 LBS preparation report (`status`, required bones, measured capacity) to C++/Lua and displayed it in the editor. Corrected stale Skin Weight Lab notices that still claimed LBS preview was unavailable. |

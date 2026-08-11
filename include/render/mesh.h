@@ -62,8 +62,12 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL uint32_t getTotalSkeletalAnimations() const noexcept;
     API_IMPL const char *getSkeletalAnimationName(uint32_t index) const noexcept;
     API_IMPL bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;
-    API_IMPL void getSkeletalLbsReport(const char **status, uint32_t *requiredBoneCount,
-                                       uint32_t *effectiveBoneCapacity) const noexcept;
+        API_IMPL bool setSkeletalSkinningMethod(SKELETAL_SHADER_METHOD method) noexcept;
+        API_IMPL SKELETAL_SHADER_METHOD getSkeletalSkinningMethod() const noexcept;
+        API_IMPL SKELETAL_SHADER_METHOD getResolvedSkeletalSkinningMethod() const noexcept;
+        API_IMPL void getSkeletalSkinningReport(const char **status, const char **resolutionReason,
+                                                uint32_t *requiredBoneCount,
+                                                uint32_t *effectiveBoneCapacity) const noexcept;
     API_IMPL bool playSkeletalAnimation(const char *name);
     API_IMPL bool pauseSkeletalAnimation() noexcept;
     API_IMPL bool resumeSkeletalAnimation() noexcept;
