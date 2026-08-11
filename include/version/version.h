@@ -252,8 +252,9 @@
     6.69.0 Connected canonical clips to GLES LBS draws through an opaque per-instance player. Mesh instances now own active clip, time, pause state, and evaluated palette independently of cached assets; explicit C++/Lua count/name/play/pause/resume/seek/time controls avoid autoplay, honor authored looping, and advance while culled. A real two-instance Lorekeeper smoke verified independent paused/advancing times and per-draw palettes. Blending, speed, callbacks, DQS, and non-GLES execution remain pending.
     6.70.0 Added shared-runtime skeletal preview controls to the Skeletal Animation Editor: clip selection, play/restart, pause/resume, and a duration-bounded seek scrubber drive the preview mesh's per-instance GLES2 LBS player. The bind-pose gizmo remains explicitly static. Added read-only C++/Lua skeletal clip-duration queries; this is not a timeline or destructive skeleton editing.
     6.71.0 Added explicit skeletal bind-pose restoration by stopping and clearing a mesh instance's active player, plus a read-only GLES2 LBS preparation report with status, required bones, and measured capacity. The Skeletal Animation Editor exposes both in its runtime preview and no longer claims that LBS preview is unavailable in legacy weight-workflow notices.
+    6.72.0 Began GPU rigid-DQS delivery with a private tested pose/clip-to-dual-quaternion palette builder. It packs real and dual vec4 values per bone, shares canonical sampling with LBS, and rejects scale/shear. The CPU DQS reference reuses the same rigid conversion contract; no DQS shader or method selector is exposed yet. The editor now explains LBS capacity as required bones versus the current device's per-mesh-draw limit, not an ambiguous fraction or scene-wide budget.
 */
-#define MBM_VERSION "6.71.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.72.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

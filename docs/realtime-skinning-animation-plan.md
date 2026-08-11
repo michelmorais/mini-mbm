@@ -558,6 +558,11 @@ mutate assets, evaluate clips, or deform vertices.
   report exposes the exact GLES2 LBS status plus required and measured-capacity bone counts, so an
   unavailable or oversized path is visible rather than inferred from a failed Play action.
 - Add GPU LBS and DQS incrementally against CPU references.
+- Rigid pose-to-DQS palette construction is now implemented privately as the first GPU-DQS gate.
+  It converts each row-vector skin matrix into one real and one dual quaternion (two `vec4` values),
+  shares canonical clip sampling with LBS, and rejects scale/shear rather than silently dropping it.
+  Deterministic tests cover bind identity, translation packing, midpoint sampling, and non-rigid
+  rejection. No DQS shader, runtime method selection, or editor selector is claimed yet.
 - Extend the shared preview with DQS/backend selection only when those runtime paths exist.
 - Validate the rat and small skeletons before investigating palette expansion.
 
@@ -757,6 +762,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.8 | 2026-08-11 | Began the GPU rigid-DQS path with a private pose/clip-to-palette builder. Every skin matrix is validated as rigid and packed into real+dual quaternion `vec4` rows; bind identity, translation encoding, shared midpoint clip sampling, and scale rejection are locked by deterministic tests. The CPU reference now reuses the same matrix-to-dual-quaternion conversion contract. This does not yet add a GLES shader or runtime/editor method selector. Also replaced the editor's terse `23 / capacity` display with explicit per-mesh-draw wording and clarified that multiple instances are evaluated separately. |
 | 3.7 | 2026-08-11 | Added explicit bind-pose restoration to the skeletal player and editor preview by deactivating the instance clip and clearing its evaluated palette; this does not assume clip time zero equals bind pose. Added a read-only GLES2 LBS preparation report (`status`, required bones, measured capacity) to C++/Lua and displayed it in the editor. Corrected stale Skin Weight Lab notices that still claimed LBS preview was unavailable. |
 | 3.6 | 2026-08-10 | Connected the Skeletal Animation Editor preview mesh to the same per-instance GLES2 LBS player used at runtime. The panel selects canonical clips and provides play/restart, pause/resume, and duration-bounded seek through the public Lua surface; a new read-only duration query supplies the scrubber bound. The diagnostic skeleton gizmo remains bind-pose-only, and this control is explicitly not the future Animation-node timeline. |
 | 3.5 | 2026-08-10 | Connected evaluated palettes to real GLES draws through a per-instance single-clip player. `SKELETAL_ANIMATION_PLAYER` keeps active clip, time, pause state, and packed rows outside cached `MESH_MBM`; play/restart, pause/resume, clamped seek, time, clip count/name, authored looping, and Lua bindings are explicit, with no autoplay. Each draw uploads the owning instance's palette while inactive instances retain bind identity, and culled objects continue advancing. A real 60-frame Mesa GLES smoke used two objects sharing the same Lorekeeper asset/program: one advanced while the other remained exactly at `0.5s` paused, then resumed, proving palette/time isolation. Blending, speed, callbacks, DQS, and non-GLES execution remain pending. |

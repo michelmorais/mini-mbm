@@ -883,8 +883,10 @@ end
 local function showSkeletalPreviewControls()
     local playback=state.skeletalPreview
     local lbsReport=state.preview:getSkeletalLbsReport()
-    tImGui.Text(string.format(tLang.L('swl_lbs_report_fmt'),lbsReport.status or 'unknown',
+    tImGui.Text(string.format(tLang.L('swl_lbs_report_fmt'),lbsReport.status or 'unknown'))
+    tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
         lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
+    tImGui.TextDisabled(tLang.L('swl_lbs_capacity_note'))
     if #playback.clips==0 then
         tImGui.TextDisabled(tLang.L('swl_no_skeletal_clips'))
         return

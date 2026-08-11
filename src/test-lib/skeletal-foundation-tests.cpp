@@ -1024,6 +1024,42 @@ namespace
                    std::fabs(palette[15] - 2.0f) <= MATRIX_TOLERANCE &&
                    sampled.globalTransforms.size() == 2,
                "GPU LBS palette sampling must evaluate local clips before packing skin matrices");
+
+        pose.localTransforms = {root.localBind, child.localBind};
+        pose.globalTransforms = {skeleton.compiled.bones[0].globalBindMatrix,
+                                 skeleton.compiled.bones[1].globalBindMatrix};
+        expect(buildGles2DqsPalette(skeleton, pose, palette) == GLES2_DQS_PALETTE_STATUS::READY &&
+                   palette.size() == 16 && std::fabs(palette[3] - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(palette[11] - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(palette[12]) <= MATRIX_TOLERANCE,
+               "GPU DQS bind palette must pack identity real and zero dual quaternions");
+
+        movedChild = child.localBind;
+        movedChild.translation = VEC3(3, 0, 0);
+        pose.globalTransforms[1] = buildTrsMatrix(movedChild);
+        expect(buildGles2DqsPalette(skeleton, pose, palette) == GLES2_DQS_PALETTE_STATUS::READY &&
+                   std::fabs(palette[12] - 1.5f) <= MATRIX_TOLERANCE,
+               "GPU DQS palette must encode rigid translation in its dual quaternion");
+
+        movedChild.translation = VEC3(0, 0, 0);
+        movedChild.rotation = {0, 0, 0.70710678118f, 0.70710678118f};
+        pose.globalTransforms[1] = buildTrsMatrix(movedChild);
+        expect(buildGles2DqsPalette(skeleton, pose, palette) == GLES2_DQS_PALETTE_STATUS::READY &&
+                   std::fabs(std::fabs(palette[10]) - 0.70710678118f) <= MATRIX_TOLERANCE &&
+                   std::fabs(std::fabs(palette[11]) - 0.70710678118f) <= MATRIX_TOLERANCE,
+               "GPU DQS palette must preserve a rigid 90-degree quaternion rotation");
+
+        movedChild.scale = VEC3(2, 1, 1);
+        pose.globalTransforms[1] = buildTrsMatrix(movedChild);
+        expect(buildGles2DqsPalette(skeleton, pose, palette) ==
+                   GLES2_DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM && palette.empty(),
+               "GPU rigid DQS palette must reject scale instead of silently discarding it");
+
+        expect(sampleGles2DqsPalette(skeleton, clip, 0.5f, palette, &sampled) ==
+                   GLES2_DQS_PALETTE_STATUS::READY && palette.size() == 16 &&
+                   std::fabs(palette[12] - 1.0f) <= MATRIX_TOLERANCE &&
+                   sampled.globalTransforms.size() == 2,
+               "GPU DQS palette sampling must share canonical clip evaluation with LBS");
     }
 }
 

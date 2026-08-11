@@ -148,4 +148,51 @@ namespace mbm::skeletal
             *outPose = std::move(sampled);
         return status;
     }
+
+    GLES2_DQS_PALETTE_STATUS buildGles2DqsPalette(const CANONICAL_SKELETON &skeleton,
+                                                   const SKELETAL_POSE &pose,
+                                                   std::vector<float> &outRows) noexcept
+    {
+        outRows.clear();
+        const size_t boneCount = skeleton.compiled.bones.size();
+        if (skeleton.skeletonId == 0 || boneCount == 0 || pose.globalTransforms.size() != boneCount)
+            return GLES2_DQS_PALETTE_STATUS::INVALID_POSE;
+        outRows.resize(boneCount * 8u);
+        for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            MATRIX skinMatrix;
+            MatrixMultiply(&skinMatrix,
+                           &skeleton.compiled.bones[boneIndex].inverseGlobalBindMatrix,
+                           &pose.globalTransforms[boneIndex]);
+            DUAL_QUATERNION dualQuaternion;
+            if (!rigidDualQuaternionFromMatrix(skinMatrix, dualQuaternion))
+            {
+                outRows.clear();
+                return GLES2_DQS_PALETTE_STATUS::UNSUPPORTED_NON_RIGID_TRANSFORM;
+            }
+            float *rows = &outRows[boneIndex * 8u];
+            rows[0] = dualQuaternion.real.x; rows[1] = dualQuaternion.real.y;
+            rows[2] = dualQuaternion.real.z; rows[3] = dualQuaternion.real.w;
+            rows[4] = dualQuaternion.dual.x; rows[5] = dualQuaternion.dual.y;
+            rows[6] = dualQuaternion.dual.z; rows[7] = dualQuaternion.dual.w;
+        }
+        return GLES2_DQS_PALETTE_STATUS::READY;
+    }
+
+    GLES2_DQS_PALETTE_STATUS sampleGles2DqsPalette(const CANONICAL_SKELETON &skeleton,
+                                                    const SKELETAL_CLIP &clip, const float time,
+                                                    std::vector<float> &outRows,
+                                                    SKELETAL_POSE *outPose) noexcept
+    {
+        SKELETAL_POSE sampled;
+        if (!sampleSkeletalClip(skeleton.compiled, clip, time, sampled))
+        {
+            outRows.clear();
+            return GLES2_DQS_PALETTE_STATUS::INVALID_POSE;
+        }
+        const GLES2_DQS_PALETTE_STATUS status = buildGles2DqsPalette(skeleton, sampled, outRows);
+        if (status == GLES2_DQS_PALETTE_STATUS::READY && outPose)
+            *outPose = std::move(sampled);
+        return status;
+    }
 }

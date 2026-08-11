@@ -390,6 +390,27 @@ namespace mbm::skeletal
         return MATRIX_TOLERANCE * magnitude;
     }
 
+    bool rigidDualQuaternionFromMatrix(const MATRIX &matrix, DUAL_QUATERNION &out) noexcept
+    {
+        LOCAL_TRANSFORM rigid;
+        bool hasNegativeScale = false, hasShear = false;
+        if (!decomposeTrsMatrix(matrix, rigid, hasNegativeScale, hasShear) ||
+            hasNegativeScale || hasShear ||
+            std::fabs(rigid.scale.x - 1.0f) > MATRIX_TOLERANCE ||
+            std::fabs(rigid.scale.y - 1.0f) > MATRIX_TOLERANCE ||
+            std::fabs(rigid.scale.z - 1.0f) > MATRIX_TOLERANCE)
+            return false;
+        out.real = normalizedQuaternion(rigid.rotation);
+        const QUATERNION translation = {rigid.translation.x, rigid.translation.y,
+                                        rigid.translation.z, 0.0f};
+        out.dual = multiplyQuaternion(translation, out.real);
+        out.dual.x *= 0.5f;
+        out.dual.y *= 0.5f;
+        out.dual.z *= 0.5f;
+        out.dual.w *= 0.5f;
+        return true;
+    }
+
     const char *diagnosticCodeName(const DIAGNOSTIC_CODE code) noexcept
     {
         switch (code)
@@ -1028,12 +1049,6 @@ namespace mbm::skeletal
                                        const std::vector<VEC3> &bindNormals, std::vector<VEC3> &outPositions,
                                        std::vector<VEC3> &outNormals) noexcept
     {
-        struct DUAL_QUATERNION
-        {
-            QUATERNION real;
-            QUATERNION dual;
-        };
-
         outPositions.clear();
         outNormals.clear();
         const size_t vertexCount = bindPositions.size();
@@ -1053,22 +1068,8 @@ namespace mbm::skeletal
             MATRIX skinMatrix;
             MatrixMultiply(&skinMatrix, &skeleton.compiled.bones[boneIndex].inverseGlobalBindMatrix,
                            &pose.globalTransforms[boneIndex]);
-            LOCAL_TRANSFORM rigid;
-            bool hasNegativeScale = false, hasShear = false;
-            if (!decomposeTrsMatrix(skinMatrix, rigid, hasNegativeScale, hasShear) ||
-                hasNegativeScale || hasShear ||
-                std::fabs(rigid.scale.x - 1.0f) > MATRIX_TOLERANCE ||
-                std::fabs(rigid.scale.y - 1.0f) > MATRIX_TOLERANCE ||
-                std::fabs(rigid.scale.z - 1.0f) > MATRIX_TOLERANCE)
+            if (!rigidDualQuaternionFromMatrix(skinMatrix, palette[paletteIndex]))
                 return false;
-            palette[paletteIndex].real = normalizedQuaternion(rigid.rotation);
-            const QUATERNION translation = {rigid.translation.x, rigid.translation.y,
-                                            rigid.translation.z, 0.0f};
-            palette[paletteIndex].dual = multiplyQuaternion(translation, palette[paletteIndex].real);
-            palette[paletteIndex].dual.x *= 0.5f;
-            palette[paletteIndex].dual.y *= 0.5f;
-            palette[paletteIndex].dual.z *= 0.5f;
-            palette[paletteIndex].dual.w *= 0.5f;
         }
 
         outPositions.resize(vertexCount);

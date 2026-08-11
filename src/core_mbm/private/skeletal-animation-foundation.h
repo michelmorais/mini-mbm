@@ -233,11 +233,18 @@ namespace mbm::skeletal
         std::vector<MATRIX> globalTransforms;
     };
 
+    struct DUAL_QUATERNION
+    {
+        QUATERNION real;
+        QUATERNION dual;
+    };
+
     MATRIX buildTrsMatrix(const LOCAL_TRANSFORM &transform) noexcept;
     bool decomposeTrsMatrix(const MATRIX &matrix, LOCAL_TRANSFORM &out, bool &hasNegativeScale,
                             bool &hasShear) noexcept;
     float maximumMatrixDifference(const MATRIX &left, const MATRIX &right) noexcept;
     float matrixComparisonTolerance(const MATRIX &left, const MATRIX &right) noexcept;
+    bool rigidDualQuaternionFromMatrix(const MATRIX &matrix, DUAL_QUATERNION &out) noexcept;
     const char *diagnosticCodeName(DIAGNOSTIC_CODE code) noexcept;
     bool compileLegacySkeleton(const std::vector<util::SKELETON_BONE_V11> &legacy,
                                COMPILED_SKELETON &out);

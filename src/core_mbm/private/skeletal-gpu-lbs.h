@@ -59,6 +59,13 @@ namespace mbm::skeletal
         UNSUPPORTED_NORMAL_TRANSFORM
     };
 
+    enum class GLES2_DQS_PALETTE_STATUS : uint8_t
+    {
+        READY,
+        INVALID_POSE,
+        UNSUPPORTED_NON_RIGID_TRANSFORM
+    };
+
     GLES2_LBS_PREPARATION_STATUS prepareGles2LbsInput(const CANONICAL_SKELETON &skeleton,
                                                        const CANONICAL_WEIGHTS &weights,
                                                        const GLES2_SKINNING_CAPABILITY &capability,
@@ -71,6 +78,13 @@ namespace mbm::skeletal
     GLES2_LBS_PALETTE_STATUS sampleGles2LbsPalette(const CANONICAL_SKELETON &skeleton,
                                                     const SKELETAL_CLIP &clip, float time,
                                                     bool requireCompactNormalTransform,
+                                                    std::vector<float> &outRows,
+                                                    SKELETAL_POSE *outPose = nullptr) noexcept;
+    GLES2_DQS_PALETTE_STATUS buildGles2DqsPalette(const CANONICAL_SKELETON &skeleton,
+                                                   const SKELETAL_POSE &pose,
+                                                   std::vector<float> &outRows) noexcept;
+    GLES2_DQS_PALETTE_STATUS sampleGles2DqsPalette(const CANONICAL_SKELETON &skeleton,
+                                                    const SKELETAL_CLIP &clip, float time,
                                                     std::vector<float> &outRows,
                                                     SKELETAL_POSE *outPose = nullptr) noexcept;
 }
