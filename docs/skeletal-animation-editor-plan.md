@@ -317,6 +317,8 @@ Exit: a clip can be authored, saved, reopened, and sampled deterministically ins
 - The first GLES2 LBS slice is implemented in the existing Skin Weight Lab preview: canonical clip
   selection, play/restart, pause/resume, and bounded seek call the runtime `mesh` player directly.
   It deliberately adds no tracks, keyframes, or timeline and leaves the bind diagnostic gizmo static.
+- Bind-pose restoration now stops the player instead of assuming the clip's zero-time pose is bind,
+  and the panel reports GLES2 LBS preparation status, required bones, and measured capacity.
 - Expose LBS/DQS choice, scale restrictions/fallbacks, normals, and backend capability information.
 - Add pose-stress comparison and bind-pose restoration.
 
@@ -397,6 +399,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.9 | 2026-08-11 | Extended the shared runtime preview with explicit bind-pose restoration and visible GLES2 LBS readiness/capacity evidence. Restoration deactivates the player and identity palette rather than seeking to zero; no timeline, DQS selector, or destructive skeleton operation was added. |
 | 1.8 | 2026-08-10 | Began Milestone 7 integration early, after the Phase-4 runtime prerequisite became available: the Skin Weight Lab's preview mesh now uses the actual per-instance GLES2 LBS player for clip selection, play/restart, pause/resume, and bounded seek. The bind gizmo stays static and no Milestone-6 timeline/authoring UI was introduced. DQS choice, backend reporting, pose stress, and parity fixtures remain. |
 | 1.7 | 2026-08-10 | Mesh Debug's Bone node/window and gizmo now inspect canonical section 41 directly through the canonical-first bind snapshot. The view exposes hierarchy and bind metadata read-only and deliberately does not populate or enable the destructive legacy skeleton model. |
 | 1.6 | 2026-08-10 | The direct Blender/FBX importer now emits canonical sections 41–43 directly from armature bind matrices, vertex groups, and sampled poses, with deterministic IDs, local quaternion TRS, strict influence coverage, and no legacy 11/40 output. The accepted reflection is applied atomically to geometry, winding, normals, bind, and poses. The 67-bone Mixamo walk now produces one REST bind frame plus 67×32 track keys; canonical load and save/reload passed. |

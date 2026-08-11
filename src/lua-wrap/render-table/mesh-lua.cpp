@@ -210,6 +210,22 @@ namespace mbm
         return 1;
     }
 
+    int onGetSkeletalLbsReportLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *status = nullptr;
+        uint32_t requiredBoneCount = 0, effectiveBoneCapacity = 0;
+        mesh->getSkeletalLbsReport(&status, &requiredBoneCount, &effectiveBoneCapacity);
+        lua_createtable(lua, 0, 3);
+        lua_pushstring(lua, status ? status : "unknown");
+        lua_setfield(lua, -2, "status");
+        lua_pushinteger(lua, static_cast<lua_Integer>(requiredBoneCount));
+        lua_setfield(lua, -2, "requiredBoneCount");
+        lua_pushinteger(lua, static_cast<lua_Integer>(effectiveBoneCapacity));
+        lua_setfield(lua, -2, "effectiveBoneCapacity");
+        return 1;
+    }
+
     int onPlaySkeletalAnimationLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -228,6 +244,13 @@ namespace mbm
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
         lua_pushboolean(lua, mesh->resumeSkeletalAnimation() ? 1 : 0);
+        return 1;
+    }
+
+    int onStopSkeletalAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->stopSkeletalAnimation() ? 1 : 0);
         return 1;
     }
 
@@ -316,9 +339,11 @@ namespace mbm
                                                      {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                      {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
                                                      {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
+                                                     {"getSkeletalLbsReport", onGetSkeletalLbsReportLua},
                                                      {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
                                                      {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
                                                      {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
+                                                     {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
                                                      {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
                                                      {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
                                                      {nullptr, nullptr}};
@@ -374,9 +399,11 @@ namespace mbm
                                                          {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                          {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
                                                          {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
+                                                         {"getSkeletalLbsReport", onGetSkeletalLbsReportLua},
                                                          {"playSkeletalAnimation", onPlaySkeletalAnimationLua},
                                                          {"pauseSkeletalAnimation", onPauseSkeletalAnimationLua},
                                                          {"resumeSkeletalAnimation", onResumeSkeletalAnimationLua},
+                                                         {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
                                                          {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
                                                          {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
                                                          {nullptr, nullptr}};

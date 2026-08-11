@@ -485,6 +485,8 @@ namespace mbm
         // pattern as Impl.
         bool finishLoadFromIntermediate(MESH_LOAD_INTERMEDIATE_V11 &in, const char *fileNamePath);
         uint32_t getPreparedSkeletalLbsPaletteSize() const noexcept;
+        void getSkeletalLbsReport(const char **status, uint32_t *requiredBoneCount,
+                                  uint32_t *effectiveBoneCapacity) const noexcept;
         uint32_t getTotalSkeletalAnimations() const noexcept;
         const char *getSkeletalAnimationName(uint32_t index) const noexcept;
         bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;
@@ -492,6 +494,7 @@ namespace mbm
         bool hasActiveSkeletalAnimation(const SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool pauseSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool resumeSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
+        bool stopSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool seekSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float time) const;
         bool getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player, float *time) const noexcept;
         bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta) const;

@@ -182,6 +182,19 @@ namespace mbm
         return mesh ? mesh->getSkeletalAnimationDuration(index, duration) : false;
     }
 
+    void MESH::getSkeletalLbsReport(const char **status, uint32_t *requiredBoneCount,
+                                    uint32_t *effectiveBoneCapacity) const noexcept
+    {
+        if (mesh)
+            mesh->getSkeletalLbsReport(status, requiredBoneCount, effectiveBoneCapacity);
+        else
+        {
+            if (status) *status = "not-loaded";
+            if (requiredBoneCount) *requiredBoneCount = 0;
+            if (effectiveBoneCapacity) *effectiveBoneCapacity = 0;
+        }
+    }
+
     bool MESH::playSkeletalAnimation(const char *name)
     {
         return mesh ? mesh->playSkeletalAnimation(getSkeletalAnimationPlayer(), name) : false;
@@ -195,6 +208,11 @@ namespace mbm
     bool MESH::resumeSkeletalAnimation() noexcept
     {
         return mesh ? mesh->resumeSkeletalAnimation(getSkeletalAnimationPlayer()) : false;
+    }
+
+    bool MESH::stopSkeletalAnimation() noexcept
+    {
+        return mesh ? mesh->stopSkeletalAnimation(getSkeletalAnimationPlayer()) : false;
     }
 
     bool MESH::seekSkeletalAnimation(const float time)

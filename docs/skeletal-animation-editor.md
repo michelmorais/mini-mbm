@@ -41,7 +41,10 @@ It is not the editor's final compatibility path. Canonical section inspection wi
 skeletal assets using only the exploratory sections must be re-imported from FBX before delivery.
 
 Expand **Runtime Skeletal Preview** to select a canonical clip, play or restart it, pause/resume,
-and seek by time. The slider is a lightweight playback scrubber, not the future Animation-node
+seek by time, or explicitly return the mesh to bind pose. The panel reports the GLES2 LBS
+preparation status and the mesh's required/measured-capacity bone counts. Bind restoration stops
+the active player; it does not assume that time zero of an authored clip is the bind pose.
+The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and
 GLES2 LBS palette. The separately drawn skeleton gizmo continues to show the bind pose so it is not
 mistaken for a second pose evaluator.

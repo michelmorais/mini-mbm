@@ -553,6 +553,10 @@ mutate assets, evaluate clips, or deform vertices.
   the deformation is therefore the real GLES2 LBS result rather than an editor-side pose copy. The
   separate skeleton diagnostic gizmo intentionally remains in bind pose. This small playback panel
   is not the Animation node timeline planned for editor Milestone 6.
+- The preview can explicitly stop its instance player to restore the identity/bind deformation;
+  seeking to clip time zero is deliberately not used as a substitute. A read-only preparation
+  report exposes the exact GLES2 LBS status plus required and measured-capacity bone counts, so an
+  unavailable or oversized path is visible rather than inferred from a failed Play action.
 - Add GPU LBS and DQS incrementally against CPU references.
 - Extend the shared preview with DQS/backend selection only when those runtime paths exist.
 - Validate the rat and small skeletons before investigating palette expansion.
@@ -753,6 +757,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.7 | 2026-08-11 | Added explicit bind-pose restoration to the skeletal player and editor preview by deactivating the instance clip and clearing its evaluated palette; this does not assume clip time zero equals bind pose. Added a read-only GLES2 LBS preparation report (`status`, required bones, measured capacity) to C++/Lua and displayed it in the editor. Corrected stale Skin Weight Lab notices that still claimed LBS preview was unavailable. |
 | 3.6 | 2026-08-10 | Connected the Skeletal Animation Editor preview mesh to the same per-instance GLES2 LBS player used at runtime. The panel selects canonical clips and provides play/restart, pause/resume, and duration-bounded seek through the public Lua surface; a new read-only duration query supplies the scrubber bound. The diagnostic skeleton gizmo remains bind-pose-only, and this control is explicitly not the future Animation-node timeline. |
 | 3.5 | 2026-08-10 | Connected evaluated palettes to real GLES draws through a per-instance single-clip player. `SKELETAL_ANIMATION_PLAYER` keeps active clip, time, pause state, and packed rows outside cached `MESH_MBM`; play/restart, pause/resume, clamped seek, time, clip count/name, authored looping, and Lua bindings are explicit, with no autoplay. Each draw uploads the owning instance's palette while inactive instances retain bind identity, and culled objects continue advancing. A real 60-frame Mesa GLES smoke used two objects sharing the same Lorekeeper asset/program: one advanced while the other remained exactly at `0.5s` paused, then resumed, proving palette/time isolation. Blending, speed, callbacks, DQS, and non-GLES execution remain pending. |
 | 3.4 | 2026-08-10 | Added private canonical pose-to-GLES2-LBS palette construction. It evaluates a clip into parent-relative local and composed global transforms, calculates `inverseGlobalBind * posedGlobal` per compiled bone, and packs the row-vector matrix columns/translation into the exact three-`vec4` shader layout. The function creates animated values from the sampled pose rather than sharing them by bone count. Compact-normal validation rejects negative scale, shear, and non-uniform scale. Tests prove bind identity, packed translation, midpoint clip sampling, and scale rejection. The draw still uploads its temporary identity palette until per-instance playback state is connected. |

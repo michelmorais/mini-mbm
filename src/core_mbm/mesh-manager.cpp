@@ -5888,6 +5888,17 @@ namespace mbm
         return impl->gles2LbsInput.ready() ? impl->gles2LbsInput.requiredBoneCount : 0;
     }
 
+    void MESH_MBM::getSkeletalLbsReport(const char **status, uint32_t *requiredBoneCount,
+                                         uint32_t *effectiveBoneCapacity) const noexcept
+    {
+        if (status)
+            *status = skeletal::gles2LbsPreparationStatusName(impl->gles2LbsInput.status);
+        if (requiredBoneCount)
+            *requiredBoneCount = impl->gles2LbsInput.requiredBoneCount;
+        if (effectiveBoneCapacity)
+            *effectiveBoneCapacity = impl->gles2LbsInput.effectiveBoneCapacity;
+    }
+
     uint32_t MESH_MBM::getTotalSkeletalAnimations() const noexcept
     {
         return static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
@@ -5943,6 +5954,18 @@ namespace mbm
         if (!player.impl->active)
             return false;
         player.impl->paused = false;
+        return true;
+    }
+
+    bool MESH_MBM::stopSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept
+    {
+        if (!player.impl->active)
+            return false;
+        player.impl->clipIndex = UINT32_MAX;
+        player.impl->time = 0.0f;
+        player.impl->active = false;
+        player.impl->paused = false;
+        player.impl->paletteRows.clear();
         return true;
     }
 

@@ -882,6 +882,9 @@ end
 
 local function showSkeletalPreviewControls()
     local playback=state.skeletalPreview
+    local lbsReport=state.preview:getSkeletalLbsReport()
+    tImGui.Text(string.format(tLang.L('swl_lbs_report_fmt'),lbsReport.status or 'unknown',
+        lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
     if #playback.clips==0 then
         tImGui.TextDisabled(tLang.L('swl_no_skeletal_clips'))
         return
@@ -893,6 +896,15 @@ local function showSkeletalPreviewControls()
         playSelectedSkeletalClip()
     end
     if tImGui.Button(tLang.L('swl_play_restart')) then playSelectedSkeletalClip() end
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not playback.playing)
+    if tImGui.Button(tLang.L('swl_restore_bind_pose')) then
+        if state.preview:stopSkeletalAnimation() then
+            playback.playing=false
+            playback.paused=false
+        end
+    end
+    tImGui.EndDisabled()
     tImGui.SameLine()
     tImGui.BeginDisabled(not playback.playing)
     if tImGui.Button(playback.paused and tLang.L('swl_resume') or tLang.L('swl_pause')) then
