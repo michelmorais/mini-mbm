@@ -37,6 +37,12 @@ namespace util
 
 namespace mbm
 {
+    enum class SKELETAL_SHADER_METHOD : uint8_t
+    {
+        NONE,
+        LBS,
+        DQS_RIGID
+    };
     class TEXTURE;
     class RENDERIZABLE;
     struct VAR_SHADER;
@@ -228,7 +234,8 @@ namespace mbm
         API_IMPL void onRestore();
         API_IMPL bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader,
                                     FVF_PROVIDE_BY_ENGINE fvf,
-                                    uint32_t skeletalLbsPaletteSize = 0);
+                                    uint32_t skeletalPaletteSize = 0,
+                                    SKELETAL_SHADER_METHOD skeletalMethod = SKELETAL_SHADER_METHOD::LBS);
         API_IMPL bool isLoad() const noexcept;
         API_IMPL bool render(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner = nullptr,
                              const int32_t subsetIndex = -1,

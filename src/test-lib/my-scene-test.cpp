@@ -82,6 +82,7 @@ MY_SCENE::MY_SCENE()
     testTimeoutSeconds = -1.0f;
     testElapsedSeconds = 0.0f;
     cliMeshMode        = RenderMode::NONE;
+    testGlesDqsShader  = false;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -141,6 +142,20 @@ void MY_SCENE::onInitScene()
     device->setColorClearBackGround(backgroundColor);
 
     util::addPath(__FILE__);
+
+    if (testGlesDqsShader)
+    {
+        mbm::SHADER shader;
+        shader.setUseReservedLightDefault(true);
+        if (!shader.compileShader(nullptr, nullptr, mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV,
+                                  23, mbm::SKELETAL_SHADER_METHOD::DQS_RIGID))
+        {
+            ERROR_LOG("testLib: GLES rigid-DQS default shader compile failed");
+            device->setRun(false);
+            return;
+        }
+        INFO_LOG("testLib: GLES rigid-DQS default shader compiled successfully for 23 bones");
+    }
 
     this->fontDrawNoShader = new mbm::FONT_DRAW(this);
     float heightLetter   = 0;

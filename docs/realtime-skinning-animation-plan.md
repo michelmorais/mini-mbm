@@ -562,7 +562,14 @@ mutate assets, evaluate clips, or deform vertices.
   It converts each row-vector skin matrix into one real and one dual quaternion (two `vec4` values),
   shares canonical clip sampling with LBS, and rejects scale/shear rather than silently dropping it.
   Deterministic tests cover bind identity, translation packing, midpoint sampling, and non-rigid
-  rejection. No DQS shader, runtime method selection, or editor selector is claimed yet.
+  rejection.
+- A distinct GLES2 rigid-DQS default vertex-shader variant now consumes that two-`vec4` palette.
+  It antipodally aligns four influences, normalizes and orthogonalizes the blended dual quaternion,
+  transforms positions with its recovered translation, and rotates normals without translation.
+  Shader-cache identity includes method as well as palette size, preventing LBS/DQS aliasing. A
+  real Mesa GLES 3.2 test compiled and linked the lit position/normal/UV variant for 23 bones. The
+  shader is not yet selected by runtime mesh instances and has not drawn an authored palette, so
+  playback/editor selection remain LBS-only.
 - Extend the shared preview with DQS/backend selection only when those runtime paths exist.
 - Validate the rat and small skeletons before investigating palette expansion.
 
@@ -762,6 +769,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.9 | 2026-08-11 | Added the distinct GLES2 rigid-DQS default vertex-shader variant. It consumes two `vec4` values per bone, performs four-influence antipodal alignment, normalized/orthogonalized dual-quaternion blending, rigid point transformation, and quaternion normal rotation. Default-program cache keys now distinguish LBS from DQS at equal bone count. A dedicated real Mesa GLES 3.2 test compiled and linked the lit 23-bone DQS variant successfully. Runtime instances still select LBS; actual DQS palette upload/draw and editor selection remain the next gate. |
 | 3.8 | 2026-08-11 | Began the GPU rigid-DQS path with a private pose/clip-to-palette builder. Every skin matrix is validated as rigid and packed into real+dual quaternion `vec4` rows; bind identity, translation encoding, shared midpoint clip sampling, and scale rejection are locked by deterministic tests. The CPU reference now reuses the same matrix-to-dual-quaternion conversion contract. This does not yet add a GLES shader or runtime/editor method selector. Also replaced the editor's terse `23 / capacity` display with explicit per-mesh-draw wording and clarified that multiple instances are evaluated separately. |
 | 3.7 | 2026-08-11 | Added explicit bind-pose restoration to the skeletal player and editor preview by deactivating the instance clip and clearing its evaluated palette; this does not assume clip time zero equals bind pose. Added a read-only GLES2 LBS preparation report (`status`, required bones, measured capacity) to C++/Lua and displayed it in the editor. Corrected stale Skin Weight Lab notices that still claimed LBS preview was unavailable. |
 | 3.6 | 2026-08-10 | Connected the Skeletal Animation Editor preview mesh to the same per-instance GLES2 LBS player used at runtime. The panel selects canonical clips and provides play/restart, pause/resume, and duration-bounded seek through the public Lua surface; a new read-only duration query supplies the scrubber bound. The diagnostic skeleton gizmo remains bind-pose-only, and this control is explicitly not the future Animation-node timeline. |

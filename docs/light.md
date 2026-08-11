@@ -570,13 +570,17 @@ Custom shaders stay authoritative:
 When classified as lit, the default shader uses the reserved material/light values described above.
 When classified as unlit, it keeps the cheaper unlit path even if normals or UVs exist.
 
-Canonical GLES2 LBS meshes use a skeletal variant of the same default vertex shader. Skinning is
+Canonical GLES2 skeletal meshes use variants of the same default vertex shader. LBS skinning is
 applied to the bind position and normal before `mvpMatrix`/`mvMatrix`, so the lighting pipeline still
 receives view-space `vPositionView` and `vNormalView` with the same meanings documented here. The
 initial compact palette stores only three affine `vec4` values per bone; its normal transform is
 therefore valid for rigid motion or uniform scale, not non-uniform scale/shear. Such animation must
 be rejected until the renderer carries an inverse-transpose normal strategy. Custom vertex shaders
-do not yet participate in canonical LBS and fail explicitly instead of silently drawing REST pose.
+do not yet participate in canonical skinning and fail explicitly instead of silently drawing REST
+pose. A separate rigid-DQS default-shader variant is compiled with two quaternion `vec4` values per
+bone, performs per-vertex antipodal alignment and normalized/orthogonalized dual-quaternion blending,
+and rotates normals through the blended real quaternion. It currently has compile/link coverage but
+is not selected by runtime mesh instances yet; therefore delivered playback remains LBS-only.
 
 Current default-lit shading behavior:
 

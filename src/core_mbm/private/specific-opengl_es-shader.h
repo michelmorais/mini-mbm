@@ -35,6 +35,7 @@ namespace mbm
         GLint mvMatrixHandle;  // Handle para a matrix do modelo
         GLint bonePaletteHandle;
         uint32_t skeletalLbsPaletteSize;
+        SKELETAL_SHADER_METHOD skeletalMethod;
         GLint samplerHandle0;
         GLint samplerHandle1;
         GLint samplerHandle2;

@@ -145,6 +145,7 @@ class MY_SCENE : public mbm::SCENE
     // Set via main()'s optional <mesh_file> <world> command-line arguments.
     std::string             cliMeshFile;
     RenderMode              cliMeshMode;
+    bool                    testGlesDqsShader;
 
     MY_SCENE();
     virtual ~MY_SCENE();

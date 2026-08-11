@@ -30,6 +30,7 @@
 #include <cstring>
 
 // Usage: testLib --skeletal-foundation-tests
+//        testLib --gles-dqs-shader-test
 //        testLib [seconds] [mesh_file] [world]
 //   seconds    Exit on its own once this many seconds have elapsed in the
 //              render loop, instead of running forever. Meant for
@@ -49,7 +50,12 @@ int main(int argc, char** argv)
         return runSkeletalFoundationTests();
 
     GAME game;
-    if (argc > 1)
+    if (argc == 2 && std::strcmp(argv[1], "--gles-dqs-shader-test") == 0)
+    {
+        game.myScene.testGlesDqsShader = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else if (argc > 1)
     {
         const float seconds = static_cast<float>(std::atof(argv[1]));
         if (seconds > 0.0f)

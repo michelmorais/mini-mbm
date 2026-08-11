@@ -57,15 +57,18 @@ namespace mbm
         GLint  mvpMatrixHandle, mvMatrixHandle;
         GLint  bonePaletteHandle;
         uint32_t skeletalLbsPaletteSize;
+        SKELETAL_SHADER_METHOD skeletalMethod;
         GLint  samplerHandle0, samplerHandle1, samplerHandle2, samplerHandle3, samplerHandle4, samplerHandle5;
     };
 
     static uint64_t makeDefaultProgramCacheKey(const FVF_PROVIDE_BY_ENGINE fvf,
                                                 const bool useReservedLightScaffolding,
                                                 const bool canUsePointLight2D,
-                                                const uint32_t skeletalLbsPaletteSize)
+                                                const uint32_t skeletalLbsPaletteSize,
+                                                const SKELETAL_SHADER_METHOD skeletalMethod)
     {
-        return (static_cast<uint64_t>(skeletalLbsPaletteSize) << 8u) |
+        return (static_cast<uint64_t>(skeletalMethod) << 56u) |
+               (static_cast<uint64_t>(skeletalLbsPaletteSize) << 8u) |
                (static_cast<uint64_t>(fvf) << 2u) |
                (useReservedLightScaffolding ? 2u : 0u) |
                (canUsePointLight2D ? 1u : 0u);
@@ -405,12 +408,27 @@ namespace mbm
         return palettes.emplace(boneCount, std::move(values)).first->second;
     }
 
+    static const std::vector<float> &getIdentityDqsPalette(const uint32_t boneCount)
+    {
+        static std::unordered_map<uint32_t, std::vector<float>> palettes;
+        auto found = palettes.find(boneCount);
+        if (found != palettes.end())
+            return found->second;
+        std::vector<float> values(static_cast<size_t>(boneCount) * 8u, 0.0f);
+        for (uint32_t bone = 0; bone < boneCount; ++bone)
+            values[(bone * 8u) + 3u] = 1.0f;
+        return palettes.emplace(boneCount, std::move(values)).first->second;
+    }
+
     static const float *resolveLbsPalette(const GLES_PS_VS *gles, const float *rows,
                                           const uint32_t floatCount)
     {
+        const uint32_t floatsPerBone = gles->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
         if (rows)
-            return floatCount == gles->skeletalLbsPaletteSize * 12u ? rows : nullptr;
-        return getIdentityLbsPalette(gles->skeletalLbsPaletteSize).data();
+            return floatCount == gles->skeletalLbsPaletteSize * floatsPerBone ? rows : nullptr;
+        return gles->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID
+            ? getIdentityDqsPalette(gles->skeletalLbsPaletteSize).data()
+            : getIdentityLbsPalette(gles->skeletalLbsPaletteSize).data();
     }
 
     static bool bindAndUploadLbsIndexed(const GLES_PS_VS *gles, const BUFFER_SPECIFIC *buffer,
@@ -430,7 +448,8 @@ namespace mbm
         const float *palette = resolveLbsPalette(gles, paletteRows, paletteFloatCount);
         if (!palette)
             return false;
-        glUniform4fv(gles->bonePaletteHandle, static_cast<GLsizei>(gles->skeletalLbsPaletteSize * 3u),
+        const uint32_t vectorsPerBone = gles->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 2u : 3u;
+        glUniform4fv(gles->bonePaletteHandle, static_cast<GLsizei>(gles->skeletalLbsPaletteSize * vectorsPerBone),
                      palette);
         return true;
     }
@@ -455,7 +474,8 @@ namespace mbm
         const float *palette = resolveLbsPalette(gles, paletteRows, paletteFloatCount);
         if (!palette)
             return false;
-        glUniform4fv(gles->bonePaletteHandle, static_cast<GLsizei>(gles->skeletalLbsPaletteSize * 3u),
+        const uint32_t vectorsPerBone = gles->skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 2u : 3u;
+        glUniform4fv(gles->bonePaletteHandle, static_cast<GLsizei>(gles->skeletalLbsPaletteSize * vectorsPerBone),
                      palette);
         return true;
     }
@@ -974,6 +994,7 @@ namespace mbm
           mvMatrixHandle(-1),
           bonePaletteHandle(-1),
           skeletalLbsPaletteSize(0),
+          skeletalMethod(SKELETAL_SHADER_METHOD::NONE),
           samplerHandle0(-1),
           samplerHandle1(-1),
           samplerHandle2(-1),
@@ -1001,6 +1022,7 @@ namespace mbm
         mvMatrixHandle  = -1;
         bonePaletteHandle = -1;
         skeletalLbsPaletteSize = 0;
+        skeletalMethod = SKELETAL_SHADER_METHOD::NONE;
         samplerHandle0  = -1;
         samplerHandle1  = -1;
         samplerHandle2  = -1;
@@ -1056,7 +1078,8 @@ namespace mbm
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
-                               mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalLbsPaletteSize)
+                               mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalLbsPaletteSize,
+                               const SKELETAL_SHADER_METHOD skeletalMethod)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
             return false;
@@ -1064,7 +1087,7 @@ namespace mbm
         this->vShader            = ptrVshader;
         if (skeletalLbsPaletteSize > 0 && ptrVshader != nullptr)
         {
-            ERROR_AT(__LINE__, __FILE__, "canonical GLES2 LBS does not yet support a custom vertex shader");
+            ERROR_AT(__LINE__, __FILE__, "canonical GLES2 skinning does not yet support a custom vertex shader");
             return false;
         }
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
@@ -1075,6 +1098,8 @@ namespace mbm
         void *backendShaderSpecific = getBackendShaderSpecific();
         GLES_PS_VS *gles_shaderSpecific = static_cast<GLES_PS_VS *>(backendShaderSpecific);
         gles_shaderSpecific->skeletalLbsPaletteSize = skeletalLbsPaletteSize;
+        gles_shaderSpecific->skeletalMethod = skeletalLbsPaletteSize > 0
+            ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
 
         // Fast path: an earlier instance already compiled+linked this exact (fvf,
         // useReservedLightScaffolding, canUsePointLight2D) combination -- every placement of the
@@ -1084,7 +1109,8 @@ namespace mbm
         if (this->usesPureDefaultShaderPair())
         {
             const uint64_t key = makeDefaultProgramCacheKey(
-                fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize);
+                fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize,
+                gles_shaderSpecific->skeletalMethod);
             auto &cache = getDefaultProgramCache();
             const auto found = cache.find(key);
             if (found != cache.end())
@@ -1100,6 +1126,7 @@ namespace mbm
                 gles_shaderSpecific->mvMatrixHandle  = entry.mvMatrixHandle;
                 gles_shaderSpecific->bonePaletteHandle = entry.bonePaletteHandle;
                 gles_shaderSpecific->skeletalLbsPaletteSize = entry.skeletalLbsPaletteSize;
+                gles_shaderSpecific->skeletalMethod = entry.skeletalMethod;
                 gles_shaderSpecific->samplerHandle0  = entry.samplerHandle0;
                 gles_shaderSpecific->samplerHandle1  = entry.samplerHandle1;
                 gles_shaderSpecific->samplerHandle2  = entry.samplerHandle2;
@@ -1353,8 +1380,19 @@ namespace mbm
         if (skeletalLbsPaletteSize > 0)
         {
             defaultCodeVs += " attribute vec4 aBoneIndices; attribute vec4 aBoneWeights; uniform vec4 bonePalette[";
-            defaultCodeVs += std::to_string(skeletalLbsPaletteSize * 3u);
-            defaultCodeVs += "];"
+            defaultCodeVs += std::to_string(skeletalLbsPaletteSize *
+                (skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 2u : 3u));
+            if (skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
+            {
+                defaultCodeVs += "];"
+                    "vec4 qmul(vec4 a, vec4 b) { return vec4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz),"
+                    "a.w*b.w-dot(a.xyz,b.xyz)); }"
+                    "vec3 qrotate(vec3 v, vec4 q) { return v+2.0*cross(q.xyz,cross(q.xyz,v)+q.w*v); }"
+                    "void accumulateDq(float bone,float weight,vec4 reference,inout vec4 realQ,inout vec4 dualQ) {"
+                    "int first=int(bone)*2; vec4 r=bonePalette[first]; float signQ=dot(r,reference)<0.0?-1.0:1.0;"
+                    "realQ+=r*(weight*signQ); dualQ+=bonePalette[first+1]*(weight*signQ); }";
+            }
+            else defaultCodeVs += "];"
                 "vec3 skinPoint(vec4 value, float bone) { int first = int(bone) * 3;"
                 " return vec3(dot(value, bonePalette[first]), dot(value, bonePalette[first + 1]),"
                 " dot(value, bonePalette[first + 2])); }"
@@ -1368,12 +1406,27 @@ namespace mbm
         defaultCodeVs += " void main() {";
         if (skeletalLbsPaletteSize > 0)
         {
-            defaultCodeVs += " vec4 skinnedPosition = vec4("
+            if (skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
+            {
+                defaultCodeVs += " vec4 dqReal=vec4(0.0); vec4 dqDual=vec4(0.0);"
+                    "vec4 dqReference=bonePalette[int(aBoneIndices.x)*2];"
+                    "accumulateDq(aBoneIndices.x,aBoneWeights.x,dqReference,dqReal,dqDual);"
+                    "accumulateDq(aBoneIndices.y,aBoneWeights.y,dqReference,dqReal,dqDual);"
+                    "accumulateDq(aBoneIndices.z,aBoneWeights.z,dqReference,dqReal,dqDual);"
+                    "accumulateDq(aBoneIndices.w,aBoneWeights.w,dqReference,dqReal,dqDual);"
+                    "float dqLength=length(dqReal); dqReal/=dqLength; dqDual/=dqLength;"
+                    "dqDual-=dqReal*dot(dqReal,dqDual); vec4 dqConjugate=vec4(-dqReal.xyz,dqReal.w);"
+                    "vec3 dqTranslation=2.0*qmul(dqDual,dqConjugate).xyz;"
+                    "vec4 skinnedPosition=vec4(qrotate(aPosition.xyz,dqReal)+dqTranslation,1.0);";
+                if (hasNormal && useReservedLightScaffolding)
+                    defaultCodeVs += " vec3 skinnedNormal=normalize(qrotate(aNormal,dqReal));";
+            }
+            else defaultCodeVs += " vec4 skinnedPosition = vec4("
                 "skinPoint(aPosition, aBoneIndices.x) * aBoneWeights.x +"
                 "skinPoint(aPosition, aBoneIndices.y) * aBoneWeights.y +"
                 "skinPoint(aPosition, aBoneIndices.z) * aBoneWeights.z +"
                 "skinPoint(aPosition, aBoneIndices.w) * aBoneWeights.w, 1.0);";
-            if (hasNormal && useReservedLightScaffolding)
+            if (skeletalMethod != SKELETAL_SHADER_METHOD::DQS_RIGID && hasNormal && useReservedLightScaffolding)
             {
                 defaultCodeVs += " vec3 skinnedNormal = normalize("
                     "skinVector(aNormal, aBoneIndices.x) * aBoneWeights.x +"
@@ -1514,6 +1567,7 @@ namespace mbm
             entry.mvMatrixHandle  = gles_shaderSpecific->mvMatrixHandle;
             entry.bonePaletteHandle = gles_shaderSpecific->bonePaletteHandle;
             entry.skeletalLbsPaletteSize = gles_shaderSpecific->skeletalLbsPaletteSize;
+            entry.skeletalMethod = gles_shaderSpecific->skeletalMethod;
             entry.samplerHandle0  = gles_shaderSpecific->samplerHandle0;
             entry.samplerHandle1  = gles_shaderSpecific->samplerHandle1;
             entry.samplerHandle2  = gles_shaderSpecific->samplerHandle2;
@@ -1521,7 +1575,8 @@ namespace mbm
             entry.samplerHandle4  = gles_shaderSpecific->samplerHandle4;
             entry.samplerHandle5  = gles_shaderSpecific->samplerHandle5;
             const uint64_t key = makeDefaultProgramCacheKey(
-                fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize);
+                fvf, useReservedLightScaffolding, canUsePointLight2D, skeletalLbsPaletteSize,
+                gles_shaderSpecific->skeletalMethod);
             getDefaultProgramCache()[key] = entry;
             // Ownership of programObject now belongs to the cache for the rest of the process
             // lifetime -- this instance (the one that happened to trigger the compile) must not
