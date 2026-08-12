@@ -30,6 +30,7 @@
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <draw-compatibility.h>
+#include <skeletal-gles-shader-source.h>
 #include <header-mesh.h>
 #include <particle-control.h>
 
@@ -1379,24 +1380,8 @@ namespace mbm
         if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
         if (skeletalLbsPaletteSize > 0)
         {
-            defaultCodeVs += " attribute vec4 aBoneIndices; attribute vec4 aBoneWeights; uniform vec4 bonePalette[";
-            defaultCodeVs += std::to_string(skeletalLbsPaletteSize *
-                (skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID ? 2u : 3u));
-            if (skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
-            {
-                defaultCodeVs += "];"
-                    "vec4 qmul(vec4 a, vec4 b) { return vec4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz),"
-                    "a.w*b.w-dot(a.xyz,b.xyz)); }"
-                    "vec3 qrotate(vec3 v, vec4 q) { return v+2.0*cross(q.xyz,cross(q.xyz,v)+q.w*v); }"
-                    "void accumulateDq(float bone,float weight,vec4 reference,inout vec4 realQ,inout vec4 dualQ) {"
-                    "int first=int(bone)*2; vec4 r=bonePalette[first]; float signQ=dot(r,reference)<0.0?-1.0:1.0;"
-                    "realQ+=r*(weight*signQ); dualQ+=bonePalette[first+1]*(weight*signQ); }";
-            }
-            else defaultCodeVs += "];"
-                "vec3 skinPoint(vec4 value, float bone) { int first = int(bone) * 3;"
-                " return vec3(dot(value, bonePalette[first]), dot(value, bonePalette[first + 1]),"
-                " dot(value, bonePalette[first + 2])); }"
-                "vec3 skinVector(vec3 value, float bone) { return skinPoint(vec4(value, 0.0), bone); }";
+            defaultCodeVs += " attribute vec4 aBoneIndices; attribute vec4 aBoneWeights;";
+            skeletal::appendGlesSkeletalFunctions(defaultCodeVs, skeletalLbsPaletteSize, skeletalMethod);
         }
         defaultCodeVs += " uniform mat4 mvpMatrix;";
         if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += " uniform mat4 mvMatrix;";
@@ -1406,34 +1391,8 @@ namespace mbm
         defaultCodeVs += " void main() {";
         if (skeletalLbsPaletteSize > 0)
         {
-            if (skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID)
-            {
-                defaultCodeVs += " vec4 dqReal=vec4(0.0); vec4 dqDual=vec4(0.0);"
-                    "vec4 dqReference=bonePalette[int(aBoneIndices.x)*2];"
-                    "accumulateDq(aBoneIndices.x,aBoneWeights.x,dqReference,dqReal,dqDual);"
-                    "accumulateDq(aBoneIndices.y,aBoneWeights.y,dqReference,dqReal,dqDual);"
-                    "accumulateDq(aBoneIndices.z,aBoneWeights.z,dqReference,dqReal,dqDual);"
-                    "accumulateDq(aBoneIndices.w,aBoneWeights.w,dqReference,dqReal,dqDual);"
-                    "float dqLength=length(dqReal); dqReal/=dqLength; dqDual/=dqLength;"
-                    "dqDual-=dqReal*dot(dqReal,dqDual); vec4 dqConjugate=vec4(-dqReal.xyz,dqReal.w);"
-                    "vec3 dqTranslation=2.0*qmul(dqDual,dqConjugate).xyz;"
-                    "vec4 skinnedPosition=vec4(qrotate(aPosition.xyz,dqReal)+dqTranslation,1.0);";
-                if (hasNormal && useReservedLightScaffolding)
-                    defaultCodeVs += " vec3 skinnedNormal=normalize(qrotate(aNormal,dqReal));";
-            }
-            else defaultCodeVs += " vec4 skinnedPosition = vec4("
-                "skinPoint(aPosition, aBoneIndices.x) * aBoneWeights.x +"
-                "skinPoint(aPosition, aBoneIndices.y) * aBoneWeights.y +"
-                "skinPoint(aPosition, aBoneIndices.z) * aBoneWeights.z +"
-                "skinPoint(aPosition, aBoneIndices.w) * aBoneWeights.w, 1.0);";
-            if (skeletalMethod != SKELETAL_SHADER_METHOD::DQS_RIGID && hasNormal && useReservedLightScaffolding)
-            {
-                defaultCodeVs += " vec3 skinnedNormal = normalize("
-                    "skinVector(aNormal, aBoneIndices.x) * aBoneWeights.x +"
-                    "skinVector(aNormal, aBoneIndices.y) * aBoneWeights.y +"
-                    "skinVector(aNormal, aBoneIndices.z) * aBoneWeights.z +"
-                    "skinVector(aNormal, aBoneIndices.w) * aBoneWeights.w);";
-            }
+            skeletal::appendGlesSkeletalDeformation(defaultCodeVs, skeletalMethod,
+                                                     hasNormal && useReservedLightScaffolding);
         }
         else
             defaultCodeVs += " vec4 skinnedPosition = aPosition;";

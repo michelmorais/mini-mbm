@@ -584,8 +584,9 @@ mutate assets, evaluate clips, or deform vertices.
   RGBA8 FBO, reads them back with `glReadPixels`, and reports maximum error, worst vertex, numeric
   tolerance, and PASS/FAIL. Mesa measured `0.0156865` maximum position error against a `0.0333726`
   quantization-aware tolerance and `0.0039216` maximum normal error against `0.0098431` for both
-  methods. This is the small-fixture gate; sharing the exact default-shader source fragment and
-  applying the harness to a controlled subset of a real asset remain before Phase 4 closes.
+  methods. The deformation declarations/statements are now emitted by one private source helper
+  consumed by both the production default shader and this harness, eliminating the former copied
+  GLSL oracle. Applying the harness to a controlled subset of a real asset remains before Phase 4 closes.
 
 ### Phase 5 — Metal validation and delivery
 
@@ -785,6 +786,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.3 | 2026-08-12 | Extracted one private GLES skeletal GLSL generator used by both the production default shader and numeric parity harness. LBS/DQS palette declarations, antipodal dual-quaternion blending, position deformation, and normal deformation no longer have a handwritten test copy. The shared readback test and the 23-bone production DQS compile/link regression pass on Mesa. Real-asset numeric subset coverage remains next. |
 | 4.2 | 2026-08-12 | Added the first real GLES CPU/GPU numeric parity harness using a deterministic two-bone/two-vertex fixture, RGBA8 FBO capture, and `glReadPixels`. LBS and rigid DQS positions/normals passed quantization-aware tolerances while reporting worst vertex and maximum error. Exact source sharing with the production default shader and real-asset subset coverage remain the next gate. |
 | 4.1 | 2026-08-11 | Added an explicit pre-load `auto` policy. It audits bind and every clip once, resolves to rigid DQS only for unit-scale content, otherwise resolves visibly to LBS, and reports requested method, resolved method, and reason. Forced DQS remains strict; no runtime shader switching or silent per-frame fallback was introduced. |
 | 4.0 | 2026-08-11 | Connected explicit per-instance LBS/rigid-DQS selection before mesh load. The selected method determines capability validation, shader-cache identity, clip-to-palette sampling, and real GLES draw upload; it cannot change after load without rebuilding the instance. Lua and the editor expose the choice and selected-method per-draw limit. No silent scale fallback, runtime shader recompilation, timeline, or non-GLES implementation was added. |

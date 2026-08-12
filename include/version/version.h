@@ -257,8 +257,9 @@
     6.74.0 Connected explicit pre-load LBS/rigid-DQS selection to mesh instances, method-specific capability reporting, default-shader selection, canonical clip sampling, and real per-draw palette upload. Lua and the Skeletal Animation Editor expose the choice without runtime shader recompilation or silent scale fallback; the selected method is immutable after load.
     6.75.0 Added explicit pre-load Auto skinning resolution. Auto audits canonical bind and every clip scale key once, resolves rigid content to DQS and scaled content to LBS, and exposes requested method, resolved method, and reason through C++/Lua/editor reporting. Forced DQS remains strict and no per-frame shader switching occurs.
     6.76.0 Added a GLES2-portable skeletal CPU/GPU numeric parity harness. A deterministic two-bone/two-vertex fixture captures shader-deformed LBS and rigid-DQS positions/normals through an RGBA8 framebuffer and glReadPixels, reporting maximum error, worst vertex, quantization-aware tolerance, and PASS/FAIL.
+    6.77.0 Unified production and parity-test GLES skeletal shader generation. One private source helper now emits the exact LBS/DQS palette functions, antipodal blending, position deformation, and normal deformation consumed by both the default runtime shader and RGBA8 numeric readback harness.
 */
-#define MBM_VERSION "6.76.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.77.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -16,6 +16,7 @@
 
 #include <skeletal-animation-foundation.h>
 #include <skeletal-gpu-lbs.h>
+#include <skeletal-gles-shader-source.h>
 #include <core_mbm/util-interface.h>
 #include <GLES2/gl2.h>
 
@@ -53,40 +54,14 @@ namespace
     GLuint buildProgram(const bool dqs)
     {
         std::string vs =
-            "attribute vec3 aPosition; attribute vec3 aNormal; attribute vec4 aBoneIndices;"
-            "attribute vec4 aBoneWeights; attribute float aSample; uniform vec4 bonePalette[";
-        vs += dqs ? "4];" : "6];";
-        if (dqs)
-        {
-            vs +=
-                "vec4 qmul(vec4 a,vec4 b){return vec4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz),a.w*b.w-dot(a.xyz,b.xyz));}"
-                "vec3 qrotate(vec3 v,vec4 q){return v+2.0*cross(q.xyz,cross(q.xyz,v)+q.w*v);}"
-                "void addDq(float bone,float weight,vec4 refQ,inout vec4 realQ,inout vec4 dualQ){"
-                "int first=int(bone)*2;vec4 r=bonePalette[first];float s=dot(r,refQ)<0.0?-1.0:1.0;"
-                "realQ+=r*(weight*s);dualQ+=bonePalette[first+1]*(weight*s);}"
-                "void deform(out vec3 p,out vec3 n){vec4 r=vec4(0.0),d=vec4(0.0);"
-                "vec4 refQ=bonePalette[int(aBoneIndices.x)*2];"
-                "addDq(aBoneIndices.x,aBoneWeights.x,refQ,r,d);addDq(aBoneIndices.y,aBoneWeights.y,refQ,r,d);"
-                "addDq(aBoneIndices.z,aBoneWeights.z,refQ,r,d);addDq(aBoneIndices.w,aBoneWeights.w,refQ,r,d);"
-                "float len=length(r);r/=len;d/=len;d-=r*dot(r,d);vec4 c=vec4(-r.xyz,r.w);"
-                "p=qrotate(aPosition,r)+2.0*qmul(d,c).xyz;n=normalize(qrotate(aNormal,r));}";
-        }
-        else
-        {
-            vs +=
-                "vec3 skinPoint(vec4 v,float bone){int first=int(bone)*3;return vec3(dot(v,bonePalette[first]),"
-                "dot(v,bonePalette[first+1]),dot(v,bonePalette[first+2]));}"
-                "vec3 skinVector(vec3 v,float bone){return skinPoint(vec4(v,0.0),bone);}"
-                "void deform(out vec3 p,out vec3 n){p=skinPoint(vec4(aPosition,1.0),aBoneIndices.x)*aBoneWeights.x+"
-                "skinPoint(vec4(aPosition,1.0),aBoneIndices.y)*aBoneWeights.y+"
-                "skinPoint(vec4(aPosition,1.0),aBoneIndices.z)*aBoneWeights.z+"
-                "skinPoint(vec4(aPosition,1.0),aBoneIndices.w)*aBoneWeights.w;"
-                "n=normalize(skinVector(aNormal,aBoneIndices.x)*aBoneWeights.x+"
-                "skinVector(aNormal,aBoneIndices.y)*aBoneWeights.y+"
-                "skinVector(aNormal,aBoneIndices.z)*aBoneWeights.z+skinVector(aNormal,aBoneIndices.w)*aBoneWeights.w);}";
-        }
-        vs +=
-            "varying vec3 vPosition;varying vec3 vNormal;void main(){deform(vPosition,vNormal);"
+            "attribute vec4 aPosition; attribute vec3 aNormal; attribute vec4 aBoneIndices;"
+            "attribute vec4 aBoneWeights; attribute float aSample;";
+        const SKELETAL_SHADER_METHOD method = dqs ? SKELETAL_SHADER_METHOD::DQS_RIGID
+                                                  : SKELETAL_SHADER_METHOD::LBS;
+        appendGlesSkeletalFunctions(vs, 2, method);
+        vs += "varying vec3 vPosition;varying vec3 vNormal;void main(){";
+        appendGlesSkeletalDeformation(vs, method, true);
+        vs += "vPosition=skinnedPosition.xyz;vNormal=skinnedNormal;"
             "gl_Position=vec4(aSample,0.0,0.0,1.0);gl_PointSize=1.0;}";
         const char *fs =
             "precision highp float;varying vec3 vPosition;varying vec3 vNormal;uniform float outputNormal;"
