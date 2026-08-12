@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
-Status: **Skin Weight Lab validated; bind diagnostics and runtime GLES2 LBS/DQS preview available**
-Last updated: **2026-08-11**
+Status: **Exclusive worktree shell available; Skin Weight Lab, bind diagnostics, and runtime GLES2 LBS/DQS preview implemented**
+Last updated: **2026-08-12**
 
 ## 1. Purpose
 
@@ -13,9 +13,10 @@ For canonical skeletal meshes within the GLES2 palette limit, the preview can pl
 per-instance LBS or rigid-DQS deformation path used by the runtime. Non-GLES backend delivery
 remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
-The editor will evolve into three primary nodes: **Skin Weight Lab**, **Skeleton / Bind Pose**, and
-**Animation**. Their product scope, the audited relationship to Mesh Debug's Bones node, and the
-migration sequence are defined in the
+The editor is organized into five mutually exclusive worktrees: **Bind Pose Contract**,
+**Runtime Skeletal Preview**, **Skin Weight Lab**, **Create / Edit Animations**, and
+**Paint Weights**. The last two are currently reserved and explain their future scope. Their product
+boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
 ## 2. Opening the editor
@@ -30,7 +31,7 @@ Use **File > Open Mesh** to load a `.msh` file. The mesh should contain a frame-
 stored vertex skin weights for all bone-dependent workflows. Meshes without bones or weights may
 still be inspected through AABB and material-subset selection.
 
-After loading a skeleton, expand **Bind Pose Contract** to inspect the canonical conversion without
+After loading a skeleton, open **Bind Pose Contract** to inspect the canonical conversion without
 editing the source asset. The panel reports global-to-local TRS reconstruction error, bind-identity
 error, fatal/warning diagnostics, stable bone IDs, local quaternion TRS, and the local, global, and
 inverse-global bind matrices. Root parent indices are displayed as `0`; stable IDs are hexadecimal
@@ -40,7 +41,7 @@ This panel currently reads the exploratory Mesh Debug skeleton only as temporary
 It is not the editor's final compatibility path. Canonical section inspection will replace it, and
 skeletal assets using only the exploratory sections must be re-imported from FBX before delivery.
 
-Expand **Runtime Skeletal Preview** to select a canonical clip, play or restart it, pause/resume,
+Open **Runtime Skeletal Preview** to select a canonical clip, play or restart it, pause/resume,
 seek by time, or explicitly return the mesh to bind pose. Choose Auto, LBS, or rigid DQS in the same panel;
 changing it rebuilds the preview so the method is selected before mesh loading and shader creation.
 Auto selects DQS only if bind and all clips use unit scale; otherwise it selects LBS and shows the
@@ -64,12 +65,22 @@ available only for the latest weight-changing operation in the current editor se
 
 ## 3. Interface workflow
 
-The main window is organized in three numbered groups.
+Only one worktree is open at a time. Opening another automatically closes the previous one and
+updates the viewport. **Show Mesh** is shared. Skeleton visualization is contextual: Bind Pose
+Contract displays the bind skeleton automatically, Skin Weight Lab provides **Show Skeleton** and
+depth behavior, and Runtime Skeletal Preview hides the bind-only gizmo. Drawing a skeleton there
+would require a separately evaluated gizmo for each animated LBS/DQS instance. Skin Weight Lab
+preserves its state while closed, but its AABB, proximity capsule,
+heatmap, analyzed markers, transition diagnostics, highlights, and editing controls are hidden and
+inactive outside that worktree. Runtime LBS/DQS comparison geometry is likewise shown only in the
+Runtime Skeletal Preview worktree.
+
+Inside **Skin Weight Lab**, the controls remain organized in three numbered groups.
 
 ### 3.1 Visualization
 
 - **Show Mesh** controls the mesh preview.
-- **Show Skeleton** displays the stored skeleton.
+- **Show Skeleton** displays the stored bind skeleton inside Skin Weight Lab.
 - **Skeleton Always on Top** keeps the skeleton visible through the mesh.
 - **Analyzed Markers Always on Top** controls depth behavior for analyzed markers and diagnostic
   lines.

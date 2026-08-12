@@ -313,18 +313,23 @@ and which file sections remain distinct.
 
 ## 11. Standalone Editor Shape
 
-The Skeletal Animation Editor will contain three primary nodes:
+The Skeletal Animation Editor contains five mutually exclusive worktrees:
 
-1. **Skin Weight Lab** — delivered weight selection, rigid regions, transitions, smoothing,
+1. **Bind Pose Contract** — canonical hierarchy/bind inspection and diagnostics.
+2. **Runtime Skeletal Preview** — runtime clip playback, method readiness, and LBS/DQS comparison.
+3. **Skin Weight Lab** — delivered weight selection, rigid regions, transitions, smoothing,
    diagnostics, and rollback.
-2. **Skeleton / Bind Pose** — hierarchy, joints, parentage, local/global transforms, inverse-bind
-   validation, safe correction, local creation, and bind-pose diagnostics.
-3. **Animation** — clip list, bone tracks, P/R/S channels, easing, timeline playback/seek, loop,
-   speed, composition, local authoring, and external animation import.
+4. **Create / Edit Animations** — reserved for clip list, bone tracks, P/R/S channels, easing,
+   timeline playback/seek, loop, speed, composition, local authoring, and external animation import.
+5. **Paint Weights** — reserved for direct brush-based weight authoring, distinct from the
+   diagnostic and region-based Skin Weight Lab.
 
-**Deformation Preview** and **Backend Capabilities** cross these workflows and therefore remain
-shared services/panels rather than additional top-level nodes. Their runtime contracts stay in this
-plan; node behavior and the staged Mesh Debug Bones migration are owned by the companion
+The asset, camera, viewport, status, and mesh visibility remain shared services. Skeleton display is
+worktree-specific: bind inspection shows the bind skeleton, Skin Weight Lab owns its local toggle,
+and Runtime Skeletal Preview hides the bind-only gizmo until evaluated per-instance skeleton gizmos
+exist. Runtime deformation/backend reporting has its own worktree, while weight-selection volumes and overlays are
+strictly scoped to Skin Weight Lab. Runtime contracts stay in this plan; worktree behavior and the
+staged Mesh Debug Bones migration are owned by the companion
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
 
 The standalone editor is a product decision. Its internal code-sharing boundary is not yet decided.
@@ -796,6 +801,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.7 | 2026-08-12 | Made skeleton visualization worktree-specific. Bind inspection shows the bind skeleton automatically, Skin Weight Lab owns its visibility controls, and Runtime Skeletal Preview hides the misleading bind-only gizmo until separate evaluated skeletons can accompany its LBS/DQS instances. |
+| 4.6 | 2026-08-12 | Organized the Skeletal Animation Editor into five mutually exclusive worktrees. Mesh/skeleton visibility remains shared, runtime comparison is scoped to its preview worktree, and weight-selection volumes/markers/operations are scoped to Skin Weight Lab; animation authoring and brush painting are explicit reserved destinations. |
 | 4.5 | 2026-08-12 | Added the Skeletal Animation Editor's read-only side-by-side pose-stress preview. Separate runtime LBS and rigid-DQS instances share clip/time controls, are synchronized every frame, restore bind together, report readiness/rejection separately, and trigger camera reframing. A real Lorekeeper smoke covered load, fixed seek, pause, synchronization, and bind restoration. |
 | 4.4 | 2026-08-12 | Added real-asset CPU/GPU parity over eight deterministically selected mixed-influence Lorekeeper vertices at clip time 0.37s. Both LBS and DQS positions/normals pass explicit RGBA8-aware tolerances. A private copy-out bridge supplies canonical test data without adding Lua APIs or exposing mutable canonical containers; selection, CPU evaluation, GPU capture, and reporting are separated. |
 | 4.3 | 2026-08-12 | Extracted one private GLES skeletal GLSL generator used by both the production default shader and numeric parity harness. LBS/DQS palette declarations, antipodal dual-quaternion blending, position deformation, and normal deformation no longer have a handwritten test copy. The shared readback test and the 23-bone production DQS compile/link regression pass on Mesa. Real-asset numeric subset coverage remains next. |

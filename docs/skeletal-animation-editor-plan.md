@@ -1,8 +1,8 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **1.7**
-Status: **Canonical FBX skeleton/weight/clip import implemented; permanent editor shell pending**
-Last updated: **2026-08-10**
+Document version: **3.0**
+Status: **Canonical import and exclusive five-worktree editor shell implemented**
+Last updated: **2026-08-12**
 
 ## 1. Purpose
 
@@ -21,22 +21,33 @@ The implemented weight-authoring workflow is documented in the
 backend delivery, and LBS/DQS correctness remain planned in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
-## 2. Product shape: three nodes
+## 2. Product shape: five exclusive worktrees
 
-The editor is the product container. Its primary navigation will contain exactly three sibling
-nodes:
+The editor is the product container. Its primary navigation contains five mutually exclusive
+top-level worktrees; opening one closes the previous worktree:
 
-1. **Skin Weight Lab** — select vertices; inspect, normalize, rigid-bind, smooth, diagnose, and
+1. **Bind Pose Contract** — inspect the canonical hierarchy, local/global/inverse-bind data, and
+   deterministic structural/numeric diagnostics. This is the currently delivered read-only slice
+   of the broader Skeleton / Bind Pose responsibility.
+2. **Runtime Skeletal Preview** — select and play canonical clips through the actual runtime,
+   inspect backend/method readiness, and compare synchronized LBS/DQS instances.
+3. **Skin Weight Lab** — select vertices; inspect, normalize, rigid-bind, smooth, diagnose, and
    preserve stored weights. This workflow is already delivered and must be moved into a node without
    changing its accepted behavior.
-2. **Skeleton / Bind Pose** — inspect hierarchy and bind data, diagnose structural or transform
-   problems, safely adjust an imported skeleton, and eventually author a skeleton locally.
-3. **Animation** — create/import clips, edit bone tracks and keyframes, use a timeline, compose and
-   preview poses, and validate the result through runtime LBS/DQS.
+4. **Create / Edit Animations** — reserved for creating/importing clips, editing bone tracks and
+   keyframes, using a timeline, and composing poses. It remains visibly unavailable until that
+   functionality is delivered.
+5. **Paint Weights** — reserved for direct brush-based weight authoring. It is intentionally
+   separate from the region/diagnostic/repair operations owned by Skin Weight Lab.
 
-Deformation preview and backend capabilities are shared services or panels used by these nodes, not
-additional top-level nodes. File operations, viewport, camera, skeleton selection, diagnostics, and
-history should also be shared where their meanings are identical.
+The loaded asset, viewport, camera, status, modified state, and **Show Mesh** control are shared.
+Skeleton visualization is worktree-specific: Bind Pose Contract shows the bind skeleton
+automatically; Skin Weight Lab owns its visibility/depth controls; Runtime Skeletal Preview hides
+the bind-only gizmo until it can draw an evaluated skeleton for every preview instance. AABB
+volumes, proximity capsules, analyzed markers, heatmaps,
+transition diagnostics, and weight operations exist and render only while Skin Weight Lab is open.
+Node-specific history and selection state may be preserved while hidden but must not leak behavior
+or viewport artifacts into another worktree.
 
 ## 3. Problem
 
@@ -84,8 +95,8 @@ an interchange workflow and must not define the runtime skeleton model.
 
 ## 5. Decisions taken
 
-1. Skeletal Animation Editor has three primary nodes: Skin Weight Lab, Skeleton / Bind Pose, and
-   Animation.
+1. Skeletal Animation Editor has five mutually exclusive worktrees: Bind Pose Contract, Runtime
+   Skeletal Preview, Skin Weight Lab, Create / Edit Animations, and Paint Weights.
 2. Mesh Debug Bones is a reference implementation, not a module to copy wholesale.
 3. Existing, trustworthy imported bind and animation data must be preserved by default.
 4. Skeleton inspection and bind validation precede unrestricted local skeleton creation.
@@ -184,7 +195,7 @@ already trustworthy.
 
 ## 9. Cross-node rules
 
-1. **Single asset context.** All three nodes operate on the same loaded mesh, skeleton, weights,
+1. **Single asset context.** All five worktrees operate on the same loaded mesh, skeleton, weights,
    clips, selection, and modified state.
 2. **Single selected bone.** Selection remains coherent when switching nodes; node-specific
    highlights may add context without creating contradictory selections.
@@ -245,14 +256,16 @@ and a synthetic clip samples to expected local/global transforms. No Skeleton/An
 may be introduced with an undefined storage or runtime meaning. This evidence does not authorize a
 permanent legacy API or reader.
 
-### Milestone 1 — Three-node editor shell
+### Milestone 1 — Exclusive worktree editor shell
 
 - Add the canonical skeleton/weight readers and FBX import conversion required by the permanent
   editor data path. Do not build the shell around the temporary Mesh Debug bone representation.
-- Introduce Skin Weight Lab, Skeleton / Bind Pose, and Animation navigation.
+- Introduce the five-worktree navigation defined in Section 2 and enforce mutual exclusion.
 - Move the accepted Skin Weight Lab GUI/state into its node without behavior regression.
 - Establish shared asset, viewport, camera, selection, status, and modified-state services.
 - Show unavailable nodes with capability explanations while their data/runtime support is absent.
+- Keep mesh visibility shared. Scope skeleton visualization by worktree and gate every selection
+  volume, analyzed marker, heatmap, diagnostic overlay, and weight operation to Skin Weight Lab.
 
 Exit: all accepted Skin Weight Lab tests still pass inside the new navigation.
 
@@ -376,7 +389,7 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
 | Local editor attempts DCC parity | Scope becomes unbounded | Target sufficient skeletal workflows, not modeling/constraint-suite replacement. |
 | Animation UI duplicates articulated code and semantics drift | Two incompatible editors | Extract/share services only where semantics truly match. |
 | DQS hides unsupported scale behavior | Preview/runtime disagreement | Detect, report, and require explicit method/fallback policy. |
-| Three nodes own separate copies of asset state | Cross-node corruption and stale views | One asset context and explicit invalidation rules. |
+| Worktrees own separate copies of asset state | Cross-worktree corruption and stale views | One asset context and explicit invalidation rules. |
 
 ## 14. Out of scope for the initial Skeleton/Animation deliveries
 
@@ -402,8 +415,7 @@ checks; numeric checks alone do not replace a visual deformation pass on the rat
 
 ## 16. Handoff readiness
 
-Milestone 0 is ready for technical investigation. Implementation of the three-node shell may proceed
-once shared editor state boundaries are identified, but Skeleton mutation and clip persistence must
+Milestone 0 and the exclusive worktree shell are implemented. Skeleton mutation and clip persistence must
 not outrun the data/correctness gates in Section 10. Each later milestone requires an executable
 verification plan tied to both synthetic fixtures and the alien rat.
 
@@ -411,6 +423,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.0 | 2026-08-12 | Made skeleton visualization worktree-specific. Bind Pose Contract displays the bind skeleton automatically; Skin Weight Lab owns its checkbox/depth preference; Runtime Skeletal Preview hides the bind-only gizmo because it cannot truthfully represent both evaluated LBS/DQS instances. Animated runtime skeleton gizmos remain future work. |
+| 2.9 | 2026-08-12 | Fixed shared skeleton visibility so Skin Weight Lab's analysis, proximity, and target-bone highlight spheres obey both the global skeleton toggle and worktree scope, including when a highlight is rebuilt while the skeleton is hidden. |
+| 2.8 | 2026-08-12 | Replaced the accumulated single Skin Weight Lab panel with five mutually exclusive worktrees. Mesh and skeleton visibility remain shared; AABB/proximity selection, analysis markers, heatmaps, diagnostics, and weight operations are both displayed and rendered only in Skin Weight Lab. Bind diagnostics and runtime preview have dedicated worktrees, while animation authoring and brush painting are explicit reserved destinations. |
 | 2.7 | 2026-08-12 | Added read-only side-by-side pose-stress comparison: LBS left, rigid DQS right, using separate runtime instances with mirrored clip controls, per-frame time synchronization, shared bind restoration, method readiness/rejection feedback, and camera reframing. Lorekeeper load/seek/pause/sync/restore passed an isolated engine smoke; interactive checkbox ergonomics still require a human pass. |
 | 2.6 | 2026-08-12 | Added fixed-time Lorekeeper numeric parity for eight deterministically selected mixed-influence vertices. Production-shared GLES LBS/DQS output matches CPU positions/normals within RGBA8-aware tolerances; the remaining Milestone-7 work is editor pose-stress/diagnostic UX. |
 | 2.5 | 2026-08-12 | Removed copied GLSL from the numeric parity harness. Production default LBS/DQS shaders and the readback test now consume the same private declarations/deformation generator; both parity methods and the 23-bone production DQS compile/link regression pass. |

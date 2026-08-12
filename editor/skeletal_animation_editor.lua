@@ -17,7 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Skeletal Animation Editor — Skin Weight Lab
+   Skeletal Animation Editor — shared worktree shell
 ]]--
 
 tImGui = require "ImGui"
@@ -30,6 +30,7 @@ local state = {
     comparisonPreview = nil,
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false},
+    workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
     skeletonAlwaysOnTop = true,
@@ -101,6 +102,14 @@ local mouseDown = false
 local mouseX, mouseY = 0, 0
 local noMoveFlag = 0
 local cameraMove = {forward=0, right=0, vertical=0}
+
+local function isWeightLabWorkspace()
+    return state.workspace == 'weights'
+end
+
+local function shouldShowSkeleton()
+    return state.workspace=='bind' or (isWeightLabWorkspace() and state.skeletonVisible)
+end
 
 local function safeCall(fn)
     local result = table.pack(pcall(fn))
@@ -471,15 +480,18 @@ local function createBoneShape(x,y,z,vertices,nickname,r,g,b,a)
     local object=shape:new('3d',x,y,visualZ(z))
     object:create(vertices,nil,nextSkeletonNickname(nickname))
     object:setColor(r,g,b,a)
-    object.visible=state.skeletonVisible
+    object.visible=shouldShowSkeleton()
     object.alwaysOnTop=state.skeletonAlwaysOnTop
     return object
 end
 
 local function updateSkeletonVisibility()
-    local analyzedBone=state.analysisBoneHighlight and getBones()[state.analysisBoneIndex] or nil
-    local targetBone=state.targetBoneHighlight and getBones()[state.targetBoneIndex] or nil
-    local proximityBone=state.selectionMode==3 and state.proximityBoneHighlight and
+    local weightWorkspace=isWeightLabWorkspace()
+    local analyzedBone=weightWorkspace and state.analysisBoneHighlight and
+        getBones()[state.analysisBoneIndex] or nil
+    local targetBone=weightWorkspace and state.targetBoneHighlight and
+        getBones()[state.targetBoneIndex] or nil
+    local proximityBone=weightWorkspace and state.selectionMode==3 and state.proximityBoneHighlight and
         getBones()[state.boneIndex] or nil
     for name,object in pairs(state.skeletonGizmo.spheres) do
         -- Highlight spheres replace their regular joints instead of occupying the same surface
@@ -487,9 +499,88 @@ local function updateSkeletonVisibility()
         local highlighted=(analyzedBone and name==analyzedBone.name) or
             (targetBone and name==targetBone.name) or
             (proximityBone and name==proximityBone.name)
-        object.visible=state.skeletonVisible and not highlighted
+        object.visible=shouldShowSkeleton() and not highlighted
     end
-    for _,object in ipairs(state.skeletonGizmo.bones) do object.visible=state.skeletonVisible end
+    for _,object in ipairs(state.skeletonGizmo.bones) do object.visible=shouldShowSkeleton() end
+end
+
+local function applyWorkspaceVisibility()
+    local weightWorkspace=isWeightLabWorkspace()
+    local runtimeWorkspace=state.workspace=='runtime'
+    local analysisVisible=weightWorkspace and state.analysisMarkersVisible
+
+    if state.preview then
+        state.preview.visible=state.meshVisible
+        pcall(function()
+            local x=0
+            if runtimeWorkspace and state.skeletalPreview.poseStress then
+                local bounds=state.meshBounds
+                local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+                    bounds.maxZ-bounds.minZ) or 1
+                x=-extent*0.65
+            end
+            state.preview:setPos(x,0,0)
+        end)
+    end
+    if state.comparisonPreview then
+        state.comparisonPreview.visible=state.meshVisible and runtimeWorkspace and
+            state.skeletalPreview.poseStress
+    end
+    if state.selectionBox then state.selectionBox.visible=weightWorkspace end
+    if state.transitionBox then state.transitionBox.visible=weightWorkspace end
+    if state.proximityCapsule then state.proximityCapsule.visible=weightWorkspace end
+    if state.selectionLines then state.selectionLines.visible=analysisVisible end
+    if state.transitionLines then state.transitionLines.visible=analysisVisible end
+    for _,marker in ipairs(state.heatmapLines) do marker.visible=analysisVisible end
+    if state.abruptLines then
+        state.abruptLines.visible=weightWorkspace and state.abruptMarkersVisible
+    end
+    if state.boundaryLines then
+        state.boundaryLines.visible=weightWorkspace and state.boundaryMarkersVisible
+    end
+    if state.analysisBoneHighlightSphere then
+        state.analysisBoneHighlightSphere.visible=shouldShowSkeleton() and weightWorkspace and
+            state.analysisBoneHighlight
+    end
+    if state.proximityBoneHighlightSphere then
+        state.proximityBoneHighlightSphere.visible=shouldShowSkeleton() and weightWorkspace and
+            state.proximityBoneHighlight
+    end
+    if state.targetBoneHighlightSphere then
+        state.targetBoneHighlightSphere.visible=shouldShowSkeleton() and weightWorkspace and
+            state.targetBoneHighlight
+    end
+    for name,object in pairs(state.skeletonGizmo.spheres) do
+        if weightWorkspace and name==state.hoveredAllowedBone then
+            object:setColor(1,0.45,0.05,1)
+        elseif weightWorkspace and state.allowedBonesHighlight and state.allowedBones[name] then
+            object:setColor(0.1,0.85,1,0.95)
+        else
+            object:setColor(1,0,1,0.85)
+        end
+    end
+    updateSkeletonVisibility()
+end
+
+local function setWorkspace(workspace)
+    if state.workspace==workspace then return end
+    state.workspace=workspace
+    state.aabbDragging=false
+    state.aabbDragPlane=nil
+    state.aabbDragOffset=nil
+    applyWorkspaceVisibility()
+    if state.meshBounds then
+        local bounds={}
+        for key,value in pairs(state.meshBounds) do bounds[key]=value end
+        if workspace=='runtime' and state.skeletalPreview.poseStress then
+            local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+                bounds.maxZ-bounds.minZ)
+            local separation=extent*0.65
+            bounds.minX=bounds.minX-separation
+            bounds.maxX=bounds.maxX+separation
+        end
+        frameCamera(bounds)
+    end
 end
 
 local function rebuildProximityBoneHighlight()
@@ -511,7 +602,7 @@ local function rebuildProximityBoneHighlight()
     local sphere=createBoneShape(bone.x,bone.y,bone.z,unitSphereVerts(),
         'swl_proximity_bone_highlight_',1,0.45,0.05,0.95)
     sphere:setScale(radius*1.9,radius*1.9,radius*1.9)
-    sphere.visible=true
+    sphere.visible=shouldShowSkeleton() and isWeightLabWorkspace()
     sphere.alwaysOnTop=true
     state.proximityBoneHighlightSphere=sphere
     updateSkeletonVisibility()
@@ -519,7 +610,9 @@ end
 
 local function updateAllowedBoneColors()
     for name,object in pairs(state.skeletonGizmo.spheres) do
-        if name==state.hoveredAllowedBone then
+        if not isWeightLabWorkspace() then
+            object:setColor(1,0,1,0.85)
+        elseif name==state.hoveredAllowedBone then
             object:setColor(1,0.45,0.05,1)
         elseif state.allowedBonesHighlight and state.allowedBones[name] then
             object:setColor(0.1,0.85,1,0.95)
@@ -548,7 +641,7 @@ local function rebuildAnalysisBoneHighlight()
     local sphere=createBoneShape(bone.x,bone.y,bone.z,unitSphereVerts(),
         'swl_analysis_bone_highlight_',1,1,0,0.95)
     sphere:setScale(radius*1.6,radius*1.6,radius*1.6)
-    sphere.visible=true
+    sphere.visible=shouldShowSkeleton() and isWeightLabWorkspace()
     sphere.alwaysOnTop=true
     state.analysisBoneHighlightSphere=sphere
     updateSkeletonVisibility()
@@ -573,7 +666,7 @@ local function rebuildTargetBoneHighlight()
     local sphere=createBoneShape(bone.x,bone.y,bone.z,unitSphereVerts(),
         'swl_target_bone_highlight_',0.1,1,0.2,0.9)
     sphere:setScale(radius*1.75,radius*1.75,radius*1.75)
-    sphere.visible=true
+    sphere.visible=shouldShowSkeleton() and isWeightLabWorkspace()
     sphere.alwaysOnTop=true
     state.targetBoneHighlightSphere=sphere
     updateSkeletonVisibility()
@@ -885,6 +978,7 @@ local function rebuildPreview()
             playback.clips[index]=state.preview:getSkeletalAnimationName(index) or ('Clip '..index)
         end
     end
+    applyWorkspaceVisibility()
 end
 
 local function playSelectedSkeletalClip()
@@ -904,7 +998,8 @@ end
 
 local function syncPoseStressPreview()
     local playback=state.skeletalPreview
-    if not playback.poseStress or not playback.playing or not playback.comparisonReady or
+    if state.workspace~='runtime' or not playback.poseStress or not playback.playing or
+            not playback.comparisonReady or
             not state.preview or not state.comparisonPreview then return end
     local time=state.preview:getSkeletalAnimationTime()
     if time then state.comparisonPreview:seekSkeletalAnimation(time) end
@@ -1046,6 +1141,7 @@ local function loadMesh(path)
     rebuildPreview()
     rebuildSkeletonVisuals()
     rebuildSelectionBox()
+    applyWorkspaceVisibility()
     frameCamera(bounds)
     setStatus(string.format(tLang.L('swl_loaded_fmt'), shortName(path)), false)
     return true
@@ -1892,6 +1988,45 @@ local function showBindPoseDiagnostics()
     end
 end
 
+local function openWorkspaceNode(key,label,id)
+    local selected=state.workspace==key
+    tImGui.SetNextItemOpen(selected,tImGui.Flags('ImGuiCond_Always'))
+    local open=tImGui.TreeNodeEx(label,0,id)
+    if tImGui.IsItemClicked() and not selected then setWorkspace(key) end
+    return open
+end
+
+local function showSharedVisualization()
+    showSectionTitle('swl_shared_visualization')
+    local meshVisible=tImGui.Checkbox(tLang.L('swl_show_mesh'),state.meshVisible)
+    if meshVisible~=state.meshVisible then
+        state.meshVisible=meshVisible
+        applyWorkspaceVisibility()
+    end
+end
+
+local function showWeightLabSkeletonControls()
+    local skeletonVisible=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.skeletonVisible)
+    if skeletonVisible~=state.skeletonVisible then
+        state.skeletonVisible=skeletonVisible
+        applyWorkspaceVisibility()
+    end
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not state.skeletonVisible)
+    local skeletonAlwaysOnTop=tImGui.Checkbox(tLang.L('swl_skeleton_always_on_top'),
+        state.skeletonAlwaysOnTop)
+    tImGui.EndDisabled()
+    if skeletonAlwaysOnTop~=state.skeletonAlwaysOnTop then
+        state.skeletonAlwaysOnTop=skeletonAlwaysOnTop
+        for _,object in pairs(state.skeletonGizmo.spheres) do
+            object.alwaysOnTop=skeletonAlwaysOnTop
+        end
+        for _,object in ipairs(state.skeletonGizmo.bones) do
+            object.alwaysOnTop=skeletonAlwaysOnTop
+        end
+    end
+end
+
 local function showPanel()
     local _, screenH = mbm.getRealSizeScreen()
     tImGui.SetNextWindowPos({x=0,y=22}, tImGui.Flags('ImGuiCond_Once'))
@@ -1914,40 +2049,31 @@ local function showPanel()
             tImGui.Text(string.format(tLang.L('swl_summary_fmt'), state.aabb and state.aabb.total or 0,
                 #bones, okW and hasWeights and tLang.L('swl_yes') or tLang.L('swl_no')))
             showStatusMessage()
-            if tImGui.TreeNode(tLang.L('swl_bind_pose_contract')..'##swlBindPoseContract') then
+            showSharedVisualization()
+            tImGui.Separator()
+            tImGui.Text(tLang.L('swl_workspaces'))
+            if openWorkspaceNode('bind',tLang.L('swl_bind_pose_contract'),'##swlBindPoseContract') then
                 showBindPoseDiagnostics()
                 tImGui.TreePop()
             end
-            if tImGui.TreeNode(tLang.L('swl_runtime_preview')..'##swlRuntimePreview') then
+            if openWorkspaceNode('runtime',tLang.L('swl_runtime_preview'),'##swlRuntimePreview') then
                 showSkeletalPreviewControls()
                 tImGui.TreePop()
             end
+            if openWorkspaceNode('animation',tLang.L('swl_animation_workspace'),
+                    '##swlAnimationWorkspace') then
+                tImGui.TextWrapped(tLang.L('swl_animation_workspace_reserved'))
+                tImGui.TreePop()
+            end
+            if openWorkspaceNode('paint',tLang.L('swl_paint_weights_workspace'),
+                    '##swlPaintWeightsWorkspace') then
+                tImGui.TextWrapped(tLang.L('swl_paint_weights_workspace_reserved'))
+                tImGui.TreePop()
+            end
+            if openWorkspaceNode('weights',tLang.L('swl_weight_lab_workspace'),
+                    '##swlWeightLabWorkspace') then
             showSectionTitle('swl_visualization')
-            local meshVisible=tImGui.Checkbox(tLang.L('swl_show_mesh'),state.meshVisible)
-            if meshVisible~=state.meshVisible then
-                state.meshVisible=meshVisible
-                if state.preview then state.preview.visible=meshVisible end
-                if state.comparisonPreview then state.comparisonPreview.visible=meshVisible end
-            end
-            local skeletonVisible=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.skeletonVisible)
-            if skeletonVisible~=state.skeletonVisible then
-                state.skeletonVisible=skeletonVisible
-                updateSkeletonVisibility()
-            end
-            tImGui.SameLine()
-            tImGui.BeginDisabled(not state.skeletonVisible)
-            local skeletonAlwaysOnTop=tImGui.Checkbox(tLang.L('swl_skeleton_always_on_top'),
-                state.skeletonAlwaysOnTop)
-            tImGui.EndDisabled()
-            if skeletonAlwaysOnTop~=state.skeletonAlwaysOnTop then
-                state.skeletonAlwaysOnTop=skeletonAlwaysOnTop
-                for _,object in pairs(state.skeletonGizmo.spheres) do
-                    object.alwaysOnTop=skeletonAlwaysOnTop
-                end
-                for _,object in ipairs(state.skeletonGizmo.bones) do
-                    object.alwaysOnTop=skeletonAlwaysOnTop
-                end
-            end
+            showWeightLabSkeletonControls()
             local markersAlwaysOnTop=tImGui.Checkbox(tLang.L('swl_markers_always_on_top'),
                 state.markersAlwaysOnTop)
             if markersAlwaysOnTop~=state.markersAlwaysOnTop then
@@ -2105,6 +2231,8 @@ local function showPanel()
             tImGui.BeginDisabled(state.rollbackPath == nil)
             if tImGui.Button(tLang.L('swl_revert')) then revertLast() end
             tImGui.EndDisabled()
+            tImGui.TreePop()
+            end
         end
         if not state.meshD then showStatusMessage() end
     end
@@ -2180,7 +2308,8 @@ end
 
 function onTouchDown(key, x, y)
     if key == 0 and not tImGui.GetWantCaptureMouse() then
-        if state.meshD and state.selectionMode == 1 and state.aabb and rayHitsAABB(x,y,state.aabb) then
+        if isWeightLabWorkspace() and state.meshD and state.selectionMode == 1 and state.aabb and
+                rayHitsAABB(x,y,state.aabb) then
             local px,py,pz = cameraPosition()
             local nx,ny,nz = state.cam.fx-px,state.cam.fy-py,state.cam.fz-pz
             local length = math.sqrt(nx*nx+ny*ny+nz*nz)
@@ -2201,7 +2330,7 @@ function onTouchDown(key, x, y)
 end
 
 function onTouchMove(key, x, y)
-    if state.aabbDragging and state.aabbDragPlane then
+    if isWeightLabWorkspace() and state.aabbDragging and state.aabbDragPlane then
         local wx,wy,wz = rayPlaneHit(x,y,state.aabbDragPlane.point,state.aabbDragPlane.normal)
         if wx then
             local b,o = state.aabb,state.aabbDragOffset
