@@ -593,6 +593,10 @@ mutate assets, evaluate clips, or deform vertices.
   measured `0.0017855` maximum position error and `0.0035972` normal error; DQS measured
   `0.0017464` and `0.0038471`. All values pass the quantization-aware bounds. Geometry selection,
   CPU evaluation, shared-GLSL capture, and reporting remain separate harness stages.
+- The editor now exposes a read-only side-by-side pose-stress mode: LBS is drawn left and rigid DQS
+  right as independent runtime mesh instances. Clip selection, restart, pause/resume, seek, and bind
+  restoration are mirrored, while the DQS instance is re-seeked to the LBS time every frame. The
+  camera expands to frame both objects and explicit DQS rejection remains visible without hiding LBS.
 
 ### Phase 5 — Metal validation and delivery
 
@@ -792,6 +796,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.5 | 2026-08-12 | Added the Skeletal Animation Editor's read-only side-by-side pose-stress preview. Separate runtime LBS and rigid-DQS instances share clip/time controls, are synchronized every frame, restore bind together, report readiness/rejection separately, and trigger camera reframing. A real Lorekeeper smoke covered load, fixed seek, pause, synchronization, and bind restoration. |
 | 4.4 | 2026-08-12 | Added real-asset CPU/GPU parity over eight deterministically selected mixed-influence Lorekeeper vertices at clip time 0.37s. Both LBS and DQS positions/normals pass explicit RGBA8-aware tolerances. A private copy-out bridge supplies canonical test data without adding Lua APIs or exposing mutable canonical containers; selection, CPU evaluation, GPU capture, and reporting are separated. |
 | 4.3 | 2026-08-12 | Extracted one private GLES skeletal GLSL generator used by both the production default shader and numeric parity harness. LBS/DQS palette declarations, antipodal dual-quaternion blending, position deformation, and normal deformation no longer have a handwritten test copy. The shared readback test and the 23-bone production DQS compile/link regression pass on Mesa. Real-asset numeric subset coverage remains next. |
 | 4.2 | 2026-08-12 | Added the first real GLES CPU/GPU numeric parity harness using a deterministic two-bone/two-vertex fixture, RGBA8 FBO capture, and `glReadPixels`. LBS and rigid DQS positions/normals passed quantization-aware tolerances while reporting worst vertex and maximum error. Exact source sharing with the production default shader and real-asset subset coverage remain the next gate. |

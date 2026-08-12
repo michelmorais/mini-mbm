@@ -53,6 +53,12 @@ timeline: it does not expose tracks or edit keys. The mesh deformation uses the 
 matching GLES2 LBS or DQS palette. The separately drawn skeleton gizmo continues to show the bind pose so it is not
 mistaken for a second pose evaluator.
 
+Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
+LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,
+and bind-restoration commands; the right instance is re-seeked to the left instance's time each
+frame to avoid drift. The camera reframes both meshes automatically. This comparison is read-only,
+and a DQS pose rejection is reported while the LBS instance remains visible.
+
 The editor supports **Save**, **Save As**, and one-level **Revert Last Weight Operation**. Revert is
 available only for the latest weight-changing operation in the current editor session.
 
@@ -272,7 +278,7 @@ The following are not defects in the delivered Skin Weight Lab:
 - no custom-tail animation generation;
 - one-level revert rather than general undo/redo.
 
-Future animation authoring/timeline, pose stress comparison, antipodality tooling, and non-GLES
+Future animation authoring/timeline, richer pose-stress overlays, antipodality tooling, and non-GLES
 backend delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 Skeleton authoring, animation authoring/import, and the migration from Mesh Debug Bones remain in

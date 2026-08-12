@@ -27,7 +27,9 @@ local state = {
     fileName = nil,
     meshD = nil,
     preview = nil,
-    skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false},
+    comparisonPreview = nil,
+    skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
+        poseStress=false, comparisonReady=false},
     meshVisible = true,
     skeletonVisible = true,
     skeletonAlwaysOnTop = true,
@@ -847,30 +849,41 @@ end
 
 local function rebuildPreview()
     destroyObject(state.preview)
+    destroyObject(state.comparisonPreview)
     state.preview = nil
+    state.comparisonPreview = nil
     local playback=state.skeletalPreview
     playback.clips={}
     playback.selected=1
     playback.duration=0
     playback.playing=false
     playback.paused=false
+    playback.comparisonReady=false
     if not state.fileName then return end
-    local preview = mesh:new('3d')
-    local method=playback.method==1 and 'auto' or playback.method==3 and 'dqs' or 'lbs'
-    if not preview:setSkeletalSkinningMethod(method) then
-        preview:destroy()
-        return
-    end
-    if preview:load(state.fileName) then
-        preview:setPos(0,0,0)
+    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+    local separation=extent*0.65
+    local function loadRuntimePreview(method,x)
+        local preview=mesh:new('3d')
+        if not preview:setSkeletalSkinningMethod(method) then preview:destroy(); return nil end
+        if not preview:load(state.fileName) then preview:destroy(); return nil end
+        preview:setPos(x,0,0)
         preview.visible=state.meshVisible
-        state.preview = preview
-        local total=preview:getTotalSkeletalAnimations()
-        for index=1,total do
-            playback.clips[index]=preview:getSkeletalAnimationName(index) or ('Clip '..index)
-        end
+        return preview
+    end
+    if playback.poseStress then
+        state.preview=loadRuntimePreview('lbs',-separation)
+        state.comparisonPreview=loadRuntimePreview('dqs',separation)
+        playback.comparisonReady=state.preview~=nil and state.comparisonPreview~=nil
     else
-        preview:destroy()
+        local method=playback.method==1 and 'auto' or playback.method==3 and 'dqs' or 'lbs'
+        state.preview=loadRuntimePreview(method,0)
+    end
+    if state.preview then
+        local total=state.preview:getTotalSkeletalAnimations()
+        for index=1,total do
+            playback.clips[index]=state.preview:getSkeletalAnimationName(index) or ('Clip '..index)
+        end
     end
 end
 
@@ -882,13 +895,48 @@ local function playSelectedSkeletalClip()
         playback.duration=state.preview:getSkeletalAnimationDuration(playback.selected) or 0
         playback.playing=true
         playback.paused=false
+        if state.comparisonPreview then
+            playback.comparisonReady=state.comparisonPreview:playSkeletalAnimation(name)
+            if playback.comparisonReady then state.comparisonPreview:seekSkeletalAnimation(0) end
+        end
     end
+end
+
+local function syncPoseStressPreview()
+    local playback=state.skeletalPreview
+    if not playback.poseStress or not playback.playing or not playback.comparisonReady or
+            not state.preview or not state.comparisonPreview then return end
+    local time=state.preview:getSkeletalAnimationTime()
+    if time then state.comparisonPreview:seekSkeletalAnimation(time) end
+end
+
+local function framePoseStressLayout()
+    if not state.meshBounds then return end
+    if not state.skeletalPreview.poseStress then frameCamera(state.meshBounds); return end
+    local bounds={}
+    for key,value in pairs(state.meshBounds) do bounds[key]=value end
+    local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ)
+    local separation=extent*0.65
+    bounds.minX=bounds.minX-separation
+    bounds.maxX=bounds.maxX+separation
+    frameCamera(bounds)
 end
 
 local function showSkeletalPreviewControls()
     local playback=state.skeletalPreview
+    local poseStress=tImGui.Checkbox(tLang.L('swl_pose_stress_compare'),playback.poseStress)
+    if poseStress~=playback.poseStress then
+        playback.poseStress=poseStress
+        rebuildPreview()
+        framePoseStressLayout()
+    end
+    if playback.poseStress then
+        tImGui.TextWrapped(tLang.L('swl_pose_stress_layout'))
+    end
     local methods={tLang.L('swl_skinning_auto'),tLang.L('swl_skinning_lbs'),tLang.L('swl_skinning_dqs')}
+    tImGui.BeginDisabled(playback.poseStress)
     local methodChanged,method=tImGui.Combo(tLang.L('swl_skinning_method'),playback.method,methods,-1)
+    tImGui.EndDisabled()
     if methodChanged then
         playback.method=method
         rebuildPreview()
@@ -906,6 +954,16 @@ local function showSkeletalPreviewControls()
     tImGui.TextWrapped(string.format(tLang.L('swl_lbs_capacity_fmt'),
         lbsReport.requiredBoneCount or 0,lbsReport.effectiveBoneCapacity or 0))
     tImGui.TextDisabled(tLang.L('swl_lbs_capacity_note'))
+    if playback.poseStress and state.comparisonPreview then
+        local dqsReport=state.comparisonPreview:getSkeletalSkinningReport()
+        tImGui.Text(string.format(tLang.L('swl_pose_stress_reports'),lbsReport.status or 'unknown',
+            dqsReport.status or 'unknown'))
+        if playback.playing and not playback.comparisonReady then
+            tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_pose_stress_clip_rejected'))
+        end
+    elseif playback.poseStress then
+        tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_pose_stress_unavailable'))
+    end
     if #playback.clips==0 then
         tImGui.TextDisabled(tLang.L('swl_no_skeletal_clips'))
         return
@@ -921,6 +979,7 @@ local function showSkeletalPreviewControls()
     tImGui.BeginDisabled(not playback.playing)
     if tImGui.Button(tLang.L('swl_restore_bind_pose')) then
         if state.preview:stopSkeletalAnimation() then
+            if state.comparisonPreview then state.comparisonPreview:stopSkeletalAnimation() end
             playback.playing=false
             playback.paused=false
         end
@@ -931,8 +990,10 @@ local function showSkeletalPreviewControls()
     if tImGui.Button(playback.paused and tLang.L('swl_resume') or tLang.L('swl_pause')) then
         if playback.paused then
             if state.preview:resumeSkeletalAnimation() then playback.paused=false end
+            if state.comparisonPreview then state.comparisonPreview:resumeSkeletalAnimation() end
         elseif state.preview:pauseSkeletalAnimation() then
             playback.paused=true
+            if state.comparisonPreview then state.comparisonPreview:pauseSkeletalAnimation() end
         end
     end
     tImGui.EndDisabled()
@@ -941,7 +1002,10 @@ local function showSkeletalPreviewControls()
     local seekChanged,seekTime=tImGui.SliderFloat(tLang.L('swl_preview_time'),time,
         0,math.max(playback.duration,0.0001),'%.3f s')
     tImGui.PopItemWidth()
-    if seekChanged and playback.playing then state.preview:seekSkeletalAnimation(seekTime) end
+    if seekChanged and playback.playing then
+        state.preview:seekSkeletalAnimation(seekTime)
+        if state.comparisonPreview then state.comparisonPreview:seekSkeletalAnimation(seekTime) end
+    end
     tImGui.TextDisabled(tLang.L('swl_bind_gizmo_note'))
 end
 
@@ -1863,6 +1927,7 @@ local function showPanel()
             if meshVisible~=state.meshVisible then
                 state.meshVisible=meshVisible
                 if state.preview then state.preview.visible=meshVisible end
+                if state.comparisonPreview then state.comparisonPreview.visible=meshVisible end
             end
             local skeletonVisible=tImGui.Checkbox(tLang.L('swl_show_skeleton'),state.skeletonVisible)
             if skeletonVisible~=state.skeletonVisible then
@@ -2109,6 +2174,7 @@ function onLoop(delta)
     showMenu()
     showPanel()
     showCameraPanel()
+    syncPoseStressPreview()
     tUtil.showOverlayMessage()
 end
 
