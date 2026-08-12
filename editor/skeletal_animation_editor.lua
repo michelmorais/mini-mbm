@@ -322,14 +322,24 @@ end
 
 local function getBones()
     local bones = {}
-    if not state.meshD then return bones end
-    local okT, total = safeCall(function() return state.meshD:getTotalBone() end)
-    if not okT then return bones end
-    for i = 1, total do
-        local ok, name, x, y, z, radius, parentName = safeCall(function() return state.meshD:getBone(i) end)
-        if ok and name then
-            bones[#bones+1] = {index=i, name=name, x=x, y=y, z=z, radius=radius or 0, parentName=parentName}
-        end
+    local report=state.bindReport
+    if not report or report.canonical~=true or type(report.bones)~='table' then return bones end
+    for index,bone in ipairs(report.bones) do
+        local global=bone.globalBindMatrix or {}
+        local parentIndex=bone.parentIndex or 0
+        local parent=parentIndex>0 and report.bones[parentIndex] or nil
+        bones[#bones+1]={
+            index=index,
+            sourceIndex=bone.sourceIndex,
+            boneId=bone.boneId,
+            name=bone.name,
+            parentName=parent and parent.name or nil,
+            x=global[13] or 0,
+            y=global[14] or 0,
+            z=global[15] or 0,
+            radius=bone.radius or 0,
+            length=bone.length or 0,
+        }
     end
     return bones
 end

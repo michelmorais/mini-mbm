@@ -37,9 +37,10 @@ error, fatal/warning diagnostics, stable bone IDs, local quaternion TRS, and the
 inverse-global bind matrices. Root parent indices are displayed as `0`; stable IDs are hexadecimal
 strings so their full 64-bit identity is preserved through Lua.
 
-This panel currently reads the exploratory Mesh Debug skeleton only as temporary audit scaffolding.
-It is not the editor's final compatibility path. Canonical section inspection will replace it, and
-skeletal assets using only the exploratory sections must be re-imported from FBX before delivery.
+The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
+bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or
+manufacture a legacy skeleton. Assets containing only exploratory skeletal sections must be
+re-imported from FBX.
 
 Open **Runtime Skeletal Preview** to select a canonical clip, play or restart it, pause/resume,
 seek by time, or explicitly return the mesh to bind pose. Choose Auto, LBS, or rigid DQS in the same panel;
@@ -51,8 +52,8 @@ separately; the capacity is not a combined scene-wide bone budget. Bind restorat
 the active player; it does not assume that time zero of an authored clip is the bind pose.
 The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and
-matching GLES2 LBS or DQS palette. The separately drawn skeleton gizmo continues to show the bind pose so it is not
-mistaken for a second pose evaluator.
+matching GLES2 LBS or DQS palette. The bind-only diagnostic gizmo is hidden in this worktree so it
+is not mistaken for either evaluated runtime instance.
 
 Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
 LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,
