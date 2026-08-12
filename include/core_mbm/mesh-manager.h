@@ -262,9 +262,9 @@ namespace mbm
                               char *errorOut, const int errorOutLen);
         API_IMPL uint32_t getTotalBone() const noexcept;
         API_IMPL const util::SKELETON_BONE_V11 *getBone(const uint32_t index) const noexcept;
-        // Rebuilds a private diagnostic snapshot from the persisted legacy skeleton. Subsequent
-        // summary/bone/diagnostic getters copy values out of that snapshot; no compiled storage is
-        // exposed and calling this method never modifies the authored skeleton.
+        // Rebuilds a private diagnostic snapshot, preferring the canonical skeleton and retaining
+        // legacy compilation only as temporary audit scaffolding. Subsequent getters copy values;
+        // no compiled storage is exposed and the call never modifies authored data.
         API_IMPL bool refreshSkeletonBindReport() noexcept;
         API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
         API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out) const noexcept;
@@ -314,6 +314,23 @@ namespace mbm
         API_IMPL bool hasVertexWeights() const noexcept;
         API_IMPL uint32_t getTotalVertexWeightBones() const noexcept; // weight palette size (unique bones referenced)
         API_IMPL void removeVertexWeights() noexcept; // clears palette + all per-vertex weight data
+        // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
+        // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
+        // An asset without an existing canonical skeleton/weight section is rejected rather than
+        // promoted from, or mirrored into, the exploratory name-palette representation above.
+        API_IMPL bool setSkeletalVertexWeight(const uint32_t vertexIndex,
+                                               const char *boneName0, const float weight0,
+                                               const char *boneName1, const float weight1,
+                                               const char *boneName2, const float weight2,
+                                               const char *boneName3, const float weight3,
+                                               char *errorOut, const int errorOutLen);
+        API_IMPL bool getSkeletalVertexWeight(const uint32_t vertexIndex,
+                                               const char **boneName0, float *weight0,
+                                               const char **boneName1, float *weight1,
+                                               const char **boneName2, float *weight2,
+                                               const char **boneName3, float *weight3) const noexcept;
+        API_IMPL bool hasSkeletalVertexWeights() const noexcept;
+        API_IMPL uint32_t getTotalSkeletalWeightBones() const noexcept;
         // Rigid/articulated animation authoring data. The storage remains PIMPL-owned; these
         // narrow operations are the editor-facing API and are also suitable for Lua bindings.
         API_IMPL uint32_t getTotalArticulatedParts() const noexcept;

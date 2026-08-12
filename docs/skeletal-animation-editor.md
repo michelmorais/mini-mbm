@@ -6,8 +6,8 @@ Last updated: **2026-08-12**
 ## 1. Purpose
 
 The Skeletal Animation Editor is the standalone Mini MBM tool for inspecting and editing skeletal
-mesh data. Its currently implemented workspace, **Skin Weight Lab**, repairs stored frame-1 vertex
-weights without expanding Mesh Debug into a general animation editor.
+mesh data. Its currently implemented workspace, **Skin Weight Lab**, repairs canonical type-42
+frame-1 vertex weights without expanding Mesh Debug into a general animation editor.
 
 For canonical skeletal meshes within the GLES2 palette limit, the preview can play the same
 per-instance LBS or rigid-DQS deformation path used by the runtime. Non-GLES backend delivery
@@ -28,7 +28,7 @@ Choose **Skeletal Animation Editor** from the Mini MBM launcher, or start it dir
 ```
 
 Use **File > Open Mesh** to load a `.msh` file. The mesh should contain a frame-1 skeleton and
-stored vertex skin weights for all bone-dependent workflows. Meshes without bones or weights may
+canonical vertex skin weights for all bone-dependent workflows. Meshes without bones or weights may
 still be inspected through AABB and material-subset selection.
 
 After loading a skeleton, open **Bind Pose Contract** to inspect the canonical conversion without

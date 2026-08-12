@@ -259,13 +259,14 @@
     6.76.0 Added a GLES2-portable skeletal CPU/GPU numeric parity harness. A deterministic two-bone/two-vertex fixture captures shader-deformed LBS and rigid-DQS positions/normals through an RGBA8 framebuffer and glReadPixels, reporting maximum error, worst vertex, quantization-aware tolerance, and PASS/FAIL.
     6.77.0 Unified production and parity-test GLES skeletal shader generation. One private source helper now emits the exact LBS/DQS palette functions, antipodal blending, position deformation, and normal deformation consumed by both the default runtime shader and RGBA8 numeric readback harness.
     6.78.0 Extended GLES skeletal numeric parity to eight deterministically selected mixed-influence vertices from the committed Lorekeeper at a fixed authored clip time. LBS and DQS positions/normals match CPU references within RGBA8-aware tolerances through a private canonical copy-out bridge that preserves PIMPL and adds no Lua surface.
+    6.82.0 Migrated Skin Weight Lab reads and transactional edits to canonical type-42 weights resolved through stable bone IDs; the editor no longer uses legacy has/get/setVertexWeight.
     6.81.0 Migrated the Skeletal Animation Editor bind gizmo and bone selectors to canonical bind-report bones only; legacy getTotalBone/getBone data is no longer an editor fallback.
     6.80.2 Scoped Skeletal Animation Editor skeleton visualization by worktree: automatic bind skeleton for bind inspection, local controls for Skin Weight Lab, and no misleading bind-only gizmo in runtime LBS/DQS preview.
     6.80.1 Fixed the Skeletal Animation Editor shared skeleton-visibility control so weight-lab bone highlights cannot remain visible or reappear while the skeleton is hidden.
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "6.81.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.82.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

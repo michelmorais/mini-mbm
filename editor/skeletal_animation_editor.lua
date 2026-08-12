@@ -812,7 +812,7 @@ local heatmapColors = {
 
 local function vertexWeightForBone(globalIndex,boneName)
     local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
-        return state.meshD:getVertexWeight(globalIndex)
+        return state.meshD:getSkeletalVertexWeight(globalIndex)
     end)
     if not ok then return 0,{} end
     local influences={{n1,w1},{n2,w2},{n3,w3},{n4,w4}}
@@ -1169,7 +1169,7 @@ end
 local function blendedInfluences(globalIndex,targetName,alpha)
     if alpha >= 0.999999 then return {{name=targetName,weight=1}} end
     local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
-        return state.meshD:getVertexWeight(globalIndex)
+        return state.meshD:getSkeletalVertexWeight(globalIndex)
     end)
     local byName={}
     if ok then
@@ -1200,7 +1200,7 @@ end
 
 local function writeInfluences(globalIndex,influences)
     local a,b,c,d=influences[1],influences[2],influences[3],influences[4]
-    return state.meshD:setVertexWeight(globalIndex,
+    return state.meshD:setSkeletalVertexWeight(globalIndex,
         a and a.name or nil,a and a.weight or 0,
         b and b.name or nil,b and b.weight or 0,
         c and c.name or nil,c and c.weight or 0,
@@ -1209,7 +1209,7 @@ end
 
 local function readInfluenceMap(globalIndex,respectRestriction)
     local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
-        return state.meshD:getVertexWeight(globalIndex)
+        return state.meshD:getSkeletalVertexWeight(globalIndex)
     end)
     local result={}
     if not ok then return result end
@@ -1414,7 +1414,7 @@ end
 
 local function readRawWeightRecord(globalIndex)
     local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
-        return state.meshD:getVertexWeight(globalIndex)
+        return state.meshD:getSkeletalVertexWeight(globalIndex)
     end)
     if not ok then return nil end
     return {n1=n1,w1=w1,n2=n2,w2=w2,n3=n3,w3=w3,n4=n4,w4=w4}
@@ -1469,7 +1469,7 @@ local function applyNormalizeAndLimit()
     local jobs,unchanged,skipped,readFailed={},0,0,0
     for _,vertex in ipairs(state.analysis.vertices) do
         local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
-            return state.meshD:getVertexWeight(vertex.globalIndex)
+            return state.meshD:getSkeletalVertexWeight(vertex.globalIndex)
         end)
         if not ok then
             readFailed=readFailed+1
@@ -1818,7 +1818,7 @@ local function refreshAllowedBoneDiagnostics()
     if state.restrictBones then
         for _,vertex in ipairs(state.analysis.vertices) do
             local ok,n1,w1,n2,w2,n3,w3,n4,w4=safeCall(function()
-                return state.meshD:getVertexWeight(vertex.globalIndex)
+                return state.meshD:getSkeletalVertexWeight(vertex.globalIndex)
             end)
             if ok then
                 for _,pair in ipairs({{n1,w1},{n2,w2},{n3,w3},{n4,w4}}) do
@@ -2055,7 +2055,7 @@ local function showPanel()
         else
             tImGui.Text(shortName(state.fileName) .. (state.modified and ' *' or ''))
             local bones = getBones()
-            local okW, hasWeights = safeCall(function() return state.meshD:hasVertexWeights() end)
+            local okW, hasWeights = safeCall(function() return state.meshD:hasSkeletalVertexWeights() end)
             tImGui.Text(string.format(tLang.L('swl_summary_fmt'), state.aabb and state.aabb.total or 0,
                 #bones, okW and hasWeights and tLang.L('swl_yes') or tLang.L('swl_no')))
             showStatusMessage()

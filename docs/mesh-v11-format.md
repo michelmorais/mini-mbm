@@ -611,6 +611,11 @@ semantics: conversion from legacy editor weights must resolve or explicitly reje
 vertex rather than silently inventing an influence. Four influences remain fixed for the initial
 GPU contract, while `uint16` removes the legacy name palette's 254-entry ceiling.
 
+The Skeletal Animation Editor mutates an existing type-42 section transactionally through stable
+bone IDs. Its Lua-facing names are lookup labels only: unknown or duplicate bones, invalid sums,
+and incomplete canonical assets are rejected without creating a legacy section or changing the
+previous vertex record.
+
 ### `SECTION_SKELETAL_ANIMATION = 43`, version 1
 
 ```text

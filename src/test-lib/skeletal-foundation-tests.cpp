@@ -711,7 +711,7 @@ namespace
         const char *wrongId = "/tmp/mini-mbm-canonical-weights-id.msh";
         const char *badSum = "/tmp/mini-mbm-canonical-weights-sum.msh";
         MESH_MBM_DEBUG mesh;
-        expect(writeCanonicalWeightedFixture(valid, 100, 1.0f) && mesh.loadV11(valid),
+        expect(writeCanonicalWeightedFixture(valid,100,1.0f,100,10,0,true) && mesh.loadV11(valid),
                "canonical weight reader must resolve sections independent of file order");
         SKELETON_BIND_SUMMARY summary;
         SKELETON_BIND_BONE_INFO bone;
@@ -721,6 +721,30 @@ namespace
                "bind report must inspect canonical section 41 without populating legacy bones");
         expect(mesh.getTotalBone() == 0,
                "canonical bind inspection must not create a legacy skeleton compatibility copy");
+        const char *name0=nullptr, *name1=nullptr, *name2=nullptr, *name3=nullptr;
+        float weight0=0, weight1=0, weight2=0, weight3=0;
+        expect(mesh.hasSkeletalVertexWeights() && mesh.getTotalSkeletalWeightBones()==1 &&
+                   mesh.getSkeletalVertexWeight(0,&name0,&weight0,&name1,&weight1,&name2,&weight2,
+                                                &name3,&weight3) && name0 &&
+                   std::string(name0)=="root" && std::fabs(weight0-1.0f)<=MATRIX_TOLERANCE,
+               "canonical editor weight reader must resolve type-42 IDs to bone names");
+        char editError[255]="";
+        expect(mesh.setSkeletalVertexWeight(0,"root",1.0f,nullptr,0,nullptr,0,nullptr,0,
+                                             editError,static_cast<int>(sizeof(editError))),
+               "canonical editor weight mutation must accept a valid normalized influence");
+        expect(!mesh.setSkeletalVertexWeight(0,"missing",1.0f,nullptr,0,nullptr,0,nullptr,0,
+                                              editError,static_cast<int>(sizeof(editError))) &&
+                   mesh.getSkeletalVertexWeight(0,&name0,&weight0,&name1,&weight1,&name2,&weight2,
+                                                &name3,&weight3) && name0 && std::string(name0)=="root",
+               "rejected canonical editor mutation must preserve the previous vertex weights");
+        const char *edited="/tmp/mini-mbm-canonical-weights-edited.msh";
+        MESH_MBM_DEBUG reloaded;
+        expect(mesh.saveV11(edited,false,false,false,editError,static_cast<int>(sizeof(editError))) &&
+                   reloaded.loadV11(edited) && reloaded.getSkeletalVertexWeight(0,&name0,&weight0,
+                       &name1,&weight1,&name2,&weight2,&name3,&weight3) && name0 &&
+                   std::string(name0)=="root" && std::fabs(weight0-1.0f)<=MATRIX_TOLERANCE,
+               "canonical editor weight mutation must survive save and reload");
+        std::remove(edited);
         expect(writeCanonicalWeightedFixture(wrongId, 101, 1.0f) && !mesh.loadV11(wrongId),
                "canonical weight reader must reject skeletonId mismatch");
         expect(writeCanonicalWeightedFixture(badSum, 100, 0.5f) && !mesh.loadV11(badSum),

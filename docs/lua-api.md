@@ -1279,6 +1279,26 @@ The call never edits the skeleton and the report is a detached Lua snapshot. Mes
 Skeletal Animation Editor use it for canonical bind inspection. `getTotalBone/getBone` remain
 legacy-only and are never populated from section 41.
 
+### Canonical skeletal-weight editing
+
+```lua
+local present = meshD:hasSkeletalVertexWeights()
+local paletteSize = meshD:getTotalSkeletalWeightBones()
+local name1, weight1, name2, weight2, name3, weight3, name4, weight4 =
+    meshD:getSkeletalVertexWeight(vertexIndex)
+meshD:setSkeletalVertexWeight(vertexIndex,
+    name1, weight1, name2, weight2, name3, weight3, name4, weight4)
+```
+
+These one-based vertex operations read and mutate canonical type-42 weights only. Bone names are
+accepted for editor ergonomics but are resolved immediately through the canonical skeleton and
+persisted as stable `boneId` palette entries. A set requires one to four unique, finite, positive
+influences whose sum is one; unused slots are `nil, 0`. Unknown names, invalid sums, duplicate
+influences, out-of-range vertices, or assets without matching type-41/type-42 sections raise a Lua
+error without modifying the previous vertex. The getter returns eight values, using `nil, 0` for
+unused slots, or a single `nil` for an invalid vertex. These methods never read, create, or update
+the exploratory sections 11/40.
+
 ### 15.1 Articulated-animation authoring
 
 The object also exposes the Mesh V11 rigid-animation authoring API.

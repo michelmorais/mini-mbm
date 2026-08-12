@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **3.1**
+Document version: **3.2**
 Status: **Canonical import and exclusive five-worktree editor shell implemented**
 Last updated: **2026-08-12**
 
@@ -359,9 +359,11 @@ Exit: editor and runtime produce matching reference vertices/normals for the sam
   hierarchy, global joint positions, radius, and length exclusively from a canonical bind-report
   snapshot. `getTotalBone/getBone` are no longer consulted and a legacy-only asset yields no editor
   skeleton rather than an implicit compatibility conversion.
-- The dependency audit found the next removal gate: Skin Weight Lab still reads/writes the
-  exploratory name-palette weight surface (`has/get/setVertexWeight`). Canonical type-42 mutation
-  and rollback must replace it before those APIs or sections can be deleted.
+- Skin Weight Lab now reads, analyzes, normalizes, rigid-binds, smooths, diagnoses, rolls back, and
+  saves through the canonical type-42 surface. UI bone names resolve immediately to stable IDs;
+  transactional validation rejects an invalid vertex without changing its previous record. It no
+  longer calls the exploratory `has/get/setVertexWeight` surface. Mesh Debug and interchange code
+  remain the outstanding consumers before legacy APIs/sections can be deleted.
 
 Exit: there is one canonical implementation for each skeleton, weight, and animation responsibility.
 
@@ -430,6 +432,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.2 | 2026-08-12 | Migrated every Skin Weight Lab read/write path to canonical type-42 weights. New narrow C++/Lua operations resolve UI names to stable bone IDs, enforce four unique positive normalized influences, validate the complete canonical record transactionally, and never create sections 11/40. Synthetic mutation/read/rejection preservation joins save/reload and Lorekeeper as acceptance evidence. |
 | 3.1 | 2026-08-12 | Began Milestone 8 by migrating the Skeletal Animation Editor's bone list and bind gizmo from legacy `getTotalBone/getBone` to canonical bind-report bones only. Lorekeeper-style type-41 assets now supply hierarchy and global joint positions without a compatibility copy; legacy-only assets intentionally supply no editor skeleton. The audit identifies Skin Weight Lab's exploratory name-palette weight API as the next deletion blocker. |
 | 3.0 | 2026-08-12 | Made skeleton visualization worktree-specific. Bind Pose Contract displays the bind skeleton automatically; Skin Weight Lab owns its checkbox/depth preference; Runtime Skeletal Preview hides the bind-only gizmo because it cannot truthfully represent both evaluated LBS/DQS instances. Animated runtime skeleton gizmos remain future work. |
 | 2.9 | 2026-08-12 | Fixed shared skeleton visibility so Skin Weight Lab's analysis, proximity, and target-bone highlight spheres obey both the global skeleton toggle and worktree scope, including when a highlight is rebuilt while the skeleton is hidden. |

@@ -4894,6 +4894,104 @@ namespace mbm
         impl->vertexWeights.clear();
     }
 
+    bool MESH_MBM_DEBUG::setSkeletalVertexWeight(const uint32_t vertexIndex,
+                                                  const char *boneName0, const float weight0,
+                                                  const char *boneName1, const float weight1,
+                                                  const char *boneName2, const float weight2,
+                                                  const char *boneName3, const float weight3,
+                                                  char *errorOut, const int errorOutLen)
+    {
+        auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0 || impl->canonicalWeights.skeletonId == 0 ||
+            impl->canonicalWeights.skeletonId != impl->canonicalSkeleton.skeletonId)
+            return fail("mesh has no matching canonical skeleton and type-42 weights");
+        if (vertexIndex >= impl->canonicalWeights.vertices.size())
+            return fail("canonical vertex weight index out of range");
+
+        const char *names[4] = {boneName0, boneName1, boneName2, boneName3};
+        const float values[4] = {weight0, weight1, weight2, weight3};
+        skeletal::CANONICAL_VERTEX_WEIGHT candidate;
+        std::vector<uint64_t> palette=impl->canonicalWeights.paletteBoneIds;
+        float weightSum=0.0f;
+        uint32_t influenceCount=0;
+        for (int slot=0; slot<4; ++slot)
+        {
+            if (!names[slot] || !names[slot][0])
+            {
+                if (values[slot] != 0.0f) return fail("unused canonical influence must have zero weight");
+                continue;
+            }
+            if (!std::isfinite(values[slot]) || values[slot] <= 0.0f)
+                return fail("canonical influence weight must be finite and positive");
+            const auto found=impl->canonicalSkeleton.compiled.indexByName.find(names[slot]);
+            if (found == impl->canonicalSkeleton.compiled.indexByName.end())
+                return fail("canonical influence references an unknown bone name");
+            const uint64_t boneId=impl->canonicalSkeleton.compiled.bones[found->second].boneId;
+            for (int previous=0; previous<slot; ++previous)
+                if (candidate.paletteIndex[previous] != UINT16_MAX &&
+                    palette[candidate.paletteIndex[previous]] == boneId)
+                    return fail("canonical vertex contains a duplicate bone influence");
+            auto paletteIt=std::find(palette.begin(),palette.end(),boneId);
+            if (paletteIt==palette.end())
+            {
+                if (palette.size()>=UINT16_MAX) return fail("canonical weight palette is full");
+                palette.push_back(boneId);
+                paletteIt=palette.end()-1;
+            }
+            candidate.paletteIndex[slot]=static_cast<uint16_t>(paletteIt-palette.begin());
+            candidate.weight[slot]=values[slot];
+            weightSum+=values[slot];
+            ++influenceCount;
+        }
+        if (influenceCount==0 || std::fabs(weightSum-1.0f)>skeletal::MATRIX_TOLERANCE)
+            return fail("canonical influence weights must sum to one");
+        impl->canonicalWeights.paletteBoneIds=std::move(palette);
+        impl->canonicalWeights.vertices[vertexIndex]=candidate;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalVertexWeight(const uint32_t vertexIndex,
+                                                  const char **boneName0, float *weight0,
+                                                  const char **boneName1, float *weight1,
+                                                  const char **boneName2, float *weight2,
+                                                  const char **boneName3, float *weight3) const noexcept
+    {
+        if (vertexIndex>=impl->canonicalWeights.vertices.size()) return false;
+        const skeletal::CANONICAL_VERTEX_WEIGHT &entry=impl->canonicalWeights.vertices[vertexIndex];
+        const char **outNames[4]={boneName0,boneName1,boneName2,boneName3};
+        float *outWeights[4]={weight0,weight1,weight2,weight3};
+        for (int slot=0; slot<4; ++slot)
+        {
+            const bool used=entry.paletteIndex[slot]!=UINT16_MAX &&
+                entry.paletteIndex[slot]<impl->canonicalWeights.paletteBoneIds.size();
+            const char *name=nullptr;
+            if (used)
+            {
+                const uint64_t id=impl->canonicalWeights.paletteBoneIds[entry.paletteIndex[slot]];
+                const auto found=impl->canonicalSkeleton.compiled.indexById.find(id);
+                if (found==impl->canonicalSkeleton.compiled.indexById.end()) return false;
+                name=impl->canonicalSkeleton.compiled.bones[found->second].name.c_str();
+            }
+            if (outNames[slot]) *outNames[slot]=name;
+            if (outWeights[slot]) *outWeights[slot]=used ? entry.weight[slot] : 0.0f;
+        }
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::hasSkeletalVertexWeights() const noexcept
+    {
+        return impl->canonicalWeights.skeletonId!=0 && !impl->canonicalWeights.vertices.empty();
+    }
+
+    uint32_t MESH_MBM_DEBUG::getTotalSkeletalWeightBones() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalWeights.paletteBoneIds.size());
+    }
+
     uint32_t MESH_MBM_DEBUG::getTotalArticulatedParts() const noexcept
     {
         return static_cast<uint32_t>(impl->articulatedParts.size());

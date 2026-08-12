@@ -2505,6 +2505,59 @@ namespace mbm
         return 0;
     }
 
+    int onSetSkeletalVertexWeightDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const uint32_t vertexIndex=static_cast<uint32_t>(luaL_checkinteger(lua,2)-1);
+        const char *names[4];
+        float weights[4];
+        for (int slot=0; slot<4; ++slot)
+        {
+            const int nameIndex=3+slot*2;
+            names[slot]=lua_isnil(lua,nameIndex) ? nullptr : luaL_checkstring(lua,nameIndex);
+            weights[slot]=static_cast<float>(luaL_optnumber(lua,nameIndex+1,0.0));
+        }
+        char errorOut[255]="";
+        if (!meshDebug->mesh.setSkeletalVertexWeight(vertexIndex,
+                names[0],weights[0],names[1],weights[1],names[2],weights[2],names[3],weights[3],
+                errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,1);
+        return 1;
+    }
+
+    int onGetSkeletalVertexWeightDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const int index=static_cast<int>(luaL_checkinteger(lua,2))-1;
+        if (index<0) { lua_pushnil(lua); return 1; }
+        const char *names[4]={nullptr,nullptr,nullptr,nullptr};
+        float weights[4]={0,0,0,0};
+        if (!meshDebug->mesh.getSkeletalVertexWeight(static_cast<uint32_t>(index),
+                &names[0],&weights[0],&names[1],&weights[1],&names[2],&weights[2],&names[3],&weights[3]))
+        { lua_pushnil(lua); return 1; }
+        for (int slot=0; slot<4; ++slot)
+        {
+            if (names[slot]) lua_pushstring(lua,names[slot]); else lua_pushnil(lua);
+            lua_pushnumber(lua,weights[slot]);
+        }
+        return 8;
+    }
+
+    int onHasSkeletalVertexWeightsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        lua_pushboolean(lua,meshDebug->mesh.hasSkeletalVertexWeights());
+        return 1;
+    }
+
+    int onGetTotalSkeletalWeightBonesDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        lua_pushinteger(lua,static_cast<lua_Integer>(meshDebug->mesh.getTotalSkeletalWeightBones()));
+        return 1;
+    }
+
     int onNewIndexMeshDebug(lua_State *lua) // escrita
     {
         /*
@@ -2611,6 +2664,10 @@ namespace mbm
                                           {"hasVertexWeights", onHasVertexWeightsDebugLua},
                                           {"getTotalVertexWeightBones", onGetTotalVertexWeightBonesDebugLua},
                                           {"removeVertexWeights", onRemoveVertexWeightsDebugLua},
+                                          {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
+                                          {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
+                                          {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},
+                                          {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},
                                           {"initializeArticulatedParts", onInitializeArticulatedPartsDebugLua},

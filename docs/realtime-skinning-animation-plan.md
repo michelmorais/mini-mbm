@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.9 | 2026-08-12 | Migrated Skin Weight Lab from exploratory name-palette weights to canonical type-42 mutation. Editor-facing names resolve to stable IDs, each update is validated transactionally, and no legacy weight section is created. The remaining section/API removal consumers are confined to Mesh Debug and interchange code. |
 | 4.8 | 2026-08-12 | Began Mesh Debug migration by making the Skeletal Animation Editor's bind gizmo consume only canonical bind-report bones. It derives hierarchy and joint positions from type-41 global bind matrices and deliberately gives legacy-only assets no skeleton. The remaining editor deletion blocker is Skin Weight Lab's exploratory name-palette weight API, which must be replaced by canonical type-42 mutation/rollback. |
 | 4.7 | 2026-08-12 | Made skeleton visualization worktree-specific. Bind inspection shows the bind skeleton automatically, Skin Weight Lab owns its visibility controls, and Runtime Skeletal Preview hides the misleading bind-only gizmo until separate evaluated skeletons can accompany its LBS/DQS instances. |
 | 4.6 | 2026-08-12 | Organized the Skeletal Animation Editor into five mutually exclusive worktrees. Mesh/skeleton visibility remains shared, runtime comparison is scoped to its preview worktree, and weight-selection volumes/markers/operations are scoped to Skin Weight Lab; animation authoring and brush painting are explicit reserved destinations. |
