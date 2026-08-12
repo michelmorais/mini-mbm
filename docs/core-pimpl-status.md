@@ -160,6 +160,10 @@ was added to the public mesh header. Each instance's selected LBS/rigid-DQS meth
 palette remain in `SKELETAL_ANIMATION_PLAYER::Impl`; public reports copy only scalar status/counts.
 The requested Auto/LBS/DQS policy, resolved backend method, and static resolution-reason pointer are
 also instance-private; Auto scans immutable canonical data before shader compilation.
+A test-only private parity bridge copies canonical skeleton/weights/clips out of
+`MESH_MBM_DEBUG::Impl` into an internal structure. It is a friend solely to preserve the PIMPL
+boundary for numeric GLES tests: no mutable reference, backend handle, Lua binding, or public
+container accessor is introduced.
 Its uploaded vertex streams preserve the backend boundary: GLES2 bone-index/weight buffer handles
 and per-subset arrays live only in private `BUFFER_SPECIFIC` storage and are created through the
 private `skeletal-gpu-lbs-opengl_es.h` bridge. `BUFFER_GL`'s public layout/API did not acquire a GL

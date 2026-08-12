@@ -329,6 +329,9 @@ Exit: a clip can be authored, saved, reopened, and sampled deterministically ins
   through GLES2-compatible RGBA8 readback. The harness now consumes the same private deformation
   source generator as the production default shader. A real-asset subset is still required before
   declaring this milestone complete.
+- Eight stable mixed-influence vertices from the Lorekeeper now pass CPU/GPU LBS and DQS position/
+  normal comparison at a fixed authored clip time. Remaining Milestone-7 work is pose-stress UX and
+  final bind restoration/diagnostic behavior, not basic numeric runtime parity.
 
 Exit: editor and runtime produce matching reference vertices/normals for the same clip and time.
 
@@ -407,6 +410,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 2.6 | 2026-08-12 | Added fixed-time Lorekeeper numeric parity for eight deterministically selected mixed-influence vertices. Production-shared GLES LBS/DQS output matches CPU positions/normals within RGBA8-aware tolerances; the remaining Milestone-7 work is editor pose-stress/diagnostic UX. |
 | 2.5 | 2026-08-12 | Removed copied GLSL from the numeric parity harness. Production default LBS/DQS shaders and the readback test now consume the same private declarations/deformation generator; both parity methods and the 23-bone production DQS compile/link regression pass. |
 | 2.4 | 2026-08-12 | Began the Milestone-7 numeric acceptance gate with a real GLES RGBA8/readback comparison of two-bone LBS and rigid DQS positions/normals against CPU references. Both methods pass explicit quantization-aware tolerances; production shader-source sharing and real-asset coverage remain. |
 | 2.3 | 2026-08-11 | Added Auto to the runtime preview. It resolves once before load to DQS for wholly rigid content or LBS when bind/clip scale exists, and displays the requested method, resolved method, and reason. Explicit DQS stays strict. |

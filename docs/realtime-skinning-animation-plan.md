@@ -587,6 +587,12 @@ mutate assets, evaluate clips, or deform vertices.
   methods. The deformation declarations/statements are now emitted by one private source helper
   consumed by both the production default shader and this harness, eliminating the former copied
   GLSL oracle. Applying the harness to a controlled subset of a real asset remains before Phase 4 closes.
+- Real-asset parity now loads the committed Lorekeeper through `MESH_MBM_DEBUG`, copies its canonical
+  data through a private read-only bridge, and deterministically selects the eight vertices with the
+  strongest secondary influences (stable index tie-break). At the first clip's `t=0.37s`, LBS
+  measured `0.0017855` maximum position error and `0.0035972` normal error; DQS measured
+  `0.0017464` and `0.0038471`. All values pass the quantization-aware bounds. Geometry selection,
+  CPU evaluation, shared-GLSL capture, and reporting remain separate harness stages.
 
 ### Phase 5 — Metal validation and delivery
 
@@ -786,6 +792,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.4 | 2026-08-12 | Added real-asset CPU/GPU parity over eight deterministically selected mixed-influence Lorekeeper vertices at clip time 0.37s. Both LBS and DQS positions/normals pass explicit RGBA8-aware tolerances. A private copy-out bridge supplies canonical test data without adding Lua APIs or exposing mutable canonical containers; selection, CPU evaluation, GPU capture, and reporting are separated. |
 | 4.3 | 2026-08-12 | Extracted one private GLES skeletal GLSL generator used by both the production default shader and numeric parity harness. LBS/DQS palette declarations, antipodal dual-quaternion blending, position deformation, and normal deformation no longer have a handwritten test copy. The shared readback test and the 23-bone production DQS compile/link regression pass on Mesa. Real-asset numeric subset coverage remains next. |
 | 4.2 | 2026-08-12 | Added the first real GLES CPU/GPU numeric parity harness using a deterministic two-bone/two-vertex fixture, RGBA8 FBO capture, and `glReadPixels`. LBS and rigid DQS positions/normals passed quantization-aware tolerances while reporting worst vertex and maximum error. Exact source sharing with the production default shader and real-asset subset coverage remain the next gate. |
 | 4.1 | 2026-08-11 | Added an explicit pre-load `auto` policy. It audits bind and every clip once, resolves to rigid DQS only for unit-scale content, otherwise resolves visibly to LBS, and reports requested method, resolved method, and reason. Forced DQS remains strict; no runtime shader switching or silent per-frame fallback was introduced. |

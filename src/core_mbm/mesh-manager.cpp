@@ -19,6 +19,7 @@
 
 #include <mesh-manager.h>
 #include "mesh-manager-impl.h"
+#include "private/skeletal-parity-asset.h"
 #if defined(USE_OPENGL_ES)
 #include <skeletal-gpu-lbs-opengl_es.h>
 #endif
@@ -1520,6 +1521,20 @@ namespace mbm
     MESH_MBM_DEBUG::~MESH_MBM_DEBUG()
     {
         this->release();
+    }
+
+    bool skeletal::copyCanonicalParityAsset(const MESH_MBM_DEBUG &mesh,
+                                             CANONICAL_PARITY_ASSET &out) noexcept
+    {
+        out = {};
+        if (!mesh.impl || mesh.impl->canonicalSkeleton.skeletonId == 0 ||
+            mesh.impl->canonicalWeights.skeletonId == 0 ||
+            mesh.impl->canonicalAnimations.skeletonId == 0)
+            return false;
+        out.skeleton = mesh.impl->canonicalSkeleton;
+        out.weights = mesh.impl->canonicalWeights;
+        out.animations = mesh.impl->canonicalAnimations;
+        return true;
     }
     
     uint32_t MESH_MBM_DEBUG::addBuffer(const int stride )

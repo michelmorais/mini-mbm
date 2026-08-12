@@ -38,6 +38,13 @@ namespace util
 
 namespace mbm
 {
+    class MESH_MBM_DEBUG;
+    namespace skeletal
+    {
+        struct CANONICAL_PARITY_ASSET;
+        API_IMPL bool copyCanonicalParityAsset(const MESH_MBM_DEBUG &mesh,
+                                               CANONICAL_PARITY_ASSET &out) noexcept;
+    }
     class BUFFER_GL;
     class RENDERIZABLE;
     class RENDERIZABLE_TO_TARGET;
@@ -384,6 +391,8 @@ namespace mbm
         API_IMPL void release();
         API_IMPL void deleteExtraInfo();
       private:
+        friend bool skeletal::copyCanonicalParityAsset(const MESH_MBM_DEBUG &mesh,
+                                                       skeletal::CANONICAL_PARITY_ASSET &out) noexcept;
         void fillAtLeastOneBound();
         bool fillInSubsetDebug(const MESH_MBM* meshMemory,
                                const int currentFrame,
