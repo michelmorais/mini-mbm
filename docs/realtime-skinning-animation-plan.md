@@ -579,6 +579,13 @@ mutate assets, evaluate clips, or deform vertices.
   remains strict and never falls back, and no per-frame shader switching occurs.
 - Extend the shared preview with backend selection when additional runtime paths exist.
 - Validate the rat and small skeletons before investigating palette expansion.
+- A first GLES2-portable CPU/GPU parity harness now exercises a deterministic two-bone/two-vertex
+  fixture for both LBS and rigid DQS. It renders shader-deformed positions and normals into an
+  RGBA8 FBO, reads them back with `glReadPixels`, and reports maximum error, worst vertex, numeric
+  tolerance, and PASS/FAIL. Mesa measured `0.0156865` maximum position error against a `0.0333726`
+  quantization-aware tolerance and `0.0039216` maximum normal error against `0.0098431` for both
+  methods. This is the small-fixture gate; sharing the exact default-shader source fragment and
+  applying the harness to a controlled subset of a real asset remain before Phase 4 closes.
 
 ### Phase 5 — Metal validation and delivery
 
@@ -778,6 +785,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.2 | 2026-08-12 | Added the first real GLES CPU/GPU numeric parity harness using a deterministic two-bone/two-vertex fixture, RGBA8 FBO capture, and `glReadPixels`. LBS and rigid DQS positions/normals passed quantization-aware tolerances while reporting worst vertex and maximum error. Exact source sharing with the production default shader and real-asset subset coverage remain the next gate. |
 | 4.1 | 2026-08-11 | Added an explicit pre-load `auto` policy. It audits bind and every clip once, resolves to rigid DQS only for unit-scale content, otherwise resolves visibly to LBS, and reports requested method, resolved method, and reason. Forced DQS remains strict; no runtime shader switching or silent per-frame fallback was introduced. |
 | 4.0 | 2026-08-11 | Connected explicit per-instance LBS/rigid-DQS selection before mesh load. The selected method determines capability validation, shader-cache identity, clip-to-palette sampling, and real GLES draw upload; it cannot change after load without rebuilding the instance. Lua and the editor expose the choice and selected-method per-draw limit. No silent scale fallback, runtime shader recompilation, timeline, or non-GLES implementation was added. |
 | 3.9 | 2026-08-11 | Added the distinct GLES2 rigid-DQS default vertex-shader variant. It consumes two `vec4` values per bone, performs four-influence antipodal alignment, normalized/orthogonalized dual-quaternion blending, rigid point transformation, and quaternion normal rotation. Default-program cache keys now distinguish LBS from DQS at equal bone count. A dedicated real Mesa GLES 3.2 test compiled and linked the lit 23-bone DQS variant successfully. Runtime instances still select LBS; actual DQS palette upload/draw and editor selection remain the next gate. |

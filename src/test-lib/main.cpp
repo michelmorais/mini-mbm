@@ -26,11 +26,13 @@
 
 #include "my-scene-test.h"
 #include "skeletal-foundation-tests.h"
+#include "gles-skeletal-parity-tests.h"
 #include <cstdlib>
 #include <cstring>
 
 // Usage: testLib --skeletal-foundation-tests
 //        testLib --gles-dqs-shader-test
+//        testLib --gles-skeletal-parity-test
 //        testLib [seconds] [mesh_file] [world]
 //   seconds    Exit on its own once this many seconds have elapsed in the
 //              render loop, instead of running forever. Meant for
@@ -53,6 +55,11 @@ int main(int argc, char** argv)
     if (argc == 2 && std::strcmp(argv[1], "--gles-dqs-shader-test") == 0)
     {
         game.myScene.testGlesDqsShader = true;
+        game.myScene.testTimeoutSeconds = 1.0f;
+    }
+    else if (argc == 2 && std::strcmp(argv[1], "--gles-skeletal-parity-test") == 0)
+    {
+        game.myScene.testGlesSkeletalParity = true;
         game.myScene.testTimeoutSeconds = 1.0f;
     }
     else if (argc > 1)
@@ -81,6 +88,9 @@ int main(int argc, char** argv)
     constexpr bool singleLoop    = false;
     constexpr bool doSwapBuffers = true;
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
-        return game.onLoop(singleLoop, doSwapBuffers);
+    {
+        const int result = game.onLoop(singleLoop, doSwapBuffers);
+        return game.myScene.automatedTestFailed ? -1 : result;
+    }
     return -1;
 }

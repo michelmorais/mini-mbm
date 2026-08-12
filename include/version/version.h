@@ -256,8 +256,9 @@
     6.73.0 Added a separately cached GLES2 rigid-DQS default vertex-shader variant with antipodal four-influence blending, dual-quaternion normalization/orthogonalization, rigid position transformation, and quaternion normal rotation. A dedicated Mesa GLES test compiles and links the lit 23-bone variant. Runtime/editor method selection and actual DQS palette draws remain pending.
     6.74.0 Connected explicit pre-load LBS/rigid-DQS selection to mesh instances, method-specific capability reporting, default-shader selection, canonical clip sampling, and real per-draw palette upload. Lua and the Skeletal Animation Editor expose the choice without runtime shader recompilation or silent scale fallback; the selected method is immutable after load.
     6.75.0 Added explicit pre-load Auto skinning resolution. Auto audits canonical bind and every clip scale key once, resolves rigid content to DQS and scaled content to LBS, and exposes requested method, resolved method, and reason through C++/Lua/editor reporting. Forced DQS remains strict and no per-frame shader switching occurs.
+    6.76.0 Added a GLES2-portable skeletal CPU/GPU numeric parity harness. A deterministic two-bone/two-vertex fixture captures shader-deformed LBS and rigid-DQS positions/normals through an RGBA8 framebuffer and glReadPixels, reporting maximum error, worst vertex, quantization-aware tolerance, and PASS/FAIL.
 */
-#define MBM_VERSION "6.75.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.76.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

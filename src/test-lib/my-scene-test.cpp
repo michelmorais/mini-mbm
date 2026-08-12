@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "my-scene-test.h"
+#include "gles-skeletal-parity-tests.h"
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
@@ -83,6 +84,8 @@ MY_SCENE::MY_SCENE()
     testElapsedSeconds = 0.0f;
     cliMeshMode        = RenderMode::NONE;
     testGlesDqsShader  = false;
+    testGlesSkeletalParity = false;
+    automatedTestFailed = false;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -151,10 +154,18 @@ void MY_SCENE::onInitScene()
                                   23, mbm::SKELETAL_SHADER_METHOD::DQS_RIGID))
         {
             ERROR_LOG("testLib: GLES rigid-DQS default shader compile failed");
+            automatedTestFailed = true;
             device->setRun(false);
             return;
         }
         INFO_LOG("testLib: GLES rigid-DQS default shader compiled successfully for 23 bones");
+    }
+    if (testGlesSkeletalParity && !runGlesSkeletalParityTests())
+    {
+        ERROR_LOG("testLib: GLES skeletal CPU/GPU parity failed");
+        automatedTestFailed = true;
+        device->setRun(false);
+        return;
     }
 
     this->fontDrawNoShader = new mbm::FONT_DRAW(this);

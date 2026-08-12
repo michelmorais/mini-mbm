@@ -146,6 +146,8 @@ class MY_SCENE : public mbm::SCENE
     std::string             cliMeshFile;
     RenderMode              cliMeshMode;
     bool                    testGlesDqsShader;
+    bool                    testGlesSkeletalParity;
+    bool                    automatedTestFailed;
 
     MY_SCENE();
     virtual ~MY_SCENE();
