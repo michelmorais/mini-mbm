@@ -140,14 +140,10 @@ them; runtime and editor skeletal paths consume only canonical sections 41–43.
 `impl->skeleton` field above. They remain temporarily for the same removal audit and do not move
 the PIMPL boundary.
 
-The read-only bind-pose diagnostic path follows the same boundary. `refreshSkeletonBindReport()`
-compiles `Impl::skeleton` into an `Impl`-owned `skeletal::COMPILED_SKELETON`; the public summary,
-bone, and diagnostic getters only copy fixed value records out. Compiled vectors, maps, strings,
-and lookup storage are not exposed. The explicit refresh makes snapshot lifetime visible and avoids
-silently coupling every legacy skeleton mutation to a cache-invalidation protocol.
-This is a description of the current temporary audit implementation, not a compatibility promise:
-the canonical-only skeletal delivery plan requires removing this snapshot and the exploratory Mesh
-Debug skeletal storage/API after canonical inspection is verified.
+The read-only bind-pose getters copy fixed value records directly from
+`Impl::canonicalSkeleton.compiled`, which is produced and validated during load. There is no
+separate refresh operation or duplicate compiled snapshot. Compiled vectors, maps, strings, and
+lookup storage remain private.
 
 The canonical type-41 reader stores its source records plus compiled hierarchy exclusively in
 `MESH_MBM::Impl` or `MESH_MBM_DEBUG::Impl`. Runtime and debug parse paths share validation, while no

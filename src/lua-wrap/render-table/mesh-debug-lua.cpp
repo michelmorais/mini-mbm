@@ -2310,7 +2310,6 @@ namespace mbm
     int onGetSkeletonBindReportDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        meshDebug->mesh.refreshSkeletonBindReport();
         SKELETON_BIND_SUMMARY summary;
         if (!meshDebug->mesh.getSkeletonBindSummary(summary))
         {

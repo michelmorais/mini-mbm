@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **3.7**
+Document version: **3.8**
 Status: **Canonical import and exclusive five-worktree editor shell implemented**
 Last updated: **2026-08-13**
 
@@ -384,6 +384,8 @@ Exit: editor and runtime produce matching reference vertices/normals for the sam
 - `getSkeletonBindReport()` is now canonical-only in C++ as well: it no longer invokes the legacy
   compiler, carries no canonical/legacy mode flag, and returns no report for an asset without
   section 41. Runtime intermediate loading no longer owns scratch storage for 11/40.
+- Removed `refreshSkeletonBindReport()` and its duplicate `COMPILED_SKELETON` cache. Bind summary,
+  bone, name, and diagnostic getters now read the canonical compiled skeleton created at load time.
 
 Exit: there is one canonical implementation for each skeleton, weight, and animation responsibility.
 
@@ -452,6 +454,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.8 | 2026-08-13 | Removed `refreshSkeletonBindReport()` and the duplicate bind-report cache. Read-only bind getters now consume the canonical compiled skeleton validated during load directly. |
 | 3.7 | 2026-08-13 | Removed the final bind-report compatibility fallback and runtime intermediate scratch storage for 11/40. Bind reports are unconditionally canonical and require section 41; the legacy compiler remains referenced only by pre-canonical test fixtures pending their conversion. |
 | 3.6 | 2026-08-13 | Removed active read/write persistence for exploratory sections 11/40. Both runtime and debug loaders reject them, Mesh Debug save excludes them from section count and output, and generic mesh metadata inspection now recognizes canonical section 41. |
 | 3.5 | 2026-08-13 | Corrected canonical reverse-FBX coordinates after real 67-bone testing exposed disconnected and misdirected bones. Reverse export now undoes the import reflection, restores triangle winding, and recovers bone axes/roll through full inverse matrix conjugation rather than transforming basis rows independently. All 67 source bone axes match within 1.28e-7. |

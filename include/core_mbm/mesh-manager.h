@@ -262,10 +262,7 @@ namespace mbm
                               char *errorOut, const int errorOutLen);
         API_IMPL uint32_t getTotalBone() const noexcept;
         API_IMPL const util::SKELETON_BONE_V11 *getBone(const uint32_t index) const noexcept;
-        // Rebuilds a private diagnostic snapshot, preferring the canonical skeleton and retaining
-        // legacy compilation only as temporary audit scaffolding. Subsequent getters copy values;
-        // no compiled storage is exposed and the call never modifies authored data.
-        API_IMPL bool refreshSkeletonBindReport() noexcept;
+        // Read-only views of the canonical skeleton compiled and validated during load.
         API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
         API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out) const noexcept;
         API_IMPL const char *getSkeletonBindBoneName(const uint32_t index) const noexcept;

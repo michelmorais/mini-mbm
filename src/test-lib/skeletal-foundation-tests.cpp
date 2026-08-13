@@ -715,7 +715,7 @@ namespace
                "canonical weight reader must resolve sections independent of file order");
         SKELETON_BIND_SUMMARY summary;
         SKELETON_BIND_BONE_INFO bone;
-        expect(mesh.refreshSkeletonBindReport() && mesh.getSkeletonBindSummary(summary) &&
+        expect(mesh.getSkeletonBindSummary(summary) &&
                    summary.valid && summary.canonical && summary.boneCount == 1 && mesh.getSkeletonBindBone(0, bone) &&
                    std::string(mesh.getSkeletonBindBoneName(0)) == "root",
                "bind report must inspect canonical section 41 without populating legacy bones");

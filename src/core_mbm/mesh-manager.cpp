@@ -4332,19 +4332,11 @@ namespace mbm
         return nullptr;
     }
 
-    bool MESH_MBM_DEBUG::refreshSkeletonBindReport() noexcept
-    {
-        impl->hasCompiledSkeletonBindReport = true;
-        impl->compiledSkeletonBindReport = impl->canonicalSkeleton.compiled;
-        return impl->canonicalSkeleton.skeletonId != 0 &&
-               !impl->compiledSkeletonBindReport.hasFatalDiagnostics();
-    }
-
     bool MESH_MBM_DEBUG::getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept
     {
-        if (!impl->hasCompiledSkeletonBindReport)
+        if (impl->canonicalSkeleton.skeletonId == 0)
             return false;
-        const skeletal::COMPILED_SKELETON &report = impl->compiledSkeletonBindReport;
+        const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
         out.boneCount = static_cast<uint32_t>(report.bones.size());
         out.diagnosticCount = static_cast<uint32_t>(report.diagnostics.size());
         out.maximumReconstructionError = report.maximumReconstructionError;
@@ -4356,9 +4348,10 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out) const noexcept
     {
-        if (!impl->hasCompiledSkeletonBindReport || index >= impl->compiledSkeletonBindReport.bones.size())
+        const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
+        if (impl->canonicalSkeleton.skeletonId == 0 || index >= report.bones.size())
             return false;
-        const skeletal::COMPILED_BONE &bone = impl->compiledSkeletonBindReport.bones[index];
+        const skeletal::COMPILED_BONE &bone = report.bones[index];
         out.boneId = bone.boneId;
         out.parentBoneId = bone.parentBoneId;
         out.parentIndex = bone.parentIndex;
@@ -4377,11 +4370,6 @@ namespace mbm
             out.radius = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].radius;
             out.length = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].length;
         }
-        else if (bone.sourceIndex < impl->skeleton.size())
-        {
-            out.radius = impl->skeleton[bone.sourceIndex].radius;
-            out.length = impl->skeleton[bone.sourceIndex].length;
-        }
         out.hasNegativeScale = bone.hasNegativeScale;
         out.hasShear = bone.hasShear;
         return true;
@@ -4389,17 +4377,19 @@ namespace mbm
 
     const char *MESH_MBM_DEBUG::getSkeletonBindBoneName(const uint32_t index) const noexcept
     {
-        if (!impl->hasCompiledSkeletonBindReport || index >= impl->compiledSkeletonBindReport.bones.size())
+        const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
+        if (impl->canonicalSkeleton.skeletonId == 0 || index >= report.bones.size())
             return nullptr;
-        return impl->compiledSkeletonBindReport.bones[index].name.c_str();
+        return report.bones[index].name.c_str();
     }
 
     bool MESH_MBM_DEBUG::getSkeletonBindDiagnostic(const uint32_t index,
                                                     SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept
     {
-        if (!impl->hasCompiledSkeletonBindReport || index >= impl->compiledSkeletonBindReport.diagnostics.size())
+        const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
+        if (impl->canonicalSkeleton.skeletonId == 0 || index >= report.diagnostics.size())
             return false;
-        const skeletal::DIAGNOSTIC &diagnostic = impl->compiledSkeletonBindReport.diagnostics[index];
+        const skeletal::DIAGNOSTIC &diagnostic = report.diagnostics[index];
         out.code = skeletal::diagnosticCodeName(diagnostic.code);
         out.sourceIndex = diagnostic.sourceIndex;
         out.observedError = diagnostic.observedError;
@@ -5536,8 +5526,6 @@ namespace mbm
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};
-        impl->compiledSkeletonBindReport = {};
-        impl->hasCompiledSkeletonBindReport = false;
     }
 
     void MESH_MBM_DEBUG::fillAtLeastOneBound()

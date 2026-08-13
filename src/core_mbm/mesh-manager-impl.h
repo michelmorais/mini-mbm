@@ -118,8 +118,6 @@ namespace mbm
         // SECTION_FRAME_SKINNED (docs/mesh-v11-format.md Sec. 6e) - editor/diagnostic round-trip
         // only, never consulted by rendering. See MESH_MBM_DEBUG::addBone/getBone/getTotalBone.
         std::vector<util::SKELETON_BONE_V11> skeleton;
-        skeletal::COMPILED_SKELETON compiledSkeletonBindReport;
-        bool hasCompiledSkeletonBindReport = false;
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
