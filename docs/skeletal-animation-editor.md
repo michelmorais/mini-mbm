@@ -85,9 +85,11 @@ the separate policy below.
 
 For a child-bearing bone in an asset without clips, **Reparent children and preserve global bind**
 promotes its direct children to the removed bone's parent, or to roots when removing a root. Their
-local TRS is derived again so each global bind remains unchanged. Assets with canonical clips are
-blocked: safely changing the children's parent space also requires converting their animation
-tracks, which is not approximated or silently ignored.
+local TRS is derived again so each global bind remains unchanged. With canonical clips, promoted
+children receive full-TRS tracks baked at the union of their own and the removed bone's authored key
+times, plus clip boundaries. Global poses are preserved at those samples; the editor warns that
+continuous interpolation between samples can differ. A composition requiring shear rejects the
+whole operation.
 
 The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
 bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or

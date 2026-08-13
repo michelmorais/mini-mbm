@@ -2250,8 +2250,7 @@ local function showSelectedBindBone(report)
         end
         local hasReferences=bone.weightPaletteReferenced==true or (bone.animationTrackCount or 0)>0
         local hasChildren=(bone.childCount or 0)>0
-        local clipsBlockChildren=hasChildren and (report.animationClipCount or 0)>0
-        local blocked=clipsBlockChildren or #(report.bones or {})<=1
+        local blocked=#(report.bones or {})<=1
         tImGui.TextWrapped(blocked and tLang.L('swl_remove_bone_blocked') or
             ((hasReferences or hasChildren) and tLang.L('swl_remove_bone_remap_policy') or
                 tLang.L('swl_remove_bone_strict_policy')))
@@ -2277,16 +2276,14 @@ local function showSelectedBindBone(report)
             end
         end
         if hasChildren then
-            if clipsBlockChildren then
-                tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},
-                    tLang.L('swl_remove_children_clips_blocked'))
-            else
-                local reparent=tImGui.Checkbox(tLang.L('swl_reparent_children_preserve_global'),
-                    state.bindRemoveReparentChildren)
-                if reparent~=state.bindRemoveReparentChildren then
-                    state.bindRemoveReparentChildren=reparent
-                    state.bindRemoveConfirmed=false
-                end
+            local reparent=tImGui.Checkbox(tLang.L('swl_reparent_children_preserve_global'),
+                state.bindRemoveReparentChildren)
+            if reparent~=state.bindRemoveReparentChildren then
+                state.bindRemoveReparentChildren=reparent
+                state.bindRemoveConfirmed=false
+            end
+            if (report.animationClipCount or 0)>0 then
+                tImGui.TextWrapped(tLang.L('swl_remove_children_tracks_baked'))
             end
         end
         if (bone.animationTrackCount or 0)>0 then

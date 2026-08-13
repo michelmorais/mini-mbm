@@ -22,6 +22,7 @@
 #include <skeletal-animation-foundation.h>
 #include <skeletal-render-capability.h>
 #include <skeletal-gpu-lbs.h>
+#include <skeletal-parity-asset.h>
 #include <core_mbm/mesh-manager.h>
 #include <mesh-v11-io.h>
 #include <mesh-io-primitives.h>
@@ -530,12 +531,29 @@ namespace
                    std::fabs(remappedWeight-1.0f)<=MATRIX_TOLERANCE,
                "referenced leaf removal must preserve normalized vertex coverage on replacement");
         MESH_MBM_DEBUG animatedHierarchy;
+        const char *convertedHierarchy = "/tmp/mini-mbm-converted-child-tracks.msh";
+        CANONICAL_PARITY_ASSET beforeConversion, afterConversion;
         expect(animatedHierarchy.loadV11(source) &&
                    animatedHierarchy.addSkeletalBone(0,"animated-child",VEC3(0,1,0),0.1f,1.0f,
                        &temporaryBoneIndex,error,sizeof(error)-1) &&
-                   !animatedHierarchy.removeSkeletalBoneRemapped(0,temporaryBoneIndex,true,true,
-                       error,sizeof(error)-1),
-               "child reparent removal must reject assets with clips until track conversion exists");
+                   copyCanonicalParityAsset(animatedHierarchy,beforeConversion) &&
+                   animatedHierarchy.removeSkeletalBoneRemapped(0,temporaryBoneIndex,true,true,
+                       error,sizeof(error)-1) &&
+                   copyCanonicalParityAsset(animatedHierarchy,afterConversion) &&
+                   animatedHierarchy.saveV11(convertedHierarchy,false,false,false,error,sizeof(error)-1),
+               "child reparent removal must bake animated parent motion into promoted child tracks");
+        SKELETAL_POSE beforePose, afterPose;
+        expect(sampleSkeletalClip(beforeConversion.skeleton.compiled,beforeConversion.animations.clips[0],
+                   0.0f,beforePose) &&
+                   sampleSkeletalClip(afterConversion.skeleton.compiled,afterConversion.animations.clips[0],
+                   0.0f,afterPose) &&
+                   maximumMatrixDifference(beforePose.globalTransforms[temporaryBoneIndex],
+                       afterPose.globalTransforms[0])<=MATRIX_TOLERANCE,
+               "baked child track must preserve the authored global pose sample");
+        MESH_MBM_DEBUG convertedReload;
+        expect(convertedReload.loadV11(convertedHierarchy),
+               "converted child tracks must survive canonical save/reload validation");
+        std::remove(convertedHierarchy);
         expect(mesh.scaleSkeletalAsset(100.0f, error, sizeof(error) - 1),
                "canonical editor must scale the complete skeletal asset transactionally");
         expect(mesh.renameSkeletalBone(0, "renamed-root", error, sizeof(error) - 1),

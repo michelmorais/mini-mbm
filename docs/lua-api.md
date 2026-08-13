@@ -1355,9 +1355,11 @@ coverage remains normalized. Tracks targeting the removed identity are not retar
 local transforms have different semantics: they are deleted only when `discardAnimationTracks` is
 `true`, otherwise the operation rejects. With `reparentChildrenPreserveGlobal=true`, direct children
 are moved to the removed bone's parent (or become roots) and receive newly derived local TRS that
-preserves their global bind. This descendant policy rejects assets containing any canonical clips
-until correct child-track space conversion is implemented. Skeleton, weights, and animations are
-committed together only after complete validation.
+preserves their global bind. For animated assets, each promoted child receives a full-TRS linear
+track baked at time zero, clip end, and the union of authored key times from the child and removed
+bone. Those authored samples preserve global pose; continuous interpolation between them may differ
+from the original composed curves. Skeleton, weights, and animations commit together only after
+complete validation, and a composition requiring shear rejects without mutation.
 
 ### Canonical skeletal-weight editing
 

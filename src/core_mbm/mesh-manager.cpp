@@ -49,6 +49,7 @@
 #include <atomic>
 #include <queue>
 #include <limits>
+#include <set>
 
 
 const bool is_any_mode_valid(const util::INFO_DRAW_MODE & info_mode,std::string & which_mode_is_invalid)noexcept
@@ -4763,12 +4764,63 @@ namespace mbm
             if (candidate.parentBoneId == removedId) hasChildren = true;
         if (hasChildren && !reparentChildrenPreserveGlobal)
             return fail("canonical bone has children; choose an explicit descendant policy first");
-        if (hasChildren && !impl->canonicalAnimations.clips.empty())
-            return fail("reparenting children requires animation conversion; remove clips first");
 
         skeletal::CANONICAL_SKELETON skeletonCandidate = impl->canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS weightsCandidate = impl->canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS animationsCandidate = impl->canonicalAnimations;
+        if (hasChildren)
+        {
+            std::vector<uint64_t> childIds;
+            for (const skeletal::CANONICAL_BONE &candidate : source)
+                if (candidate.parentBoneId == removedId) childIds.push_back(candidate.boneId);
+            for (skeletal::SKELETAL_CLIP &clip : animationsCandidate.clips)
+            {
+                skeletal::SKELETAL_TRACK removedTrack;
+                bool hasRemovedTrack = false;
+                for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                    if (track.boneId == removedId) { removedTrack = track; hasRemovedTrack = true; break; }
+                for (const uint64_t childId : childIds)
+                {
+                    skeletal::SKELETAL_TRACK childTrack;
+                    bool hasChildTrack = false;
+                    for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                        if (track.boneId == childId) { childTrack = track; hasChildTrack = true; break; }
+                    if (!hasRemovedTrack && !hasChildTrack) continue;
+                    std::set<float> sampleTimes = {0.0f, clip.duration};
+                    if (hasRemovedTrack) for (const skeletal::SKELETAL_KEY &key : removedTrack.keys)
+                        sampleTimes.insert(key.time);
+                    if (hasChildTrack) for (const skeletal::SKELETAL_KEY &key : childTrack.keys)
+                        sampleTimes.insert(key.time);
+                    skeletal::SKELETAL_TRACK baked;
+                    baked.boneId = childId;
+                    baked.channelMask = skeletal::SKELETAL_CHANNEL_TRANSLATION |
+                                        skeletal::SKELETAL_CHANNEL_ROTATION |
+                                        skeletal::SKELETAL_CHANNEL_SCALE;
+                    const uint32_t childIndex = static_cast<uint32_t>(
+                        impl->canonicalSkeleton.compiled.indexById.at(childId));
+                    for (const float time : sampleTimes)
+                    {
+                        skeletal::SKELETAL_POSE pose;
+                        if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, clip, time, pose))
+                            return fail("could not sample canonical clip while converting child tracks");
+                        MATRIX composed;
+                        const MATRIX childLocal = skeletal::buildTrsMatrix(pose.localTransforms[childIndex]);
+                        const MATRIX removedLocal = skeletal::buildTrsMatrix(pose.localTransforms[index]);
+                        MatrixMultiply(&composed, &childLocal, &removedLocal);
+                        skeletal::SKELETAL_KEY key;
+                        key.time = time;
+                        bool negativeScale = false, shear = false;
+                        if (!skeletal::decomposeTrsMatrix(composed, key.local, negativeScale, shear) || shear)
+                            return fail("converted child animation track would require unsupported shear");
+                        baked.keys.push_back(std::move(key));
+                    }
+                    bool replaced = false;
+                    for (skeletal::SKELETAL_TRACK &track : clip.tracks)
+                        if (track.boneId == childId) { track = baked; replaced = true; break; }
+                    if (!replaced) clip.tracks.push_back(std::move(baked));
+                }
+            }
+        }
         int32_t removedPalette = -1, replacementPalette = -1;
         for (uint32_t palette = 0; palette < weightsCandidate.paletteBoneIds.size(); ++palette)
         {
