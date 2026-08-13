@@ -35,16 +35,6 @@ namespace mbm::skeletal
             return std::isfinite(value);
         }
 
-        #if 0
-        bool isFinite(const util::SKELETON_BONE_V11 &bone) noexcept
-        {
-            return isFinite(bone.x) && isFinite(bone.y) && isFinite(bone.z) && isFinite(bone.radius) &&
-                   isFinite(bone.rotX) && isFinite(bone.rotY) && isFinite(bone.rotZ) &&
-                   isFinite(bone.scaleX) && isFinite(bone.scaleY) && isFinite(bone.scaleZ) &&
-                   isFinite(bone.length);
-        }
-
-        #endif
 
         float vectorLength(const float x, const float y, const float z) noexcept
         {
@@ -110,40 +100,7 @@ namespace mbm::skeletal
             return result;
         }
 
-        #if 0
-        MATRIX buildLegacyGlobalMatrix(const util::SKELETON_BONE_V11 &bone) noexcept
-        {
-            MATRIX scale, rotationX, rotationY, rotationZ, rotation, result, translation;
-            MatrixScaling(&scale, bone.scaleX, bone.scaleY, bone.scaleZ);
-            MatrixRotationX(&rotationX, bone.rotX * DEGREES_TO_RADIANS);
-            MatrixRotationY(&rotationY, bone.rotY * DEGREES_TO_RADIANS);
-            MatrixRotationZ(&rotationZ, bone.rotZ * DEGREES_TO_RADIANS);
-            MatrixMultiply(&rotation, &rotationX, &rotationY);
-            MatrixMultiply(&rotation, &rotation, &rotationZ);
-            MatrixMultiply(&result, &scale, &rotation);
-            MatrixTranslation(&translation, bone.x, bone.y, bone.z);
-            MatrixMultiply(&result, &result, &translation);
-            return result;
-        }
 
-        #endif
-
-        #if 0
-        uint64_t stableBoneId(const std::string &path) noexcept
-        {
-            constexpr uint64_t offset = 14695981039346656037ull;
-            constexpr uint64_t prime = 1099511628211ull;
-            uint64_t value = offset;
-            const std::string domain = "mini-mbm.skeleton.bone/" + path;
-            for (const unsigned char c : domain)
-            {
-                value ^= c;
-                value *= prime;
-            }
-            return value == 0 ? 1 : value;
-        }
-
-        #endif
 
         void addDiagnostic(COMPILED_SKELETON &out, const DIAGNOSTIC_CODE code, const uint32_t sourceIndex,
                            const std::string &name, const float error = 0.0f, const bool fatal = true)
@@ -157,23 +114,6 @@ namespace mbm::skeletal
             out.diagnostics.push_back(std::move(diagnostic));
         }
 
-        #if 0
-        void addWeightDiagnostic(WEIGHT_VALIDATION_REPORT &out, const DIAGNOSTIC_CODE code,
-                                 const uint32_t vertexIndex, const uint8_t slotIndex,
-                                 const std::string &boneName, const float error = 0.0f,
-                                 const bool fatal = true)
-        {
-            DIAGNOSTIC diagnostic;
-            diagnostic.code = code;
-            diagnostic.vertexIndex = vertexIndex;
-            diagnostic.slotIndex = slotIndex;
-            diagnostic.boneName = boneName;
-            diagnostic.observedError = error;
-            diagnostic.fatal = fatal;
-            out.diagnostics.push_back(std::move(diagnostic));
-        }
-
-        #endif
 
         bool isFinite(const LOCAL_TRANSFORM &transform) noexcept
         {
@@ -292,14 +232,6 @@ namespace mbm::skeletal
                            [](const DIAGNOSTIC &diagnostic) { return diagnostic.fatal; });
     }
 
-    #if 0
-    bool WEIGHT_VALIDATION_REPORT::hasFatalDiagnostics() const noexcept
-    {
-        return std::any_of(diagnostics.begin(), diagnostics.end(),
-                           [](const DIAGNOSTIC &diagnostic) { return diagnostic.fatal; });
-    }
-
-    #endif
 
     MATRIX buildTrsMatrix(const LOCAL_TRANSFORM &transform) noexcept
     {
@@ -475,128 +407,6 @@ namespace mbm::skeletal
         return "unknown";
     }
 
-    #if 0
-    bool compileLegacySkeleton(const std::vector<util::SKELETON_BONE_V11> &legacy,
-                               COMPILED_SKELETON &out)
-    {
-        out = {};
-        out.bones.reserve(legacy.size());
-        std::unordered_map<std::string, int32_t> indexByName;
-        std::unordered_map<std::string, std::string> pathByName;
-        std::unordered_set<uint64_t> ids;
-        indexByName.reserve(legacy.size());
-        pathByName.reserve(legacy.size());
-        ids.reserve(legacy.size());
-
-        for (uint32_t i = 0; i < legacy.size(); ++i)
-        {
-            const util::SKELETON_BONE_V11 &source = legacy[i];
-            if (source.name.empty())
-            {
-                addDiagnostic(out, DIAGNOSTIC_CODE::EMPTY_NAME, i, source.name);
-                continue;
-            }
-            if (indexByName.find(source.name) != indexByName.end())
-            {
-                addDiagnostic(out, DIAGNOSTIC_CODE::DUPLICATE_NAME, i, source.name);
-                continue;
-            }
-            if (!isFinite(source))
-            {
-                addDiagnostic(out, DIAGNOSTIC_CODE::NON_FINITE_TRANSFORM, i, source.name);
-                continue;
-            }
-
-            int32_t parentIndex = -1;
-            std::string path = source.name;
-            if (!source.parentName.empty())
-            {
-                const auto parent = indexByName.find(source.parentName);
-                if (parent == indexByName.end())
-                {
-                    addDiagnostic(out, DIAGNOSTIC_CODE::UNKNOWN_PARENT, i, source.name);
-                    continue;
-                }
-                parentIndex = parent->second;
-                path = pathByName[source.parentName] + "/" + source.name;
-            }
-
-            COMPILED_BONE compiled;
-            compiled.name = source.name;
-            compiled.parentIndex = parentIndex;
-            compiled.sourceIndex = i;
-            if (parentIndex >= 0)
-                compiled.parentBoneId = out.bones[static_cast<size_t>(parentIndex)].boneId;
-            compiled.boneId = stableBoneId(path);
-            if (!ids.insert(compiled.boneId).second)
-            {
-                addDiagnostic(out, DIAGNOSTIC_CODE::ID_COLLISION, i, source.name);
-                continue;
-            }
-
-            compiled.globalBindMatrix = buildLegacyGlobalMatrix(source);
-            if (std::fabs(MatrixDeterminant(&compiled.globalBindMatrix)) <= SINGULAR_TOLERANCE)
-            {
-                addDiagnostic(out, DIAGNOSTIC_CODE::SINGULAR_TRANSFORM, i, source.name);
-                continue;
-            }
-
-            if (parentIndex < 0)
-                compiled.localBindMatrix = compiled.globalBindMatrix;
-            else
-            {
-                MATRIX inverseParent;
-                float determinant = 0.0f;
-                MatrixInverse(&inverseParent, &determinant,
-                              &out.bones[static_cast<size_t>(parentIndex)].globalBindMatrix);
-                MatrixMultiply(&compiled.localBindMatrix, &compiled.globalBindMatrix, &inverseParent);
-            }
-
-            if (!decomposeTrsMatrix(compiled.localBindMatrix, compiled.localBind,
-                                    compiled.hasNegativeScale, compiled.hasShear))
-            {
-                addDiagnostic(out, DIAGNOSTIC_CODE::SINGULAR_TRANSFORM, i, source.name);
-                continue;
-            }
-            if (compiled.hasNegativeScale)
-                addDiagnostic(out, DIAGNOSTIC_CODE::NEGATIVE_SCALE, i, source.name, 0.0f, false);
-            if (compiled.hasShear)
-                addDiagnostic(out, DIAGNOSTIC_CODE::SHEAR_NOT_SUPPORTED, i, source.name, 0.0f, false);
-
-            MATRIX rebuiltGlobal;
-            if (parentIndex < 0)
-                rebuiltGlobal = compiled.localBindMatrix;
-            else
-                MatrixMultiply(&rebuiltGlobal, &compiled.localBindMatrix,
-                               &out.bones[static_cast<size_t>(parentIndex)].globalBindMatrix);
-            const float reconstructionError = maximumMatrixDifference(rebuiltGlobal, compiled.globalBindMatrix);
-            out.maximumReconstructionError = std::max(out.maximumReconstructionError, reconstructionError);
-            if (reconstructionError > matrixComparisonTolerance(rebuiltGlobal, compiled.globalBindMatrix))
-                addDiagnostic(out, DIAGNOSTIC_CODE::LOCAL_RECONSTRUCTION_MISMATCH, i, source.name,
-                              reconstructionError);
-
-            float determinant = 0.0f;
-            MatrixInverse(&compiled.inverseGlobalBindMatrix, &determinant, &compiled.globalBindMatrix);
-            MATRIX bindIdentity;
-            MatrixMultiply(&bindIdentity, &compiled.inverseGlobalBindMatrix, &compiled.globalBindMatrix);
-            MATRIX identity;
-            MatrixIdentity(&identity);
-            const float identityError = maximumMatrixDifference(bindIdentity, identity);
-            out.maximumBindIdentityError = std::max(out.maximumBindIdentityError, identityError);
-            if (identityError > matrixComparisonTolerance(bindIdentity, identity))
-                addDiagnostic(out, DIAGNOSTIC_CODE::BIND_IDENTITY_MISMATCH, i, source.name, identityError);
-
-            const int32_t compiledIndex = static_cast<int32_t>(out.bones.size());
-            indexByName.emplace(source.name, compiledIndex);
-            pathByName.emplace(source.name, path);
-            out.bones.push_back(std::move(compiled));
-            out.indexByName.emplace(source.name, compiledIndex);
-            out.indexById.emplace(out.bones.back().boneId, compiledIndex);
-        }
-        return out.bones.size() == legacy.size() && !out.hasFatalDiagnostics();
-    }
-
-    #endif
 
     bool compileCanonicalSkeleton(const std::vector<CANONICAL_BONE> &source, COMPILED_SKELETON &out)
     {
@@ -727,116 +537,6 @@ namespace mbm::skeletal
         return true;
     }
 
-    #if 0
-    bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
-                               const std::vector<std::string> &palette,
-                               const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,
-                               const uint32_t expectedVertexCount,
-                               WEIGHT_VALIDATION_REPORT &out)
-    {
-        out = {};
-        out.paletteBoneIndices.assign(palette.size(), -1);
-        if (weights.size() != expectedVertexCount)
-        {
-            addWeightDiagnostic(out, DIAGNOSTIC_CODE::VERTEX_COUNT_MISMATCH, UINT32_MAX, UINT8_MAX,
-                                std::string(), static_cast<float>(weights.size()), true);
-        }
-
-        std::unordered_set<std::string> paletteNames;
-        paletteNames.reserve(palette.size());
-        for (size_t i = 0; i < palette.size(); ++i)
-        {
-            const std::string &name = palette[i];
-            if (name.empty())
-            {
-                addWeightDiagnostic(out, DIAGNOSTIC_CODE::EMPTY_PALETTE_NAME, UINT32_MAX,
-                                    static_cast<uint8_t>(i), name);
-                continue;
-            }
-            if (!paletteNames.insert(name).second)
-            {
-                addWeightDiagnostic(out, DIAGNOSTIC_CODE::DUPLICATE_PALETTE_NAME, UINT32_MAX,
-                                    static_cast<uint8_t>(i), name);
-                continue;
-            }
-            const auto bone = skeleton.indexByName.find(name);
-            if (bone == skeleton.indexByName.end())
-            {
-                addWeightDiagnostic(out, DIAGNOSTIC_CODE::UNKNOWN_WEIGHT_BONE, UINT32_MAX,
-                                    static_cast<uint8_t>(i), name);
-                continue;
-            }
-            out.paletteBoneIndices[i] = bone->second;
-        }
-
-        for (uint32_t vertexIndex = 0; vertexIndex < weights.size(); ++vertexIndex)
-        {
-            const util::VERTEX_BONE_WEIGHT_V11 &entry = weights[vertexIndex];
-            float sum = 0.0f;
-            uint8_t effectiveCount = 0;
-            std::unordered_set<uint8_t> usedPaletteIndices;
-            for (uint8_t slot = 0; slot < 4; ++slot)
-            {
-                const uint8_t paletteIndex = entry.paletteIndex[slot];
-                const float weight = entry.weight[slot];
-                if (!std::isfinite(weight))
-                {
-                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::NON_FINITE_WEIGHT, vertexIndex, slot,
-                                        std::string(), weight);
-                    continue;
-                }
-                if (paletteIndex == UINT8_MAX)
-                {
-                    if (weight != 0.0f)
-                        addWeightDiagnostic(out, DIAGNOSTIC_CODE::UNUSED_SLOT_NONZERO, vertexIndex,
-                                            slot, std::string(), weight);
-                    continue;
-                }
-                if (paletteIndex >= palette.size())
-                {
-                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::PALETTE_INDEX_OUT_OF_RANGE,
-                                        vertexIndex, slot, std::string(), paletteIndex);
-                    continue;
-                }
-                const std::string &boneName = palette[paletteIndex];
-                if (!usedPaletteIndices.insert(paletteIndex).second)
-                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::DUPLICATE_BONE_INFLUENCE,
-                                        vertexIndex, slot, boneName);
-                if (weight < 0.0f)
-                {
-                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::NEGATIVE_WEIGHT, vertexIndex, slot,
-                                        boneName, weight);
-                    continue;
-                }
-                if (weight == 0.0f)
-                {
-                    addWeightDiagnostic(out, DIAGNOSTIC_CODE::ZERO_WEIGHT_USED_SLOT, vertexIndex,
-                                        slot, boneName, 0.0f, false);
-                    continue;
-                }
-                sum += weight;
-                ++effectiveCount;
-            }
-            if (effectiveCount == 0)
-            {
-                ++out.verticesWithoutEffectiveInfluence;
-                addWeightDiagnostic(out, DIAGNOSTIC_CODE::NO_EFFECTIVE_INFLUENCE, vertexIndex,
-                                    UINT8_MAX, std::string(), 0.0f, false);
-                continue;
-            }
-            const float sumError = std::fabs(sum - 1.0f);
-            out.maximumWeightSumError = std::max(out.maximumWeightSumError, sumError);
-            if (sumError > MATRIX_TOLERANCE)
-            {
-                ++out.verticesWithInvalidWeightSum;
-                addWeightDiagnostic(out, DIAGNOSTIC_CODE::WEIGHT_SUM_MISMATCH, vertexIndex,
-                                    UINT8_MAX, std::string(), sumError, false);
-            }
-        }
-        return !out.hasFatalDiagnostics();
-    }
-
-    #endif
 
     bool validateSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
                               std::vector<DIAGNOSTIC> &diagnostics)

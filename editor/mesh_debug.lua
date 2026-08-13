@@ -4977,18 +4977,6 @@ function transformCoversWholeMesh(frame, subset)
     return (frame or 0) == 0 and (subset or 0) == 0
 end
 
-function synchronizedScaleIsSupported(meshD, frame, subset, sx, sy, sz)
-    if not transformCoversWholeMesh(frame, subset) then return true end
-    local okTotal, totalBones = dpCall(function() return meshD:getTotalBone() end)
-    if not okTotal or totalBones == 0 then return true end
-    local tolerance = math.max(1, math.abs(sx), math.abs(sy), math.abs(sz)) * 0.000001
-    if sx <= 0 or math.abs(sx-sy) > tolerance or math.abs(sx-sz) > tolerance then
-        tUtil.showMessageWarn(tLang.L('bones_uniform_positive_scale_required'))
-        return false
-    end
-    return true
-end
-
 local function applyTranslateToBones(meshD, dx, dy, dz)
     local okTotal, nBones = dpCall(function() return meshD:getTotalBone() end)
     nBones = (okTotal and nBones) or 0
@@ -10195,11 +10183,9 @@ function showMeshOptions(tEntry, index)
         if chg_sy then xf.sy = sy end
         if chg_sz then xf.sz = sz end
         if tImGui.Button(tLang.L("apply_scale") .. '##' .. index) then
-            local syncSkeleton = transformCoversWholeMesh(xf.frame, xf.subset)
-            local ok = synchronizedScaleIsSupported(meshD, xf.frame, xf.subset, xf.sx, xf.sy, xf.sz)
-                and dpCall(function()
-                    meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset, syncSkeleton)
-                end)
+            local ok = dpCall(function()
+                meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset)
+            end)
             if ok then
                 rebuildBoneGizmo(tEntry, meshD, index)
                 cancelXformPreview()
@@ -10235,11 +10221,9 @@ function showMeshOptions(tEntry, index)
                 tImGui.BeginDisabled(xf[field] <= 0 or currentSize <= 1e-7)
                 if tImGui.Button(tLang.L('apply_btn') .. '##xfExactApply' .. axis .. '-' .. index) then
                     local sxExact, syExact, szExact = computeExactAxisScale(currentSize, xf[field], axis)
-                    local syncSkeleton = transformCoversWholeMesh(xf.frame, xf.subset)
-                    local ok = synchronizedScaleIsSupported(meshD, xf.frame, xf.subset,
-                            sxExact, syExact, szExact) and dpCall(function()
-                            meshD:scaleFrame(xf.frame, sxExact, syExact, szExact, xf.subset, syncSkeleton)
-                        end)
+                    local ok = dpCall(function()
+                        meshD:scaleFrame(xf.frame, sxExact, syExact, szExact, xf.subset)
+                    end)
                     if ok then
                         rebuildBoneGizmo(tEntry, meshD, index)
                         cancelXformPreview()
@@ -10458,9 +10442,7 @@ function showMeshOptions(tEntry, index)
             if tImGui.Button(tLang.L("apply_transform") .. '##' .. index) then
                 local anyChange = false
                 local wholeMesh = transformCoversWholeMesh(xf.frame, xf.subset)
-                local scaleSupported = synchronizedScaleIsSupported(meshD, xf.frame, xf.subset,
-                    xf.sx, xf.sy, xf.sz)
-                if scaleSupported then
+                do
                     if xf.rx ~= 0 or xf.ry ~= 0 or xf.rz ~= 0 then
                         if dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end) then
                             if wholeMesh then applyRotationToBonesDeg(meshD, xf.rx, xf.ry, xf.rz) end
@@ -10469,7 +10451,7 @@ function showMeshOptions(tEntry, index)
                     end
                     if xf.sx ~= 1 or xf.sy ~= 1 or xf.sz ~= 1 then
                         if dpCall(function()
-                            meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset, wholeMesh)
+                            meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset)
                         end) then anyChange = true end
                     end
                     if xf.dx ~= 0 or xf.dy ~= 0 or xf.dz ~= 0 then
@@ -12094,9 +12076,8 @@ local function applyAllTransform(sType, sMode)
                 applyRotationToBonesDeg(meshD, xf.rx, xf.ry, xf.rz)
             end
         elseif sMode == 'scale' then
-            local syncSkeleton = transformCoversWholeMesh(xf.frame, xf.subset)
             ok = dpCall(function()
-                meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset, syncSkeleton)
+                meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset)
             end)
         elseif sMode == 'translate' then
             ok = dpCall(function() meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
@@ -12134,9 +12115,8 @@ function applyAllScaleToExactSize(sType, axis)
             or (axis == 'Y' and (aabb.maxY - aabb.minY) or (aabb.maxZ - aabb.minZ))
         if currentSize <= 1e-7 then return 'skipped', tLang.L('exact_size_zero_axis') end
         local sx, sy, sz = computeExactAxisScale(currentSize, targetSize, axis)
-        local syncSkeleton = transformCoversWholeMesh(xf.frame, xf.subset)
         local ok = dpCall(function()
-            return meshD:scaleFrame(xf.frame, sx, sy, sz, xf.subset, syncSkeleton)
+            return meshD:scaleFrame(xf.frame, sx, sy, sz, xf.subset)
         end)
         if not ok then return 'failed', tLang.L('an_error_occurred') end
         rebuildBoneGizmo(tEntry, meshD, index)

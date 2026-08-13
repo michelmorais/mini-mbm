@@ -229,13 +229,6 @@ namespace mbm
         API_IMPL void centralizeFrameItself(const int indexFrame, const int indexSubset);
         API_IMPL void rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ);
         API_IMPL void scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz);
-        // Optionally keeps the mesh-wide skeleton in the same coordinate space as a whole-mesh,
-        // positive uniform geometry bake. Skeleton synchronization is rejected for a single
-        // frame/subset or a non-uniform/negative scale because one global rest skeleton cannot
-        // represent those transformations faithfully. Bone-local scaleX/Y/Z are intentionally
-        // preserved: this is a coordinate-space bake, not a local bone-scale edit.
-        API_IMPL bool scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy,
-                                 const float sz, const bool scaleSkeleton, char *errorOut, const int errorOutLen);
         API_IMPL void translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz);
         API_IMPL bool addIndex(const uint32_t indexFrame, const uint32_t indexSubset,
                             const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,

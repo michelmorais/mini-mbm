@@ -461,6 +461,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.1 | 2026-08-13 | Physically deleted the isolated `#if 0` section-11/40 implementations and fixtures. Also reduced `MESH_MBM_DEBUG::scaleFrame` to its geometry-only contract, removing the unused legacy skeleton-sync/error parameters and the corresponding Lua argument. |
 | 4.0 | 2026-08-13 | Removed the compiled/public section-11/40 model: enum members, payload structs/serializers, Mesh Debug C++ APIs and PIMPL storage, Lua callbacks, and legacy compiler/validator declarations. Numeric IDs and layouts remain documentation-only history; canonical 41–43 are the sole skeletal contract. |
 | 3.9 | 2026-08-13 | Retired the exploratory 11/40 fixture group from the active foundation suite. Equivalent and broader canonical tests remain active, leaving `compileLegacySkeleton`/`validateLegacyWeights` with no compiled consumer outside their own implementation. |
 | 3.8 | 2026-08-13 | Removed `refreshSkeletonBindReport()` and the duplicate bind-report cache. Read-only bind getters now consume the canonical compiled skeleton validated during load directly. |

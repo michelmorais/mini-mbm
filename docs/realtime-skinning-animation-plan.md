@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 5.9 | 2026-08-13 | Physically deleted the isolated `#if 0` section-11/40 implementations and fixtures. Also reduced `MESH_MBM_DEBUG::scaleFrame` to its geometry-only contract, removing the unused legacy skeleton-sync/error parameters and the corresponding Lua argument. |
 | 5.8 | 2026-08-13 | Removed the compiled/public section-11/40 model: enum members, payload structs/serializers, Mesh Debug C++ APIs and PIMPL storage, Lua callbacks, and legacy compiler/validator declarations. Numeric IDs and layouts remain documentation-only history; canonical 41–43 are the sole skeletal contract. |
 | 5.7 | 2026-08-13 | Retired pre-canonical section-11/name-palette test fixtures from the active suite. Canonical tests retain hierarchy, validation, weights, clips, corruption, scale, CPU/GPU preparation, and round-trip coverage; legacy compiler/validator symbols now have no compiled consumer. |
 | 5.6 | 2026-08-13 | Removed `MESH_MBM_DEBUG::refreshSkeletonBindReport()` and its duplicate compiled snapshot. Bind-report getters now read the canonical compiled skeleton created during load directly. |
