@@ -93,10 +93,11 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
 
     # rotation_deg undoes the import side's own Z-up -> Y-up bake (see module docstring) so this
     # exported FBX comes out correctly oriented for Blender/Mixamo and for being re-imported later.
-    if rotation_deg:
-        positions = [rotate_point_deg(v["x"], v["y"], v["z"], *rotation_deg) for v in verts_data]
-    else:
-        positions = [(v["x"], v["y"], v["z"]) for v in verts_data]
+    canonical = data.get("canonicalSkeleton") is True
+    def restore_position(v):
+        position = (-v["x"], v["y"], v["z"]) if canonical else (v["x"], v["y"], v["z"])
+        return rotate_point_deg(*position, *rotation_deg) if rotation_deg else position
+    positions = [restore_position(v) for v in verts_data]
     # JSON indices are 1-based (written straight from Lua array indices); from_pydata expects
     # 0-based, and are already global across the whole vertex list (mesh_debug.lua's dumper
     # offsets each subset's indices when writing). Each face's originating subset index is kept
@@ -107,7 +108,8 @@ def build_mesh(data: dict, debug: bool, rotation_deg: tuple[float, float, float]
     for subset_idx, subset in enumerate(subsets):
         idx = subset["indices"]
         for i in range(0, len(idx), 3):
-            faces.append((idx[i] - 1, idx[i + 1] - 1, idx[i + 2] - 1))
+            face = (idx[i] - 1, idx[i + 1] - 1, idx[i + 2] - 1)
+            faces.append((face[2], face[1], face[0]) if canonical else face)
             face_subset.append(subset_idx)
 
     mesh_data = bpy.data.meshes.new("MeshDebugMesh")
@@ -244,9 +246,10 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
     # Same rotation as build_mesh's positions -- bones and vertices must land in the same space.
     def joint_pos(name):
         j = joints[name]
+        position = (-j["x"], j["y"], j["z"]) if data.get("canonicalSkeleton") is True else (j["x"], j["y"], j["z"])
         if rotation_deg:
-            return rotate_point_deg(j["x"], j["y"], j["z"], *rotation_deg)
-        return (j["x"], j["y"], j["z"])
+            return rotate_point_deg(*position, *rotation_deg)
+        return position
 
     def dist(a, b):
         return sum((a[i] - b[i]) ** 2 for i in range(3)) ** 0.5
@@ -310,23 +313,34 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         return len(matrix) == 16 and float(joints[name].get("length", 0.0)) > EPS
 
     def reconstruct_tail_and_roll(name, pos):
+        from mathutils import Matrix
         j = joints[name]
         length = float(j["length"])
         matrix = [float(value) for value in j["globalBindMatrix"]]
-        # mini-mbm uses row vectors: translation is m[12:15], and the transformed local Y/Z axes
-        # are rows 1/2. Normalize them so authored scale does not multiply the bone's metadata
-        # length or produce an invalid roll direction.
-        y_stored = (matrix[4], matrix[5], matrix[6])
-        z_stored = (matrix[8], matrix[9], matrix[10])
-        y_len = max(EPS, sum(value * value for value in y_stored) ** 0.5)
-        z_len = max(EPS, sum(value * value for value in z_stored) ** 0.5)
-        d_stored = tuple(value / y_len * length for value in y_stored)
-        z_stored = tuple(value / z_len for value in z_stored)
+        # The engine matrix is row-vector/row-major; transpose it into Blender's column-vector
+        # convention. Canonical import changed coordinates by conjugation C*M*C^-1, so reverse it
+        # by the complete inverse conjugation R*B*R^-1. Transforming Y/Z alone is incorrect because
+        # the right-hand factor changes the matrix's local basis too (visible as 90-degree errors on
+        # real hips, feet, arms, and face bones).
+        canonical_matrix = Matrix([[matrix[column * 4 + row] for column in range(4)]
+                                   for row in range(4)])
+        restore = Matrix.Identity(4)
+        if data.get("canonicalSkeleton") is True:
+            reflection = Matrix.Identity(4)
+            reflection[0][0] = -1.0
+            restore = reflection
         if rotation_deg:
-            d_stored = rotate_point_deg(*d_stored, *rotation_deg)
-            z_stored = rotate_point_deg(*z_stored, *rotation_deg)
-        tail = (pos[0] + d_stored[0], pos[1] + d_stored[1], pos[2] + d_stored[2])
-        return tail, z_stored
+            ax, ay, az = (math.radians(float(value)) for value in rotation_deg)
+            rotation = (Matrix.Rotation(az, 4, "Z") @ Matrix.Rotation(ay, 4, "Y") @
+                        Matrix.Rotation(ax, 4, "X"))
+            restore = rotation @ restore
+        blender_matrix = restore @ canonical_matrix @ restore.inverted()
+        y_stored = blender_matrix.to_3x3().col[1]
+        z_stored = blender_matrix.to_3x3().col[2]
+        y_stored.normalize()
+        z_stored.normalize()
+        tail = tuple(pos[index] + y_stored[index] * length for index in range(3))
+        return tail, tuple(z_stored)
 
     # Envelope-based binding (see bind_mesh_to_armature) sizes each bone's influence region from
     # head_radius/tail_radius, which Blender defaults to a small fixed value with no relation to

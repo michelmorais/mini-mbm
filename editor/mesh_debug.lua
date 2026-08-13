@@ -5789,7 +5789,7 @@ local function writeMeshDebugJson(meshD, jsonPath)
         return false, 'Failed to create file: ' .. jsonPath
     end
 
-    f:write('{\n  "joints": [\n')
+    f:write('{\n  "canonicalSkeleton": true,\n  "joints": [\n')
     local okReport, bindReport = dpCall(function() return meshD:getSkeletonBindReport() end)
     local reportBones = okReport and type(bindReport) == 'table' and bindReport.canonical == true
         and bindReport.bones or {}

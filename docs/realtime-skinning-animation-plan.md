@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 5.3 | 2026-08-13 | Fixed reverse-FBX canonical coordinate restoration after real Mixamo testing: undo X reflection, restore winding, and invert the bind-matrix coordinate change by full conjugation. A 67-bone source-axis comparison now has maximum error 1.28e-7. |
 | 5.2 | 2026-08-13 | Migrated reverse Mesh Debug → FBX interchange from exploratory sections 11/40 to canonical bind-report global matrices and type-42 weights, removing the last active editor/export consumer before C++ persistence deletion. |
 | 5.1 | 2026-08-13 | Began physical legacy deletion by removing sections 11/40 authoring methods from the registered Mesh Debug Lua surface. Confirmed the active FBX importer writes only canonical sections 41–43 and isolated its unused exploratory constants/builders. C++ persistence and the old reverse FBX-export path remain explicit deletion blockers. |
 | 5.0 | 2026-08-13 | Retired Mesh Debug's visible legacy Bone node/window and destructive section-40 removal controls. Mesh Info now reports canonical type-42 weights, while unreachable legacy code and persistence remain isolated for the next physical-deletion pass. A locally regenerated 67-bone Mixamo mesh successfully previewed both LBS and DQS on the measured 4096-vector device; this does not change the 40/60-bone GLES2-minimum limits. |
