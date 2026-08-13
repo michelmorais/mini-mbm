@@ -4692,6 +4692,40 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
+                                                     const float radius, const float length,
+                                                     char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->buffer.empty()) return fail("a loaded mesh is required to initialize a skeleton");
+        if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0 ||
+            impl->canonicalAnimations.skeletonId != 0)
+            return fail("mesh already contains canonical skeletal data");
+        if (!rootName || !rootName[0]) return fail("canonical root bone name must not be empty");
+        if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+            !std::isfinite(translation.z) || !std::isfinite(radius) || !std::isfinite(length))
+            return fail("canonical root bone values must be finite");
+        if (radius < 0.0f || length < 0.0f)
+            return fail("canonical root bone radius and length must not be negative");
+        skeletal::CANONICAL_SKELETON candidate;
+        candidate.skeletonId = 1;
+        skeletal::CANONICAL_BONE root;
+        root.boneId = 1;
+        root.name = rootName;
+        root.localBind.translation = translation;
+        root.radius = radius;
+        root.length = length;
+        candidate.sourceBones.push_back(std::move(root));
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("initial canonical skeleton would be invalid");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::removeSkeletalBone(const uint32_t index,
                                              char *errorOut, const int errorOutLen)
     {

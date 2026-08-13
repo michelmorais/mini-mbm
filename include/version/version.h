@@ -260,6 +260,7 @@
     6.77.0 Unified production and parity-test GLES skeletal shader generation. One private source helper now emits the exact LBS/DQS palette functions, antipodal blending, position deformation, and normal deformation consumed by both the default runtime shader and RGBA8 numeric readback harness.
     6.78.0 Extended GLES skeletal numeric parity to eight deterministically selected mixed-influence vertices from the committed Lorekeeper at a fixed authored clip time. LBS and DQS positions/normals match CPU references within RGBA8-aware tolerances through a private canonical copy-out bridge that preserves PIMPL and adds no Lua surface.
     6.86.3 Retired exploratory section-11/name-palette fixtures from the active skeletal suite; equivalent canonical hierarchy, weight, clip, corruption, scale, and round-trip coverage remains.
+    6.98.0 Began local rigging with transactional one-root canonical skeleton initialization on static meshes, AABB-derived editor defaults, save/reload, and rollback without implicit weights or clips.
     6.97.0 Added animated child-track baking for parent removal at authored key-time unions, preserving sampled global poses with explicit continuous-interpolation limits and shear rejection.
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
@@ -291,7 +292,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "6.97.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.98.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

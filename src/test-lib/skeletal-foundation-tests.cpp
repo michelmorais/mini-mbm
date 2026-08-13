@@ -280,6 +280,22 @@ namespace
                    mesh.getSkeletonBindBone(0, after) && after.parentIndex == -1 &&
                    maximumMatrixDifference(before.globalBindMatrix, after.globalBindMatrix) <= MATRIX_TOLERANCE,
                "child-bearing removal must promote children while preserving global bind");
+        const char *initializedPath = "/tmp/mini-mbm-initial-skeleton.msh";
+        MESH_MBM_DEBUG staticMesh;
+        expect(staticMesh.loadV11("src/test-lib/Crate.msh") &&
+                   staticMesh.initializeSkeletalSkeleton("root",VEC3(0,0,0),0.1f,1.0f,
+                       reparentError,sizeof(reparentError)) &&
+                   staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==1 &&
+                   staticMesh.saveV11(initializedPath,false,false,false,reparentError,sizeof(reparentError)),
+               "static mesh must initialize and save a one-root canonical skeleton");
+        MESH_MBM_DEBUG initializedReload;
+        expect(initializedReload.loadV11(initializedPath) &&
+                   initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==1,
+               "initialized canonical skeleton must survive save/reload");
+        expect(!staticMesh.initializeSkeletalSkeleton("other",VEC3(),0.1f,1.0f,
+                   reparentError,sizeof(reparentError)),
+               "initial skeleton creation must reject an asset that already has skeletal data");
+        std::remove(initializedPath);
         std::remove(reparentPath);
         std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);
     }

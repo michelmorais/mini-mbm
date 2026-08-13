@@ -2399,6 +2399,22 @@ namespace mbm
         return 1;
     }
 
+    int onInitializeSkeletalSkeletonDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 3)),
+                               static_cast<float>(luaL_checknumber(lua, 4)),
+                               static_cast<float>(luaL_checknumber(lua, 5)));
+        const float radius = static_cast<float>(luaL_checknumber(lua, 6));
+        const float length = static_cast<float>(luaL_checknumber(lua, 7));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.initializeSkeletalSkeleton(name, translation, radius, length,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
     int onRemoveSkeletalBoneDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2583,6 +2599,7 @@ namespace mbm
                                           {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
+                                          {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
                                           {"removeSkeletalBone", onRemoveSkeletalBoneDebugLua},
                                           {"removeSkeletalBoneRemapped", onRemoveSkeletalBoneRemappedDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},

@@ -270,6 +270,10 @@ namespace mbm
         API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,
                                       const VEC3 &translation, const float radius, const float length,
                                       uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
+        // Creates section 41 with one root on a loaded static mesh that has no skeletal sections.
+        API_IMPL bool initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
+                                                 const float radius, const float length,
+                                                 char *errorOut, const int errorOutLen);
         // Strict removal: only an unreferenced leaf may be deleted. No implicit remapping occurs.
         API_IMPL bool removeSkeletalBone(const uint32_t index,
                                          char *errorOut, const int errorOutLen);

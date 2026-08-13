@@ -71,6 +71,12 @@ values can then be corrected through the local-bind fields. Addition allocates a
 preserves existing weights/tracks, validates the complete canonical asset, selects the new bone, and
 participates in the shared rollback history.
 
+When a loaded static mesh has no canonical skeleton, Bind Pose Contract offers **Create initial
+skeleton**. Its default root is placed at the center of the mesh's AABB base, with scale-aware radius
+and length suggestions. Creation writes only the canonical skeleton; it does not fabricate weights
+or clips. The new root can immediately be extended with the ordinary add/edit/reparent workflow and
+the whole initialization can be reverted.
+
 **Remove bone** first displays direct-child, weighted-vertex, and animation-track counts. The first
 safe policy removes only a leaf absent from both the weight palette and all tracks, and requires an
 explicit confirmation. Referenced bones remain blocked rather than silently reparenting children,

@@ -1335,6 +1335,16 @@ duplicate names, invalid parents, non-finite input, or a candidate that fails se
 raises a Lua error without mutation. Existing weight palettes and animation tracks are unchanged.
 
 ```lua
+meshD:initializeSkeletalSkeleton(rootName, tx, ty, tz, radius, length)
+```
+
+Creates canonical section 41 with one root bone on a loaded mesh that has no skeleton, weights, or
+skeletal animations. The new skeleton and root receive stable nonzero IDs, identity rotation/scale,
+and the supplied translation and nonnegative metadata. It deliberately does not create section 42
+weights or section 43 clips. Existing skeletal data, an unloaded mesh, invalid values, or an empty
+name reject without mutation.
+
+```lua
 meshD:removeSkeletalBone(oneBasedBoneIndex)
 ```
 

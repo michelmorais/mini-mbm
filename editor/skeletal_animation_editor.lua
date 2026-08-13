@@ -65,6 +65,10 @@ local state = {
     bindRemoveReplacement = 1,
     bindRemoveDiscardTracks = false,
     bindRemoveReparentChildren = false,
+    bindInitialName = 'root',
+    bindInitialTranslation = {x=0,y=0,z=0},
+    bindInitialRadius = 0.1,
+    bindInitialLength = 1,
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -1173,6 +1177,14 @@ local function loadMesh(path)
     state.bindEditBoneId=nil
     state.bindAddBoneId=nil
     state.bindRemoveBoneId=nil
+    local bounds = computeAABB(meshD)
+    local initialExtent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    state.bindInitialName='root'
+    state.bindInitialTranslation={x=bounds and (bounds.minX+bounds.maxX)*0.5 or 0,
+        y=bounds and bounds.minY or 0,z=bounds and (bounds.minZ+bounds.maxZ)*0.5 or 0}
+    state.bindInitialRadius=math.max(initialExtent*0.02,0.001)
+    state.bindInitialLength=math.max(initialExtent*0.1,0.001)
     state.proximityBoneHighlight=false
     state.analysis = nil
     state.analysisDirty = true
@@ -1182,7 +1194,6 @@ local function loadMesh(path)
     state.hoveredAllowedBone=nil
     state.topologyAdjacency=nil
     for _,bone in ipairs(getBones()) do state.allowedBones[bone.name]=true end
-    local bounds = computeAABB(meshD)
     state.meshBounds = bounds
     state.aabb = bounds
     local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
@@ -2414,6 +2425,52 @@ local function showBindPoseDiagnostics()
     local report=state.bindReport
     if not report then
         tImGui.TextDisabled(tLang.L('swl_bind_report_unavailable'))
+        tImGui.TextWrapped(tLang.L('swl_initialize_skeleton_help'))
+        tImGui.PushItemWidth(190)
+        local nameChanged,name=tImGui.InputText(tLang.L('swl_bone_name')..'##swlInitialRootName',
+            state.bindInitialName,tImGui.Flags('ImGuiInputTextFlags_None'))
+        if nameChanged then state.bindInitialName=name end
+        for _,field in ipairs({{'T X','x'},{'T Y','y'},{'T Z','z'}}) do
+            local changed,value=tImGui.InputFloat(field[1]..'##swlInitialRoot'..field[2],
+                state.bindInitialTranslation[field[2]],0,0,'%.6g',0)
+            if changed then state.bindInitialTranslation[field[2]]=value end
+        end
+        local radiusChanged,radius=tImGui.InputFloat(tLang.L('swl_bone_radius')..'##swlInitialRadius',
+            state.bindInitialRadius,0,0,'%.6g',0)
+        if radiusChanged then state.bindInitialRadius=radius end
+        local lengthChanged,length=tImGui.InputFloat(tLang.L('swl_bone_length')..'##swlInitialLength',
+            state.bindInitialLength,0,0,'%.6g',0)
+        if lengthChanged then state.bindInitialLength=length end
+        tImGui.PopItemWidth()
+        local trimmed=(state.bindInitialName or ''):match('^%s*(.-)%s*$')
+        tImGui.BeginDisabled(trimmed=='' or state.bindInitialRadius<0 or state.bindInitialLength<0)
+        if tImGui.Button(tLang.L('swl_initialize_skeleton')..'##swlInitializeSkeleton') then
+            local snapshot=stageRollbackSnapshot()
+            local ok=false
+            if snapshot then
+                local value=state.bindInitialTranslation
+                ok=select(1,safeCall(function()
+                    return state.meshD:initializeSkeletalSkeleton(trimmed,value.x,value.y,value.z,
+                        state.bindInitialRadius,state.bindInitialLength)
+                end))
+            else
+                setStatus(tLang.L('swl_snapshot_failed'),true)
+            end
+            if ok then
+                commitRollbackSnapshot(snapshot)
+                state.modified=true
+                refreshBindReport()
+                state.boneIndex=1
+                rebuildPreview()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                setStatus(tLang.L('swl_skeleton_initialized'),false)
+            else
+                discardRollbackSnapshot(snapshot)
+            end
+        end
+        tImGui.EndDisabled()
+        showRollbackControls('swlInitializeRevert')
         return
     end
     local color=report.valid and {r=0.25,g=0.9,b=0.35,a=1} or {r=1,g=0.3,b=0.25,a=1}
