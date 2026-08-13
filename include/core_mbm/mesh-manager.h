@@ -250,6 +250,10 @@ namespace mbm
                                                 SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept;
         API_IMPL bool renameSkeletalBone(const uint32_t index, const char *name,
                                          char *errorOut, const int errorOutLen);
+        // newParentIndex is -1 for a root or a zero-based compiled/source index otherwise.
+        API_IMPL bool reparentSkeletalBone(const uint32_t index, const int32_t newParentIndex,
+                                           const bool preserveGlobalBind,
+                                           char *errorOut, const int errorOutLen);
         // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
         // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
         // An asset without an existing canonical skeleton/weight section is rejected rather than

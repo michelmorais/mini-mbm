@@ -260,6 +260,9 @@
     6.77.0 Unified production and parity-test GLES skeletal shader generation. One private source helper now emits the exact LBS/DQS palette functions, antipodal blending, position deformation, and normal deformation consumed by both the default runtime shader and RGBA8 numeric readback harness.
     6.78.0 Extended GLES skeletal numeric parity to eight deterministically selected mixed-influence vertices from the committed Lorekeeper at a fixed authored clip time. LBS and DQS positions/normals match CPU references within RGBA8-aware tolerances through a private canonical copy-out bridge that preserves PIMPL and adds no Lua surface.
     6.86.3 Retired exploratory section-11/name-palette fixtures from the active skeletal suite; equivalent canonical hierarchy, weight, clip, corruption, scale, and round-trip coverage remains.
+    6.91.0 Added transactional canonical bone reparent with cycle rejection, stable parent-first reordering, preserve-global/default or preserve-local policy, and complete weight/animation revalidation.
+    6.90.3 Fixed expanded bind-hierarchy clipping by placing large skeleton trees in an independently scrollable region while keeping selected-bone details accessible below.
+    6.90.2 Skeletal Animation Editor bind selection now highlights both the selected joint and its incoming parent-to-child segment, keyed by stable bone ID so rename does not break visual selection.
     6.90.1 Fixed the Skeletal Animation Editor rename InputText crash by passing the Lua binding's flags argument instead of an invalid C++-style buffer-size argument.
     6.90.0 Added transactional canonical bone rename through C++/Lua and the Skeletal Animation Editor: section 41 recompiles and sections 42/43 revalidate before commit while stable IDs preserve weight and animation references.
     6.89.0 Added a canonical parent/child hierarchy tree to the Skeletal Animation Editor bind-pose worktree, with multi-root display, diagnostic node marking, selected-bone technical details, and synchronized gizmo highlighting.
@@ -281,7 +284,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "6.90.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "6.91.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

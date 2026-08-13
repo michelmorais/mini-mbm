@@ -4456,6 +4456,101 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::reparentSkeletalBone(const uint32_t index, const int32_t newParentIndex,
+                                               const bool preserveGlobalBind,
+                                               char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= source.size())
+            return fail("canonical bone index is out of range");
+        if (newParentIndex < -1 || newParentIndex >= static_cast<int32_t>(source.size()))
+            return fail("canonical parent index is out of range");
+        if (newParentIndex == static_cast<int32_t>(index))
+            return fail("canonical bone cannot be its own parent");
+
+        const uint64_t boneId = source[index].boneId;
+        const uint64_t newParentId = newParentIndex < 0 ? 0 : source[static_cast<uint32_t>(newParentIndex)].boneId;
+        uint64_t cursor = newParentId;
+        while (cursor != 0)
+        {
+            if (cursor == boneId)
+                return fail("canonical reparent would create a hierarchy cycle");
+            const auto found = impl->canonicalSkeleton.compiled.indexById.find(cursor);
+            if (found == impl->canonicalSkeleton.compiled.indexById.end())
+                return fail("canonical parent chain is invalid");
+            cursor = source[static_cast<uint32_t>(found->second)].parentBoneId;
+        }
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        edited.parentBoneId = newParentId;
+        if (preserveGlobalBind)
+        {
+            MATRIX local = impl->canonicalSkeleton.compiled.bones[index].globalBindMatrix;
+            if (newParentIndex >= 0)
+            {
+                MATRIX inverseParent;
+                float determinant = 0.0f;
+                MatrixInverse(&inverseParent, &determinant,
+                    &impl->canonicalSkeleton.compiled.bones[static_cast<uint32_t>(newParentIndex)].globalBindMatrix);
+                if (!std::isfinite(determinant) || std::fabs(determinant) <= skeletal::SINGULAR_TOLERANCE)
+                    return fail("new canonical parent bind transform is not invertible");
+                MatrixMultiply(&local, &impl->canonicalSkeleton.compiled.bones[index].globalBindMatrix,
+                               &inverseParent);
+            }
+            bool hasNegativeScale = false, hasShear = false;
+            if (!skeletal::decomposeTrsMatrix(local, edited.localBind, hasNegativeScale, hasShear) || hasShear)
+                return fail("preserving global bind would require unsupported shear");
+        }
+
+        // Stable topological ordering: repeatedly append every bone whose parent is already placed.
+        std::vector<skeletal::CANONICAL_BONE> ordered;
+        ordered.reserve(candidate.sourceBones.size());
+        std::unordered_set<uint64_t> placed;
+        while (ordered.size() < candidate.sourceBones.size())
+        {
+            bool progress = false;
+            for (const skeletal::CANONICAL_BONE &bone : candidate.sourceBones)
+            {
+                if (placed.find(bone.boneId) != placed.end()) continue;
+                if (bone.parentBoneId == 0 || placed.find(bone.parentBoneId) != placed.end())
+                {
+                    ordered.push_back(bone);
+                    placed.insert(bone.boneId);
+                    progress = true;
+                }
+            }
+            if (!progress) return fail("canonical reparent could not produce parent-first ordering");
+        }
+        candidate.sourceBones = std::move(ordered);
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("reparented canonical skeleton would be invalid");
+
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after reparent");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after reparent");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
 
 
     bool MESH_MBM_DEBUG::setSkeletalVertexWeight(const uint32_t vertexIndex,

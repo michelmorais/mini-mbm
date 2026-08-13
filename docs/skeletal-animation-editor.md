@@ -39,11 +39,19 @@ strings so their full 64-bit identity is preserved through Lua.
 
 Bones are navigated as their actual parent/child hierarchy rather than as a flat source-order list.
 Multiple roots are shown as separate top-level nodes, nodes with diagnostics are marked in orange,
-and **Expand all** opens the complete hierarchy. Selecting a node highlights its joint in cyan in
-the bind-pose gizmo and updates one separate technical panel with that bone's identity, parent,
+and **Expand all** opens the complete hierarchy. Selecting a node highlights its joint and incoming
+parent-to-child bone segment in cyan in the bind-pose gizmo, and updates one separate technical panel with that bone's identity, parent,
 local TRS, radius/length, and bind matrices. The selected-bone panel permits an explicit rename.
 Empty or duplicate names are rejected transactionally; weights and animation tracks continue
 targeting the unchanged stable bone ID. Reparent/TRS mutation will build on the same boundary.
+Root nodes highlight only their joint because they have no incoming parent segment.
+The hierarchy has its own scroll region, so expanding a large rig does not clip its lower branches
+or push the selected-bone panel out of reach.
+
+The selected-bone panel supports reparenting to another bone or to root. **Preserve global bind
+pose** is enabled by default and recalculates local TRS so the bone does not jump; disabling it keeps
+local TRS and intentionally lets the subtree move. Self-parenting and hierarchy cycles are rejected,
+and the tree is rebuilt only after the complete canonical candidate validates.
 
 The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
 bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or

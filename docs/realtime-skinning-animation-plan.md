@@ -801,6 +801,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 6.7 | 2026-08-13 | Added transactional canonical reparent with root/parent selection and explicit preserve-global/default versus preserve-local policy. Cycle/self-parent/shear/singular cases reject before commit; stable topological reorder and complete 41–43 validation preserve stable weight and track references. |
+| 6.6 | 2026-08-13 | Fixed expanded hierarchy clipping by separating the bind tree into a bordered, independently scrollable child region. Large rigs keep every branch reachable while selected-bone details remain visible below the tree. |
+| 6.5 | 2026-08-13 | Bind-tree selection now highlights both the selected joint and its incoming parent-to-child segment. Segment objects are keyed by child stable ID, preserving selection across rename and preparing visual feedback for reparent; roots have no incoming segment and highlight only the joint. |
 | 6.4 | 2026-08-13 | Fixed the bind rename `InputText` crash by using the plugin's actual `(label, text, flags)` Lua contract. The accidental `128` buffer-size argument had been parsed as an invalid ImGui flag, causing Lua unwind and the subsequent Missing End assertion. |
 | 6.3 | 2026-08-13 | Added transactional canonical bone rename through C++/Lua and the selected-bone bind panel. Section 41 is copied/recompiled and sections 42/43 are revalidated before commit; stable IDs preserve weights and track targets, and save/reload coverage proves the new name resolves through existing weight references. |
 | 6.2 | 2026-08-13 | Began safe bind editing with a read-only canonical hierarchy tree in Bind Pose Contract. Multiple roots and recursive children are explicit, diagnostic nodes are marked, tree selection highlights the bind gizmo joint, and technical TRS/matrix details moved from the old flat per-bone list into one selected-bone panel. |

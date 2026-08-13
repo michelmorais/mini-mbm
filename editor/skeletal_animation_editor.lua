@@ -51,6 +51,9 @@ local state = {
     bindTreeOpenAll = false,
     bindRenameBoneId = nil,
     bindRenameName = '',
+    bindReparentBoneId = nil,
+    bindParentChoice = 1,
+    bindPreserveGlobal = true,
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -474,7 +477,7 @@ end
 
 local function destroySkeletonVisuals()
     for _,object in pairs(state.skeletonGizmo.spheres) do destroyObject(object) end
-    for _,object in ipairs(state.skeletonGizmo.bones) do destroyObject(object) end
+    for _,object in pairs(state.skeletonGizmo.bones) do destroyObject(object) end
     state.skeletonGizmo={spheres={},bones={}}
     destroyObject(state.analysisBoneHighlightSphere)
     state.analysisBoneHighlightSphere=nil
@@ -514,7 +517,7 @@ local function updateSkeletonVisibility()
             (proximityBone and name==proximityBone.name)
         object.visible=shouldShowSkeleton() and not highlighted
     end
-    for _,object in ipairs(state.skeletonGizmo.bones) do object.visible=shouldShowSkeleton() end
+    for _,object in pairs(state.skeletonGizmo.bones) do object.visible=shouldShowSkeleton() end
 end
 
 local function applyWorkspaceVisibility()
@@ -573,6 +576,13 @@ local function applyWorkspaceVisibility()
             object:setColor(0.1,0.85,1,1)
         else
             object:setColor(1,0,1,0.85)
+        end
+    end
+    for boneId,object in pairs(state.skeletonGizmo.bones) do
+        if selectedBindBone and boneId==selectedBindBone.boneId then
+            object:setColor(0.1,0.85,1,1)
+        else
+            object:setColor(1,0,1,0.75)
         end
     end
     updateSkeletonVisibility()
@@ -713,7 +723,10 @@ local function rebuildSkeletonVisuals()
                 local link=createBoneShape(parent.x,parent.y,parent.z,
                     orientedCylinderVerts(dx,dy,dz,radius*0.5,parentRadius*0.5,8),
                     'swl_bone_link_',1,0,1,0.75)
-                state.skeletonGizmo.bones[#state.skeletonGizmo.bones+1]=link
+                -- A visual bone segment belongs to its child transform: parent joint -> child
+                -- joint. Keying by the child's stable ID lets tree selection highlight the exact
+                -- incoming segment even after rename or future hierarchy reordering.
+                state.skeletonGizmo.bones[bone.boneId]=link
             end
         end
     end
@@ -1956,6 +1969,11 @@ local function showSelectedBindBone(report)
         state.bindRenameBoneId=bone.boneId
         state.bindRenameName=bone.name or ''
     end
+    if state.bindReparentBoneId~=bone.boneId then
+        state.bindReparentBoneId=bone.boneId
+        state.bindParentChoice=(bone.parentIndex or 0)+1
+        state.bindPreserveGlobal=true
+    end
     tImGui.Separator()
     tImGui.Text(string.format('%s: %s',tLang.L('swl_source_bone'),bone.name or '?'))
     tImGui.Text(string.format('ID: %s  Parent: %s (%d)',bone.boneId or '?',
@@ -1987,10 +2005,46 @@ local function showSelectedBindBone(report)
             end
             state.bindRenameBoneId=nil
             rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
             setStatus(tLang.L('swl_bone_renamed'),false)
         end
     end
     tImGui.EndDisabled()
+    local parentNames={tLang.L('swl_root_no_parent')}
+    for _,candidate in ipairs(report.bones or {}) do
+        parentNames[#parentNames+1]=candidate.name or '?'
+    end
+    local parentChanged,parentChoice=tImGui.Combo(tLang.L('swl_parent_bone'),
+        state.bindParentChoice,parentNames,-1)
+    if parentChanged then state.bindParentChoice=parentChoice end
+    local preserveGlobal=tImGui.Checkbox(tLang.L('swl_preserve_global_bind'),state.bindPreserveGlobal)
+    if preserveGlobal~=state.bindPreserveGlobal then state.bindPreserveGlobal=preserveGlobal end
+    local requestedParent=state.bindParentChoice-1 -- 0=root; otherwise one-based bone index
+    local currentParent=bone.parentIndex or 0
+    local selectsSelf=requestedParent==state.boneIndex
+    tImGui.BeginDisabled(requestedParent==currentParent or selectsSelf)
+    if tImGui.Button(tLang.L('swl_apply_reparent')..'##swlBindReparentApply') then
+        local selectedBoneId=bone.boneId
+        local ok=select(1,safeCall(function()
+            return state.meshD:reparentSkeletalBone(state.boneIndex,requestedParent,
+                state.bindPreserveGlobal)
+        end))
+        if ok then
+            state.modified=true
+            refreshBindReport()
+            for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
+                if item.boneId==selectedBoneId then state.boneIndex=index break end
+            end
+            state.bindRenameBoneId=nil
+            state.bindReparentBoneId=nil
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
+            setStatus(tLang.L('swl_bone_reparented'),false)
+        end
+    end
+    tImGui.EndDisabled()
+    if selectsSelf then tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},
+        tLang.L('swl_parent_self_invalid')) end
     if bone.hasNegativeScale then tImGui.TextColored({r=1,g=0.65,b=0.1,a=1},
         tLang.L('swl_bind_negative_scale')) end
     if bone.hasShear then tImGui.TextColored({r=1,g=0.3,b=0.25,a=1},
@@ -2088,7 +2142,10 @@ local function showBindPoseDiagnostics()
         if tImGui.Button(tLang.L('swl_expand_all')..'##swlBindExpandAll') then
             state.bindTreeOpenAll=true
         end
+        tImGui.TextDisabled(tLang.L('swl_hierarchy_scroll_hint'))
+        tImGui.BeginChild('##swlBindHierarchyScroll',{x=0,y=300},true)
         showBindBoneHierarchy(report)
+        tImGui.EndChild()
         showSelectedBindBone(report)
         tImGui.TreePop()
     end
@@ -2127,7 +2184,7 @@ local function showWeightLabSkeletonControls()
         for _,object in pairs(state.skeletonGizmo.spheres) do
             object.alwaysOnTop=skeletonAlwaysOnTop
         end
-        for _,object in ipairs(state.skeletonGizmo.bones) do
+        for _,object in pairs(state.skeletonGizmo.bones) do
             object.alwaysOnTop=skeletonAlwaysOnTop
         end
     end

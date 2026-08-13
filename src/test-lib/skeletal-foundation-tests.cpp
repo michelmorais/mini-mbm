@@ -175,7 +175,7 @@ namespace
     }
 
     bool writeCanonicalSkeletonFixture(const char *path, const bool zeroQuaternion,
-                                       const uint32_t sectionCount)
+                                       const uint32_t sectionCount, const bool twoBones = false)
     {
         FILE *fp = std::fopen(path, "wb+");
         if (!fp) return false;
@@ -188,10 +188,10 @@ namespace
             util::SECTION_HEADER_V11 header;
             header.type = util::SECTION_SKELETAL_SKELETON;
             header.sectionVersion = 1;
-            ok = util::writeSectionV11Streamed(fp, header, [zeroQuaternion](FILE *payload)
+            ok = util::writeSectionV11Streamed(fp, header, [zeroQuaternion, twoBones](FILE *payload)
             {
                 return util::le_io::writeU64LE(payload, 100) &&
-                    util::le_io::writeU32LE(payload, 1) &&
+                    util::le_io::writeU32LE(payload, twoBones ? 2 : 1) &&
                     util::le_io::writeU64LE(payload, 10) &&
                     util::le_io::writeU64LE(payload, 0) &&
                     util::writeStringV11(payload, "root") &&
@@ -201,7 +201,16 @@ namespace
                     util::le_io::writeF32LE(payload, zeroQuaternion ? 0.0f : 1.0f) &&
                     util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
                     util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 0.1f) &&
-                    util::le_io::writeF32LE(payload, 1.0f);
+                    util::le_io::writeF32LE(payload, 1.0f) &&
+                    (!twoBones ||
+                     (util::le_io::writeU64LE(payload, 20) && util::le_io::writeU64LE(payload, 10) &&
+                      util::writeStringV11(payload, "child") &&
+                      util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 2) &&
+                      util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                      util::le_io::writeF32LE(payload, 0) && util::le_io::writeF32LE(payload, 0) &&
+                      util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                      util::le_io::writeF32LE(payload, 1) && util::le_io::writeF32LE(payload, 1) &&
+                      util::le_io::writeF32LE(payload, 0.1f) && util::le_io::writeF32LE(payload, 1.0f)));
             });
         }
         std::fclose(fp);
@@ -220,6 +229,19 @@ namespace
         expect(!mesh.loadV11(invalidPath), "canonical reader must reject zero bind quaternion");
         expect(writeCanonicalSkeletonFixture(duplicatePath, false, 2), "duplicate canonical fixture must write");
         expect(!mesh.loadV11(duplicatePath), "canonical reader must reject duplicate skeleton sections");
+        const char *reparentPath = "/tmp/mini-mbm-canonical-skeleton-reparent.msh";
+        expect(writeCanonicalSkeletonFixture(reparentPath, false, 1, true) && mesh.loadV11(reparentPath),
+               "canonical reparent fixture must load");
+        SKELETON_BIND_BONE_INFO before, after;
+        char reparentError[255] = "";
+        expect(!mesh.reparentSkeletalBone(0, 1, true, reparentError, sizeof(reparentError)),
+               "canonical reparent must reject a hierarchy cycle without mutation");
+        expect(mesh.getSkeletonBindBone(1, before) &&
+                   mesh.reparentSkeletalBone(1, -1, true, reparentError, sizeof(reparentError)) &&
+                   mesh.getSkeletonBindBone(1, after) && after.parentIndex == -1 &&
+                   maximumMatrixDifference(before.globalBindMatrix, after.globalBindMatrix) <= MATRIX_TOLERANCE,
+               "canonical reparent-to-root must preserve global bind when requested");
+        std::remove(reparentPath);
         std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);
     }
 

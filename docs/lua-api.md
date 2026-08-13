@@ -1301,6 +1301,16 @@ validates existing type-42 weights and type-43 animations before committing. Bon
 its stable `boneId`, so weight palette references and animation-track targets survive rename and
 save/reload without remapping. Failure raises a Lua error and preserves the previous skeleton.
 
+```lua
+meshD:reparentSkeletalBone(oneBasedBoneIndex, newParentIndex, preserveGlobalBind)
+```
+
+`newParentIndex=0` makes the bone a root; positive values are one-based bone indices.
+`preserveGlobalBind` defaults to `true`, deriving a new local TRS so the selected bone does not jump.
+Passing `false` preserves local TRS and lets its subtree move. Self-parenting, descendant cycles,
+non-invertible parents, and preserve-global results requiring shear are rejected. The candidate is
+stably reordered parent-first and sections 41–43 are revalidated before commit.
+
 ### Canonical skeletal-weight editing
 
 ```lua

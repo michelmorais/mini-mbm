@@ -2330,6 +2330,23 @@ namespace mbm
         return 0;
     }
 
+    int onReparentSkeletalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const lua_Integer parent = luaL_checkinteger(lua, 3);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        if (parent < 0) return luaL_error(lua, "canonical parent index must be zero (root) or one-based");
+        const bool preserveGlobal = lua_gettop(lua) < 4 || lua_toboolean(lua, 4) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.reparentSkeletalBone(static_cast<uint32_t>(index - 1),
+                                                  parent == 0 ? -1 : static_cast<int32_t>(parent - 1),
+                                                  preserveGlobal, errorOut,
+                                                  static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
 
     int onSetSkeletalVertexWeightDebugLua(lua_State *lua)
     {
@@ -2482,6 +2499,7 @@ namespace mbm
                                           {"getAnim", onGetDetailAnimationDebugLua},
                                           {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
                                           {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
+                                          {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},
