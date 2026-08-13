@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 5.4 | 2026-08-13 | Removed active v11 loader/writer support for exploratory sections 11/40. They are no longer counted, emitted, tolerated, or reported as the mesh skeleton; canonical section 41 now owns metadata inspection. Remaining legacy symbols are unreachable deletion residue only. |
 | 5.3 | 2026-08-13 | Fixed reverse-FBX canonical coordinate restoration after real Mixamo testing: undo X reflection, restore winding, and invert the bind-matrix coordinate change by full conjugation. A 67-bone source-axis comparison now has maximum error 1.28e-7. |
 | 5.2 | 2026-08-13 | Migrated reverse Mesh Debug → FBX interchange from exploratory sections 11/40 to canonical bind-report global matrices and type-42 weights, removing the last active editor/export consumer before C++ persistence deletion. |
 | 5.1 | 2026-08-13 | Began physical legacy deletion by removing sections 11/40 authoring methods from the registered Mesh Debug Lua surface. Confirmed the active FBX importer writes only canonical sections 41–43 and isolated its unused exploratory constants/builders. C++ persistence and the old reverse FBX-export path remain explicit deletion blockers. |

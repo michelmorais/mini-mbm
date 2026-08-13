@@ -117,10 +117,10 @@ a tile map has `SECTION_DETAIL_TILE`, and no other mesh type has any of the thre
 carries physics bounding volumes now; FONT/PARTICLE/TILE detail data moved to their own top-level
 sections in milestones 12/13, it's never nested inside `SECTION_DETAIL_PHYSICS`.
 
-`SECTION_FRAME_SKINNED` (Sec. 6e) is the retired exploratory joint hierarchy. Its parser/writer and
-debug API remain temporarily available only for the physical-removal audit; the Mesh Debug Bones
-node that authored it is no longer exposed. Runtime skeletal animation consumes the canonical
-sections 41–43 instead and never consumes this section.
+`SECTION_FRAME_SKINNED` (Sec. 6e) is the retired exploratory joint hierarchy. Active loaders and
+writers no longer accept or emit it. Its numeric identifier, payload structs, and unreachable
+debug helpers remain temporarily only for the final symbol-removal pass. Runtime skeletal
+animation consumes the canonical sections 41–43 instead.
 
 `SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6g) persists real per-vertex bone weights — also one optional
 section per mesh, same "diagnostic/editor + FBX re-export round-trip only" scope as
@@ -368,9 +368,9 @@ struct TILE_PROPERTY_V11
 
 ## 6e. `SECTION_FRAME_SKINNED` payload
 
-One optional retired exploratory section per mesh, formerly authored by Mesh Debug through
-`meshDebug:addBone(...)`. Its parser/writer remains temporarily for the physical-removal audit,
-but no visible editor workflow creates it now. **Never consulted by rendering**: runtime skinning
+Retired exploratory payload, formerly authored by Mesh Debug through `meshDebug:addBone(...)`.
+Active loaders reject it and active writers never emit it. The layout below remains historical
+documentation until its remaining structs and serializer symbols are deleted. Runtime skinning
 uses the canonical skeleton, weights, and clips in sections 41–43.
 
 Bundled like `SECTION_DETAIL_TILE` (§6d): one section, an internal count prefix, followed by a

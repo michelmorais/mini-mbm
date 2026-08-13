@@ -132,7 +132,9 @@ If the work is redesign-shaped, write the redesign plan first instead of treatin
 
 The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the branch is no longer tracking active gap burn-down. The useful output now is the current boundary/status, not the chronological milestone log.
 
-`MESH_MBM_DEBUG::Impl::skeleton` (`std::vector<util::SKELETON_BONE_V11>`, `SECTION_FRAME_SKINNED` persistence, and `addBone`/`getBone`/`getTotalBone`) follows the standard Impl-only rule from "Repo Rule For Future Core Work" below. Its former Mesh Debug Bones product surface is retired; this legacy storage remains temporarily only for the physical-removal audit. `MESH_MBM::Impl` deliberately has no equivalent legacy field; the runtime skeletal path consumes only canonical sections 41–43, while the shared parser merely tolerates and discards the exploratory legacy section for that class.
+`MESH_MBM_DEBUG::Impl::skeleton` and its old name-palette weight storage are retired unreachable
+fields awaiting symbol deletion. Active v11 loaders reject sections 11/40 and writers never emit
+them; runtime and editor skeletal paths consume only canonical sections 41–43.
 
 `updateBone`/`removeBone` are likewise retired legacy methods operating only on the existing
 `impl->skeleton` field above. They remain temporarily for the same removal audit and do not move

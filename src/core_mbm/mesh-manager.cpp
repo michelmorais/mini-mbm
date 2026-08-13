@@ -694,79 +694,6 @@ namespace
         return tileInfo;
     }
 
-    // Parses one SECTION_FRAME_SKINNED payload (already staged as `tmp`) into `out`, shared by
-    // parse_v11_intermediate (MESH_MBM/async load path, which discards the result - no runtime
-    // skinning consumer exists) and MESH_MBM_DEBUG::loadV11 (which stores it for editing).
-    // Enforces parent-before-child ordering while reading: a non-empty parentName must match the
-    // `name` of a joint already read earlier in this same call, otherwise the file is rejected as
-    // malformed rather than silently accepted with a dangling/forward reference.
-    bool parse_skeleton_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<util::SKELETON_BONE_V11> &out,
-                                     const uint16_t sectionVersion)
-    {
-        util::SKELETON_HEADER_V11 v11Header;
-        if (!util::readSkeletonHeaderV11(tmp, v11Header))
-            return false;
-
-        out.clear();
-        out.reserve(v11Header.jointCount);
-        for (uint16_t i = 0; i < v11Header.jointCount; ++i)
-        {
-            util::SKELETON_BONE_V11 joint;
-            if (!util::readSkeletonBoneV11(tmp, joint, sectionVersion))
-                return false;
-            if (!joint.parentName.empty())
-            {
-                const bool parentSeen = std::any_of(out.begin(), out.end(),
-                    [&joint](const util::SKELETON_BONE_V11 &j) { return j.name == joint.parentName; });
-                if (!parentSeen)
-                    return false; // forward/dangling parent reference - malformed file
-            }
-            out.push_back(std::move(joint));
-        }
-        return true;
-    }
-
-    // Parses one SECTION_VERTEX_SKIN_WEIGHTS payload (already staged as `tmp`) into `outPalette`/
-    // `outWeights`, shared by parse_v11_intermediate (MESH_MBM/async load path, which discards the
-    // result - no runtime skinning consumer exists) and MESH_MBM_DEBUG::loadV11 (which stores it
-    // for editing/re-export). sectionVersion is accepted for symmetry with
-    // parse_skeleton_section_v11 and future-proofing, but this section has only ever had version 1
-    // so far - nothing branches on it yet.
-    bool parse_vertex_skin_weights_section_v11(util::MEM_CURSOR_V11 &tmp, std::vector<std::string> &outPalette,
-                                                std::vector<util::VERTEX_BONE_WEIGHT_V11> &outWeights,
-                                                const uint16_t /*sectionVersion*/)
-    {
-        util::VERTEX_SKIN_WEIGHTS_HEADER_V11 v11Header;
-        if (!util::readVertexSkinWeightsHeaderV11(tmp, v11Header))
-            return false;
-
-        outPalette.clear();
-        outPalette.reserve(v11Header.paletteCount);
-        for (uint32_t i = 0; i < v11Header.paletteCount; ++i)
-        {
-            std::string name;
-            if (!util::readStringV11(tmp, name))
-                return false;
-            outPalette.push_back(std::move(name));
-        }
-
-        outWeights.clear();
-        outWeights.reserve(v11Header.vertexCount);
-        for (uint32_t i = 0; i < v11Header.vertexCount; ++i)
-        {
-            util::VERTEX_BONE_WEIGHT_V11 entry;
-            if (!util::readVertexBoneWeightV11(tmp, entry))
-                return false;
-            for (int slot = 0; slot < 4; ++slot)
-            {
-                if (entry.paletteIndex[slot] != 0xFF && entry.paletteIndex[slot] >= outPalette.size())
-                    return false; // malformed file - palette index out of range
-            }
-            outWeights.push_back(entry);
-        }
-        return true;
-    }
-
     // Worker-thread-safe equivalent of MESH_MBM_DEBUG::readDebugTriangleDetailCompat - same logic,
     // takes INFO_PHYSICS directly instead of going through `this->impl` (parse_v11_intermediate has
     // no MESH_MBM_DEBUG instance).
@@ -1221,26 +1148,6 @@ namespace
                 {
                     frame0Uv      = out.frames[0].uv.get();
                     frame0UvCount = static_cast<int>(out.frames[0].vertexCount);
-                }
-            }
-            else if (staged.header.type == util::SECTION_FRAME_SKINNED)
-            {
-                if (!parse_skeleton_section_v11(tmp, out.skeleton, staged.header.sectionVersion))
-                {
-                    errorOut = "failed to parse SECTION_FRAME_SKINNED";
-                    return false;
-                }
-            }
-            else if (staged.header.type == util::SECTION_VERTEX_SKIN_WEIGHTS)
-            {
-                // Parsed but intentionally unused by MESH_MBM (see out.weightPalette/vertexWeights'
-                // own comment above) - purely so this shared parse loop can succeed on a mesh
-                // carrying this section through the normal game/runtime load path too, not just
-                // through MESH_MBM_DEBUG::loadV11.
-                if (!parse_vertex_skin_weights_section_v11(tmp, out.weightPalette, out.vertexWeights, staged.header.sectionVersion))
-                {
-                    errorOut = "failed to parse SECTION_VERTEX_SKIN_WEIGHTS";
-                    return false;
                 }
             }
             else if (staged.header.type == util::SECTION_SKELETAL_SKELETON)
@@ -1772,15 +1679,16 @@ namespace mbm
                     }
                 }
             }
-            else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
+            else if (sectionHeader.type == util::SECTION_SKELETAL_SKELETON)
             {
                 if (hasSkeletonOut) *hasSkeletonOut = true;
                 if (totalBonesOut)
                 {
                     util::MEM_CURSOR_V11 tmpFp = stage_payload_as_cursor(payload);
-                    util::SKELETON_HEADER_V11 v11SkelHeader;
-                    if (util::readSkeletonHeaderV11(tmpFp, v11SkelHeader))
-                        *totalBonesOut = v11SkelHeader.jointCount;
+                    uint64_t skeletonId = 0;
+                    uint32_t boneCount = 0;
+                    if (util::le_io::readU64LE(tmpFp, skeletonId) && util::le_io::readU32LE(tmpFp, boneCount))
+                        *totalBonesOut = static_cast<uint16_t>(std::min<uint32_t>(boneCount, UINT16_MAX));
                 }
             }
         }
@@ -2504,8 +2412,6 @@ namespace mbm
         fileHeader.backBufferWidth  = impl->backBufferWidth;
         fileHeader.backBufferHeight = impl->backBufferHeight;
         fileHeader.sectionCount     = 1u /*material*/ + 1u /*physics*/ + (ls_paths.empty() ? 0u : 1u)
-                                     + (impl->skeleton.empty() ? 0u : 1u)
-                                     + (impl->vertexWeights.empty() ? 0u : 1u)
                                      + (hasCanonicalSkeleton ? 1u : 0u)
                                      + (hasCanonicalWeights ? 1u : 0u)
                                      + (hasCanonicalAnimations ? 1u : 0u)
@@ -2629,58 +2535,6 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_DETAIL_PHYSICS [%s]", fileOut);
-        }
-
-        // SECTION_FRAME_SKINNED - optional joint hierarchy for editor/mesh_debug.lua's Bones node
-        // round-trip diagnostic; independent of typeMe and independent of whether this mesh's
-        // SECTION_FRAME_STATIC geometry came from a hand-authored skeleton or an ordinary Blender
-        // import ---------------------------
-        if (!impl->skeleton.empty())
-        {
-            util::SECTION_HEADER_V11 sectionHeader;
-            sectionHeader.type = util::SECTION_FRAME_SKINNED;
-            sectionHeader.sectionVersion = 2; // adds rotX/Y/Z, scaleX/Y/Z, length - see SKELETON_BONE_V11
-            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
-            {
-                util::SKELETON_HEADER_V11 skelHeader;
-                skelHeader.jointCount = static_cast<uint16_t>(this->impl->skeleton.size());
-                if (!util::writeSkeletonHeaderV11(fp, skelHeader))
-                    return false;
-                for (const auto &joint : this->impl->skeleton)
-                    if (!util::writeSkeletonBoneV11(fp, joint))
-                        return false;
-                return true;
-            });
-            if (!ok)
-                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_FRAME_SKINNED [%s]", fileOut);
-        }
-
-        // SECTION_VERTEX_SKIN_WEIGHTS - optional real per-vertex bone weight palette (bind-pose,
-        // frame 1 topology only) for editor/mesh_debug.lua's Mesh Info node + "Export to FBX", so
-        // export can use the mesh's own originally-authored weights instead of inventing new ones
-        // via Blender's ARMATURE_ENVELOPE approximation -------------------------------------------
-        if (!impl->vertexWeights.empty())
-        {
-            util::SECTION_HEADER_V11 sectionHeader;
-            sectionHeader.type = util::SECTION_VERTEX_SKIN_WEIGHTS;
-            sectionHeader.sectionVersion = 1;
-            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
-            {
-                util::VERTEX_SKIN_WEIGHTS_HEADER_V11 weightsHeader;
-                weightsHeader.paletteCount = static_cast<uint32_t>(this->impl->weightPalette.size());
-                weightsHeader.vertexCount  = static_cast<uint32_t>(this->impl->vertexWeights.size());
-                if (!util::writeVertexSkinWeightsHeaderV11(fp, weightsHeader))
-                    return false;
-                for (const auto &boneName : this->impl->weightPalette)
-                    if (!util::writeStringV11(fp, boneName))
-                        return false;
-                for (const auto &entry : this->impl->vertexWeights)
-                    if (!util::writeVertexBoneWeightV11(fp, entry))
-                        return false;
-                return true;
-            });
-            if (!ok)
-                return log_util::onFailed(file,__FILE__, __LINE__, "failed to write SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileOut);
         }
 
         // Canonical skeletal sections are emitted only from canonical data already loaded/imported.
@@ -3551,18 +3405,6 @@ namespace mbm
                                     : (v11FrameHeader.uvSource == 0 ? HAS_TEX_EACH_FRAME : HAS_TEX_FIRST_FRAME);
                 }
                 this->impl->buffer.push_back(pBuffer);
-            }
-            else if (sectionHeader.type == util::SECTION_FRAME_SKINNED)
-            {
-                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (!parse_skeleton_section_v11(tmp, impl->skeleton, sectionHeader.sectionVersion))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_FRAME_SKINNED [%s]", fileNamePath);
-            }
-            else if (sectionHeader.type == util::SECTION_VERTEX_SKIN_WEIGHTS)
-            {
-                util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(payload);
-                if (!parse_vertex_skin_weights_section_v11(tmp, impl->weightPalette, impl->vertexWeights, sectionHeader.sectionVersion))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_VERTEX_SKIN_WEIGHTS [%s]", fileNamePath);
             }
             else if (sectionHeader.type == util::SECTION_SKELETAL_SKELETON)
             {

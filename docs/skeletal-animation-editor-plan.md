@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **3.5**
+Document version: **3.6**
 Status: **Canonical import and exclusive five-worktree editor shell implemented**
 Last updated: **2026-08-13**
 
@@ -377,6 +377,10 @@ Exit: editor and runtime produce matching reference vertices/normals for the sam
   canonical type-42 methods. Blender reconstructs head, axis, and roll from the global matrix
   rather than exploratory global Euler fields. This removes the last active editor/interchange
   consumer of sections 11/40; only dead implementation and compatibility parsing remain.
+- Active runtime/debug loaders now reject sections 11/40 and the Mesh Debug writer neither counts
+  nor emits them. Canonical section 41 supplies skeleton metadata inspection. Payload structs,
+  serializer symbols, unreachable C++/Lua functions, and test adapters remain for the final
+  mechanical deletion pass, but there is no longer persisted compatibility behavior.
 
 Exit: there is one canonical implementation for each skeleton, weight, and animation responsibility.
 
@@ -445,6 +449,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.6 | 2026-08-13 | Removed active read/write persistence for exploratory sections 11/40. Both runtime and debug loaders reject them, Mesh Debug save excludes them from section count and output, and generic mesh metadata inspection now recognizes canonical section 41. |
 | 3.5 | 2026-08-13 | Corrected canonical reverse-FBX coordinates after real 67-bone testing exposed disconnected and misdirected bones. Reverse export now undoes the import reflection, restores triangle winding, and recovers bone axes/roll through full inverse matrix conjugation rather than transforming basis rows independently. All 67 source bone axes match within 1.28e-7. |
 | 3.4 | 2026-08-13 | Migrated Mesh Debug → FBX export to canonical bind-report matrices and type-42 weights. Blender reconstructs global bone axis/roll directly from each global bind matrix, so the reverse interchange path no longer consumes sections 11/40. |
 | 3.3 | 2026-08-13 | Retired the Mesh Debug Bone product surface and destructive legacy-weight removal controls. The node/window are no longer called, stale gizmos are cleaned defensively, and Mesh Info statistics now inspect canonical type-42 weights. Legacy implementation and persistence remain temporarily for the next physical-deletion gate. |
