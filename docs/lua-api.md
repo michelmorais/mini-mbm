@@ -1292,6 +1292,15 @@ Skeletal Animation Editor use it for canonical bind inspection. The exploratory 
 name-palette weight methods are no longer registered in Lua; only the canonical skeletal surface
 is available.
 
+```lua
+meshD:renameSkeletalBone(oneBasedBoneIndex, newName)
+```
+
+The new name must be nonempty and unique. The operation copies and recompiles section 41, then
+validates existing type-42 weights and type-43 animations before committing. Bone identity remains
+its stable `boneId`, so weight palette references and animation-track targets survive rename and
+save/reload without remapping. Failure raises a Lua error and preserves the previous skeleton.
+
 ### Canonical skeletal-weight editing
 
 ```lua

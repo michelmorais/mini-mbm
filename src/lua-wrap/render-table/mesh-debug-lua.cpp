@@ -2317,6 +2317,19 @@ namespace mbm
         return 1;
     }
 
+    int onRenameSkeletalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        const char *name = luaL_checkstring(lua, 3);
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.renameSkeletalBone(static_cast<uint32_t>(index - 1), name,
+                                                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
 
     int onSetSkeletalVertexWeightDebugLua(lua_State *lua)
     {
@@ -2468,6 +2481,7 @@ namespace mbm
                                           {"updateAnim", onUpdateAnimationDebugLua},
                                           {"getAnim", onGetDetailAnimationDebugLua},
                                           {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
+                                          {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},

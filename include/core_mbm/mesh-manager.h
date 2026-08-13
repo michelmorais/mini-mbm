@@ -248,6 +248,8 @@ namespace mbm
         API_IMPL const char *getSkeletonBindBoneName(const uint32_t index) const noexcept;
         API_IMPL bool getSkeletonBindDiagnostic(const uint32_t index,
                                                 SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept;
+        API_IMPL bool renameSkeletalBone(const uint32_t index, const char *name,
+                                         char *errorOut, const int errorOutLen);
         // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
         // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
         // An asset without an existing canonical skeleton/weight section is rejected rather than

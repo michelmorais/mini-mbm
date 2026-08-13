@@ -4416,6 +4416,46 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::renameSkeletalBone(const uint32_t index, const char *name,
+                                             char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if (!name || !name[0])
+            return fail("canonical bone name must not be empty");
+        for (uint32_t other = 0; other < impl->canonicalSkeleton.sourceBones.size(); ++other)
+            if (other != index && impl->canonicalSkeleton.sourceBones[other].name == name)
+                return fail("canonical bone name must be unique");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        candidate.sourceBones[index].name = name;
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("renamed canonical skeleton would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after bone rename");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after bone rename");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
 
 
     bool MESH_MBM_DEBUG::setSkeletalVertexWeight(const uint32_t vertexIndex,

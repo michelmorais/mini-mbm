@@ -41,8 +41,9 @@ Bones are navigated as their actual parent/child hierarchy rather than as a flat
 Multiple roots are shown as separate top-level nodes, nodes with diagnostics are marked in orange,
 and **Expand all** opens the complete hierarchy. Selecting a node highlights its joint in cyan in
 the bind-pose gizmo and updates one separate technical panel with that bone's identity, parent,
-local TRS, radius/length, and bind matrices. The tree remains read-only in this increment; canonical
-rename/reparent/TRS mutation will build on the same stable-ID selection boundary.
+local TRS, radius/length, and bind matrices. The selected-bone panel permits an explicit rename.
+Empty or duplicate names are rejected transactionally; weights and animation tracks continue
+targeting the unchanged stable bone ID. Reparent/TRS mutation will build on the same boundary.
 
 The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
 bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or

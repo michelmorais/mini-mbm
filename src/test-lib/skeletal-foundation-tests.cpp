@@ -440,6 +440,10 @@ namespace
                "canonical writer source fixture must load");
         expect(mesh.scaleSkeletalAsset(100.0f, error, sizeof(error) - 1),
                "canonical editor must scale the complete skeletal asset transactionally");
+        expect(mesh.renameSkeletalBone(0, "renamed-root", error, sizeof(error) - 1),
+               "canonical editor must rename a bone while preserving its stable ID dependencies");
+        expect(!mesh.renameSkeletalBone(0, "", error, sizeof(error) - 1),
+               "canonical editor must reject an empty bone name without mutating the skeleton");
         expect(mesh.saveV11(roundTrip, false, false, false, error, sizeof(error) - 1),
                "canonical writer must save validated sections 41-43");
 
@@ -448,9 +452,17 @@ namespace
                "canonical writer output must reload with all dependencies intact");
         SKELETON_BIND_BONE_INFO scaledBone;
         expect(reloaded.getSkeletonBindBone(0, scaledBone) &&
+                   std::string(reloaded.getSkeletonBindBoneName(0)) == "renamed-root" &&
                    std::fabs(scaledBone.radius - 10.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(scaledBone.length - 100.0f) <= MATRIX_TOLERANCE,
-               "complete skeletal asset scale must survive save/reload with scaled bone metadata");
+               "canonical scale and rename must survive save/reload");
+        const char *renamedWeightBone=nullptr, *unusedName1=nullptr, *unusedName2=nullptr, *unusedName3=nullptr;
+        float renamedWeight=0, unusedWeight1=0, unusedWeight2=0, unusedWeight3=0;
+        expect(reloaded.getSkeletalVertexWeight(0,&renamedWeightBone,&renamedWeight,
+                   &unusedName1,&unusedWeight1,&unusedName2,&unusedWeight2,&unusedName3,&unusedWeight3) &&
+                   renamedWeightBone && std::string(renamedWeightBone)=="renamed-root" &&
+                   std::fabs(renamedWeight-1.0f)<=MATRIX_TOLERANCE,
+               "canonical weights must follow a renamed bone by stable ID after save/reload");
 
         FILE *fp = std::fopen(roundTrip, "rb");
         util::FILE_HEADER_V11 fileHeader;

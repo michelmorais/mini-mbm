@@ -49,6 +49,8 @@ local state = {
     info = nil,
     bindReport = nil,
     bindTreeOpenAll = false,
+    bindRenameBoneId = nil,
+    bindRenameName = '',
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -1950,6 +1952,10 @@ end
 local function showSelectedBindBone(report)
     local bone=report.bones and report.bones[state.boneIndex] or nil
     if not bone then return end
+    if state.bindRenameBoneId~=bone.boneId then
+        state.bindRenameBoneId=bone.boneId
+        state.bindRenameName=bone.name or ''
+    end
     tImGui.Separator()
     tImGui.Text(string.format('%s: %s',tLang.L('swl_source_bone'),bone.name or '?'))
     tImGui.Text(string.format('ID: %s  Parent: %s (%d)',bone.boneId or '?',
@@ -1963,6 +1969,28 @@ local function showSelectedBindBone(report)
         rotation.y or 0,rotation.z or 0,rotation.w or 1))
     tImGui.Text(string.format('S %.6g %.6g %.6g',scale.x or 1,scale.y or 1,scale.z or 1))
     tImGui.Text(string.format('Radius %.6g  Length %.6g',bone.radius or 0,bone.length or 0))
+    local changed,newName=tImGui.InputText(tLang.L('swl_bone_name')..'##swlBindRename',
+        state.bindRenameName,128,0)
+    if changed then state.bindRenameName=newName end
+    local trimmed=(state.bindRenameName or ''):match('^%s*(.-)%s*$')
+    tImGui.BeginDisabled(trimmed=='' or trimmed==bone.name)
+    if tImGui.Button(tLang.L('swl_apply_rename')..'##swlBindRenameApply') then
+        local selectedBoneId=bone.boneId
+        local ok=select(1,safeCall(function()
+            return state.meshD:renameSkeletalBone(state.boneIndex,trimmed)
+        end))
+        if ok then
+            state.modified=true
+            refreshBindReport()
+            for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
+                if item.boneId==selectedBoneId then state.boneIndex=index break end
+            end
+            state.bindRenameBoneId=nil
+            rebuildSkeletonVisuals()
+            setStatus(tLang.L('swl_bone_renamed'),false)
+        end
+    end
+    tImGui.EndDisabled()
     if bone.hasNegativeScale then tImGui.TextColored({r=1,g=0.65,b=0.1,a=1},
         tLang.L('swl_bind_negative_scale')) end
     if bone.hasShear then tImGui.TextColored({r=1,g=0.3,b=0.25,a=1},
