@@ -1062,7 +1062,9 @@ local function showSkeletalPreviewControls()
     end
     local methods={tLang.L('swl_skinning_auto'),tLang.L('swl_skinning_lbs'),tLang.L('swl_skinning_dqs')}
     tImGui.BeginDisabled(playback.poseStress)
+    tImGui.PushItemWidth(190)
     local methodChanged,method=tImGui.Combo(tLang.L('swl_skinning_method'),playback.method,methods,-1)
+    tImGui.PopItemWidth()
     tImGui.EndDisabled()
     if methodChanged then
         playback.method=method
@@ -1095,8 +1097,10 @@ local function showSkeletalPreviewControls()
         tImGui.TextDisabled(tLang.L('swl_no_skeletal_clips'))
         return
     end
+    tImGui.PushItemWidth(190)
     local changed,selected=tImGui.Combo(tLang.L('swl_skeletal_clip'),playback.selected,
         playback.clips,-1)
+    tImGui.PopItemWidth()
     if changed then
         playback.selected=selected
         playSelectedSkeletalClip()
@@ -1987,8 +1991,10 @@ local function showSelectedBindBone(report)
         rotation.y or 0,rotation.z or 0,rotation.w or 1))
     tImGui.Text(string.format('S %.6g %.6g %.6g',scale.x or 1,scale.y or 1,scale.z or 1))
     tImGui.Text(string.format('Radius %.6g  Length %.6g',bone.radius or 0,bone.length or 0))
+    tImGui.PushItemWidth(190)
     local changed,newName=tImGui.InputText(tLang.L('swl_bone_name')..'##swlBindRename',
         state.bindRenameName,tImGui.Flags('ImGuiInputTextFlags_None'))
+    tImGui.PopItemWidth()
     if changed then state.bindRenameName=newName end
     local trimmed=(state.bindRenameName or ''):match('^%s*(.-)%s*$')
     tImGui.BeginDisabled(trimmed=='' or trimmed==bone.name)
@@ -2014,8 +2020,10 @@ local function showSelectedBindBone(report)
     for _,candidate in ipairs(report.bones or {}) do
         parentNames[#parentNames+1]=candidate.name or '?'
     end
+    tImGui.PushItemWidth(190)
     local parentChanged,parentChoice=tImGui.Combo(tLang.L('swl_parent_bone'),
         state.bindParentChoice,parentNames,-1)
+    tImGui.PopItemWidth()
     if parentChanged then state.bindParentChoice=parentChoice end
     local preserveGlobal=tImGui.Checkbox(tLang.L('swl_preserve_global_bind'),state.bindPreserveGlobal)
     if preserveGlobal~=state.bindPreserveGlobal then state.bindPreserveGlobal=preserveGlobal end
@@ -2124,7 +2132,6 @@ local function showBindPoseDiagnostics()
     tImGui.Text(string.format(tLang.L('swl_bind_error_summary_fmt'),
         report.maximumReconstructionError or 0,report.maximumBindIdentityError or 0,
         report.diagnosticCount or 0))
-    tImGui.SameLine()
     if tImGui.Button(tLang.L('swl_refresh')..'##swlBindRefresh') then refreshBindReport() end
     if report.diagnostics and #report.diagnostics>0 and
             tImGui.TreeNode(tLang.L('swl_bind_diagnostics')..'##swlBindDiagnostics') then
