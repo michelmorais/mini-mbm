@@ -4771,6 +4771,115 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::mirrorSkeletalBoneSubtree(const uint32_t index, const uint32_t axis,
+                                                    const char *namePrefix, uint32_t *newRootIndexOut,
+                                                    char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= source.size()) return fail("canonical mirror root index is out of range");
+        if (axis > 2) return fail("canonical mirror axis must be X, Y, or Z");
+        if (!namePrefix || !namePrefix[0]) return fail("canonical mirror name prefix must not be empty");
+        if (!impl->canonicalAnimations.clips.empty())
+            return fail("canonical subtree mirror requires an asset without animation clips");
+
+        std::vector<uint32_t> subtree;
+        std::unordered_set<uint64_t> subtreeIds;
+        subtreeIds.insert(source[index].boneId);
+        for (uint32_t candidateIndex = index; candidateIndex < source.size(); ++candidateIndex)
+        {
+            const skeletal::CANONICAL_BONE &candidate = source[candidateIndex];
+            if (subtreeIds.find(candidate.boneId) != subtreeIds.end() ||
+                subtreeIds.find(candidate.parentBoneId) != subtreeIds.end())
+            {
+                subtree.push_back(candidateIndex);
+                subtreeIds.insert(candidate.boneId);
+            }
+        }
+
+        MATRIX reflection;
+        MatrixIdentity(&reflection);
+        reflection.m[axis][axis] = -1.0f;
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        std::unordered_map<uint64_t, uint64_t> mirroredIds;
+        std::unordered_map<uint64_t, MATRIX> mirroredGlobals;
+        uint64_t nextBoneId = 1;
+        const uint32_t newRootIndex = static_cast<uint32_t>(candidate.sourceBones.size());
+        for (const uint32_t sourceIndex : subtree)
+        {
+            const skeletal::CANONICAL_BONE &original = source[sourceIndex];
+            const std::string mirroredName = std::string(namePrefix) + original.name;
+            if (std::any_of(candidate.sourceBones.begin(), candidate.sourceBones.end(),
+                [&mirroredName](const skeletal::CANONICAL_BONE &bone) { return bone.name == mirroredName; }))
+                return fail("canonical mirror would create a duplicate bone name");
+            while (std::any_of(candidate.sourceBones.begin(), candidate.sourceBones.end(),
+                [nextBoneId](const skeletal::CANONICAL_BONE &bone) { return bone.boneId == nextBoneId; }))
+            {
+                if (nextBoneId == std::numeric_limits<uint64_t>::max())
+                    return fail("canonical bone ID space is exhausted");
+                ++nextBoneId;
+            }
+            MATRIX temporary, mirroredGlobal;
+            MatrixMultiply(&temporary, &reflection,
+                           &impl->canonicalSkeleton.compiled.bones[sourceIndex].globalBindMatrix);
+            MatrixMultiply(&mirroredGlobal, &temporary, &reflection);
+            skeletal::CANONICAL_BONE mirrored = original;
+            mirrored.boneId = nextBoneId;
+            mirrored.name = mirroredName;
+            const auto mirroredParent = mirroredIds.find(original.parentBoneId);
+            mirrored.parentBoneId = mirroredParent == mirroredIds.end()
+                ? original.parentBoneId : mirroredParent->second;
+            MATRIX local = mirroredGlobal;
+            if (mirrored.parentBoneId != 0)
+            {
+                MATRIX parentGlobal, inverseParent;
+                const auto generatedParent = mirroredGlobals.find(mirrored.parentBoneId);
+                if (generatedParent != mirroredGlobals.end()) parentGlobal = generatedParent->second;
+                else
+                {
+                    const auto existingParent = impl->canonicalSkeleton.compiled.indexById.find(mirrored.parentBoneId);
+                    if (existingParent == impl->canonicalSkeleton.compiled.indexById.end())
+                        return fail("canonical mirror parent is missing");
+                    parentGlobal = impl->canonicalSkeleton.compiled.bones[existingParent->second].globalBindMatrix;
+                }
+                float determinant = 0.0f;
+                MatrixInverse(&inverseParent, &determinant, &parentGlobal);
+                if (!std::isfinite(determinant) || std::fabs(determinant) <= skeletal::SINGULAR_TOLERANCE)
+                    return fail("canonical mirror parent bind transform is not invertible");
+                MatrixMultiply(&local, &mirroredGlobal, &inverseParent);
+            }
+            bool negativeScale = false, shear = false;
+            if (!skeletal::decomposeTrsMatrix(local, mirrored.localBind, negativeScale, shear) || shear)
+                return fail("canonical mirrored bind would require unsupported shear");
+            mirroredIds.emplace(original.boneId, mirrored.boneId);
+            mirroredGlobals.emplace(mirrored.boneId, mirroredGlobal);
+            candidate.sourceBones.push_back(std::move(mirrored));
+            if (nextBoneId != std::numeric_limits<uint64_t>::max()) ++nextBoneId;
+        }
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("mirrored canonical subtree would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after subtree mirror");
+        }
+        impl->canonicalSkeleton = std::move(candidate);
+        if (newRootIndexOut) *newRootIndexOut = newRootIndex;
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
                                                      const float radius, const float length,
                                                      char *errorOut, const int errorOutLen)

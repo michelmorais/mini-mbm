@@ -298,10 +298,27 @@ namespace
                    &chainLastIndex,reparentError,sizeof(reparentError)) &&
                    staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==4,
                "canonical chain creation must reject duplicate generated names without mutation");
+        expect(staticMesh.setSkeletalBoneBind(1,VEC3(1,1,0),0,0,0,1,VEC3(1,1,1),0.1f,1.0f,
+                   reparentError,sizeof(reparentError)),
+               "mirror fixture must offset the source subtree from the reflection plane");
+        uint32_t mirroredRootIndex = 0;
+        expect(staticMesh.mirrorSkeletalBoneSubtree(1,0,"right_",&mirroredRootIndex,
+                   reparentError,sizeof(reparentError)) && mirroredRootIndex==4 &&
+                   staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==7 &&
+                   staticMesh.getSkeletonBindBone(mirroredRootIndex,after) && after.parentIndex==0 &&
+                   std::string(staticMesh.getSkeletonBindBoneName(mirroredRootIndex))=="right_spine_1" &&
+                   std::fabs(after.globalBindMatrix.m[3][0]+1.0f)<=MATRIX_TOLERANCE,
+               "canonical subtree mirror must preserve hierarchy and reflect global bind position");
+        expect(!staticMesh.mirrorSkeletalBoneSubtree(1,0,"right_",&mirroredRootIndex,
+                   reparentError,sizeof(reparentError)) &&
+                   staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==7,
+               "canonical subtree mirror must reject duplicate generated names without mutation");
+        expect(staticMesh.saveV11(initializedPath,false,false,false,reparentError,sizeof(reparentError)),
+               "canonical chain and mirrored subtree must save");
         MESH_MBM_DEBUG initializedReload;
         expect(initializedReload.loadV11(initializedPath) &&
-                   initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==4,
-               "initialized canonical skeleton and chain must survive save/reload");
+                   initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==7,
+               "initialized canonical skeleton, chain, and mirror must survive save/reload");
         expect(!staticMesh.initializeSkeletalSkeleton("other",VEC3(),0.1f,1.0f,
                    reparentError,sizeof(reparentError)),
                "initial skeleton creation must reject an asset that already has skeletal data");

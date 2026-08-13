@@ -1346,6 +1346,19 @@ and a new opaque stable ID. The returned one-based index identifies the last bon
 generated name, invalid input, ID exhaustion, or failed 41–43 validation rejects the entire chain.
 
 ```lua
+local mirroredRootIndex = meshD:mirrorSkeletalBoneSubtree(oneBasedBoneIndex,
+    axis, namePrefix)
+```
+
+Atomically duplicates the selected bone and all descendants. `axis` is `1` for global X, `2` for Y,
+or `3` for Z. Each global bind matrix is reflected across that origin plane by full matrix
+conjugation; local TRS is then derived against the original external parent or newly mirrored parent.
+Names become `namePrefix .. originalName`, metadata/hierarchy are copied, and every duplicate gets a
+new stable ID. Existing weights remain unchanged, so mirrored bones begin without influences. The
+first implementation rejects assets with canonical clips, duplicate names, singular parents, shear,
+or failed dependency validation. The returned one-based index selects the mirrored subtree root.
+
+```lua
 meshD:initializeSkeletalSkeleton(rootName, tx, ty, tz, radius, length)
 ```
 

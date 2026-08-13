@@ -82,6 +82,12 @@ uses the same local translation step and becomes parent of the next; rotation/sc
 and radius/length inherit the selected bone. The chain is validated and committed as one operation,
 selects its last bone, and produces one rollback entry—partial chains are never retained.
 
+**Mirror subtree** previews the number of duplicated bones, global X/Y/Z reflection plane, and name
+prefix. On confirmation it mirrors full global bind matrices—not only joint positions—then derives
+valid locals while preserving the copied hierarchy and assigning new IDs. Existing weights are not
+guessed or mirrored. The current helper is limited to assets without clips; animation-aware mirroring
+remains a later refinement. The mirrored root is selected and the complete operation is reversible.
+
 **Remove bone** first displays direct-child, weighted-vertex, and animation-track counts. The first
 safe policy removes only a leaf absent from both the weight palette and all tracks, and requires an
 explicit confirmation. Referenced bones remain blocked rather than silently reparenting children,

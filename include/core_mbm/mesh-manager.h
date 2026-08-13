@@ -275,6 +275,10 @@ namespace mbm
                                            const uint32_t count, const VEC3 &stepTranslation,
                                            const float radius, const float length,
                                            uint32_t *lastIndexOut, char *errorOut, const int errorOutLen);
+        // Duplicates a subtree by reflecting global bind matrices across axis 0=X, 1=Y, 2=Z.
+        API_IMPL bool mirrorSkeletalBoneSubtree(const uint32_t index, const uint32_t axis,
+                                                const char *namePrefix, uint32_t *newRootIndexOut,
+                                                char *errorOut, const int errorOutLen);
         // Creates section 41 with one root on a loaded static mesh that has no skeletal sections.
         API_IMPL bool initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
                                                  const float radius, const float length,

@@ -64,6 +64,10 @@ local state = {
     bindChainPrefix = '',
     bindChainCount = 3,
     bindChainStep = {x=0,y=1,z=0},
+    bindMirrorBoneId = nil,
+    bindMirrorPrefix = 'mirror_',
+    bindMirrorAxis = 1,
+    bindMirrorConfirmed = false,
     bindRemoveBoneId = nil,
     bindRemoveConfirmed = false,
     bindRemoveReplacement = 1,
@@ -1181,6 +1185,7 @@ local function loadMesh(path)
     state.bindEditBoneId=nil
     state.bindAddBoneId=nil
     state.bindChainBoneId=nil
+    state.bindMirrorBoneId=nil
     state.bindRemoveBoneId=nil
     local bounds = computeAABB(meshD)
     local initialExtent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
@@ -2064,6 +2069,12 @@ local function showSelectedBindBone(report)
         state.bindChainCount=3
         state.bindChainStep={x=0,y=(bone.length or 0)>0 and bone.length or 1,z=0}
     end
+    if state.bindMirrorBoneId~=bone.boneId then
+        state.bindMirrorBoneId=bone.boneId
+        state.bindMirrorPrefix='mirror_'
+        state.bindMirrorAxis=1
+        state.bindMirrorConfirmed=false
+    end
     if state.bindRemoveBoneId~=bone.boneId then
         state.bindRemoveBoneId=bone.boneId
         state.bindRemoveConfirmed=false
@@ -2314,6 +2325,69 @@ local function showSelectedBindBone(report)
             tImGui.EndDisabled()
             tImGui.TreePop()
         end
+        tImGui.TreePop()
+    end
+    if tImGui.TreeNode(tLang.L('swl_mirror_subtree')..'##swlMirrorSubtree') then
+        local subtreeCount=0
+        for index=1,#(report.bones or {}) do
+            local cursor=index
+            while cursor and cursor>0 do
+                if cursor==state.boneIndex then subtreeCount=subtreeCount+1 break end
+                cursor=report.bones[cursor] and report.bones[cursor].parentIndex or 0
+            end
+        end
+        tImGui.Text(string.format(tLang.L('swl_mirror_subtree_count_fmt'),subtreeCount))
+        tImGui.PushItemWidth(190)
+        local prefixChanged,prefix=tImGui.InputText(tLang.L('swl_mirror_name_prefix')..'##swlMirrorPrefix',
+            state.bindMirrorPrefix,tImGui.Flags('ImGuiInputTextFlags_None'))
+        if prefixChanged then state.bindMirrorPrefix=prefix; state.bindMirrorConfirmed=false end
+        local axes={'X','Y','Z'}
+        local axisChanged,axis=tImGui.Combo(tLang.L('swl_mirror_global_axis'),state.bindMirrorAxis,axes,-1)
+        if axisChanged then state.bindMirrorAxis=axis; state.bindMirrorConfirmed=false end
+        tImGui.PopItemWidth()
+        tImGui.TextWrapped(tLang.L('swl_mirror_subtree_help'))
+        local clipBlocked=(report.animationClipCount or 0)>0
+        if clipBlocked then
+            tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_mirror_clips_blocked'))
+        end
+        local mirrorPrefix=(state.bindMirrorPrefix or ''):match('^%s*(.-)%s*$')
+        tImGui.BeginDisabled(clipBlocked or mirrorPrefix=='')
+        local confirmed=tImGui.Checkbox(tLang.L('swl_confirm_mirror_subtree'),state.bindMirrorConfirmed)
+        if confirmed~=state.bindMirrorConfirmed then state.bindMirrorConfirmed=confirmed end
+        tImGui.BeginDisabled(not state.bindMirrorConfirmed)
+        if tImGui.Button(tLang.L('swl_apply_mirror_subtree')..'##swlMirrorApply') then
+            local snapshot=stageRollbackSnapshot()
+            local ok,newRoot=false,nil
+            if snapshot then
+                ok,newRoot=safeCall(function()
+                    return state.meshD:mirrorSkeletalBoneSubtree(state.boneIndex,
+                        state.bindMirrorAxis,mirrorPrefix)
+                end)
+            else
+                setStatus(tLang.L('swl_snapshot_failed'),true)
+            end
+            if ok then
+                commitRollbackSnapshot(snapshot)
+                state.modified=true
+                refreshBindReport()
+                state.boneIndex=newRoot
+                state.bindRenameBoneId=nil
+                state.bindReparentBoneId=nil
+                state.bindEditBoneId=nil
+                state.bindAddBoneId=nil
+                state.bindChainBoneId=nil
+                state.bindMirrorBoneId=nil
+                state.bindRemoveConfirmed=false
+                rebuildPreview()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                setStatus(tLang.L('swl_subtree_mirrored'),false)
+            else
+                discardRollbackSnapshot(snapshot)
+            end
+        end
+        tImGui.EndDisabled()
+        tImGui.EndDisabled()
         tImGui.TreePop()
     end
     if tImGui.TreeNode(tLang.L('swl_remove_bone')..'##swlRemoveBone') then

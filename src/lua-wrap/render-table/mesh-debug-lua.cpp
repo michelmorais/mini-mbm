@@ -2438,6 +2438,24 @@ namespace mbm
         return 1;
     }
 
+    int onMirrorSkeletalBoneSubtreeDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const lua_Integer axis = luaL_checkinteger(lua, 3);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        if (axis < 1 || axis > 3) return luaL_error(lua, "canonical mirror axis must be 1 (X), 2 (Y), or 3 (Z)");
+        const char *prefix = luaL_checkstring(lua, 4);
+        uint32_t newRootIndex = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.mirrorSkeletalBoneSubtree(static_cast<uint32_t>(index - 1),
+                static_cast<uint32_t>(axis - 1), prefix, &newRootIndex,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(newRootIndex + 1));
+        return 1;
+    }
+
     int onRemoveSkeletalBoneDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2624,6 +2642,7 @@ namespace mbm
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
                                           {"addSkeletalBoneChain", onAddSkeletalBoneChainDebugLua},
+                                          {"mirrorSkeletalBoneSubtree", onMirrorSkeletalBoneSubtreeDebugLua},
                                           {"removeSkeletalBone", onRemoveSkeletalBoneDebugLua},
                                           {"removeSkeletalBoneRemapped", onRemoveSkeletalBoneRemappedDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
