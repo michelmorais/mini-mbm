@@ -114,6 +114,66 @@ namespace
                "canonical skeleton must reject duplicate bone IDs");
     }
 
+    void testUniformCanonicalAssetScale()
+    {
+        CANONICAL_BONE root;
+        root.boneId = 10;
+        root.name = "root";
+        root.localBind.translation = VEC3(1.0f, 2.0f, 3.0f);
+        root.radius = 0.25f;
+        root.length = 2.0f;
+        CANONICAL_BONE child;
+        child.boneId = 20;
+        child.parentBoneId = 10;
+        child.name = "child";
+        child.localBind.translation = VEC3(0.0f, 4.0f, 0.0f);
+        child.radius = 0.1f;
+        child.length = 1.5f;
+        CANONICAL_SKELETON skeleton;
+        skeleton.skeletonId = 100;
+        skeleton.sourceBones = {root, child};
+        expect(compileCanonicalSkeleton(skeleton.sourceBones, skeleton.compiled),
+               "canonical scale fixture skeleton must compile");
+
+        SKELETAL_KEY key;
+        key.local = child.localBind;
+        key.local.translation = VEC3(2.0f, 6.0f, -1.0f);
+        SKELETAL_TRACK track;
+        track.boneId = child.boneId;
+        track.channelMask = SKELETAL_CHANNEL_TRANSLATION;
+        track.keys = {key};
+        SKELETAL_CLIP clip;
+        clip.clipId = 200;
+        clip.name = "scaled";
+        clip.tracks = {track};
+        CANONICAL_ANIMATIONS animations;
+        animations.skeletonId = skeleton.skeletonId;
+        animations.clips = {clip};
+
+        CANONICAL_SKELETON scaledSkeleton;
+        CANONICAL_ANIMATIONS scaledAnimations;
+        expect(buildUniformlyScaledCanonicalAsset(skeleton, animations, 100.0f,
+                                                   scaledSkeleton, scaledAnimations),
+               "positive uniform canonical asset scale must validate");
+        expect(std::fabs(scaledSkeleton.sourceBones[0].localBind.translation.x - 100.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(scaledSkeleton.sourceBones[1].localBind.translation.y - 400.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(scaledSkeleton.sourceBones[0].radius - 25.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(scaledSkeleton.sourceBones[1].length - 150.0f) <= MATRIX_TOLERANCE,
+               "uniform asset scale must update bind translations and bone display metadata");
+        expect(std::fabs(scaledAnimations.clips[0].tracks[0].keys[0].local.translation.x - 200.0f) <=
+                   MATRIX_TOLERANCE &&
+                   std::fabs(scaledAnimations.clips[0].tracks[0].keys[0].local.translation.y - 600.0f) <=
+                   MATRIX_TOLERANCE,
+               "uniform asset scale must update clip translations");
+        expect(scaledSkeleton.compiled.maximumBindIdentityError <= MATRIX_TOLERANCE,
+               "uniform asset scale must rebuild a valid inverse bind");
+        expect(!buildUniformlyScaledCanonicalAsset(skeleton, animations, 0.0f,
+                                                    scaledSkeleton, scaledAnimations) &&
+                   !buildUniformlyScaledCanonicalAsset(skeleton, animations, -1.0f,
+                                                       scaledSkeleton, scaledAnimations),
+               "zero and negative canonical asset scales must be rejected");
+    }
+
     bool writeCanonicalSkeletonFixture(const char *path, const bool zeroQuaternion,
                                        const uint32_t sectionCount)
     {
@@ -378,12 +438,19 @@ namespace
         char error[512] = "";
         expect(writeCanonicalWeightedFixture(source, 100, 1.0f, 100, 10, 0, true) && mesh.loadV11(source),
                "canonical writer source fixture must load");
+        expect(mesh.scaleSkeletalAsset(100.0f, error, sizeof(error) - 1),
+               "canonical editor must scale the complete skeletal asset transactionally");
         expect(mesh.saveV11(roundTrip, false, false, false, error, sizeof(error) - 1),
                "canonical writer must save validated sections 41-43");
 
         MESH_MBM_DEBUG reloaded;
         expect(reloaded.loadV11(roundTrip),
                "canonical writer output must reload with all dependencies intact");
+        SKELETON_BIND_BONE_INFO scaledBone;
+        expect(reloaded.getSkeletonBindBone(0, scaledBone) &&
+                   std::fabs(scaledBone.radius - 10.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(scaledBone.length - 100.0f) <= MATRIX_TOLERANCE,
+               "complete skeletal asset scale must survive save/reload with scaled bone metadata");
 
         FILE *fp = std::fopen(roundTrip, "rb");
         util::FILE_HEADER_V11 fileHeader;
@@ -726,6 +793,7 @@ int runSkeletalFoundationTests()
     failures = 0;
     testTrsRoundTrip();
     testCanonicalSkeletonCompilation();
+    testUniformCanonicalAssetScale();
     testCanonicalSkeletonReader();
     testCanonicalWeightValidation();
     testCanonicalWeightReader();

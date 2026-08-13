@@ -243,6 +243,11 @@ namespace mbm::skeletal
                                   uint32_t expectedVertexCount) noexcept;
     bool validateCanonicalAnimations(const CANONICAL_SKELETON &skeleton,
                                      const CANONICAL_ANIMATIONS &animations) noexcept;
+    bool buildUniformlyScaledCanonicalAsset(const CANONICAL_SKELETON &skeleton,
+                                            const CANONICAL_ANIMATIONS &animations,
+                                            float scale,
+                                            CANONICAL_SKELETON &scaledSkeleton,
+                                            CANONICAL_ANIMATIONS &scaledAnimations);
     bool validateSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
                               std::vector<DIAGNOSTIC> &diagnostics);
     bool sampleSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,

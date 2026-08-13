@@ -1488,6 +1488,18 @@ namespace mbm
         return 0;
     }
 
+    // scaleSkeletalAsset(scale) -- atomically scales geometry, canonical bind/clip translations,
+    // bone display metadata, and physics bounds. Only a finite positive uniform factor is valid.
+    int onScaleSkeletalAssetDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const float scale = static_cast<float>(luaL_checknumber(lua, 2));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.scaleSkeletalAsset(scale, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
     // translateFrame(frame, dx, dy, dz [,subset])  -- frame=0 means all; subset=0 means all; values added to each vertex position
     int onTranslateFrameDebugLua(lua_State *lua)
     {
@@ -2443,6 +2455,7 @@ namespace mbm
                                           {"centralizeItself", onCentralizeItselfMeshDebugLua},
                                           {"rotateFrame", onRotateFrameDebugLua},
                                           {"scaleFrame", onScaleFrameDebugLua},
+                                          {"scaleSkeletalAsset", onScaleSkeletalAssetDebugLua},
                                           {"translateFrame", onTranslateFrameDebugLua},
                                           {"check", onCheckMeshDebugLua},
                                           {"getStride", onGetStrideMeshDebugLua},

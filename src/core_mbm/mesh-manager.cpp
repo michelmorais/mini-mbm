@@ -3889,6 +3889,112 @@ namespace mbm
 
     }
 
+    bool MESH_MBM_DEBUG::scaleSkeletalAsset(const float scale, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0)
+                snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (!std::isfinite(scale) || scale <= 0.0f)
+            return fail("skeletal asset scale must be finite and greater than zero");
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton to scale");
+
+        skeletal::CANONICAL_SKELETON scaledSkeleton;
+        skeletal::CANONICAL_ANIMATIONS scaledAnimations;
+        if (!skeletal::buildUniformlyScaledCanonicalAsset(impl->canonicalSkeleton,
+                                                           impl->canonicalAnimations,
+                                                           scale,
+                                                           scaledSkeleton,
+                                                           scaledAnimations))
+        {
+            if (!scaledSkeleton.compiled.diagnostics.empty())
+            {
+                const skeletal::DIAGNOSTIC &diagnostic = scaledSkeleton.compiled.diagnostics.front();
+                if (errorOut && errorOutLen > 0)
+                    snprintf(errorOut, errorOutLen, "scaled canonical skeleton is invalid: %s at bone %u ('%s'), error %.9g",
+                             skeletal::diagnosticCodeName(diagnostic.code), diagnostic.sourceIndex,
+                             diagnostic.boneName.c_str(), diagnostic.observedError);
+                return false;
+            }
+            return fail("scaled canonical animation would be invalid");
+        }
+
+        const auto validProduct = [scale](const float value)
+        {
+            return std::isfinite(value) && std::isfinite(value * scale);
+        };
+        for (const util::BUFFER_MESH_DEBUG *frame : impl->buffer)
+        {
+            const auto *positions = reinterpret_cast<const VEC3 *>(frame->position);
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+            {
+                const uint32_t end = static_cast<uint32_t>(subset->vertexStart + subset->vertexCount);
+                for (uint32_t vertex = static_cast<uint32_t>(subset->vertexStart); vertex < end; ++vertex)
+                {
+                    if (!validProduct(positions[vertex].x) || !validProduct(positions[vertex].y) ||
+                        !validProduct(positions[vertex].z))
+                        return fail("scaled mesh vertex would not be finite");
+                }
+            }
+        }
+        for (const CUBE *cube : impl->infoPhysics.lsCube)
+        {
+            if (!validProduct(cube->halfDim.x) || !validProduct(cube->halfDim.y) ||
+                !validProduct(cube->halfDim.z) || !validProduct(cube->absCenter.x) ||
+                !validProduct(cube->absCenter.y) || !validProduct(cube->absCenter.z))
+                return fail("scaled cube bounds would not be finite");
+        }
+        for (const SPHERE *sphere : impl->infoPhysics.lsSphere)
+        {
+            if (!validProduct(sphere->ray) || !validProduct(sphere->absCenter[0]) ||
+                !validProduct(sphere->absCenter[1]) || !validProduct(sphere->absCenter[2]))
+                return fail("scaled sphere bounds would not be finite");
+        }
+        for (const CUBE_COMPLEX *cube : impl->infoPhysics.lsCubeComplex)
+            for (const _VEC3_POINT &point : cube->p)
+                if (!validProduct(point.x) || !validProduct(point.y) || !validProduct(point.z))
+                    return fail("scaled complex-cube bounds would not be finite");
+        for (const TRIANGLE *triangle : impl->infoPhysics.lsTriangle)
+        {
+            for (const VEC3 &point : triangle->point)
+                if (!validProduct(point.x) || !validProduct(point.y) || !validProduct(point.z))
+                    return fail("scaled triangle bounds would not be finite");
+            if (!validProduct(triangle->position.x) || !validProduct(triangle->position.y))
+                return fail("scaled triangle position would not be finite");
+        }
+
+        scaleFrame(-1, -1, scale, scale, scale);
+        for (CUBE *cube : impl->infoPhysics.lsCube)
+        {
+            cube->halfDim.x *= scale; cube->halfDim.y *= scale; cube->halfDim.z *= scale;
+            cube->absCenter.x *= scale; cube->absCenter.y *= scale; cube->absCenter.z *= scale;
+        }
+        for (SPHERE *sphere : impl->infoPhysics.lsSphere)
+        {
+            sphere->ray *= scale;
+            sphere->absCenter[0] *= scale; sphere->absCenter[1] *= scale; sphere->absCenter[2] *= scale;
+        }
+        for (CUBE_COMPLEX *cube : impl->infoPhysics.lsCubeComplex)
+            for (_VEC3_POINT &point : cube->p)
+            {
+                point.x *= scale; point.y *= scale; point.z *= scale;
+            }
+        for (TRIANGLE *triangle : impl->infoPhysics.lsTriangle)
+        {
+            for (VEC3 &point : triangle->point)
+            {
+                point.x *= scale; point.y *= scale; point.z *= scale;
+            }
+            triangle->position.x *= scale; triangle->position.y *= scale;
+        }
+        impl->canonicalSkeleton = std::move(scaledSkeleton);
+        impl->canonicalAnimations = std::move(scaledAnimations);
+        return true;
+    }
+
     void MESH_MBM_DEBUG::translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz)
     {
         if (indexFrame < 0)

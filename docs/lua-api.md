@@ -1254,14 +1254,29 @@ meshD:scaleFrame(frame, sx, sy, sz [, subset])
 mutates the canonical bind skeleton; changing bind transforms requires an explicit canonical
 skeleton-authoring operation rather than an implicit side effect of vertex scaling.
 
+For a coordinate-unit change of a complete skeletal asset, use:
+
+```lua
+meshD:scaleSkeletalAsset(scale)
+```
+
+`scale` must be finite and greater than zero. The call transactionally scales every geometry
+frame, canonical bind-local translations, bone radius/length metadata, translation values in every
+skeletal clip key, and physics bounds; it recompiles inverse bind and validates skeleton/clips
+before committing. Weights, rotations, normals, and local scale channels are unchanged. Failure
+raises a Lua error without partially modifying the asset. Mesh Debug selects this operation
+automatically when its Transform node applies a positive uniform scale to all frames and subsets of
+a canonical skeletal mesh. Partial transforms remain geometry-only; negative or non-uniform
+whole-asset skeletal scaling is rejected.
+
 ### Bind-pose diagnostics
 
 ```lua
 local report = meshD:getSkeletonBindReport()
 ```
 
-This read-only call inspects section 41 directly when a canonical skeleton is present; only older
-editor assets fall back to recompiling the stored legacy skeleton through the canonical foundation.
+This read-only call inspects canonical section 41 directly. An asset without section 41 has no
+skeletal bind report; there is no exploratory-skeleton compatibility fallback.
 It returns a table with `canonical`, `valid`, `boneCount`, `diagnosticCount`,
 `maximumReconstructionError`, `maximumBindIdentityError`, `bones`, and `diagnostics`. Each compiled
 bone contains its one-based `sourceIndex`, `name`, stable `boneId`/`parentBoneId` as 16-digit hex

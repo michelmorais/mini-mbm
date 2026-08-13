@@ -114,6 +114,27 @@ namespace mbm::skeletal
             out.diagnostics.push_back(std::move(diagnostic));
         }
 
+        float matrixProductIdentityTolerance(const MATRIX &left, const MATRIX &right) noexcept
+        {
+            float maximumAbsoluteProductSum = 1.0f;
+            for (int row = 0; row < 4; ++row)
+            {
+                for (int column = 0; column < 4; ++column)
+                {
+                    float absoluteProductSum = 0.0f;
+                    for (int inner = 0; inner < 4; ++inner)
+                        absoluteProductSum += std::fabs(left.p[row * 4 + inner] *
+                                                        right.p[inner * 4 + column]);
+                    maximumAbsoluteProductSum = std::max(maximumAbsoluteProductSum, absoluteProductSum);
+                }
+            }
+            // Four float products and three additions contribute rounding error to each output
+            // element. Eight epsilons is a conservative gamma-style bound; MATRIX_TOLERANCE still
+            // supplies the contract floor for unit-scale matrices.
+            return MATRIX_TOLERANCE + 8.0f * std::numeric_limits<float>::epsilon() *
+                   maximumAbsoluteProductSum;
+        }
+
 
         bool isFinite(const LOCAL_TRANSFORM &transform) noexcept
         {
@@ -466,7 +487,8 @@ namespace mbm::skeletal
             MatrixMultiply(&observed, &compiled.inverseGlobalBindMatrix, &compiled.globalBindMatrix);
             const float identityError = maximumMatrixDifference(observed, identity);
             out.maximumBindIdentityError = std::max(out.maximumBindIdentityError, identityError);
-            if (identityError > matrixComparisonTolerance(observed, identity))
+            if (identityError > matrixProductIdentityTolerance(compiled.inverseGlobalBindMatrix,
+                                                               compiled.globalBindMatrix))
                 addDiagnostic(out, DIAGNOSTIC_CODE::BIND_IDENTITY_MISMATCH, i, input.name, identityError);
             const int32_t compiledIndex = static_cast<int32_t>(out.bones.size());
             out.indexByName.emplace(input.name, compiledIndex);
@@ -535,6 +557,52 @@ namespace mbm::skeletal
                 return false;
         }
         return true;
+    }
+
+    bool buildUniformlyScaledCanonicalAsset(const CANONICAL_SKELETON &skeleton,
+                                            const CANONICAL_ANIMATIONS &animations,
+                                            const float scale,
+                                            CANONICAL_SKELETON &scaledSkeleton,
+                                            CANONICAL_ANIMATIONS &scaledAnimations)
+    {
+        if (skeleton.skeletonId == 0 || !std::isfinite(scale) || scale <= 0.0f)
+            return false;
+
+        scaledSkeleton = skeleton;
+        scaledAnimations = animations;
+        const auto scaleTranslation = [scale](VEC3 &translation)
+        {
+            translation.x *= scale;
+            translation.y *= scale;
+            translation.z *= scale;
+            return std::isfinite(translation.x) && std::isfinite(translation.y) &&
+                   std::isfinite(translation.z);
+        };
+        for (CANONICAL_BONE &bone : scaledSkeleton.sourceBones)
+        {
+            if (!scaleTranslation(bone.localBind.translation))
+                return false;
+            bone.radius *= scale;
+            bone.length *= scale;
+            if (!std::isfinite(bone.radius) || !std::isfinite(bone.length))
+                return false;
+        }
+        for (SKELETAL_CLIP &clip : scaledAnimations.clips)
+        {
+            for (SKELETAL_TRACK &track : clip.tracks)
+            {
+                for (SKELETAL_KEY &key : track.keys)
+                {
+                    if (!scaleTranslation(key.local.translation))
+                        return false;
+                }
+            }
+        }
+
+        if (!compileCanonicalSkeleton(scaledSkeleton.sourceBones, scaledSkeleton.compiled))
+            return false;
+        return scaledAnimations.skeletonId == 0 ||
+               validateCanonicalAnimations(scaledSkeleton, scaledAnimations);
     }
 
 

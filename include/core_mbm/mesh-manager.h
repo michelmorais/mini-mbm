@@ -229,6 +229,7 @@ namespace mbm
         API_IMPL void centralizeFrameItself(const int indexFrame, const int indexSubset);
         API_IMPL void rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ);
         API_IMPL void scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz);
+        API_IMPL bool scaleSkeletalAsset(const float scale, char *errorOut, const int errorOutLen);
         API_IMPL void translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz);
         API_IMPL bool addIndex(const uint32_t indexFrame, const uint32_t indexSubset,
                             const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,

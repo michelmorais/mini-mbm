@@ -337,14 +337,20 @@ never for anything the engine itself renders differently.
 
 ### Scaling geometry and its skeleton
 
-The skeleton uses the same coordinate space as mesh vertices; its positions are not normalized.
-Mesh Debug's Transform node may therefore synchronize a positive uniform whole-mesh scale with the
-global skeleton. That bake scales joint positions, radius, and length, while preserving per-bone
-`scaleX/Y/Z`: changing coordinate units is not a local bone-scale transform. A frame-only,
-subset-only, negative, or non-uniform operation cannot faithfully update the one global rest
-skeleton and is not synchronized. The FBX exporter currently reconstructs Blender edit bones from
-position, `rotX/Y/Z`, length, and radius; although `scaleX/Y/Z` travel through the intermediate
-JSON, they are not consumed when constructing the FBX armature.
+The canonical skeleton uses the same coordinate space as mesh vertices; its positions are not
+normalized. Mesh Debug therefore treats a positive uniform scale over all frames/subsets as a
+coordinate-unit conversion for the complete skeletal asset. One transaction scales geometry,
+bind-local translations, bone radius/length metadata, translation values in all clip keys, and
+physics bounds, then recompiles global/inverse bind and validates before commit. Bone rotations,
+weights, normals, and local scale channels remain unchanged: changing coordinate units is not a
+local bone-scale animation.
+
+A partial frame/subset scale remains an explicit geometry edit. A negative or non-uniform complete
+skeletal scale is rejected because conjugating arbitrary animated rotations through such a change
+can introduce reflection or shear that the canonical local TRS and rigid DQS contracts cannot
+faithfully represent. Since Mesh Debug-to-FBX export reads canonical global bind matrices and
+canonical weights, a successfully committed uniform asset scale reaches Blender in the same scaled
+coordinate space instead of exporting a small armature inside enlarged geometry.
 
 ### Armature Templates — reusable named skeletons
 
