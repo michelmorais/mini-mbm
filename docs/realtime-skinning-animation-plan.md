@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 5.7 | 2026-08-13 | Retired pre-canonical section-11/name-palette test fixtures from the active suite. Canonical tests retain hierarchy, validation, weights, clips, corruption, scale, CPU/GPU preparation, and round-trip coverage; legacy compiler/validator symbols now have no compiled consumer. |
 | 5.6 | 2026-08-13 | Removed `MESH_MBM_DEBUG::refreshSkeletonBindReport()` and its duplicate compiled snapshot. Bind-report getters now read the canonical compiled skeleton created during load directly. |
 | 5.5 | 2026-08-13 | Made the C++ bind-report path canonical-only and removed runtime intermediate scratch storage for sections 11/40. The legacy compiler is no longer reachable from an engine/editor asset path and remains only as test-fixture residue. |
 | 5.4 | 2026-08-13 | Removed active v11 loader/writer support for exploratory sections 11/40. They are no longer counted, emitted, tolerated, or reported as the mesh skeleton; canonical section 41 now owns metadata inspection. Remaining legacy symbols are unreachable deletion residue only. |

@@ -57,6 +57,10 @@ namespace
         return false;
     }
 
+    #if 0
+    // Retired exploratory 11/40 fixture helpers. Canonical hierarchy, validation, weights, clips,
+    // scale equivalence, and corruption cases below supersede these tests. Kept in this diff only
+    // until the associated production symbols are physically deleted in the same milestone.
     bool hasDiagnostic(const WEIGHT_VALIDATION_REPORT &report, const DIAGNOSTIC_CODE code)
     {
         for (const DIAGNOSTIC &diagnostic : report.diagnostics)
@@ -77,6 +81,9 @@ namespace
         return false;
     }
 
+    #endif
+
+    #if 0
     util::SKELETON_BONE_V11 makeBone(const char *name, const char *parent,
                                      const float x, const float y, const float z)
     {
@@ -88,6 +95,8 @@ namespace
         bone.z = z;
         return bone;
     }
+
+    #endif
 
     void testTrsRoundTrip()
     {
@@ -108,6 +117,7 @@ namespace
                "TRS decomposition must reconstruct the original matrix");
     }
 
+    #if 0
     void testHierarchyAndIdentity()
     {
         std::vector<util::SKELETON_BONE_V11> legacy;
@@ -473,6 +483,8 @@ namespace
                std::fabs(unit.z - hundred.z / 100.0f) <= MATRIX_TOLERANCE,
                "scale-1 and scale-100 fixtures must produce equivalent normalized global poses");
     }
+
+    #endif
 
     void testCanonicalSkeletonCompilation()
     {
@@ -1122,12 +1134,6 @@ int runSkeletalFoundationTests()
 {
     failures = 0;
     testTrsRoundTrip();
-    testHierarchyAndIdentity();
-    testValidation();
-    testWeightValidation();
-    testClipSampling();
-    testClipCorruptionDiagnostics();
-    testScaleOneAndHundredEquivalence();
     testCanonicalSkeletonCompilation();
     testCanonicalSkeletonReader();
     testCanonicalWeightValidation();
