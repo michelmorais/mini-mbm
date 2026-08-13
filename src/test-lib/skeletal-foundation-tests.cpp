@@ -255,6 +255,18 @@ namespace
                    reparentError, sizeof(reparentError)) && mesh.getSkeletonBindBone(1, rejected) &&
                    maximumMatrixDifference(edited.localBindMatrix, rejected.localBindMatrix) <= MATRIX_TOLERANCE,
                "canonical bind editing must reject a zero quaternion without mutation");
+        uint32_t addedIndex = 0;
+        expect(mesh.addSkeletalBone(1, "added-child", VEC3(0.0f, 2.0f, 0.0f),
+                   0.1f, 1.5f, &addedIndex, reparentError, sizeof(reparentError)) &&
+                   addedIndex == 2 && mesh.getSkeletonBindBone(addedIndex, edited) &&
+                   edited.parentIndex == 1 && edited.boneId != 0 &&
+                   std::fabs(edited.localTranslation.y - 2.0f) <= MATRIX_TOLERANCE,
+               "canonical bone addition must append a valid child with a new stable ID");
+        SKELETON_BIND_SUMMARY addSummary;
+        expect(!mesh.addSkeletalBone(-1, "added-child", VEC3(), 0.1f, 1.0f,
+                   &addedIndex, reparentError, sizeof(reparentError)) &&
+                   mesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount == 3,
+               "canonical bone addition must reject duplicate names without mutation");
         std::remove(reparentPath);
         std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);
     }

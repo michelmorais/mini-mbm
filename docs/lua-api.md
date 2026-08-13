@@ -1322,6 +1322,16 @@ negative radius/length, or a candidate that fails complete section 41–43 valid
 error without mutation. Bone and skeleton IDs remain unchanged. The operation deliberately moves
 the edited bone and its descendants; it does not compensate child-local transforms.
 
+```lua
+local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length)
+```
+
+Adds one canonical bone. `parentIndex=0` creates a root; positive values select a one-based existing
+parent. The returned index is one-based. The bone receives a new opaque nonzero stable ID, identity
+rotation/scale, and the supplied parent-relative translation and nonnegative radius/length. Empty or
+duplicate names, invalid parents, non-finite input, or a candidate that fails section 41–43 validation
+raises a Lua error without mutation. Existing weight palettes and animation tracks are unchanged.
+
 ### Canonical skeletal-weight editing
 
 ```lua

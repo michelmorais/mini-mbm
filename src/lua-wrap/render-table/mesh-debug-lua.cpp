@@ -2372,6 +2372,27 @@ namespace mbm
         return 0;
     }
 
+    int onAddSkeletalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer parent = luaL_checkinteger(lua, 2);
+        if (parent < 0) return luaL_error(lua, "canonical parent index must be zero (root) or one-based");
+        const char *name = luaL_checkstring(lua, 3);
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 4)),
+                               static_cast<float>(luaL_checknumber(lua, 5)),
+                               static_cast<float>(luaL_checknumber(lua, 6)));
+        const float radius = static_cast<float>(luaL_checknumber(lua, 7));
+        const float length = static_cast<float>(luaL_checknumber(lua, 8));
+        uint32_t newIndex = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalBone(parent == 0 ? -1 : static_cast<int32_t>(parent - 1),
+                name, translation, radius, length, &newIndex,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(newIndex + 1));
+        return 1;
+    }
+
 
     int onSetSkeletalVertexWeightDebugLua(lua_State *lua)
     {
@@ -2526,6 +2547,7 @@ namespace mbm
                                           {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
                                           {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
+                                          {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},

@@ -61,6 +61,16 @@ canonical asset. Because this is a local bind correction, the selected bone and 
 child transforms are not silently compensated. Invalid input leaves the asset unchanged, and the
 successful edit can be reverted through the shared one-level history.
 
+Direct mouse manipulation is reserved for the editor-refinement phase. The numeric fields remain
+available for exact values; future viewport translation/rotation/scale gizmos will feed the same
+transactional bind-edit operation rather than maintaining separate skeleton state.
+
+**Add bone** creates a root or child using a unique name and parent-relative translation. New bones
+start with identity rotation/scale and inherit the selected bone's authoring radius/length; those
+values can then be corrected through the local-bind fields. Addition allocates a new stable ID,
+preserves existing weights/tracks, validates the complete canonical asset, selects the new bone, and
+participates in the shared rollback history.
+
 The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
 bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or
 manufacture a legacy skeleton. Assets containing only exploratory skeletal sections must be

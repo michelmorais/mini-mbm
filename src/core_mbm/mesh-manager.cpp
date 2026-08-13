@@ -48,6 +48,7 @@
 #include <condition_variable>
 #include <atomic>
 #include <queue>
+#include <limits>
 
 
 const bool is_any_mode_valid(const util::INFO_DRAW_MODE & info_mode,std::string & which_mode_is_invalid)noexcept
@@ -4605,6 +4606,68 @@ namespace mbm
             !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
             return fail("canonical animations would be invalid after bind edit");
         impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalBone(const int32_t parentIndex, const char *name,
+                                          const VEC3 &translation, const float radius, const float length,
+                                          uint32_t *newIndexOut, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (parentIndex < -1 || parentIndex >= static_cast<int32_t>(source.size()))
+            return fail("canonical parent index is out of range");
+        if (!name || !name[0]) return fail("canonical bone name must not be empty");
+        if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+            !std::isfinite(translation.z) || !std::isfinite(radius) || !std::isfinite(length))
+            return fail("canonical bone values must be finite");
+        if (radius < 0.0f || length < 0.0f)
+            return fail("canonical bone radius and length must not be negative");
+        if (impl->canonicalSkeleton.compiled.indexByName.find(name) !=
+            impl->canonicalSkeleton.compiled.indexByName.end())
+            return fail("canonical bone name must be unique");
+
+        uint64_t boneId = 1;
+        while (impl->canonicalSkeleton.compiled.indexById.find(boneId) !=
+               impl->canonicalSkeleton.compiled.indexById.end())
+        {
+            if (boneId == std::numeric_limits<uint64_t>::max())
+                return fail("canonical bone ID space is exhausted");
+            ++boneId;
+        }
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE added;
+        added.boneId = boneId;
+        added.parentBoneId = parentIndex < 0 ? 0 : source[static_cast<uint32_t>(parentIndex)].boneId;
+        added.name = name;
+        added.localBind.translation = translation;
+        added.radius = radius;
+        added.length = length;
+        candidate.sourceBones.push_back(std::move(added));
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("added canonical bone would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after adding bone");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after adding bone");
+        impl->canonicalSkeleton = std::move(candidate);
+        if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->canonicalSkeleton.sourceBones.size() - 1);
         return true;
     }
 

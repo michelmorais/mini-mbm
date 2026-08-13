@@ -261,6 +261,10 @@ namespace mbm
                                           const float rotationZ, const float rotationW,
                                           const VEC3 &scale, const float radius, const float length,
                                           char *errorOut, const int errorOutLen);
+        // Adds a parent-first canonical bone with a new opaque stable ID. parentIndex is -1 for root.
+        API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,
+                                      const VEC3 &translation, const float radius, const float length,
+                                      uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
         // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
         // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
         // An asset without an existing canonical skeleton/weight section is rejected rather than

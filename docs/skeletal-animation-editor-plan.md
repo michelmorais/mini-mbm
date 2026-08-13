@@ -158,6 +158,25 @@ it does not authorize copying the large Lua block into the new editor.
 - Add/remove bones with affected-reference reporting and one-level rollback at minimum.
 - Offer derivation helpers only as previewable, named heuristics.
 
+### Viewport-interaction refinement
+
+Numeric local-TRS fields remain the precise and scriptable bind-correction surface. After the safe
+mutation contracts above are complete, add modern direct manipulation without creating a second
+mutation path:
+
+- select bones and joints directly in the viewport with unambiguous hit targets and hierarchy sync;
+- provide translation, rotation, and scale gizmos with explicit local/global coordinate modes;
+- support constrained axis/plane dragging, snapping, numeric feedback, and visual hover/active state;
+- preview continuously during a drag, but create one rollback snapshot and one canonical commit only
+  when the gesture ends;
+- allow Escape/right-click cancellation to restore the exact pre-drag state;
+- route the final values through the same transactional local-bind API and 41–43 validation used by
+  the numeric fields;
+- keep bind manipulation visually and behaviorally distinct from future animation-pose gizmos.
+
+This refinement is not a prerequisite for proving skeleton storage and referential integrity, but it
+is required before the Skeleton / Bind Pose workflow is considered ergonomically complete.
+
 ### Later local-authoring scope
 
 - Create a complete skeleton from an unrigged mesh.
@@ -461,6 +480,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 5.3 | 2026-08-13 | Added transactional canonical bone creation as the next safe-correction slice. The editor accepts a unique name, root/existing parent, and parent-relative translation; identity rotation/scale plus inherited radius/length provide explicit editable defaults. C++ allocates a new opaque nonzero stable ID independent of name, appends parent-first, revalidates 41–43, preserves existing weights/tracks, returns/selects the new index, and integrates with whole-asset rollback. Chain/mirror tooling remains Milestone 4. |
+| 5.2 | 2026-08-13 | Reserved direct viewport bone editing as an explicit editor-refinement phase after safe structural mutation. Numeric TRS remains the precise foundation; future mouse manipulation must add synchronized picking, local/global translation/rotation/scale gizmos, constrained drag/snapping/cancel, continuous preview, and exactly one transactional 41–43 commit/rollback boundary per completed gesture. Bind gizmos remain distinct from future animated-pose gizmos. |
 | 5.1 | 2026-08-13 | Added transactional parent-relative bind correction for the selected bone: translation, quaternion rotation, scale, radius, and length. Quaternion input is normalized; zero quaternion, singular/non-finite transforms, negative metadata, and invalid 41–43 candidates reject without mutation. Stable IDs remain intact, subtree movement is explicit, runtime/gizmos rebuild after commit, and the shared whole-asset rollback covers the operation. |
 | 5.0 | 2026-08-13 | Promoted the existing one-level file snapshot into a skeleton-aware rollback boundary shared by Bind Pose Contract and Skin Weight Lab. Rename/reparent stage a complete 41–43 asset snapshot and commit it to history only after successful mutation; rejection preserves the prior history entry. Revert now rebuilds canonical report, hierarchy, preview, gizmos, selections, and allowed-bone state rather than restoring only weight-lab data. |
 | 4.9 | 2026-08-13 | Added transactional canonical reparent. The selected bone can target root or another bone with explicit preserve-global (default) or preserve-local policy. Self-parent/cycles, singular parents, and preserve-global shear are rejected; source bones are stably reordered parent-first and 41–43 revalidate before commit. Stable IDs preserve weights/tracks, and fixtures cover cycle rejection plus child-to-root global-bind preservation. |
