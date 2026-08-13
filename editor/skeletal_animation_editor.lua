@@ -48,6 +48,7 @@ local state = {
     boundaryMarkersVisible = true,
     info = nil,
     bindReport = nil,
+    bindTreeOpenAll = false,
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -560,11 +561,14 @@ local function applyWorkspaceVisibility()
         state.targetBoneHighlightSphere.visible=shouldShowSkeleton() and weightWorkspace and
             state.targetBoneHighlight
     end
+    local selectedBindBone=state.workspace=='bind' and getBones()[state.boneIndex] or nil
     for name,object in pairs(state.skeletonGizmo.spheres) do
         if weightWorkspace and name==state.hoveredAllowedBone then
             object:setColor(1,0.45,0.05,1)
         elseif weightWorkspace and state.allowedBonesHighlight and state.allowedBones[name] then
             object:setColor(0.1,0.85,1,0.95)
+        elseif selectedBindBone and name==selectedBindBone.name then
+            object:setColor(0.1,0.85,1,1)
         else
             object:setColor(1,0,1,0.85)
         end
@@ -619,8 +623,11 @@ local function rebuildProximityBoneHighlight()
 end
 
 local function updateAllowedBoneColors()
+    local selectedBindBone=state.workspace=='bind' and getBones()[state.boneIndex] or nil
     for name,object in pairs(state.skeletonGizmo.spheres) do
-        if not isWeightLabWorkspace() then
+        if selectedBindBone and name==selectedBindBone.name then
+            object:setColor(0.1,0.85,1,1)
+        elseif not isWeightLabWorkspace() then
             object:setColor(1,0,1,0.85)
         elseif name==state.hoveredAllowedBone then
             object:setColor(1,0.45,0.05,1)
@@ -1940,6 +1947,90 @@ local function formatBindMatrix(matrix)
         table.unpack(matrix))
 end
 
+local function showSelectedBindBone(report)
+    local bone=report.bones and report.bones[state.boneIndex] or nil
+    if not bone then return end
+    tImGui.Separator()
+    tImGui.Text(string.format('%s: %s',tLang.L('swl_source_bone'),bone.name or '?'))
+    tImGui.Text(string.format('ID: %s  Parent: %s (%d)',bone.boneId or '?',
+        bone.parentBoneId or '?',bone.parentIndex or 0))
+    local translation=bone.localTranslation or {}
+    local rotation=bone.localRotation or {}
+    local scale=bone.localScale or {}
+    tImGui.Text(string.format('T %.6g %.6g %.6g',translation.x or 0,
+        translation.y or 0,translation.z or 0))
+    tImGui.Text(string.format('Q %.6g %.6g %.6g %.6g',rotation.x or 0,
+        rotation.y or 0,rotation.z or 0,rotation.w or 1))
+    tImGui.Text(string.format('S %.6g %.6g %.6g',scale.x or 1,scale.y or 1,scale.z or 1))
+    tImGui.Text(string.format('Radius %.6g  Length %.6g',bone.radius or 0,bone.length or 0))
+    if bone.hasNegativeScale then tImGui.TextColored({r=1,g=0.65,b=0.1,a=1},
+        tLang.L('swl_bind_negative_scale')) end
+    if bone.hasShear then tImGui.TextColored({r=1,g=0.3,b=0.25,a=1},
+        tLang.L('swl_bind_shear')) end
+    if tImGui.TreeNode(tLang.L('swl_bind_local_matrix')..'##selectedLocal') then
+        tImGui.Text(formatBindMatrix(bone.localBindMatrix)); tImGui.TreePop()
+    end
+    if tImGui.TreeNode(tLang.L('swl_bind_global_matrix')..'##selectedGlobal') then
+        tImGui.Text(formatBindMatrix(bone.globalBindMatrix)); tImGui.TreePop()
+    end
+    if tImGui.TreeNode(tLang.L('swl_bind_inverse_matrix')..'##selectedInverse') then
+        tImGui.Text(formatBindMatrix(bone.inverseGlobalBindMatrix)); tImGui.TreePop()
+    end
+end
+
+local function showBindBoneHierarchy(report)
+    local bones=report.bones or {}
+    local children={}
+    local roots={}
+    local diagnosticsByBone={}
+    for _,diagnostic in ipairs(report.diagnostics or {}) do
+        local index=tonumber(diagnostic.sourceIndex) or 0
+        diagnosticsByBone[index]=diagnosticsByBone[index] or {}
+        diagnosticsByBone[index][#diagnosticsByBone[index]+1]=diagnostic
+    end
+    for index,bone in ipairs(bones) do
+        local parentIndex=tonumber(bone.parentIndex) or 0
+        if parentIndex>0 and parentIndex<=#bones and parentIndex~=index then
+            children[parentIndex]=children[parentIndex] or {}
+            children[parentIndex][#children[parentIndex]+1]=index
+        else
+            roots[#roots+1]=index
+        end
+    end
+
+    local visited={}
+    local function showNode(index)
+        if visited[index] then return end
+        visited[index]=true
+        local bone=bones[index]
+        local findings=diagnosticsByBone[index]
+        local prefix=findings and '! ' or ''
+        local label=string.format('%s%s##swlHierarchyBone%d',prefix,bone.name or '?',index)
+        local flags=state.boneIndex==index and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or
+            tImGui.Flags('ImGuiTreeNodeFlags_None')
+        if state.bindTreeOpenAll then
+            tImGui.SetNextItemOpen(true,tImGui.Flags('ImGuiCond_Always'))
+        end
+        if findings then tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'),
+            {r=1,g=0.45,b=0.2,a=1}) end
+        local open=tImGui.TreeNodeEx(label,flags)
+        local clicked=tImGui.IsItemClicked()
+        if findings then tImGui.PopStyleColor(1) end
+        if clicked then
+            state.boneIndex=index
+            applyWorkspaceVisibility()
+        end
+        if open then
+            for _,childIndex in ipairs(children[index] or {}) do showNode(childIndex) end
+            tImGui.TreePop()
+        end
+    end
+    for _,rootIndex in ipairs(roots) do showNode(rootIndex) end
+    -- Defensive display for malformed snapshots; canonical validation should make this empty.
+    for index=1,#bones do if not visited[index] then showNode(index) end end
+    state.bindTreeOpenAll=false
+end
+
 local function showBindPoseDiagnostics()
     local report=state.bindReport
     if not report then
@@ -1966,34 +2057,11 @@ local function showBindPoseDiagnostics()
     end
     if report.bones and tImGui.TreeNode(string.format('%s (%d)##swlBindBones',
             tLang.L('swl_bind_compiled_bones'),#report.bones)) then
-        for index,bone in ipairs(report.bones) do
-            if tImGui.TreeNode(string.format('%d. %s##swlBindBone%d',index,bone.name or '?',index)) then
-                tImGui.Text(string.format('ID: %s  Parent: %s (%d)',bone.boneId or '?',
-                    bone.parentBoneId or '?',bone.parentIndex or 0))
-                local translation=bone.localTranslation or {}
-                local rotation=bone.localRotation or {}
-                local scale=bone.localScale or {}
-                tImGui.Text(string.format('T %.6g %.6g %.6g',translation.x or 0,
-                    translation.y or 0,translation.z or 0))
-                tImGui.Text(string.format('Q %.6g %.6g %.6g %.6g',rotation.x or 0,
-                    rotation.y or 0,rotation.z or 0,rotation.w or 1))
-                tImGui.Text(string.format('S %.6g %.6g %.6g',scale.x or 1,scale.y or 1,scale.z or 1))
-                if bone.hasNegativeScale then tImGui.TextColored({r=1,g=0.65,b=0.1,a=1},
-                    tLang.L('swl_bind_negative_scale')) end
-                if bone.hasShear then tImGui.TextColored({r=1,g=0.3,b=0.25,a=1},
-                    tLang.L('swl_bind_shear')) end
-                if tImGui.TreeNode(tLang.L('swl_bind_local_matrix')..'##local'..index) then
-                    tImGui.Text(formatBindMatrix(bone.localBindMatrix)); tImGui.TreePop()
-                end
-                if tImGui.TreeNode(tLang.L('swl_bind_global_matrix')..'##global'..index) then
-                    tImGui.Text(formatBindMatrix(bone.globalBindMatrix)); tImGui.TreePop()
-                end
-                if tImGui.TreeNode(tLang.L('swl_bind_inverse_matrix')..'##inverse'..index) then
-                    tImGui.Text(formatBindMatrix(bone.inverseGlobalBindMatrix)); tImGui.TreePop()
-                end
-                tImGui.TreePop()
-            end
+        if tImGui.Button(tLang.L('swl_expand_all')..'##swlBindExpandAll') then
+            state.bindTreeOpenAll=true
         end
+        showBindBoneHierarchy(report)
+        showSelectedBindBone(report)
         tImGui.TreePop()
     end
 end
