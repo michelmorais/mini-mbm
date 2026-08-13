@@ -5790,32 +5790,37 @@ local function writeMeshDebugJson(meshD, jsonPath)
     end
 
     f:write('{\n  "joints": [\n')
-    local okTB, nBones = dpCall(function() return meshD:getTotalBone() end)
-    nBones = (okTB and nBones) or 0
-    for i = 1, nBones do
-        local okG, name, x, y, z, radius, parentName, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, length =
-            dpCall(function() return meshD:getBone(i) end)
-        if okG and name then
-            f:write(string.format(
-                '    { "name": %s, "parent": %s, "x": %.6f, "y": %.6f, "z": %.6f, "radius": %.6f, ' ..
-                '"rotX": %.6f, "rotY": %.6f, "rotZ": %.6f, "scaleX": %.6f, "scaleY": %.6f, "scaleZ": %.6f, "length": %.6f }',
-                jsonStr(name), parentName and jsonStr(parentName) or 'null', x, y, z, radius,
-                rotX or 0, rotY or 0, rotZ or 0, scaleX or 1, scaleY or 1, scaleZ or 1, length or 0))
-            f:write(i < nBones and ',\n' or '\n')
+    local okReport, bindReport = dpCall(function() return meshD:getSkeletonBindReport() end)
+    local reportBones = okReport and type(bindReport) == 'table' and bindReport.canonical == true
+        and bindReport.bones or {}
+    local nBones = #reportBones
+    for i, bone in ipairs(reportBones) do
+        local global = bone.globalBindMatrix or {}
+        local parentName = nil
+        if (bone.parentIndex or 0) > 0 and reportBones[bone.parentIndex] then
+            parentName = reportBones[bone.parentIndex].name
         end
+        local matrixValues = {}
+        for m = 1, 16 do matrixValues[m] = string.format('%.9g', global[m] or 0) end
+        f:write(string.format(
+            '    { "name": %s, "parent": %s, "x": %.9g, "y": %.9g, "z": %.9g, ' ..
+            '"radius": %.9g, "length": %.9g, "globalBindMatrix": [%s] }',
+            jsonStr(bone.name), parentName and jsonStr(parentName) or 'null',
+            global[13] or 0, global[14] or 0, global[15] or 0,
+            bone.radius or 0, bone.length or 0, table.concat(matrixValues, ', ')))
+        f:write(i < nBones and ',\n' or '\n')
     end
     f:write('  ],\n  "mesh": {\n    "vertices": [\n')
 
-    -- Real per-vertex bone weights (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec. 6f),
-    -- when present, ride along on each vertex dict so blender_mesh_skeleton_export.py's build_mesh
-    -- can use the mesh's own originally-authored weights instead of inventing new ones via
-    -- ARMATURE_ENVELOPE. meshD:getVertexWeight() takes a GLOBAL (frame-wide, across every subset)
-    -- 1-based vertex index -- exactly (totalVerts + v) below, the same running-total convention the
-    -- index-list offset a few lines down already uses for the same reason.
-    local okHasW, hasWeights = dpCall(function() return meshD:hasVertexWeights() end)
+    -- Canonical type-42 weights ride along on each vertex so Blender can restore the authored
+    -- groups exactly. The API uses the same global, frame-wide, one-based vertex order written
+    -- below; no exploratory name palette is consulted.
+    local okHasW, hasWeights = dpCall(function() return meshD:hasSkeletalVertexWeights() end)
     hasWeights = okHasW and hasWeights
     local function weightJsonFragment(globalVertexIndex)
-        local okGW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function() return meshD:getVertexWeight(globalVertexIndex) end)
+        local okGW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function()
+            return meshD:getSkeletalVertexWeight(globalVertexIndex)
+        end)
         if not okGW or not n1 then return '' end
         local names, weights = {}, {}
         local function addSlot(n, w)

@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **3.3**
+Document version: **3.4**
 Status: **Canonical import and exclusive five-worktree editor shell implemented**
 Last updated: **2026-08-13**
 
@@ -372,6 +372,11 @@ Exit: editor and runtime produce matching reference vertices/normals for the sam
   name-palette weight methods are no longer registered on `meshDebug`. FBX import already writes
   only canonical sections 41–43; its unused 11/40 constants/builders are isolated for deletion.
   C++ storage/parsers and the old Mesh Debug FBX-export implementation remain the next gate.
+- Mesh Debug's reverse FBX export now serializes its joint hierarchy from the canonical bind
+  report, including each bone's global bind matrix, and reads vertex groups exclusively through
+  canonical type-42 methods. Blender reconstructs head, axis, and roll from the global matrix
+  rather than exploratory global Euler fields. This removes the last active editor/interchange
+  consumer of sections 11/40; only dead implementation and compatibility parsing remain.
 
 Exit: there is one canonical implementation for each skeleton, weight, and animation responsibility.
 
@@ -440,6 +445,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 3.4 | 2026-08-13 | Migrated Mesh Debug → FBX export to canonical bind-report matrices and type-42 weights. Blender reconstructs global bone axis/roll directly from each global bind matrix, so the reverse interchange path no longer consumes sections 11/40. |
 | 3.3 | 2026-08-13 | Retired the Mesh Debug Bone product surface and destructive legacy-weight removal controls. The node/window are no longer called, stale gizmos are cleaned defensively, and Mesh Info statistics now inspect canonical type-42 weights. Legacy implementation and persistence remain temporarily for the next physical-deletion gate. |
 | 3.2 | 2026-08-12 | Migrated every Skin Weight Lab read/write path to canonical type-42 weights. New narrow C++/Lua operations resolve UI names to stable bone IDs, enforce four unique positive normalized influences, validate the complete canonical record transactionally, and never create sections 11/40. Synthetic mutation/read/rejection preservation joins save/reload and Lorekeeper as acceptance evidence. |
 | 3.1 | 2026-08-12 | Began Milestone 8 by migrating the Skeletal Animation Editor's bone list and bind gizmo from legacy `getTotalBone/getBone` to canonical bind-report bones only. Lorekeeper-style type-41 assets now supply hierarchy and global joint positions without a compatibility copy; legacy-only assets intentionally supply no editor skeleton. The audit identifies Skin Weight Lab's exploratory name-palette weight API as the next deletion blocker. |

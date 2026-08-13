@@ -299,32 +299,29 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
         # for the standard export undoes the Y-up bake back to Blender's own Z-up space.
         return (pos[0], pos[1], pos[2] + 0.01)
 
-    # sectionVersion 2 (editor/mesh_debug.lua, header-mesh.h SKELETON_BONE_V11) added real bone
-    # orientation (rotX/Y/Z, Euler degrees) + length, captured directly from Blender's own bone
-    # axis/roll at import time (extract_armature_joints in blender_mesh_export.py) -- when present,
-    # this replaces compute_tail's guesswork entirely with the source rig's actual data, including
-    # ROLL (twist around the bone's own axis), which position-only data could never provide no
-    # matter how good the tail-direction heuristic got. length > EPS is the "real data present"
-    # signal, not rotX==rotY==rotZ==0 -- an axis-aligned real bone legitimately has all-zero Euler
-    # angles, so length (only ever nonzero when this import path set it) is the reliable sentinel.
-    # A bone with no orientation data (old sectionVersion 1 files, or synthesized/hand-authored
-    # bones with no Blender-import provenance, e.g. "Apply Humanoid Armature") falls back to
-    # compute_tail exactly as before -- this preserves this session's already-verified-working
-    # behavior for legacy content.
+    # Canonical export supplies each bone's row-major global bind matrix. Its Y and Z basis rows
+    # give Blender the bone axis and roll directly, including the complete parent composition;
+    # this avoids converting canonical local quaternions back through an Euler hierarchy. Assets
+    # without a usable matrix/length keep the topology-based fallback for mesh-only robustness.
     EPS = 1e-6
 
     def has_orientation(name):
-        return float(joints[name].get("length", 0.0)) > EPS
+        matrix = joints[name].get("globalBindMatrix") or []
+        return len(matrix) == 16 and float(joints[name].get("length", 0.0)) > EPS
 
     def reconstruct_tail_and_roll(name, pos):
         j = joints[name]
         length = float(j["length"])
-        rot = (float(j.get("rotX", 0.0)), float(j.get("rotY", 0.0)), float(j.get("rotZ", 0.0)))
-        # Decode the bone's local Y (axis) and Z (roll) directions in the stored space, then apply
-        # the same rotation_deg the export already applies to positions, so orientation lands in
-        # the identical space as head/tail.
-        d_stored = rotate_point_deg(0.0, length, 0.0, *rot)
-        z_stored = rotate_point_deg(0.0, 0.0, 1.0, *rot)
+        matrix = [float(value) for value in j["globalBindMatrix"]]
+        # mini-mbm uses row vectors: translation is m[12:15], and the transformed local Y/Z axes
+        # are rows 1/2. Normalize them so authored scale does not multiply the bone's metadata
+        # length or produce an invalid roll direction.
+        y_stored = (matrix[4], matrix[5], matrix[6])
+        z_stored = (matrix[8], matrix[9], matrix[10])
+        y_len = max(EPS, sum(value * value for value in y_stored) ** 0.5)
+        z_len = max(EPS, sum(value * value for value in z_stored) ** 0.5)
+        d_stored = tuple(value / y_len * length for value in y_stored)
+        z_stored = tuple(value / z_len for value in z_stored)
         if rotation_deg:
             d_stored = rotate_point_deg(*d_stored, *rotation_deg)
             z_stored = rotate_point_deg(*z_stored, *rotation_deg)
@@ -401,11 +398,8 @@ def build_armature(data: dict, debug: bool, rotation_deg: tuple[float, float, fl
 
 
 def apply_stored_vertex_weights_override(mesh_obj, verts_data: list[dict], debug: bool) -> None:
-    """Writes the mesh's own REAL, originally-authored (or editor Rigid-Bind-assigned) per-vertex
-    bone weights -- captured at import time by editor/blender_mesh_export.py's export_frame_subsets
-    (SECTION_VERTEX_SKIN_WEIGHTS, docs/mesh-v11-format.md Sec. 6f), or written directly by
-    mesh_debug.lua's Rigid Bind tool, and round-tripped here via writeMeshDebugJson's "boneNames"/
-    "weights" per-vertex fields -- directly into mesh_obj's vertex groups.
+    """Writes canonical type-42 per-vertex weights, round-tripped by writeMeshDebugJson's
+    "boneNames"/"weights" fields, directly into mesh_obj's vertex groups.
 
     Runs as a FINAL OVERRIDE PASS, after bind_mesh_to_armature has already run its
     ARMATURE_ENVELOPE geometric approximation (+ cleanup passes) for the WHOLE mesh -- previously
@@ -689,9 +683,8 @@ def main() -> int:
         verts_data = data["mesh"]["vertices"]
         # ARMATURE_ENVELOPE binding (+ its cleanup passes) always runs first, for every vertex --
         # this is what gives the rest of the mesh (anything WITHOUT stored per-vertex data) normal
-        # deformation. SECTION_VERTEX_SKIN_WEIGHTS data (docs/mesh-v11-format.md Sec. 6f), when
-        # present on a vertex -- real, originally-authored weights, or an explicit Rigid Bind from
-        # mesh_debug.lua -- then OVERRIDES just that vertex's envelope-derived groups; see
+        # deformation. Canonical type-42 data, when present on a vertex, then OVERRIDES just that
+        # vertex's envelope-derived groups; see
         # apply_stored_vertex_weights_override's own docstring for why this two-pass order replaced
         # the previous mesh-wide either/or (which zeroed the rest of the mesh whenever only a prop
         # bone had real weights).
