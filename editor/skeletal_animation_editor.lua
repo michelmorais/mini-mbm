@@ -54,6 +54,8 @@ local state = {
     bindReparentBoneId = nil,
     bindParentChoice = 1,
     bindPreserveGlobal = true,
+    bindEditBoneId = nil,
+    bindEdit = {},
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -1157,6 +1159,9 @@ local function loadMesh(path)
     refreshBindReport()
     state.modified = false
     state.normalizeReport=nil
+    state.bindRenameBoneId=nil
+    state.bindReparentBoneId=nil
+    state.bindEditBoneId=nil
     state.proximityBoneHighlight=false
     state.analysis = nil
     state.analysisDirty = true
@@ -1594,6 +1599,7 @@ local function revertLast()
     state.normalizeReport=nil
     state.bindRenameBoneId=nil
     state.bindReparentBoneId=nil
+    state.bindEditBoneId=nil
     refreshBindReport()
     local bones=getBones()
     state.boneIndex=math.max(1,math.min(state.boneIndex,#bones))
@@ -2011,6 +2017,14 @@ local function showSelectedBindBone(report)
         state.bindParentChoice=(bone.parentIndex or 0)+1
         state.bindPreserveGlobal=true
     end
+    if state.bindEditBoneId~=bone.boneId then
+        local translation,rotation,scale=bone.localTranslation or {},bone.localRotation or {},bone.localScale or {}
+        state.bindEditBoneId=bone.boneId
+        state.bindEdit={tx=translation.x or 0,ty=translation.y or 0,tz=translation.z or 0,
+            qx=rotation.x or 0,qy=rotation.y or 0,qz=rotation.z or 0,qw=rotation.w or 1,
+            sx=scale.x or 1,sy=scale.y or 1,sz=scale.z or 1,
+            radius=bone.radius or 0,length=bone.length or 0}
+    end
     tImGui.Separator()
     tImGui.Text(string.format('%s: %s',tLang.L('swl_source_bone'),bone.name or '?'))
     tImGui.Text(string.format('ID: %s  Parent: %s (%d)',bone.boneId or '?',
@@ -2094,6 +2108,7 @@ local function showSelectedBindBone(report)
             end
             state.bindRenameBoneId=nil
             state.bindReparentBoneId=nil
+            state.bindEditBoneId=nil
             rebuildSkeletonVisuals()
             applyWorkspaceVisibility()
             setStatus(tLang.L('swl_bone_reparented'),false)
@@ -2104,6 +2119,51 @@ local function showSelectedBindBone(report)
     tImGui.EndDisabled()
     if selectsSelf then tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},
         tLang.L('swl_parent_self_invalid')) end
+    if tImGui.TreeNode(tLang.L('swl_edit_local_bind')..'##swlEditLocalBind') then
+        local fields={{'T X','tx'},{'T Y','ty'},{'T Z','tz'},
+            {'Q X','qx'},{'Q Y','qy'},{'Q Z','qz'},{'Q W','qw'},
+            {'S X','sx'},{'S Y','sy'},{'S Z','sz'},
+            {tLang.L('swl_bone_radius'),'radius'},{tLang.L('swl_bone_length'),'length'}}
+        tImGui.PushItemWidth(190)
+        for _,field in ipairs(fields) do
+            local edited,value=tImGui.InputFloat(field[1]..'##swlBindEdit'..field[2],
+                state.bindEdit[field[2]],0,0,'%.6g',0)
+            if edited then state.bindEdit[field[2]]=value end
+        end
+        tImGui.PopItemWidth()
+        tImGui.TextWrapped(tLang.L('swl_local_bind_moves_subtree'))
+        if tImGui.Button(tLang.L('swl_apply_bind_edit')..'##swlBindEditApply') then
+            local selectedBoneId=bone.boneId
+            local value=state.bindEdit
+            local snapshot=stageRollbackSnapshot()
+            local ok=false
+            if snapshot then
+                ok=select(1,safeCall(function()
+                    return state.meshD:setSkeletalBoneBind(state.boneIndex,
+                        value.tx,value.ty,value.tz,value.qx,value.qy,value.qz,value.qw,
+                        value.sx,value.sy,value.sz,value.radius,value.length)
+                end))
+            else
+                setStatus(tLang.L('swl_snapshot_failed'),true)
+            end
+            if ok then
+                commitRollbackSnapshot(snapshot)
+                state.modified=true
+                refreshBindReport()
+                for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
+                    if item.boneId==selectedBoneId then state.boneIndex=index break end
+                end
+                state.bindEditBoneId=nil
+                rebuildPreview()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                setStatus(tLang.L('swl_bone_bind_updated'),false)
+            else
+                discardRollbackSnapshot(snapshot)
+            end
+        end
+        tImGui.TreePop()
+    end
     if bone.hasNegativeScale then tImGui.TextColored({r=1,g=0.65,b=0.1,a=1},
         tLang.L('swl_bind_negative_scale')) end
     if bone.hasShear then tImGui.TextColored({r=1,g=0.3,b=0.25,a=1},

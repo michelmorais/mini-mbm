@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 6.9 | 2026-08-13 | Added transactional local bind correction through C++/Lua/editor for translation, normalized quaternion rotation, scale, radius, and length. Stable identities and hierarchy remain unchanged; subtree movement is deliberate and visible. Invalid inputs or 41–43 dependency failures reject before commit, and successful edits participate in whole-asset rollback. |
 | 6.8 | 2026-08-13 | Made the editor's one-level rollback boundary cover canonical bind mutations as well as weight operations. Successful rename/reparent retain a complete pre-mutation asset snapshot; rejected mutations preserve earlier history. Revert reloads sections 41–43 together and reconstructs bind report, runtime preview, hierarchy, gizmos, and selection state. |
 | 6.7 | 2026-08-13 | Added transactional canonical reparent with root/parent selection and explicit preserve-global/default versus preserve-local policy. Cycle/self-parent/shear/singular cases reject before commit; stable topological reorder and complete 41–43 validation preserve stable weight and track references. |
 | 6.6 | 2026-08-13 | Fixed expanded hierarchy clipping by separating the bind tree into a bordered, independently scrollable child region. Large rigs keep every branch reachable while selected-bone details remain visible below the tree. |

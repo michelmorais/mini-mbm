@@ -4551,6 +4551,63 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::setSkeletalBoneBind(const uint32_t index, const VEC3 &translation,
+                                              const float rotationX, const float rotationY,
+                                              const float rotationZ, const float rotationW,
+                                              const VEC3 &scale, const float radius, const float length,
+                                              char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        const float values[] = {translation.x, translation.y, translation.z,
+                                rotationX, rotationY, rotationZ, rotationW,
+                                scale.x, scale.y, scale.z, radius, length};
+        for (const float value : values)
+            if (!std::isfinite(value)) return fail("canonical bone bind values must be finite");
+        if (radius < 0.0f || length < 0.0f)
+            return fail("canonical bone radius and length must not be negative");
+        const float quaternionNorm = std::sqrt(rotationX * rotationX + rotationY * rotationY +
+                                               rotationZ * rotationZ + rotationW * rotationW);
+        if (quaternionNorm <= skeletal::QUATERNION_ZERO_EPSILON)
+            return fail("canonical bone bind quaternion must not be zero");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        edited.localBind.translation = translation;
+        edited.localBind.rotation.x = rotationX / quaternionNorm;
+        edited.localBind.rotation.y = rotationY / quaternionNorm;
+        edited.localBind.rotation.z = rotationZ / quaternionNorm;
+        edited.localBind.rotation.w = rotationW / quaternionNorm;
+        edited.localBind.scale = scale;
+        edited.radius = radius;
+        edited.length = length;
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("edited canonical bone bind would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after bind edit");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after bind edit");
+        impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
 
 
     bool MESH_MBM_DEBUG::setSkeletalVertexWeight(const uint32_t vertexIndex,

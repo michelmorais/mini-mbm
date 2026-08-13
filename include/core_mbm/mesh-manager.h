@@ -254,6 +254,13 @@ namespace mbm
         API_IMPL bool reparentSkeletalBone(const uint32_t index, const int32_t newParentIndex,
                                            const bool preserveGlobalBind,
                                            char *errorOut, const int errorOutLen);
+        // Replaces one bone's parent-relative bind TRS and display metadata. Stable identity and
+        // hierarchy are preserved; the edited local transform deliberately moves its subtree.
+        API_IMPL bool setSkeletalBoneBind(const uint32_t index, const VEC3 &translation,
+                                          const float rotationX, const float rotationY,
+                                          const float rotationZ, const float rotationW,
+                                          const VEC3 &scale, const float radius, const float length,
+                                          char *errorOut, const int errorOutLen);
         // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
         // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
         // An asset without an existing canonical skeleton/weight section is rejected rather than

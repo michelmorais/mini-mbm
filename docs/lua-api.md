@@ -1311,6 +1311,17 @@ Passing `false` preserves local TRS and lets its subtree move. Self-parenting, d
 non-invertible parents, and preserve-global results requiring shear are rejected. The candidate is
 stably reordered parent-first and sections 41–43 are revalidated before commit.
 
+```lua
+meshD:setSkeletalBoneBind(oneBasedBoneIndex,
+    tx, ty, tz, qx, qy, qz, qw, sx, sy, sz, radius, length)
+```
+
+Replaces the selected bone's parent-relative canonical bind TRS and authoring radius/length.
+The quaternion is normalized before storage. Quaternion zero, singular scale, non-finite values,
+negative radius/length, or a candidate that fails complete section 41–43 validation raises a Lua
+error without mutation. Bone and skeleton IDs remain unchanged. The operation deliberately moves
+the edited bone and its descendants; it does not compensate child-local transforms.
+
 ### Canonical skeletal-weight editing
 
 ```lua

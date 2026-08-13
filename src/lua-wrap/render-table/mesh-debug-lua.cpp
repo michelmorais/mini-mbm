@@ -2347,6 +2347,31 @@ namespace mbm
         return 0;
     }
 
+    int onSetSkeletalBoneBindDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 3)),
+                               static_cast<float>(luaL_checknumber(lua, 4)),
+                               static_cast<float>(luaL_checknumber(lua, 5)));
+        const float rotationX = static_cast<float>(luaL_checknumber(lua, 6));
+        const float rotationY = static_cast<float>(luaL_checknumber(lua, 7));
+        const float rotationZ = static_cast<float>(luaL_checknumber(lua, 8));
+        const float rotationW = static_cast<float>(luaL_checknumber(lua, 9));
+        const VEC3 scale(static_cast<float>(luaL_checknumber(lua, 10)),
+                         static_cast<float>(luaL_checknumber(lua, 11)),
+                         static_cast<float>(luaL_checknumber(lua, 12)));
+        const float radius = static_cast<float>(luaL_checknumber(lua, 13));
+        const float length = static_cast<float>(luaL_checknumber(lua, 14));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setSkeletalBoneBind(static_cast<uint32_t>(index - 1), translation,
+                rotationX, rotationY, rotationZ, rotationW, scale, radius, length,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
 
     int onSetSkeletalVertexWeightDebugLua(lua_State *lua)
     {
@@ -2500,6 +2525,7 @@ namespace mbm
                                           {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
                                           {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
                                           {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
+                                          {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},

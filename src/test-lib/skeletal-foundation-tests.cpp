@@ -241,6 +241,20 @@ namespace
                    mesh.getSkeletonBindBone(1, after) && after.parentIndex == -1 &&
                    maximumMatrixDifference(before.globalBindMatrix, after.globalBindMatrix) <= MATRIX_TOLERANCE,
                "canonical reparent-to-root must preserve global bind when requested");
+        SKELETON_BIND_BONE_INFO edited, rejected;
+        expect(mesh.setSkeletalBoneBind(1, VEC3(2.0f, 3.0f, 4.0f),
+                   0.0f, 0.0f, 0.0f, 2.0f, VEC3(1.0f, 1.0f, 1.0f), 0.25f, 2.0f,
+                   reparentError, sizeof(reparentError)) && mesh.getSkeletonBindBone(1, edited) &&
+                   std::fabs(edited.localTranslation.x - 2.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(edited.localRotationW - 1.0f) <= MATRIX_TOLERANCE &&
+                   std::fabs(edited.radius - 0.25f) <= MATRIX_TOLERANCE &&
+                   std::fabs(edited.length - 2.0f) <= MATRIX_TOLERANCE,
+               "canonical bind editing must commit normalized local TRS and metadata");
+        expect(!mesh.setSkeletalBoneBind(1, VEC3(9.0f, 9.0f, 9.0f),
+                   0.0f, 0.0f, 0.0f, 0.0f, VEC3(1.0f, 1.0f, 1.0f), 0.25f, 2.0f,
+                   reparentError, sizeof(reparentError)) && mesh.getSkeletonBindBone(1, rejected) &&
+                   maximumMatrixDifference(edited.localBindMatrix, rejected.localBindMatrix) <= MATRIX_TOLERANCE,
+               "canonical bind editing must reject a zero quaternion without mutation");
         std::remove(reparentPath);
         std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);
     }

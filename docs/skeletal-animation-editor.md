@@ -55,6 +55,12 @@ pose** is enabled by default and recalculates local TRS so the bone does not jum
 local TRS and intentionally lets the subtree move. Self-parenting and hierarchy cycles are rejected,
 and the tree is rebuilt only after the complete canonical candidate validates.
 
+**Edit local bind TRS** exposes parent-relative translation, quaternion rotation, scale, radius, and
+length. Applying normalizes the quaternion and transactionally recompiles and validates the complete
+canonical asset. Because this is a local bind correction, the selected bone and its descendants move;
+child transforms are not silently compensated. Invalid input leaves the asset unchanged, and the
+successful edit can be reverted through the shared one-level history.
+
 The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
 bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or
 manufacture a legacy skeleton. Assets containing only exploratory skeletal sections must be
