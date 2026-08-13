@@ -125,15 +125,6 @@ namespace mbm
         util::INFO_ANIMATION     infoAnimation;
         std::vector<std::string> extraPaths;
         std::vector<IntermediateFrameV11> frames;
-        // Parsed but intentionally unused by MESH_MBM. SECTION_FRAME_SKINNED v1/v2 is legacy
-        // editor/interchange data, not a runtime bind-pose contract. A future explicit conversion
-        // path may compile it, but ordinary mesh loading must preserve its historical acceptance.
-        std::vector<util::SKELETON_BONE_V11> skeleton;
-        // Same "parsed but intentionally unused by MESH_MBM" rationale as `skeleton` above, for
-        // SECTION_VERTEX_SKIN_WEIGHTS - see MESH_MBM_DEBUG::Impl::weightPalette/vertexWeights
-        // (mesh-manager-impl.h) for where a debug-path load actually keeps this.
-        std::vector<std::string> weightPalette;
-        std::vector<util::VERTEX_BONE_WEIGHT_V11> vertexWeights;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
@@ -175,8 +166,6 @@ namespace mbm
               positionOffset_deprecated(other.positionOffset_deprecated),
               angleDefault_deprecated(other.angleDefault_deprecated), info_mode(other.info_mode),
               extraPaths(std::move(other.extraPaths)), frames(std::move(other.frames)),
-              skeleton(std::move(other.skeleton)), weightPalette(std::move(other.weightPalette)),
-              vertexWeights(std::move(other.vertexWeights)),
               articulatedParts(std::move(other.articulatedParts)),
               articulatedClips(std::move(other.articulatedClips)),
               canonicalSkeleton(std::move(other.canonicalSkeleton)),
@@ -202,9 +191,6 @@ namespace mbm
             info_mode      = other.info_mode;
             extraPaths     = std::move(other.extraPaths);
             frames         = std::move(other.frames);
-            skeleton       = std::move(other.skeleton);
-            weightPalette  = std::move(other.weightPalette);
-            vertexWeights  = std::move(other.vertexWeights);
             articulatedParts = std::move(other.articulatedParts);
             articulatedClips = std::move(other.articulatedClips);
             canonicalSkeleton = std::move(other.canonicalSkeleton);
@@ -4349,14 +4335,9 @@ namespace mbm
     bool MESH_MBM_DEBUG::refreshSkeletonBindReport() noexcept
     {
         impl->hasCompiledSkeletonBindReport = true;
-        if (impl->canonicalSkeleton.skeletonId != 0)
-        {
-            impl->compiledSkeletonBindReportIsCanonical = true;
-            impl->compiledSkeletonBindReport = impl->canonicalSkeleton.compiled;
-            return !impl->compiledSkeletonBindReport.hasFatalDiagnostics();
-        }
-        impl->compiledSkeletonBindReportIsCanonical = false;
-        return skeletal::compileLegacySkeleton(impl->skeleton, impl->compiledSkeletonBindReport);
+        impl->compiledSkeletonBindReport = impl->canonicalSkeleton.compiled;
+        return impl->canonicalSkeleton.skeletonId != 0 &&
+               !impl->compiledSkeletonBindReport.hasFatalDiagnostics();
     }
 
     bool MESH_MBM_DEBUG::getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept
@@ -4369,7 +4350,7 @@ namespace mbm
         out.maximumReconstructionError = report.maximumReconstructionError;
         out.maximumBindIdentityError = report.maximumBindIdentityError;
         out.valid = !report.hasFatalDiagnostics();
-        out.canonical = impl->compiledSkeletonBindReportIsCanonical;
+        out.canonical = true;
         return true;
     }
 
@@ -4391,7 +4372,7 @@ namespace mbm
         out.localBindMatrix = bone.localBindMatrix;
         out.globalBindMatrix = bone.globalBindMatrix;
         out.inverseGlobalBindMatrix = bone.inverseGlobalBindMatrix;
-        if (impl->compiledSkeletonBindReportIsCanonical && bone.sourceIndex < impl->canonicalSkeleton.sourceBones.size())
+        if (bone.sourceIndex < impl->canonicalSkeleton.sourceBones.size())
         {
             out.radius = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].radius;
             out.length = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].length;
@@ -5557,7 +5538,6 @@ namespace mbm
         impl->canonicalAnimations = {};
         impl->compiledSkeletonBindReport = {};
         impl->hasCompiledSkeletonBindReport = false;
-        impl->compiledSkeletonBindReportIsCanonical = false;
     }
 
     void MESH_MBM_DEBUG::fillAtLeastOneBound()

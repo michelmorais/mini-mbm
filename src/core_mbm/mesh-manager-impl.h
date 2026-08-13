@@ -120,7 +120,6 @@ namespace mbm
         std::vector<util::SKELETON_BONE_V11> skeleton;
         skeletal::COMPILED_SKELETON compiledSkeletonBindReport;
         bool hasCompiledSkeletonBindReport = false;
-        bool compiledSkeletonBindReportIsCanonical = false;
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
