@@ -2415,6 +2415,29 @@ namespace mbm
         return 0;
     }
 
+    int onAddSkeletalBoneChainDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer parent = luaL_checkinteger(lua, 2);
+        if (parent < 0) return luaL_error(lua, "canonical parent index must be zero (root) or one-based");
+        const char *prefix = luaL_checkstring(lua, 3);
+        const lua_Integer count = luaL_checkinteger(lua, 4);
+        if (count <= 0) return luaL_error(lua, "canonical chain count must be positive");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 5)),
+                               static_cast<float>(luaL_checknumber(lua, 6)),
+                               static_cast<float>(luaL_checknumber(lua, 7)));
+        const float radius = static_cast<float>(luaL_checknumber(lua, 8));
+        const float length = static_cast<float>(luaL_checknumber(lua, 9));
+        uint32_t lastIndex = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalBoneChain(parent == 0 ? -1 : static_cast<int32_t>(parent - 1),
+                prefix, static_cast<uint32_t>(count), translation, radius, length, &lastIndex,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(lastIndex + 1));
+        return 1;
+    }
+
     int onRemoveSkeletalBoneDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2600,6 +2623,7 @@ namespace mbm
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
+                                          {"addSkeletalBoneChain", onAddSkeletalBoneChainDebugLua},
                                           {"removeSkeletalBone", onRemoveSkeletalBoneDebugLua},
                                           {"removeSkeletalBoneRemapped", onRemoveSkeletalBoneRemappedDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},

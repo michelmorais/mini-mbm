@@ -1335,6 +1335,17 @@ duplicate names, invalid parents, non-finite input, or a candidate that fails se
 raises a Lua error without mutation. Existing weight palettes and animation tracks are unchanged.
 
 ```lua
+local lastBoneIndex = meshD:addSkeletalBoneChain(parentIndex, namePrefix, count,
+    stepX, stepY, stepZ, radius, length)
+```
+
+Atomically appends between 1 and 256 linked canonical bones to root (`parentIndex=0`) or an existing
+one-based parent. Names are generated as `namePrefix1` through `namePrefixN`; each bone is parent of
+the next and receives the same parent-relative translation step, identity rotation/scale, metadata,
+and a new opaque stable ID. The returned one-based index identifies the last bone. Any duplicate
+generated name, invalid input, ID exhaustion, or failed 41–43 validation rejects the entire chain.
+
+```lua
 meshD:initializeSkeletalSkeleton(rootName, tx, ty, tz, radius, length)
 ```
 

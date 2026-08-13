@@ -270,6 +270,11 @@ namespace mbm
         API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,
                                       const VEC3 &translation, const float radius, const float length,
                                       uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
+        // Atomically appends count parent-linked bones named prefix1..prefixN.
+        API_IMPL bool addSkeletalBoneChain(const int32_t parentIndex, const char *namePrefix,
+                                           const uint32_t count, const VEC3 &stepTranslation,
+                                           const float radius, const float length,
+                                           uint32_t *lastIndexOut, char *errorOut, const int errorOutLen);
         // Creates section 41 with one root on a loaded static mesh that has no skeletal sections.
         API_IMPL bool initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
                                                  const float radius, const float length,

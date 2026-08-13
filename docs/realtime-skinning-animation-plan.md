@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.6 | 2026-08-13 | Added atomic local bone-chain creation: 1–256 linked `prefix1..N` children with uniform local step, identity rotation/scale, metadata, collision-free stable IDs, complete dependency validation, final-bone selection, rollback, and save/reload. Failed chains leave no partial structure. |
 | 7.5 | 2026-08-13 | Began local skeleton creation: a loaded static mesh with no 41–43 data can initialize a validated canonical skeleton with one root and stable IDs. The editor proposes scale-aware AABB-base placement, creates no implicit weights/clips, rebuilds canonical inspection immediately, supports rollback, and proves save/reload. |
 | 7.4 | 2026-08-13 | Added animated child-track conversion during parent removal. Promoted child locals are baked from `childLocal × removedLocal` at clip boundaries and the union of authored key times, producing validated full-TRS linear tracks and preserving global pose at those samples. Shear rejects atomically; continuous between-key equivalence remains an explicit adaptive-resampling refinement. |
 | 7.3 | 2026-08-13 | Added child-bearing bone removal for non-animated canonical assets. Direct children are promoted to the removed parent/root with rederived local TRS preserving global bind, then stable parent-first ordering and 41–43 validation run before atomic commit. Assets with clips are explicitly blocked until child-track parent-space conversion is delivered. |

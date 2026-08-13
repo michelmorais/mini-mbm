@@ -284,14 +284,24 @@ namespace
         MESH_MBM_DEBUG staticMesh;
         expect(staticMesh.loadV11("src/test-lib/Crate.msh") &&
                    staticMesh.initializeSkeletalSkeleton("root",VEC3(0,0,0),0.1f,1.0f,
-                       reparentError,sizeof(reparentError)) &&
-                   staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==1 &&
+                       reparentError,sizeof(reparentError)),
+               "static mesh must initialize a one-root canonical skeleton");
+        uint32_t chainLastIndex = 0;
+        expect(staticMesh.addSkeletalBoneChain(0,"spine_",3,VEC3(0,1,0),0.1f,1.0f,
+                   &chainLastIndex,reparentError,sizeof(reparentError)) && chainLastIndex==3 &&
+                   staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==4 &&
+                   staticMesh.getSkeletonBindBone(3,after) && after.parentIndex==2 &&
+                   std::fabs(after.globalBindMatrix.m[3][1]-3.0f)<=MATRIX_TOLERANCE &&
                    staticMesh.saveV11(initializedPath,false,false,false,reparentError,sizeof(reparentError)),
-               "static mesh must initialize and save a one-root canonical skeleton");
+               "canonical chain creation must append linked bones and save atomically");
+        expect(!staticMesh.addSkeletalBoneChain(0,"spine_",2,VEC3(0,1,0),0.1f,1.0f,
+                   &chainLastIndex,reparentError,sizeof(reparentError)) &&
+                   staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==4,
+               "canonical chain creation must reject duplicate generated names without mutation");
         MESH_MBM_DEBUG initializedReload;
         expect(initializedReload.loadV11(initializedPath) &&
-                   initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==1,
-               "initialized canonical skeleton must survive save/reload");
+                   initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==4,
+               "initialized canonical skeleton and chain must survive save/reload");
         expect(!staticMesh.initializeSkeletalSkeleton("other",VEC3(),0.1f,1.0f,
                    reparentError,sizeof(reparentError)),
                "initial skeleton creation must reject an asset that already has skeletal data");

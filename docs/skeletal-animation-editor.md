@@ -77,6 +77,11 @@ and length suggestions. Creation writes only the canonical skeleton; it does not
 or clips. The new root can immediately be extended with the ordinary add/edit/reparent workflow and
 the whole initialization can be reverted.
 
+Inside **Add bone**, **Add chain** creates `prefix1..prefixN` beneath the chosen parent. Every bone
+uses the same local translation step and becomes parent of the next; rotation/scale start at identity
+and radius/length inherit the selected bone. The chain is validated and committed as one operation,
+selects its last bone, and produces one rollback entry—partial chains are never retained.
+
 **Remove bone** first displays direct-child, weighted-vertex, and animation-track counts. The first
 safe policy removes only a leaf absent from both the weight palette and all tracks, and requires an
 explicit confirmation. Referenced bones remain blocked rather than silently reparenting children,

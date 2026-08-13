@@ -4692,6 +4692,85 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::addSkeletalBoneChain(const int32_t parentIndex, const char *namePrefix,
+                                               const uint32_t count, const VEC3 &stepTranslation,
+                                               const float radius, const float length,
+                                               uint32_t *lastIndexOut,
+                                               char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (parentIndex < -1 || parentIndex >= static_cast<int32_t>(source.size()))
+            return fail("canonical chain parent index is out of range");
+        if (!namePrefix || !namePrefix[0]) return fail("canonical chain name prefix must not be empty");
+        if (count == 0 || count > 256) return fail("canonical chain count must be between 1 and 256");
+        if (!std::isfinite(stepTranslation.x) || !std::isfinite(stepTranslation.y) ||
+            !std::isfinite(stepTranslation.z) || !std::isfinite(radius) || !std::isfinite(length))
+            return fail("canonical chain values must be finite");
+        if (radius < 0.0f || length < 0.0f)
+            return fail("canonical chain radius and length must not be negative");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        uint64_t chainParentId = parentIndex < 0 ? 0 : source[static_cast<uint32_t>(parentIndex)].boneId;
+        uint64_t nextBoneId = 1;
+        for (uint32_t item = 1; item <= count; ++item)
+        {
+            const std::string name = std::string(namePrefix) + std::to_string(item);
+            if (candidate.compiled.indexByName.find(name) != candidate.compiled.indexByName.end() ||
+                std::any_of(candidate.sourceBones.begin(), candidate.sourceBones.end(),
+                    [&name](const skeletal::CANONICAL_BONE &bone) { return bone.name == name; }))
+                return fail("canonical chain would create a duplicate bone name");
+            while (candidate.compiled.indexById.find(nextBoneId) != candidate.compiled.indexById.end() ||
+                   std::any_of(candidate.sourceBones.begin(), candidate.sourceBones.end(),
+                    [nextBoneId](const skeletal::CANONICAL_BONE &bone) { return bone.boneId == nextBoneId; }))
+            {
+                if (nextBoneId == std::numeric_limits<uint64_t>::max())
+                    return fail("canonical bone ID space is exhausted");
+                ++nextBoneId;
+            }
+            skeletal::CANONICAL_BONE added;
+            added.boneId = nextBoneId;
+            added.parentBoneId = chainParentId;
+            added.name = name;
+            added.localBind.translation = stepTranslation;
+            added.radius = radius;
+            added.length = length;
+            chainParentId = added.boneId;
+            candidate.sourceBones.push_back(std::move(added));
+            if (item < count)
+            {
+                if (nextBoneId == std::numeric_limits<uint64_t>::max())
+                    return fail("canonical bone ID space is exhausted");
+                ++nextBoneId;
+            }
+        }
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("added canonical chain would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after adding chain");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after adding chain");
+        impl->canonicalSkeleton = std::move(candidate);
+        if (lastIndexOut) *lastIndexOut = static_cast<uint32_t>(impl->canonicalSkeleton.sourceBones.size() - 1);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
                                                      const float radius, const float length,
                                                      char *errorOut, const int errorOutLen)

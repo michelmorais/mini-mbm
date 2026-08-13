@@ -60,6 +60,10 @@ local state = {
     bindAddName = '',
     bindAddParentChoice = 1,
     bindAddTranslation = {x=0,y=1,z=0},
+    bindChainBoneId = nil,
+    bindChainPrefix = '',
+    bindChainCount = 3,
+    bindChainStep = {x=0,y=1,z=0},
     bindRemoveBoneId = nil,
     bindRemoveConfirmed = false,
     bindRemoveReplacement = 1,
@@ -1176,6 +1180,7 @@ local function loadMesh(path)
     state.bindReparentBoneId=nil
     state.bindEditBoneId=nil
     state.bindAddBoneId=nil
+    state.bindChainBoneId=nil
     state.bindRemoveBoneId=nil
     local bounds = computeAABB(meshD)
     local initialExtent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
@@ -2053,6 +2058,12 @@ local function showSelectedBindBone(report)
         state.bindAddParentChoice=state.boneIndex+1
         state.bindAddTranslation={x=0,y=(bone.length or 0)>0 and bone.length or 1,z=0}
     end
+    if state.bindChainBoneId~=bone.boneId then
+        state.bindChainBoneId=bone.boneId
+        state.bindChainPrefix=(bone.name or 'bone')..'_chain_'
+        state.bindChainCount=3
+        state.bindChainStep={x=0,y=(bone.length or 0)>0 and bone.length or 1,z=0}
+    end
     if state.bindRemoveBoneId~=bone.boneId then
         state.bindRemoveBoneId=bone.boneId
         state.bindRemoveConfirmed=false
@@ -2251,6 +2262,58 @@ local function showSelectedBindBone(report)
             end
         end
         tImGui.EndDisabled()
+        if tImGui.TreeNode(tLang.L('swl_add_chain')..'##swlAddChain') then
+            tImGui.PushItemWidth(190)
+            local prefixChanged,prefix=tImGui.InputText(tLang.L('swl_chain_prefix')..'##swlChainPrefix',
+                state.bindChainPrefix,tImGui.Flags('ImGuiInputTextFlags_None'))
+            if prefixChanged then state.bindChainPrefix=prefix end
+            local countChanged,count=tImGui.InputInt(tLang.L('swl_chain_count')..'##swlChainCount',
+                state.bindChainCount,1,1,tImGui.Flags('ImGuiInputTextFlags_None'))
+            if countChanged then state.bindChainCount=math.max(1,math.min(256,count)) end
+            for _,field in ipairs({{'T X','x'},{'T Y','y'},{'T Z','z'}}) do
+                local edited,value=tImGui.InputFloat(field[1]..'##swlChain'..field[2],
+                    state.bindChainStep[field[2]],0,0,'%.6g',0)
+                if edited then state.bindChainStep[field[2]]=value end
+            end
+            tImGui.PopItemWidth()
+            tImGui.TextWrapped(tLang.L('swl_add_chain_help'))
+            local chainPrefix=(state.bindChainPrefix or ''):match('^%s*(.-)%s*$')
+            tImGui.BeginDisabled(chainPrefix=='')
+            if tImGui.Button(tLang.L('swl_apply_add_chain')..'##swlAddChainApply') then
+                local snapshot=stageRollbackSnapshot()
+                local ok,lastIndex=false,nil
+                if snapshot then
+                    ok,lastIndex=safeCall(function()
+                        local step=state.bindChainStep
+                        return state.meshD:addSkeletalBoneChain(state.bindAddParentChoice-1,
+                            chainPrefix,state.bindChainCount,step.x,step.y,step.z,
+                            bone.radius or 0,bone.length or 0)
+                    end)
+                else
+                    setStatus(tLang.L('swl_snapshot_failed'),true)
+                end
+                if ok then
+                    commitRollbackSnapshot(snapshot)
+                    state.modified=true
+                    refreshBindReport()
+                    state.boneIndex=lastIndex
+                    state.bindRenameBoneId=nil
+                    state.bindReparentBoneId=nil
+                    state.bindEditBoneId=nil
+                    state.bindAddBoneId=nil
+                    state.bindChainBoneId=nil
+                    state.bindRemoveConfirmed=false
+                    rebuildPreview()
+                    rebuildSkeletonVisuals()
+                    applyWorkspaceVisibility()
+                    setStatus(tLang.L('swl_chain_added'),false)
+                else
+                    discardRollbackSnapshot(snapshot)
+                end
+            end
+            tImGui.EndDisabled()
+            tImGui.TreePop()
+        end
         tImGui.TreePop()
     end
     if tImGui.TreeNode(tLang.L('swl_remove_bone')..'##swlRemoveBone') then
