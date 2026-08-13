@@ -4737,6 +4737,109 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::removeSkeletalBoneRemapped(const uint32_t index,
+                                                     const uint32_t replacementIndex,
+                                                     const bool discardAnimationTracks,
+                                                     char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= source.size() || replacementIndex >= source.size())
+            return fail("canonical bone or replacement index is out of range");
+        if (index == replacementIndex) return fail("replacement bone must differ from removed bone");
+        if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
+        const uint64_t removedId = source[index].boneId;
+        const uint64_t replacementId = source[replacementIndex].boneId;
+        for (const skeletal::CANONICAL_BONE &candidate : source)
+            if (candidate.parentBoneId == removedId)
+                return fail("canonical bone has children; choose an explicit descendant policy first");
+
+        skeletal::CANONICAL_SKELETON skeletonCandidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_WEIGHTS weightsCandidate = impl->canonicalWeights;
+        skeletal::CANONICAL_ANIMATIONS animationsCandidate = impl->canonicalAnimations;
+        int32_t removedPalette = -1, replacementPalette = -1;
+        for (uint32_t palette = 0; palette < weightsCandidate.paletteBoneIds.size(); ++palette)
+        {
+            if (weightsCandidate.paletteBoneIds[palette] == removedId) removedPalette = static_cast<int32_t>(palette);
+            if (weightsCandidate.paletteBoneIds[palette] == replacementId) replacementPalette = static_cast<int32_t>(palette);
+        }
+        if (removedPalette >= 0 && replacementPalette < 0)
+        {
+            weightsCandidate.paletteBoneIds[static_cast<uint32_t>(removedPalette)] = replacementId;
+        }
+        else if (removedPalette >= 0)
+        {
+            for (skeletal::CANONICAL_VERTEX_WEIGHT &vertex : weightsCandidate.vertices)
+            {
+                std::map<uint16_t, float> merged;
+                for (uint32_t slot = 0; slot < 4; ++slot)
+                {
+                    uint16_t palette = vertex.paletteIndex[slot];
+                    if (palette == UINT16_MAX || vertex.weight[slot] <= 0.0f) continue;
+                    if (palette == static_cast<uint16_t>(removedPalette))
+                        palette = static_cast<uint16_t>(replacementPalette);
+                    merged[palette] += vertex.weight[slot];
+                }
+                uint32_t slot = 0;
+                for (const auto &influence : merged)
+                {
+                    uint16_t palette = influence.first;
+                    if (palette > static_cast<uint16_t>(removedPalette)) --palette;
+                    vertex.paletteIndex[slot] = palette;
+                    vertex.weight[slot] = influence.second;
+                    ++slot;
+                }
+                while (slot < 4)
+                {
+                    vertex.paletteIndex[slot] = UINT16_MAX;
+                    vertex.weight[slot] = 0.0f;
+                    ++slot;
+                }
+            }
+            weightsCandidate.paletteBoneIds.erase(weightsCandidate.paletteBoneIds.begin() + removedPalette);
+        }
+
+        uint32_t removedTracks = 0;
+        for (skeletal::SKELETAL_CLIP &clip : animationsCandidate.clips)
+        {
+            const auto before = clip.tracks.size();
+            clip.tracks.erase(std::remove_if(clip.tracks.begin(), clip.tracks.end(),
+                [removedId](const skeletal::SKELETAL_TRACK &track) { return track.boneId == removedId; }),
+                clip.tracks.end());
+            removedTracks += static_cast<uint32_t>(before - clip.tracks.size());
+        }
+        if (removedTracks > 0 && !discardAnimationTracks)
+            return fail("canonical bone has animation tracks; explicit discard confirmation is required");
+
+        skeletonCandidate.sourceBones.erase(skeletonCandidate.sourceBones.begin() + index);
+        if (!skeletal::compileCanonicalSkeleton(skeletonCandidate.sourceBones, skeletonCandidate.compiled))
+            return fail("remapped canonical skeleton would be invalid");
+        if (weightsCandidate.skeletonId != 0)
+        {
+            if (weightsCandidate.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[weightsCandidate.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(skeletonCandidate, weightsCandidate, vertexCount))
+                return fail("remapped canonical weights would be invalid");
+        }
+        if (animationsCandidate.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(skeletonCandidate, animationsCandidate))
+            return fail("remapped canonical animations would be invalid");
+        impl->canonicalSkeleton = std::move(skeletonCandidate);
+        impl->canonicalWeights = std::move(weightsCandidate);
+        impl->canonicalAnimations = std::move(animationsCandidate);
+        return true;
+    }
+
 
 
     bool MESH_MBM_DEBUG::setSkeletalVertexWeight(const uint32_t vertexIndex,

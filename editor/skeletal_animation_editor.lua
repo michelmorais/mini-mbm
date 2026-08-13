@@ -62,6 +62,8 @@ local state = {
     bindAddTranslation = {x=0,y=1,z=0},
     bindRemoveBoneId = nil,
     bindRemoveConfirmed = false,
+    bindRemoveReplacement = 1,
+    bindRemoveDiscardTracks = false,
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -2042,6 +2044,9 @@ local function showSelectedBindBone(report)
     if state.bindRemoveBoneId~=bone.boneId then
         state.bindRemoveBoneId=bone.boneId
         state.bindRemoveConfirmed=false
+        state.bindRemoveDiscardTracks=false
+        state.bindRemoveReplacement=(bone.parentIndex or 0)>0 and bone.parentIndex or
+            (state.boneIndex==1 and 2 or 1)
     end
     tImGui.Separator()
     tImGui.Text(string.format('%s: %s',tLang.L('swl_source_bone'),bone.name or '?'))
@@ -2241,11 +2246,43 @@ local function showSelectedBindBone(report)
         if bone.weightPaletteReferenced then
             tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_remove_weight_palette_blocked'))
         end
-        local blocked=(bone.childCount or 0)>0 or bone.weightPaletteReferenced==true or
-            (bone.animationTrackCount or 0)>0 or #(report.bones or {})<=1
+        local hasReferences=bone.weightPaletteReferenced==true or (bone.animationTrackCount or 0)>0
+        local blocked=(bone.childCount or 0)>0 or #(report.bones or {})<=1
         tImGui.TextWrapped(blocked and tLang.L('swl_remove_bone_blocked') or
-            tLang.L('swl_remove_bone_strict_policy'))
-        tImGui.BeginDisabled(blocked)
+            (hasReferences and tLang.L('swl_remove_bone_remap_policy') or
+                tLang.L('swl_remove_bone_strict_policy')))
+        local replacementNames,replacementIndices={},{}
+        for index,candidate in ipairs(report.bones or {}) do
+            if index~=state.boneIndex then
+                replacementNames[#replacementNames+1]=candidate.name or '?'
+                replacementIndices[#replacementIndices+1]=index
+            end
+        end
+        if hasReferences and #replacementNames>0 then
+            local replacementChoice=1
+            for choice,index in ipairs(replacementIndices) do
+                if index==state.bindRemoveReplacement then replacementChoice=choice break end
+            end
+            tImGui.PushItemWidth(190)
+            local replacementChanged,newChoice=tImGui.Combo(tLang.L('swl_remove_remap_target'),
+                replacementChoice,replacementNames,-1)
+            tImGui.PopItemWidth()
+            if replacementChanged then
+                state.bindRemoveReplacement=replacementIndices[newChoice]
+                state.bindRemoveConfirmed=false
+            end
+        end
+        if (bone.animationTrackCount or 0)>0 then
+            local discard=tImGui.Checkbox(tLang.L('swl_discard_removed_bone_tracks'),
+                state.bindRemoveDiscardTracks)
+            if discard~=state.bindRemoveDiscardTracks then
+                state.bindRemoveDiscardTracks=discard
+                state.bindRemoveConfirmed=false
+            end
+        end
+        local actionBlocked=blocked or ((bone.animationTrackCount or 0)>0 and
+            not state.bindRemoveDiscardTracks)
+        tImGui.BeginDisabled(actionBlocked)
         local confirmed=tImGui.Checkbox(tLang.L('swl_confirm_remove_bone'),state.bindRemoveConfirmed)
         if confirmed~=state.bindRemoveConfirmed then state.bindRemoveConfirmed=confirmed end
         tImGui.BeginDisabled(not state.bindRemoveConfirmed)
@@ -2255,6 +2292,10 @@ local function showSelectedBindBone(report)
             local ok=false
             if snapshot then
                 ok=select(1,safeCall(function()
+                    if hasReferences then
+                        return state.meshD:removeSkeletalBoneRemapped(state.boneIndex,
+                            state.bindRemoveReplacement,state.bindRemoveDiscardTracks)
+                    end
                     return state.meshD:removeSkeletalBone(state.boneIndex)
                 end))
             else

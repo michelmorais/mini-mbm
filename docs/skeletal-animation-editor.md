@@ -77,6 +77,12 @@ explicit confirmation. Referenced bones remain blocked rather than silently repa
 redistributing weights, or discarding animation. Successful removal selects the former parent when
 available and can be reverted through the shared history.
 
+A referenced leaf exposes **Transfer weights to**. Choosing an explicit replacement transfers its
+palette entry; overlapping influences on the same vertex are summed rather than duplicated. Tracks
+are never retargeted as if their local transforms belonged to another bone: removal remains disabled
+until **Discard this bone's animation tracks** is explicitly checked. Bones with children remain
+blocked for the later descendant-reparent policy.
+
 The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
 bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or
 manufacture a legacy skeleton. Assets containing only exploratory skeletal sections must be

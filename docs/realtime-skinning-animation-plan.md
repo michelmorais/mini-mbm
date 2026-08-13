@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.2 | 2026-08-13 | Added explicit referenced-leaf removal: transfer type-42 palette identity to a chosen surviving bone, merge duplicate per-vertex influences, compact indices, and require separate confirmation before deleting type-43 tracks. Tracks are never semantically retargeted. Sections 41–43 commit atomically; child-bearing bones remain blocked. |
 | 7.1 | 2026-08-13 | Added strict canonical leaf removal with preflight child/palette/weighted-vertex/track counts. Referenced bones and the last skeleton bone reject without mutation; no implicit descendant, weight, palette, or track remapping occurs. Successful deletion revalidates 41–43 and participates in editor rollback. |
 | 7.0 | 2026-08-13 | Added transactional canonical bone creation through C++/Lua/editor. Root or existing-parent insertion receives a unique name, parent-relative translation, identity rotation/scale, metadata defaults, and a new opaque stable ID; the parent-first candidate and existing 42/43 dependencies validate before commit, and editor rollback/select/rebuild behavior is shared. |
 | 6.9 | 2026-08-13 | Added transactional local bind correction through C++/Lua/editor for translation, normalized quaternion rotation, scale, radius, and length. Stable identities and hierarchy remain unchanged; subtree movement is deliberate and visible. Invalid inputs or 41–43 dependency failures reject before commit, and successful edits participate in whole-asset rollback. |

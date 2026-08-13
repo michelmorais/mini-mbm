@@ -2410,6 +2410,22 @@ namespace mbm
         return 0;
     }
 
+    int onRemoveSkeletalBoneRemappedDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const lua_Integer replacement = luaL_checkinteger(lua, 3);
+        if (index <= 0 || replacement <= 0)
+            return luaL_error(lua, "canonical bone indices must be one-based");
+        const bool discardTracks = lua_toboolean(lua, 4) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalBoneRemapped(static_cast<uint32_t>(index - 1),
+                static_cast<uint32_t>(replacement - 1), discardTracks,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
 
     int onSetSkeletalVertexWeightDebugLua(lua_State *lua)
     {
@@ -2566,6 +2582,7 @@ namespace mbm
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"removeSkeletalBone", onRemoveSkeletalBoneDebugLua},
+                                          {"removeSkeletalBoneRemapped", onRemoveSkeletalBoneRemappedDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},

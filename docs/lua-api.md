@@ -1344,6 +1344,18 @@ animation track. It never reparents descendants, rewrites palettes, redistribute
 deletes tracks implicitly. The remaining section 41–43 candidate validates before commit; failure
 raises a Lua error without mutation.
 
+```lua
+meshD:removeSkeletalBoneRemapped(oneBasedBoneIndex, replacementBoneIndex,
+    discardAnimationTracks)
+```
+
+Removes a leaf while explicitly transferring its weight-palette reference to a different existing
+bone. If both bones influence a vertex, their weights are summed and duplicate slots are compacted;
+coverage remains normalized. Tracks targeting the removed identity are not retargeted because their
+local transforms have different semantics: they are deleted only when `discardAnimationTracks` is
+`true`, otherwise the operation rejects. Children remain unsupported by this policy. Skeleton,
+weights, and animations are committed together only after complete validation.
+
 ### Canonical skeletal-weight editing
 
 ```lua

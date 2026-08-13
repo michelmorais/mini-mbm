@@ -503,6 +503,26 @@ namespace
                "bind report must expose weight/track impact and strict removal must reject references");
         expect(mesh.removeSkeletalBone(temporaryBoneIndex, error, sizeof(error) - 1),
                "reference-removal fixture must remove its unreferenced temporary root");
+        MESH_MBM_DEBUG remapMesh;
+        expect(remapMesh.loadV11(source) &&
+                   remapMesh.addSkeletalBone(-1, "replacement-root", VEC3(), 0.1f, 1.0f,
+                       &temporaryBoneIndex, error, sizeof(error) - 1) &&
+                   remapMesh.setSkeletalVertexWeight(0,"root",0.4f,"replacement-root",0.6f,
+                       nullptr,0.0f,nullptr,0.0f,error,sizeof(error)-1) &&
+                   !remapMesh.removeSkeletalBoneRemapped(0, temporaryBoneIndex, false,
+                       error, sizeof(error) - 1),
+               "referenced removal must require explicit track-discard confirmation");
+        expect(remapMesh.removeSkeletalBoneRemapped(0, temporaryBoneIndex, true,
+                   error, sizeof(error) - 1),
+               "referenced leaf removal must transfer weights and explicitly discard tracks");
+        const char *remappedName=nullptr, *remapUnused1=nullptr, *remapUnused2=nullptr, *remapUnused3=nullptr;
+        float remappedWeight=0, remapWeight1=0, remapWeight2=0, remapWeight3=0;
+        expect(remapMesh.getSkeletalVertexWeight(0,&remappedName,&remappedWeight,
+                   &remapUnused1,&remapWeight1,&remapUnused2,&remapWeight2,
+                   &remapUnused3,&remapWeight3) && remappedName &&
+                   std::string(remappedName)=="replacement-root" &&
+                   std::fabs(remappedWeight-1.0f)<=MATRIX_TOLERANCE,
+               "referenced leaf removal must preserve normalized vertex coverage on replacement");
         expect(mesh.scaleSkeletalAsset(100.0f, error, sizeof(error) - 1),
                "canonical editor must scale the complete skeletal asset transactionally");
         expect(mesh.renameSkeletalBone(0, "renamed-root", error, sizeof(error) - 1),

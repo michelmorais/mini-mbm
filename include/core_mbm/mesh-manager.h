@@ -272,6 +272,11 @@ namespace mbm
         // Strict removal: only an unreferenced leaf may be deleted. No implicit remapping occurs.
         API_IMPL bool removeSkeletalBone(const uint32_t index,
                                          char *errorOut, const int errorOutLen);
+        // Removes an unbranched bone while explicitly transferring its palette entry and optionally
+        // deleting its tracks. The replacement is an existing zero-based bone index.
+        API_IMPL bool removeSkeletalBoneRemapped(const uint32_t index, const uint32_t replacementIndex,
+                                                 const bool discardAnimationTracks,
+                                                 char *errorOut, const int errorOutLen);
         // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
         // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
         // An asset without an existing canonical skeleton/weight section is rejected rather than
