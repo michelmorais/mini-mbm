@@ -1183,12 +1183,26 @@ local function loadMesh(path)
     return true
 end
 
-local function snapshotForRollback()
-    clearRollback()
+local function stageRollbackSnapshot()
     local path = os.tmpname() .. '.msh'
     if not state.meshD:save(path, false, false) then return false end
-    state.rollbackPath = path
-    state.rollbackModified = state.modified
+    return {path=path,modified=state.modified}
+end
+
+local function commitRollbackSnapshot(snapshot)
+    clearRollback()
+    state.rollbackPath = snapshot.path
+    state.rollbackModified = snapshot.modified
+end
+
+local function discardRollbackSnapshot(snapshot)
+    if snapshot and snapshot.path then pcall(os.remove,snapshot.path) end
+end
+
+local function snapshotForRollback()
+    local snapshot=stageRollbackSnapshot()
+    if not snapshot then return false end
+    commitRollbackSnapshot(snapshot)
     return true
 end
 
@@ -1578,9 +1592,28 @@ local function revertLast()
     clearRollback()
     state.modified = restoredModified
     state.normalizeReport=nil
+    state.bindRenameBoneId=nil
+    state.bindReparentBoneId=nil
+    refreshBindReport()
+    local bones=getBones()
+    state.boneIndex=math.max(1,math.min(state.boneIndex,#bones))
+    state.allowedBones={}
+    for _,bone in ipairs(bones) do state.allowedBones[bone.name]=true end
     invalidateAnalysis()
+    rebuildPreview()
+    rebuildSkeletonVisuals()
     rebuildSelectionBox()
+    rebuildProximityCapsule()
+    applyWorkspaceVisibility()
     setStatus(tLang.L('swl_reverted'), false)
+end
+
+local function showRollbackControls(id)
+    tImGui.Separator()
+    tImGui.Text(tLang.L('swl_history'))
+    tImGui.BeginDisabled(state.rollbackPath == nil)
+    if tImGui.Button(tLang.L('swl_revert')..'##'..id) then revertLast() end
+    tImGui.EndDisabled()
 end
 
 local function saveTo(path)
@@ -2000,10 +2033,17 @@ local function showSelectedBindBone(report)
     tImGui.BeginDisabled(trimmed=='' or trimmed==bone.name)
     if tImGui.Button(tLang.L('swl_apply_rename')..'##swlBindRenameApply') then
         local selectedBoneId=bone.boneId
-        local ok=select(1,safeCall(function()
-            return state.meshD:renameSkeletalBone(state.boneIndex,trimmed)
-        end))
+        local snapshot=stageRollbackSnapshot()
+        local ok=false
+        if snapshot then
+            ok=select(1,safeCall(function()
+                return state.meshD:renameSkeletalBone(state.boneIndex,trimmed)
+            end))
+        else
+            setStatus(tLang.L('swl_snapshot_failed'),true)
+        end
         if ok then
+            commitRollbackSnapshot(snapshot)
             state.modified=true
             refreshBindReport()
             for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
@@ -2013,6 +2053,8 @@ local function showSelectedBindBone(report)
             rebuildSkeletonVisuals()
             applyWorkspaceVisibility()
             setStatus(tLang.L('swl_bone_renamed'),false)
+        else
+            discardRollbackSnapshot(snapshot)
         end
     end
     tImGui.EndDisabled()
@@ -2033,11 +2075,18 @@ local function showSelectedBindBone(report)
     tImGui.BeginDisabled(requestedParent==currentParent or selectsSelf)
     if tImGui.Button(tLang.L('swl_apply_reparent')..'##swlBindReparentApply') then
         local selectedBoneId=bone.boneId
-        local ok=select(1,safeCall(function()
-            return state.meshD:reparentSkeletalBone(state.boneIndex,requestedParent,
-                state.bindPreserveGlobal)
-        end))
+        local snapshot=stageRollbackSnapshot()
+        local ok=false
+        if snapshot then
+            ok=select(1,safeCall(function()
+                return state.meshD:reparentSkeletalBone(state.boneIndex,requestedParent,
+                    state.bindPreserveGlobal)
+            end))
+        else
+            setStatus(tLang.L('swl_snapshot_failed'),true)
+        end
         if ok then
+            commitRollbackSnapshot(snapshot)
             state.modified=true
             refreshBindReport()
             for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
@@ -2048,6 +2097,8 @@ local function showSelectedBindBone(report)
             rebuildSkeletonVisuals()
             applyWorkspaceVisibility()
             setStatus(tLang.L('swl_bone_reparented'),false)
+        else
+            discardRollbackSnapshot(snapshot)
         end
     end
     tImGui.EndDisabled()
@@ -2156,6 +2207,7 @@ local function showBindPoseDiagnostics()
         showSelectedBindBone(report)
         tImGui.TreePop()
     end
+    showRollbackControls('swlBindRevert')
 end
 
 local function openWorkspaceNode(key,label,id)
@@ -2396,11 +2448,7 @@ local function showPanel()
             showSmoothingControls()
             showDiagnosticControls(canOperate,true)
             end
-            tImGui.Separator()
-            tImGui.Text(tLang.L('swl_history'))
-            tImGui.BeginDisabled(state.rollbackPath == nil)
-            if tImGui.Button(tLang.L('swl_revert')) then revertLast() end
-            tImGui.EndDisabled()
+            showRollbackControls('swlWeightRevert')
             tImGui.TreePop()
             end
         end

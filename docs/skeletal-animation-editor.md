@@ -43,7 +43,9 @@ and **Expand all** opens the complete hierarchy. Selecting a node highlights its
 parent-to-child bone segment in cyan in the bind-pose gizmo, and updates one separate technical panel with that bone's identity, parent,
 local TRS, radius/length, and bind matrices. The selected-bone panel permits an explicit rename.
 Empty or duplicate names are rejected transactionally; weights and animation tracks continue
-targeting the unchanged stable bone ID. Reparent/TRS mutation will build on the same boundary.
+targeting the unchanged stable bone ID. Rename and reparent create a one-level whole-asset rollback
+snapshot before committing; failed mutations discard their staged snapshot and preserve the previous
+history entry. **Revert** reloads skeleton, weights, clips, preview, hierarchy, and gizmos together.
 Root nodes highlight only their joint because they have no incoming parent segment.
 The hierarchy has its own scroll region, so expanding a large rig does not clip its lower branches
 or push the selected-bone panel out of reach.
