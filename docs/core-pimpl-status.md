@@ -132,9 +132,11 @@ If the work is redesign-shaped, write the redesign plan first instead of treatin
 
 The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the branch is no longer tracking active gap burn-down. The useful output now is the current boundary/status, not the chronological milestone log.
 
-`MESH_MBM_DEBUG::Impl::skeleton` (`std::vector<util::SKELETON_BONE_V11>`, `SECTION_FRAME_SKINNED` persistence for `mesh_debug.lua`'s Bones node round-trip, added alongside `addBone`/`getBone`/`getTotalBone`) follows the standard Impl-only rule from "Repo Rule For Future Core Work" below — noted here explicitly so a future reader doesn't have to re-derive that this was a deliberate, rule-compliant addition rather than an oversight. `MESH_MBM::Impl` deliberately has no equivalent legacy field; the runtime skeletal path consumes only canonical sections 41–43, while the shared parser merely tolerates and discards the exploratory legacy section for that class.
+`MESH_MBM_DEBUG::Impl::skeleton` (`std::vector<util::SKELETON_BONE_V11>`, `SECTION_FRAME_SKINNED` persistence, and `addBone`/`getBone`/`getTotalBone`) follows the standard Impl-only rule from "Repo Rule For Future Core Work" below. Its former Mesh Debug Bones product surface is retired; this legacy storage remains temporarily only for the physical-removal audit. `MESH_MBM::Impl` deliberately has no equivalent legacy field; the runtime skeletal path consumes only canonical sections 41–43, while the shared parser merely tolerates and discards the exploratory legacy section for that class.
 
-`updateBone`/`removeBone` (added for `mesh_debug.lua`'s general-purpose Bones editor node) are pure `MESH_MBM_DEBUG` methods operating only on the existing `impl->skeleton` field above — no new header-visible state, so the PIMPL boundary itself doesn't move. `updateBone`'s reparent path calls a small anonymous-namespace helper, `resortSkeletonParentFirst` (`src/core_mbm/mesh-manager.cpp`), kept as a private translation-unit function rather than a class method per the same rule, since it's pure vector-reordering logic with no need to touch `Impl` directly beyond the vector reference it's passed.
+`updateBone`/`removeBone` are likewise retired legacy methods operating only on the existing
+`impl->skeleton` field above. They remain temporarily for the same removal audit and do not move
+the PIMPL boundary.
 
 The read-only bind-pose diagnostic path follows the same boundary. `refreshSkeletonBindReport()`
 compiles `Impl::skeleton` into an `Impl`-owned `skeletal::COMPILED_SKELETON`; the public summary,

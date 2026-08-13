@@ -293,5 +293,5 @@ The following are not defects in the delivered Skin Weight Lab:
 Future animation authoring/timeline, richer pose-stress overlays, antipodality tooling, and non-GLES
 backend delivery remain in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
-Skeleton authoring, animation authoring/import, and the migration from Mesh Debug Bones remain in
-the [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
+Skeleton and animation authoring/import remain in the product plan. Mesh Debug's legacy Bone
+node/window has been retired; canonical bind inspection and weight repair belong to this editor.

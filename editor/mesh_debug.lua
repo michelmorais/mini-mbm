@@ -4317,18 +4317,20 @@ local function indexOf(t, val)
     return 1
 end
 
--- Aggregates SECTION_VERTEX_SKIN_WEIGHTS summary stats (docs/mesh-v11-format.md Sec. 6f) by
+-- Aggregates canonical SECTION_SKELETAL_WEIGHTS summary stats by
 -- looping every frame-1 vertex, mirroring getMeshTotalVertices/getMeshTotalTriangles's own
 -- per-frame/per-subset aggregation idiom -- except this loop is per-VERTEX (thousands, not tens),
 -- so the caller MUST cache the result (tEntry.weightStats) rather than calling this every frame;
 -- see showMeshInfoTable's own cache-invalidation comment for where it gets cleared.
 local function computeWeightStats(meshD)
-    local okHas, has = dpCall(function() return meshD:hasVertexWeights() end)
+    local okHas, has = dpCall(function() return meshD:hasSkeletalVertexWeights() end)
     if not (okHas and has) then return { has = false } end
     local nVert = getMeshTotalVertices(meshD)
     local weighted, totalInfluences, maxInfluences = 0, 0, 0
     for i = 1, nVert do
-        local okGW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function() return meshD:getVertexWeight(i) end)
+        local okGW, n1, w1, n2, w2, n3, w3, n4, w4 = dpCall(function()
+            return meshD:getSkeletalVertexWeight(i)
+        end)
         if okGW and n1 then
             weighted = weighted + 1
             local infl = 1
@@ -4339,7 +4341,7 @@ local function computeWeightStats(meshD)
             if infl > maxInfluences then maxInfluences = infl end
         end
     end
-    local okBones, nBones = dpCall(function() return meshD:getTotalVertexWeightBones() end)
+    local okBones, nBones = dpCall(function() return meshD:getTotalSkeletalWeightBones() end)
     return {
         has = true,
         totalVertices = nVert,
@@ -4390,7 +4392,7 @@ function showMeshInfoTable(tEntry, index)
     local texList = getMeshTextures(meshD)
     if #texList > 0 then addRow('Textures', table.concat(texList, ', ')) end
 
-    -- SECTION_VERTEX_SKIN_WEIGHTS (docs/mesh-v11-format.md Sec. 6f) summary. Cached on tEntry
+    -- Canonical type-42 summary. Cached on tEntry
     -- (computeWeightStats loops every vertex -- thousands, unlike this table's other per-frame/
     -- per-subset stats above), invalidated only by onEdit() below (the same "Remove" action that
     -- can change it) and by import/reload (addMeshToTable never carries a stale tEntry forward).
@@ -4423,26 +4425,6 @@ function showMeshInfoTable(tEntry, index)
                 tImGui.TextWrapped(tRows[i][2])
             end
             tImGui.EndTable()
-        end
-    end
-
-    -- Editable: Remove Vertex Skin Weights (single mesh) -- mirrors the Normals node's own
-    -- removeNormals pattern (byte-savings toast computed before removal, then clear + invalidate
-    -- caches). The main use case (per direct user request): once the FBX exported with real
-    -- weights has done its job for an external animation tool, and this engine only ever supports
-    -- static-frame mesh (no runtime skinning consumer exists to use this data going forward), the
-    -- section can be dropped to reclaim file size.
-    if ws.has then
-        tImGui.Spacing()
-        if tImGui.Button(tLang.L('remove_vertex_weights') .. '##removeVertexWeights-' .. index) then
-            local shortName = tUtil.getShortName(tEntry.fileName)
-            local bytesSaved = ws.weightedVertices * 20 -- 4x u8 paletteIndex + 4x f32 weight per vertex
-            local okRemove = dpCall(function() meshD:removeVertexWeights() end)
-            if okRemove then
-                onEdit()
-                tUtil.showMessage(string.format('Removed vertex skin weights: %s\n%d vertices (~%s saved)',
-                    shortName, ws.weightedVertices, formatBytes(bytesSaved)), 5)
-            end
         end
     end
 
@@ -6445,7 +6427,9 @@ function sweepStaleBoneGizmos()
         if tEntry.tArticulatedPivotGizmo and i ~= iSelectedMeshIndex then
             destroyArticulatedPivotGizmo(tEntry)
         end
-        if tEntry.bBonesWasOpen and i ~= iSelectedMeshIndex then
+        -- The legacy Bones product surface is retired. Clean any state left by a test or by a
+        -- scene reload without waiting for the removed node/window to run a close transition.
+        if tEntry.bBonesWasOpen or tEntry.tBoneGizmo then
             destroyBoneGizmo(tEntry)
             tEntry.bBonesWasOpen = false
         end
@@ -6453,10 +6437,11 @@ function sweepStaleBoneGizmos()
         -- currently selected mesh), so this only ever actually destroys something for the one entry
         -- that owned it, but every entry needs the flag cleared so a later reselect properly rebuilds
         -- rather than being skipped by the transition check in showBonesNode.
-        if tEntry.bGhostWasShown and i ~= iSelectedMeshIndex then
+        if tEntry.bGhostWasShown then
             destroyGhostMesh()
             tEntry.bGhostWasShown = false
         end
+        if tEntry.sOpenNode=='bones' then tEntry.sOpenNode=nil end
     end
 end
 
@@ -11080,9 +11065,6 @@ function showMeshOptions(tEntry, index)
     -- Frame node: view/queue frame+subset edits (outside Animations)
     showFrameNode(tEntry, meshD, index)
 
-    -- Bones node: view/add/edit/remove the mesh's optional skeleton (diagnostic-only)
-    showBonesNode(tEntry, meshD, index)
-
     -- Articulated Animation node: persistent parts/pivots and named clips
     showArticulatedAnimationNode(tEntry, meshD, index)
 
@@ -11952,35 +11934,6 @@ local function applyAllRemoveNormals(sType)
     return summary
 end
 
--- Same pattern as applyAllRemoveNormals above, for SECTION_VERTEX_SKIN_WEIGHTS
--- (docs/mesh-v11-format.md Sec. 6f) -- see showMeshInfoTable's own single-mesh "Remove Vertex
--- Skin Weights" button for the underlying use case (reclaim file size once external animation
--- tooling has already consumed a batch of exported FBX files).
-local function applyAllRemoveVertexWeights(sType)
-    local totalVertices = 0
-    local totalBytesSaved = 0
-    local summary = runApplyAllOperation(sType, tLang.L('remove_vertex_weights'), function(tEntry)
-        local meshD = tEntry.meshDebug
-        local okHas, has = dpCall(function() return meshD:hasVertexWeights() end)
-        if not (okHas and has) then
-            return 'skipped'
-        end
-        local nVertices = getMeshTotalVertices(meshD)
-        totalVertices = totalVertices + nVertices
-        totalBytesSaved = totalBytesSaved + (nVertices * 20) -- 4x u8 paletteIndex + 4x f32 weight per vertex
-        dpCall(function() meshD:removeVertexWeights() end)
-        tEntry.weightStats = nil
-        tEntry.modified = true
-        return 'success'
-    end)
-    if totalVertices > 0 then
-        tApplyAllWin.lastResultText = tApplyAllWin.lastResultText
-            .. string.format('\n%d vertices, ~%s saved', totalVertices, formatBytes(totalBytesSaved))
-        tUtil.showMessage(tApplyAllWin.lastResultText, 8)
-    end
-    return summary
-end
-
 local function applyAllAddNormals(sType)
     local totalVertices = 0
     local summary = runApplyAllOperation(sType, tLang.L('add_normals'), function(tEntry)
@@ -12725,13 +12678,6 @@ function showApplyAllWindow()
                     applyAllRecomputeNormalsBulk(win.selectedType)
                 end
                 tImGui.TextDisabled(tLang.L('apply_all_normals_scope_note'))
-                tImGui.TreePop()
-            end
-
-            if tImGui.TreeNodeEx(tLang.L('skin_weights_label') .. '##applyAllSkinWeights', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
-                if tImGui.Button(tLang.L('remove_vertex_weights') .. '##applyAllRemoveVertexWeights') then
-                    applyAllRemoveVertexWeights(win.selectedType)
-                end
                 tImGui.TreePop()
             end
 
@@ -14020,7 +13966,6 @@ function onLoop(delta)
     showMeshTreeWindow()
     showArticulatedPivotWindow()
     sweepStaleBoneGizmos()
-    showBonesWindow()
     showApplyAllWindow()
     showListTexturesWindow()
     showListMeshesWindow()

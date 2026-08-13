@@ -117,11 +117,10 @@ a tile map has `SECTION_DETAIL_TILE`, and no other mesh type has any of the thre
 carries physics bounding volumes now; FONT/PARTICLE/TILE detail data moved to their own top-level
 sections in milestones 12/13, it's never nested inside `SECTION_DETAIL_PHYSICS`.
 
-`SECTION_FRAME_SKINNED` (Sec. 6e) persists a joint hierarchy — one optional section per mesh,
-independent of `SECTION_FRAME_STATIC` geometry (a mesh can have real frame data with no skeleton,
-a skeleton with no special geometry origin, or both, e.g. a skeleton fitted onto a mesh imported
-from elsewhere). It is not runtime skeletal animation — the engine has no GPU/CPU skinning
-anywhere — purely a diagnostic round-trip mechanism for `editor/mesh_debug.lua`'s Bones node.
+`SECTION_FRAME_SKINNED` (Sec. 6e) is the retired exploratory joint hierarchy. Its parser/writer and
+debug API remain temporarily available only for the physical-removal audit; the Mesh Debug Bones
+node that authored it is no longer exposed. Runtime skeletal animation consumes the canonical
+sections 41–43 instead and never consumes this section.
 
 `SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6g) persists real per-vertex bone weights — also one optional
 section per mesh, same "diagnostic/editor + FBX re-export round-trip only" scope as
@@ -369,12 +368,10 @@ struct TILE_PROPERTY_V11
 
 ## 6e. `SECTION_FRAME_SKINNED` payload
 
-One optional section per mesh — present only when the editor (`editor/mesh_debug.lua`'s Bones
-node, via `meshDebug:addBone(...)`) has explicitly added a skeleton. Independent of `typeMesh` and
-independent of whether this mesh's `SECTION_FRAME_STATIC` geometry came from a hand-authored
-skeleton or an ordinary Blender import — a skeleton can be fitted onto any existing mesh's geometry.
-**Diagnostic/editor round-trip only — never consulted by rendering** (this engine has no GPU/CPU
-skinning anywhere).
+One optional retired exploratory section per mesh, formerly authored by Mesh Debug through
+`meshDebug:addBone(...)`. Its parser/writer remains temporarily for the physical-removal audit,
+but no visible editor workflow creates it now. **Never consulted by rendering**: runtime skinning
+uses the canonical skeleton, weights, and clips in sections 41–43.
 
 Bundled like `SECTION_DETAIL_TILE` (§6d): one section, an internal count prefix, followed by a
 flat run of entries — not repeated-per-item like `SECTION_ANIMATION`, since there is exactly one
