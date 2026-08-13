@@ -1970,7 +1970,7 @@ local function showSelectedBindBone(report)
     tImGui.Text(string.format('S %.6g %.6g %.6g',scale.x or 1,scale.y or 1,scale.z or 1))
     tImGui.Text(string.format('Radius %.6g  Length %.6g',bone.radius or 0,bone.length or 0))
     local changed,newName=tImGui.InputText(tLang.L('swl_bone_name')..'##swlBindRename',
-        state.bindRenameName,128,0)
+        state.bindRenameName,tImGui.Flags('ImGuiInputTextFlags_None'))
     if changed then state.bindRenameName=newName end
     local trimmed=(state.bindRenameName or ''):match('^%s*(.-)%s*$')
     tImGui.BeginDisabled(trimmed=='' or trimmed==bone.name)

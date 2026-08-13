@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 6.4 | 2026-08-13 | Fixed the bind rename `InputText` crash by using the plugin's actual `(label, text, flags)` Lua contract. The accidental `128` buffer-size argument had been parsed as an invalid ImGui flag, causing Lua unwind and the subsequent Missing End assertion. |
 | 6.3 | 2026-08-13 | Added transactional canonical bone rename through C++/Lua and the selected-bone bind panel. Section 41 is copied/recompiled and sections 42/43 are revalidated before commit; stable IDs preserve weights and track targets, and save/reload coverage proves the new name resolves through existing weight references. |
 | 6.2 | 2026-08-13 | Began safe bind editing with a read-only canonical hierarchy tree in Bind Pose Contract. Multiple roots and recursive children are explicit, diagnostic nodes are marked, tree selection highlights the bind gizmo joint, and technical TRS/matrix details moved from the old flat per-bone list into one selected-bone panel. |
 | 6.1 | 2026-08-13 | Fixed ×100 canonical scaling on the real 67-bone Mixamo rig. Bind-identity validation now bounds float matrix-product roundoff from the inverse/global bind operands instead of comparing the cancellation result only against unit magnitude; the observed 1.52587891e-5 root residual is accepted without weakening structural validation. Mesh Debug now surfaces scale failures in its UI as well as the terminal. |
