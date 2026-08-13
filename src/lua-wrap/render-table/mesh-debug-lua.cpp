@@ -2207,6 +2207,7 @@ namespace mbm
         return 1;
     }
 
+    #if 0
     // Skeleton bindings (SECTION_FRAME_SKINNED, docs/mesh-v11-format.md Sec. 6e) - editor/
     // diagnostic round-trip only, follows the exact same flat-multi-return convention as
     // addAnim/getAnim above rather than a table, to stay consistent within this native class.
@@ -2277,6 +2278,8 @@ namespace mbm
         lua_pushnumber(lua, joint->length);
         return 13;
     }
+
+    #endif
 
     namespace
     {
@@ -2381,6 +2384,7 @@ namespace mbm
         return 1;
     }
 
+    #if 0
     int onUpdateBoneDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2503,6 +2507,8 @@ namespace mbm
         meshDebug->mesh.removeVertexWeights();
         return 0;
     }
+
+    #endif
 
     int onSetSkeletalVertexWeightDebugLua(lua_State *lua)
     {

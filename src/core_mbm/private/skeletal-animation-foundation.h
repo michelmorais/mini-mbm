@@ -166,16 +166,6 @@ namespace mbm::skeletal
         std::vector<CANONICAL_VERTEX_WEIGHT> vertices;
     };
 
-    struct WEIGHT_VALIDATION_REPORT
-    {
-        std::vector<int32_t> paletteBoneIndices;
-        std::vector<DIAGNOSTIC> diagnostics;
-        float maximumWeightSumError = 0.0f;
-        uint32_t verticesWithoutEffectiveInfluence = 0;
-        uint32_t verticesWithInvalidWeightSum = 0;
-
-        bool hasFatalDiagnostics() const noexcept;
-    };
 
     enum SKELETAL_CHANNEL : uint8_t
     {
@@ -246,8 +236,6 @@ namespace mbm::skeletal
     float matrixComparisonTolerance(const MATRIX &left, const MATRIX &right) noexcept;
     bool rigidDualQuaternionFromMatrix(const MATRIX &matrix, DUAL_QUATERNION &out) noexcept;
     const char *diagnosticCodeName(DIAGNOSTIC_CODE code) noexcept;
-    bool compileLegacySkeleton(const std::vector<util::SKELETON_BONE_V11> &legacy,
-                               COMPILED_SKELETON &out);
     bool compileCanonicalSkeleton(const std::vector<CANONICAL_BONE> &source,
                                   COMPILED_SKELETON &out);
     bool validateCanonicalWeights(const CANONICAL_SKELETON &skeleton,
@@ -255,11 +243,6 @@ namespace mbm::skeletal
                                   uint32_t expectedVertexCount) noexcept;
     bool validateCanonicalAnimations(const CANONICAL_SKELETON &skeleton,
                                      const CANONICAL_ANIMATIONS &animations) noexcept;
-    bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
-                               const std::vector<std::string> &palette,
-                               const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,
-                               uint32_t expectedVertexCount,
-                               WEIGHT_VALIDATION_REPORT &out);
     bool validateSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
                               std::vector<DIAGNOSTIC> &diagnostics);
     bool sampleSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,

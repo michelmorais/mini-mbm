@@ -3860,23 +3860,9 @@ namespace mbm
     bool MESH_MBM_DEBUG::scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy,
                                     const float sz, const bool scaleSkeleton, char *errorOut, const int errorOutLen)
     {
-        const bool hasSkeleton = !impl->skeleton.empty();
-        if (scaleSkeleton && hasSkeleton)
-        {
-            if (indexFrame >= 0 || indexSubset >= 0)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen,
-                    "skeleton synchronization requires all frames and all subsets");
-                return false;
-            }
-            const float tolerance = std::max(1.0f, std::max(std::abs(sx), std::max(std::abs(sy), std::abs(sz)))) * 0.000001f;
-            if (sx <= 0.0f || std::abs(sx - sy) > tolerance || std::abs(sx - sz) > tolerance)
-            {
-                if (errorOut) snprintf(errorOut, errorOutLen,
-                    "skeleton synchronization requires a positive uniform scale");
-                return false;
-            }
-        }
+        (void)scaleSkeleton;
+        (void)errorOut;
+        (void)errorOutLen;
         if (indexFrame < 0)
         {
             for (uint32_t i = 0; i < this->impl->buffer.size(); ++i)
@@ -3910,17 +3896,6 @@ namespace mbm
             }
         }
 
-        if (scaleSkeleton && hasSkeleton)
-        {
-            for (auto &joint : impl->skeleton)
-            {
-                joint.x *= sx;
-                joint.y *= sy;
-                joint.z *= sz;
-                joint.radius *= sx;
-                joint.length *= sx;
-            }
-        }
         return true;
     }
 
@@ -4279,6 +4254,7 @@ namespace mbm
         return infoHead->effectShader->getTextureAnimationEffectFileName();
     }
 
+    #if 0
     int MESH_MBM_DEBUG::addBone(const char *name, const char *parentName, const float x, const float y, const float z,
                                  const float radius, const float rotX, const float rotY, const float rotZ,
                                  const float scaleX, const float scaleY, const float scaleZ, const float length,
@@ -4331,6 +4307,8 @@ namespace mbm
             return &impl->skeleton[index];
         return nullptr;
     }
+
+    #endif
 
     bool MESH_MBM_DEBUG::getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept
     {
@@ -4397,6 +4375,7 @@ namespace mbm
         return true;
     }
 
+    #if 0
     namespace
     {
         // Re-sorts a skeleton vector so every joint's parent appears earlier than the joint itself,
@@ -4591,23 +4570,9 @@ namespace mbm
         return true;
     }
 
-    namespace
-    {
-        // Frame 1's own vertex count (sum of its subsets' vertexCount) - SECTION_VERTEX_SKIN_WEIGHTS
-        // always describes frame 1's topology only (skin weights are a bind-pose property, they
-        // don't vary per animation frame the way position/normal/uv per SECTION_FRAME_STATIC do).
-        // Returns 0 if there is no frame 0 buffer at all.
-        uint32_t computeFrame1VertexCountForWeights(const std::vector<util::BUFFER_MESH_DEBUG *> &buffer)
-        {
-            if (buffer.empty() || buffer[0] == nullptr)
-                return 0;
-            uint32_t total = 0;
-            for (const auto *sub : buffer[0]->subset)
-                total += static_cast<uint32_t>(sub->vertexCount);
-            return total;
-        }
-    }
+    #endif
 
+    #if 0
     bool MESH_MBM_DEBUG::setVertexWeight(const uint32_t vertexIndex,
                                           const char *boneName0, const float weight0,
                                           const char *boneName1, const float weight1,
@@ -4706,6 +4671,8 @@ namespace mbm
         impl->weightPalette.clear();
         impl->vertexWeights.clear();
     }
+
+    #endif
 
     bool MESH_MBM_DEBUG::setSkeletalVertexWeight(const uint32_t vertexIndex,
                                                   const char *boneName0, const float weight0,
@@ -5522,7 +5489,6 @@ namespace mbm
         this->impl->infoAnimation.release();
         impl->articulatedParts.clear();
         impl->articulatedClips.clear();
-        impl->skeleton.clear();
         impl->canonicalSkeleton = {};
         impl->canonicalWeights = {};
         impl->canonicalAnimations = {};

@@ -132,13 +132,10 @@ If the work is redesign-shaped, write the redesign plan first instead of treatin
 
 The old `docs/core-pimpl-gap-report.md` milestone diary was retired because the branch is no longer tracking active gap burn-down. The useful output now is the current boundary/status, not the chronological milestone log.
 
-`MESH_MBM_DEBUG::Impl::skeleton` and its old name-palette weight storage are retired unreachable
-fields awaiting symbol deletion. Active v11 loaders reject sections 11/40 and writers never emit
-them; runtime and editor skeletal paths consume only canonical sections 41–43.
-
-`updateBone`/`removeBone` are likewise retired legacy methods operating only on the existing
-`impl->skeleton` field above. They remain temporarily for the same removal audit and do not move
-the PIMPL boundary.
+`MESH_MBM_DEBUG::Impl` no longer contains the exploratory section-11 skeleton or section-40
+name-palette weight storage. Their public structs/APIs, serializers, and enum members were removed
+with that storage. Active v11 loaders reject numeric types 11/40 and writers never emit them;
+runtime and editor skeletal paths consume only canonical sections 41–43.
 
 The read-only bind-pose getters copy fixed value records directly from
 `Impl::canonicalSkeleton.compiled`, which is produced and validated during load. There is no

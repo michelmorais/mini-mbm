@@ -389,6 +389,10 @@ Exit: editor and runtime produce matching reference vertices/normals for the sam
 - Retired the pre-canonical test group that constructed `SKELETON_BONE_V11` and name-palette
   weights. The active suite now reaches hierarchy/identity/validation, weights, clips, corruption,
   scale, CPU skinning, GLES preparation, and save/reload solely through canonical fixtures.
+- Removed the compiled/public representation of exploratory numeric types 11/40: enum members,
+  payload structs and serializers, `MESH_MBM_DEBUG` bone/name-palette-weight APIs, PIMPL storage,
+  legacy compiler/validator declarations, and Lua callbacks. Historical payload descriptions remain
+  documentation only; affected skeletal assets must be regenerated from FBX.
 
 Exit: there is one canonical implementation for each skeleton, weight, and animation responsibility.
 
@@ -457,6 +461,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.0 | 2026-08-13 | Removed the compiled/public section-11/40 model: enum members, payload structs/serializers, Mesh Debug C++ APIs and PIMPL storage, Lua callbacks, and legacy compiler/validator declarations. Numeric IDs and layouts remain documentation-only history; canonical 41–43 are the sole skeletal contract. |
 | 3.9 | 2026-08-13 | Retired the exploratory 11/40 fixture group from the active foundation suite. Equivalent and broader canonical tests remain active, leaving `compileLegacySkeleton`/`validateLegacyWeights` with no compiled consumer outside their own implementation. |
 | 3.8 | 2026-08-13 | Removed `refreshSkeletonBindReport()` and the duplicate bind-report cache. Read-only bind getters now consume the canonical compiled skeleton validated during load directly. |
 | 3.7 | 2026-08-13 | Removed the final bind-report compatibility fallback and runtime intermediate scratch storage for 11/40. Bind reports are unconditionally canonical and require section 41; the legacy compiler remains referenced only by pre-canonical test fixtures pending their conversion. |

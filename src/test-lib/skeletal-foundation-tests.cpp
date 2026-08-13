@@ -731,8 +731,6 @@ namespace
                    summary.valid && summary.canonical && summary.boneCount == 1 && mesh.getSkeletonBindBone(0, bone) &&
                    std::string(mesh.getSkeletonBindBoneName(0)) == "root",
                "bind report must inspect canonical section 41 without populating legacy bones");
-        expect(mesh.getTotalBone() == 0,
-               "canonical bind inspection must not create a legacy skeleton compatibility copy");
         const char *name0=nullptr, *name1=nullptr, *name2=nullptr, *name3=nullptr;
         float weight0=0, weight1=0, weight2=0, weight3=0;
         expect(mesh.hasSkeletalVertexWeights() && mesh.getTotalSkeletalWeightBones()==1 &&

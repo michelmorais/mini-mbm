@@ -78,8 +78,6 @@ enum SECTION_TYPE : uint16_t
     SECTION_MATERIAL_TRANSFORM = 1,   // material + angle/pos + draw mode (replaces HEADER_MESH + INFO_DRAW_MODE)
     SECTION_ANIMATION          = 2,   // repeated: one per animation, in order, including its FX block
     SECTION_FRAME_STATIC       = 10,  // repeated: one per frame, in order
-    SECTION_FRAME_SKINNED      = 11,  // bundled joint hierarchy, see Sec. 6e — diagnostic/editor
-                                       // round-trip only, never consulted by rendering
     SECTION_ARTICULATED_PARTS  = 12,  // optional rigid-part identities, pivots, and hierarchy metadata
     SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
     SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / cube-complex / triangle bounding volumes
@@ -87,12 +85,15 @@ enum SECTION_TYPE : uint16_t
     SECTION_DETAIL_PARTICLE    = 22,
     SECTION_DETAIL_TILE        = 23,
     SECTION_EXTRA_PATHS        = 30,  // replaces legacy EXTRA_HEADER type==1 path-registration hint
-    SECTION_VERTEX_SKIN_WEIGHTS = 40, // bundled per-vertex bone weight palette, see Sec. 6g —
-                                       // editor/diagnostic + FBX re-export round-trip only, same
-                                       // scope as SECTION_FRAME_SKINNED (no GPU/CPU skinning
-                                       // consumer exists in this engine)
+    SECTION_SKELETAL_SKELETON  = 41,
+    SECTION_SKELETAL_WEIGHTS   = 42,
+    SECTION_SKELETAL_ANIMATION = 43,
 };
 ```
+
+Numeric types **11** and **40** are retired exploratory skeletal payloads documented historically
+in Secs. 6e and 6g. They are no longer `SECTION_TYPE` members, recognized by either loader, emitted
+by the writer, or represented by public payload structs/APIs.
 
 Note on unrecognized section types: despite what an earlier draft of this doc claimed, an
 unrecognized `type` is **not** actually a safe no-op for every reader — only the lightweight
@@ -117,22 +118,20 @@ a tile map has `SECTION_DETAIL_TILE`, and no other mesh type has any of the thre
 carries physics bounding volumes now; FONT/PARTICLE/TILE detail data moved to their own top-level
 sections in milestones 12/13, it's never nested inside `SECTION_DETAIL_PHYSICS`.
 
-`SECTION_FRAME_SKINNED` (Sec. 6e) is the retired exploratory joint hierarchy. Active loaders and
-writers no longer accept or emit it. Its numeric identifier, payload structs, and unreachable
-debug helpers remain temporarily only for the final symbol-removal pass. Runtime skeletal
-animation consumes the canonical sections 41–43 instead.
+`SECTION_FRAME_SKINNED` (Sec. 6e) is the historical name for retired numeric type 11. Active
+loaders and writers no longer accept or emit it, and its enum member, payload structs, serializers,
+storage, and public Mesh Debug APIs have been removed. Runtime skeletal animation consumes the
+canonical sections 41–43 instead.
 
-`SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6g) persists real per-vertex bone weights — also one optional
-section per mesh, same "diagnostic/editor + FBX re-export round-trip only" scope as
-`SECTION_FRAME_SKINNED`, not consumed by any renderer. Unlike the skeleton section, it's tied to a
-specific `SECTION_FRAME_STATIC` frame's own vertex topology (frame 1, always) rather than being
-independent of geometry — skin weights only mean anything relative to one specific vertex layout.
+`SECTION_VERTEX_SKIN_WEIGHTS` (Sec. 6g) is the historical name for retired numeric type 40. Its
+name-palette weights were tied to frame 1 vertex topology, but are no longer accepted or persisted.
+Canonical type 42 is the only supported skeletal-weight representation.
 
 ### Canonical skeletal-runtime section types — reader/writer rollout in progress
 
 The following values are present in `SECTION_TYPE`; all three have explicit read/validate support
-in both real loaders, and `MESH_MBM_DEBUG::saveV11` round-trips already-canonical data. The FBX
-importer does not produce them yet:
+in both real loaders, `MESH_MBM_DEBUG::saveV11` round-trips canonical data, and the FBX importer
+produces them:
 
 ```cpp
 SECTION_SKELETAL_SKELETON  = 41,
@@ -141,9 +140,8 @@ SECTION_SKELETAL_ANIMATION = 43,
 ```
 
 All three initially use `sectionVersion == 1`. They form the sole skeletal family of the delivered
-runtime feature. The current meanings of legacy `SECTION_FRAME_SKINNED` and
-`SECTION_VERTEX_SKIN_WEIGHTS` remain documented below only so the temporary audit implementation
-can be understood and removed safely; coexistence is not a compatibility requirement.
+runtime feature. The meanings of retired numeric types 11 and 40 remain documented below solely as
+historical format archaeology; coexistence is not a compatibility requirement.
 
 ## 5. Variable-length strings — replacing fixed char buffers
 
@@ -654,12 +652,12 @@ The completed rollout order was: field serializers and payload validators; parse
 types 41–43 will reject files containing them. This is an explicit feature-version boundary, not
 silent fallback.
 
-There is deliberately no legacy skeletal writer mode. Once canonical read/import/write tests pass,
-remove the readers, writers, structs, and Mesh Debug APIs for `SECTION_FRAME_SKINNED` and
-`SECTION_VERTEX_SKIN_WEIGHTS`. A skeletal file carrying only those exploratory sections is rejected,
-not converted during ordinary loading. Its source FBX must be imported again to produce sections
-41–43. A static-only writer remains valid for genuinely static meshes, but it must not disguise a
-skeletal asset by dropping its skeleton or animation merely to target an older binary.
+There is deliberately no legacy skeletal writer mode. Readers, writers, structs, enum members,
+storage, and public Mesh Debug APIs for retired numeric types 11 and 40 have been removed. A file
+carrying only those exploratory sections is rejected, not converted during ordinary loading. Its
+source FBX must be imported again to produce sections 41–43. A static-only writer remains valid for
+genuinely static meshes, but it must not disguise a skeletal asset by dropping its skeleton or
+animation merely to target an older binary.
 
 ## 7. Index width (§6 `indexWidth`)
 

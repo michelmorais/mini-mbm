@@ -29,13 +29,13 @@ namespace mbm::skeletal
 {
     namespace
     {
-        constexpr float DEGREES_TO_RADIANS = 0.017453292519943295769f;
 
         bool isFinite(const float value) noexcept
         {
             return std::isfinite(value);
         }
 
+        #if 0
         bool isFinite(const util::SKELETON_BONE_V11 &bone) noexcept
         {
             return isFinite(bone.x) && isFinite(bone.y) && isFinite(bone.z) && isFinite(bone.radius) &&
@@ -43,6 +43,8 @@ namespace mbm::skeletal
                    isFinite(bone.scaleX) && isFinite(bone.scaleY) && isFinite(bone.scaleZ) &&
                    isFinite(bone.length);
         }
+
+        #endif
 
         float vectorLength(const float x, const float y, const float z) noexcept
         {
@@ -108,6 +110,7 @@ namespace mbm::skeletal
             return result;
         }
 
+        #if 0
         MATRIX buildLegacyGlobalMatrix(const util::SKELETON_BONE_V11 &bone) noexcept
         {
             MATRIX scale, rotationX, rotationY, rotationZ, rotation, result, translation;
@@ -123,6 +126,9 @@ namespace mbm::skeletal
             return result;
         }
 
+        #endif
+
+        #if 0
         uint64_t stableBoneId(const std::string &path) noexcept
         {
             constexpr uint64_t offset = 14695981039346656037ull;
@@ -137,6 +143,8 @@ namespace mbm::skeletal
             return value == 0 ? 1 : value;
         }
 
+        #endif
+
         void addDiagnostic(COMPILED_SKELETON &out, const DIAGNOSTIC_CODE code, const uint32_t sourceIndex,
                            const std::string &name, const float error = 0.0f, const bool fatal = true)
         {
@@ -149,6 +157,7 @@ namespace mbm::skeletal
             out.diagnostics.push_back(std::move(diagnostic));
         }
 
+        #if 0
         void addWeightDiagnostic(WEIGHT_VALIDATION_REPORT &out, const DIAGNOSTIC_CODE code,
                                  const uint32_t vertexIndex, const uint8_t slotIndex,
                                  const std::string &boneName, const float error = 0.0f,
@@ -163,6 +172,8 @@ namespace mbm::skeletal
             diagnostic.fatal = fatal;
             out.diagnostics.push_back(std::move(diagnostic));
         }
+
+        #endif
 
         bool isFinite(const LOCAL_TRANSFORM &transform) noexcept
         {
@@ -281,11 +292,14 @@ namespace mbm::skeletal
                            [](const DIAGNOSTIC &diagnostic) { return diagnostic.fatal; });
     }
 
+    #if 0
     bool WEIGHT_VALIDATION_REPORT::hasFatalDiagnostics() const noexcept
     {
         return std::any_of(diagnostics.begin(), diagnostics.end(),
                            [](const DIAGNOSTIC &diagnostic) { return diagnostic.fatal; });
     }
+
+    #endif
 
     MATRIX buildTrsMatrix(const LOCAL_TRANSFORM &transform) noexcept
     {
@@ -461,6 +475,7 @@ namespace mbm::skeletal
         return "unknown";
     }
 
+    #if 0
     bool compileLegacySkeleton(const std::vector<util::SKELETON_BONE_V11> &legacy,
                                COMPILED_SKELETON &out)
     {
@@ -580,6 +595,8 @@ namespace mbm::skeletal
         }
         return out.bones.size() == legacy.size() && !out.hasFatalDiagnostics();
     }
+
+    #endif
 
     bool compileCanonicalSkeleton(const std::vector<CANONICAL_BONE> &source, COMPILED_SKELETON &out)
     {
@@ -710,6 +727,7 @@ namespace mbm::skeletal
         return true;
     }
 
+    #if 0
     bool validateLegacyWeights(const COMPILED_SKELETON &skeleton,
                                const std::vector<std::string> &palette,
                                const std::vector<util::VERTEX_BONE_WEIGHT_V11> &weights,
@@ -817,6 +835,8 @@ namespace mbm::skeletal
         }
         return !out.hasFatalDiagnostics();
     }
+
+    #endif
 
     bool validateSkeletalClip(const COMPILED_SKELETON &skeleton, const SKELETAL_CLIP &clip,
                               std::vector<DIAGNOSTIC> &diagnostics)
