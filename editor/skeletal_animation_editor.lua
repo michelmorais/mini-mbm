@@ -60,6 +60,8 @@ local state = {
     bindAddName = '',
     bindAddParentChoice = 1,
     bindAddTranslation = {x=0,y=1,z=0},
+    bindRemoveBoneId = nil,
+    bindRemoveConfirmed = false,
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -1167,6 +1169,7 @@ local function loadMesh(path)
     state.bindReparentBoneId=nil
     state.bindEditBoneId=nil
     state.bindAddBoneId=nil
+    state.bindRemoveBoneId=nil
     state.proximityBoneHighlight=false
     state.analysis = nil
     state.analysisDirty = true
@@ -2036,6 +2039,10 @@ local function showSelectedBindBone(report)
         state.bindAddParentChoice=state.boneIndex+1
         state.bindAddTranslation={x=0,y=(bone.length or 0)>0 and bone.length or 1,z=0}
     end
+    if state.bindRemoveBoneId~=bone.boneId then
+        state.bindRemoveBoneId=bone.boneId
+        state.bindRemoveConfirmed=false
+    end
     tImGui.Separator()
     tImGui.Text(string.format('%s: %s',tLang.L('swl_source_bone'),bone.name or '?'))
     tImGui.Text(string.format('ID: %s  Parent: %s (%d)',bone.boneId or '?',
@@ -2076,6 +2083,7 @@ local function showSelectedBindBone(report)
             end
             state.bindRenameBoneId=nil
             state.bindAddBoneId=nil
+            state.bindRemoveConfirmed=false
             rebuildSkeletonVisuals()
             applyWorkspaceVisibility()
             setStatus(tLang.L('swl_bone_renamed'),false)
@@ -2121,6 +2129,7 @@ local function showSelectedBindBone(report)
             state.bindRenameBoneId=nil
             state.bindReparentBoneId=nil
             state.bindEditBoneId=nil
+            state.bindRemoveConfirmed=false
             rebuildSkeletonVisuals()
             applyWorkspaceVisibility()
             setStatus(tLang.L('swl_bone_reparented'),false)
@@ -2214,6 +2223,7 @@ local function showSelectedBindBone(report)
                 state.bindReparentBoneId=nil
                 state.bindEditBoneId=nil
                 state.bindAddBoneId=nil
+                state.bindRemoveConfirmed=false
                 rebuildPreview()
                 rebuildSkeletonVisuals()
                 applyWorkspaceVisibility()
@@ -2222,6 +2232,56 @@ local function showSelectedBindBone(report)
                 discardRollbackSnapshot(snapshot)
             end
         end
+        tImGui.EndDisabled()
+        tImGui.TreePop()
+    end
+    if tImGui.TreeNode(tLang.L('swl_remove_bone')..'##swlRemoveBone') then
+        tImGui.Text(string.format(tLang.L('swl_remove_bone_impact_fmt'),bone.childCount or 0,
+            bone.weightedVertexCount or 0,bone.animationTrackCount or 0))
+        if bone.weightPaletteReferenced then
+            tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_remove_weight_palette_blocked'))
+        end
+        local blocked=(bone.childCount or 0)>0 or bone.weightPaletteReferenced==true or
+            (bone.animationTrackCount or 0)>0 or #(report.bones or {})<=1
+        tImGui.TextWrapped(blocked and tLang.L('swl_remove_bone_blocked') or
+            tLang.L('swl_remove_bone_strict_policy'))
+        tImGui.BeginDisabled(blocked)
+        local confirmed=tImGui.Checkbox(tLang.L('swl_confirm_remove_bone'),state.bindRemoveConfirmed)
+        if confirmed~=state.bindRemoveConfirmed then state.bindRemoveConfirmed=confirmed end
+        tImGui.BeginDisabled(not state.bindRemoveConfirmed)
+        if tImGui.Button(tLang.L('swl_apply_remove_bone')..'##swlRemoveBoneApply') then
+            local previousParentId=bone.parentBoneId
+            local snapshot=stageRollbackSnapshot()
+            local ok=false
+            if snapshot then
+                ok=select(1,safeCall(function()
+                    return state.meshD:removeSkeletalBone(state.boneIndex)
+                end))
+            else
+                setStatus(tLang.L('swl_snapshot_failed'),true)
+            end
+            if ok then
+                commitRollbackSnapshot(snapshot)
+                state.modified=true
+                refreshBindReport()
+                state.boneIndex=1
+                for index,item in ipairs((state.bindReport and state.bindReport.bones) or {}) do
+                    if item.boneId==previousParentId then state.boneIndex=index break end
+                end
+                state.bindRenameBoneId=nil
+                state.bindReparentBoneId=nil
+                state.bindEditBoneId=nil
+                state.bindAddBoneId=nil
+                state.bindRemoveBoneId=nil
+                rebuildPreview()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                setStatus(tLang.L('swl_bone_removed'),false)
+            else
+                discardRollbackSnapshot(snapshot)
+            end
+        end
+        tImGui.EndDisabled()
         tImGui.EndDisabled()
         tImGui.TreePop()
     end

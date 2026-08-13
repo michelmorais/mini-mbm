@@ -134,6 +134,10 @@ namespace mbm
         MATRIX inverseGlobalBindMatrix;
         float radius = 0.0f;
         float length = 0.0f;
+        uint32_t childCount = 0;
+        uint32_t weightedVertexCount = 0;
+        uint32_t animationTrackCount = 0;
+        bool weightPaletteReferenced = false;
         bool hasNegativeScale = false;
         bool hasShear = false;
     };
@@ -265,6 +269,9 @@ namespace mbm
         API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,
                                       const VEC3 &translation, const float radius, const float length,
                                       uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
+        // Strict removal: only an unreferenced leaf may be deleted. No implicit remapping occurs.
+        API_IMPL bool removeSkeletalBone(const uint32_t index,
+                                         char *errorOut, const int errorOutLen);
         // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
         // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.
         // An asset without an existing canonical skeleton/weight section is rejected rather than

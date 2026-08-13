@@ -1283,7 +1283,9 @@ bone contains its one-based `sourceIndex`, `name`, stable `boneId`/`parentBoneId
 strings, one-based `parentIndex` (`0` for a root), local translation/quaternion/scale, row-major
 16-number `localBindMatrix`, `globalBindMatrix`, and `inverseGlobalBindMatrix`, plus
 `hasNegativeScale` and `hasShear`. IDs are strings because Lua numbers cannot preserve every
-`uint64` value exactly. Canonical bone entries also expose authoring metadata `radius` and `length`.
+`uint64` value exactly. Canonical bone entries also expose authoring metadata `radius` and `length`,
+plus removal-impact fields `childCount`, `weightPaletteReferenced`, `weightedVertexCount`, and
+`animationTrackCount`.
 Diagnostics contain `code`, one-based `sourceIndex`, `boneName`,
 `observedError`, and `fatal`.
 
@@ -1331,6 +1333,16 @@ parent. The returned index is one-based. The bone receives a new opaque nonzero 
 rotation/scale, and the supplied parent-relative translation and nonnegative radius/length. Empty or
 duplicate names, invalid parents, non-finite input, or a candidate that fails section 41–43 validation
 raises a Lua error without mutation. Existing weight palettes and animation tracks are unchanged.
+
+```lua
+meshD:removeSkeletalBone(oneBasedBoneIndex)
+```
+
+Strictly removes one unreferenced leaf while retaining at least one skeleton bone. Removal is
+rejected if the bone has children, appears in the canonical weight palette, or is targeted by any
+animation track. It never reparents descendants, rewrites palettes, redistributes weights, or
+deletes tracks implicitly. The remaining section 41–43 candidate validates before commit; failure
+raises a Lua error without mutation.
 
 ### Canonical skeletal-weight editing
 

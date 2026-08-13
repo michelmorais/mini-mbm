@@ -2270,7 +2270,7 @@ namespace mbm
             SKELETON_BIND_BONE_INFO bone;
             if (!meshDebug->mesh.getSkeletonBindBone(index, bone))
                 continue;
-            lua_createtable(lua, 0, 14);
+            lua_createtable(lua, 0, 18);
             lua_pushinteger(lua, bone.sourceIndex + 1); lua_setfield(lua, -2, "sourceIndex");
             const char *boneName = meshDebug->mesh.getSkeletonBindBoneName(index);
             lua_pushstring(lua, boneName ? boneName : ""); lua_setfield(lua, -2, "name");
@@ -2291,6 +2291,11 @@ namespace mbm
             lua_setfield(lua, -2, "inverseGlobalBindMatrix");
             lua_pushnumber(lua, bone.radius); lua_setfield(lua, -2, "radius");
             lua_pushnumber(lua, bone.length); lua_setfield(lua, -2, "length");
+            lua_pushinteger(lua, bone.childCount); lua_setfield(lua, -2, "childCount");
+            lua_pushinteger(lua, bone.weightedVertexCount); lua_setfield(lua, -2, "weightedVertexCount");
+            lua_pushinteger(lua, bone.animationTrackCount); lua_setfield(lua, -2, "animationTrackCount");
+            lua_pushboolean(lua, bone.weightPaletteReferenced);
+            lua_setfield(lua, -2, "weightPaletteReferenced");
             lua_pushboolean(lua, bone.hasNegativeScale); lua_setfield(lua, -2, "hasNegativeScale");
             lua_pushboolean(lua, bone.hasShear); lua_setfield(lua, -2, "hasShear");
             lua_rawseti(lua, -2, index + 1);
@@ -2391,6 +2396,18 @@ namespace mbm
             return lua_error_debug(lua, errorOut);
         lua_pushinteger(lua, static_cast<lua_Integer>(newIndex + 1));
         return 1;
+    }
+
+    int onRemoveSkeletalBoneDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalBone(static_cast<uint32_t>(index - 1),
+                                                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
     }
 
 
@@ -2548,6 +2565,7 @@ namespace mbm
                                           {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
+                                          {"removeSkeletalBone", onRemoveSkeletalBoneDebugLua},
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},

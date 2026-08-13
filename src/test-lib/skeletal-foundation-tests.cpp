@@ -267,6 +267,12 @@ namespace
                    &addedIndex, reparentError, sizeof(reparentError)) &&
                    mesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount == 3,
                "canonical bone addition must reject duplicate names without mutation");
+        expect(!mesh.removeSkeletalBone(1, reparentError, sizeof(reparentError)) &&
+                   mesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount == 3,
+               "strict canonical removal must reject a bone with children without mutation");
+        expect(mesh.removeSkeletalBone(2, reparentError, sizeof(reparentError)) &&
+                   mesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount == 2,
+               "strict canonical removal must delete an unreferenced leaf");
         std::remove(reparentPath);
         std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);
     }
@@ -486,6 +492,17 @@ namespace
         char error[512] = "";
         expect(writeCanonicalWeightedFixture(source, 100, 1.0f, 100, 10, 0, true) && mesh.loadV11(source),
                "canonical writer source fixture must load");
+        SKELETON_BIND_BONE_INFO referencedBone;
+        uint32_t temporaryBoneIndex = 0;
+        expect(mesh.addSkeletalBone(-1, "temporary-root", VEC3(), 0.1f, 1.0f,
+                   &temporaryBoneIndex, error, sizeof(error) - 1),
+               "reference-removal fixture must add an independent unreferenced root");
+        expect(mesh.getSkeletonBindBone(0, referencedBone) && referencedBone.weightPaletteReferenced &&
+                   referencedBone.weightedVertexCount == 3 && referencedBone.animationTrackCount == 1 &&
+                   !mesh.removeSkeletalBone(0, error, sizeof(error) - 1),
+               "bind report must expose weight/track impact and strict removal must reject references");
+        expect(mesh.removeSkeletalBone(temporaryBoneIndex, error, sizeof(error) - 1),
+               "reference-removal fixture must remove its unreferenced temporary root");
         expect(mesh.scaleSkeletalAsset(100.0f, error, sizeof(error) - 1),
                "canonical editor must scale the complete skeletal asset transactionally");
         expect(mesh.renameSkeletalBone(0, "renamed-root", error, sizeof(error) - 1),

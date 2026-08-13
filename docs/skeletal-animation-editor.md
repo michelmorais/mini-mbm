@@ -71,6 +71,12 @@ values can then be corrected through the local-bind fields. Addition allocates a
 preserves existing weights/tracks, validates the complete canonical asset, selects the new bone, and
 participates in the shared rollback history.
 
+**Remove bone** first displays direct-child, weighted-vertex, and animation-track counts. The first
+safe policy removes only a leaf absent from both the weight palette and all tracks, and requires an
+explicit confirmation. Referenced bones remain blocked rather than silently reparenting children,
+redistributing weights, or discarding animation. Successful removal selects the former parent when
+available and can be reverted through the shared history.
+
 The panel and bind-pose gizmo read the detached canonical-first bind report. The editor accepts its
 bone snapshot only when `canonical == true`; it does not fall back to `getTotalBone/getBone` or
 manufacture a legacy skeleton. Assets containing only exploratory skeletal sections must be

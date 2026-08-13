@@ -4390,6 +4390,25 @@ namespace mbm
             out.radius = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].radius;
             out.length = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].length;
         }
+        out.childCount = 0;
+        for (const skeletal::CANONICAL_BONE &candidate : impl->canonicalSkeleton.sourceBones)
+            if (candidate.parentBoneId == bone.boneId) ++out.childCount;
+        out.weightPaletteReferenced = false;
+        out.weightedVertexCount = 0;
+        for (uint32_t paletteIndex = 0; paletteIndex < impl->canonicalWeights.paletteBoneIds.size(); ++paletteIndex)
+        {
+            if (impl->canonicalWeights.paletteBoneIds[paletteIndex] != bone.boneId) continue;
+            out.weightPaletteReferenced = true;
+            for (const skeletal::CANONICAL_VERTEX_WEIGHT &vertex : impl->canonicalWeights.vertices)
+                for (uint32_t slot = 0; slot < 4; ++slot)
+                    if (vertex.paletteIndex[slot] == paletteIndex && vertex.weight[slot] > 0.0f)
+                    { ++out.weightedVertexCount; break; }
+            break;
+        }
+        out.animationTrackCount = 0;
+        for (const skeletal::SKELETAL_CLIP &clip : impl->canonicalAnimations.clips)
+            for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                if (track.boneId == bone.boneId) ++out.animationTrackCount;
         out.hasNegativeScale = bone.hasNegativeScale;
         out.hasShear = bone.hasShear;
         return true;
@@ -4668,6 +4687,53 @@ namespace mbm
             return fail("canonical animations would be invalid after adding bone");
         impl->canonicalSkeleton = std::move(candidate);
         if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->canonicalSkeleton.sourceBones.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalBone(const uint32_t index,
+                                             char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        const auto &source = impl->canonicalSkeleton.sourceBones;
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= source.size()) return fail("canonical bone index is out of range");
+        if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
+        const uint64_t boneId = source[index].boneId;
+        for (const skeletal::CANONICAL_BONE &candidate : source)
+            if (candidate.parentBoneId == boneId)
+                return fail("canonical bone has children; choose an explicit descendant policy first");
+        for (const uint64_t paletteBoneId : impl->canonicalWeights.paletteBoneIds)
+            if (paletteBoneId == boneId)
+                return fail("canonical bone is referenced by the weight palette; remapping is required");
+        for (const skeletal::SKELETAL_CLIP &clip : impl->canonicalAnimations.clips)
+            for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                if (track.boneId == boneId)
+                    return fail("canonical bone is targeted by animation tracks; remapping is required");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        candidate.sourceBones.erase(candidate.sourceBones.begin() + index);
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("removed canonical skeleton would be invalid");
+        if (impl->canonicalWeights.skeletonId != 0)
+        {
+            if (impl->canonicalWeights.frameIndex >= impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame = impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount = 0;
+            for (const util::SUBSET_DEBUG *subset : frame->subset)
+                vertexCount += static_cast<uint32_t>(subset->vertexCount);
+            if (!skeletal::validateCanonicalWeights(candidate, impl->canonicalWeights, vertexCount))
+                return fail("canonical weights would be invalid after removing bone");
+        }
+        if (impl->canonicalAnimations.skeletonId != 0 &&
+            !skeletal::validateCanonicalAnimations(candidate, impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after removing bone");
+        impl->canonicalSkeleton = std::move(candidate);
         return true;
     }
 
