@@ -32,10 +32,8 @@ TYPE_MESH_3D = 0
 SECTION_MATERIAL_TRANSFORM = 1
 SECTION_ANIMATION = 2
 SECTION_FRAME_STATIC = 10
-SECTION_FRAME_SKINNED = 11
 SECTION_DETAIL_PHYSICS = 20
 SECTION_EXTRA_PATHS = 30
-SECTION_VERTEX_SKIN_WEIGHTS = 40
 SECTION_SKELETAL_SKELETON = 41
 SECTION_SKELETAL_WEIGHTS = 42
 SECTION_SKELETAL_ANIMATION = 43
@@ -1204,7 +1202,7 @@ def build_extra_paths_payload_v11(paths: list[str]) -> bytes:
     return buf.getvalue()
 
 
-def extract_armature_joints(scene: Any, rotation_deg: tuple[float, float, float] | None = None) -> list[dict[str, Any]]:
+def _retired_extract_armature_joints(scene: Any, rotation_deg: tuple[float, float, float] | None = None) -> list[dict[str, Any]]:
     """Reads the first ARMATURE object's rest-pose bones into a flat, parent-before-child list of
     {name, parent, x, y, z, radius} dicts -- the same shape SECTION_FRAME_SKINNED expects (docs/
     mesh-v11-format.md Sec. 6e). Diagnostic/editor round-trip data only, mirroring
@@ -1311,7 +1309,7 @@ def extract_armature_joints(scene: Any, rotation_deg: tuple[float, float, float]
     return joints
 
 
-def build_skeleton_payload_v11(joints: list[dict[str, Any]]) -> bytes:
+def _retired_build_skeleton_payload_v11(joints: list[dict[str, Any]]) -> bytes:
     """Payload for SECTION_FRAME_SKINNED sectionVersion 2: SKELETON_HEADER_V11{jointCount:u16}
     followed by jointCount SKELETON_BONE_V11 records (name, parentName length-prefixed strings +
     x,y,z,radius,rotX,rotY,rotZ,scaleX,scaleY,scaleZ,length f32 -- 11 floats total), matching
@@ -1340,7 +1338,7 @@ def build_skeleton_payload_v11(joints: list[dict[str, Any]]) -> bytes:
     return buf.getvalue()
 
 
-def build_vertex_skin_weights_payload_v11(subsets: list[dict[str, Any]]) -> bytes | None:
+def _retired_build_vertex_skin_weights_payload_v11(subsets: list[dict[str, Any]]) -> bytes | None:
     """Payload for SECTION_VERTEX_SKIN_WEIGHTS sectionVersion 1: VERTEX_SKIN_WEIGHTS_HEADER_V11
     {paletteCount:u32, vertexCount:u32} followed by paletteCount length-prefixed bone-name strings,
     then vertexCount VERTEX_BONE_WEIGHT_V11 records (4x u8 paletteIndex, 0xFF = unused slot, then
@@ -1907,12 +1905,11 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # had the file and is otherwise meaningless on this one.
         output_dir = os.path.dirname(os.path.abspath(out_path))
         # Real per-vertex weights only make sense alongside a real skeleton (--include-bones), and
-        # only for the default indexed write path -- see build_vertex_skin_weights_payload_v11's
+        # only for the default indexed write path -- see build_canonical_weights_payload_v11's
         # own docstring for why vb_only mode is excluded.
         capture_weights = bool(args.include_bones) and args.large_mesh_mode != "vb_only"
-        # SECTION_VERTEX_SKIN_WEIGHTS is a bind-pose property (docs/mesh-v11-format.md Sec. 6f) --
-        # tied to frame 1's topology only, so only the very first exported frame's subsets are kept
-        # around for build_vertex_skin_weights_payload_v11 below.
+        # Canonical type-42 weights are a bind-pose property tied to frame 1's topology, so only
+        # the very first exported frame's subsets are retained for the canonical payload below.
         first_frame_subsets: list[dict[str, Any]] | None = None
 
         def export_frame_to_chunk(frame: int) -> None:

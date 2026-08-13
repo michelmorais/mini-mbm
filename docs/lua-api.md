@@ -1276,8 +1276,9 @@ Diagnostics contain `code`, one-based `sourceIndex`, `boneName`,
 `observedError`, and `fatal`.
 
 The call never edits the skeleton and the report is a detached Lua snapshot. Mesh Debug and the
-Skeletal Animation Editor use it for canonical bind inspection. `getTotalBone/getBone` remain
-legacy-only and are never populated from section 41.
+Skeletal Animation Editor use it for canonical bind inspection. The exploratory bone and
+name-palette weight methods are no longer registered in Lua; only the canonical skeletal surface
+is available.
 
 ### Canonical skeletal-weight editing
 

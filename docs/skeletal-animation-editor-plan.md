@@ -368,6 +368,10 @@ Exit: editor and runtime produce matching reference vertices/normals for the sam
   or single/batch removal of exploratory weights. Its Mesh Info weight summary now reads canonical
   type 42. The retired functions remain temporarily as unreachable code while serializers,
   exporters, bindings, and tests are audited for physical deletion.
+- The public Lua deletion gate has started: exploratory `add/get/update/removeBone` and
+  name-palette weight methods are no longer registered on `meshDebug`. FBX import already writes
+  only canonical sections 41–43; its unused 11/40 constants/builders are isolated for deletion.
+  C++ storage/parsers and the old Mesh Debug FBX-export implementation remain the next gate.
 
 Exit: there is one canonical implementation for each skeleton, weight, and animation responsibility.
 
