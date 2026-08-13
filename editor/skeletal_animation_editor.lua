@@ -64,6 +64,7 @@ local state = {
     bindRemoveConfirmed = false,
     bindRemoveReplacement = 1,
     bindRemoveDiscardTracks = false,
+    bindRemoveReparentChildren = false,
     modified = false,
     normalizeReport = nil,
     operationMode = 1, -- 1 inspect, 2 rigid, 3 normalize, 4 smooth, 5 repair abrupt
@@ -2045,6 +2046,7 @@ local function showSelectedBindBone(report)
         state.bindRemoveBoneId=bone.boneId
         state.bindRemoveConfirmed=false
         state.bindRemoveDiscardTracks=false
+        state.bindRemoveReparentChildren=false
         state.bindRemoveReplacement=(bone.parentIndex or 0)>0 and bone.parentIndex or
             (state.boneIndex==1 and 2 or 1)
     end
@@ -2247,9 +2249,11 @@ local function showSelectedBindBone(report)
             tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},tLang.L('swl_remove_weight_palette_blocked'))
         end
         local hasReferences=bone.weightPaletteReferenced==true or (bone.animationTrackCount or 0)>0
-        local blocked=(bone.childCount or 0)>0 or #(report.bones or {})<=1
+        local hasChildren=(bone.childCount or 0)>0
+        local clipsBlockChildren=hasChildren and (report.animationClipCount or 0)>0
+        local blocked=clipsBlockChildren or #(report.bones or {})<=1
         tImGui.TextWrapped(blocked and tLang.L('swl_remove_bone_blocked') or
-            (hasReferences and tLang.L('swl_remove_bone_remap_policy') or
+            ((hasReferences or hasChildren) and tLang.L('swl_remove_bone_remap_policy') or
                 tLang.L('swl_remove_bone_strict_policy')))
         local replacementNames,replacementIndices={},{}
         for index,candidate in ipairs(report.bones or {}) do
@@ -2258,7 +2262,7 @@ local function showSelectedBindBone(report)
                 replacementIndices[#replacementIndices+1]=index
             end
         end
-        if hasReferences and #replacementNames>0 then
+        if (hasReferences or hasChildren) and #replacementNames>0 then
             local replacementChoice=1
             for choice,index in ipairs(replacementIndices) do
                 if index==state.bindRemoveReplacement then replacementChoice=choice break end
@@ -2272,6 +2276,19 @@ local function showSelectedBindBone(report)
                 state.bindRemoveConfirmed=false
             end
         end
+        if hasChildren then
+            if clipsBlockChildren then
+                tImGui.TextColored({r=1,g=0.45,b=0.2,a=1},
+                    tLang.L('swl_remove_children_clips_blocked'))
+            else
+                local reparent=tImGui.Checkbox(tLang.L('swl_reparent_children_preserve_global'),
+                    state.bindRemoveReparentChildren)
+                if reparent~=state.bindRemoveReparentChildren then
+                    state.bindRemoveReparentChildren=reparent
+                    state.bindRemoveConfirmed=false
+                end
+            end
+        end
         if (bone.animationTrackCount or 0)>0 then
             local discard=tImGui.Checkbox(tLang.L('swl_discard_removed_bone_tracks'),
                 state.bindRemoveDiscardTracks)
@@ -2281,7 +2298,8 @@ local function showSelectedBindBone(report)
             end
         end
         local actionBlocked=blocked or ((bone.animationTrackCount or 0)>0 and
-            not state.bindRemoveDiscardTracks)
+            not state.bindRemoveDiscardTracks) or (hasChildren and
+            not state.bindRemoveReparentChildren)
         tImGui.BeginDisabled(actionBlocked)
         local confirmed=tImGui.Checkbox(tLang.L('swl_confirm_remove_bone'),state.bindRemoveConfirmed)
         if confirmed~=state.bindRemoveConfirmed then state.bindRemoveConfirmed=confirmed end
@@ -2292,9 +2310,10 @@ local function showSelectedBindBone(report)
             local ok=false
             if snapshot then
                 ok=select(1,safeCall(function()
-                    if hasReferences then
+                    if hasReferences or hasChildren then
                         return state.meshD:removeSkeletalBoneRemapped(state.boneIndex,
-                            state.bindRemoveReplacement,state.bindRemoveDiscardTracks)
+                            state.bindRemoveReplacement,state.bindRemoveDiscardTracks,
+                            state.bindRemoveReparentChildren)
                     end
                     return state.meshD:removeSkeletalBone(state.boneIndex)
                 end))

@@ -1277,7 +1277,7 @@ local report = meshD:getSkeletonBindReport()
 
 This read-only call inspects canonical section 41 directly. An asset without section 41 has no
 skeletal bind report; there is no exploratory-skeleton compatibility fallback.
-It returns a table with `canonical`, `valid`, `boneCount`, `diagnosticCount`,
+It returns a table with `canonical`, `valid`, `boneCount`, `diagnosticCount`, `animationClipCount`,
 `maximumReconstructionError`, `maximumBindIdentityError`, `bones`, and `diagnostics`. Each compiled
 bone contains its one-based `sourceIndex`, `name`, stable `boneId`/`parentBoneId` as 16-digit hex
 strings, one-based `parentIndex` (`0` for a root), local translation/quaternion/scale, row-major
@@ -1346,15 +1346,18 @@ raises a Lua error without mutation.
 
 ```lua
 meshD:removeSkeletalBoneRemapped(oneBasedBoneIndex, replacementBoneIndex,
-    discardAnimationTracks)
+    discardAnimationTracks, reparentChildrenPreserveGlobal)
 ```
 
 Removes a leaf while explicitly transferring its weight-palette reference to a different existing
 bone. If both bones influence a vertex, their weights are summed and duplicate slots are compacted;
 coverage remains normalized. Tracks targeting the removed identity are not retargeted because their
 local transforms have different semantics: they are deleted only when `discardAnimationTracks` is
-`true`, otherwise the operation rejects. Children remain unsupported by this policy. Skeleton,
-weights, and animations are committed together only after complete validation.
+`true`, otherwise the operation rejects. With `reparentChildrenPreserveGlobal=true`, direct children
+are moved to the removed bone's parent (or become roots) and receive newly derived local TRS that
+preserves their global bind. This descendant policy rejects assets containing any canonical clips
+until correct child-track space conversion is implemented. Skeleton, weights, and animations are
+committed together only after complete validation.
 
 ### Canonical skeletal-weight editing
 

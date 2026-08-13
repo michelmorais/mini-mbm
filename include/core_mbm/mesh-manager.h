@@ -111,6 +111,7 @@ namespace mbm
     {
         uint32_t boneCount = 0;
         uint32_t diagnosticCount = 0;
+        uint32_t animationClipCount = 0;
         float maximumReconstructionError = 0.0f;
         float maximumBindIdentityError = 0.0f;
         bool valid = false;
@@ -276,6 +277,7 @@ namespace mbm
         // deleting its tracks. The replacement is an existing zero-based bone index.
         API_IMPL bool removeSkeletalBoneRemapped(const uint32_t index, const uint32_t replacementIndex,
                                                  const bool discardAnimationTracks,
+                                                 const bool reparentChildrenPreserveGlobal,
                                                  char *errorOut, const int errorOutLen);
         // Canonical SECTION_SKELETAL_WEIGHTS editor surface. Names are UI lookup keys only: every
         // accepted name is resolved to the skeleton's stable boneId before type-42 storage changes.

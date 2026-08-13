@@ -4359,6 +4359,7 @@ namespace mbm
         const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
         out.boneCount = static_cast<uint32_t>(report.bones.size());
         out.diagnosticCount = static_cast<uint32_t>(report.diagnostics.size());
+        out.animationClipCount = static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
         out.maximumReconstructionError = report.maximumReconstructionError;
         out.maximumBindIdentityError = report.maximumBindIdentityError;
         out.valid = !report.hasFatalDiagnostics();
@@ -4740,6 +4741,7 @@ namespace mbm
     bool MESH_MBM_DEBUG::removeSkeletalBoneRemapped(const uint32_t index,
                                                      const uint32_t replacementIndex,
                                                      const bool discardAnimationTracks,
+                                                     const bool reparentChildrenPreserveGlobal,
                                                      char *errorOut, const int errorOutLen)
     {
         const auto fail = [errorOut, errorOutLen](const char *message)
@@ -4756,9 +4758,13 @@ namespace mbm
         if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
         const uint64_t removedId = source[index].boneId;
         const uint64_t replacementId = source[replacementIndex].boneId;
+        bool hasChildren = false;
         for (const skeletal::CANONICAL_BONE &candidate : source)
-            if (candidate.parentBoneId == removedId)
-                return fail("canonical bone has children; choose an explicit descendant policy first");
+            if (candidate.parentBoneId == removedId) hasChildren = true;
+        if (hasChildren && !reparentChildrenPreserveGlobal)
+            return fail("canonical bone has children; choose an explicit descendant policy first");
+        if (hasChildren && !impl->canonicalAnimations.clips.empty())
+            return fail("reparenting children requires animation conversion; remove clips first");
 
         skeletal::CANONICAL_SKELETON skeletonCandidate = impl->canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS weightsCandidate = impl->canonicalWeights;
@@ -4817,7 +4823,53 @@ namespace mbm
         if (removedTracks > 0 && !discardAnimationTracks)
             return fail("canonical bone has animation tracks; explicit discard confirmation is required");
 
+        if (hasChildren)
+        {
+            const uint64_t newParentId = source[index].parentBoneId;
+            const int32_t newParentIndex = impl->canonicalSkeleton.compiled.bones[index].parentIndex;
+            for (uint32_t childIndex = 0; childIndex < skeletonCandidate.sourceBones.size(); ++childIndex)
+            {
+                skeletal::CANONICAL_BONE &child = skeletonCandidate.sourceBones[childIndex];
+                if (child.parentBoneId != removedId) continue;
+                MATRIX local = impl->canonicalSkeleton.compiled.bones[childIndex].globalBindMatrix;
+                if (newParentIndex >= 0)
+                {
+                    MATRIX inverseParent;
+                    float determinant = 0.0f;
+                    MatrixInverse(&inverseParent, &determinant,
+                        &impl->canonicalSkeleton.compiled.bones[static_cast<uint32_t>(newParentIndex)].globalBindMatrix);
+                    if (!std::isfinite(determinant) || std::fabs(determinant) <= skeletal::SINGULAR_TOLERANCE)
+                        return fail("new child parent bind transform is not invertible");
+                    MatrixMultiply(&local, &impl->canonicalSkeleton.compiled.bones[childIndex].globalBindMatrix,
+                                   &inverseParent);
+                }
+                bool negativeScale = false, shear = false;
+                if (!skeletal::decomposeTrsMatrix(local, child.localBind, negativeScale, shear) || shear)
+                    return fail("preserving child global bind would require unsupported shear");
+                child.parentBoneId = newParentId;
+            }
+        }
         skeletonCandidate.sourceBones.erase(skeletonCandidate.sourceBones.begin() + index);
+        if (hasChildren)
+        {
+            std::vector<skeletal::CANONICAL_BONE> ordered;
+            std::unordered_set<uint64_t> placed;
+            ordered.reserve(skeletonCandidate.sourceBones.size());
+            while (ordered.size() < skeletonCandidate.sourceBones.size())
+            {
+                bool progress = false;
+                for (const skeletal::CANONICAL_BONE &candidate : skeletonCandidate.sourceBones)
+                {
+                    if (placed.find(candidate.boneId) != placed.end()) continue;
+                    if (candidate.parentBoneId == 0 || placed.find(candidate.parentBoneId) != placed.end())
+                    {
+                        ordered.push_back(candidate); placed.insert(candidate.boneId); progress = true;
+                    }
+                }
+                if (!progress) return fail("child reparent could not produce parent-first ordering");
+            }
+            skeletonCandidate.sourceBones = std::move(ordered);
+        }
         if (!skeletal::compileCanonicalSkeleton(skeletonCandidate.sourceBones, skeletonCandidate.compiled))
             return fail("remapped canonical skeleton would be invalid");
         if (weightsCandidate.skeletonId != 0)

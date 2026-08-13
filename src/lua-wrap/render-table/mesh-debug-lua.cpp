@@ -2257,6 +2257,7 @@ namespace mbm
         lua_pushboolean(lua, summary.valid); lua_setfield(lua, -2, "valid");
         lua_pushinteger(lua, summary.boneCount); lua_setfield(lua, -2, "boneCount");
         lua_pushinteger(lua, summary.diagnosticCount); lua_setfield(lua, -2, "diagnosticCount");
+        lua_pushinteger(lua, summary.animationClipCount); lua_setfield(lua, -2, "animationClipCount");
         lua_pushboolean(lua, summary.canonical);
         lua_setfield(lua, -2, "canonical");
         lua_pushnumber(lua, summary.maximumReconstructionError);
@@ -2418,9 +2419,10 @@ namespace mbm
         if (index <= 0 || replacement <= 0)
             return luaL_error(lua, "canonical bone indices must be one-based");
         const bool discardTracks = lua_toboolean(lua, 4) != 0;
+        const bool reparentChildren = lua_toboolean(lua, 5) != 0;
         char errorOut[255] = "";
         if (!meshDebug->mesh.removeSkeletalBoneRemapped(static_cast<uint32_t>(index - 1),
-                static_cast<uint32_t>(replacement - 1), discardTracks,
+                static_cast<uint32_t>(replacement - 1), discardTracks, reparentChildren,
                 errorOut, static_cast<int>(sizeof(errorOut))))
             return lua_error_debug(lua, errorOut);
         return 0;

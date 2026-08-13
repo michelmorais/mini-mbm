@@ -273,6 +273,12 @@ namespace
         expect(mesh.removeSkeletalBone(2, reparentError, sizeof(reparentError)) &&
                    mesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount == 2,
                "strict canonical removal must delete an unreferenced leaf");
+        expect(mesh.loadV11(reparentPath) && mesh.getSkeletonBindBone(1, before) &&
+                   mesh.removeSkeletalBoneRemapped(0, 1, false, true,
+                       reparentError, sizeof(reparentError)) &&
+                   mesh.getSkeletonBindBone(0, after) && after.parentIndex == -1 &&
+                   maximumMatrixDifference(before.globalBindMatrix, after.globalBindMatrix) <= MATRIX_TOLERANCE,
+               "child-bearing removal must promote children while preserving global bind");
         std::remove(reparentPath);
         std::remove(validPath); std::remove(invalidPath); std::remove(duplicatePath);
     }
@@ -509,10 +515,10 @@ namespace
                        &temporaryBoneIndex, error, sizeof(error) - 1) &&
                    remapMesh.setSkeletalVertexWeight(0,"root",0.4f,"replacement-root",0.6f,
                        nullptr,0.0f,nullptr,0.0f,error,sizeof(error)-1) &&
-                   !remapMesh.removeSkeletalBoneRemapped(0, temporaryBoneIndex, false,
+                   !remapMesh.removeSkeletalBoneRemapped(0, temporaryBoneIndex, false, false,
                        error, sizeof(error) - 1),
                "referenced removal must require explicit track-discard confirmation");
-        expect(remapMesh.removeSkeletalBoneRemapped(0, temporaryBoneIndex, true,
+        expect(remapMesh.removeSkeletalBoneRemapped(0, temporaryBoneIndex, true, false,
                    error, sizeof(error) - 1),
                "referenced leaf removal must transfer weights and explicitly discard tracks");
         const char *remappedName=nullptr, *remapUnused1=nullptr, *remapUnused2=nullptr, *remapUnused3=nullptr;
@@ -523,6 +529,13 @@ namespace
                    std::string(remappedName)=="replacement-root" &&
                    std::fabs(remappedWeight-1.0f)<=MATRIX_TOLERANCE,
                "referenced leaf removal must preserve normalized vertex coverage on replacement");
+        MESH_MBM_DEBUG animatedHierarchy;
+        expect(animatedHierarchy.loadV11(source) &&
+                   animatedHierarchy.addSkeletalBone(0,"animated-child",VEC3(0,1,0),0.1f,1.0f,
+                       &temporaryBoneIndex,error,sizeof(error)-1) &&
+                   !animatedHierarchy.removeSkeletalBoneRemapped(0,temporaryBoneIndex,true,true,
+                       error,sizeof(error)-1),
+               "child reparent removal must reject assets with clips until track conversion exists");
         expect(mesh.scaleSkeletalAsset(100.0f, error, sizeof(error) - 1),
                "canonical editor must scale the complete skeletal asset transactionally");
         expect(mesh.renameSkeletalBone(0, "renamed-root", error, sizeof(error) - 1),
