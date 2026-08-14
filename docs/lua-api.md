@@ -1356,6 +1356,15 @@ other joint in global bind space; false lets descendants follow their hierarchy.
 bind-authoring primitive used by direct head drag.
 
 ```lua
+meshD:translateSkeletalBoneSegment(oneBasedBoneIndex, tx, ty, tz, preserveOtherJoints)
+```
+
+Moves an explicit bone segment to a new parent-local head translation while retaining its
+bone-local tail, so both endpoints receive the same rigid displacement. Connected child heads
+follow the moved tail. `preserveOtherJoints` defaults to true and compensates every joint outside
+the manipulated segment/shared endpoint; false lets the descendant hierarchy follow normally.
+
+```lua
 local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length,
     hasExplicitTail, connectedToParent)
 ```

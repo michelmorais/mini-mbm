@@ -378,6 +378,12 @@ namespace mbm
         API_IMPL bool setSkeletalBoneHead(const uint32_t index, const VEC3 &translation,
                                           const bool preserveOtherJoints,
                                           char *errorOut, const int errorOutLen);
+        // Translates one complete authored segment by moving its transform head while retaining its
+        // bone-local tail. Connected child heads follow the tail; optional compensation preserves
+        // every other joint in global bind space.
+        API_IMPL bool translateSkeletalBoneSegment(const uint32_t index, const VEC3 &translation,
+                                                    const bool preserveOtherJoints,
+                                                    char *errorOut, const int errorOutLen);
         // Adds a parent-first canonical transform with a new opaque stable ID. parentIndex is -1
         // for root; hasExplicitTail distinguishes a selectable bone segment from a joint only.
         API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,

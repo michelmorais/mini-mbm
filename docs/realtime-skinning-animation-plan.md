@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.18 | 2026-08-14 | Added direct rigid segment translation in Bone Editor. The authored head/tail pair moves together, connected child heads follow, and the explicit preservation policy either compensates remaining joints or permits normal subtree propagation. |
 | 8.17 | 2026-08-14 | Added an explicit default-on Preserve other joints bind-authoring policy. Head and shared-joint drags compensate every unaffected descendant in global bind space, while opting out retains conventional hierarchical subtree movement. |
 | 8.2 | 2026-08-14 | Added atomic canonical keyframe authoring. Insertion samples and captures the current local pose at a unique in-range time, avoiding curve changes; update supports time/T/Q/S/easing/Bezier with quaternion normalization and sorted reinsertion; removal cannot empty a track. Full validation, rollback, numeric rejection cases, and save-reload are covered. |
 | 8.1 | 2026-08-14 | Added atomic canonical track authoring per clip/bone. Nonempty T/R/S masks and unique bone targets are enforced; creation seeds a time-zero local-bind key to avoid invalid empty tracks; channel edits preserve and revalidate keys; confirmed removal deletes the complete track. Stable-ID resolution, independent editor state, rollback, and save-reload are covered. |

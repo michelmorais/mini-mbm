@@ -271,6 +271,9 @@ is preserved, reshaping both adjacent segments rather than translating the child
 **Preserve other joints** is enabled by default: descendants outside the joint being manipulated
 have their local bind TRS compensated so their global joints stay in place. Disabling it restores
 ordinary hierarchical propagation, allowing the edited joint to carry the descendant subtree.
+Dragging the body of a selected segment translates its head and tail together, retaining its length
+and orientation. A connected child head follows the displaced tail; the same preservation checkbox
+decides whether the rest of the hierarchy stays globally fixed or follows that movement.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 
