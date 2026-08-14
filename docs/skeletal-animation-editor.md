@@ -13,7 +13,7 @@ For canonical skeletal meshes within the GLES2 palette limit, the preview can pl
 per-instance LBS or rigid-DQS deformation path used by the runtime. Non-GLES backend delivery
 remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
-The editor is organized into five mutually exclusive worktrees: **Bind Pose Contract**,
+The editor is organized into six mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Skin Weight Lab**, **Create / Edit Animations**, and
 **Paint Weights**. The last two are currently reserved and explain their future scope. Their product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
@@ -223,6 +223,25 @@ preserves its state while closed, but its AABB, proximity capsule,
 heatmap, analyzed markers, transition diagnostics, highlights, and editing controls are hidden and
 inactive outside that worktree. Runtime LBS/DQS comparison geometry is likewise shown only in the
 Runtime Skeletal Preview worktree.
+
+## Bone Editor
+
+**Bone Editor** is the mouse-first bind-construction surface for ordinary users; **Bind Pose
+Contract** remains the advanced diagnostic and matrix-oriented surface. Both edit the same canonical
+skeleton. In the Bone Editor presentation, one bone is shown as a head joint, a tail joint, and the
+segment between them. The persisted representation remains one canonical joint TRS plus orientation
+and length; a leaf tail is derived rather than stored as an unrelated second skeleton.
+
+The first delivered slice provides X/Y/Z, a positive **Bone length**, and **Add Bone**. With no
+prior selection it creates an independent root whose head is at that position and whose derived
+tail is that length along local +Y. Length defaults to 1.
+This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
+and mouse manipulation of joints/segments are intentionally the next slices.
+
+Viewport picking distinguishes the initial joint, final joint, and bone segment. A selected joint
+highlights only that endpoint; selecting the segment highlights the segment and both endpoints.
+Clicking empty viewport space clears the selection and remains available for camera orbit. This
+slice records selection intent only and does not yet move bind data.
 
 Inside **Skin Weight Lab**, the controls remain organized in three numbered groups.
 

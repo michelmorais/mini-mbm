@@ -267,6 +267,9 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.9.2 Added distinct Bone Editor viewport selection for initial joint, final joint, and owned segment, including endpoint/segment highlighting and empty-space deselection without bind mutation.
+    7.9.1 Added a positive length control to Bone Editor root creation; it defaults to 1 and directly defines the derived local +Y head-to-tail distance.
+    7.9.0 Added the simplified Bone Editor worktree alongside advanced Bind Pose Contract: XYZ creates an independent root, and standalone bones render as a derived head/tail pair plus owned segment using local +Y and length.
     7.8.0 Added explicit atomic commit of temporary translation poses: create/resolve track, enable T, insert/update the current-time key, validate the full animation, and integrate editor rollback while keeping mouse release and Auto Key non-persistent.
     7.7.3 Made long Skeletal Animation Editor error/status diagnostics wrap within the panel while retaining their error color.
     7.7.2 Decomposed invalid canonical GPU input into missing skeleton/weights, ID, structural, palette-target, and vertex-slot diagnostics; fixed the authoring bridge to preserve canonical 64-bit bone IDs as hexadecimal strings instead of truncating them to 32 bits.
@@ -307,7 +310,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.8.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.9.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

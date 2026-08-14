@@ -51,6 +51,10 @@ local state = {
     authoringOverride = nil,
     authoringActiveClip = nil,
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
+    boneEditorPosition = {x=0,y=0,z=0},
+    boneEditorLength = 1,
+    boneEditorSelectedIndex = nil,
+    boneEditorSelection = nil,
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -160,7 +164,7 @@ local function isWeightLabWorkspace()
 end
 
 local function shouldShowSkeleton()
-    return state.workspace=='bind' or state.workspace=='animation' or
+    return state.workspace=='bind' or state.workspace=='bone_editor' or state.workspace=='animation' or
         (isWeightLabWorkspace() and state.skeletonVisible)
 end
 
@@ -394,6 +398,7 @@ local function getBones()
             z=global[15] or 0,
             radius=bone.radius or 0,
             length=bone.length or 0,
+            globalMatrix=global,
         }
     end
     return bones
@@ -413,6 +418,15 @@ local function getVisualBones()
         end
     end
     return bones
+end
+
+local function getBoneEditorEndpoints(bone,extent)
+    local matrix=bone.globalMatrix or {}
+    local length=math.max(bone.length or 0,0.001)
+    return {x=bone.x,y=bone.y,z=bone.z},
+        {x=bone.x+(matrix[5] or 0)*length,
+         y=bone.y+(matrix[6] or 1)*length,
+         z=bone.z+(matrix[7] or 0)*length}
 end
 
 local function refreshBindReport()
@@ -673,9 +687,19 @@ local function applyWorkspaceVisibility()
             state.targetBoneHighlight
     end
     local selectedBindBone=(state.workspace=='bind' or state.workspace=='animation') and
-        getBones()[state.boneIndex] or nil
+        getBones()[state.boneIndex] or (state.workspace=='bone_editor' and
+        state.boneEditorSelectedIndex and getBones()[state.boneEditorSelectedIndex] or nil)
     for name,object in pairs(state.skeletonGizmo.spheres) do
-        if weightWorkspace and name==state.hoveredAllowedBone then
+        local boneEditorSelected=state.workspace=='bone_editor' and state.boneEditorSelection and
+            ((state.boneEditorSelection.kind=='head' and name==state.boneEditorSelection.boneName) or
+             (state.boneEditorSelection.kind=='tail' and
+                name==state.boneEditorSelection.boneName..'::tail') or
+             (state.boneEditorSelection.kind=='segment' and
+                (name==state.boneEditorSelection.boneName or
+                 name==state.boneEditorSelection.boneName..'::tail')))
+        if boneEditorSelected then
+            object:setColor(0.1,0.85,1,1)
+        elseif weightWorkspace and name==state.hoveredAllowedBone then
             object:setColor(1,0.45,0.05,1)
         elseif weightWorkspace and state.allowedBonesHighlight and state.allowedBones[name] then
             object:setColor(0.1,0.85,1,0.95)
@@ -686,7 +710,11 @@ local function applyWorkspaceVisibility()
         end
     end
     for boneId,object in pairs(state.skeletonGizmo.bones) do
-        if selectedBindBone and boneId==selectedBindBone.boneId then
+        if state.workspace=='bone_editor' and state.boneEditorSelection and
+                state.boneEditorSelection.kind=='segment' and
+                boneId==state.boneEditorSelection.boneId then
+            object:setColor(0.1,0.85,1,1)
+        elseif selectedBindBone and boneId==selectedBindBone.boneId then
             object:setColor(0.1,0.85,1,1)
         else
             object:setColor(1,0,1,0.75)
@@ -832,8 +860,21 @@ rebuildSkeletonVisuals=function()
             'swl_bone_joint_',1,0,1,0.85)
         sphere:setScale(radius,radius,radius)
         state.skeletonGizmo.spheres[bone.name]=sphere
-        local parent=bone.parentName and byName[bone.parentName]
-        if parent then
+        if state.workspace=='bone_editor' then
+            local head,tailPoint=getBoneEditorEndpoints(bone,extent)
+            local tx,ty,tz=tailPoint.x,tailPoint.y,tailPoint.z
+            local tail=createBoneShape(tx,ty,tz,unitSphereVerts(),
+                'swl_bone_tail_',1,0,1,0.85)
+            tail:setScale(radius,radius,radius)
+            state.skeletonGizmo.spheres[bone.name..'::tail']=tail
+            local dx,dy,dz=tx-bone.x,ty-bone.y,tz-bone.z
+            local link=createBoneShape(bone.x,bone.y,bone.z,
+                orientedCylinderVerts(dx,dy,dz,radius*0.5,radius*0.5,8),
+                'swl_bone_own_link_',1,0,1,0.75)
+            state.skeletonGizmo.bones[bone.boneId]=link
+        else
+            local parent=bone.parentName and byName[bone.parentName]
+            if parent then
             local dx,dy,dz=bone.x-parent.x,bone.y-parent.y,bone.z-parent.z
             local parentRadius=math.max(parent.radius or 0,extent*0.006,0.001)
             if dx*dx+dy*dy+dz*dz>0.000001 then
@@ -844,6 +885,7 @@ rebuildSkeletonVisuals=function()
                 -- joint. Keying by the child's stable ID lets tree selection highlight the exact
                 -- incoming segment even after rename or future hierarchy reordering.
                 state.skeletonGizmo.bones[bone.boneId]=link
+            end
             end
         end
     end
@@ -949,6 +991,39 @@ local function raySegmentDistance(ox,oy,oz,dx,dy,dz,a,b,radius)
     local ex,ey,ez=px-qx,py-qy,pz-qz
     if ex*ex+ey*ey+ez*ez>radius*radius then return nil end
     return rayT
+end
+
+local function hitTestBoneEditor(sx,sy)
+    if state.workspace~='bone_editor' then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local bones=getBones()
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local pickRadius=math.max(extent*0.012,0.002)
+    local best,bestDistance=nil,math.huge
+    local function consider(distance,selection)
+        if distance and distance<bestDistance then best,bestDistance=selection,distance end
+    end
+    for index,bone in ipairs(bones) do
+        local head,tail=getBoneEditorEndpoints(bone,extent)
+        local headObject=state.skeletonGizmo.spheres[bone.name]
+        local tailObject=state.skeletonGizmo.spheres[bone.name..'::tail']
+        local headRadius,tailRadius=pickRadius,pickRadius
+        if headObject then headRadius=math.max(headRadius,headObject:getScale().x or 0) end
+        if tailObject then tailRadius=math.max(tailRadius,tailObject:getScale().x or 0) end
+        consider(raySphereDistance(ox,oy,oz,dx,dy,dz,head.x,head.y,head.z,headRadius),
+            {kind='head',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+        consider(raySphereDistance(ox,oy,oz,dx,dy,dz,tail.x,tail.y,tail.z,tailRadius),
+            {kind='tail',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+    end
+    for index,bone in ipairs(bones) do
+        local head,tail=getBoneEditorEndpoints(bone,extent)
+        consider(raySegmentDistance(ox,oy,oz,dx,dy,dz,head,tail,pickRadius),
+            {kind='segment',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+    end
+    return best
 end
 
 local function hitTestTranslationAxis(sx,sy)
@@ -1450,6 +1525,10 @@ local function loadMesh(path)
     state.animationTrackEdits={}
     state.animationNewKeyTimes={}
     state.animationKeyEdits={}
+    state.boneEditorPosition={x=0,y=0,z=0}
+    state.boneEditorLength=1
+    state.boneEditorSelectedIndex=nil
+    state.boneEditorSelection=nil
     state.authoringTime=0
     state.authoringPose=nil
     state.authoringPoseKey=nil
@@ -3395,6 +3474,76 @@ local function showSkeletalAnimationInspection()
     showRollbackControls('swlAnimationRevert')
 end
 
+local function nextSimpleBoneName()
+    local used={}
+    for _,bone in ipairs(getBones()) do used[bone.name]=true end
+    local index=1
+    while used['Bone_'..index] do index=index+1 end
+    return 'Bone_'..index
+end
+
+local function showBoneEditor()
+    tImGui.TextWrapped(tLang.L('swl_bone_editor_help'))
+    tImGui.PushItemWidth(190)
+    for _,field in ipairs({{'X','x'},{'Y','y'},{'Z','z'}}) do
+        local changed,value=tImGui.InputFloat(field[1]..'##swlBoneEditor'..field[2],
+            state.boneEditorPosition[field[2]],0,0,'%.6g',
+            tImGui.Flags('ImGuiInputTextFlags_None'))
+        if changed then state.boneEditorPosition[field[2]]=value end
+    end
+    local lengthChanged,length=tImGui.InputFloat(tLang.L('swl_bone_editor_length')..
+        '##swlBoneEditorLength',state.boneEditorLength,0,0,'%.6g',
+        tImGui.Flags('ImGuiInputTextFlags_None'))
+    if lengthChanged then state.boneEditorLength=length end
+    tImGui.PopItemWidth()
+    tImGui.BeginDisabled(not state.boneEditorLength or state.boneEditorLength<=0)
+    if tImGui.Button(tLang.L('swl_bone_editor_add')..'##swlBoneEditorAdd') then
+        local snapshot=stageRollbackSnapshot()
+        local ok,newIndex=false,nil
+        local position=state.boneEditorPosition
+        local name=nextSimpleBoneName()
+        local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+            state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+        local radius=math.max(extent*0.012,0.01)
+        local length=state.boneEditorLength
+        if snapshot then
+            if #getBones()==0 then
+                ok=select(1,safeCall(function()
+                    return state.meshD:initializeSkeletalSkeleton(name,position.x,position.y,position.z,
+                        radius,length)
+                end))
+                newIndex=ok and 1 or nil
+            else
+                ok,newIndex=safeCall(function()
+                    return state.meshD:addSkeletalBone(0,name,position.x,position.y,position.z,
+                        radius,length)
+                end)
+            end
+        end
+        if ok then
+            commitRollbackSnapshot(snapshot)
+            state.modified=true
+            refreshBindReport()
+            state.boneEditorSelectedIndex=nil
+            state.boneEditorSelection=nil
+            state.boneIndex=newIndex or 1
+            rebuildPreview()
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
+            setStatus(tLang.L('swl_bone_editor_added'),false)
+        elseif snapshot then discardRollbackSnapshot(snapshot) end
+    end
+    tImGui.EndDisabled()
+    tImGui.TextDisabled(tLang.L('swl_bone_editor_root_note'))
+    if state.boneEditorSelection then
+        local selectionKey=state.boneEditorSelection.kind=='segment' and
+            'swl_bone_editor_selected_segment' or state.boneEditorSelection.kind=='tail' and
+            'swl_bone_editor_selected_tail' or 'swl_bone_editor_selected_head'
+        tImGui.TextWrapped(string.format(tLang.L(selectionKey),state.boneEditorSelection.boneName))
+    end
+    showRollbackControls('swlBoneEditorRevert')
+end
+
 local function showPanel()
     local _, screenH = mbm.getRealSizeScreen()
     tImGui.SetNextWindowPos({x=0,y=22}, tImGui.Flags('ImGuiCond_Once'))
@@ -3420,6 +3569,11 @@ local function showPanel()
             showSharedVisualization()
             tImGui.Separator()
             tImGui.Text(tLang.L('swl_workspaces'))
+            if openWorkspaceNode('bone_editor',tLang.L('swl_bone_editor_workspace'),
+                    '##swlBoneEditorWorkspace') then
+                showBoneEditor()
+                tImGui.TreePop()
+            end
             if openWorkspaceNode('bind',tLang.L('swl_bind_pose_contract'),'##swlBindPoseContract') then
                 showBindPoseDiagnostics()
                 tImGui.TreePop()
@@ -3672,6 +3826,17 @@ end
 
 function onTouchDown(key, x, y)
     if key == 0 and not tImGui.GetWantCaptureMouse() then
+        if state.workspace=='bone_editor' then
+            local selection=hitTestBoneEditor(x,y)
+            state.boneEditorSelection=selection
+            state.boneEditorSelectedIndex=selection and selection.boneIndex or nil
+            if selection then
+                state.boneIndex=selection.boneIndex
+                applyWorkspaceVisibility()
+                return
+            end
+            applyWorkspaceVisibility()
+        end
         local axisName=hitTestTranslationAxis(x,y)
         if axisName and state.authoringPose and state.authoringPose.bones[state.boneIndex] then
             local axes={x={x=1,y=0,z=0},y={x=0,y=1,z=0},z={x=0,y=0,z=1}}

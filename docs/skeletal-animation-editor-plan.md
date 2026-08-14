@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
 Document version: **3.9**
-Status: **Canonical import and exclusive five-worktree editor shell implemented**
+Status: **Canonical import and exclusive six-worktree editor shell implemented**
 Last updated: **2026-08-13**
 
 ## 1. Purpose
@@ -21,23 +21,25 @@ The implemented weight-authoring workflow is documented in the
 backend delivery, and LBS/DQS correctness remain planned in the
 [Real-Time Skinning Animation Plan](realtime-skinning-animation-plan.md).
 
-## 2. Product shape: five exclusive worktrees
+## 2. Product shape: six exclusive worktrees
 
-The editor is the product container. Its primary navigation contains five mutually exclusive
+The editor is the product container. Its primary navigation contains six mutually exclusive
 top-level worktrees; opening one closes the previous worktree:
 
-1. **Bind Pose Contract** — inspect the canonical hierarchy, local/global/inverse-bind data, and
-   deterministic structural/numeric diagnostics. This is the currently delivered read-only slice
-   of the broader Skeleton / Bind Pose responsibility.
-2. **Runtime Skeletal Preview** — select and play canonical clips through the actual runtime,
+1. **Bone Editor** — the ordinary-user surface for constructing and manipulating bind bones as
+   head/tail joint pairs, with mouse-first interaction and only essential controls. Internally it
+   maps to canonical joint TRS plus orientation/length rather than introducing a second skeleton.
+2. **Bind Pose Contract** — the advanced diagnostic surface for canonical hierarchy,
+   local/global/inverse-bind data, and deterministic structural/numeric findings.
+3. **Runtime Skeletal Preview** — select and play canonical clips through the actual runtime,
    inspect backend/method readiness, and compare synchronized LBS/DQS instances.
-3. **Skin Weight Lab** — select vertices; inspect, normalize, rigid-bind, smooth, diagnose, and
+4. **Skin Weight Lab** — select vertices; inspect, normalize, rigid-bind, smooth, diagnose, and
    preserve stored weights. This workflow is already delivered and must be moved into a node without
    changing its accepted behavior.
-4. **Create / Edit Animations** — reserved for creating/importing clips, editing bone tracks and
+5. **Create / Edit Animations** — reserved for creating/importing clips, editing bone tracks and
    keyframes, using a timeline, and composing poses. It remains visibly unavailable until that
    functionality is delivered.
-5. **Paint Weights** — reserved for direct brush-based weight authoring. It is intentionally
+6. **Paint Weights** — reserved for direct brush-based weight authoring. It is intentionally
    separate from the region/diagnostic/repair operations owned by Skin Weight Lab.
 
 The loaded asset, viewport, camera, status, modified state, and **Show Mesh** control are shared.
@@ -95,8 +97,8 @@ an interchange workflow and must not define the runtime skeleton model.
 
 ## 5. Decisions taken
 
-1. Skeletal Animation Editor has five mutually exclusive worktrees: Bind Pose Contract, Runtime
-   Skeletal Preview, Skin Weight Lab, Create / Edit Animations, and Paint Weights.
+1. Skeletal Animation Editor has six mutually exclusive worktrees: Bone Editor, Bind Pose Contract,
+   Runtime Skeletal Preview, Skin Weight Lab, Create / Edit Animations, and Paint Weights.
 2. Mesh Debug Bones is a reference implementation, not a module to copy wholesale.
 3. Existing, trustworthy imported bind and animation data must be preserved by default.
 4. Skeleton inspection and bind validation precede unrestricted local skeleton creation.
@@ -214,7 +216,7 @@ already trustworthy.
 
 ## 9. Cross-node rules
 
-1. **Single asset context.** All five worktrees operate on the same loaded mesh, skeleton, weights,
+1. **Single asset context.** All six worktrees operate on the same loaded mesh, skeleton, weights,
    clips, selection, and modified state.
 2. **Single selected bone.** Selection remains coherent when switching nodes; node-specific
    highlights may add context without creating contradictory selections.
@@ -279,7 +281,7 @@ permanent legacy API or reader.
 
 - Add the canonical skeleton/weight readers and FBX import conversion required by the permanent
   editor data path. Do not build the shell around the temporary Mesh Debug bone representation.
-- Introduce the five-worktree navigation defined in Section 2 and enforce mutual exclusion.
+- Introduce the six-worktree navigation defined in Section 2 and enforce mutual exclusion.
 - Move the accepted Skin Weight Lab GUI/state into its node without behavior regression.
 - Establish shared asset, viewport, camera, selection, status, and modified-state services.
 - Show unavailable nodes with capability explanations while their data/runtime support is absent.
@@ -485,6 +487,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.2 | 2026-08-14 | Added distinct Bone Editor viewport selection for initial joint, final joint, and owned segment. Joint selection highlights one endpoint; segment selection highlights both endpoints and the segment; empty-space click clears selection and preserves orbit. This slice is deliberately non-mutating. |
+| 7.1 | 2026-08-14 | Added explicit positive root length to the simplified Bone Editor. It defaults to 1 and defines the derived local +Y head-to-tail distance used by the standalone segment visualization. |
+| 7.0 | 2026-08-14 | Split ordinary bind construction from advanced diagnostics by adding the Bone Editor worktree while retaining Bind Pose Contract unchanged. The first slice creates independent roots at numeric XYZ, derives a visible tail at local +Y with length 1, and renders the standalone head/tail pair plus segment. Extension and joint/segment mouse semantics remain the next slices. |
 | 6.9 | 2026-08-14 | Added explicit commit for temporary translation. One atomic canonical operation finds/creates the bone track, unions the translation channel, creates or updates the key at authoring time, validates the entire animation candidate, and reports insertion versus update. The editor exposes a deliberate commit button with whole-asset rollback; mouse release remains non-persistent and Auto Key remains off. |
 | 6.8 | 2026-08-14 | Added the first non-destructive transform gizmo over the selected evaluated bone. World XYZ translation handles use ray/axis dragging, convert world displacement through the inverse parent 3x3 basis into canonical local translation, and continuously reevaluate mesh, skeleton, and palette through the one-bone in-memory override. The pose is visibly temporary and discardable; releasing the mouse does not silently author a key. Rotation and commit/auto-key policy remain next. |
 | 6.7 | 2026-08-14 | Added the first viewport-authoring interaction above the in-memory pose contract: a nearest-hit pick ray selects evaluated joints and parent-to-child bone segments by canonical index, updates the shared tree/track selection, and preserves empty-space camera orbit. Selection is non-mutating; translation/rotation gizmos remain next. |
