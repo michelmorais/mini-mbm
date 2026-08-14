@@ -183,6 +183,18 @@ namespace mbm
         float bezierY2 = 1.0f;
     };
 
+    struct SKELETAL_POSE_BONE_INFO
+    {
+        uint32_t boneId = 0;
+        VEC3 localTranslation;
+        float localRotationX = 0.0f;
+        float localRotationY = 0.0f;
+        float localRotationZ = 0.0f;
+        float localRotationW = 1.0f;
+        VEC3 localScale = VEC3(1.0f, 1.0f, 1.0f);
+        MATRIX globalMatrix;
+    };
+
     class MESH_MBM_DEBUG
     {
       public:
@@ -320,6 +332,18 @@ namespace mbm
                                         const float bezierY2, char *errorOut, const int errorOutLen);
         API_IMPL bool removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
                                         const uint32_t keyIndex, char *errorOut, const int errorOutLen);
+        // Evaluates an editor-only pose from the unsaved canonical clip state. An optional local
+        // override is applied after sampling and before hierarchy/global/palette reconstruction.
+        API_IMPL bool evaluateSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
+                                                    const int32_t overrideBoneIndex,
+                                                    const SKELETAL_KEY_INFO *overrideLocal,
+                                                    const SKELETAL_SHADER_METHOD method,
+                                                    char *errorOut, const int errorOutLen);
+        API_IMPL uint32_t getSkeletalAuthoringPoseBoneCount() const noexcept;
+        API_IMPL bool getSkeletalAuthoringPoseBone(const uint32_t boneIndex,
+                                                   SKELETAL_POSE_BONE_INFO &out) const noexcept;
+        API_IMPL uint32_t getSkeletalAuthoringPaletteSize() const noexcept;
+        API_IMPL bool copySkeletalAuthoringPalette(float *rows, const uint32_t rowCount) const noexcept;
         API_IMPL bool renameSkeletalBone(const uint32_t index, const char *name,
                                          char *errorOut, const int errorOutLen);
         // newParentIndex is -1 for a root or a zero-based compiled/source index otherwise.
@@ -578,6 +602,10 @@ namespace mbm
         bool stopSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player) const noexcept;
         bool seekSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float time) const;
         bool getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player, float *time) const noexcept;
+        bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
+                                         SKELETAL_SHADER_METHOD method, const float *rows,
+                                         uint32_t rowCount, const uint32_t *orderedBoneIds,
+                                         uint32_t boneIdCount, float time) const noexcept;
         bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta) const;
         bool renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player, uint32_t indexFrame,
                             const SHADER *shader, const RENDERIZABLE *owner);

@@ -593,6 +593,7 @@ rigid DQS rejects any scale/shear.
 | `obj:stopSkeletalAnimation` | `()` | bool | Stop the active clip and restore bind-pose deformation |
 | `obj:seekSkeletalAnimation` | `(time)` | bool | Seek the active clip, clamped to its duration |
 | `obj:getSkeletalAnimationTime` | `()` | number or nil | Current time, or `nil` when inactive |
+| `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation |
 
 ```lua
 local character = mesh:new("3d")
@@ -1377,6 +1378,18 @@ rejected if the bone has children, appears in the canonical weight palette, or i
 animation track. It never reparents descendants, rewrites palettes, redistributes weights, or
 deletes tracks implicitly. The remaining section 41–43 candidate validates before commit; failure
 raises a Lua error without mutation.
+
+```lua
+local pose = meshD:evaluateSkeletalAuthoringPose(clipIndex, time, method)
+-- Optional final arguments override one sampled bone in local space:
+-- boneIndex, tx,ty,tz, qx,qy,qz,qw, sx,sy,sz
+```
+
+Evaluates the current unsaved canonical clip state with `method` equal to `"lbs"` or `"dqs"`.
+The detached result contains `bones` with local TRS and evaluated global matrices plus the packed
+`palette` accepted by `mesh:setSkeletalAuthoringPalette`. The optional one-bone override is applied
+after sampling and before hierarchy/global reconstruction. This is an editor-preview bridge; it
+does not mutate keys or persist a pose.
 
 ```lua
 meshD:removeSkeletalBoneRemapped(oneBasedBoneIndex, replacementBoneIndex,

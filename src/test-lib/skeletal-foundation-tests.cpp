@@ -595,6 +595,25 @@ namespace
                    !clipEditMesh.updateSkeletalKey(editedClipIndex,editedTrackIndex,editedKeyIndex,0.0f,
                        VEC3(),0,0,0,1,VEC3(1,1,1),0,0,0,1,1,error,sizeof(error)-1),
                "canonical track/key authoring must seed sampled TRS, reject duplicates, and validate atomically");
+        SKELETAL_POSE_BONE_INFO authoringBone;
+        SKELETAL_KEY_INFO authoringOverride;
+        authoringOverride.localTranslation=VEC3(4,5,6);
+        authoringOverride.localRotationW=1.0f;
+        authoringOverride.localScale=VEC3(1,1,1);
+        std::vector<float> authoringPalette(12);
+        expect(clipEditMesh.evaluateSkeletalAuthoringPose(editedClipIndex,1.0f,-1,nullptr,
+                   SKELETAL_SHADER_METHOD::LBS,error,sizeof(error)-1) &&
+                   clipEditMesh.getSkeletalAuthoringPoseBoneCount()==1 &&
+                   clipEditMesh.getSkeletalAuthoringPaletteSize()==12 &&
+                   clipEditMesh.getSkeletalAuthoringPoseBone(0,authoringBone) &&
+                   clipEditMesh.copySkeletalAuthoringPalette(authoringPalette.data(),12) &&
+                   clipEditMesh.evaluateSkeletalAuthoringPose(editedClipIndex,1.0f,0,&authoringOverride,
+                       SKELETAL_SHADER_METHOD::LBS,error,sizeof(error)-1) &&
+                   clipEditMesh.getSkeletalAuthoringPoseBone(0,authoringBone) &&
+                   std::fabs(authoringBone.globalMatrix.p[12]-4.0f)<=MATRIX_TOLERANCE &&
+                   std::fabs(authoringBone.globalMatrix.p[13]-5.0f)<=MATRIX_TOLERANCE &&
+                   std::fabs(authoringBone.globalMatrix.p[14]-6.0f)<=MATRIX_TOLERANCE,
+               "in-memory authoring evaluation must expose sampled pose/palette and compose a local override");
         const char *trackRoundTrip="/tmp/mini-mbm-canonical-track-round-trip.msh";
         MESH_MBM_DEBUG trackReload;
         expect(clipEditMesh.saveV11(trackRoundTrip,false,false,false,error,sizeof(error)-1) &&

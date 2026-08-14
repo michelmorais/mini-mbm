@@ -74,6 +74,10 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool stopSkeletalAnimation() noexcept;
     API_IMPL bool seekSkeletalAnimation(float time);
     API_IMPL bool getSkeletalAnimationTime(float *time) const noexcept;
+    API_IMPL bool setSkeletalAuthoringPalette(SKELETAL_SHADER_METHOD method,
+                                              const float *rows, uint32_t rowCount,
+                                              const uint32_t *orderedBoneIds, uint32_t boneIdCount,
+                                              float time) noexcept;
     API_IMPL FX*  getFx() const override;
 	  API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
     FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;

@@ -337,6 +337,11 @@ Exit: imported reference samples match expected local/global bone transforms wit
 
 ### Milestone 6 — Local Animation node
 
+- Establish the authoring-pose contract before the graphical timeline: sample unsaved clip state at
+  an arbitrary time, optionally override one bone's local TRS, rebuild globals/palette, and drive
+  both the deformed preview mesh and evaluated skeleton from that same in-memory result.
+- Add viewport picking and translation/rotation gizmos on top of that contract; define auto-key and
+  explicit-key behavior before treating numeric TRS fields as anything beyond diagnostics.
 - Deliver timeline, tracks, keyframes, easing, playback, loop, speed, and composition controls.
 - Reuse articulated-animation interaction vocabulary where semantics match.
 - Keep bind editing inaccessible while ordinary pose/keyframe editing is active.
@@ -480,6 +485,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 6.6 | 2026-08-14 | Added the shared in-memory authoring-pose contract before graphical manipulation: unsaved clips evaluate at arbitrary time with an optional one-bone local override, rebuild hierarchy/global transforms and LBS/DQS palette, and drive both the paused runtime mesh and evaluated skeleton in the Animation worktree without save/reload. Viewport picking, gizmos, auto-key policy, and timeline remain next. |
 | 6.5 | 2026-08-14 | Added transactional keyframe authoring. Insertion at a unique in-range time samples the pre-edit clip and captures the target bone's evaluated local TRS, preserving the curve; update edits time/T/Q/S/easing/Bezier, normalizes quaternion, and reorders atomically; confirmed removal retains the required final key. Duplicate/out-of-range times and invalid transforms reject without mutation. Inspector fields, rollback, strict ordering, numeric tests, and save-reload are covered; graphical timeline remains next. |
 | 6.4 | 2026-08-14 | Added transactional per-bone track-container authoring. Creation filters duplicate targets, accepts nonempty T/R/S masks, resolves the selected bone to stable identity, and seeds a time-zero key from local bind TRS because canonical tracks cannot be empty. Channel edits preserve/revalidate key payloads; confirmed removal deletes the track and its keys. Independent expanded-track UI state, rollback, validation, and save-reload are covered; key editing/timeline remain next. |
 | 6.3 | 2026-08-14 | Added the first transactional Animation-worktree mutations at the clip-container level. Empty clips receive opaque stable IDs; name/duration/loop edits preserve identity and validate all existing key times; duplicate names and duration truncation reject without mutation. Confirmed removal deletes the selected clip with its tracks/keys, clears type-43 when it was the last clip, and all actions share whole-asset rollback/save-reload. Track/key editing remains read-only. |

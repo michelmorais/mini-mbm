@@ -45,6 +45,9 @@ local state = {
     animationTrackEdits = {},
     animationNewKeyTimes = {},
     animationKeyEdits = {},
+    authoringTime = 0,
+    authoringPose = nil,
+    authoringPoseKey = nil,
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -154,8 +157,11 @@ local function isWeightLabWorkspace()
 end
 
 local function shouldShowSkeleton()
-    return state.workspace=='bind' or (isWeightLabWorkspace() and state.skeletonVisible)
+    return state.workspace=='bind' or state.workspace=='animation' or
+        (isWeightLabWorkspace() and state.skeletonVisible)
 end
+
+local rebuildSkeletonVisuals
 
 local function safeCall(fn)
     local result = table.pack(pcall(fn))
@@ -390,6 +396,22 @@ local function getBones()
     return bones
 end
 
+local function getVisualBones()
+    local bones=getBones()
+    if state.workspace~='animation' or not state.authoringPose or
+            type(state.authoringPose.bones)~='table' then return bones end
+    for index,bone in ipairs(bones) do
+        local posed=state.authoringPose.bones[index]
+        local global=posed and posed.globalMatrix or nil
+        if global then
+            bone.x=global[13] or bone.x
+            bone.y=global[14] or bone.y
+            bone.z=global[15] or bone.z
+        end
+    end
+    return bones
+end
+
 local function refreshBindReport()
     state.bindReport = nil
     if not state.meshD then return end
@@ -606,7 +628,8 @@ local function applyWorkspaceVisibility()
         state.targetBoneHighlightSphere.visible=shouldShowSkeleton() and weightWorkspace and
             state.targetBoneHighlight
     end
-    local selectedBindBone=state.workspace=='bind' and getBones()[state.boneIndex] or nil
+    local selectedBindBone=(state.workspace=='bind' or state.workspace=='animation') and
+        getBones()[state.boneIndex] or nil
     for name,object in pairs(state.skeletonGizmo.spheres) do
         if weightWorkspace and name==state.hoveredAllowedBone then
             object:setColor(1,0.45,0.05,1)
@@ -634,6 +657,7 @@ local function setWorkspace(workspace)
     state.aabbDragging=false
     state.aabbDragPlane=nil
     state.aabbDragOffset=nil
+    if rebuildSkeletonVisuals then rebuildSkeletonVisuals() end
     applyWorkspaceVisibility()
     if state.meshBounds then
         local bounds={}
@@ -741,9 +765,9 @@ local function rebuildTargetBoneHighlight()
     updateSkeletonVisibility()
 end
 
-local function rebuildSkeletonVisuals()
+rebuildSkeletonVisuals=function()
     destroySkeletonVisuals()
-    local bones=getBones()
+    local bones=getVisualBones()
     local byName={}
     for _,bone in ipairs(bones) do byName[bone.name]=bone end
     local bounds=state.meshBounds
@@ -773,6 +797,42 @@ local function rebuildSkeletonVisuals()
     rebuildAnalysisBoneHighlight()
     rebuildProximityBoneHighlight()
     rebuildTargetBoneHighlight()
+end
+
+
+local function invalidateAuthoringPose()
+    state.authoringPoseKey=nil
+end
+
+local function refreshAuthoringPose(clip)
+    if not state.meshD or not state.preview or not clip then return false end
+    local okMethod,method=safeCall(function()
+        return state.preview:getResolvedSkeletalSkinningMethod()
+    end)
+    if not okMethod or (method~='lbs' and method~='dqs') then return false end
+    local duration=math.max(0,clip.duration or 0)
+    state.authoringTime=math.max(0,math.min(state.authoringTime or 0,duration))
+    local key=string.format('%s:%d:%.9g:%s',clip.clipId or '?',
+        state.animationClipSelected,state.authoringTime,method)
+    if state.authoringPoseKey==key and state.authoringPose then return true end
+    local okPose,pose=safeCall(function()
+        return state.meshD:evaluateSkeletalAuthoringPose(
+            state.animationClipSelected,state.authoringTime,method)
+    end)
+    if not okPose or type(pose)~='table' then return false end
+    local okApply,applied=safeCall(function()
+        return state.preview:setSkeletalAuthoringPalette(method,pose.palette,state.authoringTime,
+            pose.boneIds)
+    end)
+    if not okApply or not applied then
+        setStatus('A pose de autoria não é compatível com a mesh de preview.',true)
+        return false
+    end
+    state.authoringPose=pose
+    state.authoringPoseKey=key
+    rebuildSkeletonVisuals()
+    applyWorkspaceVisibility()
+    return true
 end
 
 local function pointSegmentDistanceSquared(p, a, b)
@@ -1211,6 +1271,9 @@ local function loadMesh(path)
     state.animationTrackEdits={}
     state.animationNewKeyTimes={}
     state.animationKeyEdits={}
+    state.authoringTime=0
+    state.authoringPose=nil
+    state.authoringPoseKey=nil
     local bounds = computeAABB(meshD)
     local initialExtent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
@@ -2784,7 +2847,12 @@ local function showSkeletalAnimationInspection()
         local changed,selected=tImGui.Combo(tLang.L('swl_skeletal_clip'),
             state.animationClipSelected,names,-1)
         tImGui.PopItemWidth()
-        if changed then state.animationClipSelected=selected; state.animationEditClipId=nil end
+        if changed then
+            state.animationClipSelected=selected
+            state.animationEditClipId=nil
+            state.authoringTime=0
+            invalidateAuthoringPose()
+        end
         local clip=clips[state.animationClipSelected]
         if state.animationEditClipId~=clip.clipId then
             state.animationEditClipId=clip.clipId
@@ -2793,6 +2861,15 @@ local function showSkeletalAnimationInspection()
             state.animationClipLoop=clip.loop==true
             state.animationRemoveConfirmed=false
         end
+        tImGui.PushItemWidth(190)
+        local timeChanged,time=tImGui.SliderFloat('Tempo da pose##swlAuthoringTime',
+            state.authoringTime,0,math.max(clip.duration or 0,0),'%.3f s')
+        tImGui.PopItemWidth()
+        if timeChanged then
+            state.authoringTime=time
+            invalidateAuthoringPose()
+        end
+        refreshAuthoringPose(clip)
         tImGui.TextWrapped(string.format(tLang.L('swl_animation_clip_summary_fmt'),
             clip.duration or 0,#(clip.tracks or {}),clip.loop and tLang.L('swl_yes') or tLang.L('swl_no'),
             clip.clipId or '?'))
@@ -2818,6 +2895,7 @@ local function showSkeletalAnimationInspection()
             if applied then
                 commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
                 state.animationEditClipId=nil
+                invalidateAuthoringPose()
                 setStatus(tLang.L('swl_animation_clip_updated'),false)
             elseif snapshot then discardRollbackSnapshot(snapshot) end
         end
@@ -2835,6 +2913,7 @@ local function showSkeletalAnimationInspection()
                 commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
                 state.animationClipSelected=math.max(1,state.animationClipSelected-1)
                 state.animationEditClipId=nil; state.animationRemoveConfirmed=false
+                state.authoringTime=0; invalidateAuthoringPose()
                 setStatus(tLang.L('swl_animation_clip_removed'),false)
             elseif snapshot then discardRollbackSnapshot(snapshot) end
         end
@@ -2884,6 +2963,7 @@ local function showSkeletalAnimationInspection()
                     commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
                     state.animationTrackEdits={}
                     state.animationKeyEdits={}; state.animationNewKeyTimes={}
+                    invalidateAuthoringPose()
                     setStatus(tLang.L('swl_animation_track_added'),false)
                 elseif snapshot then discardRollbackSnapshot(snapshot) end
             end
@@ -2931,6 +3011,7 @@ local function showSkeletalAnimationInspection()
                         commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
                         state.animationTrackEdits={}
                         state.animationKeyEdits={}
+                        invalidateAuthoringPose()
                         setStatus(tLang.L('swl_animation_track_updated'),false)
                     elseif snapshot then discardRollbackSnapshot(snapshot) end
                 end
@@ -2948,6 +3029,7 @@ local function showSkeletalAnimationInspection()
                         commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
                         state.animationTrackEdits={}
                         state.animationKeyEdits={}; state.animationNewKeyTimes={}
+                        invalidateAuthoringPose()
                         setStatus(tLang.L('swl_animation_track_removed'),false)
                     elseif snapshot then discardRollbackSnapshot(snapshot) end
                 end
@@ -2970,6 +3052,7 @@ local function showSkeletalAnimationInspection()
                     if added then
                         commitRollbackSnapshot(snapshot); state.modified=true
                         state.animationKeyEdits={}; state.animationNewKeyTimes={}
+                        invalidateAuthoringPose()
                         setStatus(tLang.L('swl_animation_key_added'),false)
                     elseif snapshot then discardRollbackSnapshot(snapshot) end
                 end
@@ -3021,6 +3104,7 @@ local function showSkeletalAnimationInspection()
                             if updated then
                                 commitRollbackSnapshot(snapshot); state.modified=true
                                 state.animationKeyEdits={}
+                                invalidateAuthoringPose()
                                 setStatus(tLang.L('swl_animation_key_updated'),false)
                             elseif snapshot then discardRollbackSnapshot(snapshot) end
                         end
@@ -3041,6 +3125,7 @@ local function showSkeletalAnimationInspection()
                                 if removed then
                                     commitRollbackSnapshot(snapshot); state.modified=true
                                     state.animationKeyEdits={}; state.animationNewKeyTimes={}
+                                    invalidateAuthoringPose()
                                     setStatus(tLang.L('swl_animation_key_removed'),false)
                                 elseif snapshot then discardRollbackSnapshot(snapshot) end
                             end
@@ -3076,6 +3161,7 @@ local function showSkeletalAnimationInspection()
         if added then
             commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
             state.animationClipSelected=newIndex or (#clips+1); state.animationEditClipId=nil
+            state.authoringTime=0; invalidateAuthoringPose()
             setStatus(tLang.L('swl_animation_clip_added'),false)
         elseif snapshot then discardRollbackSnapshot(snapshot) end
     end

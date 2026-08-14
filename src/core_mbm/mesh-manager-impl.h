@@ -59,6 +59,7 @@ namespace mbm
         SKELETAL_SHADER_METHOD resolvedSkinningMethod = SKELETAL_SHADER_METHOD::LBS;
         const char *skinningResolutionReason = "explicit-lbs";
         std::vector<float> paletteRows;
+        bool authoringPose = false;
     };
 
     struct MESH_MBM::Impl
@@ -118,6 +119,9 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        skeletal::SKELETAL_POSE authoringPose;
+        std::vector<float> authoringPaletteRows;
+        bool authoringPoseValid = false;
         std::vector<util::ARTICULATED_PART_V11> articulatedParts;
         std::vector<ARTICULATED_CLIP_DATA> articulatedClips;
     };

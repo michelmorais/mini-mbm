@@ -166,6 +166,14 @@ requires confirmation and the final key cannot be removed because canonical trac
 empty. Every insertion, update, and removal uses whole-asset rollback. A graphical timeline and
 pose-oriented viewport controls remain subsequent Milestone-6 work.
 
+The Animation worktree now also has the shared in-memory pose contract needed by those controls.
+Its time scrubber evaluates the current unsaved clip directly from `meshDebug`, installs the packed
+LBS/DQS palette on the preview instance without saving or reloading, and rebuilds the visible
+skeleton from the same evaluated global transforms. Consequently the mesh and skeleton show the
+same pose while editing. This slice deliberately stops at evaluation/preview: mouse picking,
+translation/rotation gizmos, auto-key policy, and the graphical timeline are the next interaction
+layer; numeric key fields are diagnostic/fallback controls rather than the intended primary UX.
+
 Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
 LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,
 and bind-restoration commands; the right instance is re-seeked to the left instance's time each
@@ -393,7 +401,8 @@ five external neighbors with zero modifications and zero audit failures.
 The following are not defects in the delivered Skin Weight Lab:
 
 - runtime preview is currently GLES2 only; there is no non-GLES backend selector;
-- the diagnostic skeleton gizmo remains in bind pose during runtime preview;
+- Runtime Skeletal Preview deliberately hides its bind-only diagnostic gizmo; the Animation
+  worktree instead displays the evaluated in-memory pose skeleton;
 - no protected/exclusion volumes;
 - no topology-ring selection expansion;
 - no welded/coincident-vertex adjacency across seams;

@@ -2763,6 +2763,81 @@ namespace mbm
         return 1;
     }
 
+    int onEvaluateSkeletalAuthoringPoseDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        if (clip <= 0) return luaL_error(lua, "canonical clip index must be one-based");
+        const float time = static_cast<float>(luaL_checknumber(lua, 3));
+        const char *methodName = luaL_checkstring(lua, 4);
+        const SKELETAL_SHADER_METHOD method = strcmp(methodName, "dqs") == 0
+            ? SKELETAL_SHADER_METHOD::DQS_RIGID : strcmp(methodName, "lbs") == 0
+            ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE;
+        const lua_Integer overrideIndex = luaL_optinteger(lua, 5, 0);
+        SKELETAL_KEY_INFO overrideLocal;
+        const SKELETAL_KEY_INFO *overridePtr = nullptr;
+        if (overrideIndex > 0)
+        {
+            overrideLocal.localTranslation = VEC3(static_cast<float>(luaL_checknumber(lua, 6)),
+                static_cast<float>(luaL_checknumber(lua, 7)), static_cast<float>(luaL_checknumber(lua, 8)));
+            overrideLocal.localRotationX = static_cast<float>(luaL_checknumber(lua, 9));
+            overrideLocal.localRotationY = static_cast<float>(luaL_checknumber(lua, 10));
+            overrideLocal.localRotationZ = static_cast<float>(luaL_checknumber(lua, 11));
+            overrideLocal.localRotationW = static_cast<float>(luaL_checknumber(lua, 12));
+            overrideLocal.localScale = VEC3(static_cast<float>(luaL_checknumber(lua, 13)),
+                static_cast<float>(luaL_checknumber(lua, 14)), static_cast<float>(luaL_checknumber(lua, 15)));
+            overridePtr = &overrideLocal;
+        }
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.evaluateSkeletalAuthoringPose(static_cast<uint32_t>(clip - 1), time,
+                overrideIndex > 0 ? static_cast<int32_t>(overrideIndex - 1) : -1,
+                overridePtr, method, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_createtable(lua, 0, 4);
+        lua_pushnumber(lua, time); lua_setfield(lua, -2, "time");
+        lua_pushstring(lua, methodName); lua_setfield(lua, -2, "method");
+        const uint32_t boneCount = meshDebug->mesh.getSkeletalAuthoringPoseBoneCount();
+        lua_createtable(lua, static_cast<int>(boneCount), 0);
+        for (uint32_t boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            SKELETAL_POSE_BONE_INFO bone;
+            if (!meshDebug->mesh.getSkeletalAuthoringPoseBone(boneIndex, bone)) continue;
+            lua_createtable(lua, 0, 5);
+            const char *name = meshDebug->mesh.getSkeletonBindBoneName(boneIndex);
+            lua_pushstring(lua, name ? name : ""); lua_setfield(lua, -2, "name");
+            pushSkeletonBindVector(lua, bone.localTranslation); lua_setfield(lua, -2, "localTranslation");
+            lua_createtable(lua, 0, 4);
+            lua_pushnumber(lua, bone.localRotationX); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, bone.localRotationY); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, bone.localRotationZ); lua_setfield(lua, -2, "z");
+            lua_pushnumber(lua, bone.localRotationW); lua_setfield(lua, -2, "w");
+            lua_setfield(lua, -2, "localRotation");
+            pushSkeletonBindVector(lua, bone.localScale); lua_setfield(lua, -2, "localScale");
+            pushSkeletonBindMatrix(lua, bone.globalMatrix); lua_setfield(lua, -2, "globalMatrix");
+            lua_rawseti(lua, -2, boneIndex + 1);
+        }
+        lua_setfield(lua, -2, "bones");
+        lua_createtable(lua, static_cast<int>(boneCount), 0);
+        for (uint32_t boneIndex=0; boneIndex<boneCount; ++boneIndex)
+        {
+            SKELETAL_POSE_BONE_INFO bone;
+            if (!meshDebug->mesh.getSkeletalAuthoringPoseBone(boneIndex,bone))
+                return luaL_error(lua,"failed to read canonical authoring bone identity");
+            lua_pushinteger(lua, static_cast<lua_Integer>(bone.boneId));
+            lua_rawseti(lua,-2,boneIndex+1);
+        }
+        lua_setfield(lua,-2,"boneIds");
+        const uint32_t paletteSize = meshDebug->mesh.getSkeletalAuthoringPaletteSize();
+        std::vector<float> palette(paletteSize);
+        if (!meshDebug->mesh.copySkeletalAuthoringPalette(palette.data(), paletteSize))
+            return luaL_error(lua, "failed to copy canonical authoring palette");
+        lua_createtable(lua, static_cast<int>(paletteSize), 0);
+        for (uint32_t index = 0; index < paletteSize; ++index)
+        { lua_pushnumber(lua, palette[index]); lua_rawseti(lua, -2, index + 1); }
+        lua_setfield(lua, -2, "palette");
+        return 1;
+    }
+
     int onGetTotalSkeletalWeightBonesDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
@@ -2890,6 +2965,7 @@ namespace mbm
                                           {"addSkeletalKey", onAddSkeletalKeyDebugLua},
                                           {"updateSkeletalKey", onUpdateSkeletalKeyDebugLua},
                                           {"removeSkeletalKey", onRemoveSkeletalKeyDebugLua},
+                                          {"evaluateSkeletalAuthoringPose", onEvaluateSkeletalAuthoringPoseDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},

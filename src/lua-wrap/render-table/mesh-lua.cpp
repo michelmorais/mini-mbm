@@ -27,6 +27,7 @@ extern "C"
 #include <lua-wrap/render-table/mesh-lua.h>
 
 #include <cstring>
+#include <vector>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
 #include <render/mesh.h>
@@ -274,6 +275,38 @@ namespace mbm
         return 1;
     }
 
+    int onSetSkeletalAuthoringPaletteLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *methodName = luaL_checkstring(lua, 2);
+        const SKELETAL_SHADER_METHOD method = std::strcmp(methodName, "dqs") == 0
+            ? SKELETAL_SHADER_METHOD::DQS_RIGID : std::strcmp(methodName, "lbs") == 0
+            ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE;
+        luaL_checktype(lua, 3, LUA_TTABLE);
+        const size_t count = lua_rawlen(lua, 3);
+        std::vector<float> rows(count);
+        for (size_t index = 0; index < count; ++index)
+        {
+            lua_rawgeti(lua, 3, static_cast<lua_Integer>(index + 1));
+            rows[index] = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 1);
+        }
+        const float time = static_cast<float>(luaL_checknumber(lua, 4));
+        luaL_checktype(lua, 5, LUA_TTABLE);
+        const size_t boneCount=lua_rawlen(lua,5);
+        std::vector<uint32_t> boneIds(boneCount);
+        for (size_t index=0; index<boneCount; ++index)
+        {
+            lua_rawgeti(lua,5,static_cast<lua_Integer>(index+1));
+            boneIds[index]=static_cast<uint32_t>(luaL_checkinteger(lua,-1));
+            lua_pop(lua,1);
+        }
+        lua_pushboolean(lua, mesh->setSkeletalAuthoringPalette(method, rows.data(),
+            static_cast<uint32_t>(rows.size()),boneIds.data(),
+            static_cast<uint32_t>(boneIds.size()),time));
+        return 1;
+    }
+
     int onPlaySkeletalAnimationLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -397,6 +430,7 @@ namespace mbm
                                                      {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
                                                      {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
                                                      {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
+                                                     {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                      {nullptr, nullptr}};
 
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
@@ -460,6 +494,7 @@ namespace mbm
                                                          {"stopSkeletalAnimation", onStopSkeletalAnimationLua},
                                                          {"seekSkeletalAnimation", onSeekSkeletalAnimationLua},
                                                          {"getSkeletalAnimationTime", onGetSkeletalAnimationTimeLua},
+                                                         {"setSkeletalAuthoringPalette", onSetSkeletalAuthoringPaletteLua},
                                                          {nullptr, nullptr}};
         SELF_ADD_COMMON_METHODS selfMethods(regMeshMethods);
         const luaL_Reg *             regMethods = selfMethods.get();

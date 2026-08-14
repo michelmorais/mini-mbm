@@ -1199,6 +1199,7 @@ namespace mbm
         impl->active = false;
         impl->paused = false;
         impl->paletteRows.clear();
+        impl->authoringPose = false;
     }
 
     void SKELETAL_ANIMATION_PLAYER::setSkinningMethod(const SKELETAL_SHADER_METHOD method) noexcept
@@ -4783,6 +4784,100 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::evaluateSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
+                                                        const int32_t overrideBoneIndex,
+                                                        const SKELETAL_KEY_INFO *overrideLocal,
+                                                        const SKELETAL_SHADER_METHOD method,
+                                                        char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [this, errorOut, errorOutLen](const char *message)
+        {
+            impl->authoringPose = {};
+            impl->authoringPaletteRows.clear();
+            impl->authoringPoseValid = false;
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+            return fail("canonical authoring clip index is out of range");
+        if (method != SKELETAL_SHADER_METHOD::LBS && method != SKELETAL_SHADER_METHOD::DQS_RIGID)
+            return fail("canonical authoring pose requires resolved LBS or DQS");
+        skeletal::SKELETAL_POSE pose;
+        if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled,
+                impl->canonicalAnimations.clips[clipIndex], time, pose))
+            return fail("canonical authoring pose could not be sampled");
+        if (overrideLocal)
+        {
+            if (overrideBoneIndex < 0 || static_cast<size_t>(overrideBoneIndex) >= pose.localTransforms.size())
+                return fail("canonical authoring override bone index is out of range");
+            const float norm = std::sqrt(overrideLocal->localRotationX * overrideLocal->localRotationX +
+                overrideLocal->localRotationY * overrideLocal->localRotationY +
+                overrideLocal->localRotationZ * overrideLocal->localRotationZ +
+                overrideLocal->localRotationW * overrideLocal->localRotationW);
+            if (!std::isfinite(norm) || norm <= skeletal::QUATERNION_ZERO_EPSILON)
+                return fail("canonical authoring override quaternion must be nonzero and finite");
+            skeletal::LOCAL_TRANSFORM &local = pose.localTransforms[static_cast<size_t>(overrideBoneIndex)];
+            local.translation = overrideLocal->localTranslation;
+            local.rotation = {overrideLocal->localRotationX / norm, overrideLocal->localRotationY / norm,
+                              overrideLocal->localRotationZ / norm, overrideLocal->localRotationW / norm};
+            local.scale = overrideLocal->localScale;
+            for (size_t boneIndex = 0; boneIndex < pose.localTransforms.size(); ++boneIndex)
+            {
+                const MATRIX localMatrix = skeletal::buildTrsMatrix(pose.localTransforms[boneIndex]);
+                const int32_t parent = impl->canonicalSkeleton.compiled.bones[boneIndex].parentIndex;
+                if (parent < 0) pose.globalTransforms[boneIndex] = localMatrix;
+                else MatrixMultiply(&pose.globalTransforms[boneIndex], &localMatrix,
+                                    &pose.globalTransforms[static_cast<size_t>(parent)]);
+            }
+        }
+        std::vector<float> rows;
+        if (method == SKELETAL_SHADER_METHOD::DQS_RIGID)
+        {
+            if (skeletal::buildGles2DqsPalette(impl->canonicalSkeleton, pose, rows) !=
+                    skeletal::GLES2_DQS_PALETTE_STATUS::READY)
+                return fail("canonical authoring pose is incompatible with rigid DQS");
+        }
+        else if (skeletal::buildGles2LbsPalette(impl->canonicalSkeleton, pose, true, rows) !=
+                     skeletal::GLES2_LBS_PALETTE_STATUS::READY)
+            return fail("canonical authoring pose is incompatible with compact LBS normals");
+        impl->authoringPose = std::move(pose);
+        impl->authoringPaletteRows = std::move(rows);
+        impl->authoringPoseValid = true;
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getSkeletalAuthoringPoseBoneCount() const noexcept
+    {
+        return impl->authoringPoseValid ? static_cast<uint32_t>(impl->authoringPose.localTransforms.size()) : 0;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalAuthoringPoseBone(const uint32_t boneIndex,
+                                                       SKELETAL_POSE_BONE_INFO &out) const noexcept
+    {
+        if (!impl->authoringPoseValid || boneIndex >= impl->authoringPose.localTransforms.size() ||
+            boneIndex >= impl->authoringPose.globalTransforms.size()) return false;
+        const skeletal::LOCAL_TRANSFORM &local = impl->authoringPose.localTransforms[boneIndex];
+        out.boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        out.localTranslation = local.translation;
+        out.localRotationX = local.rotation.x; out.localRotationY = local.rotation.y;
+        out.localRotationZ = local.rotation.z; out.localRotationW = local.rotation.w;
+        out.localScale = local.scale;
+        out.globalMatrix = impl->authoringPose.globalTransforms[boneIndex];
+        return true;
+    }
+
+    uint32_t MESH_MBM_DEBUG::getSkeletalAuthoringPaletteSize() const noexcept
+    {
+        return impl->authoringPoseValid ? static_cast<uint32_t>(impl->authoringPaletteRows.size()) : 0;
+    }
+
+    bool MESH_MBM_DEBUG::copySkeletalAuthoringPalette(float *rows, const uint32_t rowCount) const noexcept
+    {
+        if (!impl->authoringPoseValid || !rows || rowCount != impl->authoringPaletteRows.size()) return false;
+        std::copy(impl->authoringPaletteRows.begin(), impl->authoringPaletteRows.end(), rows);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::renameSkeletalBone(const uint32_t index, const char *name,
                                              char *errorOut, const int errorOutLen)
     {
@@ -6746,6 +6841,7 @@ namespace mbm
                 player.impl->time = 0.0f;
                 player.impl->active = true;
                 player.impl->paused = false;
+                player.impl->authoringPose = false;
                 return updateSkeletalAnimation(player, 0.0f);
             }
         }
@@ -6782,6 +6878,7 @@ namespace mbm
         player.impl->active = false;
         player.impl->paused = false;
         player.impl->paletteRows.clear();
+        player.impl->authoringPose = false;
         return true;
     }
 
@@ -6806,6 +6903,8 @@ namespace mbm
 
     bool MESH_MBM::updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, const float delta) const
     {
+        if (player.impl->authoringPose)
+            return player.impl->active && !player.impl->paletteRows.empty();
         if (!player.impl->active || !std::isfinite(delta) || delta < 0.0f ||
             player.impl->clipIndex >= impl->canonicalAnimations.clips.size())
             return false;
@@ -6830,6 +6929,33 @@ namespace mbm
         return skeletal::sampleGles2LbsPalette(impl->canonicalSkeleton, clip, player.impl->time,
                                                hasNormals, player.impl->paletteRows) ==
                skeletal::GLES2_LBS_PALETTE_STATUS::READY;
+    }
+
+    bool MESH_MBM::setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
+                                                const SKELETAL_SHADER_METHOD method,
+                                                const float *rows, const uint32_t rowCount,
+                                                const uint32_t *orderedBoneIds,
+                                                const uint32_t boneIdCount,
+                                                const float time) const noexcept
+    {
+        if (!rows || !orderedBoneIds || !std::isfinite(time) || time < 0.0f ||
+            (method != SKELETAL_SHADER_METHOD::LBS && method != SKELETAL_SHADER_METHOD::DQS_RIGID) ||
+            method != player.impl->resolvedSkinningMethod || !impl->gles2LbsInput.supports(method))
+            return false;
+        const uint32_t stride = method == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
+        const uint32_t expected = static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size()) * stride;
+        if (rowCount != expected || boneIdCount != impl->canonicalSkeleton.compiled.bones.size() ||
+            !std::all_of(rows,rows+rowCount,[](const float value){ return std::isfinite(value); }))
+            return false;
+        for (uint32_t index=0; index<boneIdCount; ++index)
+            if (orderedBoneIds[index]!=impl->canonicalSkeleton.compiled.bones[index].boneId) return false;
+        player.impl->paletteRows.assign(rows, rows + rowCount);
+        player.impl->clipIndex = UINT32_MAX;
+        player.impl->time = time;
+        player.impl->active = true;
+        player.impl->paused = true;
+        player.impl->authoringPose = true;
+        return true;
     }
 
     bool MESH_MBM::renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player,

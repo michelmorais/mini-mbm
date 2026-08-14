@@ -251,6 +251,16 @@ namespace mbm
         return mesh ? mesh->getSkeletalAnimationTime(getSkeletalAnimationPlayer(), time) : false;
     }
 
+    bool MESH::setSkeletalAuthoringPalette(const SKELETAL_SHADER_METHOD method,
+                                           const float *rows, const uint32_t rowCount,
+                                           const uint32_t *orderedBoneIds, const uint32_t boneIdCount,
+                                           const float time) noexcept
+    {
+        return mesh && mesh->setSkeletalAuthoringPalette(getSkeletalAnimationPlayer(), method,
+                                                         rows, rowCount, orderedBoneIds,
+                                                         boneIdCount, time);
+    }
+
     bool MESH::render()
     {
         if (!mesh)
