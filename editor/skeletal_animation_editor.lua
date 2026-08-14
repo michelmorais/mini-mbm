@@ -56,6 +56,7 @@ local state = {
     boneEditorSelectedIndex = nil,
     boneEditorSelection = nil,
     boneEditorDrag = nil,
+    boneEditorPendingCycle = nil,
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -702,6 +703,8 @@ local function applyWorkspaceVisibility()
             ((state.boneEditorSelection.kind=='head' and name==state.boneEditorSelection.boneName) or
              (state.boneEditorSelection.kind=='tail' and
                 name==state.boneEditorSelection.boneName..'::tail') or
+             (state.boneEditorSelection.kind=='joint' and
+                state.boneEditorSelection.members and state.boneEditorSelection.members[name]) or
              (state.boneEditorSelection.kind=='segment' and
                 (name==state.boneEditorSelection.boneName or
                  name==state.boneEditorSelection.boneName..'::tail')))
@@ -1012,9 +1015,29 @@ local function hitTestBoneEditor(sx,sy)
     local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
     local pickRadius=math.max(extent*0.012,0.002)
-    local best,bestDistance=nil,math.huge
-    local function consider(distance,selection)
-        if distance and distance<bestDistance then best,bestDistance=selection,distance end
+    local candidates={}
+    local seen={}
+    local byName={}
+    for index,bone in ipairs(bones) do bone.arrayIndex=index; byName[bone.name]=bone end
+    local connectedChildren={}
+    for _,bone in ipairs(bones) do
+        if bone.connectedToParent and bone.parentName then
+            connectedChildren[bone.parentName]=connectedChildren[bone.parentName] or {}
+            connectedChildren[bone.parentName][#connectedChildren[bone.parentName]+1]=bone
+        end
+    end
+    local function consider(distance,selection,key)
+        if distance and not seen[key] then
+            seen[key]=true
+            selection.pickKey=key
+            candidates[#candidates+1]={distance=distance,selection=selection,key=key}
+        end
+    end
+    local function sharedJointSelection(parent)
+        local members={[parent.name..'::tail']=true}
+        for _,child in ipairs(connectedChildren[parent.name] or {}) do members[child.name]=true end
+        return {kind='joint',boneIndex=parent.arrayIndex,boneId=parent.boneId,
+            boneName=parent.name,members=members}
     end
     for index,bone in ipairs(bones) do
         local head,tail=getBoneEditorEndpoints(bone,extent)
@@ -1023,21 +1046,54 @@ local function hitTestBoneEditor(sx,sy)
         local headRadius,tailRadius=pickRadius,pickRadius
         if headObject then headRadius=math.max(headRadius,headObject:getScale().x or 0) end
         if tailObject then tailRadius=math.max(tailRadius,tailObject:getScale().x or 0) end
+        local headSelection={kind='head',boneIndex=index,boneId=bone.boneId,boneName=bone.name}
+        local headKey='head:'..tostring(bone.boneId)
+        if bone.connectedToParent and bone.parentName and byName[bone.parentName] then
+            local parent=byName[bone.parentName]
+            headSelection=sharedJointSelection(parent)
+            headKey='joint:'..tostring(parent.boneId)
+        end
         consider(raySphereDistance(ox,oy,oz,dx,dy,dz,head.x,head.y,head.z,headRadius),
-            {kind='head',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+            headSelection,headKey)
         if bone.hasExplicitTail then
+            local tailSelection={kind='tail',boneIndex=index,boneId=bone.boneId,boneName=bone.name}
+            local tailKey='tail:'..tostring(bone.boneId)
+            if connectedChildren[bone.name] then
+                tailSelection=sharedJointSelection(bone)
+                tailKey='joint:'..tostring(bone.boneId)
+            end
             consider(raySphereDistance(ox,oy,oz,dx,dy,dz,tail.x,tail.y,tail.z,tailRadius),
-                {kind='tail',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+                tailSelection,tailKey)
         end
     end
     for index,bone in ipairs(bones) do
         local head,tail=getBoneEditorEndpoints(bone,extent)
         if bone.hasExplicitTail then
             consider(raySegmentDistance(ox,oy,oz,dx,dy,dz,head,tail,pickRadius),
-                {kind='segment',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+                {kind='segment',boneIndex=index,boneId=bone.boneId,boneName=bone.name},
+                'segment:'..tostring(bone.boneId))
         end
     end
-    return best
+    table.sort(candidates,function(a,b)
+        if math.abs(a.distance-b.distance)>1e-6 then return a.distance<b.distance end
+        return a.key<b.key
+    end)
+    if #candidates==0 then state.boneEditorPendingCycle=nil return nil end
+    local nearestDistance=candidates[1].distance
+    for index=#candidates,2,-1 do
+        if candidates[index].distance-nearestDistance>pickRadius*2 then table.remove(candidates,index) end
+    end
+    local currentIndex=nil
+    local currentKey=state.boneEditorSelection and state.boneEditorSelection.pickKey
+    if currentKey then
+        for index,candidate in ipairs(candidates) do
+            if candidate.key==currentKey then currentIndex=index break end
+        end
+    end
+    local candidateIndex=currentIndex or 1
+    state.boneEditorPendingCycle={candidates=candidates,currentIndex=candidateIndex,
+        cycleOnRelease=currentIndex~=nil,x=sx,y=sy}
+    return candidates[candidateIndex].selection
 end
 
 local function hitTestTranslationAxis(sx,sy)
@@ -3556,7 +3612,8 @@ local function showBoneEditor()
         addRootItem(true)
     end
     tImGui.EndDisabled()
-    local selectedTail=state.boneEditorSelection and state.boneEditorSelection.kind=='tail' and
+    local selectedTail=state.boneEditorSelection and
+        (state.boneEditorSelection.kind=='tail' or state.boneEditorSelection.kind=='joint') and
         getBones()[state.boneEditorSelection.boneIndex] or nil
     tImGui.BeginDisabled(not selectedTail or not state.boneEditorLength or
         state.boneEditorLength<=0)
@@ -3593,7 +3650,8 @@ local function showBoneEditor()
     tImGui.TextDisabled(tLang.L('swl_bone_editor_root_note'))
     if state.boneEditorSelection then
         local selectionKey=state.boneEditorSelection.kind=='segment' and
-            'swl_bone_editor_selected_segment' or state.boneEditorSelection.kind=='tail' and
+            'swl_bone_editor_selected_segment' or state.boneEditorSelection.kind=='joint' and
+            'swl_bone_editor_selected_joint' or state.boneEditorSelection.kind=='tail' and
             'swl_bone_editor_selected_tail' or 'swl_bone_editor_selected_head'
         tImGui.TextWrapped(string.format(tLang.L(selectionKey),state.boneEditorSelection.boneName))
     end
@@ -3889,7 +3947,7 @@ function onTouchDown(key, x, y)
             if selection then
                 state.boneIndex=selection.boneIndex
                 applyWorkspaceVisibility()
-                if selection.kind=='tail' then
+                if selection.kind=='tail' or selection.kind=='joint' then
                     local bone=getBones()[selection.boneIndex]
                     local _,tail=getBoneEditorEndpoints(bone,1)
                     local px,py,pz=cameraPosition()
@@ -3905,7 +3963,7 @@ function onTouchDown(key, x, y)
                                 head={x=bone.x,y=bone.y,z=bone.z},
                                 globalMatrix=bone.globalMatrix,point=tail,
                                 plane={point=tail,normal={x=nx,y=ny,z=nz}},snapshot=snapshot,
-                                moved=false,lastVisualTime=0}
+                                moved=false,lastVisualTime=0,startX=x,startY=y}
                             return
                         end
                     end
@@ -3962,7 +4020,11 @@ function onTouchMove(key, x, y)
     local drag=state.translationGizmo.drag
     local boneDrag=state.boneEditorDrag
     if state.workspace=='bone_editor' and boneDrag then
-        local wx,wy,wz=rayPlaneHit(x,y,boneDrag.plane.point,boneDrag.plane.normal)
+        local screenDx,screenDy=x-boneDrag.startX,y-boneDrag.startY
+        local wx,wy,wz=nil,nil,nil
+        if screenDx*screenDx+screenDy*screenDy>9 then
+            wx,wy,wz=rayPlaneHit(x,y,boneDrag.plane.point,boneDrag.plane.normal)
+        end
         if wx then
             local lx,ly,lz=worldDeltaToLocal(wx-boneDrag.head.x,wy-boneDrag.head.y,
                 wz-boneDrag.head.z,boneDrag.globalMatrix)
@@ -4028,6 +4090,7 @@ end
 function onTouchUp(key, x, y)
     if key == 0 then
         local boneDrag=state.boneEditorDrag
+        local completedBoneDrag=boneDrag and boneDrag.moved
         if boneDrag then
             if boneDrag.moved then
                 commitRollbackSnapshot(boneDrag.snapshot)
@@ -4039,6 +4102,17 @@ function onTouchUp(key, x, y)
             else discardRollbackSnapshot(boneDrag.snapshot) end
             state.boneEditorDrag=nil
         end
+        local pendingCycle=state.boneEditorPendingCycle
+        if pendingCycle and not completedBoneDrag and pendingCycle.cycleOnRelease and
+                #pendingCycle.candidates>1 then
+            local nextIndex=(pendingCycle.currentIndex%#pendingCycle.candidates)+1
+            local selection=pendingCycle.candidates[nextIndex].selection
+            state.boneEditorSelection=selection
+            state.boneEditorSelectedIndex=selection.boneIndex
+            state.boneIndex=selection.boneIndex
+            applyWorkspaceVisibility()
+        end
+        state.boneEditorPendingCycle=nil
         state.translationGizmo.drag=nil
         mouseDown = false
         state.aabbDragging = false

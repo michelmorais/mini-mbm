@@ -254,6 +254,14 @@ During the gesture the editor requests a lightweight bind report that omits weig
 counts and caps expensive gizmo reconstruction to roughly 30 Hz; the complete report is restored
 on release. Tail-only mutation also skips redundant full weight/clip validation because it cannot
 change IDs, palettes, vertex influences, clip IDs, or track targets.
+
+Picking treats a parent tail and every child head marked `connectedToParent` as one logical joint;
+clicking or dragging any coincident member highlights and moves the whole group through the owning
+parent tail. Coincident endpoints without an explicit connection remain independent. Repeated
+clicks cycle deterministically through candidates at the nearest depth, so zoom is not required to
+reach an obscured tail. Cycling occurs only on left-button release when the pointer moved no more
+than three pixels. On press, an already highlighted candidate remains locked; moving beyond that
+threshold starts its drag and release does not change the selection.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 

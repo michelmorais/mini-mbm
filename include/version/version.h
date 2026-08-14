@@ -267,6 +267,8 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.13.1 Fixed overlap selection changing at drag start: mouse-down now locks the highlighted candidate, movement beyond three pixels drags it, and only a stationary left-button release cycles to the next nearest-depth candidate.
+    7.13.0 Bone Editor resolves overlapping endpoints without zoom: explicitly connected parent-tail/child-head members form one logical highlighted joint, while repeated clicks near the same pixel cycle deterministic nearest-depth candidates when coincident endpoints are intentionally disconnected.
     7.12.1 Fixed Bone Editor tail-drag stalls on weighted meshes: interactive bind reports omit per-bone vertex/track impact scans, tail-only mutation skips redundant identity-dependency validation, and expensive complete gizmo reconstruction is capped near 30 Hz until release restores the full report.
     7.12.0 Bone Editor supports direct tail dragging on a camera-facing plane. The endpoint is converted to bone-local bind space, length and connected child heads update atomically, one rollback snapshot covers the gesture, and moving a connected head independently clears that constraint.
     7.11.0 Bone Editor can extend a selected explicit tail into a connected child bone. Canonical skeleton section 41 version 3 persists connectedToParent independently from hierarchy; FBX import preserves Blender's connection flag, and the new child is selected transactionally after creation.
@@ -315,7 +317,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.12.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.13.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
