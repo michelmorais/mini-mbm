@@ -624,6 +624,18 @@ namespace
         MESH_MBM_DEBUG reloaded;
         expect(reloaded.loadV11(roundTrip),
                "canonical writer output must reload with all dependencies intact");
+        SKELETAL_CLIP_INFO inspectedClip;
+        SKELETAL_TRACK_INFO inspectedTrack;
+        SKELETAL_KEY_INFO inspectedKey;
+        expect(reloaded.getTotalSkeletalClips()==1 && reloaded.getSkeletalClip(0,inspectedClip) &&
+                   std::string(reloaded.getSkeletalClipName(0))=="walk" && inspectedClip.clipId==200 &&
+                   std::fabs(inspectedClip.duration-1.0f)<=MATRIX_TOLERANCE && inspectedClip.loop &&
+                   inspectedClip.trackCount==1 && reloaded.getSkeletalTrack(0,0,inspectedTrack) &&
+                   inspectedTrack.boneId==10 && inspectedTrack.boneIndex==0 &&
+                   inspectedTrack.channelMask==SKELETAL_CHANNEL_TRANSLATION && inspectedTrack.keyCount==1 &&
+                   reloaded.getSkeletalKey(0,0,0,inspectedKey) &&
+                   std::fabs(inspectedKey.time)<=MATRIX_TOLERANCE && inspectedKey.easing==0,
+               "canonical clip/track/key inspection must expose the persisted type-43 contract");
         SKELETON_BIND_BONE_INFO scaledBone;
         expect(reloaded.getSkeletonBindBone(0, scaledBone) &&
                    std::string(reloaded.getSkeletonBindBoneName(0)) == "renamed-root" &&

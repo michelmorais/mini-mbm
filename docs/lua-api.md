@@ -1424,6 +1424,20 @@ canonical skeleton, invalid bone index, empty frame-zero geometry, existing type
 invalid resulting 41/42 contract raises a Lua error without mutation. Subsequent distribution and
 blending belong to Skin Weight Lab.
 
+### Canonical skeletal-animation inspection
+
+```lua
+local clips = meshD:getSkeletalAnimationReport()
+```
+
+Returns a read-only snapshot of canonical type-43 data. Each clip contains hexadecimal `clipId`,
+`name`, `duration`, `loop`, and `tracks`. Each track contains hexadecimal `boneId`, one-based
+`boneIndex`, resolved `boneName`, numeric `channelMask` (`1` translation, `2` rotation, `4` scale),
+and `keys`. Every key exposes `time`, local `translation`, quaternion `rotation`, local `scale`,
+numeric `easing` (`0..5`), and the four normalized Cubic-Bezier control values in `bezier`.
+The returned tables are detached copies for editor inspection; modifying them does not mutate the
+mesh. An asset without type-43 clips returns an empty table.
+
 ### 15.1 Articulated-animation authoring
 
 The object also exposes the Mesh V11 rigid-animation authoring API.

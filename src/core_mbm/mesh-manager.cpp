@@ -4438,6 +4438,66 @@ namespace mbm
         return true;
     }
 
+    uint32_t MESH_MBM_DEBUG::getTotalSkeletalClips() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalAnimations.clips.size());
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalClip(const uint32_t clipIndex, SKELETAL_CLIP_INFO &out) const noexcept
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size()) return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[clipIndex];
+        out.clipId = clip.clipId;
+        out.duration = clip.duration;
+        out.trackCount = static_cast<uint32_t>(clip.tracks.size());
+        out.loop = clip.loop;
+        return true;
+    }
+
+    const char *MESH_MBM_DEBUG::getSkeletalClipName(const uint32_t clipIndex) const noexcept
+    {
+        return clipIndex < impl->canonicalAnimations.clips.size() ?
+            impl->canonicalAnimations.clips[clipIndex].name.c_str() : nullptr;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
+                                           SKELETAL_TRACK_INFO &out) const noexcept
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size()) return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[clipIndex];
+        if (trackIndex >= clip.tracks.size()) return false;
+        const skeletal::SKELETAL_TRACK &track = clip.tracks[trackIndex];
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(track.boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end()) return false;
+        out.boneId = track.boneId;
+        out.boneIndex = found->second;
+        out.keyCount = static_cast<uint32_t>(track.keys.size());
+        out.channelMask = track.channelMask;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                         const uint32_t keyIndex, SKELETAL_KEY_INFO &out) const noexcept
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size()) return false;
+        const skeletal::SKELETAL_CLIP &clip = impl->canonicalAnimations.clips[clipIndex];
+        if (trackIndex >= clip.tracks.size() || keyIndex >= clip.tracks[trackIndex].keys.size()) return false;
+        const skeletal::SKELETAL_KEY &key = clip.tracks[trackIndex].keys[keyIndex];
+        out.time = key.time;
+        out.localTranslation = key.local.translation;
+        out.localRotationX = key.local.rotation.x;
+        out.localRotationY = key.local.rotation.y;
+        out.localRotationZ = key.local.rotation.z;
+        out.localRotationW = key.local.rotation.w;
+        out.localScale = key.local.scale;
+        out.easing = static_cast<uint8_t>(key.easing);
+        out.bezierX1 = key.bezierX1;
+        out.bezierY1 = key.bezierY1;
+        out.bezierX2 = key.bezierX2;
+        out.bezierY2 = key.bezierY2;
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::renameSkeletalBone(const uint32_t index, const char *name,
                                              char *errorOut, const int errorOutLen)
     {

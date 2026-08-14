@@ -151,6 +151,38 @@ namespace mbm
         bool fatal = true;
     };
 
+    struct SKELETAL_CLIP_INFO
+    {
+        uint64_t clipId = 0;
+        float duration = 0.0f;
+        uint32_t trackCount = 0;
+        bool loop = false;
+    };
+
+    struct SKELETAL_TRACK_INFO
+    {
+        uint64_t boneId = 0;
+        uint32_t boneIndex = 0;
+        uint32_t keyCount = 0;
+        uint8_t channelMask = 0;
+    };
+
+    struct SKELETAL_KEY_INFO
+    {
+        float time = 0.0f;
+        VEC3 localTranslation;
+        float localRotationX = 0.0f;
+        float localRotationY = 0.0f;
+        float localRotationZ = 0.0f;
+        float localRotationW = 1.0f;
+        VEC3 localScale = VEC3(1.0f, 1.0f, 1.0f);
+        uint8_t easing = 0;
+        float bezierX1 = 0.0f;
+        float bezierY1 = 0.0f;
+        float bezierX2 = 1.0f;
+        float bezierY2 = 1.0f;
+    };
+
     class MESH_MBM_DEBUG
     {
       public:
@@ -253,6 +285,13 @@ namespace mbm
         API_IMPL const char *getSkeletonBindBoneName(const uint32_t index) const noexcept;
         API_IMPL bool getSkeletonBindDiagnostic(const uint32_t index,
                                                 SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept;
+        API_IMPL uint32_t getTotalSkeletalClips() const noexcept;
+        API_IMPL bool getSkeletalClip(const uint32_t clipIndex, SKELETAL_CLIP_INFO &out) const noexcept;
+        API_IMPL const char *getSkeletalClipName(const uint32_t clipIndex) const noexcept;
+        API_IMPL bool getSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
+                                       SKELETAL_TRACK_INFO &out) const noexcept;
+        API_IMPL bool getSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                     const uint32_t keyIndex, SKELETAL_KEY_INFO &out) const noexcept;
         API_IMPL bool renameSkeletalBone(const uint32_t index, const char *name,
                                          char *errorOut, const int errorOutLen);
         // newParentIndex is -1 for a root or a zero-based compiled/source index otherwise.

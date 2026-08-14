@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
-Status: **Exclusive worktree shell available; Skin Weight Lab, bind diagnostics, and runtime GLES2 LBS/DQS preview implemented**
-Last updated: **2026-08-12**
+Status: **Bind/weight/runtime workflows implemented; canonical clip/track/key inspection started**
+Last updated: **2026-08-14**
 
 ## 1. Purpose
 
@@ -133,6 +133,14 @@ The slider is a lightweight playback scrubber, not the future Animation-node
 timeline: it does not expose tracks or edit keys. The mesh deformation uses the runtime player and
 matching GLES2 LBS or DQS palette. The bind-only diagnostic gizmo is hidden in this worktree so it
 is not mistaken for either evaluated runtime instance.
+
+Open **Create / Edit Animations** to inspect the canonical type-43 structure before editing is
+enabled. The node selects a named clip and displays its stable ID, duration, looping policy, tracks,
+target bone identity, T/R/S channel mask, and every key's time, local quaternion TRS, easing, and
+Cubic-Bezier controls. Selecting a track synchronizes the editor's selected bone index. This first
+Milestone-6 surface is deliberately read-only: it has no timeline, key insertion/removal, or clip
+mutation yet, so imported animation cannot be changed accidentally while the authoring transaction
+model is still being introduced.
 
 Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
 LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,

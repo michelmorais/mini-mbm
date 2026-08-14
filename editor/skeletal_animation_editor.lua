@@ -30,6 +30,7 @@ local state = {
     comparisonPreview = nil,
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false},
+    animationClipSelected = 1,
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -1190,6 +1191,7 @@ local function loadMesh(path)
     state.bindMirrorBoneId=nil
     state.bindWeightsBoneId=nil
     state.bindRemoveBoneId=nil
+    state.animationClipSelected=1
     local bounds = computeAABB(meshD)
     local initialExtent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
@@ -2730,6 +2732,66 @@ local function showWeightLabSkeletonControls()
     end
 end
 
+local skeletalEasingNames={'Linear','Ease In','Ease Out','Ease In Out','Smoothstep','Cubic Bezier'}
+
+local function skeletalChannelLabel(mask)
+    local channels={}
+    if (mask & 1)~=0 then channels[#channels+1]='T' end
+    if (mask & 2)~=0 then channels[#channels+1]='R' end
+    if (mask & 4)~=0 then channels[#channels+1]='S' end
+    return table.concat(channels,'+')
+end
+
+local function showSkeletalAnimationInspection()
+    tImGui.TextWrapped(tLang.L('swl_animation_inspection_help'))
+    local ok,clips=safeCall(function() return state.meshD:getSkeletalAnimationReport() end)
+    if not ok or type(clips)~='table' or #clips==0 then
+        tImGui.TextDisabled(tLang.L('swl_animation_no_clips'))
+        return
+    end
+    local names={}
+    for index,clip in ipairs(clips) do names[index]=clip.name or ('Clip '..index) end
+    state.animationClipSelected=math.max(1,math.min(state.animationClipSelected,#clips))
+    local changed,selected=tImGui.Combo(tLang.L('swl_skeletal_clip'),state.animationClipSelected,names)
+    if changed then state.animationClipSelected=selected end
+    local clip=clips[state.animationClipSelected]
+    tImGui.TextWrapped(string.format(tLang.L('swl_animation_clip_summary_fmt'),
+        clip.duration or 0,#(clip.tracks or {}),clip.loop and tLang.L('swl_yes') or tLang.L('swl_no'),
+        clip.clipId or '?'))
+    tImGui.BeginChild('##swlCanonicalTracks',{x=0,y=360},true)
+    for trackIndex,track in ipairs(clip.tracks or {}) do
+        local label=string.format(tLang.L('swl_animation_track_fmt'),track.boneName or '?',
+            #(track.keys or {}),skeletalChannelLabel(track.channelMask or 0))
+        if tImGui.TreeNode(label..'##swlTrack'..trackIndex) then
+            if tImGui.IsItemClicked() and track.boneIndex then state.boneIndex=track.boneIndex end
+            tImGui.Text(string.format('%s: %s',tLang.L('swl_stable_id'),track.boneId or '?'))
+            tImGui.Text(string.format(tLang.L('swl_animation_channels_fmt'),
+                skeletalChannelLabel(track.channelMask or 0)))
+            for keyIndex,key in ipairs(track.keys or {}) do
+                local easing=skeletalEasingNames[(key.easing or 0)+1] or '?'
+                if tImGui.TreeNode(string.format(tLang.L('swl_animation_key_fmt'),
+                        keyIndex,key.time or 0,easing)..'##swlKey'..trackIndex..'-'..keyIndex) then
+                    local p,q,s=key.translation or {},key.rotation or {},key.scale or {}
+                    tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g)',
+                        tLang.L('swl_animation_translation'),p.x or 0,p.y or 0,p.z or 0))
+                    tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g, %.6g)',
+                        tLang.L('swl_animation_rotation'),q.x or 0,q.y or 0,q.z or 0,q.w or 1))
+                    tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g)',
+                        tLang.L('swl_animation_scale'),s.x or 1,s.y or 1,s.z or 1))
+                    tImGui.Text(string.format('%s: %s',tLang.L('swl_animation_easing'),easing))
+                    if (key.easing or 0)==5 and key.bezier then
+                        tImGui.Text(string.format('Bezier: (%.4g, %.4g) (%.4g, %.4g)',
+                            key.bezier.x1 or 0,key.bezier.y1 or 0,key.bezier.x2 or 1,key.bezier.y2 or 1))
+                    end
+                    tImGui.TreePop()
+                end
+            end
+            tImGui.TreePop()
+        end
+    end
+    tImGui.EndChild()
+end
+
 local function showPanel()
     local _, screenH = mbm.getRealSizeScreen()
     tImGui.SetNextWindowPos({x=0,y=22}, tImGui.Flags('ImGuiCond_Once'))
@@ -2765,7 +2827,7 @@ local function showPanel()
             end
             if openWorkspaceNode('animation',tLang.L('swl_animation_workspace'),
                     '##swlAnimationWorkspace') then
-                tImGui.TextWrapped(tLang.L('swl_animation_workspace_reserved'))
+                showSkeletalAnimationInspection()
                 tImGui.TreePop()
             end
             if openWorkspaceNode('paint',tLang.L('swl_paint_weights_workspace'),

@@ -2546,6 +2546,64 @@ namespace mbm
         return 1;
     }
 
+    int onGetSkeletalAnimationReportDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t clipCount = meshDebug->mesh.getTotalSkeletalClips();
+        lua_createtable(lua, static_cast<int>(clipCount), 0);
+        for (uint32_t clipIndex = 0; clipIndex < clipCount; ++clipIndex)
+        {
+            SKELETAL_CLIP_INFO clip;
+            if (!meshDebug->mesh.getSkeletalClip(clipIndex, clip)) continue;
+            lua_createtable(lua, 0, 7);
+            pushSkeletonBindId(lua, clip.clipId, "clipId");
+            lua_pushstring(lua, meshDebug->mesh.getSkeletalClipName(clipIndex)); lua_setfield(lua, -2, "name");
+            lua_pushnumber(lua, clip.duration); lua_setfield(lua, -2, "duration");
+            lua_pushboolean(lua, clip.loop); lua_setfield(lua, -2, "loop");
+            lua_createtable(lua, static_cast<int>(clip.trackCount), 0);
+            for (uint32_t trackIndex = 0; trackIndex < clip.trackCount; ++trackIndex)
+            {
+                SKELETAL_TRACK_INFO track;
+                if (!meshDebug->mesh.getSkeletalTrack(clipIndex, trackIndex, track)) continue;
+                lua_createtable(lua, 0, 6);
+                pushSkeletonBindId(lua, track.boneId, "boneId");
+                lua_pushinteger(lua, track.boneIndex + 1); lua_setfield(lua, -2, "boneIndex");
+                const char *boneName = meshDebug->mesh.getSkeletonBindBoneName(track.boneIndex);
+                lua_pushstring(lua, boneName ? boneName : ""); lua_setfield(lua, -2, "boneName");
+                lua_pushinteger(lua, track.channelMask); lua_setfield(lua, -2, "channelMask");
+                lua_createtable(lua, static_cast<int>(track.keyCount), 0);
+                for (uint32_t keyIndex = 0; keyIndex < track.keyCount; ++keyIndex)
+                {
+                    SKELETAL_KEY_INFO key;
+                    if (!meshDebug->mesh.getSkeletalKey(clipIndex, trackIndex, keyIndex, key)) continue;
+                    lua_createtable(lua, 0, 8);
+                    lua_pushnumber(lua, key.time); lua_setfield(lua, -2, "time");
+                    pushSkeletonBindVector(lua, key.localTranslation); lua_setfield(lua, -2, "translation");
+                    lua_createtable(lua, 0, 4);
+                    lua_pushnumber(lua, key.localRotationX); lua_setfield(lua, -2, "x");
+                    lua_pushnumber(lua, key.localRotationY); lua_setfield(lua, -2, "y");
+                    lua_pushnumber(lua, key.localRotationZ); lua_setfield(lua, -2, "z");
+                    lua_pushnumber(lua, key.localRotationW); lua_setfield(lua, -2, "w");
+                    lua_setfield(lua, -2, "rotation");
+                    pushSkeletonBindVector(lua, key.localScale); lua_setfield(lua, -2, "scale");
+                    lua_pushinteger(lua, key.easing); lua_setfield(lua, -2, "easing");
+                    lua_createtable(lua, 0, 4);
+                    lua_pushnumber(lua, key.bezierX1); lua_setfield(lua, -2, "x1");
+                    lua_pushnumber(lua, key.bezierY1); lua_setfield(lua, -2, "y1");
+                    lua_pushnumber(lua, key.bezierX2); lua_setfield(lua, -2, "x2");
+                    lua_pushnumber(lua, key.bezierY2); lua_setfield(lua, -2, "y2");
+                    lua_setfield(lua, -2, "bezier");
+                    lua_rawseti(lua, -2, keyIndex + 1);
+                }
+                lua_setfield(lua, -2, "keys");
+                lua_rawseti(lua, -2, trackIndex + 1);
+            }
+            lua_setfield(lua, -2, "tracks");
+            lua_rawseti(lua, -2, clipIndex + 1);
+        }
+        return 1;
+    }
+
     int onGetTotalSkeletalWeightBonesDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
@@ -2663,6 +2721,7 @@ namespace mbm
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},
                                           {"initializeSkeletalVertexWeights", onInitializeSkeletalVertexWeightsDebugLua},
+                                          {"getSkeletalAnimationReport", onGetSkeletalAnimationReportDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},
