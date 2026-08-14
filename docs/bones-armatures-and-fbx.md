@@ -163,9 +163,15 @@ struct SKELETON_BONE_V11 // one per bone; parentName empty ("") marks the root
     float radius;           // authoring-time gizmo marker size only, not skinning-relevant
     float rotX, rotY, rotZ; // Euler degrees, engine's own X-then-Y-then-Z composition order
     float scaleX, scaleY, scaleZ;
-    float length;           // bone extent along its own local +Y axis (Blender's head->tail convention)
+    float length;           // authoring head-to-tail length metadata
+    VEC3 tailOffset;        // explicit tail joint in the bone's local bind space
+    bool hasExplicitTail;   // false for a transform-only joint or a version-1 fallback
 };
 ```
+
+An explicit local tail is necessary because an FBX import basis conversion can rotate Blender's
+`+Y` while leaving the conjugated bind transform perfectly valid for skinning. Inferring every
+tail as `globalBind * (0,length,0)` is therefore not generally correct.
 
 Name-based parent references (not indices) mirror how both Blender and FBX identify a bone: by name,
 not by array position — this is also why Mini MBM's own `SECTION_VERTEX_SKIN_WEIGHTS` (below)

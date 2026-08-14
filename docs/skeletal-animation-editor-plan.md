@@ -28,7 +28,8 @@ top-level worktrees; opening one closes the previous worktree:
 
 1. **Bone Editor** — the ordinary-user surface for constructing and manipulating bind bones as
    head/tail joint pairs, with mouse-first interaction and only essential controls. Internally it
-   maps to canonical joint TRS plus orientation/length rather than introducing a second skeleton.
+   maps to canonical joint TRS plus an explicit bone-local tail offset rather than introducing a
+   second skeleton.
 2. **Bind Pose Contract** — the advanced diagnostic surface for canonical hierarchy,
    local/global/inverse-bind data, and deterministic structural/numeric findings.
 3. **Runtime Skeletal Preview** — select and play canonical clips through the actual runtime,
@@ -241,7 +242,8 @@ The editor must consume them rather than infer runtime meaning from Mesh Debug f
   and three-component scale;
 - global bind and inverse-global-bind are derived using Mini MBM's row-vector convention;
 - every bone has a stable nonzero `uint64_t boneId`; names remain labels/interchange keys;
-- tail, length, and radius are visualization/authoring metadata, not deformation transforms;
+- tail offset, length, and radius are visualization/authoring metadata, not deformation
+  transforms;
 - skeletal clips are distinct bone-ID-targeted resources, even when easing/player services are
   shared with articulated animation;
 - legacy version-1/2 skeleton globals and name-palette weights are temporary audit inputs only;
@@ -487,6 +489,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.4 | 2026-08-14 | Split root authoring into Add Joint and Add Bone. A joint is a canonical hierarchy transform with `hasExplicitTail=false` and exposes only its head hit target; a bone additionally owns an explicit tail and selectable segment. Ordinary TRS/length editing no longer silently promotes a transform-only joint into a bone. |
+| 7.3 | 2026-08-14 | Replaced the Bone Editor's incorrect universal local-+Y visualization assumption with an explicit canonical tail joint stored in bone-local bind space. Skeleton section 41 version 2 persists the tail offset and provenance; FBX import captures Blender's real world tail and converts it back to bone-local space. Version-1 canonical assets remain readable as transform-only joints until explicitly completed or reimported. |
 | 7.2 | 2026-08-14 | Added distinct Bone Editor viewport selection for initial joint, final joint, and owned segment. Joint selection highlights one endpoint; segment selection highlights both endpoints and the segment; empty-space click clears selection and preserves orbit. This slice is deliberately non-mutating. |
 | 7.1 | 2026-08-14 | Added explicit positive root length to the simplified Bone Editor. It defaults to 1 and defines the derived local +Y head-to-tail distance used by the standalone segment visualization. |
 | 7.0 | 2026-08-14 | Split ordinary bind construction from advanced diagnostics by adding the Bone Editor worktree while retaining Bind Pose Contract unchanged. The first slice creates independent roots at numeric XYZ, derives a visible tail at local +Y with length 1, and renders the standalone head/tail pair plus segment. Extension and joint/segment mouse semantics remain the next slices. |

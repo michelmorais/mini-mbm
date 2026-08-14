@@ -454,7 +454,8 @@ namespace mbm::skeletal
             const bool finite = isFinite(local.translation.x) && isFinite(local.translation.y) &&
                 isFinite(local.translation.z) && isFinite(local.rotation.x) && isFinite(local.rotation.y) &&
                 isFinite(local.rotation.z) && isFinite(local.rotation.w) && isFinite(local.scale.x) &&
-                isFinite(local.scale.y) && isFinite(local.scale.z) && isFinite(input.radius) && isFinite(input.length);
+                isFinite(local.scale.y) && isFinite(local.scale.z) && isFinite(input.radius) && isFinite(input.length) &&
+                isFinite(input.tailOffset.x) && isFinite(input.tailOffset.y) && isFinite(input.tailOffset.z);
             if (!finite) { addDiagnostic(out, DIAGNOSTIC_CODE::NON_FINITE_TRANSFORM, i, input.name); continue; }
             const float quaternionNorm = std::sqrt(local.rotation.x * local.rotation.x +
                 local.rotation.y * local.rotation.y + local.rotation.z * local.rotation.z +
@@ -584,7 +585,12 @@ namespace mbm::skeletal
                 return false;
             bone.radius *= scale;
             bone.length *= scale;
-            if (!std::isfinite(bone.radius) || !std::isfinite(bone.length))
+            bone.tailOffset.x *= scale;
+            bone.tailOffset.y *= scale;
+            bone.tailOffset.z *= scale;
+            if (!std::isfinite(bone.radius) || !std::isfinite(bone.length) ||
+                !std::isfinite(bone.tailOffset.x) || !std::isfinite(bone.tailOffset.y) ||
+                !std::isfinite(bone.tailOffset.z))
                 return false;
         }
         for (SKELETAL_CLIP &clip : scaledAnimations.clips)

@@ -1475,6 +1475,10 @@ def extract_canonical_skeleton(scene: Any,
         world_head = coordinate_change @ (armature_obj.matrix_world @ bone.head_local)
         world_tail = coordinate_change @ (armature_obj.matrix_world @ bone.tail_local)
         length = float((world_tail - world_head).length)
+        # Persist the actual second joint in bone-local bind space. A fixed local +Y assumption is
+        # invalid after an arbitrary import basis rotation, even though the conjugated bind matrix
+        # itself remains exactly correct for skinning.
+        tail_local = world_bind.inverted_safe() @ world_tail
         records.append({
             "boneId": ids[name],
             "parentBoneId": ids[bone.parent.name] if bone.parent else 0,
@@ -1484,6 +1488,7 @@ def extract_canonical_skeleton(scene: Any,
             "scale": (float(scale.x), float(scale.y), float(scale.z)),
             "radius": max(0.001, length * 0.15),
             "length": length,
+            "tailOffset": (float(tail_local.x), float(tail_local.y), float(tail_local.z)),
         })
 
     identity = "|".join(paths[name] for name in ordered)
@@ -1513,6 +1518,8 @@ def build_canonical_skeleton_payload_v11(skeleton: dict[str, Any]) -> bytes:
         write_vec3(buf, bone["scale"])
         write_f32(buf, bone["radius"])
         write_f32(buf, bone["length"])
+        write_vec3(buf, bone["tailOffset"])
+        write_u8(buf, 1)
     return buf.getvalue()
 
 
@@ -2034,7 +2041,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 write_section_v11(fp, SECTION_FRAME_STATIC, 1, frame_payload, True)
 
             if canonical_skeleton:
-                write_section_v11(fp, SECTION_SKELETAL_SKELETON, 1,
+                write_section_v11(fp, SECTION_SKELETAL_SKELETON, 2,
                                   build_canonical_skeleton_payload_v11(canonical_skeleton), False)
 
             if canonical_weights_payload is not None:

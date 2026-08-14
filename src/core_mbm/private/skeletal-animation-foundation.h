@@ -143,6 +143,10 @@ namespace mbm::skeletal
         LOCAL_TRANSFORM localBind;
         float radius = 0.0f;
         float length = 0.0f;
+        // Bone-editor geometry in this bone's local bind space. Unlike an assumed +Y axis, this
+        // survives arbitrary FBX coordinate-basis conversion and can be transformed by any pose.
+        VEC3 tailOffset;
+        bool hasExplicitTail = false;
     };
 
     struct CANONICAL_SKELETON

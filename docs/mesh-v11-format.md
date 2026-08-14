@@ -565,7 +565,7 @@ Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompre
 - `FILE_HEADER_V11.sectionCount` includes each emitted section normally; the V11 file magic and
   `formatVersion` remain unchanged because section type/version provide the compatibility boundary.
 
-### `SECTION_SKELETAL_SKELETON = 41`, version 1
+### `SECTION_SKELETAL_SKELETON = 41`, version 2
 
 ```text
 uint64 skeletonId
@@ -578,13 +578,22 @@ repeat boneCount times, in parent-before-child compiled order:
     float32 rotation[4]          // normalized quaternion x,y,z,w
     float32 scale[3]
     float32 radius               // authoring/display metadata
-    float32 length               // authoring/display metadata
+    float32 length               // authoring head-to-tail length metadata
+    // version 2 only:
+    float32 tailOffset[3]        // explicit tail joint in this bone's local bind space
+    uint8 hasExplicitTail        // exactly 0 or 1
 ```
 
 IDs, not names or array positions, define identity and hierarchy. Every nonzero `parentBoneId` must
 refer to an earlier record. All numeric fields must be finite; quaternion, scale, hierarchy,
 local→global reconstruction, and inverse-bind validation use the Milestone-0 numerical policy.
 Global bind and inverse-global-bind matrices are derived and are not persisted.
+
+Version 1 ends after `length`. It remains readable and receives the non-authoritative fallback
+`tailOffset=(0,length,0)`, `hasExplicitTail=0`; version 2 is always written. A version-2 transform
+joint may also deliberately use `hasExplicitTail=0`. Imported bones and explicitly authored bone
+segments set it to `1`. Bind TRS remains authoritative for hierarchy and skinning,
+while the local tail offset is authoritative for Bone Editor geometry and can follow animated poses.
 
 ### `SECTION_SKELETAL_WEIGHTS = 42`, version 1
 

@@ -398,6 +398,8 @@ local function getBones()
             z=global[15] or 0,
             radius=bone.radius or 0,
             length=bone.length or 0,
+            tailOffset=bone.tailOffset,
+            hasExplicitTail=bone.hasExplicitTail==true,
             globalMatrix=global,
         }
     end
@@ -415,6 +417,7 @@ local function getVisualBones()
             bone.x=global[13] or bone.x
             bone.y=global[14] or bone.y
             bone.z=global[15] or bone.z
+            bone.globalMatrix=global
         end
     end
     return bones
@@ -422,11 +425,12 @@ end
 
 local function getBoneEditorEndpoints(bone,extent)
     local matrix=bone.globalMatrix or {}
-    local length=math.max(bone.length or 0,0.001)
+    local offset=bone.tailOffset or {x=0,y=math.max(bone.length or 0,0.001),z=0}
+    local ox,oy,oz=offset.x or 0,offset.y or 0,offset.z or 0
     return {x=bone.x,y=bone.y,z=bone.z},
-        {x=bone.x+(matrix[5] or 0)*length,
-         y=bone.y+(matrix[6] or 1)*length,
-         z=bone.z+(matrix[7] or 0)*length}
+        {x=(matrix[13] or bone.x)+(matrix[1] or 1)*ox+(matrix[5] or 0)*oy+(matrix[9] or 0)*oz,
+         y=(matrix[14] or bone.y)+(matrix[2] or 0)*ox+(matrix[6] or 1)*oy+(matrix[10] or 0)*oz,
+         z=(matrix[15] or bone.z)+(matrix[3] or 0)*ox+(matrix[7] or 0)*oy+(matrix[11] or 1)*oz}
 end
 
 local function refreshBindReport()
@@ -861,17 +865,19 @@ rebuildSkeletonVisuals=function()
         sphere:setScale(radius,radius,radius)
         state.skeletonGizmo.spheres[bone.name]=sphere
         if state.workspace=='bone_editor' then
-            local head,tailPoint=getBoneEditorEndpoints(bone,extent)
-            local tx,ty,tz=tailPoint.x,tailPoint.y,tailPoint.z
-            local tail=createBoneShape(tx,ty,tz,unitSphereVerts(),
-                'swl_bone_tail_',1,0,1,0.85)
-            tail:setScale(radius,radius,radius)
-            state.skeletonGizmo.spheres[bone.name..'::tail']=tail
-            local dx,dy,dz=tx-bone.x,ty-bone.y,tz-bone.z
-            local link=createBoneShape(bone.x,bone.y,bone.z,
-                orientedCylinderVerts(dx,dy,dz,radius*0.5,radius*0.5,8),
-                'swl_bone_own_link_',1,0,1,0.75)
-            state.skeletonGizmo.bones[bone.boneId]=link
+            if bone.hasExplicitTail then
+                local head,tailPoint=getBoneEditorEndpoints(bone,extent)
+                local tx,ty,tz=tailPoint.x,tailPoint.y,tailPoint.z
+                local tail=createBoneShape(tx,ty,tz,unitSphereVerts(),
+                    'swl_bone_tail_',1,0,1,0.85)
+                tail:setScale(radius,radius,radius)
+                state.skeletonGizmo.spheres[bone.name..'::tail']=tail
+                local dx,dy,dz=tx-bone.x,ty-bone.y,tz-bone.z
+                local link=createBoneShape(bone.x,bone.y,bone.z,
+                    orientedCylinderVerts(dx,dy,dz,radius*0.5,radius*0.5,8),
+                    'swl_bone_own_link_',1,0,1,0.75)
+                state.skeletonGizmo.bones[bone.boneId]=link
+            end
         else
             local parent=bone.parentName and byName[bone.parentName]
             if parent then
@@ -1015,13 +1021,17 @@ local function hitTestBoneEditor(sx,sy)
         if tailObject then tailRadius=math.max(tailRadius,tailObject:getScale().x or 0) end
         consider(raySphereDistance(ox,oy,oz,dx,dy,dz,head.x,head.y,head.z,headRadius),
             {kind='head',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
-        consider(raySphereDistance(ox,oy,oz,dx,dy,dz,tail.x,tail.y,tail.z,tailRadius),
-            {kind='tail',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+        if bone.hasExplicitTail then
+            consider(raySphereDistance(ox,oy,oz,dx,dy,dz,tail.x,tail.y,tail.z,tailRadius),
+                {kind='tail',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+        end
     end
     for index,bone in ipairs(bones) do
         local head,tail=getBoneEditorEndpoints(bone,extent)
-        consider(raySegmentDistance(ox,oy,oz,dx,dy,dz,head,tail,pickRadius),
-            {kind='segment',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+        if bone.hasExplicitTail then
+            consider(raySegmentDistance(ox,oy,oz,dx,dy,dz,head,tail,pickRadius),
+                {kind='segment',boneIndex=index,boneId=bone.boneId,boneName=bone.name})
+        end
     end
     return best
 end
@@ -3496,8 +3506,7 @@ local function showBoneEditor()
         tImGui.Flags('ImGuiInputTextFlags_None'))
     if lengthChanged then state.boneEditorLength=length end
     tImGui.PopItemWidth()
-    tImGui.BeginDisabled(not state.boneEditorLength or state.boneEditorLength<=0)
-    if tImGui.Button(tLang.L('swl_bone_editor_add')..'##swlBoneEditorAdd') then
+    local function addRootItem(hasExplicitTail)
         local snapshot=stageRollbackSnapshot()
         local ok,newIndex=false,nil
         local position=state.boneEditorPosition
@@ -3505,18 +3514,18 @@ local function showBoneEditor()
         local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
             state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
         local radius=math.max(extent*0.012,0.01)
-        local length=state.boneEditorLength
+        local length=hasExplicitTail and state.boneEditorLength or 0
         if snapshot then
             if #getBones()==0 then
                 ok=select(1,safeCall(function()
                     return state.meshD:initializeSkeletalSkeleton(name,position.x,position.y,position.z,
-                        radius,length)
+                        radius,length,hasExplicitTail)
                 end))
                 newIndex=ok and 1 or nil
             else
                 ok,newIndex=safeCall(function()
                     return state.meshD:addSkeletalBone(0,name,position.x,position.y,position.z,
-                        radius,length)
+                        radius,length,hasExplicitTail)
                 end)
             end
         end
@@ -3530,8 +3539,17 @@ local function showBoneEditor()
             rebuildPreview()
             rebuildSkeletonVisuals()
             applyWorkspaceVisibility()
-            setStatus(tLang.L('swl_bone_editor_added'),false)
+            setStatus(tLang.L(hasExplicitTail and 'swl_bone_editor_added' or
+                'swl_bone_editor_joint_added'),false)
         elseif snapshot then discardRollbackSnapshot(snapshot) end
+    end
+    if tImGui.Button(tLang.L('swl_bone_editor_add_joint')..'##swlBoneEditorAddJoint') then
+        addRootItem(false)
+    end
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not state.boneEditorLength or state.boneEditorLength<=0)
+    if tImGui.Button(tLang.L('swl_bone_editor_add')..'##swlBoneEditorAdd') then
+        addRootItem(true)
     end
     tImGui.EndDisabled()
     tImGui.TextDisabled(tLang.L('swl_bone_editor_root_note'))

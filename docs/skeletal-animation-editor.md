@@ -229,12 +229,16 @@ Runtime Skeletal Preview worktree.
 **Bone Editor** is the mouse-first bind-construction surface for ordinary users; **Bind Pose
 Contract** remains the advanced diagnostic and matrix-oriented surface. Both edit the same canonical
 skeleton. In the Bone Editor presentation, one bone is shown as a head joint, a tail joint, and the
-segment between them. The persisted representation remains one canonical joint TRS plus orientation
-and length; a leaf tail is derived rather than stored as an unrelated second skeleton.
+segment between them. The persisted representation remains one canonical transform node, but now
+also stores its explicit second joint as a bone-local tail offset. This is authoring geometry, not
+an unrelated second skeleton, and it follows the bone's evaluated global pose.
 
 The first delivered slice provides X/Y/Z, a positive **Bone length**, and **Add Bone**. With no
 prior selection it creates an independent root whose head is at that position and whose derived
-tail is that length along local +Y. Length defaults to 1.
+tail is initialized at that length along local +Y. Length defaults to 1. **Add Joint** creates only
+the hierarchy transform and therefore has no selectable tail or segment; **Add Bone** creates the
+explicit endpoint and segment. Imported FBX bones retain Blender's actual head and tail even when
+coordinate conversion changes the visual aim axis.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 

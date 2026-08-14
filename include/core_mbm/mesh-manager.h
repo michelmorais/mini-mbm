@@ -135,6 +135,8 @@ namespace mbm
         MATRIX inverseGlobalBindMatrix;
         float radius = 0.0f;
         float length = 0.0f;
+        VEC3 tailOffset;
+        bool hasExplicitTail = false;
         uint32_t childCount = 0;
         uint32_t weightedVertexCount = 0;
         uint32_t animationTrackCount = 0;
@@ -362,9 +364,11 @@ namespace mbm
                                           const float rotationZ, const float rotationW,
                                           const VEC3 &scale, const float radius, const float length,
                                           char *errorOut, const int errorOutLen);
-        // Adds a parent-first canonical bone with a new opaque stable ID. parentIndex is -1 for root.
+        // Adds a parent-first canonical transform with a new opaque stable ID. parentIndex is -1
+        // for root; hasExplicitTail distinguishes a selectable bone segment from a joint only.
         API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,
                                       const VEC3 &translation, const float radius, const float length,
+                                      const bool hasExplicitTail,
                                       uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
         // Atomically appends count parent-linked bones named prefix1..prefixN.
         API_IMPL bool addSkeletalBoneChain(const int32_t parentIndex, const char *namePrefix,
@@ -375,9 +379,10 @@ namespace mbm
         API_IMPL bool mirrorSkeletalBoneSubtree(const uint32_t index, const uint32_t axis,
                                                 const char *namePrefix, uint32_t *newRootIndexOut,
                                                 char *errorOut, const int errorOutLen);
-        // Creates section 41 with one root on a loaded static mesh that has no skeletal sections.
+        // Creates section 41 with one root transform on a loaded static mesh without skeletal data.
         API_IMPL bool initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
                                                  const float radius, const float length,
+                                                 const bool hasExplicitTail,
                                                  char *errorOut, const int errorOutLen);
         // Strict removal: only an unreferenced leaf may be deleted. No implicit remapping occurs.
         API_IMPL bool removeSkeletalBone(const uint32_t index,

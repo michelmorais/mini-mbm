@@ -2292,6 +2292,8 @@ namespace mbm
             lua_setfield(lua, -2, "inverseGlobalBindMatrix");
             lua_pushnumber(lua, bone.radius); lua_setfield(lua, -2, "radius");
             lua_pushnumber(lua, bone.length); lua_setfield(lua, -2, "length");
+            pushSkeletonBindVector(lua, bone.tailOffset); lua_setfield(lua, -2, "tailOffset");
+            lua_pushboolean(lua, bone.hasExplicitTail); lua_setfield(lua, -2, "hasExplicitTail");
             lua_pushinteger(lua, bone.childCount); lua_setfield(lua, -2, "childCount");
             lua_pushinteger(lua, bone.weightedVertexCount); lua_setfield(lua, -2, "weightedVertexCount");
             lua_pushinteger(lua, bone.animationTrackCount); lua_setfield(lua, -2, "animationTrackCount");
@@ -2389,10 +2391,11 @@ namespace mbm
                                static_cast<float>(luaL_checknumber(lua, 6)));
         const float radius = static_cast<float>(luaL_checknumber(lua, 7));
         const float length = static_cast<float>(luaL_checknumber(lua, 8));
+        const bool hasExplicitTail = lua_gettop(lua) < 9 || lua_toboolean(lua, 9) != 0;
         uint32_t newIndex = 0;
         char errorOut[255] = "";
         if (!meshDebug->mesh.addSkeletalBone(parent == 0 ? -1 : static_cast<int32_t>(parent - 1),
-                name, translation, radius, length, &newIndex,
+                name, translation, radius, length, hasExplicitTail, &newIndex,
                 errorOut, static_cast<int>(sizeof(errorOut))))
             return lua_error_debug(lua, errorOut);
         lua_pushinteger(lua, static_cast<lua_Integer>(newIndex + 1));
@@ -2408,8 +2411,10 @@ namespace mbm
                                static_cast<float>(luaL_checknumber(lua, 5)));
         const float radius = static_cast<float>(luaL_checknumber(lua, 6));
         const float length = static_cast<float>(luaL_checknumber(lua, 7));
+        const bool hasExplicitTail = lua_gettop(lua) < 8 || lua_toboolean(lua, 8) != 0;
         char errorOut[255] = "";
         if (!meshDebug->mesh.initializeSkeletalSkeleton(name, translation, radius, length,
+                hasExplicitTail,
                 errorOut, static_cast<int>(sizeof(errorOut))))
             return lua_error_debug(lua, errorOut);
         return 0;

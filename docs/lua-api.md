@@ -1284,9 +1284,10 @@ bone contains its one-based `sourceIndex`, `name`, stable `boneId`/`parentBoneId
 strings, one-based `parentIndex` (`0` for a root), local translation/quaternion/scale, row-major
 16-number `localBindMatrix`, `globalBindMatrix`, and `inverseGlobalBindMatrix`, plus
 `hasNegativeScale` and `hasShear`. IDs are strings because Lua numbers cannot preserve every
-`uint64` value exactly. Canonical bone entries also expose authoring metadata `radius` and `length`,
-plus removal-impact fields `childCount`, `weightPaletteReferenced`, `weightedVertexCount`, and
-`animationTrackCount`.
+`uint64` value exactly. Canonical bone entries also expose authoring metadata `radius`,
+`length`, bone-local `tailOffset={x,y,z}`, and `hasExplicitTail`; false means that the transform
+joint has no selectable bone segment. Version-1 assets also load in this state. Removal-impact fields are
+`childCount`, `weightPaletteReferenced`, `weightedVertexCount`, and `animationTrackCount`.
 Diagnostics contain `code`, one-based `sourceIndex`, `boneName`,
 `observedError`, and `fatal`.
 

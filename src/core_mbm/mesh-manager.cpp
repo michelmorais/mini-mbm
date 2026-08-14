@@ -805,7 +805,7 @@ namespace
     bool parse_canonical_skeleton_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
                                                mbm::skeletal::CANONICAL_SKELETON &out)
     {
-        if (sectionVersion != 1)
+        if (sectionVersion != 1 && sectionVersion != 2)
             return false;
         out = {};
         uint32_t boneCount = 0;
@@ -832,6 +832,21 @@ namespace
                 !util::le_io::readF32LE(fp, bone.radius) ||
                 !util::le_io::readF32LE(fp, bone.length))
                 return false;
+            if (sectionVersion >= 2)
+            {
+                uint8_t explicitTail = 0;
+                if (!util::le_io::readF32LE(fp, bone.tailOffset.x) ||
+                    !util::le_io::readF32LE(fp, bone.tailOffset.y) ||
+                    !util::le_io::readF32LE(fp, bone.tailOffset.z) ||
+                    !util::le_io::readBytes(fp, &explicitTail, sizeof(explicitTail)) || explicitTail > 1)
+                    return false;
+                bone.hasExplicitTail = explicitTail != 0;
+            }
+            else
+            {
+                bone.tailOffset = mbm::VEC3(0.0f, bone.length, 0.0f);
+                bone.hasExplicitTail = false;
+            }
             out.sourceBones.push_back(std::move(bone));
         }
         return fp.pos == fp.size && mbm::skeletal::compileCanonicalSkeleton(out.sourceBones, out.compiled);
@@ -2532,7 +2547,7 @@ namespace mbm
         {
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_SKELETAL_SKELETON;
-            sectionHeader.sectionVersion = 1;
+            sectionHeader.sectionVersion = 2;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
                 const skeletal::CANONICAL_SKELETON &skeleton = this->impl->canonicalSkeleton;
@@ -2556,8 +2571,13 @@ namespace mbm
                         !util::le_io::writeF32LE(fp, local.scale.y) ||
                         !util::le_io::writeF32LE(fp, local.scale.z) ||
                         !util::le_io::writeF32LE(fp, bone.radius) ||
-                        !util::le_io::writeF32LE(fp, bone.length))
+                        !util::le_io::writeF32LE(fp, bone.length) ||
+                        !util::le_io::writeF32LE(fp, bone.tailOffset.x) ||
+                        !util::le_io::writeF32LE(fp, bone.tailOffset.y) ||
+                        !util::le_io::writeF32LE(fp, bone.tailOffset.z))
                         return false;
+                    const uint8_t explicitTail = bone.hasExplicitTail ? 1 : 0;
+                    if (!util::le_io::writeBytes(fp, &explicitTail, sizeof(explicitTail))) return false;
                 }
                 return true;
             });
@@ -4392,6 +4412,8 @@ namespace mbm
         {
             out.radius = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].radius;
             out.length = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].length;
+            out.tailOffset = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].tailOffset;
+            out.hasExplicitTail = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].hasExplicitTail;
         }
         out.childCount = 0;
         for (const skeletal::CANONICAL_BONE &candidate : impl->canonicalSkeleton.sourceBones)
@@ -5122,6 +5144,16 @@ namespace mbm
         edited.localBind.scale = scale;
         edited.radius = radius;
         edited.length = length;
+        const float oldLength = std::sqrt(edited.tailOffset.x * edited.tailOffset.x +
+                                          edited.tailOffset.y * edited.tailOffset.y +
+                                          edited.tailOffset.z * edited.tailOffset.z);
+        if (oldLength > skeletal::SINGULAR_TOLERANCE)
+        {
+            edited.tailOffset.x *= length / oldLength;
+            edited.tailOffset.y *= length / oldLength;
+            edited.tailOffset.z *= length / oldLength;
+        }
+        else edited.tailOffset = VEC3(0.0f, length, 0.0f);
         if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
             return fail("edited canonical bone bind would be invalid");
         if (impl->canonicalWeights.skeletonId != 0)
@@ -5144,6 +5176,7 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::addSkeletalBone(const int32_t parentIndex, const char *name,
                                           const VEC3 &translation, const float radius, const float length,
+                                          const bool hasExplicitTail,
                                           uint32_t *newIndexOut, char *errorOut, const int errorOutLen)
     {
         const auto fail = [errorOut, errorOutLen](const char *message)
@@ -5182,6 +5215,8 @@ namespace mbm
         added.localBind.translation = translation;
         added.radius = radius;
         added.length = length;
+        added.tailOffset = VEC3(0.0f, hasExplicitTail ? length : 0.0f, 0.0f);
+        added.hasExplicitTail = hasExplicitTail;
         candidate.sourceBones.push_back(std::move(added));
         if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
             return fail("added canonical bone would be invalid");
@@ -5253,6 +5288,8 @@ namespace mbm
             added.localBind.translation = stepTranslation;
             added.radius = radius;
             added.length = length;
+            added.tailOffset = VEC3(0.0f, length, 0.0f);
+            added.hasExplicitTail = true;
             chainParentId = added.boneId;
             candidate.sourceBones.push_back(std::move(added));
             if (item < count)
@@ -5342,6 +5379,9 @@ namespace mbm
                            &impl->canonicalSkeleton.compiled.bones[sourceIndex].globalBindMatrix);
             MatrixMultiply(&mirroredGlobal, &temporary, &reflection);
             skeletal::CANONICAL_BONE mirrored = original;
+            if (axis == 0) mirrored.tailOffset.x = -mirrored.tailOffset.x;
+            else if (axis == 1) mirrored.tailOffset.y = -mirrored.tailOffset.y;
+            else mirrored.tailOffset.z = -mirrored.tailOffset.z;
             mirrored.boneId = nextBoneId;
             mirrored.name = mirroredName;
             const auto mirroredParent = mirroredIds.find(original.parentBoneId);
@@ -5394,6 +5434,7 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::initializeSkeletalSkeleton(const char *rootName, const VEC3 &translation,
                                                      const float radius, const float length,
+                                                     const bool hasExplicitTail,
                                                      char *errorOut, const int errorOutLen)
     {
         const auto fail = [errorOut, errorOutLen](const char *message)
@@ -5419,6 +5460,8 @@ namespace mbm
         root.localBind.translation = translation;
         root.radius = radius;
         root.length = length;
+        root.tailOffset = VEC3(0.0f, hasExplicitTail ? length : 0.0f, 0.0f);
+        root.hasExplicitTail = hasExplicitTail;
         candidate.sourceBones.push_back(std::move(root));
         if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
             return fail("initial canonical skeleton would be invalid");
