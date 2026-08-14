@@ -2823,7 +2823,9 @@ namespace mbm
             SKELETAL_POSE_BONE_INFO bone;
             if (!meshDebug->mesh.getSkeletalAuthoringPoseBone(boneIndex,bone))
                 return luaL_error(lua,"failed to read canonical authoring bone identity");
-            lua_pushinteger(lua, static_cast<lua_Integer>(bone.boneId));
+            char boneId[17]="";
+            snprintf(boneId,sizeof(boneId),"%016llx",static_cast<unsigned long long>(bone.boneId));
+            lua_pushstring(lua,boneId);
             lua_rawseti(lua,-2,boneIndex+1);
         }
         lua_setfield(lua,-2,"boneIds");
@@ -2835,6 +2837,33 @@ namespace mbm
         for (uint32_t index = 0; index < paletteSize; ++index)
         { lua_pushnumber(lua, palette[index]); lua_rawseti(lua, -2, index + 1); }
         lua_setfield(lua, -2, "palette");
+        return 1;
+    }
+
+    int onCommitSkeletalAuthoringKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer clip=luaL_checkinteger(lua,2);
+        const lua_Integer bone=luaL_checkinteger(lua,3);
+        if (clip<=0 || bone<=0) return luaL_error(lua,"canonical clip and bone indices must be one-based");
+        SKELETAL_KEY_INFO local;
+        local.time=static_cast<float>(luaL_checknumber(lua,4));
+        const uint8_t channelMask=static_cast<uint8_t>(luaL_checkinteger(lua,5));
+        local.localTranslation=VEC3(static_cast<float>(luaL_checknumber(lua,6)),
+            static_cast<float>(luaL_checknumber(lua,7)),static_cast<float>(luaL_checknumber(lua,8)));
+        local.localRotationX=static_cast<float>(luaL_checknumber(lua,9));
+        local.localRotationY=static_cast<float>(luaL_checknumber(lua,10));
+        local.localRotationZ=static_cast<float>(luaL_checknumber(lua,11));
+        local.localRotationW=static_cast<float>(luaL_checknumber(lua,12));
+        local.localScale=VEC3(static_cast<float>(luaL_checknumber(lua,13)),
+            static_cast<float>(luaL_checknumber(lua,14)),static_cast<float>(luaL_checknumber(lua,15)));
+        bool created=false;
+        char errorOut[255]="";
+        if (!meshDebug->mesh.commitSkeletalAuthoringKey(static_cast<uint32_t>(clip-1),
+                static_cast<uint32_t>(bone-1),local.time,channelMask,local,&created,errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        lua_pushboolean(lua,created);
         return 1;
     }
 
@@ -2966,6 +2995,7 @@ namespace mbm
                                           {"updateSkeletalKey", onUpdateSkeletalKeyDebugLua},
                                           {"removeSkeletalKey", onRemoveSkeletalKeyDebugLua},
                                           {"evaluateSkeletalAuthoringPose", onEvaluateSkeletalAuthoringPoseDebugLua},
+                                          {"commitSkeletalAuthoringKey", onCommitSkeletalAuthoringKeyDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},

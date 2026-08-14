@@ -185,7 +185,7 @@ namespace mbm
 
     struct SKELETAL_POSE_BONE_INFO
     {
-        uint32_t boneId = 0;
+        uint64_t boneId = 0;
         VEC3 localTranslation;
         float localRotationX = 0.0f;
         float localRotationY = 0.0f;
@@ -332,6 +332,11 @@ namespace mbm
                                         const float bezierY2, char *errorOut, const int errorOutLen);
         API_IMPL bool removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
                                         const uint32_t keyIndex, char *errorOut, const int errorOutLen);
+        API_IMPL bool commitSkeletalAuthoringKey(const uint32_t clipIndex, const uint32_t boneIndex,
+                                                 const float time, const uint8_t channelMask,
+                                                 const SKELETAL_KEY_INFO &local,
+                                                 bool *createdKeyOut, char *errorOut,
+                                                 const int errorOutLen);
         // Evaluates an editor-only pose from the unsaved canonical clip state. An optional local
         // override is applied after sampling and before hierarchy/global/palette reconstruction.
         API_IMPL bool evaluateSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
@@ -604,7 +609,7 @@ namespace mbm
         bool getSkeletalAnimationTime(const SKELETAL_ANIMATION_PLAYER &player, float *time) const noexcept;
         bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
                                          SKELETAL_SHADER_METHOD method, const float *rows,
-                                         uint32_t rowCount, const uint32_t *orderedBoneIds,
+                                         uint32_t rowCount, const uint64_t *orderedBoneIds,
                                          uint32_t boneIdCount, float time, char *errorOut,
                                          int errorOutLen) const noexcept;
         bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta) const;

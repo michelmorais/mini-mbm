@@ -51,6 +51,7 @@ namespace mbm::skeletal
         uint32_t lbsBoneCapacity = 0;
         uint32_t dqsBoneCapacity = 0;
         std::vector<GPU_LBS_VERTEX> vertices;
+        const char *diagnostic = "no-skeletal-data";
 
         bool ready() const noexcept { return status == GLES2_LBS_PREPARATION_STATUS::READY; }
         bool supports(SKELETAL_SHADER_METHOD method) const noexcept

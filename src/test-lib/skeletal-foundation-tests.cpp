@@ -614,6 +614,20 @@ namespace
                    std::fabs(authoringBone.globalMatrix.p[13]-5.0f)<=MATRIX_TOLERANCE &&
                    std::fabs(authoringBone.globalMatrix.p[14]-6.0f)<=MATRIX_TOLERANCE,
                "in-memory authoring evaluation must expose sampled pose/palette and compose a local override");
+        SKELETAL_KEY_INFO committedLocal;
+        committedLocal.localTranslation=VEC3(3,4,5);
+        committedLocal.localRotationW=1.0f;
+        committedLocal.localScale=VEC3(1,1,1);
+        bool createdAuthoringKey=false;
+        expect(clipEditMesh.commitSkeletalAuthoringKey(editedClipIndex,0,1.0f,
+                   SKELETAL_CHANNEL_TRANSLATION,committedLocal,&createdAuthoringKey,error,sizeof(error)-1) &&
+                   createdAuthoringKey &&
+                   clipEditMesh.getSkeletalTrack(editedClipIndex,editedTrackIndex,editedTrack) &&
+                   editedTrack.keyCount==3 &&
+                   clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,1,committedLocal) &&
+                   std::fabs(committedLocal.localTranslation.x-3.0f)<=MATRIX_TOLERANCE &&
+                   clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,1,error,sizeof(error)-1),
+               "explicit authoring commit must atomically create a translation key from the temporary pose");
         const char *trackRoundTrip="/tmp/mini-mbm-canonical-track-round-trip.msh";
         MESH_MBM_DEBUG trackReload;
         expect(clipEditMesh.saveV11(trackRoundTrip,false,false,false,error,sizeof(error)-1) &&
@@ -973,6 +987,11 @@ namespace
         expect(prepareGles2LbsInput(skeleton, weights, {}, input) ==
                    GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE && input.vertices.empty(),
                "GPU LBS input must not claim readiness before backend capability measurement");
+        CANONICAL_WEIGHTS missingWeights;
+        expect(prepareGles2LbsInput(skeleton,missingWeights,sufficient,input)==
+                   GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA &&
+                   std::string(input.diagnostic)=="canonical vertex weights are missing",
+               "GPU skeletal input must distinguish a rig without deforming vertex weights");
 
         CANONICAL_ANIMATIONS rigidAnimations;
         expect(getDqsCompatibility(skeleton, rigidAnimations) == DQS_COMPATIBILITY_STATUS::RIGID,

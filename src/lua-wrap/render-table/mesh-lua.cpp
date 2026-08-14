@@ -27,6 +27,7 @@ extern "C"
 #include <lua-wrap/render-table/mesh-lua.h>
 
 #include <cstring>
+#include <cstdlib>
 #include <vector>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
@@ -294,11 +295,15 @@ namespace mbm
         const float time = static_cast<float>(luaL_checknumber(lua, 4));
         luaL_checktype(lua, 5, LUA_TTABLE);
         const size_t boneCount=lua_rawlen(lua,5);
-        std::vector<uint32_t> boneIds(boneCount);
+        std::vector<uint64_t> boneIds(boneCount);
         for (size_t index=0; index<boneCount; ++index)
         {
             lua_rawgeti(lua,5,static_cast<lua_Integer>(index+1));
-            boneIds[index]=static_cast<uint32_t>(luaL_checkinteger(lua,-1));
+            const char *boneId=luaL_checkstring(lua,-1);
+            char *end=nullptr;
+            boneIds[index]=static_cast<uint64_t>(std::strtoull(boneId,&end,16));
+            if (!end || end==boneId || *end!='\0')
+                return luaL_error(lua,"ordered bone identity %d is not hexadecimal",static_cast<int>(index+1));
             lua_pop(lua,1);
         }
         char errorOut[255]="";

@@ -1390,7 +1390,18 @@ The detached result contains `bones` with local TRS and evaluated global matrice
 `palette`, and `boneIds` in exact palette order. Pass all three relevant values to
 `mesh:setSkeletalAuthoringPalette(method, pose.palette, time, pose.boneIds)`. The optional one-bone override is applied
 after sampling and before hierarchy/global reconstruction. This is an editor-preview bridge; it
-does not mutate keys or persist a pose.
+does not mutate keys or persist a pose. `boneIds` use the canonical 16-digit hexadecimal string
+representation; converting them to 32-bit numbers destroys stable identity.
+
+```lua
+local created = meshD:commitSkeletalAuthoringKey(clipIndex, boneIndex, time, channelMask,
+    tx,ty,tz, qx,qy,qz,qw, sx,sy,sz)
+```
+
+Atomically commits an evaluated local pose to the selected canonical clip/bone. It creates the
+bone track when absent, unions the requested T/R/S `channelMask`, and creates or updates the key at
+`time`; `created` distinguishes insertion from update. The complete candidate animation validates
+before replacement, so failure cannot leave a track or channel half-created.
 
 ```lua
 meshD:removeSkeletalBoneRemapped(oneBasedBoneIndex, replacementBoneIndex,

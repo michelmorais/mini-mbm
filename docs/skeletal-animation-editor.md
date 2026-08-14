@@ -186,12 +186,22 @@ temporary and can be discarded; mouse release does not silently create or overwr
 deliberate boundary lets the next slice define auto-key versus explicit commit without conflating
 viewport mechanics with persistence policy.
 
+Temporary translation can now be committed explicitly with **Create / update translation key**.
+The atomic operation finds or creates the selected bone's track, enables its translation channel,
+and creates or updates the key at the current authoring time. It validates the complete canonical
+animation before replacement and participates in whole-asset rollback. Mouse release still
+performs no persistence, and Auto Key remains deliberately disabled.
+
 If the editable pose cannot be installed on the runtime preview, the editor reports the failed
 contract clause instead of a generic incompatibility. Diagnostics distinguish unavailable skeletal
 GPU input, palette capacity, resolved-method mismatch, row/bone counts, non-finite data, and the
 first ordered stable-bone identity mismatch. Assets without canonical runtime weights or whose
 unsaved skeleton order differs from the file-backed preview are therefore actionable rather than
 appearing as an unexplained gizmo failure.
+In particular, a canonical skeleton and clips can animate the bone gizmo without being capable of
+deforming a mesh: type-42 canonical vertex weights are also required. This condition is reported as
+`invalid-canonical-data (canonical vertex weights are missing)` rather than being treated as an
+identity or shader problem.
 
 Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
 LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,

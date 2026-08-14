@@ -4784,6 +4784,78 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::commitSkeletalAuthoringKey(const uint32_t clipIndex,
+                                                     const uint32_t boneIndex,
+                                                     const float time,
+                                                     const uint8_t channelMask,
+                                                     const SKELETAL_KEY_INFO &local,
+                                                     bool *createdKeyOut, char *errorOut,
+                                                     const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical authoring clip index is out of range");
+        if (boneIndex>=impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical authoring bone index is out of range");
+        if (channelMask==0 || (channelMask & ~7u)!=0)
+            return fail("canonical authoring key channels must contain only T/R/S");
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(time) || time<0.0f || time>sourceClip.duration)
+            return fail("canonical authoring key time must be inside the clip duration");
+        const float quaternionNorm=std::sqrt(local.localRotationX*local.localRotationX+
+            local.localRotationY*local.localRotationY+local.localRotationZ*local.localRotationZ+
+            local.localRotationW*local.localRotationW);
+        if (!std::isfinite(quaternionNorm) || quaternionNorm<=skeletal::QUATERNION_ZERO_EPSILON)
+            return fail("canonical authoring key rotation must be nonzero and finite");
+
+        skeletal::LOCAL_TRANSFORM transform;
+        transform.translation=local.localTranslation;
+        transform.rotation={local.localRotationX/quaternionNorm,local.localRotationY/quaternionNorm,
+                            local.localRotationZ/quaternionNorm,local.localRotationW/quaternionNorm};
+        transform.scale=local.localScale;
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        const uint64_t boneId=impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        auto trackIt=std::find_if(clip.tracks.begin(),clip.tracks.end(),
+            [boneId](const skeletal::SKELETAL_TRACK &track){ return track.boneId==boneId; });
+        if (trackIt==clip.tracks.end())
+        {
+            skeletal::SKELETAL_TRACK track;
+            track.boneId=boneId;
+            track.channelMask=channelMask;
+            skeletal::SKELETAL_KEY bindKey;
+            bindKey.time=0.0f;
+            bindKey.local=impl->canonicalSkeleton.compiled.bones[boneIndex].localBind;
+            track.keys.push_back(bindKey);
+            clip.tracks.push_back(std::move(track));
+            trackIt=clip.tracks.end()-1;
+        }
+        else trackIt->channelMask|=channelMask;
+
+        auto keyIt=std::find_if(trackIt->keys.begin(),trackIt->keys.end(),[time](const skeletal::SKELETAL_KEY &key)
+        { return std::fabs(key.time-time)<=skeletal::KEY_TIME_TOLERANCE; });
+        const bool created=keyIt==trackIt->keys.end();
+        if (created)
+        {
+            skeletal::SKELETAL_KEY key;
+            key.time=time;
+            key.local=transform;
+            const auto position=std::lower_bound(trackIt->keys.begin(),trackIt->keys.end(),time,
+                [](const skeletal::SKELETAL_KEY &key,const float value){ return key.time<value; });
+            trackIt->keys.insert(position,key);
+        }
+        else keyIt->local=transform;
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("committed canonical authoring key would be invalid");
+        impl->canonicalAnimations=std::move(candidate);
+        if (createdKeyOut) *createdKeyOut=created;
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::evaluateSkeletalAuthoringPose(const uint32_t clipIndex, const float time,
                                                         const int32_t overrideBoneIndex,
                                                         const SKELETAL_KEY_INFO *overrideLocal,
@@ -6934,7 +7006,7 @@ namespace mbm
     bool MESH_MBM::setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
                                                 const SKELETAL_SHADER_METHOD method,
                                                 const float *rows, const uint32_t rowCount,
-                                                const uint32_t *orderedBoneIds,
+                                                const uint64_t *orderedBoneIds,
                                                 const uint32_t boneIdCount,
                                                 const float time, char *errorOut,
                                                 const int errorOutLen) const noexcept
@@ -6960,8 +7032,8 @@ namespace mbm
             const skeletal::GLES2_LBS_PREPARATION_STATUS selectedStatus=
                 impl->gles2LbsInput.ready() ? skeletal::GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE :
                 impl->gles2LbsInput.status;
-            return fail("preview skeletal input is not ready: %s",
-                skeletal::gles2LbsPreparationStatusName(selectedStatus));
+            return fail("preview skeletal input is not ready: %s (%s)",
+                skeletal::gles2LbsPreparationStatusName(selectedStatus),impl->gles2LbsInput.diagnostic);
         }
         const uint32_t stride = method == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
         const uint32_t expected = static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size()) * stride;
@@ -6974,8 +7046,9 @@ namespace mbm
             return fail("authoring palette contains a non-finite value");
         for (uint32_t index=0; index<boneIdCount; ++index)
             if (orderedBoneIds[index]!=impl->canonicalSkeleton.compiled.bones[index].boneId)
-                return fail("authoring bone identity mismatch at index %u: got %u, expected %u",index+1,
-                    orderedBoneIds[index],impl->canonicalSkeleton.compiled.bones[index].boneId);
+                return fail("authoring bone identity mismatch at index %u: got %016llx, expected %016llx",index+1,
+                    static_cast<unsigned long long>(orderedBoneIds[index]),
+                    static_cast<unsigned long long>(impl->canonicalSkeleton.compiled.bones[index].boneId));
         player.impl->paletteRows.assign(rows, rows + rowCount);
         player.impl->clipIndex = UINT32_MAX;
         player.impl->time = time;

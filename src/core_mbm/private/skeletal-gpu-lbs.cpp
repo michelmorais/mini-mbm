@@ -68,21 +68,40 @@ namespace mbm::skeletal
         if (skeleton.skeletonId == 0 && weights.skeletonId == 0)
             return out.status;
         if (!capability.measured)
+        {
+            out.diagnostic="GPU skinning capability was not measured";
             return out.status = GLES2_LBS_PREPARATION_STATUS::CAPABILITY_UNAVAILABLE;
+        }
         if (!capability.hasRequiredVertexAttributes)
+        {
+            out.diagnostic="GPU vertex attributes are insufficient";
             return out.status = GLES2_LBS_PREPARATION_STATUS::INSUFFICIENT_VERTEX_ATTRIBUTES;
+        }
         if (out.requiredBoneCount > out.lbsBoneCapacity && out.requiredBoneCount > out.dqsBoneCapacity)
+        {
+            out.diagnostic="skeleton exceeds both measured palette capacities";
             return out.status = GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE;
-        if (skeleton.skeletonId == 0 || weights.skeletonId != skeleton.skeletonId ||
-            !validateCanonicalWeights(skeleton, weights, static_cast<uint32_t>(weights.vertices.size())))
+        }
+        if (skeleton.skeletonId == 0)
+        { out.diagnostic="canonical skeleton is missing"; return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        if (weights.skeletonId == 0)
+        { out.diagnostic="canonical vertex weights are missing"; return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        if (weights.skeletonId != skeleton.skeletonId)
+        { out.diagnostic="canonical skeleton/weight IDs differ"; return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA; }
+        if (!validateCanonicalWeights(skeleton, weights, static_cast<uint32_t>(weights.vertices.size())))
+        { out.diagnostic="canonical vertex weights failed structural validation";
             return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+        }
 
         std::vector<int32_t> paletteBoneIndices(weights.paletteBoneIds.size(), -1);
         for (size_t paletteIndex = 0; paletteIndex < weights.paletteBoneIds.size(); ++paletteIndex)
         {
             const auto found = skeleton.compiled.indexById.find(weights.paletteBoneIds[paletteIndex]);
             if (found == skeleton.compiled.indexById.end())
+            {
+                out.diagnostic="canonical weight palette references an unknown bone";
                 return out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+            }
             paletteBoneIndices[paletteIndex] = found->second;
         }
 
@@ -99,12 +118,14 @@ namespace mbm::skeletal
                 {
                     out = {};
                     out.status = GLES2_LBS_PREPARATION_STATUS::INVALID_CANONICAL_DATA;
+                    out.diagnostic="canonical vertex references an invalid palette slot";
                     return out.status;
                 }
                 target.boneIndex[slot] = static_cast<float>(paletteBoneIndices[source.paletteIndex[slot]]);
                 target.weight[slot] = source.weight[slot];
             }
         }
+        out.diagnostic="ready";
         return out.status = GLES2_LBS_PREPARATION_STATUS::READY;
     }
 

@@ -2163,7 +2163,9 @@ local function showStatusMessage()
     if not state.status then return end
     tImGui.Separator()
     if state.statusError then
-        tImGui.TextColored({r=1,g=0.3,b=0.2,a=1},state.status)
+        tImGui.PushStyleColor('ImGuiCol_Text',{r=1,g=0.3,b=0.2,a=1})
+        tImGui.TextWrapped(state.status)
+        tImGui.PopStyleColor()
     else
         tImGui.TextWrapped(state.status)
     end
@@ -3061,6 +3063,29 @@ local function showSkeletalAnimationInspection()
         if state.authoringOverride then
             tImGui.TextColored({r=1,g=0.75,b=0.15,a=1},
                 tLang.L('swl_animation_temporary_pose'))
+            if tImGui.Button(tLang.L('swl_animation_commit_translation_key')..
+                    '##swlCommitTranslationKey') then
+                local value=state.authoringOverride
+                local snapshot=stageRollbackSnapshot()
+                local ok,created=false,false
+                if snapshot then
+                    local t,q,s=value.translation,value.rotation,value.scale
+                    ok,created=safeCall(function()
+                        return state.meshD:commitSkeletalAuthoringKey(state.animationClipSelected,
+                            value.boneIndex,state.authoringTime,1,t.x,t.y,t.z,
+                            q.x,q.y,q.z,q.w,s.x,s.y,s.z)
+                    end)
+                end
+                if ok then
+                    commitRollbackSnapshot(snapshot)
+                    state.modified=true
+                    clearAuthoringOverride()
+                    refreshBindReport()
+                    refreshAuthoringPose(clip)
+                    setStatus(tLang.L(created and 'swl_animation_translation_key_created' or
+                        'swl_animation_translation_key_updated'),false)
+                elseif snapshot then discardRollbackSnapshot(snapshot) end
+            end
             if tImGui.Button(tLang.L('swl_animation_discard_temporary_pose')..
                     '##swlDiscardTemporaryPose') then
                 clearAuthoringOverride()
