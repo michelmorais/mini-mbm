@@ -1386,8 +1386,9 @@ local pose = meshD:evaluateSkeletalAuthoringPose(clipIndex, time, method)
 ```
 
 Evaluates the current unsaved canonical clip state with `method` equal to `"lbs"` or `"dqs"`.
-The detached result contains `bones` with local TRS and evaluated global matrices plus the packed
-`palette` accepted by `mesh:setSkeletalAuthoringPalette`. The optional one-bone override is applied
+The detached result contains `bones` with local TRS and evaluated global matrices, the packed
+`palette`, and `boneIds` in exact palette order. Pass all three relevant values to
+`mesh:setSkeletalAuthoringPalette(method, pose.palette, time, pose.boneIds)`. The optional one-bone override is applied
 after sampling and before hierarchy/global reconstruction. This is an editor-preview bridge; it
 does not mutate keys or persist a pose.
 

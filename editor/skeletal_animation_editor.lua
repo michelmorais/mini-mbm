@@ -2839,6 +2839,13 @@ local function showSkeletalAnimationInspection()
     if #clips==0 then
         tImGui.TextDisabled(tLang.L('swl_animation_no_clips'))
         state.animationEditClipId=nil
+        if state.authoringPose then
+            state.authoringPose=nil
+            state.authoringPoseKey=nil
+            pcall(function() state.preview:stopSkeletalAnimation() end)
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
+        end
     else
         local names={}
         for index,clip in ipairs(clips) do names[index]=clip.name or ('Clip '..index) end
