@@ -31,6 +31,18 @@ local state = {
     skeletalPreview = {clips={}, selected=1, method=1, duration=0, playing=false, paused=false,
         poseStress=false, comparisonReady=false},
     animationClipSelected = 1,
+    animationEditClipId = nil,
+    animationClipName = 'Clip',
+    animationClipDuration = 1,
+    animationClipLoop = true,
+    animationNewClipName = 'Clip',
+    animationNewClipDuration = 1,
+    animationNewClipLoop = true,
+    animationRemoveConfirmed = false,
+    animationNewTrackTranslation = true,
+    animationNewTrackRotation = true,
+    animationNewTrackScale = false,
+    animationTrackEdits = {},
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -1192,6 +1204,9 @@ local function loadMesh(path)
     state.bindWeightsBoneId=nil
     state.bindRemoveBoneId=nil
     state.animationClipSelected=1
+    state.animationEditClipId=nil
+    state.animationRemoveConfirmed=false
+    state.animationTrackEdits={}
     local bounds = computeAABB(meshD)
     local initialExtent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
@@ -2745,51 +2760,234 @@ end
 local function showSkeletalAnimationInspection()
     tImGui.TextWrapped(tLang.L('swl_animation_inspection_help'))
     local ok,clips=safeCall(function() return state.meshD:getSkeletalAnimationReport() end)
-    if not ok or type(clips)~='table' or #clips==0 then
+    if not ok or type(clips)~='table' then clips={} end
+    if #clips==0 then
         tImGui.TextDisabled(tLang.L('swl_animation_no_clips'))
-        return
-    end
-    local names={}
-    for index,clip in ipairs(clips) do names[index]=clip.name or ('Clip '..index) end
-    state.animationClipSelected=math.max(1,math.min(state.animationClipSelected,#clips))
-    local changed,selected=tImGui.Combo(tLang.L('swl_skeletal_clip'),state.animationClipSelected,names)
-    if changed then state.animationClipSelected=selected end
-    local clip=clips[state.animationClipSelected]
-    tImGui.TextWrapped(string.format(tLang.L('swl_animation_clip_summary_fmt'),
-        clip.duration or 0,#(clip.tracks or {}),clip.loop and tLang.L('swl_yes') or tLang.L('swl_no'),
-        clip.clipId or '?'))
-    tImGui.BeginChild('##swlCanonicalTracks',{x=0,y=360},true)
-    for trackIndex,track in ipairs(clip.tracks or {}) do
-        local label=string.format(tLang.L('swl_animation_track_fmt'),track.boneName or '?',
-            #(track.keys or {}),skeletalChannelLabel(track.channelMask or 0))
-        if tImGui.TreeNode(label..'##swlTrack'..trackIndex) then
-            if tImGui.IsItemClicked() and track.boneIndex then state.boneIndex=track.boneIndex end
-            tImGui.Text(string.format('%s: %s',tLang.L('swl_stable_id'),track.boneId or '?'))
-            tImGui.Text(string.format(tLang.L('swl_animation_channels_fmt'),
-                skeletalChannelLabel(track.channelMask or 0)))
-            for keyIndex,key in ipairs(track.keys or {}) do
-                local easing=skeletalEasingNames[(key.easing or 0)+1] or '?'
-                if tImGui.TreeNode(string.format(tLang.L('swl_animation_key_fmt'),
-                        keyIndex,key.time or 0,easing)..'##swlKey'..trackIndex..'-'..keyIndex) then
-                    local p,q,s=key.translation or {},key.rotation or {},key.scale or {}
-                    tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g)',
-                        tLang.L('swl_animation_translation'),p.x or 0,p.y or 0,p.z or 0))
-                    tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g, %.6g)',
-                        tLang.L('swl_animation_rotation'),q.x or 0,q.y or 0,q.z or 0,q.w or 1))
-                    tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g)',
-                        tLang.L('swl_animation_scale'),s.x or 1,s.y or 1,s.z or 1))
-                    tImGui.Text(string.format('%s: %s',tLang.L('swl_animation_easing'),easing))
-                    if (key.easing or 0)==5 and key.bezier then
-                        tImGui.Text(string.format('Bezier: (%.4g, %.4g) (%.4g, %.4g)',
-                            key.bezier.x1 or 0,key.bezier.y1 or 0,key.bezier.x2 or 1,key.bezier.y2 or 1))
-                    end
-                    tImGui.TreePop()
-                end
-            end
-            tImGui.TreePop()
+        state.animationEditClipId=nil
+    else
+        local names={}
+        for index,clip in ipairs(clips) do names[index]=clip.name or ('Clip '..index) end
+        state.animationClipSelected=math.max(1,math.min(state.animationClipSelected,#clips))
+        tImGui.PushItemWidth(190)
+        local changed,selected=tImGui.Combo(tLang.L('swl_skeletal_clip'),
+            state.animationClipSelected,names,-1)
+        tImGui.PopItemWidth()
+        if changed then state.animationClipSelected=selected; state.animationEditClipId=nil end
+        local clip=clips[state.animationClipSelected]
+        if state.animationEditClipId~=clip.clipId then
+            state.animationEditClipId=clip.clipId
+            state.animationClipName=clip.name or ''
+            state.animationClipDuration=clip.duration or 0
+            state.animationClipLoop=clip.loop==true
+            state.animationRemoveConfirmed=false
         end
+        tImGui.TextWrapped(string.format(tLang.L('swl_animation_clip_summary_fmt'),
+            clip.duration or 0,#(clip.tracks or {}),clip.loop and tLang.L('swl_yes') or tLang.L('swl_no'),
+            clip.clipId or '?'))
+        tImGui.PushItemWidth(190)
+        local nameChanged,name=tImGui.InputText(tLang.L('swl_animation_clip_name')..'##swlClipName',
+            state.animationClipName,tImGui.Flags('ImGuiInputTextFlags_None'))
+        if nameChanged then state.animationClipName=name end
+        local durationChanged,duration=tImGui.InputFloat(tLang.L('swl_animation_duration')..'##swlClipDuration',
+            state.animationClipDuration,0.01,0.1,'%.6g',tImGui.Flags('ImGuiInputTextFlags_None'))
+        if durationChanged then state.animationClipDuration=duration end
+        tImGui.PopItemWidth()
+        state.animationClipLoop=tImGui.Checkbox(tLang.L('swl_animation_loop')..'##swlClipLoop',
+            state.animationClipLoop)
+        local trimmed=(state.animationClipName or ''):match('^%s*(.-)%s*$')
+        tImGui.BeginDisabled(trimmed=='' or (state.animationClipDuration or -1)<0)
+        if tImGui.Button(tLang.L('swl_animation_apply_clip')..'##swlClipApply') then
+            local snapshot=stageRollbackSnapshot()
+            local applied=false
+            if snapshot then
+                applied=select(1,safeCall(function() return state.meshD:updateSkeletalClip(
+                    state.animationClipSelected,trimmed,state.animationClipDuration,state.animationClipLoop) end))
+            end
+            if applied then
+                commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                state.animationEditClipId=nil
+                setStatus(tLang.L('swl_animation_clip_updated'),false)
+            elseif snapshot then discardRollbackSnapshot(snapshot) end
+        end
+        tImGui.EndDisabled()
+        state.animationRemoveConfirmed=tImGui.Checkbox(
+            tLang.L('swl_animation_confirm_remove_clip')..'##swlClipRemoveConfirm',
+            state.animationRemoveConfirmed)
+        tImGui.BeginDisabled(not state.animationRemoveConfirmed)
+        if tImGui.Button(tLang.L('swl_animation_remove_clip')..'##swlClipRemove') then
+            local snapshot=stageRollbackSnapshot()
+            local removed=false
+            if snapshot then removed=select(1,safeCall(function()
+                return state.meshD:removeSkeletalClip(state.animationClipSelected) end)) end
+            if removed then
+                commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                state.animationClipSelected=math.max(1,state.animationClipSelected-1)
+                state.animationEditClipId=nil; state.animationRemoveConfirmed=false
+                setStatus(tLang.L('swl_animation_clip_removed'),false)
+            elseif snapshot then discardRollbackSnapshot(snapshot) end
+        end
+        tImGui.EndDisabled()
+        local existingBoneIds={}
+        for _,track in ipairs(clip.tracks or {}) do existingBoneIds[track.boneId]=true end
+        local availableBoneNames,availableBoneIndices={},{}
+        for index,bone in ipairs((state.bindReport and state.bindReport.bones) or {}) do
+            if not existingBoneIds[bone.boneId] then
+                availableBoneNames[#availableBoneNames+1]=bone.name or ('Bone '..index)
+                availableBoneIndices[#availableBoneIndices+1]=index
+            end
+        end
+        if #availableBoneNames>0 then
+            local availableChoice=1
+            for choice,boneIndex in ipairs(availableBoneIndices) do
+                if boneIndex==state.boneIndex then availableChoice=choice; break end
+            end
+            local selectedAvailableBone=availableBoneIndices[availableChoice]
+            tImGui.PushItemWidth(190)
+            local boneChanged,newChoice=tImGui.Combo(tLang.L('swl_source_bone')..'##swlNewTrackBone',
+                availableChoice,availableBoneNames,-1)
+            tImGui.PopItemWidth()
+            if boneChanged then
+                availableChoice=newChoice
+                selectedAvailableBone=availableBoneIndices[newChoice]
+                state.boneIndex=selectedAvailableBone
+            end
+            state.animationNewTrackTranslation=tImGui.Checkbox(
+                tLang.L('swl_animation_translation')..'##swlNewTrackT',state.animationNewTrackTranslation)
+            tImGui.SameLine()
+            state.animationNewTrackRotation=tImGui.Checkbox(
+                tLang.L('swl_animation_rotation')..'##swlNewTrackR',state.animationNewTrackRotation)
+            tImGui.SameLine()
+            state.animationNewTrackScale=tImGui.Checkbox(
+                tLang.L('swl_animation_scale')..'##swlNewTrackS',state.animationNewTrackScale)
+            local newMask=(state.animationNewTrackTranslation and 1 or 0)+
+                (state.animationNewTrackRotation and 2 or 0)+(state.animationNewTrackScale and 4 or 0)
+            tImGui.TextDisabled(tLang.L('swl_animation_track_bind_key_help'))
+            tImGui.BeginDisabled(newMask==0)
+            if tImGui.Button(tLang.L('swl_animation_add_track')..'##swlTrackAdd') then
+                local snapshot=stageRollbackSnapshot()
+                local added=false
+                if snapshot then added=select(1,safeCall(function() return state.meshD:addSkeletalTrack(
+                    state.animationClipSelected,selectedAvailableBone,newMask) end)) end
+                if added then
+                    commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                    state.animationTrackEdits={}
+                    setStatus(tLang.L('swl_animation_track_added'),false)
+                elseif snapshot then discardRollbackSnapshot(snapshot) end
+            end
+            tImGui.EndDisabled()
+        end
+        tImGui.BeginChild('##swlCanonicalTracks',{x=0,y=360},true)
+        for trackIndex,track in ipairs(clip.tracks or {}) do
+            local label=string.format(tLang.L('swl_animation_track_fmt'),track.boneName or '?',
+                #(track.keys or {}),skeletalChannelLabel(track.channelMask or 0))
+            if tImGui.TreeNode(label..'##swlTrack'..trackIndex) then
+                if tImGui.IsItemClicked() and track.boneIndex then state.boneIndex=track.boneIndex end
+                local trackEditKey=(clip.clipId or '?')..':'..(track.boneId or '?')
+                local trackEdit=state.animationTrackEdits[trackEditKey]
+                if not trackEdit then
+                    trackEdit={translation=((track.channelMask or 0)&1)~=0,
+                        rotation=((track.channelMask or 0)&2)~=0,
+                        scale=((track.channelMask or 0)&4)~=0,removeConfirmed=false}
+                    state.animationTrackEdits[trackEditKey]=trackEdit
+                end
+                tImGui.Text(string.format('%s: %s',tLang.L('swl_stable_id'),track.boneId or '?'))
+                tImGui.Text(string.format(tLang.L('swl_animation_channels_fmt'),
+                    skeletalChannelLabel(track.channelMask or 0)))
+                trackEdit.translation=tImGui.Checkbox(
+                    tLang.L('swl_animation_translation')..'##swlTrackT'..trackIndex,
+                    trackEdit.translation)
+                tImGui.SameLine()
+                trackEdit.rotation=tImGui.Checkbox(
+                    tLang.L('swl_animation_rotation')..'##swlTrackR'..trackIndex,
+                    trackEdit.rotation)
+                tImGui.SameLine()
+                trackEdit.scale=tImGui.Checkbox(
+                    tLang.L('swl_animation_scale')..'##swlTrackS'..trackIndex,
+                    trackEdit.scale)
+                local editedMask=(trackEdit.translation and 1 or 0)+
+                    (trackEdit.rotation and 2 or 0)+(trackEdit.scale and 4 or 0)
+                tImGui.BeginDisabled(editedMask==0 or editedMask==(track.channelMask or 0))
+                if tImGui.Button(tLang.L('swl_animation_apply_track_channels')..
+                        '##swlTrackApply'..trackIndex) then
+                    local snapshot=stageRollbackSnapshot()
+                    local updated=false
+                    if snapshot then updated=select(1,safeCall(function()
+                        return state.meshD:updateSkeletalTrackChannels(state.animationClipSelected,
+                            trackIndex,editedMask) end)) end
+                    if updated then
+                        commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                        state.animationTrackEdits={}
+                        setStatus(tLang.L('swl_animation_track_updated'),false)
+                    elseif snapshot then discardRollbackSnapshot(snapshot) end
+                end
+                tImGui.EndDisabled()
+                trackEdit.removeConfirmed=tImGui.Checkbox(
+                    tLang.L('swl_animation_confirm_remove_track')..'##swlTrackRemoveConfirm'..trackIndex,
+                    trackEdit.removeConfirmed)
+                tImGui.BeginDisabled(not trackEdit.removeConfirmed)
+                if tImGui.Button(tLang.L('swl_animation_remove_track')..'##swlTrackRemove'..trackIndex) then
+                    local snapshot=stageRollbackSnapshot()
+                    local removed=false
+                    if snapshot then removed=select(1,safeCall(function()
+                        return state.meshD:removeSkeletalTrack(state.animationClipSelected,trackIndex) end)) end
+                    if removed then
+                        commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+                        state.animationTrackEdits={}
+                        setStatus(tLang.L('swl_animation_track_removed'),false)
+                    elseif snapshot then discardRollbackSnapshot(snapshot) end
+                end
+                tImGui.EndDisabled()
+                for keyIndex,key in ipairs(track.keys or {}) do
+                    local easing=skeletalEasingNames[(key.easing or 0)+1] or '?'
+                    if tImGui.TreeNode(string.format(tLang.L('swl_animation_key_fmt'),
+                            keyIndex,key.time or 0,easing)..'##swlKey'..trackIndex..'-'..keyIndex) then
+                        local p,q,s=key.translation or {},key.rotation or {},key.scale or {}
+                        tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g)',
+                            tLang.L('swl_animation_translation'),p.x or 0,p.y or 0,p.z or 0))
+                        tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g, %.6g)',
+                            tLang.L('swl_animation_rotation'),q.x or 0,q.y or 0,q.z or 0,q.w or 1))
+                        tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g)',
+                            tLang.L('swl_animation_scale'),s.x or 1,s.y or 1,s.z or 1))
+                        tImGui.Text(string.format('%s: %s',tLang.L('swl_animation_easing'),easing))
+                        if (key.easing or 0)==5 and key.bezier then
+                            tImGui.Text(string.format('Bezier: (%.4g, %.4g) (%.4g, %.4g)',
+                                key.bezier.x1 or 0,key.bezier.y1 or 0,key.bezier.x2 or 1,key.bezier.y2 or 1))
+                        end
+                        tImGui.TreePop()
+                    end
+                end
+                tImGui.TreePop()
+            end
+        end
+        tImGui.EndChild()
     end
-    tImGui.EndChild()
+    tImGui.Separator()
+    tImGui.PushItemWidth(190)
+    local newNameChanged,newName=tImGui.InputText(tLang.L('swl_animation_clip_name')..'##swlNewClipName',
+        state.animationNewClipName,tImGui.Flags('ImGuiInputTextFlags_None'))
+    if newNameChanged then state.animationNewClipName=newName end
+    local newDurationChanged,newDuration=tImGui.InputFloat(
+        tLang.L('swl_animation_duration')..'##swlNewClipDuration',state.animationNewClipDuration,
+        0.01,0.1,'%.6g',tImGui.Flags('ImGuiInputTextFlags_None'))
+    if newDurationChanged then state.animationNewClipDuration=newDuration end
+    tImGui.PopItemWidth()
+    state.animationNewClipLoop=tImGui.Checkbox(tLang.L('swl_animation_loop')..'##swlNewClipLoop',
+        state.animationNewClipLoop)
+    local newTrimmed=(state.animationNewClipName or ''):match('^%s*(.-)%s*$')
+    tImGui.BeginDisabled(newTrimmed=='' or (state.animationNewClipDuration or -1)<0)
+    if tImGui.Button(tLang.L('swl_animation_add_clip')..'##swlClipAdd') then
+        local snapshot=stageRollbackSnapshot()
+        local added,newIndex=false,nil
+        if snapshot then added,newIndex=safeCall(function() return state.meshD:addSkeletalClip(
+            newTrimmed,state.animationNewClipDuration,state.animationNewClipLoop) end) end
+        if added then
+            commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
+            state.animationClipSelected=newIndex or (#clips+1); state.animationEditClipId=nil
+            setStatus(tLang.L('swl_animation_clip_added'),false)
+        elseif snapshot then discardRollbackSnapshot(snapshot) end
+    end
+    tImGui.EndDisabled()
+    showRollbackControls('swlAnimationRevert')
 end
 
 local function showPanel()

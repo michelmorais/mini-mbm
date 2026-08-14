@@ -557,6 +557,60 @@ namespace
         char error[512] = "";
         expect(writeCanonicalWeightedFixture(source, 100, 1.0f, 100, 10, 0, true) && mesh.loadV11(source),
                "canonical writer source fixture must load");
+        MESH_MBM_DEBUG clipEditMesh;
+        uint32_t editedClipIndex = 0;
+        expect(clipEditMesh.loadV11(source) &&
+                   clipEditMesh.addSkeletalClip("idle",2.0f,false,&editedClipIndex,error,sizeof(error)-1) &&
+                   editedClipIndex==1 &&
+                   clipEditMesh.updateSkeletalClip(editedClipIndex,"idle-loop",3.0f,true,
+                       error,sizeof(error)-1),
+               "canonical clip container authoring must allocate identity and update properties atomically");
+        SKELETAL_CLIP_INFO editedClip;
+        uint32_t editedTrackIndex = 0;
+        SKELETAL_TRACK_INFO editedTrack;
+        SKELETAL_KEY_INFO bindSeedKey;
+        expect(clipEditMesh.getSkeletalClip(editedClipIndex,editedClip) && editedClip.clipId!=0 &&
+                   std::string(clipEditMesh.getSkeletalClipName(editedClipIndex))=="idle-loop" &&
+                   std::fabs(editedClip.duration-3.0f)<=MATRIX_TOLERANCE && editedClip.loop &&
+                   clipEditMesh.addSkeletalTrack(editedClipIndex,0,
+                       SKELETAL_CHANNEL_TRANSLATION|SKELETAL_CHANNEL_ROTATION,
+                       &editedTrackIndex,error,sizeof(error)-1) && editedTrackIndex==0 &&
+                   clipEditMesh.getSkeletalTrack(editedClipIndex,editedTrackIndex,editedTrack) &&
+                   editedTrack.boneId==10 && editedTrack.keyCount==1 &&
+                   clipEditMesh.getSkeletalKey(editedClipIndex,editedTrackIndex,0,bindSeedKey) &&
+                   std::fabs(bindSeedKey.time)<=MATRIX_TOLERANCE &&
+                   std::fabs(bindSeedKey.localRotationW-1.0f)<=MATRIX_TOLERANCE &&
+                   !clipEditMesh.addSkeletalTrack(editedClipIndex,0,SKELETAL_CHANNEL_TRANSLATION,
+                       &editedTrackIndex,error,sizeof(error)-1) &&
+                   clipEditMesh.updateSkeletalTrackChannels(editedClipIndex,editedTrackIndex,
+                       SKELETAL_CHANNEL_TRANSLATION|SKELETAL_CHANNEL_ROTATION|SKELETAL_CHANNEL_SCALE,
+                       error,sizeof(error)-1) &&
+                   !clipEditMesh.updateSkeletalTrackChannels(editedClipIndex,editedTrackIndex,0,
+                       error,sizeof(error)-1),
+               "canonical track authoring must seed bind, reject duplicates, and validate channels atomically");
+        const char *trackRoundTrip="/tmp/mini-mbm-canonical-track-round-trip.msh";
+        MESH_MBM_DEBUG trackReload;
+        expect(clipEditMesh.saveV11(trackRoundTrip,false,false,false,error,sizeof(error)-1) &&
+                   trackReload.loadV11(trackRoundTrip) &&
+                   trackReload.getSkeletalTrack(editedClipIndex,editedTrackIndex,editedTrack) &&
+                   editedTrack.channelMask==(SKELETAL_CHANNEL_TRANSLATION|
+                       SKELETAL_CHANNEL_ROTATION|SKELETAL_CHANNEL_SCALE) && editedTrack.keyCount==1 &&
+                   clipEditMesh.removeSkeletalTrack(editedClipIndex,editedTrackIndex,
+                       error,sizeof(error)-1) &&
+                   !clipEditMesh.updateSkeletalClip(0,"idle-loop",1.0f,true,error,sizeof(error)-1) &&
+                   clipEditMesh.removeSkeletalClip(editedClipIndex,error,sizeof(error)-1) &&
+                   clipEditMesh.getTotalSkeletalClips()==1,
+               "canonical track edits must survive save/reload and remove complete key ownership");
+        std::remove(trackRoundTrip);
+        const char *emptyAnimationPath="/tmp/mini-mbm-canonical-no-clips.msh";
+        MESH_MBM_DEBUG emptyAnimationReload;
+        expect(clipEditMesh.removeSkeletalClip(0,error,sizeof(error)-1) &&
+                   clipEditMesh.getTotalSkeletalClips()==0 &&
+                   clipEditMesh.saveV11(emptyAnimationPath,false,false,false,error,sizeof(error)-1) &&
+                   emptyAnimationReload.loadV11(emptyAnimationPath) &&
+                   emptyAnimationReload.getTotalSkeletalClips()==0,
+               "removing the final canonical clip must omit type-43 cleanly across save/reload");
+        std::remove(emptyAnimationPath);
         SKELETON_BIND_BONE_INFO referencedBone;
         uint32_t temporaryBoneIndex = 0;
         expect(mesh.addSkeletalBone(-1, "temporary-root", VEC3(), 0.1f, 1.0f,

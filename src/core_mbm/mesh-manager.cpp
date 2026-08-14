@@ -4498,6 +4498,176 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::addSkeletalClip(const char *name, const float duration, const bool loop,
+                                          uint32_t *newIndexOut, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0) return fail("mesh has no canonical skeleton");
+        if (!name || !name[0]) return fail("canonical clip name must not be empty");
+        if (!std::isfinite(duration) || duration < 0.0f)
+            return fail("canonical clip duration must be finite and non-negative");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        if (candidate.skeletonId == 0) candidate.skeletonId = impl->canonicalSkeleton.skeletonId;
+        for (const skeletal::SKELETAL_CLIP &clip : candidate.clips)
+            if (clip.name == name) return fail("canonical clip name must be unique");
+        uint64_t nextId = 1;
+        while (std::any_of(candidate.clips.begin(), candidate.clips.end(),
+                           [nextId](const skeletal::SKELETAL_CLIP &clip) { return clip.clipId == nextId; }))
+        {
+            if (nextId == std::numeric_limits<uint64_t>::max())
+                return fail("canonical clip ID space is exhausted");
+            ++nextId;
+        }
+        skeletal::SKELETAL_CLIP clip;
+        clip.clipId = nextId;
+        clip.name = name;
+        clip.duration = duration;
+        clip.loop = loop;
+        candidate.clips.push_back(std::move(clip));
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("new canonical clip would be invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->canonicalAnimations.clips.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateSkeletalClip(const uint32_t clipIndex, const char *name,
+                                             const float duration, const bool loop,
+                                             char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!name || !name[0]) return fail("canonical clip name must not be empty");
+        if (!std::isfinite(duration) || duration < 0.0f)
+            return fail("canonical clip duration must be finite and non-negative");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        for (uint32_t index = 0; index < candidate.clips.size(); ++index)
+            if (index != clipIndex && candidate.clips[index].name == name)
+                return fail("canonical clip name must be unique");
+        skeletal::SKELETAL_CLIP &clip = candidate.clips[clipIndex];
+        clip.name = name;
+        clip.duration = duration;
+        clip.loop = loop;
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("updated canonical clip would be invalid; duration may not exclude existing keys");
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalClip(const uint32_t clipIndex,
+                                             char *errorOut, const int errorOutLen)
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "canonical clip index is out of range");
+            return false;
+        }
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        candidate.clips.erase(candidate.clips.begin() + clipIndex);
+        if (candidate.clips.empty()) candidate = {};
+        else if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "remaining canonical clips would be invalid");
+            return false;
+        }
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalTrack(const uint32_t clipIndex, const uint32_t boneIndex,
+                                           const uint8_t channelMask, uint32_t *newIndexOut,
+                                           char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (boneIndex >= impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical track bone index is out of range");
+        if (channelMask == 0 || (channelMask & ~7u) != 0)
+            return fail("canonical track channel mask must contain only T/R/S channels");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip = candidate.clips[clipIndex];
+        const skeletal::COMPILED_BONE &bone = impl->canonicalSkeleton.compiled.bones[boneIndex];
+        for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+            if (track.boneId == bone.boneId)
+                return fail("canonical clip already has a track for this bone");
+        skeletal::SKELETAL_TRACK track;
+        track.boneId = bone.boneId;
+        track.channelMask = channelMask;
+        skeletal::SKELETAL_KEY bindKey;
+        bindKey.time = 0.0f;
+        bindKey.local = bone.localBind;
+        track.keys.push_back(bindKey);
+        clip.tracks.push_back(std::move(track));
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("new canonical track would be invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        if (newIndexOut)
+            *newIndexOut = static_cast<uint32_t>(impl->canonicalAnimations.clips[clipIndex].tracks.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateSkeletalTrackChannels(const uint32_t clipIndex,
+                                                      const uint32_t trackIndex,
+                                                      const uint8_t channelMask,
+                                                      char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size())
+            return fail("canonical track index is out of range");
+        if (channelMask == 0 || (channelMask & ~7u) != 0)
+            return fail("canonical track channel mask must contain only T/R/S channels");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        candidate.clips[clipIndex].tracks[trackIndex].channelMask = channelMask;
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("updated canonical track would be invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
+                                              char *errorOut, const int errorOutLen)
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size())
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "canonical track index is out of range");
+            return false;
+        }
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip = candidate.clips[clipIndex];
+        clip.tracks.erase(clip.tracks.begin() + trackIndex);
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "remaining canonical tracks would be invalid");
+            return false;
+        }
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::renameSkeletalBone(const uint32_t index, const char *name,
                                              char *errorOut, const int errorOutLen)
     {

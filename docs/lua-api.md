@@ -1438,6 +1438,34 @@ numeric `easing` (`0..5`), and the four normalized Cubic-Bezier control values i
 The returned tables are detached copies for editor inspection; modifying them does not mutate the
 mesh. An asset without type-43 clips returns an empty table.
 
+```lua
+local oneBasedClipIndex = meshD:addSkeletalClip(name, duration, loop)
+meshD:updateSkeletalClip(oneBasedClipIndex, name, duration, loop)
+meshD:removeSkeletalClip(oneBasedClipIndex)
+```
+
+These methods transactionally author the canonical clip container without editing tracks or keys.
+Creation requires a canonical skeleton, allocates a new nonzero opaque `clipId`, and rejects empty
+or duplicate names and non-finite/negative durations. Update preserves the stable ID and rejects a
+duration that would place any existing key beyond the clip end. Removal deletes the selected clip
+and all of its tracks/keys; removing the final clip clears type-43 storage entirely. Each operation
+validates the complete canonical animation collection before commit and raises a Lua error without
+mutation on failure.
+
+```lua
+local oneBasedTrackIndex = meshD:addSkeletalTrack(
+    oneBasedClipIndex, oneBasedBoneIndex, channelMask)
+meshD:updateSkeletalTrackChannels(oneBasedClipIndex, oneBasedTrackIndex, channelMask)
+meshD:removeSkeletalTrack(oneBasedClipIndex, oneBasedTrackIndex)
+```
+
+Track authoring uses stable bone identity internally; one-based bone indices are resolved only at
+the API boundary. `channelMask` must contain at least one of translation `1`, rotation `2`, or scale
+`4`, and a clip may contain at most one track per bone. Because canonical type-43 forbids empty
+tracks, creation inserts one key at time zero initialized from that bone's local bind TRS. Updating
+the mask preserves all stored key values and revalidates them under the newly enabled channels.
+Removal deletes the selected track and all its keys. All operations validate and commit atomically.
+
 ### 15.1 Articulated-animation authoring
 
 The object also exposes the Mesh V11 rigid-animation authoring API.

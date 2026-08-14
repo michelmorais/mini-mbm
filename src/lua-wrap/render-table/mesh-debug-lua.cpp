@@ -2604,6 +2604,97 @@ namespace mbm
         return 1;
     }
 
+    int onAddSkeletalClipDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const float duration = static_cast<float>(luaL_checknumber(lua, 3));
+        const bool loop = lua_toboolean(lua, 4) != 0;
+        uint32_t index = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalClip(name, duration, loop, &index,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(index + 1));
+        return 1;
+    }
+
+    int onUpdateSkeletalClipDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical clip index must be one-based");
+        const char *name = luaL_checkstring(lua, 3);
+        const float duration = static_cast<float>(luaL_checknumber(lua, 4));
+        const bool loop = lua_toboolean(lua, 5) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateSkeletalClip(static_cast<uint32_t>(index - 1), name, duration, loop,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onRemoveSkeletalClipDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical clip index must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalClip(static_cast<uint32_t>(index - 1), errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onAddSkeletalTrackDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer bone = luaL_checkinteger(lua, 3);
+        const lua_Integer mask = luaL_checkinteger(lua, 4);
+        if (clip <= 0 || bone <= 0) return luaL_error(lua, "canonical clip and bone indices must be one-based");
+        uint32_t index = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalTrack(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(bone - 1), static_cast<uint8_t>(mask), &index,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(index + 1));
+        return 1;
+    }
+
+    int onUpdateSkeletalTrackChannelsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        const lua_Integer mask = luaL_checkinteger(lua, 4);
+        if (clip <= 0 || track <= 0) return luaL_error(lua, "canonical clip and track indices must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateSkeletalTrackChannels(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), static_cast<uint8_t>(mask), errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onRemoveSkeletalTrackDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        if (clip <= 0 || track <= 0) return luaL_error(lua, "canonical clip and track indices must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalTrack(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
     int onGetTotalSkeletalWeightBonesDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
@@ -2722,6 +2813,12 @@ namespace mbm
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},
                                           {"initializeSkeletalVertexWeights", onInitializeSkeletalVertexWeightsDebugLua},
                                           {"getSkeletalAnimationReport", onGetSkeletalAnimationReportDebugLua},
+                                          {"addSkeletalClip", onAddSkeletalClipDebugLua},
+                                          {"updateSkeletalClip", onUpdateSkeletalClipDebugLua},
+                                          {"removeSkeletalClip", onRemoveSkeletalClipDebugLua},
+                                          {"addSkeletalTrack", onAddSkeletalTrackDebugLua},
+                                          {"updateSkeletalTrackChannels", onUpdateSkeletalTrackChannelsDebugLua},
+                                          {"removeSkeletalTrack", onRemoveSkeletalTrackDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},

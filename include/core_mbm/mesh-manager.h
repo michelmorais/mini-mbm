@@ -292,6 +292,21 @@ namespace mbm
                                        SKELETAL_TRACK_INFO &out) const noexcept;
         API_IMPL bool getSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
                                      const uint32_t keyIndex, SKELETAL_KEY_INFO &out) const noexcept;
+        API_IMPL bool addSkeletalClip(const char *name, const float duration, const bool loop,
+                                      uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
+        API_IMPL bool updateSkeletalClip(const uint32_t clipIndex, const char *name,
+                                         const float duration, const bool loop,
+                                         char *errorOut, const int errorOutLen);
+        API_IMPL bool removeSkeletalClip(const uint32_t clipIndex,
+                                         char *errorOut, const int errorOutLen);
+        API_IMPL bool addSkeletalTrack(const uint32_t clipIndex, const uint32_t boneIndex,
+                                       const uint8_t channelMask, uint32_t *newIndexOut,
+                                       char *errorOut, const int errorOutLen);
+        API_IMPL bool updateSkeletalTrackChannels(const uint32_t clipIndex, const uint32_t trackIndex,
+                                                  const uint8_t channelMask,
+                                                  char *errorOut, const int errorOutLen);
+        API_IMPL bool removeSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
+                                          char *errorOut, const int errorOutLen);
         API_IMPL bool renameSkeletalBone(const uint32_t index, const char *name,
                                          char *errorOut, const int errorOutLen);
         // newParentIndex is -1 for a root or a zero-based compiled/source index otherwise.

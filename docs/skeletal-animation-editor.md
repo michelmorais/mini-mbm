@@ -142,6 +142,21 @@ Milestone-6 surface is deliberately read-only: it has no timeline, key insertion
 mutation yet, so imported animation cannot be changed accidentally while the authoring transaction
 model is still being introduced.
 
+The same node can create an empty clip and update the selected clip's name, duration, and loop
+policy. Clip IDs remain unchanged when properties are edited. A duration reduction that would
+exclude an existing key is rejected rather than truncating or moving animation data. Clip removal
+requires explicit confirmation because it removes all contained tracks and keys; removing the final
+clip also removes canonical type-43 storage. These operations use the shared whole-asset rollback
+boundary. Track/key mutation and timeline authoring remain unavailable in this slice.
+
+Track-container authoring is now available for the selected clip. The editor lists only bones that
+do not already have a track there, accepts any nonempty T/R/S channel combination, and creates the
+track with one key at time zero copied from the bone's local bind TRS. This seed prevents an invalid
+empty-track intermediate and initially evaluates to bind pose. Existing track channel masks may be
+changed transactionally; stored key values remain intact and are revalidated under the enabled
+channels. Track removal requires confirmation because all of that track's keys are removed with it.
+Key-value editing and the timeline remain the next authoring layer.
+
 Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
 LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,
 and bind-restoration commands; the right instance is re-seeked to the left instance's time each
