@@ -88,6 +88,14 @@ valid locals while preserving the copied hierarchy and assigning new IDs. Existi
 guessed or mirrored. The current helper is limited to assets without clips; animation-aware mirroring
 remains a later refinement. The mirrored root is selected and the complete operation is reversible.
 
+After a local skeleton has been created but before any canonical weights exist, the selected-bone
+panel offers **Initialize skin weights**. The impact preview states the complete frame-zero vertex
+count and the selected bone. Explicit confirmation creates type-42 coverage by rigidly binding
+every vertex to that bone with weight `1.0`; it does not infer envelopes or proximity. The operation
+is transactional, participates in the whole-asset rollback, and opens **Skin Weight Lab**
+immediately so influences can be redistributed with its analysis and blending tools. Existing
+weights are never replaced by this action.
+
 **Remove bone** first displays direct-child, weighted-vertex, and animation-track counts. The first
 safe policy removes only a leaf absent from both the weight palette and all tracks, and requires an
 explicit confirmation. Referenced bones remain blocked rather than silently reparenting children,

@@ -68,6 +68,8 @@ local state = {
     bindMirrorPrefix = 'mirror_',
     bindMirrorAxis = 1,
     bindMirrorConfirmed = false,
+    bindWeightsBoneId = nil,
+    bindWeightsConfirmed = false,
     bindRemoveBoneId = nil,
     bindRemoveConfirmed = false,
     bindRemoveReplacement = 1,
@@ -1186,6 +1188,7 @@ local function loadMesh(path)
     state.bindAddBoneId=nil
     state.bindChainBoneId=nil
     state.bindMirrorBoneId=nil
+    state.bindWeightsBoneId=nil
     state.bindRemoveBoneId=nil
     local bounds = computeAABB(meshD)
     local initialExtent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
@@ -2075,6 +2078,10 @@ local function showSelectedBindBone(report)
         state.bindMirrorAxis=1
         state.bindMirrorConfirmed=false
     end
+    if state.bindWeightsBoneId~=bone.boneId then
+        state.bindWeightsBoneId=bone.boneId
+        state.bindWeightsConfirmed=false
+    end
     if state.bindRemoveBoneId~=bone.boneId then
         state.bindRemoveBoneId=bone.boneId
         state.bindRemoveConfirmed=false
@@ -2387,6 +2394,48 @@ local function showSelectedBindBone(report)
             end
         end
         tImGui.EndDisabled()
+        tImGui.EndDisabled()
+        tImGui.TreePop()
+    end
+    local hasWeightsOk,hasWeights=safeCall(function()
+        return state.meshD:hasSkeletalVertexWeights()
+    end)
+    if hasWeightsOk and not hasWeights and
+            tImGui.TreeNode(tLang.L('swl_initialize_weights')..'##swlInitializeWeights') then
+        local vertexCount=state.meshBounds and state.meshBounds.total or 0
+        tImGui.TextWrapped(string.format(tLang.L('swl_initialize_weights_help_fmt'),
+            vertexCount,bone.name or '?'))
+        local confirmed=tImGui.Checkbox(tLang.L('swl_confirm_initialize_weights'),
+            state.bindWeightsConfirmed)
+        if confirmed~=state.bindWeightsConfirmed then state.bindWeightsConfirmed=confirmed end
+        tImGui.BeginDisabled(not state.bindWeightsConfirmed or vertexCount==0)
+        if tImGui.Button(tLang.L('swl_initialize_and_open_weights')..'##swlInitializeWeightsApply') then
+            local snapshot=stageRollbackSnapshot()
+            local ok,affected=false,nil
+            if snapshot then
+                ok,affected=safeCall(function()
+                    return state.meshD:initializeSkeletalVertexWeights(state.boneIndex)
+                end)
+            else
+                setStatus(tLang.L('swl_snapshot_failed'),true)
+            end
+            if ok then
+                commitRollbackSnapshot(snapshot)
+                state.modified=true
+                refreshBindReport()
+                state.bindWeightsBoneId=nil
+                state.allowedBones={}
+                for _,item in ipairs(getBones()) do state.allowedBones[item.name]=true end
+                invalidateAnalysis()
+                rebuildPreview()
+                rebuildSkeletonVisuals()
+                setWorkspace('weights')
+                applyWorkspaceVisibility()
+                setStatus(string.format(tLang.L('swl_weights_initialized_fmt'),affected,bone.name),false)
+            else
+                discardRollbackSnapshot(snapshot)
+            end
+        end
         tImGui.EndDisabled()
         tImGui.TreePop()
     end

@@ -5256,6 +5256,44 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::initializeSkeletalVertexWeights(const uint32_t boneIndex,
+                                                          uint32_t *vertexCountOut,
+                                                          char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (boneIndex >= impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical rigid-bind bone index is out of range");
+        if (impl->canonicalWeights.skeletonId != 0)
+            return fail("mesh already contains canonical skeletal weights");
+        if (impl->buffer.empty() || !impl->buffer[0])
+            return fail("mesh has no frame-zero geometry for skeletal weights");
+        uint32_t vertexCount = 0;
+        for (const util::SUBSET_DEBUG *subset : impl->buffer[0]->subset)
+            vertexCount += static_cast<uint32_t>(subset->vertexCount);
+        if (vertexCount == 0) return fail("mesh frame zero has no vertices for skeletal weights");
+        skeletal::CANONICAL_WEIGHTS candidate;
+        candidate.skeletonId = impl->canonicalSkeleton.skeletonId;
+        candidate.frameIndex = 0;
+        candidate.paletteBoneIds.push_back(impl->canonicalSkeleton.sourceBones[boneIndex].boneId);
+        candidate.vertices.resize(vertexCount);
+        for (skeletal::CANONICAL_VERTEX_WEIGHT &vertex : candidate.vertices)
+        {
+            vertex.paletteIndex[0] = 0;
+            vertex.weight[0] = 1.0f;
+        }
+        if (!skeletal::validateCanonicalWeights(impl->canonicalSkeleton, candidate, vertexCount))
+            return fail("initial canonical skeletal weights would be invalid");
+        impl->canonicalWeights = std::move(candidate);
+        if (vertexCountOut) *vertexCountOut = vertexCount;
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::hasSkeletalVertexWeights() const noexcept
     {
         return impl->canonicalWeights.skeletonId!=0 && !impl->canonicalWeights.vertices.empty();

@@ -307,6 +307,10 @@ namespace mbm
                                                const char **boneName1, float *weight1,
                                                const char **boneName2, float *weight2,
                                                const char **boneName3, float *weight3) const noexcept;
+        // Creates complete frame-zero type-42 weights rigidly bound to one existing bone.
+        API_IMPL bool initializeSkeletalVertexWeights(const uint32_t boneIndex,
+                                                       uint32_t *vertexCountOut,
+                                                       char *errorOut, const int errorOutLen);
         API_IMPL bool hasSkeletalVertexWeights() const noexcept;
         API_IMPL uint32_t getTotalSkeletalWeightBones() const noexcept;
         // Rigid/articulated animation authoring data. The storage remains PIMPL-owned; these

@@ -1400,6 +1400,7 @@ complete validation, and a composition requiring shear rejects without mutation.
 ```lua
 local present = meshD:hasSkeletalVertexWeights()
 local paletteSize = meshD:getTotalSkeletalWeightBones()
+local initializedVertexCount = meshD:initializeSkeletalVertexWeights(oneBasedBoneIndex)
 local name1, weight1, name2, weight2, name3, weight3, name4, weight4 =
     meshD:getSkeletalVertexWeight(vertexIndex)
 meshD:setSkeletalVertexWeight(vertexIndex,
@@ -1414,6 +1415,14 @@ influences, out-of-range vertices, or assets without matching type-41/type-42 se
 error without modifying the previous vertex. The getter returns eight values, using `nil, 0` for
 unused slots, or a single `nil` for an invalid vertex. These methods never read, create, or update
 the exploratory sections 11/40.
+
+`initializeSkeletalVertexWeights` is the explicit bootstrap for a locally authored skeleton that
+does not yet have type-42 data. It creates complete frame-zero coverage and rigidly binds every
+vertex to the selected existing bone with weight `1.0`, returning the number of initialized
+vertices. It never guesses geometric influences and never replaces existing weights: an absent
+canonical skeleton, invalid bone index, empty frame-zero geometry, existing type-42 data, or an
+invalid resulting 41/42 contract raises a Lua error without mutation. Subsequent distribution and
+blending belong to Skin Weight Lab.
 
 ### 15.1 Articulated-animation authoring
 

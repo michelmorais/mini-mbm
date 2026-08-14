@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.8 | 2026-08-13 | Added explicit canonical-weight initialization for locally authored rigs. Only an asset without type-42 data may bind every frame-zero vertex rigidly to one selected stable bone ID; complete 41/42 validation precedes commit, existing weights are never overwritten, and editor confirmation, rollback, direct Skin Weight Lab handoff, and save-reload are covered. |
 | 7.7 | 2026-08-13 | Added atomic canonical subtree mirroring for non-animated local rigs. Full global bind matrices reflect across global X/Y/Z origin planes, locals are rederived against copied/original parents, hierarchy/metadata persist under generated unique names and IDs, existing weights remain untouched, and editor impact preview/confirmation/rollback plus save-reload are covered. |
 | 7.6 | 2026-08-13 | Added atomic local bone-chain creation: 1–256 linked `prefix1..N` children with uniform local step, identity rotation/scale, metadata, collision-free stable IDs, complete dependency validation, final-bone selection, rollback, and save/reload. Failed chains leave no partial structure. |
 | 7.5 | 2026-08-13 | Began local skeleton creation: a loaded static mesh with no 41–43 data can initialize a validated canonical skeleton with one root and stable IDs. The editor proposes scale-aware AABB-base placement, creates no implicit weights/clips, rebuilds canonical inspection immediately, supports rollback, and proves save/reload. |

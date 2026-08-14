@@ -313,12 +313,27 @@ namespace
                    reparentError,sizeof(reparentError)) &&
                    staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==7,
                "canonical subtree mirror must reject duplicate generated names without mutation");
+        uint32_t initializedVertexCount = 0;
+        expect(staticMesh.initializeSkeletalVertexWeights(0,&initializedVertexCount,
+                   reparentError,sizeof(reparentError)) && initializedVertexCount>0,
+               "local rig must initialize complete rigid canonical weights explicitly");
+        const char *initialWeightBone=nullptr, *initialUnused1=nullptr, *initialUnused2=nullptr, *initialUnused3=nullptr;
+        float initialWeight=0, initialWeight1=0, initialWeight2=0, initialWeight3=0;
+        expect(staticMesh.getSkeletalVertexWeight(0,&initialWeightBone,&initialWeight,
+                   &initialUnused1,&initialWeight1,&initialUnused2,&initialWeight2,
+                   &initialUnused3,&initialWeight3) && initialWeightBone &&
+                   std::string(initialWeightBone)=="root" && std::fabs(initialWeight-1.0f)<=MATRIX_TOLERANCE,
+               "initialized weights must rigidly cover every vertex with the selected bone");
+        expect(!staticMesh.initializeSkeletalVertexWeights(1,&initializedVertexCount,
+                   reparentError,sizeof(reparentError)),
+               "weight initialization must reject an asset that already has type-42 weights");
         expect(staticMesh.saveV11(initializedPath,false,false,false,reparentError,sizeof(reparentError)),
                "canonical chain and mirrored subtree must save");
         MESH_MBM_DEBUG initializedReload;
         expect(initializedReload.loadV11(initializedPath) &&
-                   initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==7,
-               "initialized canonical skeleton, chain, and mirror must survive save/reload");
+                   initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==7 &&
+                   initializedReload.hasSkeletalVertexWeights(),
+               "initialized canonical skeleton, chain, mirror, and weights must survive save/reload");
         expect(!staticMesh.initializeSkeletalSkeleton("other",VEC3(),0.1f,1.0f,
                    reparentError,sizeof(reparentError)),
                "initial skeleton creation must reject an asset that already has skeletal data");

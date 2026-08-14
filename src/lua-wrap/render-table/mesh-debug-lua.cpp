@@ -2532,6 +2532,20 @@ namespace mbm
         return 1;
     }
 
+    int onInitializeSkeletalVertexWeightsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer boneIndex = luaL_checkinteger(lua, 2);
+        if (boneIndex <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        uint32_t vertexCount = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.initializeSkeletalVertexWeights(static_cast<uint32_t>(boneIndex - 1),
+                &vertexCount, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(vertexCount));
+        return 1;
+    }
+
     int onGetTotalSkeletalWeightBonesDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
@@ -2648,6 +2662,7 @@ namespace mbm
                                           {"setSkeletalVertexWeight", onSetSkeletalVertexWeightDebugLua},
                                           {"getSkeletalVertexWeight", onGetSkeletalVertexWeightDebugLua},
                                           {"hasSkeletalVertexWeights", onHasSkeletalVertexWeightsDebugLua},
+                                          {"initializeSkeletalVertexWeights", onInitializeSkeletalVertexWeightsDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},
