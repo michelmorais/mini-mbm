@@ -567,6 +567,7 @@ namespace
                "canonical clip container authoring must allocate identity and update properties atomically");
         SKELETAL_CLIP_INFO editedClip;
         uint32_t editedTrackIndex = 0;
+        uint32_t editedKeyIndex = 0;
         SKELETAL_TRACK_INFO editedTrack;
         SKELETAL_KEY_INFO bindSeedKey;
         expect(clipEditMesh.getSkeletalClip(editedClipIndex,editedClip) && editedClip.clipId!=0 &&
@@ -586,15 +587,29 @@ namespace
                        SKELETAL_CHANNEL_TRANSLATION|SKELETAL_CHANNEL_ROTATION|SKELETAL_CHANNEL_SCALE,
                        error,sizeof(error)-1) &&
                    !clipEditMesh.updateSkeletalTrackChannels(editedClipIndex,editedTrackIndex,0,
-                       error,sizeof(error)-1),
-               "canonical track authoring must seed bind, reject duplicates, and validate channels atomically");
+                       error,sizeof(error)-1) &&
+                   clipEditMesh.addSkeletalKey(editedClipIndex,editedTrackIndex,1.5f,
+                       &editedKeyIndex,error,sizeof(error)-1) && editedKeyIndex==1 &&
+                   clipEditMesh.updateSkeletalKey(editedClipIndex,editedTrackIndex,editedKeyIndex,2.0f,
+                       VEC3(1,2,3),0,0,0,2,VEC3(1,1,1),4,0,0,1,1,error,sizeof(error)-1) &&
+                   !clipEditMesh.updateSkeletalKey(editedClipIndex,editedTrackIndex,editedKeyIndex,0.0f,
+                       VEC3(),0,0,0,1,VEC3(1,1,1),0,0,0,1,1,error,sizeof(error)-1),
+               "canonical track/key authoring must seed sampled TRS, reject duplicates, and validate atomically");
         const char *trackRoundTrip="/tmp/mini-mbm-canonical-track-round-trip.msh";
         MESH_MBM_DEBUG trackReload;
         expect(clipEditMesh.saveV11(trackRoundTrip,false,false,false,error,sizeof(error)-1) &&
                    trackReload.loadV11(trackRoundTrip) &&
                    trackReload.getSkeletalTrack(editedClipIndex,editedTrackIndex,editedTrack) &&
                    editedTrack.channelMask==(SKELETAL_CHANNEL_TRANSLATION|
-                       SKELETAL_CHANNEL_ROTATION|SKELETAL_CHANNEL_SCALE) && editedTrack.keyCount==1 &&
+                       SKELETAL_CHANNEL_ROTATION|SKELETAL_CHANNEL_SCALE) && editedTrack.keyCount==2 &&
+                   trackReload.getSkeletalKey(editedClipIndex,editedTrackIndex,1,bindSeedKey) &&
+                   std::fabs(bindSeedKey.time-2.0f)<=MATRIX_TOLERANCE &&
+                   std::fabs(bindSeedKey.localTranslation.x-1.0f)<=MATRIX_TOLERANCE &&
+                   std::fabs(bindSeedKey.localRotationW-1.0f)<=MATRIX_TOLERANCE && bindSeedKey.easing==4 &&
+                   clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,editedKeyIndex,
+                       error,sizeof(error)-1) &&
+                   !clipEditMesh.removeSkeletalKey(editedClipIndex,editedTrackIndex,0,
+                       error,sizeof(error)-1) &&
                    clipEditMesh.removeSkeletalTrack(editedClipIndex,editedTrackIndex,
                        error,sizeof(error)-1) &&
                    !clipEditMesh.updateSkeletalClip(0,"idle-loop",1.0f,true,error,sizeof(error)-1) &&

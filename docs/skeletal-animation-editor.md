@@ -157,6 +157,15 @@ changed transactionally; stored key values remain intact and are revalidated und
 channels. Track removal requires confirmation because all of that track's keys are removed with it.
 Key-value editing and the timeline remain the next authoring layer.
 
+Keyframe authoring is available inside each expanded track. A new key time must be unique and lie
+inside the clip; insertion samples the existing clip and captures that bone's evaluated local TRS,
+so merely adding a key preserves the current curve. Expanded keys expose editable time,
+translation, quaternion rotation, scale, easing, and Cubic-Bezier controls. Applying normalizes the
+quaternion, reorders a moved key by time, and validates the complete type-43 collection. Removal
+requires confirmation and the final key cannot be removed because canonical tracks may not be
+empty. Every insertion, update, and removal uses whole-asset rollback. A graphical timeline and
+pose-oriented viewport controls remain subsequent Milestone-6 work.
+
 Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
 LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,
 and bind-restoration commands; the right instance is re-seeked to the left instance's time each

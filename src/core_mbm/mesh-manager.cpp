@@ -4668,6 +4668,121 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::addSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                         const float time, uint32_t *newIndexOut,
+                                         char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size())
+            return fail("canonical track index is out of range");
+        const skeletal::SKELETAL_CLIP &sourceClip = impl->canonicalAnimations.clips[clipIndex];
+        if (!std::isfinite(time) || time < 0.0f || time > sourceClip.duration)
+            return fail("canonical key time must be finite and inside the clip duration");
+        const skeletal::SKELETAL_TRACK &sourceTrack = sourceClip.tracks[trackIndex];
+        for (const skeletal::SKELETAL_KEY &key : sourceTrack.keys)
+            if (std::fabs(key.time - time) <= skeletal::KEY_TIME_TOLERANCE)
+                return fail("canonical track already has a key at this time");
+        skeletal::SKELETAL_POSE sampledPose;
+        if (!skeletal::sampleSkeletalClip(impl->canonicalSkeleton.compiled, sourceClip, time, sampledPose))
+            return fail("canonical clip could not be sampled for key insertion");
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(sourceTrack.boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end() ||
+            found->second >= sampledPose.localTransforms.size())
+            return fail("canonical track target could not be resolved");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_TRACK &track = candidate.clips[clipIndex].tracks[trackIndex];
+        skeletal::SKELETAL_KEY inserted;
+        inserted.time = time;
+        inserted.local = sampledPose.localTransforms[found->second];
+        const auto position = std::lower_bound(track.keys.begin(), track.keys.end(), time,
+            [](const skeletal::SKELETAL_KEY &key, const float value) { return key.time < value; });
+        const uint32_t index = static_cast<uint32_t>(position - track.keys.begin());
+        track.keys.insert(position, inserted);
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("new canonical key would be invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        if (newIndexOut) *newIndexOut = index;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                            const uint32_t keyIndex, const float time,
+                                            const VEC3 &translation, const float rotationX,
+                                            const float rotationY, const float rotationZ,
+                                            const float rotationW, const VEC3 &scale,
+                                            const uint8_t easing, const float bezierX1,
+                                            const float bezierY1, const float bezierX2,
+                                            const float bezierY2, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size() ||
+            keyIndex >= impl->canonicalAnimations.clips[clipIndex].tracks[trackIndex].keys.size())
+            return fail("canonical key index is out of range");
+        const float quaternionNorm = std::sqrt(rotationX * rotationX + rotationY * rotationY +
+                                               rotationZ * rotationZ + rotationW * rotationW);
+        if (!std::isfinite(quaternionNorm) || quaternionNorm <= skeletal::QUATERNION_ZERO_EPSILON)
+            return fail("canonical key rotation quaternion must be nonzero and finite");
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_TRACK &track = candidate.clips[clipIndex].tracks[trackIndex];
+        skeletal::SKELETAL_KEY edited = track.keys[keyIndex];
+        edited.time = time;
+        edited.local.translation = translation;
+        edited.local.rotation = {rotationX / quaternionNorm, rotationY / quaternionNorm,
+                                 rotationZ / quaternionNorm, rotationW / quaternionNorm};
+        edited.local.scale = scale;
+        edited.easing = static_cast<skeletal::SKELETAL_EASING>(easing);
+        edited.bezierX1 = bezierX1; edited.bezierY1 = bezierY1;
+        edited.bezierX2 = bezierX2; edited.bezierY2 = bezierY2;
+        track.keys.erase(track.keys.begin() + keyIndex);
+        const auto position = std::lower_bound(track.keys.begin(), track.keys.end(), time,
+            [](const skeletal::SKELETAL_KEY &key, const float value) { return key.time < value; });
+        track.keys.insert(position, edited);
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("updated canonical key would be invalid or collide with another key time");
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                            const uint32_t keyIndex, char *errorOut, const int errorOutLen)
+    {
+        if (clipIndex >= impl->canonicalAnimations.clips.size() ||
+            trackIndex >= impl->canonicalAnimations.clips[clipIndex].tracks.size() ||
+            keyIndex >= impl->canonicalAnimations.clips[clipIndex].tracks[trackIndex].keys.size())
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "canonical key index is out of range");
+            return false;
+        }
+        if (impl->canonicalAnimations.clips[clipIndex].tracks[trackIndex].keys.size() <= 1)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "canonical track must retain at least one key");
+            return false;
+        }
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        candidate.clips[clipIndex].tracks[trackIndex].keys.erase(
+            candidate.clips[clipIndex].tracks[trackIndex].keys.begin() + keyIndex);
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "remaining canonical keys would be invalid");
+            return false;
+        }
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::renameSkeletalBone(const uint32_t index, const char *name,
                                              char *errorOut, const int errorOutLen)
     {

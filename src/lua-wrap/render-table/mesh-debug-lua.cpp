@@ -2695,6 +2695,74 @@ namespace mbm
         return 1;
     }
 
+    int onAddSkeletalKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        const float time = static_cast<float>(luaL_checknumber(lua, 4));
+        if (clip <= 0 || track <= 0) return luaL_error(lua, "canonical clip and track indices must be one-based");
+        uint32_t index = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalKey(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), time, &index, errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(index + 1));
+        return 1;
+    }
+
+    int onUpdateSkeletalKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        const lua_Integer key = luaL_checkinteger(lua, 4);
+        if (clip <= 0 || track <= 0 || key <= 0)
+            return luaL_error(lua, "canonical clip, track, and key indices must be one-based");
+        const float time = static_cast<float>(luaL_checknumber(lua, 5));
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 6)),
+                               static_cast<float>(luaL_checknumber(lua, 7)),
+                               static_cast<float>(luaL_checknumber(lua, 8)));
+        const float qx = static_cast<float>(luaL_checknumber(lua, 9));
+        const float qy = static_cast<float>(luaL_checknumber(lua, 10));
+        const float qz = static_cast<float>(luaL_checknumber(lua, 11));
+        const float qw = static_cast<float>(luaL_checknumber(lua, 12));
+        const VEC3 scale(static_cast<float>(luaL_checknumber(lua, 13)),
+                         static_cast<float>(luaL_checknumber(lua, 14)),
+                         static_cast<float>(luaL_checknumber(lua, 15)));
+        const lua_Integer easing = luaL_checkinteger(lua, 16);
+        const float x1 = static_cast<float>(luaL_checknumber(lua, 17));
+        const float y1 = static_cast<float>(luaL_checknumber(lua, 18));
+        const float x2 = static_cast<float>(luaL_checknumber(lua, 19));
+        const float y2 = static_cast<float>(luaL_checknumber(lua, 20));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateSkeletalKey(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), static_cast<uint32_t>(key - 1), time,
+                translation, qx, qy, qz, qw, scale, static_cast<uint8_t>(easing),
+                x1, y1, x2, y2, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
+    int onRemoveSkeletalKeyDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer clip = luaL_checkinteger(lua, 2);
+        const lua_Integer track = luaL_checkinteger(lua, 3);
+        const lua_Integer key = luaL_checkinteger(lua, 4);
+        if (clip <= 0 || track <= 0 || key <= 0)
+            return luaL_error(lua, "canonical clip, track, and key indices must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalKey(static_cast<uint32_t>(clip - 1),
+                static_cast<uint32_t>(track - 1), static_cast<uint32_t>(key - 1), errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
     int onGetTotalSkeletalWeightBonesDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
@@ -2819,6 +2887,9 @@ namespace mbm
                                           {"addSkeletalTrack", onAddSkeletalTrackDebugLua},
                                           {"updateSkeletalTrackChannels", onUpdateSkeletalTrackChannelsDebugLua},
                                           {"removeSkeletalTrack", onRemoveSkeletalTrackDebugLua},
+                                          {"addSkeletalKey", onAddSkeletalKeyDebugLua},
+                                          {"updateSkeletalKey", onUpdateSkeletalKeyDebugLua},
+                                          {"removeSkeletalKey", onRemoveSkeletalKeyDebugLua},
                                           {"getTotalSkeletalWeightBones", onGetTotalSkeletalWeightBonesDebugLua},
                                           {"getTotalArticulatedParts", onGetTotalArticulatedPartsDebugLua},
                                           {"getArticulatedPart", onGetArticulatedPartDebugLua},

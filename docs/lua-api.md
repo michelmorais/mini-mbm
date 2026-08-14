@@ -1466,6 +1466,22 @@ tracks, creation inserts one key at time zero initialized from that bone's local
 the mask preserves all stored key values and revalidates them under the newly enabled channels.
 Removal deletes the selected track and all its keys. All operations validate and commit atomically.
 
+```lua
+local oneBasedKeyIndex = meshD:addSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, time)
+meshD:updateSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, oneBasedKeyIndex,
+    time, tx, ty, tz, qx, qy, qz, qw, sx, sy, sz,
+    easing, bezierX1, bezierY1, bezierX2, bezierY2)
+meshD:removeSkeletalKey(oneBasedClipIndex, oneBasedTrackIndex, oneBasedKeyIndex)
+```
+
+Insertion requires a unique time inside the clip, samples the current canonical clip first, and
+stores the target bone's evaluated local TRS at that time; adding a key therefore does not alter the
+existing curve by itself. Keys remain strictly time-ordered. Update may change time, TRS, easing
+`0..5`, and Bezier controls; it normalizes a finite nonzero quaternion and atomically reorders the
+key when its time changes. Duplicate times, invalid transforms, unsupported easing/Bezier values,
+and times outside the clip reject without mutation. Removal is allowed only while the track retains
+at least one key.
+
 ### 15.1 Articulated-animation authoring
 
 The object also exposes the Mesh V11 rigid-animation authoring API.

@@ -307,6 +307,19 @@ namespace mbm
                                                   char *errorOut, const int errorOutLen);
         API_IMPL bool removeSkeletalTrack(const uint32_t clipIndex, const uint32_t trackIndex,
                                           char *errorOut, const int errorOutLen);
+        API_IMPL bool addSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                     const float time, uint32_t *newIndexOut,
+                                     char *errorOut, const int errorOutLen);
+        API_IMPL bool updateSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                        const uint32_t keyIndex, const float time,
+                                        const VEC3 &translation, const float rotationX,
+                                        const float rotationY, const float rotationZ,
+                                        const float rotationW, const VEC3 &scale,
+                                        const uint8_t easing, const float bezierX1,
+                                        const float bezierY1, const float bezierX2,
+                                        const float bezierY2, char *errorOut, const int errorOutLen);
+        API_IMPL bool removeSkeletalKey(const uint32_t clipIndex, const uint32_t trackIndex,
+                                        const uint32_t keyIndex, char *errorOut, const int errorOutLen);
         API_IMPL bool renameSkeletalBone(const uint32_t index, const char *name,
                                          char *errorOut, const int errorOutLen);
         // newParentIndex is -1 for a root or a zero-based compiled/source index otherwise.

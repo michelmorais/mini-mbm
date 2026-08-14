@@ -43,6 +43,8 @@ local state = {
     animationNewTrackRotation = true,
     animationNewTrackScale = false,
     animationTrackEdits = {},
+    animationNewKeyTimes = {},
+    animationKeyEdits = {},
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -1207,6 +1209,8 @@ local function loadMesh(path)
     state.animationEditClipId=nil
     state.animationRemoveConfirmed=false
     state.animationTrackEdits={}
+    state.animationNewKeyTimes={}
+    state.animationKeyEdits={}
     local bounds = computeAABB(meshD)
     local initialExtent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
@@ -2757,6 +2761,14 @@ local function skeletalChannelLabel(mask)
     return table.concat(channels,'+')
 end
 
+local function skeletalKeyFloat(label,id,value)
+    tImGui.PushItemWidth(130)
+    local changed,result=tImGui.InputFloat(label..'##'..id,value,0,0,'%.6g',
+        tImGui.Flags('ImGuiInputTextFlags_None'))
+    tImGui.PopItemWidth()
+    return changed and result or value
+end
+
 local function showSkeletalAnimationInspection()
     tImGui.TextWrapped(tLang.L('swl_animation_inspection_help'))
     local ok,clips=safeCall(function() return state.meshD:getSkeletalAnimationReport() end)
@@ -2871,6 +2883,7 @@ local function showSkeletalAnimationInspection()
                 if added then
                     commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
                     state.animationTrackEdits={}
+                    state.animationKeyEdits={}; state.animationNewKeyTimes={}
                     setStatus(tLang.L('swl_animation_track_added'),false)
                 elseif snapshot then discardRollbackSnapshot(snapshot) end
             end
@@ -2917,6 +2930,7 @@ local function showSkeletalAnimationInspection()
                     if updated then
                         commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
                         state.animationTrackEdits={}
+                        state.animationKeyEdits={}
                         setStatus(tLang.L('swl_animation_track_updated'),false)
                     elseif snapshot then discardRollbackSnapshot(snapshot) end
                 end
@@ -2933,7 +2947,30 @@ local function showSkeletalAnimationInspection()
                     if removed then
                         commitRollbackSnapshot(snapshot); state.modified=true; refreshBindReport()
                         state.animationTrackEdits={}
+                        state.animationKeyEdits={}; state.animationNewKeyTimes={}
                         setStatus(tLang.L('swl_animation_track_removed'),false)
+                    elseif snapshot then discardRollbackSnapshot(snapshot) end
+                end
+                tImGui.EndDisabled()
+                local newKeyId=(clip.clipId or '?')..':'..(track.boneId or '?')
+                local newKeyTime=state.animationNewKeyTimes[newKeyId]
+                if newKeyTime==nil then newKeyTime=math.min(clip.duration or 0,
+                    ((track.keys or {})[#(track.keys or {})] and
+                     (track.keys or {})[#(track.keys or {})].time or 0)+0.1) end
+                newKeyTime=skeletalKeyFloat(tLang.L('swl_animation_new_key_time'),
+                    'swlNewKeyTime'..trackIndex,newKeyTime)
+                state.animationNewKeyTimes[newKeyId]=newKeyTime
+                tImGui.TextDisabled(tLang.L('swl_animation_key_sample_help'))
+                tImGui.BeginDisabled(newKeyTime<0 or newKeyTime>(clip.duration or 0))
+                if tImGui.Button(tLang.L('swl_animation_add_key')..'##swlKeyAdd'..trackIndex) then
+                    local snapshot=stageRollbackSnapshot()
+                    local added=false
+                    if snapshot then added=select(1,safeCall(function()
+                        return state.meshD:addSkeletalKey(state.animationClipSelected,trackIndex,newKeyTime) end)) end
+                    if added then
+                        commitRollbackSnapshot(snapshot); state.modified=true
+                        state.animationKeyEdits={}; state.animationNewKeyTimes={}
+                        setStatus(tLang.L('swl_animation_key_added'),false)
                     elseif snapshot then discardRollbackSnapshot(snapshot) end
                 end
                 tImGui.EndDisabled()
@@ -2942,16 +2979,72 @@ local function showSkeletalAnimationInspection()
                     if tImGui.TreeNode(string.format(tLang.L('swl_animation_key_fmt'),
                             keyIndex,key.time or 0,easing)..'##swlKey'..trackIndex..'-'..keyIndex) then
                         local p,q,s=key.translation or {},key.rotation or {},key.scale or {}
-                        tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g)',
-                            tLang.L('swl_animation_translation'),p.x or 0,p.y or 0,p.z or 0))
-                        tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g, %.6g)',
-                            tLang.L('swl_animation_rotation'),q.x or 0,q.y or 0,q.z or 0,q.w or 1))
-                        tImGui.Text(string.format('%s: (%.6g, %.6g, %.6g)',
-                            tLang.L('swl_animation_scale'),s.x or 1,s.y or 1,s.z or 1))
-                        tImGui.Text(string.format('%s: %s',tLang.L('swl_animation_easing'),easing))
-                        if (key.easing or 0)==5 and key.bezier then
-                            tImGui.Text(string.format('Bezier: (%.4g, %.4g) (%.4g, %.4g)',
-                                key.bezier.x1 or 0,key.bezier.y1 or 0,key.bezier.x2 or 1,key.bezier.y2 or 1))
+                        local keyEditId=newKeyId..':'..keyIndex..':'..string.format('%.9g',key.time or 0)
+                        local edit=state.animationKeyEdits[keyEditId]
+                        if not edit then
+                            edit={time=key.time or 0,tx=p.x or 0,ty=p.y or 0,tz=p.z or 0,
+                                qx=q.x or 0,qy=q.y or 0,qz=q.z or 0,qw=q.w or 1,
+                                sx=s.x or 1,sy=s.y or 1,sz=s.z or 1,easing=(key.easing or 0)+1,
+                                x1=key.bezier and key.bezier.x1 or 0,
+                                y1=key.bezier and key.bezier.y1 or 0,
+                                x2=key.bezier and key.bezier.x2 or 1,
+                                y2=key.bezier and key.bezier.y2 or 1,removeConfirmed=false}
+                            state.animationKeyEdits[keyEditId]=edit
+                        end
+                        local fieldId='swlKey'..trackIndex..'-'..keyIndex
+                        edit.time=skeletalKeyFloat(tLang.L('swl_animation_new_key_time'),fieldId..'Time',edit.time)
+                        for _,field in ipairs({{'T X','tx'},{'T Y','ty'},{'T Z','tz'},
+                                {'Q X','qx'},{'Q Y','qy'},{'Q Z','qz'},{'Q W','qw'},
+                                {'S X','sx'},{'S Y','sy'},{'S Z','sz'}}) do
+                            edit[field[2]]=skeletalKeyFloat(field[1],fieldId..field[2],edit[field[2]])
+                        end
+                        tImGui.PushItemWidth(190)
+                        local easingChanged,easingChoice=tImGui.Combo(
+                            tLang.L('swl_animation_easing')..'##'..fieldId..'Easing',
+                            edit.easing,skeletalEasingNames,-1)
+                        tImGui.PopItemWidth()
+                        if easingChanged then edit.easing=easingChoice end
+                        if edit.easing==6 then
+                            for _,field in ipairs({{'Bezier X1','x1'},{'Bezier Y1','y1'},
+                                    {'Bezier X2','x2'},{'Bezier Y2','y2'}}) do
+                                edit[field[2]]=skeletalKeyFloat(field[1],fieldId..field[2],edit[field[2]])
+                            end
+                        end
+                        tImGui.BeginDisabled(edit.time<0 or edit.time>(clip.duration or 0))
+                        if tImGui.Button(tLang.L('swl_animation_apply_key')..'##'..fieldId..'Apply') then
+                            local snapshot=stageRollbackSnapshot()
+                            local updated=false
+                            if snapshot then updated=select(1,safeCall(function()
+                                return state.meshD:updateSkeletalKey(state.animationClipSelected,trackIndex,keyIndex,
+                                    edit.time,edit.tx,edit.ty,edit.tz,edit.qx,edit.qy,edit.qz,edit.qw,
+                                    edit.sx,edit.sy,edit.sz,edit.easing-1,edit.x1,edit.y1,edit.x2,edit.y2) end)) end
+                            if updated then
+                                commitRollbackSnapshot(snapshot); state.modified=true
+                                state.animationKeyEdits={}
+                                setStatus(tLang.L('swl_animation_key_updated'),false)
+                            elseif snapshot then discardRollbackSnapshot(snapshot) end
+                        end
+                        tImGui.EndDisabled()
+                        if #(track.keys or {})<=1 then
+                            tImGui.TextDisabled(tLang.L('swl_animation_last_key_required'))
+                        else
+                            edit.removeConfirmed=tImGui.Checkbox(
+                                tLang.L('swl_animation_confirm_remove_key')..'##'..fieldId..'Confirm',
+                                edit.removeConfirmed)
+                            tImGui.BeginDisabled(not edit.removeConfirmed)
+                            if tImGui.Button(tLang.L('swl_animation_remove_key')..'##'..fieldId..'Remove') then
+                                local snapshot=stageRollbackSnapshot()
+                                local removed=false
+                                if snapshot then removed=select(1,safeCall(function()
+                                    return state.meshD:removeSkeletalKey(state.animationClipSelected,
+                                        trackIndex,keyIndex) end)) end
+                                if removed then
+                                    commitRollbackSnapshot(snapshot); state.modified=true
+                                    state.animationKeyEdits={}; state.animationNewKeyTimes={}
+                                    setStatus(tLang.L('swl_animation_key_removed'),false)
+                                elseif snapshot then discardRollbackSnapshot(snapshot) end
+                            end
+                            tImGui.EndDisabled()
                         end
                         tImGui.TreePop()
                     end
