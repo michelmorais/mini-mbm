@@ -301,10 +301,13 @@ namespace mbm
             boneIds[index]=static_cast<uint32_t>(luaL_checkinteger(lua,-1));
             lua_pop(lua,1);
         }
-        lua_pushboolean(lua, mesh->setSkeletalAuthoringPalette(method, rows.data(),
+        char errorOut[255]="";
+        const bool applied=mesh->setSkeletalAuthoringPalette(method, rows.data(),
             static_cast<uint32_t>(rows.size()),boneIds.data(),
-            static_cast<uint32_t>(boneIds.size()),time));
-        return 1;
+            static_cast<uint32_t>(boneIds.size()),time,errorOut,static_cast<int>(sizeof(errorOut)));
+        lua_pushboolean(lua,applied);
+        if (applied) lua_pushnil(lua); else lua_pushstring(lua,errorOut);
+        return 2;
     }
 
     int onPlaySkeletalAnimationLua(lua_State *lua)

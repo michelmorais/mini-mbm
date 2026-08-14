@@ -593,7 +593,7 @@ rigid DQS rejects any scale/shear.
 | `obj:stopSkeletalAnimation` | `()` | bool | Stop the active clip and restore bind-pose deformation |
 | `obj:seekSkeletalAnimation` | `(time)` | bool | Seek the active clip, clamped to its duration |
 | `obj:getSkeletalAnimationTime` | `()` | number or nil | Current time, or `nil` when inactive |
-| `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation |
+| `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
 ```lua
 local character = mesh:new("3d")

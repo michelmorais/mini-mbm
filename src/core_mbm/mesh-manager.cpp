@@ -6936,19 +6936,46 @@ namespace mbm
                                                 const float *rows, const uint32_t rowCount,
                                                 const uint32_t *orderedBoneIds,
                                                 const uint32_t boneIdCount,
-                                                const float time) const noexcept
+                                                const float time, char *errorOut,
+                                                const int errorOutLen) const noexcept
     {
-        if (!rows || !orderedBoneIds || !std::isfinite(time) || time < 0.0f ||
-            (method != SKELETAL_SHADER_METHOD::LBS && method != SKELETAL_SHADER_METHOD::DQS_RIGID) ||
-            method != player.impl->resolvedSkinningMethod || !impl->gles2LbsInput.supports(method))
+        const auto fail=[errorOut,errorOutLen](const char *format,auto... values)
+        {
+            if (errorOut && errorOutLen>0)
+            {
+                if constexpr (sizeof...(values)==0) snprintf(errorOut,errorOutLen,"%s",format);
+                else snprintf(errorOut,errorOutLen,format,values...);
+            }
             return false;
+        };
+        if (!rows) return fail("authoring palette rows are missing");
+        if (!orderedBoneIds) return fail("authoring ordered bone identities are missing");
+        if (!std::isfinite(time) || time<0.0f) return fail("authoring pose time is invalid");
+        if (method!=SKELETAL_SHADER_METHOD::LBS && method!=SKELETAL_SHADER_METHOD::DQS_RIGID)
+            return fail("authoring skinning method is invalid");
+        if (method!=player.impl->resolvedSkinningMethod)
+            return fail("authoring method does not match preview resolved method");
+        if (!impl->gles2LbsInput.supports(method))
+        {
+            const skeletal::GLES2_LBS_PREPARATION_STATUS selectedStatus=
+                impl->gles2LbsInput.ready() ? skeletal::GLES2_LBS_PREPARATION_STATUS::PALETTE_TOO_LARGE :
+                impl->gles2LbsInput.status;
+            return fail("preview skeletal input is not ready: %s",
+                skeletal::gles2LbsPreparationStatusName(selectedStatus));
+        }
         const uint32_t stride = method == SKELETAL_SHADER_METHOD::DQS_RIGID ? 8u : 12u;
         const uint32_t expected = static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size()) * stride;
-        if (rowCount != expected || boneIdCount != impl->canonicalSkeleton.compiled.bones.size() ||
-            !std::all_of(rows,rows+rowCount,[](const float value){ return std::isfinite(value); }))
-            return false;
+        if (rowCount!=expected)
+            return fail("authoring palette row count mismatch: got %u, expected %u",rowCount,expected);
+        if (boneIdCount!=impl->canonicalSkeleton.compiled.bones.size())
+            return fail("authoring bone count mismatch: got %u, expected %u",boneIdCount,
+                static_cast<uint32_t>(impl->canonicalSkeleton.compiled.bones.size()));
+        if (!std::all_of(rows,rows+rowCount,[](const float value){ return std::isfinite(value); }))
+            return fail("authoring palette contains a non-finite value");
         for (uint32_t index=0; index<boneIdCount; ++index)
-            if (orderedBoneIds[index]!=impl->canonicalSkeleton.compiled.bones[index].boneId) return false;
+            if (orderedBoneIds[index]!=impl->canonicalSkeleton.compiled.bones[index].boneId)
+                return fail("authoring bone identity mismatch at index %u: got %u, expected %u",index+1,
+                    orderedBoneIds[index],impl->canonicalSkeleton.compiled.bones[index].boneId);
         player.impl->paletteRows.assign(rows, rows + rowCount);
         player.impl->clipIndex = UINT32_MAX;
         player.impl->time = time;

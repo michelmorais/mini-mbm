@@ -888,12 +888,13 @@ local function refreshAuthoringPose(clip)
             state.animationClipSelected,state.authoringTime,method)
     end)
     if not okPose or type(pose)~='table' then return false end
-    local okApply,applied=safeCall(function()
+    local okApply,applied,reason=safeCall(function()
         return state.preview:setSkeletalAuthoringPalette(method,pose.palette,state.authoringTime,
             pose.boneIds)
     end)
     if not okApply or not applied then
-        setStatus('A pose de autoria não é compatível com a mesh de preview.',true)
+        setStatus(string.format(tLang.L('swl_animation_pose_incompatible_fmt'),
+            tostring(reason or 'unknown')),true)
         return false
     end
     state.authoringPose=pose

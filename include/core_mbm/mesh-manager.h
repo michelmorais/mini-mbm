@@ -605,7 +605,8 @@ namespace mbm
         bool setSkeletalAuthoringPalette(SKELETAL_ANIMATION_PLAYER &player,
                                          SKELETAL_SHADER_METHOD method, const float *rows,
                                          uint32_t rowCount, const uint32_t *orderedBoneIds,
-                                         uint32_t boneIdCount, float time) const noexcept;
+                                         uint32_t boneIdCount, float time, char *errorOut,
+                                         int errorOutLen) const noexcept;
         bool updateSkeletalAnimation(SKELETAL_ANIMATION_PLAYER &player, float delta) const;
         bool renderSkeletal(const SKELETAL_ANIMATION_PLAYER &player, uint32_t indexFrame,
                             const SHADER *shader, const RENDERIZABLE *owner);

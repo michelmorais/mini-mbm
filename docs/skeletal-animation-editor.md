@@ -186,6 +186,13 @@ temporary and can be discarded; mouse release does not silently create or overwr
 deliberate boundary lets the next slice define auto-key versus explicit commit without conflating
 viewport mechanics with persistence policy.
 
+If the editable pose cannot be installed on the runtime preview, the editor reports the failed
+contract clause instead of a generic incompatibility. Diagnostics distinguish unavailable skeletal
+GPU input, palette capacity, resolved-method mismatch, row/bone counts, non-finite data, and the
+first ordered stable-bone identity mismatch. Assets without canonical runtime weights or whose
+unsaved skeleton order differs from the file-backed preview are therefore actionable rather than
+appearing as an unexplained gizmo failure.
+
 Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
 LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,
 and bind-restoration commands; the right instance is re-seeked to the left instance's time each
