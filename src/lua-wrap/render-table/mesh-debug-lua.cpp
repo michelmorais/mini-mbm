@@ -2496,6 +2496,24 @@ namespace mbm
         return 1;
     }
 
+    int onExtendSkeletalBoneTailDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        const lua_Integer count=luaL_checkinteger(lua,3);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        if(count<=0) return luaL_error(lua,"canonical extension count must be positive");
+        const float radius=static_cast<float>(luaL_checknumber(lua,4));
+        const float length=static_cast<float>(luaL_checknumber(lua,5));
+        uint32_t lastIndex=0;
+        char errorOut[255]="";
+        if(!meshDebug->mesh.extendSkeletalBoneTail(static_cast<uint32_t>(index-1),
+                static_cast<uint32_t>(count),radius,length,&lastIndex,errorOut,
+                static_cast<int>(sizeof(errorOut)))) return lua_error_debug(lua,errorOut);
+        lua_pushinteger(lua,static_cast<lua_Integer>(lastIndex+1));
+        return 1;
+    }
+
     int onMirrorSkeletalBoneSubtreeDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3038,6 +3056,7 @@ namespace mbm
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
                                           {"addSkeletalBoneChain", onAddSkeletalBoneChainDebugLua},
+                                          {"extendSkeletalBoneTail", onExtendSkeletalBoneTailDebugLua},
                                           {"mirrorSkeletalBoneSubtree", onMirrorSkeletalBoneSubtreeDebugLua},
                                           {"removeSkeletalBone", onRemoveSkeletalBoneDebugLua},
                                           {"removeSkeletalBoneRemapped", onRemoveSkeletalBoneRemappedDebugLua},

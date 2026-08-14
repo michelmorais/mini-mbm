@@ -305,6 +305,20 @@ namespace
                    jointOnlyReload.getSkeletonBindBone(0,after) && !after.hasExplicitTail,
                "transform-only joint state must survive canonical save/reload");
         std::remove(jointOnlyPath);
+        MESH_MBM_DEBUG extensionMesh;
+        uint32_t extensionLastIndex=0;
+        expect(extensionMesh.loadV11("src/test-lib/Crate.msh") &&
+                   extensionMesh.initializeSkeletalSkeleton("extension_root",VEC3(0,0,0),
+                       0.1f,2.0f,true,reparentError,sizeof(reparentError)) &&
+                   extensionMesh.setSkeletalBoneTail(0,VEC3(2,0,0),true,true,
+                       reparentError,sizeof(reparentError)) &&
+                   extensionMesh.extendSkeletalBoneTail(0,10,0.1f,0.5f,&extensionLastIndex,
+                       reparentError,sizeof(reparentError)) && extensionLastIndex==10 &&
+                   extensionMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==11 &&
+                   extensionMesh.getSkeletonBindBone(10,after) && after.connectedToParent &&
+                   std::fabs(after.globalBindMatrix.m[3][0]-6.5f)<=MATRIX_TOLERANCE &&
+                   std::fabs(after.tailOffset.x-0.5f)<=MATRIX_TOLERANCE,
+               "tail extension count must atomically create a connected directional chain");
         MESH_MBM_DEBUG staticMesh;
         expect(staticMesh.loadV11("src/test-lib/Crate.msh") &&
                    staticMesh.initializeSkeletalSkeleton("root",VEC3(0,0,0),0.1f,1.0f,true,

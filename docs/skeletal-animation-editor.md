@@ -243,8 +243,16 @@ coordinate conversion changes the visual aim axis.
 Extending a selected explicit tail creates a child whose local head is exactly that tail offset and
 sets `connectedToParent=true`. This explicit constraint is what later joint dragging will use to
 move the shared parent tail and child head together; ordinary parenthood does not imply connection.
-The new tail initially continues the selected segment's parent-local direction with the configured
-length, including bones whose imported aim axis is not local `+Y`.
+The integer immediately before **Extend Selected Tail** chooses between 1 and 256 new segments; the
+whole chain is committed atomically. Every new tail continues the selected segment's parent-local
+direction. When the selected segment has a parent, its own length is inherited by every new segment;
+for a root, the **Bone length** field supplies the repeated length. This includes bones whose
+imported aim axis is not local `+Y`.
+
+The **Snap X/Y/Z** controls constrain joint and segment dragging in global space. With one or more
+axes checked, only those coordinates receive the mouse displacement; unchecked coordinates remain
+at their gesture-start values. With all three unchecked, dragging remains freely projected on the
+camera-facing plane.
 
 Dragging an explicit tail uses a camera-facing plane through the endpoint. The resulting world-space
 point is converted back through the bone's global bind basis into `tailOffset`; the head remains

@@ -5642,6 +5642,91 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::extendSkeletalBoneTail(const uint32_t index, const uint32_t count,
+                                                 const float radius, const float length,
+                                                 uint32_t *lastIndexOut,
+                                                 char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if(errorOut&&errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        const auto &source=impl->canonicalSkeleton.sourceBones;
+        if(impl->canonicalSkeleton.skeletonId==0) return fail("mesh has no canonical skeleton");
+        if(index>=source.size()) return fail("canonical extension bone index is out of range");
+        if(count==0||count>256) return fail("canonical extension count must be between 1 and 256");
+        if(!std::isfinite(radius)||!std::isfinite(length)||radius<0.0f||
+            length<=skeletal::SINGULAR_TOLERANCE)
+            return fail("canonical extension radius and length must be finite and positive");
+        const skeletal::CANONICAL_BONE &selected=source[index];
+        if(!selected.hasExplicitTail) return fail("canonical extension requires an explicit tail");
+        const float selectedLength=std::sqrt(selected.tailOffset.x*selected.tailOffset.x+
+            selected.tailOffset.y*selected.tailOffset.y+selected.tailOffset.z*selected.tailOffset.z);
+        if(selectedLength<=skeletal::SINGULAR_TOLERANCE)
+            return fail("canonical extension requires a nonzero tail direction");
+        const VEC3 newTail(selected.tailOffset.x*length/selectedLength,
+                           selected.tailOffset.y*length/selectedLength,
+                           selected.tailOffset.z*length/selectedLength);
+
+        skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+        uint64_t parentId=selected.boneId;
+        VEC3 head=selected.tailOffset;
+        uint64_t nextBoneId=1;
+        uint32_t nextName=1;
+        for(uint32_t item=0;item<count;++item)
+        {
+            while(candidate.compiled.indexById.find(nextBoneId)!=candidate.compiled.indexById.end()||
+                std::any_of(candidate.sourceBones.begin(),candidate.sourceBones.end(),
+                    [nextBoneId](const skeletal::CANONICAL_BONE &bone)
+                    { return bone.boneId==nextBoneId; }))
+            {
+                if(nextBoneId==std::numeric_limits<uint64_t>::max())
+                    return fail("canonical bone ID space is exhausted");
+                ++nextBoneId;
+            }
+            std::string name;
+            do name="Bone_"+std::to_string(nextName++);
+            while(candidate.compiled.indexByName.find(name)!=candidate.compiled.indexByName.end()||
+                std::any_of(candidate.sourceBones.begin(),candidate.sourceBones.end(),
+                    [&name](const skeletal::CANONICAL_BONE &bone){ return bone.name==name; }));
+            skeletal::CANONICAL_BONE added;
+            added.boneId=nextBoneId;
+            added.parentBoneId=parentId;
+            added.name=std::move(name);
+            added.localBind.translation=head;
+            added.radius=radius;
+            added.length=length;
+            added.tailOffset=newTail;
+            added.hasExplicitTail=true;
+            added.connectedToParent=true;
+            parentId=added.boneId;
+            head=newTail;
+            candidate.sourceBones.push_back(std::move(added));
+            if(nextBoneId<std::numeric_limits<uint64_t>::max()) ++nextBoneId;
+        }
+        if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+            return fail("extended canonical chain would be invalid");
+        if(impl->canonicalWeights.skeletonId!=0)
+        {
+            if(impl->canonicalWeights.frameIndex>=impl->buffer.size())
+                return fail("canonical weight frame is out of range");
+            const util::BUFFER_MESH_DEBUG *frame=impl->buffer[impl->canonicalWeights.frameIndex];
+            uint32_t vertexCount=0;
+            for(const util::SUBSET_DEBUG *subset:frame->subset)
+                vertexCount+=static_cast<uint32_t>(subset->vertexCount);
+            if(!skeletal::validateCanonicalWeights(candidate,impl->canonicalWeights,vertexCount))
+                return fail("canonical weights would be invalid after extending tail");
+        }
+        if(impl->canonicalAnimations.skeletonId!=0&&
+            !skeletal::validateCanonicalAnimations(candidate,impl->canonicalAnimations))
+            return fail("canonical animations would be invalid after extending tail");
+        impl->canonicalSkeleton=std::move(candidate);
+        if(lastIndexOut) *lastIndexOut=static_cast<uint32_t>(
+            impl->canonicalSkeleton.sourceBones.size()-1);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::mirrorSkeletalBoneSubtree(const uint32_t index, const uint32_t axis,
                                                     const char *namePrefix, uint32_t *newRootIndexOut,
                                                     char *errorOut, const int errorOutLen)

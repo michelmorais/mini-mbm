@@ -1388,6 +1388,15 @@ and a new opaque stable ID. The returned one-based index identifies the last bon
 generated name, invalid input, ID exhaustion, or failed 41–43 validation rejects the entire chain.
 
 ```lua
+local lastBoneIndex = meshD:extendSkeletalBoneTail(oneBasedBoneIndex, count, radius, length)
+```
+
+Atomically adds between 1 and 256 explicitly connected segments from the selected tail. The first
+head uses the selected bone's exact tail; every new segment continues that tail's bone-local
+direction with the requested length. Collision-free `Bone_N` labels and stable IDs are allocated,
+and any validation failure rejects the complete extension rather than leaving a partial chain.
+
+```lua
 local mirroredRootIndex = meshD:mirrorSkeletalBoneSubtree(oneBasedBoneIndex,
     axis, namePrefix)
 ```

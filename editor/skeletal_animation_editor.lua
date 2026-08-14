@@ -53,7 +53,9 @@ local state = {
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
     boneEditorPosition = {x=0,y=0,z=0},
     boneEditorLength = 1,
+    boneEditorExtendCount = 1,
     boneEditorPreserveOtherJoints = true,
+    boneEditorSnapAxes = {x=false,y=false,z=false},
     boneEditorSelectedIndex = nil,
     boneEditorSelection = nil,
     boneEditorDrag = nil,
@@ -3560,6 +3562,13 @@ local function showBoneEditor()
         tLang.L('swl_bone_editor_preserve_other_joints')..'##swlBonePreserveJoints',
         state.boneEditorPreserveOtherJoints)
     tImGui.TextWrapped(tLang.L('swl_bone_editor_preserve_other_joints_help'))
+    tImGui.Text(tLang.L('swl_bone_editor_axis_constraint'))
+    for axisIndex,axis in ipairs({'x','y','z'}) do
+        if axisIndex>1 then tImGui.SameLine() end
+        state.boneEditorSnapAxes[axis]=tImGui.Checkbox(
+            'Snap '..axis:upper()..'##swlBoneSnap'..axis,state.boneEditorSnapAxes[axis])
+    end
+    tImGui.TextWrapped(tLang.L('swl_bone_editor_axis_constraint_help'))
     tImGui.Separator()
     tImGui.PushItemWidth(190)
     for _,field in ipairs({{'X','x'},{'Y','y'},{'Z','z'}}) do
@@ -3622,20 +3631,26 @@ local function showBoneEditor()
     local selectedTail=state.boneEditorSelection and
         (state.boneEditorSelection.kind=='tail' or state.boneEditorSelection.kind=='joint') and
         getBones()[state.boneEditorSelection.boneIndex] or nil
-    tImGui.BeginDisabled(not selectedTail or not state.boneEditorLength or
-        state.boneEditorLength<=0)
+    local inheritedExtensionLength=selectedTail and selectedTail.parentName and
+        selectedTail.length and selectedTail.length>0 and selectedTail.length or nil
+    local extensionLength=inheritedExtensionLength or state.boneEditorLength
+    tImGui.BeginDisabled(not selectedTail or not extensionLength or extensionLength<=0)
+    tImGui.PushItemWidth(65)
+    local countChanged,extendCount=tImGui.InputInt('##swlBoneEditorExtendCount',
+        state.boneEditorExtendCount,1,1,tImGui.Flags('ImGuiInputTextFlags_None'))
+    if countChanged then state.boneEditorExtendCount=math.max(1,math.min(256,extendCount)) end
+    tImGui.PopItemWidth()
+    tImGui.SameLine()
     if tImGui.Button(tLang.L('swl_bone_editor_extend')..'##swlBoneEditorExtend') then
         local snapshot=stageRollbackSnapshot()
         local ok,newIndex=false,nil
         if snapshot then
-            local offset=selectedTail.tailOffset or {x=0,y=0,z=0}
             local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
                 state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
             local radius=math.max(selectedTail.radius or 0,extent*0.012,0.01)
             ok,newIndex=safeCall(function()
-                return state.meshD:addSkeletalBone(state.boneEditorSelection.boneIndex,
-                    nextSimpleBoneName(),offset.x or 0,offset.y or 0,offset.z or 0,
-                    radius,state.boneEditorLength,true,true)
+                return state.meshD:extendSkeletalBoneTail(state.boneEditorSelection.boneIndex,
+                    state.boneEditorExtendCount,radius,extensionLength)
             end)
         end
         if ok then
@@ -3654,6 +3669,11 @@ local function showBoneEditor()
         elseif snapshot then discardRollbackSnapshot(snapshot) end
     end
     tImGui.EndDisabled()
+    if selectedTail then
+        tImGui.TextDisabled(string.format(tLang.L(inheritedExtensionLength and
+            'swl_bone_editor_inherited_length' or 'swl_bone_editor_configured_length'),
+            extensionLength or 0))
+    end
     tImGui.TextDisabled(tLang.L('swl_bone_editor_root_note'))
     if state.boneEditorSelection then
         local selectionKey=state.boneEditorSelection.kind=='segment' and
@@ -4045,10 +4065,23 @@ function onTouchMove(key, x, y)
             wx,wy,wz=rayPlaneHit(x,y,boneDrag.plane.point,boneDrag.plane.normal)
         end
         if wx then
+            local snap=state.boneEditorSnapAxes
+            local constrained=snap.x or snap.y or snap.z
+            if constrained then
+                if boneDrag.mode=='segment' then
+                    wx=boneDrag.head.x+(snap.x and (wx-boneDrag.startWorldHit.x) or 0)
+                    wy=boneDrag.head.y+(snap.y and (wy-boneDrag.startWorldHit.y) or 0)
+                    wz=boneDrag.head.z+(snap.z and (wz-boneDrag.startWorldHit.z) or 0)
+                else
+                    wx=snap.x and wx or boneDrag.point.x
+                    wy=snap.y and wy or boneDrag.point.y
+                    wz=snap.z and wz or boneDrag.point.z
+                end
+            end
             local lx,ly,lz
             if boneDrag.mode=='head' or boneDrag.mode=='segment' then
                 local parent=boneDrag.parent
-                if boneDrag.mode=='segment' then
+                if boneDrag.mode=='segment' and not constrained then
                     wx=boneDrag.head.x+(wx-boneDrag.startWorldHit.x)
                     wy=boneDrag.head.y+(wy-boneDrag.startWorldHit.y)
                     wz=boneDrag.head.z+(wz-boneDrag.startWorldHit.z)

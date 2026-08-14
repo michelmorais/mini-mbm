@@ -489,6 +489,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.14 | 2026-08-14 | Repeated tail extension now inherits the selected non-root segment length for the entire generated chain. Root extension alone uses the Bone length field, and the resolved value is shown beside the action. |
+| 7.13 | 2026-08-14 | Added atomic repeated tail extension and global-axis drag constraints. A 1–256 count creates a connected directional chain in one validated commit; Snap X/Y/Z restricts joint and segment displacement to any selected axis combination, while no selection retains free camera-plane dragging. |
 | 7.12 | 2026-08-14 | Completed direct segment translation: dragging the bone body moves head and tail rigidly without changing length/orientation, disconnects its former parent-head constraint when necessary, carries connected child heads, and applies the same optional global compensation policy to all other joints. |
 | 7.11 | 2026-08-14 | Added the default-on Preserve other joints policy to bind dragging. It compensates descendant local TRS so joints outside the manipulated head/shared joint retain their global bind transforms; disabling it deliberately restores ordinary parent-to-subtree propagation. |
 | 7.10 | 2026-08-14 | Added direct head dragging. Independent heads convert the camera-plane world target to parent-local translation while preserving their own global tail; connected logical-joint drag continues through the parent tail and now preserves every connected child's opposite global tail, reshaping adjacent segments correctly. |

@@ -395,6 +395,11 @@ namespace mbm
                                            const uint32_t count, const VEC3 &stepTranslation,
                                            const float radius, const float length,
                                            uint32_t *lastIndexOut, char *errorOut, const int errorOutLen);
+        // Atomically extends an explicit tail with connected segments that continue its direction.
+        API_IMPL bool extendSkeletalBoneTail(const uint32_t index, const uint32_t count,
+                                             const float radius, const float length,
+                                             uint32_t *lastIndexOut,
+                                             char *errorOut, const int errorOutLen);
         // Duplicates a subtree by reflecting global bind matrices across axis 0=X, 1=Y, 2=Z.
         API_IMPL bool mirrorSkeletalBoneSubtree(const uint32_t index, const uint32_t axis,
                                                 const char *namePrefix, uint32_t *newRootIndexOut,
