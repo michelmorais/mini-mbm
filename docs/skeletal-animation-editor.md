@@ -173,6 +173,18 @@ skeleton from the same evaluated global transforms. Consequently the mesh and sk
 same pose while editing. This slice deliberately stops at evaluation/preview: mouse picking,
 translation/rotation gizmos, auto-key policy, and the graphical timeline are the next interaction
 layer; numeric key fields are diagnostic/fallback controls rather than the intended primary UX.
+Bone selection is now viewport-driven as well as tree/track-driven. Clicking either an evaluated
+joint or its parent-to-child segment performs a nearest-hit ray test and selects the child bone;
+dragging empty viewport space continues to orbit the camera. This establishes the selection
+semantics that translation and rotation gizmos will consume without yet mutating the pose.
+
+The selected animation bone now displays world-space X/Y/Z translation handles. Dragging a handle
+computes displacement along that axis, converts the world delta through the inverse parent basis,
+and feeds the resulting local translation back into the one-bone in-memory override contract on
+every move. Mesh, evaluated skeleton, and gizmo update together. The result is explicitly marked
+temporary and can be discarded; mouse release does not silently create or overwrite a key. This
+deliberate boundary lets the next slice define auto-key versus explicit commit without conflating
+viewport mechanics with persistence policy.
 
 Enable **Compare LBS / DQS pose stress** to replace the single preview with two runtime instances:
 LBS on the left and rigid DQS on the right. Both receive the same clip, restart, pause/resume, seek,
