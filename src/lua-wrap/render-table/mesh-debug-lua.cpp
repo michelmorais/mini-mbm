@@ -2414,9 +2414,10 @@ namespace mbm
                               static_cast<float>(luaL_checknumber(lua, 4)),
                               static_cast<float>(luaL_checknumber(lua, 5)));
         const bool hasExplicitTail = lua_gettop(lua) < 6 || lua_toboolean(lua, 6) != 0;
+        const bool preserveOtherJoints = lua_gettop(lua) < 7 || lua_toboolean(lua, 7) != 0;
         char errorOut[255] = "";
         if (!meshDebug->mesh.setSkeletalBoneTail(static_cast<uint32_t>(index - 1), tailOffset,
-                hasExplicitTail, errorOut, static_cast<int>(sizeof(errorOut))))
+                hasExplicitTail, preserveOtherJoints, errorOut, static_cast<int>(sizeof(errorOut))))
             return lua_error_debug(lua, errorOut);
         return 0;
     }
@@ -2429,8 +2430,10 @@ namespace mbm
         const VEC3 translation(static_cast<float>(luaL_checknumber(lua,3)),
                                static_cast<float>(luaL_checknumber(lua,4)),
                                static_cast<float>(luaL_checknumber(lua,5)));
+        const bool preserveOtherJoints=lua_gettop(lua)<6||lua_toboolean(lua,6)!=0;
         char errorOut[255]="";
         if(!meshDebug->mesh.setSkeletalBoneHead(static_cast<uint32_t>(index-1),translation,
+                preserveOtherJoints,
                 errorOut,static_cast<int>(sizeof(errorOut))))
             return lua_error_debug(lua,errorOut);
         return 0;

@@ -53,6 +53,7 @@ local state = {
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
     boneEditorPosition = {x=0,y=0,z=0},
     boneEditorLength = 1,
+    boneEditorPreserveOtherJoints = true,
     boneEditorSelectedIndex = nil,
     boneEditorSelection = nil,
     boneEditorDrag = nil,
@@ -3566,6 +3567,9 @@ local function showBoneEditor()
         tImGui.Flags('ImGuiInputTextFlags_None'))
     if lengthChanged then state.boneEditorLength=length end
     tImGui.PopItemWidth()
+    state.boneEditorPreserveOtherJoints=tImGui.Checkbox(
+        tLang.L('swl_bone_editor_preserve_other_joints')..'##swlBonePreserveJoints',
+        state.boneEditorPreserveOtherJoints)
     local function addRootItem(hasExplicitTail)
         local snapshot=stageRollbackSnapshot()
         local ok,newIndex=false,nil
@@ -4048,9 +4052,11 @@ function onTouchMove(key, x, y)
             if lx then
                 local ok=safeCall(function()
                     if boneDrag.mode=='head' then
-                        return state.meshD:setSkeletalBoneHead(boneDrag.boneIndex,lx,ly,lz)
+                        return state.meshD:setSkeletalBoneHead(boneDrag.boneIndex,lx,ly,lz,
+                            state.boneEditorPreserveOtherJoints)
                     end
-                    return state.meshD:setSkeletalBoneTail(boneDrag.boneIndex,lx,ly,lz,true)
+                    return state.meshD:setSkeletalBoneTail(boneDrag.boneIndex,lx,ly,lz,true,
+                        state.boneEditorPreserveOtherJoints)
                 end)
                 if ok then
                     boneDrag.moved=true

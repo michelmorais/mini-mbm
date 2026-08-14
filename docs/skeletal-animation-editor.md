@@ -268,6 +268,9 @@ converted into parent-local translation, its explicit tail remains fixed in glob
 the segment is therefore stretched from its initial endpoint. Moving a connected logical joint
 instead edits the owning parent tail; connected child heads follow while each child's opposite tail
 is preserved, reshaping both adjacent segments rather than translating the child segment wholesale.
+**Preserve other joints** is enabled by default: descendants outside the joint being manipulated
+have their local bind TRS compensated so their global joints stay in place. Disabling it restores
+ordinary hierarchical propagation, allowing the edited joint to carry the descendant subtree.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 

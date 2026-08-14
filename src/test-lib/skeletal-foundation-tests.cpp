@@ -323,23 +323,32 @@ namespace
                    &chainLastIndex,reparentError,sizeof(reparentError)) &&
                    staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==4,
                "canonical chain creation must reject duplicate generated names without mutation");
-        expect(staticMesh.setSkeletalBoneTail(0,VEC3(0.5f,1.5f,0.0f),true,
+        SKELETON_BIND_BONE_INFO preservedDescendantBefore,preservedDescendantAfter;
+        expect(staticMesh.getSkeletonBindBone(2,preservedDescendantBefore) &&
+                   staticMesh.setSkeletalBoneTail(0,VEC3(0.5f,1.5f,0.0f),true,true,
                    reparentError,sizeof(reparentError)) &&
                    staticMesh.getSkeletonBindBone(1,after) && after.connectedToParent &&
                    std::fabs(after.localTranslation.x-0.5f)<=MATRIX_TOLERANCE &&
-                   std::fabs(after.localTranslation.y-1.5f)<=MATRIX_TOLERANCE,
-               "tail editing must move explicitly connected child heads atomically");
+                   std::fabs(after.localTranslation.y-1.5f)<=MATRIX_TOLERANCE &&
+                   staticMesh.getSkeletonBindBone(2,preservedDescendantAfter) &&
+                   maximumMatrixDifference(preservedDescendantBefore.globalBindMatrix,
+                       preservedDescendantAfter.globalBindMatrix)<=MATRIX_TOLERANCE,
+               "tail editing must move the shared joint while preserving other joints");
         VEC3 preservedTailBefore,preservedTailAfter;
         expect(staticMesh.getSkeletonBindBone(1,after) &&
                    vec3TransformCoord(&preservedTailBefore,&after.tailOffset,&after.globalBindMatrix) &&
-                   staticMesh.setSkeletalBoneHead(1,VEC3(0.75f,1.25f,0.0f),
+                   staticMesh.getSkeletonBindBone(2,preservedDescendantBefore) &&
+                   staticMesh.setSkeletalBoneHead(1,VEC3(0.75f,1.25f,0.0f),true,
                        reparentError,sizeof(reparentError)) &&
                    staticMesh.getSkeletonBindBone(1,after) && !after.connectedToParent &&
                    vec3TransformCoord(&preservedTailAfter,&after.tailOffset,&after.globalBindMatrix) &&
                    std::fabs(preservedTailAfter.x-preservedTailBefore.x)<=MATRIX_TOLERANCE &&
                    std::fabs(preservedTailAfter.y-preservedTailBefore.y)<=MATRIX_TOLERANCE &&
-                   std::fabs(preservedTailAfter.z-preservedTailBefore.z)<=MATRIX_TOLERANCE,
-               "head editing must preserve the explicit tail in global bind space");
+                   std::fabs(preservedTailAfter.z-preservedTailBefore.z)<=MATRIX_TOLERANCE &&
+                   staticMesh.getSkeletonBindBone(2,preservedDescendantAfter) &&
+                   maximumMatrixDifference(preservedDescendantBefore.globalBindMatrix,
+                       preservedDescendantAfter.globalBindMatrix)<=MATRIX_TOLERANCE,
+               "head editing must preserve its tail and all other joints in global bind space");
         expect(staticMesh.setSkeletalBoneBind(1,VEC3(1,1,0),0,0,0,1,VEC3(1,1,1),0.1f,1.0f,
                    reparentError,sizeof(reparentError)) &&
                    staticMesh.getSkeletonBindBone(1,after) && !after.connectedToParent,

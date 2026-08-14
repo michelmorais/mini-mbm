@@ -367,13 +367,16 @@ namespace mbm
                                           const VEC3 &scale, const float radius, const float length,
                                           char *errorOut, const int errorOutLen);
         // Replaces explicit Bone Editor geometry and keeps explicitly connected child heads on the
-        // same parent-local point. Runtime bind orientation is not inferred from the visual tail.
+        // same parent-local point. preserveOtherJoints compensates every joint outside the edited
+        // shared joint in global bind space. Runtime bind orientation is not inferred from the tail.
         API_IMPL bool setSkeletalBoneTail(const uint32_t index, const VEC3 &tailOffset,
-                                          const bool hasExplicitTail,
+                                          const bool hasExplicitTail, const bool preserveOtherJoints,
                                           char *errorOut, const int errorOutLen);
         // Moves one transform head in parent-local space while preserving its explicit tail in
-        // global bind space. Connected children remain attached to that preserved tail.
+        // global bind space. Connected children remain attached to that preserved tail;
+        // preserveOtherJoints compensates the remaining hierarchy in global bind space.
         API_IMPL bool setSkeletalBoneHead(const uint32_t index, const VEC3 &translation,
+                                          const bool preserveOtherJoints,
                                           char *errorOut, const int errorOutLen);
         // Adds a parent-first canonical transform with a new opaque stable ID. parentIndex is -1
         // for root; hasExplicitTail distinguishes a selectable bone segment from a joint only.

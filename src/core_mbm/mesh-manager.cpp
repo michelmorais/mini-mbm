@@ -5282,6 +5282,7 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::setSkeletalBoneTail(const uint32_t index, const VEC3 &tailOffset,
                                               const bool hasExplicitTail,
+                                              const bool preserveOtherJoints,
                                               char *errorOut, const int errorOutLen)
     {
         const auto fail = [errorOut, errorOutLen](const char *message)
@@ -5303,12 +5304,18 @@ namespace mbm
 
         skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
         skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        std::vector<MATRIX> oldGlobals;
+        oldGlobals.reserve(candidate.compiled.bones.size());
+        for (const skeletal::COMPILED_BONE &bone : candidate.compiled.bones)
+            oldGlobals.push_back(bone.globalBindMatrix);
+        std::vector<bool> movedConnectedChildren(candidate.sourceBones.size(), false);
         std::vector<std::pair<uint32_t, VEC3>> connectedChildTails;
         for (uint32_t childIndex = 0; childIndex < candidate.sourceBones.size(); ++childIndex)
         {
             const skeletal::CANONICAL_BONE &child = candidate.sourceBones[childIndex];
-            if (child.parentBoneId != edited.boneId || !child.connectedToParent ||
-                !child.hasExplicitTail) continue;
+            if (child.parentBoneId != edited.boneId || !child.connectedToParent) continue;
+            movedConnectedChildren[childIndex] = true;
+            if (!child.hasExplicitTail) continue;
             VEC3 worldTail;
             vec3TransformCoord(&worldTail, &child.tailOffset,
                 &impl->canonicalSkeleton.compiled.bones[childIndex].globalBindMatrix);
@@ -5342,6 +5349,37 @@ namespace mbm
         }
         if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
             return fail("connected child tail preservation would make the skeleton invalid");
+        if (preserveOtherJoints)
+        {
+            for (uint32_t boneIndex = 0; boneIndex < candidate.sourceBones.size(); ++boneIndex)
+            {
+                if (boneIndex == index || movedConnectedChildren[boneIndex]) continue;
+                MATRIX local = oldGlobals[boneIndex];
+                const int32_t parentIndex = candidate.compiled.bones[boneIndex].parentIndex;
+                if (parentIndex >= 0)
+                {
+                    const uint32_t parent = static_cast<uint32_t>(parentIndex);
+                    const MATRIX &parentGlobal =
+                        (parent == index || movedConnectedChildren[parent])
+                            ? candidate.compiled.bones[parent].globalBindMatrix
+                            : oldGlobals[parent];
+                    MATRIX inverseParent;
+                    float determinant = 0.0f;
+                    MatrixInverse(&inverseParent, &determinant, &parentGlobal);
+                    if (!std::isfinite(determinant) ||
+                        std::fabs(determinant) <= skeletal::SINGULAR_TOLERANCE)
+                        return fail("preserved joint parent transform is not invertible");
+                    MatrixMultiply(&local, &oldGlobals[boneIndex], &inverseParent);
+                }
+                bool negativeScale = false;
+                bool shear = false;
+                if (!skeletal::decomposeTrsMatrix(local, candidate.sourceBones[boneIndex].localBind,
+                        negativeScale, shear) || shear)
+                    return fail("preserving other joints would require an invalid local transform");
+            }
+            if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+                return fail("other-joint preservation would make the skeleton invalid");
+        }
         // Tail geometry and connected-child bind translations do not change skeleton IDs, weight
         // palettes, vertex records, clip IDs, or track targets. Revalidating every vertex and clip
         // on every mouse-move event is both redundant and prohibitively expensive.
@@ -5350,6 +5388,7 @@ namespace mbm
     }
 
     bool MESH_MBM_DEBUG::setSkeletalBoneHead(const uint32_t index, const VEC3 &translation,
+                                              const bool preserveOtherJoints,
                                               char *errorOut, const int errorOutLen)
     {
         const auto fail = [errorOut,errorOutLen](const char *message)
@@ -5364,6 +5403,10 @@ namespace mbm
             return fail("canonical bone head must be finite");
         skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
         skeletal::CANONICAL_BONE &edited=candidate.sourceBones[index];
+        std::vector<MATRIX> oldGlobals;
+        oldGlobals.reserve(candidate.compiled.bones.size());
+        for (const skeletal::COMPILED_BONE &bone:candidate.compiled.bones)
+            oldGlobals.push_back(bone.globalBindMatrix);
         VEC3 oldWorldTail;
         if (edited.hasExplicitTail)
             vec3TransformCoord(&oldWorldTail,&edited.tailOffset,
@@ -5388,6 +5431,35 @@ namespace mbm
                     child.localBind.translation=edited.tailOffset;
             if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
                 return fail("head edit tail preservation would make the skeleton invalid");
+        }
+        if (preserveOtherJoints)
+        {
+            for (uint32_t boneIndex=0;boneIndex<candidate.sourceBones.size();++boneIndex)
+            {
+                if (boneIndex==index) continue;
+                MATRIX local=oldGlobals[boneIndex];
+                const int32_t parentIndex=candidate.compiled.bones[boneIndex].parentIndex;
+                if (parentIndex>=0)
+                {
+                    const uint32_t parent=static_cast<uint32_t>(parentIndex);
+                    const MATRIX &parentGlobal=parent==index
+                        ? candidate.compiled.bones[parent].globalBindMatrix : oldGlobals[parent];
+                    MATRIX inverseParent;
+                    float determinant=0.0f;
+                    MatrixInverse(&inverseParent,&determinant,&parentGlobal);
+                    if (!std::isfinite(determinant)||
+                        std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                        return fail("preserved joint parent transform is not invertible");
+                    MatrixMultiply(&local,&oldGlobals[boneIndex],&inverseParent);
+                }
+                bool negativeScale=false;
+                bool shear=false;
+                if (!skeletal::decomposeTrsMatrix(local,candidate.sourceBones[boneIndex].localBind,
+                        negativeScale,shear)||shear)
+                    return fail("preserving other joints would require an invalid local transform");
+            }
+            if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("other-joint preservation would make the skeleton invalid");
         }
         impl->canonicalSkeleton=std::move(candidate);
         return true;

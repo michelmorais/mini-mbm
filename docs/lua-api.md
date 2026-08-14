@@ -1334,21 +1334,26 @@ the edited bone and its descendants; it does not compensate child-local transfor
 head away from a parent tail clears `connectedToParent` rather than preserving a false constraint.
 
 ```lua
-meshD:setSkeletalBoneTail(oneBasedBoneIndex, tailX, tailY, tailZ, hasExplicitTail)
+meshD:setSkeletalBoneTail(oneBasedBoneIndex, tailX, tailY, tailZ,
+    hasExplicitTail, preserveOtherJoints)
 ```
 
 Replaces the Bone Editor endpoint in bone-local bind space. `hasExplicitTail` defaults to true;
 an explicit tail must differ from the head. Length metadata is recomputed, and every direct child
-marked `connectedToParent` receives the same parent-local head translation atomically. Bind
-orientation is deliberately not inferred from this authoring geometry.
+marked `connectedToParent` receives the same parent-local head translation atomically. When
+`preserveOtherJoints` is omitted or true, the remaining joints are compensated so their global
+bind transforms do not move; false retains ordinary hierarchical propagation. Bind orientation is
+deliberately not inferred from this authoring geometry.
 
 ```lua
-meshD:setSkeletalBoneHead(oneBasedBoneIndex, tx, ty, tz)
+meshD:setSkeletalBoneHead(oneBasedBoneIndex, tx, ty, tz, preserveOtherJoints)
 ```
 
 Moves the head using a parent-local translation while preserving an explicit tail in global bind
 space. The operation clears this bone's own `connectedToParent` constraint; children connected to
-its preserved tail remain attached. This is the bind-authoring primitive used by direct head drag.
+its preserved tail remain attached. `preserveOtherJoints` defaults to true and compensates every
+other joint in global bind space; false lets descendants follow their hierarchy. This is the
+bind-authoring primitive used by direct head drag.
 
 ```lua
 local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length,

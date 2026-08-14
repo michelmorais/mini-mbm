@@ -267,6 +267,7 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.15.0 Bone Editor adds a default-on Preserve other joints policy. Bind head/shared-joint dragging compensates unaffected descendants to retain their global transforms; disabling it restores ordinary hierarchical subtree propagation.
     7.14.0 Bone Editor supports direct head dragging with global-tail preservation. Shared connected-joint drag now also preserves each connected child's opposite tail, so moving the joint reshapes both adjacent segments instead of translating the child segment wholesale.
     7.13.1 Fixed overlap selection changing at drag start: mouse-down now locks the highlighted candidate, movement beyond three pixels drags it, and only a stationary left-button release cycles to the next nearest-depth candidate.
     7.13.0 Bone Editor resolves overlapping endpoints without zoom: explicitly connected parent-tail/child-head members form one logical highlighted joint, while repeated clicks near the same pixel cycle deterministic nearest-depth candidates when coincident endpoints are intentionally disconnected.
@@ -318,7 +319,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.14.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.15.0" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif
