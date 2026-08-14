@@ -2421,6 +2421,21 @@ namespace mbm
         return 0;
     }
 
+    int onSetSkeletalBoneHeadDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua,3)),
+                               static_cast<float>(luaL_checknumber(lua,4)),
+                               static_cast<float>(luaL_checknumber(lua,5)));
+        char errorOut[255]="";
+        if(!meshDebug->mesh.setSkeletalBoneHead(static_cast<uint32_t>(index-1),translation,
+                errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        return 0;
+    }
+
     int onInitializeSkeletalSkeletonDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -2999,6 +3014,7 @@ namespace mbm
                                           {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
                                           {"setSkeletalBoneTail", onSetSkeletalBoneTailDebugLua},
+                                          {"setSkeletalBoneHead", onSetSkeletalBoneHeadDebugLua},
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
                                           {"addSkeletalBoneChain", onAddSkeletalBoneChainDebugLua},

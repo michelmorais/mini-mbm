@@ -262,6 +262,12 @@ clicks cycle deterministically through candidates at the nearest depth, so zoom 
 reach an obscured tail. Cycling occurs only on left-button release when the pointer moved no more
 than three pixels. On press, an already highlighted candidate remains locked; moving beyond that
 threshold starts its drag and release does not change the selection.
+
+An independent head can also be dragged on the same camera-facing plane. Its new world point is
+converted into parent-local translation, its explicit tail remains fixed in global bind space, and
+the segment is therefore stretched from its initial endpoint. Moving a connected logical joint
+instead edits the owning parent tail; connected child heads follow while each child's opposite tail
+is preserved, reshaping both adjacent segments rather than translating the child segment wholesale.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 

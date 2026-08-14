@@ -1343,6 +1343,14 @@ marked `connectedToParent` receives the same parent-local head translation atomi
 orientation is deliberately not inferred from this authoring geometry.
 
 ```lua
+meshD:setSkeletalBoneHead(oneBasedBoneIndex, tx, ty, tz)
+```
+
+Moves the head using a parent-local translation while preserving an explicit tail in global bind
+space. The operation clears this bone's own `connectedToParent` constraint; children connected to
+its preserved tail remain attached. This is the bind-authoring primitive used by direct head drag.
+
+```lua
 local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length,
     hasExplicitTail, connectedToParent)
 ```

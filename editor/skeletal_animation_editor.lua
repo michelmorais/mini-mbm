@@ -3947,22 +3947,30 @@ function onTouchDown(key, x, y)
             if selection then
                 state.boneIndex=selection.boneIndex
                 applyWorkspaceVisibility()
-                if selection.kind=='tail' or selection.kind=='joint' then
+                if selection.kind=='head' or selection.kind=='tail' or selection.kind=='joint' then
                     local bone=getBones()[selection.boneIndex]
-                    local _,tail=getBoneEditorEndpoints(bone,1)
+                    local head,tail=getBoneEditorEndpoints(bone,1)
+                    local dragPoint=selection.kind=='head' and head or tail
+                    local parent=nil
+                    if bone.parentName then
+                        for _,candidate in ipairs(getBones()) do
+                            if candidate.name==bone.parentName then parent=candidate break end
+                        end
+                    end
                     local px,py,pz=cameraPosition()
                     local nx,ny,nz=state.cam.fx-px,state.cam.fy-py,state.cam.fz-pz
                     local normalLength=math.sqrt(nx*nx+ny*ny+nz*nz)
                     if normalLength>1e-6 then
                         nx,ny,nz=nx/normalLength,ny/normalLength,nz/normalLength
-                        local wx,wy,wz=rayPlaneHit(x,y,tail,{x=nx,y=ny,z=nz})
+                        local wx,wy,wz=rayPlaneHit(x,y,dragPoint,{x=nx,y=ny,z=nz})
                         local snapshot=wx and stageRollbackSnapshot() or nil
                         if snapshot then
                             state.boneEditorDrag={boneIndex=selection.boneIndex,
                                 boneId=selection.boneId,boneName=selection.boneName,
+                                mode=selection.kind=='head' and 'head' or 'tail',parent=parent,
                                 head={x=bone.x,y=bone.y,z=bone.z},
-                                globalMatrix=bone.globalMatrix,point=tail,
-                                plane={point=tail,normal={x=nx,y=ny,z=nz}},snapshot=snapshot,
+                                globalMatrix=bone.globalMatrix,point=dragPoint,
+                                plane={point=dragPoint,normal={x=nx,y=ny,z=nz}},snapshot=snapshot,
                                 moved=false,lastVisualTime=0,startX=x,startY=y}
                             return
                         end
@@ -4026,10 +4034,22 @@ function onTouchMove(key, x, y)
             wx,wy,wz=rayPlaneHit(x,y,boneDrag.plane.point,boneDrag.plane.normal)
         end
         if wx then
-            local lx,ly,lz=worldDeltaToLocal(wx-boneDrag.head.x,wy-boneDrag.head.y,
-                wz-boneDrag.head.z,boneDrag.globalMatrix)
+            local lx,ly,lz
+            if boneDrag.mode=='head' then
+                local parent=boneDrag.parent
+                if parent then
+                    lx,ly,lz=worldDeltaToLocal(wx-parent.x,wy-parent.y,wz-parent.z,
+                        parent.globalMatrix)
+                else lx,ly,lz=wx,wy,wz end
+            else
+                lx,ly,lz=worldDeltaToLocal(wx-boneDrag.head.x,wy-boneDrag.head.y,
+                    wz-boneDrag.head.z,boneDrag.globalMatrix)
+            end
             if lx then
                 local ok=safeCall(function()
+                    if boneDrag.mode=='head' then
+                        return state.meshD:setSkeletalBoneHead(boneDrag.boneIndex,lx,ly,lz)
+                    end
                     return state.meshD:setSkeletalBoneTail(boneDrag.boneIndex,lx,ly,lz,true)
                 end)
                 if ok then
@@ -4098,7 +4118,8 @@ function onTouchUp(key, x, y)
                 refreshBindReport()
                 rebuildSkeletonVisuals()
                 applyWorkspaceVisibility()
-                setStatus(tLang.L('swl_bone_editor_tail_moved'),false)
+                setStatus(tLang.L(boneDrag.mode=='head' and 'swl_bone_editor_head_moved' or
+                    'swl_bone_editor_tail_moved'),false)
             else discardRollbackSnapshot(boneDrag.snapshot) end
             state.boneEditorDrag=nil
         end

@@ -5303,6 +5303,17 @@ namespace mbm
 
         skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
         skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        std::vector<std::pair<uint32_t, VEC3>> connectedChildTails;
+        for (uint32_t childIndex = 0; childIndex < candidate.sourceBones.size(); ++childIndex)
+        {
+            const skeletal::CANONICAL_BONE &child = candidate.sourceBones[childIndex];
+            if (child.parentBoneId != edited.boneId || !child.connectedToParent ||
+                !child.hasExplicitTail) continue;
+            VEC3 worldTail;
+            vec3TransformCoord(&worldTail, &child.tailOffset,
+                &impl->canonicalSkeleton.compiled.bones[childIndex].globalBindMatrix);
+            connectedChildTails.emplace_back(childIndex, worldTail);
+        }
         edited.tailOffset = hasExplicitTail ? tailOffset : VEC3();
         edited.length = hasExplicitTail ? length : 0.0f;
         edited.hasExplicitTail = hasExplicitTail;
@@ -5311,10 +5322,74 @@ namespace mbm
                 child.localBind.translation = edited.tailOffset;
         if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
             return fail("edited canonical tail would make the skeleton invalid");
+        for (const auto &saved : connectedChildTails)
+        {
+            MATRIX inverse;
+            float determinant = 0.0f;
+            MatrixInverse(&inverse, &determinant,
+                &candidate.compiled.bones[saved.first].globalBindMatrix);
+            if (!std::isfinite(determinant) || std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                return fail("connected child bind transform is not invertible");
+            vec3TransformCoord(&candidate.sourceBones[saved.first].tailOffset,&saved.second,&inverse);
+            const VEC3 &preservedOffset=candidate.sourceBones[saved.first].tailOffset;
+            candidate.sourceBones[saved.first].length=std::sqrt(
+                preservedOffset.x*preservedOffset.x+preservedOffset.y*preservedOffset.y+
+                preservedOffset.z*preservedOffset.z);
+            for (skeletal::CANONICAL_BONE &grandchild : candidate.sourceBones)
+                if (grandchild.parentBoneId==candidate.sourceBones[saved.first].boneId &&
+                    grandchild.connectedToParent)
+                    grandchild.localBind.translation=candidate.sourceBones[saved.first].tailOffset;
+        }
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("connected child tail preservation would make the skeleton invalid");
         // Tail geometry and connected-child bind translations do not change skeleton IDs, weight
         // palettes, vertex records, clip IDs, or track targets. Revalidating every vertex and clip
         // on every mouse-move event is both redundant and prohibitively expensive.
         impl->canonicalSkeleton = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalBoneHead(const uint32_t index, const VEC3 &translation,
+                                              char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId==0) return fail("mesh has no canonical skeleton");
+        if (index>=impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if (!std::isfinite(translation.x)||!std::isfinite(translation.y)||!std::isfinite(translation.z))
+            return fail("canonical bone head must be finite");
+        skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE &edited=candidate.sourceBones[index];
+        VEC3 oldWorldTail;
+        if (edited.hasExplicitTail)
+            vec3TransformCoord(&oldWorldTail,&edited.tailOffset,
+                &impl->canonicalSkeleton.compiled.bones[index].globalBindMatrix);
+        edited.localBind.translation=translation;
+        edited.connectedToParent=false;
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+            return fail("edited canonical head would make the skeleton invalid");
+        if (edited.hasExplicitTail)
+        {
+            MATRIX inverse;
+            float determinant=0.0f;
+            MatrixInverse(&inverse,&determinant,&candidate.compiled.bones[index].globalBindMatrix);
+            if (!std::isfinite(determinant)||std::fabs(determinant)<=skeletal::SINGULAR_TOLERANCE)
+                return fail("edited canonical head transform is not invertible");
+            vec3TransformCoord(&edited.tailOffset,&oldWorldTail,&inverse);
+            edited.length=std::sqrt(edited.tailOffset.x*edited.tailOffset.x+
+                                    edited.tailOffset.y*edited.tailOffset.y+
+                                    edited.tailOffset.z*edited.tailOffset.z);
+            for (skeletal::CANONICAL_BONE &child:candidate.sourceBones)
+                if (child.parentBoneId==edited.boneId&&child.connectedToParent)
+                    child.localBind.translation=edited.tailOffset;
+            if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+                return fail("head edit tail preservation would make the skeleton invalid");
+        }
+        impl->canonicalSkeleton=std::move(candidate);
         return true;
     }
 

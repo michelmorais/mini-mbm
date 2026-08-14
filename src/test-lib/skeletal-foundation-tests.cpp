@@ -329,6 +329,17 @@ namespace
                    std::fabs(after.localTranslation.x-0.5f)<=MATRIX_TOLERANCE &&
                    std::fabs(after.localTranslation.y-1.5f)<=MATRIX_TOLERANCE,
                "tail editing must move explicitly connected child heads atomically");
+        VEC3 preservedTailBefore,preservedTailAfter;
+        expect(staticMesh.getSkeletonBindBone(1,after) &&
+                   vec3TransformCoord(&preservedTailBefore,&after.tailOffset,&after.globalBindMatrix) &&
+                   staticMesh.setSkeletalBoneHead(1,VEC3(0.75f,1.25f,0.0f),
+                       reparentError,sizeof(reparentError)) &&
+                   staticMesh.getSkeletonBindBone(1,after) && !after.connectedToParent &&
+                   vec3TransformCoord(&preservedTailAfter,&after.tailOffset,&after.globalBindMatrix) &&
+                   std::fabs(preservedTailAfter.x-preservedTailBefore.x)<=MATRIX_TOLERANCE &&
+                   std::fabs(preservedTailAfter.y-preservedTailBefore.y)<=MATRIX_TOLERANCE &&
+                   std::fabs(preservedTailAfter.z-preservedTailBefore.z)<=MATRIX_TOLERANCE,
+               "head editing must preserve the explicit tail in global bind space");
         expect(staticMesh.setSkeletalBoneBind(1,VEC3(1,1,0),0,0,0,1,VEC3(1,1,1),0.1f,1.0f,
                    reparentError,sizeof(reparentError)) &&
                    staticMesh.getSkeletonBindBone(1,after) && !after.connectedToParent,

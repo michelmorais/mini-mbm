@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.10 | 2026-08-14 | Added direct head dragging. Independent heads convert the camera-plane world target to parent-local translation while preserving their own global tail; connected logical-joint drag continues through the parent tail and now preserves every connected child's opposite global tail, reshaping adjacent segments correctly. |
 | 7.9 | 2026-08-14 | Moved overlap cycling from mouse-down to click release. Mouse-down locks the already highlighted candidate; movement beyond three pixels drags that candidate without reselection, while a stationary release advances to the next nearest-depth overlap. This removes the select-one/drag-another conflict. |
 | 7.8 | 2026-08-14 | Resolved overlapping endpoint ambiguity. Connected parent-tail/child-head members are one highlighted logical joint owned by the parent tail; coincident but disconnected endpoints remain separate and repeated clicks near the same pixel cycle deterministic nearest-depth candidates without requiring zoom. |
 | 7.7 | 2026-08-14 | Removed tail-drag stalls on weighted meshes: mouse-move reports omit per-bone vertex/track impact scans, tail-only commits skip dependency validation whose identity inputs cannot change, and full gizmo reconstruction is capped near 30 Hz. A complete report and preview rebuild still run on release. |
