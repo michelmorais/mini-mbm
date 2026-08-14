@@ -139,8 +139,9 @@ SECTION_SKELETAL_WEIGHTS   = 42,
 SECTION_SKELETAL_ANIMATION = 43,
 ```
 
-All three initially use `sectionVersion == 1`. They form the sole skeletal family of the delivered
-runtime feature. The meanings of retired numeric types 11 and 40 remain documented below solely as
+The skeleton section currently writes version 3 (versions 1 and 2 remain explicitly readable);
+weights and animation remain version 1. They form the sole skeletal family of the delivered runtime
+feature. The meanings of retired numeric types 11 and 40 remain documented below solely as
 historical format archaeology; coexistence is not a compatibility requirement.
 
 ## 5. Variable-length strings — replacing fixed char buffers
@@ -565,7 +566,7 @@ Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompre
 - `FILE_HEADER_V11.sectionCount` includes each emitted section normally; the V11 file magic and
   `formatVersion` remain unchanged because section type/version provide the compatibility boundary.
 
-### `SECTION_SKELETAL_SKELETON = 41`, version 2
+### `SECTION_SKELETAL_SKELETON = 41`, version 3
 
 ```text
 uint64 skeletonId
@@ -582,6 +583,8 @@ repeat boneCount times, in parent-before-child compiled order:
     // version 2 only:
     float32 tailOffset[3]        // explicit tail joint in this bone's local bind space
     uint8 hasExplicitTail        // exactly 0 or 1
+    // version 3 only:
+    uint8 connectedToParent      // exactly 0 or 1; roots must use 0
 ```
 
 IDs, not names or array positions, define identity and hierarchy. Every nonzero `parentBoneId` must
@@ -590,10 +593,13 @@ local→global reconstruction, and inverse-bind validation use the Milestone-0 n
 Global bind and inverse-global-bind matrices are derived and are not persisted.
 
 Version 1 ends after `length`. It remains readable and receives the non-authoritative fallback
-`tailOffset=(0,length,0)`, `hasExplicitTail=0`; version 2 is always written. A version-2 transform
+`tailOffset=(0,length,0)`, `hasExplicitTail=0`. Version 2 ends after `hasExplicitTail` and defaults
+`connectedToParent=0`; version 3 is always written. A version-3 transform
 joint may also deliberately use `hasExplicitTail=0`. Imported bones and explicitly authored bone
 segments set it to `1`. Bind TRS remains authoritative for hierarchy and skinning,
 while the local tail offset is authoritative for Bone Editor geometry and can follow animated poses.
+`connectedToParent=1` additionally states that this bone's head and its parent's tail are one
+authoring joint and must move together; hierarchy alone does not imply this constraint.
 
 ### `SECTION_SKELETAL_WEIGHTS = 42`, version 1
 

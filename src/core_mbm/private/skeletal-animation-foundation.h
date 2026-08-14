@@ -147,6 +147,7 @@ namespace mbm::skeletal
         // survives arbitrary FBX coordinate-basis conversion and can be transformed by any pose.
         VEC3 tailOffset;
         bool hasExplicitTail = false;
+        bool connectedToParent = false;
     };
 
     struct CANONICAL_SKELETON

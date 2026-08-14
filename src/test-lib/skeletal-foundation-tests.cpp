@@ -269,13 +269,13 @@ namespace
                "canonical bind editing must reject a zero quaternion without mutation");
         uint32_t addedIndex = 0;
         expect(mesh.addSkeletalBone(1, "added-child", VEC3(0.0f, 2.0f, 0.0f),
-                   0.1f, 1.5f, true, &addedIndex, reparentError, sizeof(reparentError)) &&
+                   0.1f, 1.5f, true, false, &addedIndex, reparentError, sizeof(reparentError)) &&
                    addedIndex == 2 && mesh.getSkeletonBindBone(addedIndex, edited) &&
                    edited.parentIndex == 1 && edited.boneId != 0 &&
                    std::fabs(edited.localTranslation.y - 2.0f) <= MATRIX_TOLERANCE,
                "canonical bone addition must append a valid child with a new stable ID");
         SKELETON_BIND_SUMMARY addSummary;
-        expect(!mesh.addSkeletalBone(-1, "added-child", VEC3(), 0.1f, 1.0f, true,
+        expect(!mesh.addSkeletalBone(-1, "added-child", VEC3(), 0.1f, 1.0f, true, false,
                    &addedIndex, reparentError, sizeof(reparentError)) &&
                    mesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount == 3,
                "canonical bone addition must reject duplicate names without mutation");
@@ -315,6 +315,7 @@ namespace
                    &chainLastIndex,reparentError,sizeof(reparentError)) && chainLastIndex==3 &&
                    staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==4 &&
                    staticMesh.getSkeletonBindBone(3,after) && after.parentIndex==2 &&
+                   after.connectedToParent &&
                    std::fabs(after.globalBindMatrix.m[3][1]-3.0f)<=MATRIX_TOLERANCE &&
                    staticMesh.saveV11(initializedPath,false,false,false,reparentError,sizeof(reparentError)),
                "canonical chain creation must append linked bones and save atomically");
@@ -322,8 +323,15 @@ namespace
                    &chainLastIndex,reparentError,sizeof(reparentError)) &&
                    staticMesh.getSkeletonBindSummary(addSummary) && addSummary.boneCount==4,
                "canonical chain creation must reject duplicate generated names without mutation");
+        expect(staticMesh.setSkeletalBoneTail(0,VEC3(0.5f,1.5f,0.0f),true,
+                   reparentError,sizeof(reparentError)) &&
+                   staticMesh.getSkeletonBindBone(1,after) && after.connectedToParent &&
+                   std::fabs(after.localTranslation.x-0.5f)<=MATRIX_TOLERANCE &&
+                   std::fabs(after.localTranslation.y-1.5f)<=MATRIX_TOLERANCE,
+               "tail editing must move explicitly connected child heads atomically");
         expect(staticMesh.setSkeletalBoneBind(1,VEC3(1,1,0),0,0,0,1,VEC3(1,1,1),0.1f,1.0f,
-                   reparentError,sizeof(reparentError)),
+                   reparentError,sizeof(reparentError)) &&
+                   staticMesh.getSkeletonBindBone(1,after) && !after.connectedToParent,
                "mirror fixture must offset the source subtree from the reflection plane");
         uint32_t mirroredRootIndex = 0;
         expect(staticMesh.mirrorSkeletalBoneSubtree(1,0,"right_",&mirroredRootIndex,
@@ -358,7 +366,9 @@ namespace
                    initializedReload.getSkeletonBindSummary(addSummary) && addSummary.boneCount==7 &&
                    initializedReload.hasSkeletalVertexWeights() &&
                    initializedReload.getSkeletonBindBone(0,after) && after.hasExplicitTail &&
-                   std::fabs(after.tailOffset.y-1.0f)<=MATRIX_TOLERANCE,
+                   std::fabs(after.tailOffset.x-0.5f)<=MATRIX_TOLERANCE &&
+                   std::fabs(after.tailOffset.y-1.5f)<=MATRIX_TOLERANCE &&
+                   initializedReload.getSkeletonBindBone(2,after) && after.connectedToParent,
                "initialized canonical skeleton, chain, mirror, and weights must survive save/reload");
         expect(!staticMesh.initializeSkeletalSkeleton("other",VEC3(),0.1f,1.0f,true,
                    reparentError,sizeof(reparentError)),
@@ -687,7 +697,7 @@ namespace
         std::remove(emptyAnimationPath);
         SKELETON_BIND_BONE_INFO referencedBone;
         uint32_t temporaryBoneIndex = 0;
-        expect(mesh.addSkeletalBone(-1, "temporary-root", VEC3(), 0.1f, 1.0f, true,
+        expect(mesh.addSkeletalBone(-1, "temporary-root", VEC3(), 0.1f, 1.0f, true, false,
                    &temporaryBoneIndex, error, sizeof(error) - 1),
                "reference-removal fixture must add an independent unreferenced root");
         expect(mesh.getSkeletonBindBone(0, referencedBone) && referencedBone.weightPaletteReferenced &&
@@ -698,7 +708,7 @@ namespace
                "reference-removal fixture must remove its unreferenced temporary root");
         MESH_MBM_DEBUG remapMesh;
         expect(remapMesh.loadV11(source) &&
-                   remapMesh.addSkeletalBone(-1, "replacement-root", VEC3(), 0.1f, 1.0f, true,
+                   remapMesh.addSkeletalBone(-1, "replacement-root", VEC3(), 0.1f, 1.0f, true, false,
                        &temporaryBoneIndex, error, sizeof(error) - 1) &&
                    remapMesh.setSkeletalVertexWeight(0,"root",0.4f,"replacement-root",0.6f,
                        nullptr,0.0f,nullptr,0.0f,error,sizeof(error)-1) &&
@@ -720,7 +730,7 @@ namespace
         const char *convertedHierarchy = "/tmp/mini-mbm-converted-child-tracks.msh";
         CANONICAL_PARITY_ASSET beforeConversion, afterConversion;
         expect(animatedHierarchy.loadV11(source) &&
-                   animatedHierarchy.addSkeletalBone(0,"animated-child",VEC3(0,1,0),0.1f,1.0f,true,
+                   animatedHierarchy.addSkeletalBone(0,"animated-child",VEC3(0,1,0),0.1f,1.0f,true,false,
                        &temporaryBoneIndex,error,sizeof(error)-1) &&
                    copyCanonicalParityAsset(animatedHierarchy,beforeConversion) &&
                    animatedHierarchy.removeSkeletalBoneRemapped(0,temporaryBoneIndex,true,true,

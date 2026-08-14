@@ -805,7 +805,7 @@ namespace
     bool parse_canonical_skeleton_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
                                                mbm::skeletal::CANONICAL_SKELETON &out)
     {
-        if (sectionVersion != 1 && sectionVersion != 2)
+        if (sectionVersion != 1 && sectionVersion != 2 && sectionVersion != 3)
             return false;
         out = {};
         uint32_t boneCount = 0;
@@ -841,6 +841,14 @@ namespace
                     !util::le_io::readBytes(fp, &explicitTail, sizeof(explicitTail)) || explicitTail > 1)
                     return false;
                 bone.hasExplicitTail = explicitTail != 0;
+                if (sectionVersion >= 3)
+                {
+                    uint8_t connected = 0;
+                    if (!util::le_io::readBytes(fp, &connected, sizeof(connected)) || connected > 1)
+                        return false;
+                    bone.connectedToParent = connected != 0;
+                    if (bone.parentBoneId == 0 && bone.connectedToParent) return false;
+                }
             }
             else
             {
@@ -2547,7 +2555,7 @@ namespace mbm
         {
             util::SECTION_HEADER_V11 sectionHeader;
             sectionHeader.type = util::SECTION_SKELETAL_SKELETON;
-            sectionHeader.sectionVersion = 2;
+            sectionHeader.sectionVersion = 3;
             const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
             {
                 const skeletal::CANONICAL_SKELETON &skeleton = this->impl->canonicalSkeleton;
@@ -2578,6 +2586,8 @@ namespace mbm
                         return false;
                     const uint8_t explicitTail = bone.hasExplicitTail ? 1 : 0;
                     if (!util::le_io::writeBytes(fp, &explicitTail, sizeof(explicitTail))) return false;
+                    const uint8_t connected = bone.connectedToParent ? 1 : 0;
+                    if (!util::le_io::writeBytes(fp, &connected, sizeof(connected))) return false;
                 }
                 return true;
             });
@@ -4389,7 +4399,8 @@ namespace mbm
         return true;
     }
 
-    bool MESH_MBM_DEBUG::getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out) const noexcept
+    bool MESH_MBM_DEBUG::getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out,
+                                              const bool includeDependencyImpact) const noexcept
     {
         const skeletal::COMPILED_SKELETON &report = impl->canonicalSkeleton.compiled;
         if (impl->canonicalSkeleton.skeletonId == 0 || index >= report.bones.size())
@@ -4414,26 +4425,31 @@ namespace mbm
             out.length = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].length;
             out.tailOffset = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].tailOffset;
             out.hasExplicitTail = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].hasExplicitTail;
+            out.connectedToParent = impl->canonicalSkeleton.sourceBones[bone.sourceIndex].connectedToParent;
         }
         out.childCount = 0;
         for (const skeletal::CANONICAL_BONE &candidate : impl->canonicalSkeleton.sourceBones)
             if (candidate.parentBoneId == bone.boneId) ++out.childCount;
         out.weightPaletteReferenced = false;
         out.weightedVertexCount = 0;
-        for (uint32_t paletteIndex = 0; paletteIndex < impl->canonicalWeights.paletteBoneIds.size(); ++paletteIndex)
+        if (includeDependencyImpact)
         {
-            if (impl->canonicalWeights.paletteBoneIds[paletteIndex] != bone.boneId) continue;
-            out.weightPaletteReferenced = true;
-            for (const skeletal::CANONICAL_VERTEX_WEIGHT &vertex : impl->canonicalWeights.vertices)
-                for (uint32_t slot = 0; slot < 4; ++slot)
-                    if (vertex.paletteIndex[slot] == paletteIndex && vertex.weight[slot] > 0.0f)
-                    { ++out.weightedVertexCount; break; }
-            break;
+            for (uint32_t paletteIndex = 0; paletteIndex < impl->canonicalWeights.paletteBoneIds.size(); ++paletteIndex)
+            {
+                if (impl->canonicalWeights.paletteBoneIds[paletteIndex] != bone.boneId) continue;
+                out.weightPaletteReferenced = true;
+                for (const skeletal::CANONICAL_VERTEX_WEIGHT &vertex : impl->canonicalWeights.vertices)
+                    for (uint32_t slot = 0; slot < 4; ++slot)
+                        if (vertex.paletteIndex[slot] == paletteIndex && vertex.weight[slot] > 0.0f)
+                        { ++out.weightedVertexCount; break; }
+                break;
+            }
         }
         out.animationTrackCount = 0;
-        for (const skeletal::SKELETAL_CLIP &clip : impl->canonicalAnimations.clips)
-            for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
-                if (track.boneId == bone.boneId) ++out.animationTrackCount;
+        if (includeDependencyImpact)
+            for (const skeletal::SKELETAL_CLIP &clip : impl->canonicalAnimations.clips)
+                for (const skeletal::SKELETAL_TRACK &track : clip.tracks)
+                    if (track.boneId == bone.boneId) ++out.animationTrackCount;
         out.hasNegativeScale = bone.hasNegativeScale;
         out.hasShear = bone.hasShear;
         return true;
@@ -5047,6 +5063,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
         skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
         edited.parentBoneId = newParentId;
+        edited.connectedToParent = false;
         if (preserveGlobalBind)
         {
             MATRIX local = impl->canonicalSkeleton.compiled.bones[index].globalBindMatrix;
@@ -5136,6 +5153,18 @@ namespace mbm
 
         skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
         skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        if (edited.connectedToParent)
+        {
+            const auto parent = candidate.compiled.indexById.find(edited.parentBoneId);
+            if (parent != candidate.compiled.indexById.end())
+            {
+                const VEC3 &parentTail = candidate.sourceBones[static_cast<uint32_t>(parent->second)].tailOffset;
+                if (std::fabs(translation.x-parentTail.x)>skeletal::MATRIX_TOLERANCE ||
+                    std::fabs(translation.y-parentTail.y)>skeletal::MATRIX_TOLERANCE ||
+                    std::fabs(translation.z-parentTail.z)>skeletal::MATRIX_TOLERANCE)
+                    edited.connectedToParent = false;
+            }
+        }
         edited.localBind.translation = translation;
         edited.localBind.rotation.x = rotationX / quaternionNorm;
         edited.localBind.rotation.y = rotationY / quaternionNorm;
@@ -5176,7 +5205,7 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::addSkeletalBone(const int32_t parentIndex, const char *name,
                                           const VEC3 &translation, const float radius, const float length,
-                                          const bool hasExplicitTail,
+                                          const bool hasExplicitTail, const bool connectedToParent,
                                           uint32_t *newIndexOut, char *errorOut, const int errorOutLen)
     {
         const auto fail = [errorOut, errorOutLen](const char *message)
@@ -5216,7 +5245,19 @@ namespace mbm
         added.radius = radius;
         added.length = length;
         added.tailOffset = VEC3(0.0f, hasExplicitTail ? length : 0.0f, 0.0f);
+        if (hasExplicitTail && connectedToParent && parentIndex >= 0)
+        {
+            const VEC3 &parentTail = source[static_cast<uint32_t>(parentIndex)].tailOffset;
+            const float parentTailLength = std::sqrt(parentTail.x * parentTail.x +
+                                                     parentTail.y * parentTail.y +
+                                                     parentTail.z * parentTail.z);
+            if (parentTailLength > skeletal::SINGULAR_TOLERANCE)
+                added.tailOffset = VEC3(parentTail.x * length / parentTailLength,
+                                        parentTail.y * length / parentTailLength,
+                                        parentTail.z * length / parentTailLength);
+        }
         added.hasExplicitTail = hasExplicitTail;
+        added.connectedToParent = parentIndex >= 0 && connectedToParent;
         candidate.sourceBones.push_back(std::move(added));
         if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
             return fail("added canonical bone would be invalid");
@@ -5236,6 +5277,44 @@ namespace mbm
             return fail("canonical animations would be invalid after adding bone");
         impl->canonicalSkeleton = std::move(candidate);
         if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->canonicalSkeleton.sourceBones.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::setSkeletalBoneTail(const uint32_t index, const VEC3 &tailOffset,
+                                              const bool hasExplicitTail,
+                                              char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0)
+            return fail("mesh has no canonical skeleton");
+        if (index >= impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if (!std::isfinite(tailOffset.x) || !std::isfinite(tailOffset.y) ||
+            !std::isfinite(tailOffset.z))
+            return fail("canonical bone tail must be finite");
+        const float length = std::sqrt(tailOffset.x * tailOffset.x + tailOffset.y * tailOffset.y +
+                                       tailOffset.z * tailOffset.z);
+        if (hasExplicitTail && length <= skeletal::SINGULAR_TOLERANCE)
+            return fail("explicit canonical bone tail must differ from its head");
+
+        skeletal::CANONICAL_SKELETON candidate = impl->canonicalSkeleton;
+        skeletal::CANONICAL_BONE &edited = candidate.sourceBones[index];
+        edited.tailOffset = hasExplicitTail ? tailOffset : VEC3();
+        edited.length = hasExplicitTail ? length : 0.0f;
+        edited.hasExplicitTail = hasExplicitTail;
+        for (skeletal::CANONICAL_BONE &child : candidate.sourceBones)
+            if (child.parentBoneId == edited.boneId && child.connectedToParent)
+                child.localBind.translation = edited.tailOffset;
+        if (!skeletal::compileCanonicalSkeleton(candidate.sourceBones, candidate.compiled))
+            return fail("edited canonical tail would make the skeleton invalid");
+        // Tail geometry and connected-child bind translations do not change skeleton IDs, weight
+        // palettes, vertex records, clip IDs, or track targets. Revalidating every vertex and clip
+        // on every mouse-move event is both redundant and prohibitively expensive.
+        impl->canonicalSkeleton = std::move(candidate);
         return true;
     }
 
@@ -5290,6 +5369,7 @@ namespace mbm
             added.length = length;
             added.tailOffset = VEC3(0.0f, length, 0.0f);
             added.hasExplicitTail = true;
+            added.connectedToParent = chainParentId != 0;
             chainParentId = added.boneId;
             candidate.sourceBones.push_back(std::move(added));
             if (item < count)

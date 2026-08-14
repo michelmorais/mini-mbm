@@ -239,6 +239,21 @@ tail is initialized at that length along local +Y. Length defaults to 1. **Add J
 the hierarchy transform and therefore has no selectable tail or segment; **Add Bone** creates the
 explicit endpoint and segment. Imported FBX bones retain Blender's actual head and tail even when
 coordinate conversion changes the visual aim axis.
+
+Extending a selected explicit tail creates a child whose local head is exactly that tail offset and
+sets `connectedToParent=true`. This explicit constraint is what later joint dragging will use to
+move the shared parent tail and child head together; ordinary parenthood does not imply connection.
+The new tail initially continues the selected segment's parent-local direction with the configured
+length, including bones whose imported aim axis is not local `+Y`.
+
+Dragging an explicit tail uses a camera-facing plane through the endpoint. The resulting world-space
+point is converted back through the bone's global bind basis into `tailOffset`; the head remains
+fixed, length is recomputed, and explicitly connected child heads follow the shared joint. One
+rollback snapshot covers the complete gesture rather than producing one history entry per frame.
+During the gesture the editor requests a lightweight bind report that omits weight/track impact
+counts and caps expensive gizmo reconstruction to roughly 30 Hz; the complete report is restored
+on release. Tail-only mutation also skips redundant full weight/clip validation because it cannot
+change IDs, palettes, vertex influences, clip IDs, or track targets.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 

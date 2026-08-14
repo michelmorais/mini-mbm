@@ -1489,6 +1489,7 @@ def extract_canonical_skeleton(scene: Any,
             "radius": max(0.001, length * 0.15),
             "length": length,
             "tailOffset": (float(tail_local.x), float(tail_local.y), float(tail_local.z)),
+            "connectedToParent": bool(bone.parent and bone.use_connect),
         })
 
     identity = "|".join(paths[name] for name in ordered)
@@ -1520,6 +1521,7 @@ def build_canonical_skeleton_payload_v11(skeleton: dict[str, Any]) -> bytes:
         write_f32(buf, bone["length"])
         write_vec3(buf, bone["tailOffset"])
         write_u8(buf, 1)
+        write_u8(buf, 1 if bone["connectedToParent"] else 0)
     return buf.getvalue()
 
 
@@ -2041,7 +2043,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 write_section_v11(fp, SECTION_FRAME_STATIC, 1, frame_payload, True)
 
             if canonical_skeleton:
-                write_section_v11(fp, SECTION_SKELETAL_SKELETON, 2,
+                write_section_v11(fp, SECTION_SKELETAL_SKELETON, 3,
                                   build_canonical_skeleton_payload_v11(canonical_skeleton), False)
 
             if canonical_weights_payload is not None:

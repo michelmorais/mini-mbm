@@ -137,6 +137,7 @@ namespace mbm
         float length = 0.0f;
         VEC3 tailOffset;
         bool hasExplicitTail = false;
+        bool connectedToParent = false;
         uint32_t childCount = 0;
         uint32_t weightedVertexCount = 0;
         uint32_t animationTrackCount = 0;
@@ -295,7 +296,8 @@ namespace mbm
         API_IMPL bool setAnimationEffectTexture(const uint32_t index, const char *fileName) noexcept;
         // Read-only views of the canonical skeleton compiled and validated during load.
         API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
-        API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out) const noexcept;
+        API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out,
+                                          const bool includeDependencyImpact = true) const noexcept;
         API_IMPL const char *getSkeletonBindBoneName(const uint32_t index) const noexcept;
         API_IMPL bool getSkeletonBindDiagnostic(const uint32_t index,
                                                 SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept;
@@ -364,11 +366,16 @@ namespace mbm
                                           const float rotationZ, const float rotationW,
                                           const VEC3 &scale, const float radius, const float length,
                                           char *errorOut, const int errorOutLen);
+        // Replaces explicit Bone Editor geometry and keeps explicitly connected child heads on the
+        // same parent-local point. Runtime bind orientation is not inferred from the visual tail.
+        API_IMPL bool setSkeletalBoneTail(const uint32_t index, const VEC3 &tailOffset,
+                                          const bool hasExplicitTail,
+                                          char *errorOut, const int errorOutLen);
         // Adds a parent-first canonical transform with a new opaque stable ID. parentIndex is -1
         // for root; hasExplicitTail distinguishes a selectable bone segment from a joint only.
         API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,
                                       const VEC3 &translation, const float radius, const float length,
-                                      const bool hasExplicitTail,
+                                      const bool hasExplicitTail, const bool connectedToParent,
                                       uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
         // Atomically appends count parent-linked bones named prefix1..prefixN.
         API_IMPL bool addSkeletalBoneChain(const int32_t parentIndex, const char *namePrefix,

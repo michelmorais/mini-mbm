@@ -55,6 +55,7 @@ local state = {
     boneEditorLength = 1,
     boneEditorSelectedIndex = nil,
     boneEditorSelection = nil,
+    boneEditorDrag = nil,
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -400,6 +401,7 @@ local function getBones()
             length=bone.length or 0,
             tailOffset=bone.tailOffset,
             hasExplicitTail=bone.hasExplicitTail==true,
+            connectedToParent=bone.connectedToParent==true,
             globalMatrix=global,
         }
     end
@@ -433,10 +435,12 @@ local function getBoneEditorEndpoints(bone,extent)
          z=(matrix[15] or bone.z)+(matrix[3] or 0)*ox+(matrix[7] or 0)*oy+(matrix[11] or 1)*oz}
 end
 
-local function refreshBindReport()
+local function refreshBindReport(includeDependencyImpact)
     state.bindReport = nil
     if not state.meshD then return end
-    local ok, report = safeCall(function() return state.meshD:getSkeletonBindReport() end)
+    local ok, report = safeCall(function()
+        return state.meshD:getSkeletonBindReport(includeDependencyImpact~=false)
+    end)
     if ok then state.bindReport = report end
 end
 
@@ -3525,7 +3529,7 @@ local function showBoneEditor()
             else
                 ok,newIndex=safeCall(function()
                     return state.meshD:addSkeletalBone(0,name,position.x,position.y,position.z,
-                        radius,length,hasExplicitTail)
+                        radius,length,hasExplicitTail,false)
                 end)
             end
         end
@@ -3550,6 +3554,40 @@ local function showBoneEditor()
     tImGui.BeginDisabled(not state.boneEditorLength or state.boneEditorLength<=0)
     if tImGui.Button(tLang.L('swl_bone_editor_add')..'##swlBoneEditorAdd') then
         addRootItem(true)
+    end
+    tImGui.EndDisabled()
+    local selectedTail=state.boneEditorSelection and state.boneEditorSelection.kind=='tail' and
+        getBones()[state.boneEditorSelection.boneIndex] or nil
+    tImGui.BeginDisabled(not selectedTail or not state.boneEditorLength or
+        state.boneEditorLength<=0)
+    if tImGui.Button(tLang.L('swl_bone_editor_extend')..'##swlBoneEditorExtend') then
+        local snapshot=stageRollbackSnapshot()
+        local ok,newIndex=false,nil
+        if snapshot then
+            local offset=selectedTail.tailOffset or {x=0,y=0,z=0}
+            local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+                state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+            local radius=math.max(selectedTail.radius or 0,extent*0.012,0.01)
+            ok,newIndex=safeCall(function()
+                return state.meshD:addSkeletalBone(state.boneEditorSelection.boneIndex,
+                    nextSimpleBoneName(),offset.x or 0,offset.y or 0,offset.z or 0,
+                    radius,state.boneEditorLength,true,true)
+            end)
+        end
+        if ok then
+            commitRollbackSnapshot(snapshot)
+            state.modified=true
+            refreshBindReport()
+            state.boneEditorSelectedIndex=newIndex
+            state.boneIndex=newIndex
+            local bone=getBones()[newIndex]
+            state.boneEditorSelection=bone and {kind='segment',boneIndex=newIndex,
+                boneId=bone.boneId,boneName=bone.name} or nil
+            rebuildPreview()
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
+            setStatus(tLang.L('swl_bone_editor_extended'),false)
+        elseif snapshot then discardRollbackSnapshot(snapshot) end
     end
     tImGui.EndDisabled()
     tImGui.TextDisabled(tLang.L('swl_bone_editor_root_note'))
@@ -3851,6 +3889,27 @@ function onTouchDown(key, x, y)
             if selection then
                 state.boneIndex=selection.boneIndex
                 applyWorkspaceVisibility()
+                if selection.kind=='tail' then
+                    local bone=getBones()[selection.boneIndex]
+                    local _,tail=getBoneEditorEndpoints(bone,1)
+                    local px,py,pz=cameraPosition()
+                    local nx,ny,nz=state.cam.fx-px,state.cam.fy-py,state.cam.fz-pz
+                    local normalLength=math.sqrt(nx*nx+ny*ny+nz*nz)
+                    if normalLength>1e-6 then
+                        nx,ny,nz=nx/normalLength,ny/normalLength,nz/normalLength
+                        local wx,wy,wz=rayPlaneHit(x,y,tail,{x=nx,y=ny,z=nz})
+                        local snapshot=wx and stageRollbackSnapshot() or nil
+                        if snapshot then
+                            state.boneEditorDrag={boneIndex=selection.boneIndex,
+                                boneId=selection.boneId,boneName=selection.boneName,
+                                head={x=bone.x,y=bone.y,z=bone.z},
+                                globalMatrix=bone.globalMatrix,point=tail,
+                                plane={point=tail,normal={x=nx,y=ny,z=nz}},snapshot=snapshot,
+                                moved=false,lastVisualTime=0}
+                            return
+                        end
+                    end
+                end
                 return
             end
             applyWorkspaceVisibility()
@@ -3901,7 +3960,30 @@ end
 
 function onTouchMove(key, x, y)
     local drag=state.translationGizmo.drag
-    if state.workspace=='animation' and drag and state.translationGizmo.origin then
+    local boneDrag=state.boneEditorDrag
+    if state.workspace=='bone_editor' and boneDrag then
+        local wx,wy,wz=rayPlaneHit(x,y,boneDrag.plane.point,boneDrag.plane.normal)
+        if wx then
+            local lx,ly,lz=worldDeltaToLocal(wx-boneDrag.head.x,wy-boneDrag.head.y,
+                wz-boneDrag.head.z,boneDrag.globalMatrix)
+            if lx then
+                local ok=safeCall(function()
+                    return state.meshD:setSkeletalBoneTail(boneDrag.boneIndex,lx,ly,lz,true)
+                end)
+                if ok then
+                    boneDrag.moved=true
+                    state.modified=true
+                    local now=mbm.getTimeRun()
+                    if now-boneDrag.lastVisualTime>=0.033 then
+                        boneDrag.lastVisualTime=now
+                        refreshBindReport(false)
+                        rebuildSkeletonVisuals()
+                        applyWorkspaceVisibility()
+                    end
+                end
+            end
+        end
+    elseif state.workspace=='animation' and drag and state.translationGizmo.origin then
         local parameter=rayAxisParameter(x,y,drag.origin,drag.axis)
         if parameter then
             local amount=parameter-drag.startParameter
@@ -3945,6 +4027,18 @@ end
 
 function onTouchUp(key, x, y)
     if key == 0 then
+        local boneDrag=state.boneEditorDrag
+        if boneDrag then
+            if boneDrag.moved then
+                commitRollbackSnapshot(boneDrag.snapshot)
+                rebuildPreview()
+                refreshBindReport()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                setStatus(tLang.L('swl_bone_editor_tail_moved'),false)
+            else discardRollbackSnapshot(boneDrag.snapshot) end
+            state.boneEditorDrag=nil
+        end
         state.translationGizmo.drag=nil
         mouseDown = false
         state.aabbDragging = false

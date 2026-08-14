@@ -1273,7 +1273,7 @@ whole-asset skeletal scaling is rejected.
 ### Bind-pose diagnostics
 
 ```lua
-local report = meshD:getSkeletonBindReport()
+local report = meshD:getSkeletonBindReport(includeDependencyImpact)
 ```
 
 This read-only call inspects canonical section 41 directly. An asset without section 41 has no
@@ -1286,10 +1286,16 @@ strings, one-based `parentIndex` (`0` for a root), local translation/quaternion/
 `hasNegativeScale` and `hasShear`. IDs are strings because Lua numbers cannot preserve every
 `uint64` value exactly. Canonical bone entries also expose authoring metadata `radius`,
 `length`, bone-local `tailOffset={x,y,z}`, and `hasExplicitTail`; false means that the transform
-joint has no selectable bone segment. Version-1 assets also load in this state. Removal-impact fields are
-`childCount`, `weightPaletteReferenced`, `weightedVertexCount`, and `animationTrackCount`.
+joint has no selectable bone segment. Version-1 assets also load in this state. The boolean
+`connectedToParent` separately preserves the authoring constraint between this head and
+the parent tail; it is not inferred merely from hierarchy or coincident positions.
+Removal-impact fields are `childCount`, `weightPaletteReferenced`, `weightedVertexCount`, and
+`animationTrackCount`.
 Diagnostics contain `code`, one-based `sourceIndex`, `boneName`,
 `observedError`, and `fatal`.
+`includeDependencyImpact` defaults to true. Passing false leaves the weight/track impact fields at
+zero/false and avoids their vertex scans, intended for high-frequency geometric editor previews;
+it does not omit transforms, matrices, hierarchy, tails, or diagnostics.
 
 The call never edits the skeleton and the report is a detached Lua snapshot. Mesh Debug and the
 Skeletal Animation Editor use it for canonical bind inspection. The exploratory bone and
@@ -1324,10 +1330,21 @@ Replaces the selected bone's parent-relative canonical bind TRS and authoring ra
 The quaternion is normalized before storage. Quaternion zero, singular scale, non-finite values,
 negative radius/length, or a candidate that fails complete section 41–43 validation raises a Lua
 error without mutation. Bone and skeleton IDs remain unchanged. The operation deliberately moves
-the edited bone and its descendants; it does not compensate child-local transforms.
+the edited bone and its descendants; it does not compensate child-local transforms. Moving the
+head away from a parent tail clears `connectedToParent` rather than preserving a false constraint.
 
 ```lua
-local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length)
+meshD:setSkeletalBoneTail(oneBasedBoneIndex, tailX, tailY, tailZ, hasExplicitTail)
+```
+
+Replaces the Bone Editor endpoint in bone-local bind space. `hasExplicitTail` defaults to true;
+an explicit tail must differ from the head. Length metadata is recomputed, and every direct child
+marked `connectedToParent` receives the same parent-local head translation atomically. Bind
+orientation is deliberately not inferred from this authoring geometry.
+
+```lua
+local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length,
+    hasExplicitTail, connectedToParent)
 ```
 
 Adds one canonical bone. `parentIndex=0` creates a root; positive values select a one-based existing
@@ -1335,6 +1352,7 @@ parent. The returned index is one-based. The bone receives a new opaque nonzero 
 rotation/scale, and the supplied parent-relative translation and nonnegative radius/length. Empty or
 duplicate names, invalid parents, non-finite input, or a candidate that fails section 41–43 validation
 raises a Lua error without mutation. Existing weight palettes and animation tracks are unchanged.
+Both booleans are optional: `hasExplicitTail` defaults to true and `connectedToParent` to false.
 
 ```lua
 local lastBoneIndex = meshD:addSkeletalBoneChain(parentIndex, namePrefix, count,

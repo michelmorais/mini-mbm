@@ -2246,6 +2246,7 @@ namespace mbm
     int onGetSkeletonBindReportDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const bool includeDependencyImpact = lua_gettop(lua) < 2 || lua_toboolean(lua, 2) != 0;
         SKELETON_BIND_SUMMARY summary;
         if (!meshDebug->mesh.getSkeletonBindSummary(summary))
         {
@@ -2269,7 +2270,7 @@ namespace mbm
         for (uint32_t index = 0; index < summary.boneCount; ++index)
         {
             SKELETON_BIND_BONE_INFO bone;
-            if (!meshDebug->mesh.getSkeletonBindBone(index, bone))
+            if (!meshDebug->mesh.getSkeletonBindBone(index, bone, includeDependencyImpact))
                 continue;
             lua_createtable(lua, 0, 18);
             lua_pushinteger(lua, bone.sourceIndex + 1); lua_setfield(lua, -2, "sourceIndex");
@@ -2294,6 +2295,7 @@ namespace mbm
             lua_pushnumber(lua, bone.length); lua_setfield(lua, -2, "length");
             pushSkeletonBindVector(lua, bone.tailOffset); lua_setfield(lua, -2, "tailOffset");
             lua_pushboolean(lua, bone.hasExplicitTail); lua_setfield(lua, -2, "hasExplicitTail");
+            lua_pushboolean(lua, bone.connectedToParent); lua_setfield(lua, -2, "connectedToParent");
             lua_pushinteger(lua, bone.childCount); lua_setfield(lua, -2, "childCount");
             lua_pushinteger(lua, bone.weightedVertexCount); lua_setfield(lua, -2, "weightedVertexCount");
             lua_pushinteger(lua, bone.animationTrackCount); lua_setfield(lua, -2, "animationTrackCount");
@@ -2392,14 +2394,31 @@ namespace mbm
         const float radius = static_cast<float>(luaL_checknumber(lua, 7));
         const float length = static_cast<float>(luaL_checknumber(lua, 8));
         const bool hasExplicitTail = lua_gettop(lua) < 9 || lua_toboolean(lua, 9) != 0;
+        const bool connectedToParent = lua_gettop(lua) >= 10 && lua_toboolean(lua, 10) != 0;
         uint32_t newIndex = 0;
         char errorOut[255] = "";
         if (!meshDebug->mesh.addSkeletalBone(parent == 0 ? -1 : static_cast<int32_t>(parent - 1),
-                name, translation, radius, length, hasExplicitTail, &newIndex,
+                name, translation, radius, length, hasExplicitTail, connectedToParent, &newIndex,
                 errorOut, static_cast<int>(sizeof(errorOut))))
             return lua_error_debug(lua, errorOut);
         lua_pushinteger(lua, static_cast<lua_Integer>(newIndex + 1));
         return 1;
+    }
+
+    int onSetSkeletalBoneTailDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical bone index must be one-based");
+        const VEC3 tailOffset(static_cast<float>(luaL_checknumber(lua, 3)),
+                              static_cast<float>(luaL_checknumber(lua, 4)),
+                              static_cast<float>(luaL_checknumber(lua, 5)));
+        const bool hasExplicitTail = lua_gettop(lua) < 6 || lua_toboolean(lua, 6) != 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.setSkeletalBoneTail(static_cast<uint32_t>(index - 1), tailOffset,
+                hasExplicitTail, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
     }
 
     int onInitializeSkeletalSkeletonDebugLua(lua_State *lua)
@@ -2979,6 +2998,7 @@ namespace mbm
                                           {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
                                           {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},
+                                          {"setSkeletalBoneTail", onSetSkeletalBoneTailDebugLua},
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
                                           {"addSkeletalBoneChain", onAddSkeletalBoneChainDebugLua},
