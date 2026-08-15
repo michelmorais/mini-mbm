@@ -55,6 +55,7 @@ local state = {
     animationTimelineTrackIndex = nil,
     animationTimelineKeyIndex = nil,
     animationTimelineDrag = nil,
+    animationTimelineSelection = {},
     animationTimelineClip = nil,
     animationReport = nil,
     animationPlayback = {playing=false,paused=false,speed=1},
@@ -1009,6 +1010,7 @@ local function setWorkspace(workspace)
         state.authoringOverride=nil
         state.authoringActiveClip=nil
         state.animationTimelineDrag=nil
+        state.animationTimelineSelection={}
         state.animationPlayback.playing=false
         state.animationPlayback.paused=false
     end
@@ -2021,6 +2023,7 @@ local function commitRollbackSnapshot(snapshot)
     state.rollbackPath = snapshot.path
     state.rollbackModified = snapshot.modified
     state.animationReport = nil
+    state.animationTimelineSelection = {}
 end
 
 local function discardRollbackSnapshot(snapshot)
@@ -3594,6 +3597,18 @@ local function skeletalKeyFloat(label,id,value)
     return changed and result or value
 end
 
+local function timelineSelectionId(trackIndex,keyIndex)
+    return tostring(trackIndex)..':'..tostring(keyIndex)
+end
+
+local function timelineSelectionCount()
+    local count=0
+    for _,selected in pairs(state.animationTimelineSelection) do
+        if selected then count=count+1 end
+    end
+    return count
+end
+
 local function commitTimelineKeyDrag(drag)
     if not drag or not drag.moved or drag.invalid then return false end
     local key=drag.key
@@ -3698,8 +3713,8 @@ local function showSkeletalTimeline(clip)
                 activeDrag.keyIndex==keyIndex
             local displayTime=dragged and activeDrag.previewTime or (key.time or 0)
             local kx=x0+timelineWidth*math.max(0,math.min(1,displayTime/duration))
-            local selected=state.animationTimelineTrackIndex==trackIndex and
-                state.animationTimelineKeyIndex==keyIndex
+            local selected=state.animationTimelineSelection[
+                timelineSelectionId(trackIndex,keyIndex)]==true
             if dragged then
                 draggedMarker={x=kx,y=y,invalid=activeDrag.invalid}
             else
@@ -3729,15 +3744,25 @@ local function showSkeletalTimeline(clip)
         end
         if nearestIndex and nearestDistance<=9 then
             local marker=markerPositions[row][nearestIndex]
+            local selectionId=timelineSelectionId(row,nearestIndex)
+            if state.controlDown then
+                state.animationTimelineSelection[selectionId]=
+                    not state.animationTimelineSelection[selectionId] or nil
+            else
+                state.animationTimelineSelection={[selectionId]=true}
+            end
             state.animationTimelineTrackIndex=row
             state.animationTimelineKeyIndex=nearestIndex
             if marker.track.boneIndex then state.boneIndex=marker.track.boneIndex end
             state.authoringTime=marker.key.time or 0
-            state.animationTimelineDrag={trackIndex=row,keyIndex=nearestIndex,
-                key=marker.key,originalTime=marker.key.time or 0,
-                previewTime=marker.key.time or 0,startX=mouse.x,moved=false,invalid=false}
+            if not state.controlDown and timelineSelectionCount()==1 then
+                state.animationTimelineDrag={trackIndex=row,keyIndex=nearestIndex,
+                    key=marker.key,originalTime=marker.key.time or 0,
+                    previewTime=marker.key.time or 0,startX=mouse.x,moved=false,invalid=false}
+            end
         elseif mouse.x>=x0 then
             state.animationTimelineTrackIndex=nil; state.animationTimelineKeyIndex=nil
+            if not state.controlDown then state.animationTimelineSelection={} end
             state.authoringTime=math.max(0,math.min(duration,(mouse.x-x0)/timelineWidth*duration))
         end
         clearAuthoringOverride()
@@ -3772,6 +3797,17 @@ local function showSkeletalTimelineWindow()
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
     if opened then
         local playback=state.animationPlayback
+        local selectedCount=timelineSelectionCount()
+        tImGui.Text(string.format(tLang.L('swl_animation_timeline_selection_fmt'),selectedCount))
+        if selectedCount>0 then
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('swl_animation_timeline_clear_selection')..
+                    '##swlTimelineClearSelection') then
+                state.animationTimelineSelection={}
+                state.animationTimelineTrackIndex=nil
+                state.animationTimelineKeyIndex=nil
+            end
+        end
         if tImGui.Button(tLang.L('swl_play_restart')..'##swlTimelinePlay') then
             playback.playing=true; playback.paused=false; state.authoringTime=0
             clearAuthoringOverride()
@@ -3849,6 +3885,7 @@ local function showSkeletalAnimationInspection()
             state.animationTimelineTrackIndex=nil
             state.animationTimelineKeyIndex=nil
             state.animationTimelineDrag=nil
+            state.animationTimelineSelection={}
             state.animationPlayback.playing=false
             state.animationPlayback.paused=false
             clearAuthoringOverride()

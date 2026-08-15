@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.39 | 2026-08-15 | Added non-mutating timeline multi-selection: normal click selects one key, Ctrl-click toggles keys across tracks, markers/count/clear action expose selection state, and clip/workspace/mutation transitions clear stale identities. Group dragging stays disabled until an atomic backend batch operation exists. |
 | 7.38 | 2026-08-15 | Added timeline authoring playback over the shared in-memory evaluator: Play/Restart, Pause/Resume, Stop, `0.05x..4x` speed, loop/end handling, synchronized playhead/mesh/skeleton, and automatic pause before seek or transform editing. Playback never authors keys. |
 | 7.37 | 2026-08-15 | Made timeline collisions perceptible: an eight-pixel capture zone snaps the dragged preview to another same-track key's exact time, and the larger invalid red marker renders after all ordinary markers so it cannot be occluded. Canonical `1e-6` time validation remains authoritative. |
 | 7.36 | 2026-08-15 | Added horizontal timeline key dragging. Drag previews only marker/playhead time, clamps to clip bounds, marks same-track collisions red, and commits one backend-validated reorder plus rollback entry on release while preserving the complete key payload. |

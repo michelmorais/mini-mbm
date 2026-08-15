@@ -330,6 +330,10 @@ For usable pointer feedback, entering an eight-pixel zone around another marker 
 that key's exact time and activates collision state; the dragged marker is drawn last so its larger
 red indicator cannot be hidden by the destination marker.
 The key's T/R/S/easing payload is preserved while canonical ordering is recomputed by the backend.
+Timeline selection is distinct from mutation. A normal click selects one key; `Ctrl+click` toggles
+independent keys across tracks, selected markers remain yellow, and the window reports/clears the
+selection count. Multi-key dragging is deliberately disabled because the current backend only
+mutates one key per call; group editing must first receive a candidate-copy atomic backend operation.
 The detached canonical clip/track/key report is cached while the asset is unchanged. Skeleton or
 animation mutation invalidates it through the shared bind/report refresh boundary. This avoids
 rebuilding and garbage-collecting the complete nested Lua report every frame while Animation is idle.
