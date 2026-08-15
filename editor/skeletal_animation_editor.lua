@@ -56,6 +56,8 @@ local state = {
     boneEditorExtendCount = 1,
     boneEditorPreserveOtherJoints = true,
     boneEditorSnapAxes = {x=false,y=false,z=false},
+    boneEditorSnapStep = 0,
+    boneEditorAxisGizmo = {axes={},origin=nil,length=nil},
     boneEditorSegmentTool = 1,
     boneEditorSelectedIndex = nil,
     boneEditorSelection = nil,
@@ -653,6 +655,42 @@ local function rebuildBoneEditorOrientationIndicator()
     indicator.visible=shouldShowSkeleton()
 end
 
+local function rebuildBoneEditorAxisGizmo()
+    local gizmo=state.boneEditorAxisGizmo
+    if state.workspace~='bone_editor' or not state.boneEditorSelection then
+        for _,object in pairs(gizmo.axes) do object.visible=false end
+        gizmo.origin=nil
+        return
+    end
+    local bone=getBones()[state.boneEditorSelection.boneIndex]
+    if not bone then return end
+    local head,tail=getBoneEditorEndpoints(bone,1)
+    local kind=state.boneEditorSelection.kind
+    local origin=kind=='head' and head or (kind=='tail' or kind=='joint') and tail or
+        (kind=='segment' and state.boneEditorSegmentTool==2) and tail or
+        {x=(head.x+tail.x)*0.5,y=(head.y+tail.y)*0.5,z=(head.z+tail.z)*0.5}
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local length=math.max(extent*0.1,0.05)
+    local definitions={x={1,0,0,1,0.15,0.15},y={0,1,0,0.15,1,0.2},z={0,0,1,0.2,0.45,1}}
+    local activeAxis=state.boneEditorDrag and state.boneEditorDrag.axisOverride or nil
+    for name,definition in pairs(definitions) do
+        local points={origin.x,origin.y,origin.z,origin.x+definition[1]*length,
+            origin.y+definition[2]*length,origin.z+definition[3]*length}
+        local object=gizmo.axes[name]
+        if object then object:set(points,1) else
+            object=line:new('3d',0,0,0); object:add(points)
+            object.alwaysOnTop=true; gizmo.axes[name]=object
+        end
+        object:setColor(definition[4],definition[5],definition[6],
+            activeAxis and (activeAxis==name and 1 or 0.25) or 1)
+        object.visible=shouldShowSkeleton()
+    end
+    gizmo.origin=origin
+    gizmo.length=length
+end
+
 local function rebuildTranslationGizmo()
     local gizmo=state.translationGizmo
     if state.workspace~='animation' or not state.authoringPose then
@@ -730,6 +768,7 @@ local function applyWorkspaceVisibility()
     local runtimeWorkspace=state.workspace=='runtime'
     local analysisVisible=weightWorkspace and state.analysisMarkersVisible
     rebuildBoneEditorOrientationIndicator()
+    rebuildBoneEditorAxisGizmo()
 
     if state.preview then
         state.preview.visible=state.meshVisible
@@ -1188,6 +1227,31 @@ local function hitTestTranslationAxis(sx,sy)
     local bounds=state.meshBounds
     local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(extent*0.007,0.001)
+    local best,bestDistance=nil,math.huge
+    for name,axis in pairs({x={x=1,y=0,z=0},y={x=0,y=1,z=0},z={x=0,y=0,z=1}}) do
+        local viewAlignment=math.abs(dx*axis.x+dy*axis.y+dz*axis.z)
+        if viewAlignment<0.95 then
+        local startPoint={x=gizmo.origin.x+axis.x*gizmo.length*0.35,
+            y=gizmo.origin.y+axis.y*gizmo.length*0.35,
+            z=gizmo.origin.z+axis.z*gizmo.length*0.35}
+        local endpoint={x=gizmo.origin.x+axis.x*gizmo.length,
+            y=gizmo.origin.y+axis.y*gizmo.length,z=gizmo.origin.z+axis.z*gizmo.length}
+        local distance=raySegmentDistance(ox,oy,oz,dx,dy,dz,startPoint,endpoint,radius)
+        if distance and distance<bestDistance then best,bestDistance=name,distance end
+        end
+    end
+    return best
+end
+
+local function hitTestBoneEditorAxis(sx,sy)
+    local gizmo=state.boneEditorAxisGizmo
+    if state.workspace~='bone_editor' or not gizmo.origin or not gizmo.length then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
     local radius=math.max(extent*0.014,0.002)
     local best,bestDistance=nil,math.huge
     for name,axis in pairs({x={x=1,y=0,z=0},y={x=0,y=1,z=0},z={x=0,y=0,z=1}}) do
@@ -1207,8 +1271,8 @@ local function rayAxisParameter(sx,sy,origin,axis)
     local rayProjection=dx*wx+dy*wy+dz*wz
     local axisProjection=axis.x*wx+axis.y*wy+axis.z*wz
     local denominator=1-parallel*parallel
-    if math.abs(denominator)<1e-6 then return nil end
-    return (parallel*rayProjection-axisProjection)/denominator
+    if math.abs(denominator)<0.05 then return nil end
+    return (axisProjection-parallel*rayProjection)/denominator
 end
 
 local function worldDeltaToLocal(dx,dy,dz,parentMatrix)
@@ -1733,6 +1797,37 @@ end
 
 local function discardRollbackSnapshot(snapshot)
     if snapshot and snapshot.path then pcall(os.remove,snapshot.path) end
+end
+
+local function cancelBoneEditorDrag()
+    local drag=state.boneEditorDrag
+    if not drag or not drag.snapshot then return false end
+    local restored=meshDebug:new()
+    if not restored:load(drag.snapshot.path) then
+        setStatus(tLang.L('swl_bone_editor_cancel_failed'),true)
+        return false
+    end
+    state.meshD=restored
+    state.modified=drag.snapshot.modified==true
+    discardRollbackSnapshot(drag.snapshot)
+    state.boneEditorDrag=nil
+    state.boneEditorPendingCycle=nil
+    refreshBindReport()
+    local selectedIndex=nil
+    for index,bone in ipairs(getBones()) do
+        if bone.boneId==drag.boneId then selectedIndex=index break end
+    end
+    state.boneIndex=selectedIndex or 1
+    state.boneEditorSelectedIndex=selectedIndex
+    local bone=selectedIndex and getBones()[selectedIndex] or nil
+    state.boneEditorSelection=bone and {kind=drag.mode=='head' and 'head' or
+        drag.mode=='tail' and 'tail' or 'segment',boneIndex=selectedIndex,
+        boneId=bone.boneId,boneName=bone.name} or nil
+    rebuildPreview()
+    rebuildSkeletonVisuals()
+    applyWorkspaceVisibility()
+    setStatus(tLang.L('swl_bone_editor_drag_cancelled'),false)
+    return true
 end
 
 local function snapshotForRollback()
@@ -3652,6 +3747,13 @@ local function showBoneEditor()
             'Snap '..axis:upper()..'##swlBoneSnap'..axis,state.boneEditorSnapAxes[axis])
     end
     tImGui.TextWrapped(tLang.L('swl_bone_editor_axis_constraint_help'))
+    tImGui.PushItemWidth(90)
+    local snapChanged,snapStep=tImGui.InputFloat(tLang.L('swl_bone_editor_snap_step')..
+        '##swlBoneSnapStep',state.boneEditorSnapStep,0,0,'%.6g',
+        tImGui.Flags('ImGuiInputTextFlags_None'))
+    tImGui.PopItemWidth()
+    if snapChanged then state.boneEditorSnapStep=math.max(0,snapStep) end
+    tImGui.TextWrapped(tLang.L('swl_bone_editor_snap_step_help'))
     tImGui.Text(tLang.L('swl_bone_editor_segment_tool'))
     state.boneEditorSegmentTool=tImGui.RadioButton(
         tLang.L('swl_bone_editor_segment_move')..'##swlBoneSegmentMove',
@@ -4219,9 +4321,16 @@ function onLoop(delta)
 end
 
 function onTouchDown(key, x, y)
+    if key==1 and state.workspace=='bone_editor' and state.boneEditorDrag then
+        cancelBoneEditorDrag()
+        return
+    end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
         if state.workspace=='bone_editor' then
             local selection=hitTestBoneEditor(x,y)
+            local axisOverride=not selection and hitTestBoneEditorAxis(x,y) or nil
+            if axisOverride then selection=state.boneEditorSelection end
+            if axisOverride then state.boneEditorPendingCycle=nil end
             state.boneEditorSelection=selection
             state.boneEditorSelectedIndex=selection and selection.boneIndex or nil
             if selection then
@@ -4256,11 +4365,19 @@ function onTouchDown(key, x, y)
                                     rotatingSegment and 'rotate_segment' or
                                     selection.kind=='segment' and 'segment' or 'tail',parent=parent,
                                 head={x=bone.x,y=bone.y,z=bone.z},
+                                tail={x=tail.x,y=tail.y,z=tail.z},
                                 tailLength=bone.tailOffset and math.sqrt(
                                     (bone.tailOffset.x or 0)^2+(bone.tailOffset.y or 0)^2+
                                     (bone.tailOffset.z or 0)^2) or 0,
                                 globalMatrix=bone.globalMatrix,point=dragPoint,
-                                startWorldHit={x=wx,y=wy,z=wz},
+                                startWorldHit=axisOverride and {x=dragPoint.x,y=dragPoint.y,
+                                    z=dragPoint.z} or {x=wx,y=wy,z=wz},
+                                axisOverride=axisOverride,
+                                startAxisParameter=axisOverride and rayAxisParameter(x,y,
+                                    state.boneEditorAxisGizmo.origin,
+                                    axisOverride=='x' and {x=1,y=0,z=0} or
+                                    axisOverride=='y' and {x=0,y=1,z=0} or
+                                    {x=0,y=0,z=1}) or nil,
                                 plane={point=dragPoint,normal={x=nx,y=ny,z=nz}},snapshot=snapshot,
                                 moved=false,lastVisualTime=0,startX=x,startY=y}
                             return
@@ -4325,18 +4442,43 @@ function onTouchMove(key, x, y)
             wx,wy,wz=rayPlaneHit(x,y,boneDrag.plane.point,boneDrag.plane.normal)
         end
         if wx then
-            local snap=state.boneEditorSnapAxes
+            if boneDrag.axisOverride and boneDrag.startAxisParameter then
+                local axis=boneDrag.axisOverride=='x' and {x=1,y=0,z=0} or
+                    boneDrag.axisOverride=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
+                local axisOrigin=boneDrag.mode=='rotate_segment' and boneDrag.tail or boneDrag.point
+                local parameter=rayAxisParameter(x,y,axisOrigin,axis)
+                if parameter then
+                    local amount=parameter-boneDrag.startAxisParameter
+                    wx,wy,wz=axisOrigin.x+axis.x*amount,
+                        axisOrigin.y+axis.y*amount,axisOrigin.z+axis.z*amount
+                end
+            end
+            if boneDrag.mode=='segment' then
+                wx=boneDrag.head.x+(wx-boneDrag.startWorldHit.x)
+                wy=boneDrag.head.y+(wy-boneDrag.startWorldHit.y)
+                wz=boneDrag.head.z+(wz-boneDrag.startWorldHit.z)
+            end
+            local snap=boneDrag.axisOverride and {
+                x=boneDrag.axisOverride=='x',y=boneDrag.axisOverride=='y',
+                z=boneDrag.axisOverride=='z'} or state.boneEditorSnapAxes
             local constrained=snap.x or snap.y or snap.z
             if constrained then
-                if boneDrag.mode=='segment' then
-                    wx=boneDrag.head.x+(snap.x and (wx-boneDrag.startWorldHit.x) or 0)
-                    wy=boneDrag.head.y+(snap.y and (wy-boneDrag.startWorldHit.y) or 0)
-                    wz=boneDrag.head.z+(snap.z and (wz-boneDrag.startWorldHit.z) or 0)
-                else
-                    wx=snap.x and wx or boneDrag.point.x
-                    wy=snap.y and wy or boneDrag.point.y
-                    wz=snap.z and wz or boneDrag.point.z
+                local baseline=boneDrag.mode=='segment' and boneDrag.head or
+                    boneDrag.mode=='rotate_segment' and boneDrag.tail or boneDrag.point
+                wx=snap.x and wx or baseline.x
+                wy=snap.y and wy or baseline.y
+                wz=snap.z and wz or baseline.z
+            end
+            local snapStep=state.boneEditorSnapStep or 0
+            if snapStep>1e-9 then
+                local baseline=boneDrag.mode=='segment' and boneDrag.head or
+                    boneDrag.mode=='rotate_segment' and boneDrag.tail or boneDrag.point
+                local function snapped(value,start)
+                    local units=(value-start)/snapStep
+                    units=units>=0 and math.floor(units+0.5) or math.ceil(units-0.5)
+                    return start+units*snapStep
                 end
+                wx,wy,wz=snapped(wx,baseline.x),snapped(wy,baseline.y),snapped(wz,baseline.z)
             end
             local lx,ly,lz
             if boneDrag.mode=='rotate_segment' then
@@ -4349,11 +4491,6 @@ function onTouchMove(key, x, y)
                 else lx=nil end
             elseif boneDrag.mode=='head' or boneDrag.mode=='segment' then
                 local parent=boneDrag.parent
-                if boneDrag.mode=='segment' and not constrained then
-                    wx=boneDrag.head.x+(wx-boneDrag.startWorldHit.x)
-                    wy=boneDrag.head.y+(wy-boneDrag.startWorldHit.y)
-                    wz=boneDrag.head.z+(wz-boneDrag.startWorldHit.z)
-                end
                 if parent then
                     lx,ly,lz=worldDeltaToLocal(wx-parent.x,wy-parent.y,wz-parent.z,
                         parent.globalMatrix)
@@ -4476,7 +4613,10 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
-    if key == mbm.getKeyCode('control') then
+    if key==mbm.getKeyCode('ESC') and state.workspace=='bone_editor' and
+            state.boneEditorDrag then
+        cancelBoneEditorDrag()
+    elseif key == mbm.getKeyCode('control') then
         state.controlDown = true
     elseif state.controlDown and key == mbm.getKeyCode('O') then
         local path = mbm.openFile(state.fileName or '', 'msh')

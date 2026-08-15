@@ -252,7 +252,12 @@ imported aim axis is not local `+Y`.
 The **Snap X/Y/Z** controls constrain joint and segment dragging in global space. With one or more
 axes checked, only those coordinates receive the mouse displacement; unchecked coordinates remain
 at their gesture-start values. With all three unchecked, dragging remains freely projected on the
-camera-facing plane.
+camera-facing plane. A selected endpoint/segment also exposes always-on-top red X, green Y, and blue
+Z handles; dragging one handle temporarily constrains only that gesture without changing the
+checkboxes. **Snap step** quantizes global displacement to the requested positive interval, while
+zero disables quantization. Endpoint/segment picking has priority over handles, only the outer 65%
+of a handle is pickable, and camera-near-parallel axes do not capture input. The active axis remains
+fully colored while the other two dim during the gesture.
 
 Dragging an explicit tail uses a camera-facing plane through the endpoint. The resulting world-space
 point is converted back through the bone's global bind basis into `tailOffset`; the head remains
@@ -290,6 +295,9 @@ For the selected explicit segment, the panel reports its normalized local direct
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine
 twist around that axis, and this endpoint tool does not silently rewrite the canonical bind quaternion.
+During any Bone Editor head, tail, or segment gesture, `Esc` or right-click reloads the complete
+pre-mouse-down skeletal snapshot. Cancellation restores the prior modified state, keeps the selected
+stable bone when it still exists, creates no history entry, and rebuilds reports, preview, and gizmos.
 The selected segment also draws a short yellow always-on-top arrow from its head toward its tail.
 The arrow follows the endpoint continuously during rotation, providing spatial direction feedback
 directly at the joint instead of relying only on numeric angles. One persistent line object is

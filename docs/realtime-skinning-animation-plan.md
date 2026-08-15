@@ -801,6 +801,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.30 | 2026-08-15 | Corrected axis-gizmo movement sign and hardened selection against center/geometry capture and camera-parallel instability, with explicit active-axis feedback during drag. |
+| 8.29 | 2026-08-15 | Bone Editor adds always-on-top global XYZ manipulation handles and a nonnegative incremental snap step; handle selection temporarily constrains one gesture while zero step preserves continuous motion. |
+| 8.28 | 2026-08-15 | Bone Editor gestures support exact Esc/right-click cancellation through the complete staged asset snapshot, restoring selection and all editor consumers without creating a history entry. |
 | 8.27 | 2026-08-15 | Bone Editor removal previews the selected weight-transfer target in green across its complete viewport representation, distinct from the blue removal-source selection. |
 | 8.26 | 2026-08-15 | Bone Editor now exposes transactional safe removal with dependency impact, weight replacement, child promotion, track-discard policy, confirmation, rollback, and deterministic surviving-parent selection. |
 | 8.25 | 2026-08-15 | Bone Editor exposes atomic connection/disconnection between a head and its current parent tail, preserving the edited global tail and optionally all other joints while keeping hierarchy changes explicitly separate. |
