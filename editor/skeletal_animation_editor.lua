@@ -62,6 +62,12 @@ local state = {
     boneEditorDrag = nil,
     boneEditorPendingCycle = nil,
     boneEditorOrientationIndicator = nil,
+    boneEditorRemoveBoneId = nil,
+    boneEditorRemoveReplacement = 1,
+    boneEditorRemoveReparentChildren = false,
+    boneEditorRemoveDiscardTracks = false,
+    boneEditorRemoveConfirmed = false,
+    boneEditorRemovePreviewIndex = nil,
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -400,6 +406,8 @@ local function getBones()
             boneId=bone.boneId,
             name=bone.name,
             parentName=parent and parent.name or nil,
+            parentIndex=parentIndex,
+            parentBoneId=bone.parentBoneId,
             x=global[13] or 0,
             y=global[14] or 0,
             z=global[15] or 0,
@@ -408,6 +416,10 @@ local function getBones()
             tailOffset=bone.tailOffset,
             hasExplicitTail=bone.hasExplicitTail==true,
             connectedToParent=bone.connectedToParent==true,
+            childCount=bone.childCount or 0,
+            weightedVertexCount=bone.weightedVertexCount or 0,
+            animationTrackCount=bone.animationTrackCount or 0,
+            weightPaletteReferenced=bone.weightPaletteReferenced==true,
             globalMatrix=global,
         }
     end
@@ -763,6 +775,8 @@ local function applyWorkspaceVisibility()
     local selectedBindBone=(state.workspace=='bind' or state.workspace=='animation') and
         getBones()[state.boneIndex] or (state.workspace=='bone_editor' and
         state.boneEditorSelectedIndex and getBones()[state.boneEditorSelectedIndex] or nil)
+    local removalPreviewBone=state.workspace=='bone_editor' and
+        state.boneEditorRemovePreviewIndex and getBones()[state.boneEditorRemovePreviewIndex] or nil
     for name,object in pairs(state.skeletonGizmo.spheres) do
         local boneEditorSelected=state.workspace=='bone_editor' and state.boneEditorSelection and
             ((state.boneEditorSelection.kind=='head' and name==state.boneEditorSelection.boneName) or
@@ -775,6 +789,9 @@ local function applyWorkspaceVisibility()
                  name==state.boneEditorSelection.boneName..'::tail')))
         if boneEditorSelected then
             object:setColor(0.1,0.85,1,1)
+        elseif removalPreviewBone and (name==removalPreviewBone.name or
+                name==removalPreviewBone.name..'::tail') then
+            object:setColor(0.2,1,0.25,1)
         elseif weightWorkspace and name==state.hoveredAllowedBone then
             object:setColor(1,0.45,0.05,1)
         elseif weightWorkspace and state.allowedBonesHighlight and state.allowedBones[name] then
@@ -790,6 +807,8 @@ local function applyWorkspaceVisibility()
                 state.boneEditorSelection.kind=='segment' and
                 boneId==state.boneEditorSelection.boneId then
             object:setColor(0.1,0.85,1,1)
+        elseif removalPreviewBone and boneId==removalPreviewBone.boneId then
+            object:setColor(0.2,1,0.25,1)
         elseif selectedBindBone and boneId==selectedBindBone.boneId then
             object:setColor(0.1,0.85,1,1)
         else
@@ -3618,6 +3637,8 @@ local function nextSimpleBoneName()
 end
 
 local function showBoneEditor()
+    local previousRemovePreview=state.boneEditorRemovePreviewIndex
+    state.boneEditorRemovePreviewIndex=nil
     tImGui.TextWrapped(tLang.L('swl_bone_editor_help'))
     tImGui.Separator()
     state.boneEditorPreserveOtherJoints=tImGui.Checkbox(
@@ -3802,6 +3823,117 @@ local function showBoneEditor()
                 tImGui.TextWrapped(tLang.L('swl_bone_editor_parent_without_tail'))
             end
         end
+        if selectedBone then
+            if state.boneEditorRemoveBoneId~=selectedBone.boneId then
+                state.boneEditorRemoveBoneId=selectedBone.boneId
+                state.boneEditorRemoveReplacement=selectedBone.parentIndex>0 and
+                    selectedBone.parentIndex or (state.boneEditorSelection.boneIndex==1 and 2 or 1)
+                state.boneEditorRemoveReparentChildren=false
+                state.boneEditorRemoveDiscardTracks=false
+                state.boneEditorRemoveConfirmed=false
+            end
+            if tImGui.TreeNode(tLang.L('swl_remove_bone')..'##swlBoneEditorRemove') then
+                local bones=getBones()
+                local hasReferences=selectedBone.weightPaletteReferenced or
+                    selectedBone.animationTrackCount>0
+                local hasChildren=selectedBone.childCount>0
+                local blocked=#bones<=1
+                tImGui.Text(string.format(tLang.L('swl_remove_bone_impact_fmt'),
+                    selectedBone.childCount,selectedBone.weightedVertexCount,
+                    selectedBone.animationTrackCount))
+                tImGui.TextWrapped(blocked and tLang.L('swl_remove_bone_blocked') or
+                    ((hasReferences or hasChildren) and tLang.L('swl_remove_bone_remap_policy') or
+                        tLang.L('swl_remove_bone_strict_policy')))
+                local replacementNames,replacementIndices={},{}
+                for index,candidate in ipairs(bones) do
+                    if index~=state.boneEditorSelection.boneIndex then
+                        replacementNames[#replacementNames+1]=candidate.name
+                        replacementIndices[#replacementIndices+1]=index
+                    end
+                end
+                if (hasReferences or hasChildren) and #replacementNames>0 then
+                    local choice=1
+                    for item,index in ipairs(replacementIndices) do
+                        if index==state.boneEditorRemoveReplacement then choice=item break end
+                    end
+                    tImGui.PushItemWidth(190)
+                    local changed,newChoice=tImGui.Combo(tLang.L('swl_remove_remap_target')..
+                        '##swlBoneEditorRemoveTarget',choice,replacementNames,-1)
+                    tImGui.PopItemWidth()
+                    if changed then
+                        state.boneEditorRemoveReplacement=replacementIndices[newChoice]
+                        state.boneEditorRemoveConfirmed=false
+                    end
+                    state.boneEditorRemovePreviewIndex=state.boneEditorRemoveReplacement
+                    tImGui.TextWrapped(tLang.L('swl_bone_editor_remove_target_highlight'))
+                end
+                if hasChildren then
+                    local reparent=tImGui.Checkbox(tLang.L('swl_reparent_children_preserve_global')..
+                        '##swlBoneEditorRemoveChildren',state.boneEditorRemoveReparentChildren)
+                    if reparent~=state.boneEditorRemoveReparentChildren then
+                        state.boneEditorRemoveReparentChildren=reparent
+                        state.boneEditorRemoveConfirmed=false
+                    end
+                end
+                if selectedBone.animationTrackCount>0 then
+                    local discard=tImGui.Checkbox(tLang.L('swl_discard_removed_bone_tracks')..
+                        '##swlBoneEditorRemoveTracks',state.boneEditorRemoveDiscardTracks)
+                    if discard~=state.boneEditorRemoveDiscardTracks then
+                        state.boneEditorRemoveDiscardTracks=discard
+                        state.boneEditorRemoveConfirmed=false
+                    end
+                end
+                local actionBlocked=blocked or (selectedBone.animationTrackCount>0 and
+                    not state.boneEditorRemoveDiscardTracks) or (hasChildren and
+                    not state.boneEditorRemoveReparentChildren)
+                tImGui.BeginDisabled(actionBlocked)
+                local confirmed=tImGui.Checkbox(tLang.L('swl_confirm_remove_bone')..
+                    '##swlBoneEditorRemoveConfirm',state.boneEditorRemoveConfirmed)
+                if confirmed~=state.boneEditorRemoveConfirmed then
+                    state.boneEditorRemoveConfirmed=confirmed
+                end
+                tImGui.BeginDisabled(not state.boneEditorRemoveConfirmed)
+                if tImGui.Button(tLang.L('swl_apply_remove_bone')..'##swlBoneEditorRemoveApply') then
+                    local previousParentId=selectedBone.parentBoneId
+                    local snapshot=stageRollbackSnapshot()
+                    local ok=snapshot and select(1,safeCall(function()
+                        if hasReferences or hasChildren then
+                            return state.meshD:removeSkeletalBoneRemapped(
+                                state.boneEditorSelection.boneIndex,
+                                state.boneEditorRemoveReplacement,
+                                state.boneEditorRemoveDiscardTracks,
+                                state.boneEditorRemoveReparentChildren)
+                        end
+                        return state.meshD:removeSkeletalBone(state.boneEditorSelection.boneIndex)
+                    end)) or false
+                    if ok then
+                        commitRollbackSnapshot(snapshot)
+                        state.modified=true
+                        refreshBindReport()
+                        state.boneIndex=1
+                        for index,candidate in ipairs(getBones()) do
+                            if candidate.boneId==previousParentId then state.boneIndex=index break end
+                        end
+                        local replacement=getBones()[state.boneIndex]
+                        state.boneEditorSelectedIndex=replacement and state.boneIndex or nil
+                        state.boneEditorSelection=replacement and {kind=replacement.hasExplicitTail and
+                            'segment' or 'head',boneIndex=state.boneIndex,boneId=replacement.boneId,
+                            boneName=replacement.name} or nil
+                        state.boneEditorRemoveBoneId=nil
+                        rebuildPreview()
+                        rebuildSkeletonVisuals()
+                        applyWorkspaceVisibility()
+                        setStatus(tLang.L('swl_bone_removed'),false)
+                    elseif snapshot then discardRollbackSnapshot(snapshot) end
+                end
+                tImGui.EndDisabled()
+                tImGui.EndDisabled()
+                tImGui.TreePop()
+            end
+        end
+    end
+    if previousRemovePreview~=state.boneEditorRemovePreviewIndex then
+        applyWorkspaceVisibility()
     end
     showRollbackControls('swlBoneEditorRevert')
 end

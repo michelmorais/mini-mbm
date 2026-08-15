@@ -267,6 +267,8 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.20.1 Bone Editor removal preview highlights the selected weight-transfer target in green across its joint, tail, and segment, distinct from the blue removal source.
+    7.20.0 Bone Editor exposes safe transactional removal with dependency impact, replacement, child promotion, track-discard policy, confirmation, rollback, and surviving-parent selection.
     7.19.0 Bone Editor adds atomic connect/disconnect between a head and its current parent tail, preserving the edited global tail and optionally compensating every other joint without conflating connection with reparenting.
     7.18.3 Fixed Bone Editor direction-arrow drift/trails by updating one persistent line object in place during rotation instead of recreating renderables every frame.
     7.18.2 Bone Editor draws a selected-segment yellow direction arrow from head toward tail, updating during manipulation for direct spatial rotation feedback.
@@ -327,7 +329,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.19.0" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.20.1" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

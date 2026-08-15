@@ -801,6 +801,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.27 | 2026-08-15 | Bone Editor removal previews the selected weight-transfer target in green across its complete viewport representation, distinct from the blue removal-source selection. |
+| 8.26 | 2026-08-15 | Bone Editor now exposes transactional safe removal with dependency impact, weight replacement, child promotion, track-discard policy, confirmation, rollback, and deterministic surviving-parent selection. |
 | 8.25 | 2026-08-15 | Bone Editor exposes atomic connection/disconnection between a head and its current parent tail, preserving the edited global tail and optionally all other joints while keeping hierarchy changes explicitly separate. |
 | 8.24 | 2026-08-15 | Fixed Bone Editor direction-arrow drift/trails by updating a persistent LINE_MESH in place instead of destroying and recreating it throughout a rotation gesture. |
 | 8.23 | 2026-08-15 | Selected Bone Editor segments draw a short yellow always-on-top arrow from head toward tail, updated during manipulation to make endpoint rotation spatially visible at the joint. |

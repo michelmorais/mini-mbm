@@ -489,6 +489,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.21 | 2026-08-15 | Bone-removal preview highlights the current weight-transfer target in green across joint, tail, and segment while retaining blue selection on the removal source. Combo changes update immediately and closing the removal section clears the preview. |
+| 7.20 | 2026-08-15 | Migrated safe bone removal into Bone Editor: selected-bone impact counts, replacement selection, global-preserving child promotion, explicit track discard, last-bone blocking, confirmation, surviving-parent selection, and whole-asset rollback reuse the existing transactional backend. |
 | 7.19 | 2026-08-15 | Added explicit connect/disconnect against the current parent tail. Connect snaps the head, preserves the selected global tail, optionally compensates every other joint, and rejects parents without explicit tails; disconnect clears only the constraint. Hierarchy changes remain a separate structural operation. |
 | 7.18 | 2026-08-15 | Fixed direction-arrow trails/drift during rotation by retaining one line object and replacing line 1 points in place. The drag loop no longer destroys/recreates renderables, so prior frames cannot appear to accumulate toward -Z/-Y. |
 | 7.17 | 2026-08-15 | Added a selected-segment direction arrow at the head joint. The short yellow always-on-top shaft and arrowhead follow head→tail continuously during manipulation, making endpoint rotation readable directly in the viewport. |

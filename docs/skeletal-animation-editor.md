@@ -300,6 +300,14 @@ constraint against its current parent. The head snaps to that tail while the sel
 global tail is preserved; Preserve other joints controls compensation of the remaining hierarchy.
 **Disconnect from parent tail** only clears the constraint and moves no geometry. These actions do
 not change parenthood: choosing another parent remains a distinct structural operation.
+
+The selected bone's **Remove Bone** section exposes the existing transactional deletion contract in
+the mouse-first workspace. It reports child, weighted-vertex, and animation-track impact; strict
+unreferenced leaves need no remap, while referenced/branching bones require an explicit replacement,
+global-preserving child promotion, and track-discard confirmation where applicable. The last bone
+cannot be removed. While the removal section is open, the selected weight-transfer target is
+highlighted in green across its joint, tail, and segment; the bone being removed retains the blue
+selection color. Success selects the surviving parent and creates one rollback entry.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 
