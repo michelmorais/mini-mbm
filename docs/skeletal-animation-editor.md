@@ -313,6 +313,10 @@ During interactive Move/Rotate preview, Animation uses persistent joint shapes a
 segments. Pose refresh updates their positions and dynamic line buffers in place; it does not destroy
 and recreate the complete skeleton for every mouse event. A structural selection/load change still
 performs the normal complete rebuild.
+Auto Key is explicitly opt-in and defaults off. When enabled, releasing a Move or Rotate gesture
+that actually changed the evaluated pose commits one undoable key for only that gesture's channel
+(T or R). A click without movement creates no key. When disabled, mouse release retains the
+temporary override for explicit commit or discard.
 For the selected explicit segment, the panel reports its normalized local direction, current length,
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine

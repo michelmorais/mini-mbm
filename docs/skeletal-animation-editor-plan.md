@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.31 | 2026-08-15 | Added opt-in Auto Key for Animation pose gizmos. It defaults off; a genuinely moved drag commits exactly its T or R channel on release through the existing snapshot/rollback transaction, while clicks without movement create nothing and disabled mode remains temporary. |
 | 7.30 | 2026-08-15 | Removed destructive per-mouse-event Animation skeleton rebuilding. The authoring viewport now keeps joint objects and parent-child line segments persistent and updates transforms/dynamic buffers in place together with the sampled palette; full rebuild remains reserved for structural changes. |
 | 7.29 | 2026-08-15 | Fixed the Animation Move/Rotate controls to use the editor binding's numeric three-argument RadioButton contract; the unsupported boolean overload previously raised a Lua error and left the ImGui window unbalanced. |
 | 7.28 | 2026-08-15 | Animation pose authoring adds explicit Move/Rotate tools and persistent local XYZ rotation rings. Ring drag writes only an in-memory normalized quaternion override, updates mesh and evaluated skeleton together, and requires an explicit R-channel key commit or discard. |

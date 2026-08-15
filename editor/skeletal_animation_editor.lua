@@ -51,6 +51,7 @@ local state = {
     authoringOverride = nil,
     authoringActiveClip = nil,
     animationTransformTool = 1,
+    animationAutoKey = false,
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
     rotationGizmo = {rings={},origin=nil,radius=nil,drag=nil},
     boneEditorPosition = {x=0,y=0,z=0},
@@ -2014,6 +2015,31 @@ local function discardRollbackSnapshot(snapshot)
     if snapshot and snapshot.path then pcall(os.remove,snapshot.path) end
 end
 
+local function commitAuthoringOverride()
+    local value=state.authoringOverride
+    if not value or not state.authoringActiveClip then return false end
+    local snapshot=stageRollbackSnapshot()
+    if not snapshot then return false end
+    local t,q,s=value.translation,value.rotation,value.scale
+    local ok,created=safeCall(function()
+        return state.meshD:commitSkeletalAuthoringKey(state.animationClipSelected,
+            value.boneIndex,state.authoringTime,value.channelMask or 1,t.x,t.y,t.z,
+            q.x,q.y,q.z,q.w,s.x,s.y,s.z)
+    end)
+    if not ok then discardRollbackSnapshot(snapshot); return false end
+    local rotation=value.channelMask==2
+    commitRollbackSnapshot(snapshot)
+    state.modified=true
+    clearAuthoringOverride()
+    refreshBindReport()
+    refreshAuthoringPose(state.authoringActiveClip)
+    setStatus(tLang.L(rotation and (created and 'swl_animation_rotation_key_created' or
+        'swl_animation_rotation_key_updated') or (created and
+        'swl_animation_translation_key_created' or
+        'swl_animation_translation_key_updated')),false)
+    return true
+end
+
 local function cancelBoneEditorDrag()
     local drag=state.boneEditorDrag
     if not drag or not drag.snapshot then return false end
@@ -3614,6 +3640,9 @@ local function showSkeletalAnimationInspection()
             state.translationGizmo.drag=nil; state.rotationGizmo.drag=nil
             rebuildTranslationGizmo(); rebuildRotationGizmo()
         end
+        state.animationAutoKey=tImGui.Checkbox(
+            tLang.L('swl_animation_auto_key')..'##swlAnimationAutoKey',state.animationAutoKey)
+        tImGui.TextDisabled(tLang.L('swl_animation_auto_key_help'))
         tImGui.TextDisabled(tLang.L('swl_animation_viewport_select_help'))
         if state.authoringOverride then
             tImGui.TextColored({r=1,g=0.75,b=0.15,a=1},
@@ -3622,29 +3651,7 @@ local function showSkeletalAnimationInspection()
             if tImGui.Button(tLang.L(rotationOverride and
                     'swl_animation_commit_rotation_key' or
                     'swl_animation_commit_translation_key')..'##swlCommitAuthoringKey') then
-                local value=state.authoringOverride
-                local snapshot=stageRollbackSnapshot()
-                local ok,created=false,false
-                if snapshot then
-                    local t,q,s=value.translation,value.rotation,value.scale
-                    ok,created=safeCall(function()
-                        return state.meshD:commitSkeletalAuthoringKey(state.animationClipSelected,
-                            value.boneIndex,state.authoringTime,value.channelMask or 1,t.x,t.y,t.z,
-                            q.x,q.y,q.z,q.w,s.x,s.y,s.z)
-                    end)
-                end
-                if ok then
-                    commitRollbackSnapshot(snapshot)
-                    state.modified=true
-                    clearAuthoringOverride()
-                    refreshBindReport()
-                    refreshAuthoringPose(clip)
-                    setStatus(tLang.L(rotationOverride and (created and
-                        'swl_animation_rotation_key_created' or
-                        'swl_animation_rotation_key_updated') or (created and
-                        'swl_animation_translation_key_created' or
-                        'swl_animation_translation_key_updated')),false)
-                elseif snapshot then discardRollbackSnapshot(snapshot) end
+                commitAuthoringOverride()
             end
             if tImGui.Button(tLang.L('swl_animation_discard_temporary_pose')..
                     '##swlDiscardTemporaryPose') then
@@ -4678,7 +4685,7 @@ function onTouchDown(key, x, y)
                     z=state.rotationGizmo.origin.z},
                 baseTranslation={x=t.x,y=t.y,z=t.z},
                 baseRotation={x=q.x,y=q.y,z=q.z,w=q.w},
-                scale={x=s.x,y=s.y,z=s.z}}
+                scale={x=s.x,y=s.y,z=s.z},moved=false}
             return
         end
         local axisName=hitTestTranslationAxis(x,y)
@@ -4693,7 +4700,7 @@ function onTouchDown(key, x, y)
                     origin={x=state.translationGizmo.origin.x,y=state.translationGizmo.origin.y,
                         z=state.translationGizmo.origin.z},
                     baseTranslation={x=t.x,y=t.y,z=t.z},
-                    rotation={x=q.x,y=q.y,z=q.z,w=q.w},scale={x=s.x,y=s.y,z=s.z}}
+                    rotation={x=q.x,y=q.y,z=q.z,w=q.w},scale={x=s.x,y=s.y,z=s.z},moved=false}
                 return
             end
         end
@@ -4858,7 +4865,9 @@ function onTouchMove(key, x, y)
                         translation=rotationDrag.baseTranslation,rotation=q,
                         scale=rotationDrag.scale}
                     invalidateAuthoringPose()
-                    refreshAuthoringPose(state.authoringActiveClip)
+                    if refreshAuthoringPose(state.authoringActiveClip) then
+                        rotationDrag.moved=true
+                    end
                 end
             end
         end
@@ -4879,7 +4888,7 @@ function onTouchMove(key, x, y)
                     translation={x=drag.baseTranslation.x+lx,y=drag.baseTranslation.y+ly,
                         z=drag.baseTranslation.z+lz},rotation=drag.rotation,scale=drag.scale}
                 invalidateAuthoringPose()
-                refreshAuthoringPose(state.authoringActiveClip)
+                if refreshAuthoringPose(state.authoringActiveClip) then drag.moved=true end
             end
         end
     elseif isWeightLabWorkspace() and state.aabbDragging and state.aabbDragPlane then
@@ -4907,6 +4916,9 @@ end
 function onTouchUp(key, x, y)
     if key == 0 then
         local boneDrag=state.boneEditorDrag
+        local completedAuthoringDrag=(state.translationGizmo.drag and
+            state.translationGizmo.drag.moved) or (state.rotationGizmo.drag and
+            state.rotationGizmo.drag.moved)
         local completedBoneDrag=boneDrag and boneDrag.moved
         if boneDrag then
             if boneDrag.moved then
@@ -4933,6 +4945,10 @@ function onTouchUp(key, x, y)
             applyWorkspaceVisibility()
         end
         state.boneEditorPendingCycle=nil
+        if state.workspace=='animation' and state.animationAutoKey and
+                completedAuthoringDrag and state.authoringOverride then
+            commitAuthoringOverride()
+        end
         state.translationGizmo.drag=nil
         state.rotationGizmo.drag=nil
         mouseDown = false
