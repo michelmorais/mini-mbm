@@ -489,6 +489,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.34 | 2026-08-15 | Timeline horizontal placement now begins at the live right edge of the resizable left worktree window and occupies only the remaining screen width, rather than covering the panel beneath it. |
+| 7.33 | 2026-08-15 | Moved the timeline from the narrow worktree panel into a fixed full-width bottom window, widened bone/channel labels, and culled off-screen track/key draw submission using the child scroll range to remove the newly introduced per-frame CPU cost. |
+| 7.32 | 2026-08-15 | Began the graphical timeline with a scrollable canonical-track canvas, time ruler, channel-labelled rows, selectable key markers, and synchronized playhead seeking. Key selection resolves the authored bone and exact key time; marker dragging remains deferred to its transactional collision policy. |
 | 7.31 | 2026-08-15 | Added opt-in Auto Key for Animation pose gizmos. It defaults off; a genuinely moved drag commits exactly its T or R channel on release through the existing snapshot/rollback transaction, while clicks without movement create nothing and disabled mode remains temporary. |
 | 7.30 | 2026-08-15 | Removed destructive per-mouse-event Animation skeleton rebuilding. The authoring viewport now keeps joint objects and parent-child line segments persistent and updates transforms/dynamic buffers in place together with the sampled palette; full rebuild remains reserved for structural changes. |
 | 7.29 | 2026-08-15 | Fixed the Animation Move/Rotate controls to use the editor binding's numeric three-argument RadioButton contract; the unsupported boolean overload previously raised a Lua error and left the ImGui window unbalanced. |

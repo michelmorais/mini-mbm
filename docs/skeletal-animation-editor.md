@@ -317,6 +317,14 @@ Auto Key is explicitly opt-in and defaults off. When enabled, releasing a Move o
 that actually changed the evaluated pose commits one undoable key for only that gesture's channel
 (T or R). A click without movement creates no key. When disabled, mouse release retains the
 temporary override for explicit commit or discard.
+The graphical timeline occupies a separate horizontal window along the bottom of the editor. Its
+left edge follows the actual right edge of the resizable worktree panel and its right edge reaches
+the screen boundary, leaving the panel unobstructed. It draws a time ruler, one
+scrollable row per canonical track, wide bone/channel labels, key markers, and the current authoring playhead. Clicking empty ruler/row space seeks
+the shared in-memory pose. Clicking a key selects its track and bone and seeks exactly to its stored
+time. Only vertically visible track rows submit labels, lines, and key draw commands, avoiding
+per-frame work for off-screen tracks. Key dragging is deliberately deferred until its collision and
+rollback policy is implemented.
 For the selected explicit segment, the panel reports its normalized local direction, current length,
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine

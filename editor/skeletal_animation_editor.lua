@@ -52,6 +52,10 @@ local state = {
     authoringActiveClip = nil,
     animationTransformTool = 1,
     animationAutoKey = false,
+    animationTimelineTrackIndex = nil,
+    animationTimelineKeyIndex = nil,
+    animationTimelineClip = nil,
+    leftPanelRight = 440,
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
     rotationGizmo = {rings={},origin=nil,radius=nil,drag=nil},
     boneEditorPosition = {x=0,y=0,z=0},
@@ -3582,11 +3586,107 @@ local function skeletalKeyFloat(label,id,value)
     return changed and result or value
 end
 
+local function showSkeletalTimeline(clip)
+    local tracks=clip.tracks or {}
+    local duration=math.max(clip.duration or 0,0.0001)
+    local rulerHeight,rowHeight=24,24
+    local contentRows=math.max(1,#tracks)
+    local viewportHeight=math.min(220,rulerHeight+contentRows*rowHeight+8)
+    tImGui.BeginChild('##swlSkeletalTimelineScroll',{x=0,y=viewportHeight},true)
+    local available=tImGui.GetContentRegionAvail()
+    local width=math.max(220,available.x or 220)
+    local labelWidth=190
+    local height=rulerHeight+contentRows*rowHeight+4
+    tImGui.InvisibleButton('##swlSkeletalTimeline',{x=width,y=height})
+    local minimum=tImGui.GetItemRectMin()
+    local maximum=tImGui.GetItemRectMax()
+    local x0,x1=minimum.x+labelWidth,maximum.x-6
+    local timelineWidth=math.max(1,x1-x0)
+    tImGui.AddRectFilled(minimum,maximum,{r=0.055,g=0.065,b=0.085,a=1},3,0)
+    tImGui.AddLine({x=x0,y=minimum.y},{x=x0,y=maximum.y},
+        {r=0.35,g=0.38,b=0.45,a=1},1)
+    for tick=0,4 do
+        local fraction=tick/4
+        local tx=x0+timelineWidth*fraction
+        tImGui.AddLine({x=tx,y=minimum.y},{x=tx,y=minimum.y+rulerHeight},
+            {r=0.4,g=0.42,b=0.48,a=1},1)
+        tImGui.AddText({x=tx+2,y=minimum.y+3},{r=0.75,g=0.78,b=0.85,a=1},
+            string.format('%.2f',duration*fraction))
+    end
+    local markerPositions={}
+    local scrollY=tImGui.GetScrollY()
+    local firstVisible=math.max(1,math.floor(math.max(0,scrollY-rulerHeight)/rowHeight)+1)
+    local lastVisible=math.min(#tracks,
+        math.ceil(math.max(0,scrollY+viewportHeight-rulerHeight)/rowHeight)+1)
+    for trackIndex=firstVisible,lastVisible do
+        local track=tracks[trackIndex]
+        local y=minimum.y+rulerHeight+(trackIndex-0.5)*rowHeight
+        if trackIndex%2==0 then
+            tImGui.AddRectFilled({x=minimum.x,y=y-rowHeight*0.5},
+                {x=maximum.x,y=y+rowHeight*0.5},{r=0.08,g=0.09,b=0.115,a=1},0,0)
+        end
+        local label=(track.boneName or '?')..' ['..skeletalChannelLabel(track.channelMask or 0)..']'
+        if #label>30 then label=label:sub(1,29)..'…' end
+        tImGui.AddText({x=minimum.x+4,y=y-7},{r=0.8,g=0.82,b=0.88,a=1},label)
+        tImGui.AddLine({x=x0,y=y},{x=x1,y=y},{r=0.22,g=0.24,b=0.3,a=1},1)
+        markerPositions[trackIndex]={}
+        for keyIndex,key in ipairs(track.keys or {}) do
+            local kx=x0+timelineWidth*math.max(0,math.min(1,(key.time or 0)/duration))
+            local selected=state.animationTimelineTrackIndex==trackIndex and
+                state.animationTimelineKeyIndex==keyIndex
+            tImGui.AddCircleFilled({x=kx,y=y},selected and 6 or 4,
+                selected and {r=1,g=0.75,b=0.1,a=1} or {r=0.75,g=0.35,b=0.9,a=1},12)
+            markerPositions[trackIndex][keyIndex]={x=kx,y=y,key=key,track=track}
+        end
+    end
+    local playheadX=x0+timelineWidth*math.max(0,math.min(1,(state.authoringTime or 0)/duration))
+    tImGui.AddLine({x=playheadX,y=minimum.y},{x=playheadX,y=maximum.y},
+        {r=1,g=0.25,b=0.15,a=1},2)
+    if tImGui.IsItemHovered(0) and tImGui.IsMouseClicked(0,false) then
+        local mouse=tImGui.GetMousePos()
+        local row=math.floor((mouse.y-(minimum.y+rulerHeight))/rowHeight)+1
+        local nearestIndex,nearestDistance=nil,math.huge
+        for keyIndex,marker in ipairs(markerPositions[row] or {}) do
+            local distance=math.sqrt((mouse.x-marker.x)^2+(mouse.y-marker.y)^2)
+            if distance<nearestDistance then nearestIndex,nearestDistance=keyIndex,distance end
+        end
+        if nearestIndex and nearestDistance<=9 then
+            local marker=markerPositions[row][nearestIndex]
+            state.animationTimelineTrackIndex=row
+            state.animationTimelineKeyIndex=nearestIndex
+            if marker.track.boneIndex then state.boneIndex=marker.track.boneIndex end
+            state.authoringTime=marker.key.time or 0
+        elseif mouse.x>=x0 then
+            state.animationTimelineTrackIndex=nil; state.animationTimelineKeyIndex=nil
+            state.authoringTime=math.max(0,math.min(duration,(mouse.x-x0)/timelineWidth*duration))
+        end
+        clearAuthoringOverride()
+        refreshAuthoringPose(clip)
+    end
+    tImGui.EndChild()
+end
+
+local function showSkeletalTimelineWindow()
+    if state.workspace~='animation' or not state.animationTimelineClip then return end
+    local screenWidth,screenHeight=mbm.getRealSizeScreen()
+    local windowHeight=280
+    local left=math.max(0,math.min(state.leftPanelRight or 440,screenWidth-220))
+    tImGui.SetNextWindowPos({x=left,y=math.max(0,screenHeight-windowHeight)},
+        tImGui.Flags('ImGuiCond_Always'))
+    tImGui.SetNextWindowSize({x=math.max(220,screenWidth-left),y=windowHeight},
+        tImGui.Flags('ImGuiCond_Always'))
+    local opened=tImGui.Begin(tLang.L('swl_animation_timeline')..'##swlTimelineWindow',false,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if opened then showSkeletalTimeline(state.animationTimelineClip) end
+    tImGui.End()
+end
+
 local function showSkeletalAnimationInspection()
     tImGui.TextWrapped(tLang.L('swl_animation_inspection_help'))
     local ok,clips=safeCall(function() return state.meshD:getSkeletalAnimationReport() end)
     if not ok or type(clips)~='table' then clips={} end
     if #clips==0 then
+        state.animationTimelineClip=nil
         tImGui.TextDisabled(tLang.L('swl_animation_no_clips'))
         state.animationEditClipId=nil
         if state.authoringPose then
@@ -3608,9 +3708,12 @@ local function showSkeletalAnimationInspection()
             state.animationClipSelected=selected
             state.animationEditClipId=nil
             state.authoringTime=0
+            state.animationTimelineTrackIndex=nil
+            state.animationTimelineKeyIndex=nil
             clearAuthoringOverride()
         end
         local clip=clips[state.animationClipSelected]
+        state.animationTimelineClip=clip
         state.authoringActiveClip=clip
         if state.animationEditClipId~=clip.clipId then
             state.animationEditClipId=clip.clipId
@@ -4334,6 +4437,9 @@ local function showPanel()
     tImGui.SetNextWindowSize({x=440,y=math.max(500,screenH-27)}, tImGui.Flags('ImGuiCond_Once'))
     tImGui.SetNextWindowSizeConstraints({x=330,y=320}, {x=900,y=math.max(320,screenH-27)})
     local opened = tImGui.Begin(tLang.L('swl_title'), false, noMoveFlag)
+    local panelPosition=tImGui.GetWindowPos()
+    local panelSize=tImGui.GetWindowSize()
+    state.leftPanelRight=(panelPosition.x or 0)+(panelSize.x or 440)
     if opened then
         tImGui.Text(tLang.L('swl_workspace'))
         tImGui.Separator()
@@ -4604,6 +4710,7 @@ function onLoop(delta)
     showMenu()
     showPanel()
     showCameraPanel()
+    showSkeletalTimelineWindow()
     syncPoseStressPreview()
     tUtil.showOverlayMessage()
 end
