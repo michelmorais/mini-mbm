@@ -304,6 +304,11 @@ The XYZ axis renderables keep origin-relative line geometry and place the render
 selected pivot, ensuring the always-on-top pass sorts them at their real world location while editing.
 The Animation-worktree translation gizmo follows the same rule and updates its persistent line
 objects in place while previewing an unsaved pose, avoiding destroy/recreate trails during dragging.
+The Animation worktree now offers explicit Move and Rotate tools. Rotate draws persistent local
+X/Y/Z rings at the evaluated joint; dragging a ring applies a normalized quaternion override to the
+shared in-memory pose, so the deformed mesh and evaluated skeleton update together without changing
+the bind pose or clip. Mouse release remains temporary. The user must explicitly create/update the
+rotation key (channel R), or discard the temporary pose.
 For the selected explicit segment, the panel reports its normalized local direction, current length,
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine

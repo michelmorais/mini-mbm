@@ -50,7 +50,9 @@ local state = {
     authoringPoseKey = nil,
     authoringOverride = nil,
     authoringActiveClip = nil,
+    animationTransformTool = 1,
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
+    rotationGizmo = {rings={},origin=nil,radius=nil,drag=nil},
     boneEditorPosition = {x=0,y=0,z=0},
     boneEditorLength = 1,
     boneEditorExtendCount = 1,
@@ -593,6 +595,8 @@ local function destroySkeletonVisuals(preserveTranslationGizmo)
     if not preserveTranslationGizmo then
         for _,object in pairs(state.translationGizmo.axes) do destroyObject(object) end
         state.translationGizmo={axes={},boneIndex=nil,poseKey=nil,drag=nil}
+        for _,object in pairs(state.rotationGizmo.rings) do destroyObject(object) end
+        state.rotationGizmo={rings={},origin=nil,radius=nil,drag=nil}
     end
     destroyObject(state.analysisBoneHighlightSphere)
     state.analysisBoneHighlightSphere=nil
@@ -794,12 +798,69 @@ local function rebuildTranslationGizmo()
         end
         object:setPos(bone.x,bone.y,bone.z)
         object:setColor(table.unpack(axis.color))
-        object.visible=true
+        object.visible=state.animationTransformTool==1
     end
     gizmo.boneIndex=state.boneIndex
     gizmo.poseKey=state.authoringPoseKey
     gizmo.origin={x=bone.x,y=bone.y,z=bone.z}
     gizmo.length=length
+end
+
+local function normalizedDirection(x,y,z)
+    local length=math.sqrt(x*x+y*y+z*z)
+    if length<=1e-8 then return nil end
+    return {x=x/length,y=y/length,z=z/length}
+end
+
+local function rebuildRotationGizmo()
+    local gizmo=state.rotationGizmo
+    if state.workspace~='animation' or not state.authoringPose then
+        for _,object in pairs(gizmo.rings) do object.visible=false end
+        gizmo.origin=nil; gizmo.radius=nil; gizmo.axes=nil; gizmo.drag=nil
+        return
+    end
+    local bone=getVisualBones()[state.boneIndex]
+    if not bone then
+        for _,object in pairs(gizmo.rings) do object.visible=false end
+        gizmo.origin=nil; gizmo.radius=nil; gizmo.axes=nil
+        return
+    end
+    local matrix=bone.globalMatrix or {}
+    local axes={
+        x=normalizedDirection(matrix[1] or 1,matrix[2] or 0,matrix[3] or 0),
+        y=normalizedDirection(matrix[5] or 0,matrix[6] or 1,matrix[7] or 0),
+        z=normalizedDirection(matrix[9] or 0,matrix[10] or 0,matrix[11] or 1),
+    }
+    if not axes.x or not axes.y or not axes.z then return end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(extent*0.11,0.04)
+    local definitions={
+        x={u=axes.y,v=axes.z,color={1,0.15,0.15,1}},
+        y={u=axes.z,v=axes.x,color={0.15,1,0.2,1}},
+        z={u=axes.x,v=axes.y,color={0.2,0.45,1,1}},
+    }
+    for name,definition in pairs(definitions) do
+        local points={}
+        for item=0,64 do
+            local angle=item/64*math.pi*2
+            points[#points+1]=(definition.u.x*math.cos(angle)+definition.v.x*math.sin(angle))*radius
+            points[#points+1]=(definition.u.y*math.cos(angle)+definition.v.y*math.sin(angle))*radius
+            points[#points+1]=(definition.u.z*math.cos(angle)+definition.v.z*math.sin(angle))*radius
+        end
+        local object=gizmo.rings[name]
+        if object then object:set(points,1) else
+            object=line:new('3d',0,0,0); object:add(points); object.alwaysOnTop=true
+            gizmo.rings[name]=object
+        end
+        object:setPos(bone.x,bone.y,bone.z)
+        object:setColor(table.unpack(definition.color))
+        object.visible=state.animationTransformTool==2
+    end
+    gizmo.origin={x=bone.x,y=bone.y,z=bone.z}
+    gizmo.radius=radius
+    gizmo.axes=axes
 end
 
 local function nextSkeletonNickname(prefix)
@@ -1102,6 +1163,7 @@ rebuildSkeletonVisuals=function()
     rebuildProximityBoneHighlight()
     rebuildTargetBoneHighlight()
     rebuildTranslationGizmo()
+    rebuildRotationGizmo()
 end
 
 
@@ -1112,6 +1174,7 @@ end
 local function clearAuthoringOverride()
     state.authoringOverride=nil
     state.translationGizmo.drag=nil
+    state.rotationGizmo.drag=nil
     invalidateAuthoringPose()
 end
 
@@ -1306,7 +1369,8 @@ end
 
 local function hitTestTranslationAxis(sx,sy)
     local gizmo=state.translationGizmo
-    if state.workspace~='animation' or not gizmo.origin or not gizmo.length then return nil end
+    if state.workspace~='animation' or state.animationTransformTool~=1 or
+            not gizmo.origin or not gizmo.length then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
     if not ok then return nil end
     local bounds=state.meshBounds
@@ -1327,6 +1391,40 @@ local function hitTestTranslationAxis(sx,sy)
         end
     end
     return best
+end
+
+local function hitTestRotationRing(sx,sy)
+    local gizmo=state.rotationGizmo
+    if state.workspace~='animation' or state.animationTransformTool~=2 or
+            not gizmo.origin or not gizmo.radius or not gizmo.axes then return nil end
+    local tolerance=math.max(gizmo.radius*0.12,0.003)
+    local best,bestDistance=nil,math.huge
+    for name,axis in pairs(gizmo.axes) do
+        local wx,wy,wz=rayPlaneHit(sx,sy,gizmo.origin,axis)
+        if wx then
+            local vx,vy,vz=wx-gizmo.origin.x,wy-gizmo.origin.y,wz-gizmo.origin.z
+            local radial=math.sqrt(vx*vx+vy*vy+vz*vz)
+            local error=math.abs(radial-gizmo.radius)
+            if error<=tolerance and error<bestDistance then
+                local direction=normalizedDirection(vx,vy,vz)
+                if direction then best={name=name,axis=axis,direction=direction}; bestDistance=error end
+            end
+        end
+    end
+    return best
+end
+
+local function quaternionMultiply(a,b)
+    return {x=a.w*b.x+a.x*b.w+a.y*b.z-a.z*b.y,
+        y=a.w*b.y-a.x*b.z+a.y*b.w+a.z*b.x,
+        z=a.w*b.z+a.x*b.y-a.y*b.x+a.z*b.w,
+        w=a.w*b.w-a.x*b.x-a.y*b.y-a.z*b.z}
+end
+
+local function normalizedQuaternion(q)
+    local length=math.sqrt(q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w)
+    if length<=1e-8 then return nil end
+    return {x=q.x/length,y=q.y/length,z=q.z/length,w=q.w/length}
 end
 
 local function hitTestBoneEditorAxis(sx,sy)
@@ -3472,12 +3570,26 @@ local function showSkeletalAnimationInspection()
             clearAuthoringOverride()
         end
         refreshAuthoringPose(clip)
+        local previousTransformTool=state.animationTransformTool
+        state.animationTransformTool=tImGui.RadioButton(
+            tLang.L('swl_animation_tool_move')..'##swlAnimationMove',
+            state.animationTransformTool,1)
+        tImGui.SameLine()
+        state.animationTransformTool=tImGui.RadioButton(
+            tLang.L('swl_animation_tool_rotate')..'##swlAnimationRotate',
+            state.animationTransformTool,2)
+        if previousTransformTool~=state.animationTransformTool then
+            state.translationGizmo.drag=nil; state.rotationGizmo.drag=nil
+            rebuildTranslationGizmo(); rebuildRotationGizmo()
+        end
         tImGui.TextDisabled(tLang.L('swl_animation_viewport_select_help'))
         if state.authoringOverride then
             tImGui.TextColored({r=1,g=0.75,b=0.15,a=1},
                 tLang.L('swl_animation_temporary_pose'))
-            if tImGui.Button(tLang.L('swl_animation_commit_translation_key')..
-                    '##swlCommitTranslationKey') then
+            local rotationOverride=state.authoringOverride.channelMask==2
+            if tImGui.Button(tLang.L(rotationOverride and
+                    'swl_animation_commit_rotation_key' or
+                    'swl_animation_commit_translation_key')..'##swlCommitAuthoringKey') then
                 local value=state.authoringOverride
                 local snapshot=stageRollbackSnapshot()
                 local ok,created=false,false
@@ -3485,7 +3597,7 @@ local function showSkeletalAnimationInspection()
                     local t,q,s=value.translation,value.rotation,value.scale
                     ok,created=safeCall(function()
                         return state.meshD:commitSkeletalAuthoringKey(state.animationClipSelected,
-                            value.boneIndex,state.authoringTime,1,t.x,t.y,t.z,
+                            value.boneIndex,state.authoringTime,value.channelMask or 1,t.x,t.y,t.z,
                             q.x,q.y,q.z,q.w,s.x,s.y,s.z)
                     end)
                 end
@@ -3495,8 +3607,11 @@ local function showSkeletalAnimationInspection()
                     clearAuthoringOverride()
                     refreshBindReport()
                     refreshAuthoringPose(clip)
-                    setStatus(tLang.L(created and 'swl_animation_translation_key_created' or
-                        'swl_animation_translation_key_updated'),false)
+                    setStatus(tLang.L(rotationOverride and (created and
+                        'swl_animation_rotation_key_created' or
+                        'swl_animation_rotation_key_updated') or (created and
+                        'swl_animation_translation_key_created' or
+                        'swl_animation_translation_key_updated')),false)
                 elseif snapshot then discardRollbackSnapshot(snapshot) end
             end
             if tImGui.Button(tLang.L('swl_animation_discard_temporary_pose')..
@@ -4521,6 +4636,19 @@ function onTouchDown(key, x, y)
             end
             applyWorkspaceVisibility()
         end
+        local ring=hitTestRotationRing(x,y)
+        if ring and state.authoringPose and state.authoringPose.bones[state.boneIndex] then
+            local posed=state.authoringPose.bones[state.boneIndex]
+            local t,q,s=posed.localTranslation,posed.localRotation,posed.localScale
+            state.rotationGizmo.drag={axisName=ring.name,axis=ring.axis,
+                startDirection=ring.direction,
+                origin={x=state.rotationGizmo.origin.x,y=state.rotationGizmo.origin.y,
+                    z=state.rotationGizmo.origin.z},
+                baseTranslation={x=t.x,y=t.y,z=t.z},
+                baseRotation={x=q.x,y=q.y,z=q.z,w=q.w},
+                scale={x=s.x,y=s.y,z=s.z}}
+            return
+        end
         local axisName=hitTestTranslationAxis(x,y)
         if axisName and state.authoringPose and state.authoringPose.bones[state.boneIndex] then
             local axes={x={x=1,y=0,z=0},y={x=0,y=1,z=0},z={x=0,y=0,z=1}}
@@ -4567,6 +4695,7 @@ end
 
 function onTouchMove(key, x, y)
     local drag=state.translationGizmo.drag
+    local rotationDrag=state.rotationGizmo.drag
     local boneDrag=state.boneEditorDrag
     if state.workspace=='bone_editor' and boneDrag then
         local screenDx,screenDy=x-boneDrag.startX,y-boneDrag.startY
@@ -4670,6 +4799,37 @@ function onTouchMove(key, x, y)
                 end
             end
         end
+    elseif state.workspace=='animation' and rotationDrag then
+        local wx,wy,wz=rayPlaneHit(x,y,rotationDrag.origin,rotationDrag.axis)
+        if wx then
+            local current=normalizedDirection(wx-rotationDrag.origin.x,
+                wy-rotationDrag.origin.y,wz-rotationDrag.origin.z)
+            if current then
+                local start=rotationDrag.startDirection
+                local cx=start.y*current.z-start.z*current.y
+                local cy=start.z*current.x-start.x*current.z
+                local cz=start.x*current.y-start.y*current.x
+                local sinAngle=rotationDrag.axis.x*cx+rotationDrag.axis.y*cy+
+                    rotationDrag.axis.z*cz
+                local cosAngle=math.max(-1,math.min(1,start.x*current.x+
+                    start.y*current.y+start.z*current.z))
+                local half=math.atan(sinAngle,cosAngle)*0.5
+                local localAxis=rotationDrag.axisName=='x' and {x=1,y=0,z=0} or
+                    rotationDrag.axisName=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
+                local sine=math.sin(half)
+                local delta={x=localAxis.x*sine,y=localAxis.y*sine,
+                    z=localAxis.z*sine,w=math.cos(half)}
+                local q=normalizedQuaternion(quaternionMultiply(rotationDrag.baseRotation,delta))
+                if q then
+                    state.authoringOverride={clipIndex=state.animationClipSelected,
+                        time=state.authoringTime,boneIndex=state.boneIndex,channelMask=2,
+                        translation=rotationDrag.baseTranslation,rotation=q,
+                        scale=rotationDrag.scale}
+                    invalidateAuthoringPose()
+                    refreshAuthoringPose(state.authoringActiveClip)
+                end
+            end
+        end
     elseif state.workspace=='animation' and drag and state.translationGizmo.origin then
         local parameter=rayAxisParameter(x,y,drag.origin,drag.axis)
         if parameter then
@@ -4683,7 +4843,7 @@ function onTouchMove(key, x, y)
             local lx,ly,lz=worldDeltaToLocal(wx,wy,wz,parentPose and parentPose.globalMatrix)
             if lx then
                 state.authoringOverride={clipIndex=state.animationClipSelected,
-                    time=state.authoringTime,boneIndex=state.boneIndex,
+                    time=state.authoringTime,boneIndex=state.boneIndex,channelMask=1,
                     translation={x=drag.baseTranslation.x+lx,y=drag.baseTranslation.y+ly,
                         z=drag.baseTranslation.z+lz},rotation=drag.rotation,scale=drag.scale}
                 invalidateAuthoringPose()
@@ -4742,6 +4902,7 @@ function onTouchUp(key, x, y)
         end
         state.boneEditorPendingCycle=nil
         state.translationGizmo.drag=nil
+        state.rotationGizmo.drag=nil
         mouseDown = false
         state.aabbDragging = false
         state.aabbDragPlane = nil
