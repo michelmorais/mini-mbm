@@ -298,6 +298,8 @@ current visual segment length as its radius. A cross marks the fixed head, a rad
 to the tail, and the XYZ gizmo is anchored at that head. The center and radial markers are offset a
 small amount toward the camera so the always-on-top skeleton does not occlude them. Moving translates
 both endpoints; rotating keeps the head at the guide center and constrains the tail to that circle.
+In this tool mode, clicking an owned head, tail, or shared joint is interpreted as selecting its
+owning segment and immediately starts segment rotation; Move mode retains direct joint manipulation.
 For the selected explicit segment, the panel reports its normalized local direction, current length,
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine

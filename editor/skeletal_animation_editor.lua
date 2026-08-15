@@ -1283,6 +1283,18 @@ local function hitTestBoneEditor(sx,sy)
     return candidates[candidateIndex].selection
 end
 
+local function applyBoneEditorToolIntent(selection)
+    if not selection or state.boneEditorSegmentTool~=2 or selection.kind=='segment' then
+        return selection
+    end
+    local bone=getBones()[selection.boneIndex]
+    if not bone or not bone.hasExplicitTail then return selection end
+    -- In Rotate mode a joint hit identifies the segment that owns that joint.
+    -- Keep the original pick key so overlapping-joint cycling remains stable.
+    return {kind='segment',boneIndex=selection.boneIndex,boneId=bone.boneId,
+        boneName=bone.name,pickKey=selection.pickKey}
+end
+
 local function hitTestTranslationAxis(sx,sy)
     local gizmo=state.translationGizmo
     if state.workspace~='animation' or not gizmo.origin or not gizmo.length then return nil end
@@ -4440,7 +4452,7 @@ function onTouchDown(key, x, y)
     end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
         if state.workspace=='bone_editor' then
-            local selection=hitTestBoneEditor(x,y)
+            local selection=applyBoneEditorToolIntent(hitTestBoneEditor(x,y))
             local axisOverride=not selection and hitTestBoneEditorAxis(x,y) or nil
             if axisOverride then selection=state.boneEditorSelection end
             if axisOverride then state.boneEditorPendingCycle=nil end
@@ -4713,7 +4725,7 @@ function onTouchUp(key, x, y)
         if pendingCycle and not completedBoneDrag and pendingCycle.cycleOnRelease and
                 #pendingCycle.candidates>1 then
             local nextIndex=(pendingCycle.currentIndex%#pendingCycle.candidates)+1
-            local selection=pendingCycle.candidates[nextIndex].selection
+            local selection=applyBoneEditorToolIntent(pendingCycle.candidates[nextIndex].selection)
             state.boneEditorSelection=selection
             state.boneEditorSelectedIndex=selection.boneIndex
             state.boneIndex=selection.boneIndex
