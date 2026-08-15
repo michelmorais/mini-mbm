@@ -56,10 +56,12 @@ local state = {
     boneEditorExtendCount = 1,
     boneEditorPreserveOtherJoints = true,
     boneEditorSnapAxes = {x=false,y=false,z=false},
+    boneEditorSegmentTool = 1,
     boneEditorSelectedIndex = nil,
     boneEditorSelection = nil,
     boneEditorDrag = nil,
     boneEditorPendingCycle = nil,
+    boneEditorOrientationIndicator = nil,
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -580,6 +582,65 @@ local function destroySkeletonVisuals()
     state.targetBoneHighlightSphere=nil
 end
 
+local function rebuildBoneEditorOrientationIndicator()
+    local indicator=state.boneEditorOrientationIndicator
+    if state.workspace~='bone_editor' or not state.boneEditorSelection then
+        if indicator then indicator.visible=false end
+        return
+    end
+    local bone=getBones()[state.boneEditorSelection.boneIndex]
+    if not bone or not bone.hasExplicitTail then
+        if indicator then indicator.visible=false end
+        return
+    end
+    local head,tail=getBoneEditorEndpoints(bone,1)
+    if not head or not tail then
+        if indicator then indicator.visible=false end
+        return
+    end
+    local dx,dy,dz=tail.x-head.x,tail.y-head.y,tail.z-head.z
+    local segmentLength=math.sqrt(dx*dx+dy*dy+dz*dz)
+    if segmentLength<=1e-6 then
+        if indicator then indicator.visible=false end
+        return
+    end
+    dx,dy,dz=dx/segmentLength,dy/segmentLength,dz/segmentLength
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(bone.radius or 0,extent*0.006,0.001)
+    local indicatorLength=math.min(segmentLength*0.6,math.max(radius*4,extent*0.035))
+    local rx,ry,rz=0,1,0
+    if math.abs(dy)>0.9 then rx,ry,rz=1,0,0 end
+    local px,py,pz=dy*rz-dz*ry,dz*rx-dx*rz,dx*ry-dy*rx
+    local perpendicularLength=math.sqrt(px*px+py*py+pz*pz)
+    if perpendicularLength<=1e-6 then
+        if indicator then indicator.visible=false end
+        return
+    end
+    px,py,pz=px/perpendicularLength,py/perpendicularLength,pz/perpendicularLength
+    local tip={x=head.x+dx*indicatorLength,y=head.y+dy*indicatorLength,
+        z=head.z+dz*indicatorLength}
+    local arrowBack=indicatorLength*0.28
+    local arrowWidth=indicatorLength*0.16
+    local base={x=tip.x-dx*arrowBack,y=tip.y-dy*arrowBack,z=tip.z-dz*arrowBack}
+    local points={head.x,head.y,head.z,tip.x,tip.y,tip.z,
+        tip.x,tip.y,tip.z,
+        base.x+px*arrowWidth,base.y+py*arrowWidth,base.z+pz*arrowWidth,
+        tip.x,tip.y,tip.z,
+        base.x-px*arrowWidth,base.y-py*arrowWidth,base.z-pz*arrowWidth}
+    if indicator then
+        indicator:set(points,1)
+    else
+        indicator=line:new('3d',0,0,0)
+        indicator:add(points)
+        indicator:setColor(1,0.8,0.05,1)
+        indicator.alwaysOnTop=true
+        state.boneEditorOrientationIndicator=indicator
+    end
+    indicator.visible=shouldShowSkeleton()
+end
+
 local function rebuildTranslationGizmo()
     local gizmo=state.translationGizmo
     if state.workspace~='animation' or not state.authoringPose then
@@ -656,6 +717,7 @@ local function applyWorkspaceVisibility()
     local weightWorkspace=isWeightLabWorkspace()
     local runtimeWorkspace=state.workspace=='runtime'
     local analysisVisible=weightWorkspace and state.analysisMarkersVisible
+    rebuildBoneEditorOrientationIndicator()
 
     if state.preview then
         state.preview.visible=state.meshVisible
@@ -3569,6 +3631,15 @@ local function showBoneEditor()
             'Snap '..axis:upper()..'##swlBoneSnap'..axis,state.boneEditorSnapAxes[axis])
     end
     tImGui.TextWrapped(tLang.L('swl_bone_editor_axis_constraint_help'))
+    tImGui.Text(tLang.L('swl_bone_editor_segment_tool'))
+    state.boneEditorSegmentTool=tImGui.RadioButton(
+        tLang.L('swl_bone_editor_segment_move')..'##swlBoneSegmentMove',
+        state.boneEditorSegmentTool,1)
+    tImGui.SameLine()
+    state.boneEditorSegmentTool=tImGui.RadioButton(
+        tLang.L('swl_bone_editor_segment_rotate')..'##swlBoneSegmentRotate',
+        state.boneEditorSegmentTool,2)
+    tImGui.TextWrapped(tLang.L('swl_bone_editor_segment_tool_help'))
     tImGui.Separator()
     tImGui.PushItemWidth(190)
     for _,field in ipairs({{'X','x'},{'Y','y'},{'Z','z'}}) do
@@ -3681,6 +3752,56 @@ local function showBoneEditor()
             'swl_bone_editor_selected_joint' or state.boneEditorSelection.kind=='tail' and
             'swl_bone_editor_selected_tail' or 'swl_bone_editor_selected_head'
         tImGui.TextWrapped(string.format(tLang.L(selectionKey),state.boneEditorSelection.boneName))
+        local selectedBone=getBones()[state.boneEditorSelection.boneIndex]
+        local tail=selectedBone and selectedBone.hasExplicitTail and selectedBone.tailOffset or nil
+        if tail then
+            local tx,ty,tz=tail.x or 0,tail.y or 0,tail.z or 0
+            local length=math.sqrt(tx*tx+ty*ty+tz*tz)
+            if length>1e-6 then
+                local nx,ny,nz=tx/length,ty/length,tz/length
+                local inclination=math.deg(math.acos(math.max(-1,math.min(1,ny))))
+                local azimuth=math.deg(math.atan(nx,nz))
+                tImGui.Separator()
+                tImGui.Text(tLang.L('swl_bone_editor_segment_orientation'))
+                tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_direction_fmt'),
+                    nx,ny,nz))
+                tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_angles_fmt'),
+                    inclination,azimuth))
+                tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_length_fmt'),length))
+                tImGui.TextWrapped(tLang.L('swl_bone_editor_segment_roll_note'))
+            end
+        end
+        if selectedBone and selectedBone.parentName then
+            local parentBone=findBone(getBones(),selectedBone.parentName)
+            tImGui.Separator()
+            tImGui.Text(string.format(tLang.L('swl_bone_editor_current_parent_fmt'),
+                selectedBone.parentName))
+            local wantConnected=not selectedBone.connectedToParent
+            tImGui.BeginDisabled(wantConnected and (not parentBone or not parentBone.hasExplicitTail))
+            if tImGui.Button(tLang.L(wantConnected and 'swl_bone_editor_connect_parent' or
+                    'swl_bone_editor_disconnect_parent')..'##swlBoneEditorConnection') then
+                local snapshot=stageRollbackSnapshot()
+                local ok=snapshot and select(1,safeCall(function()
+                    return state.meshD:setSkeletalBoneConnectedToParent(
+                        state.boneEditorSelection.boneIndex,wantConnected,
+                        state.boneEditorPreserveOtherJoints)
+                end)) or false
+                if ok then
+                    commitRollbackSnapshot(snapshot)
+                    state.modified=true
+                    refreshBindReport()
+                    rebuildPreview()
+                    rebuildSkeletonVisuals()
+                    applyWorkspaceVisibility()
+                    setStatus(tLang.L(wantConnected and 'swl_bone_editor_connected' or
+                        'swl_bone_editor_disconnected'),false)
+                elseif snapshot then discardRollbackSnapshot(snapshot) end
+            end
+            tImGui.EndDisabled()
+            if wantConnected and (not parentBone or not parentBone.hasExplicitTail) then
+                tImGui.TextWrapped(tLang.L('swl_bone_editor_parent_without_tail'))
+            end
+        end
     end
     showRollbackControls('swlBoneEditorRevert')
 end
@@ -3978,8 +4099,11 @@ function onTouchDown(key, x, y)
                         selection.kind=='segment' then
                     local bone=getBones()[selection.boneIndex]
                     local head,tail=getBoneEditorEndpoints(bone,1)
-                    local dragPoint=selection.kind=='head' and head or selection.kind=='segment' and
-                        {x=(head.x+tail.x)*0.5,y=(head.y+tail.y)*0.5,z=(head.z+tail.z)*0.5} or tail
+                    local rotatingSegment=selection.kind=='segment' and
+                        state.boneEditorSegmentTool==2
+                    local dragPoint=selection.kind=='head' and head or rotatingSegment and head or
+                        selection.kind=='segment' and {x=(head.x+tail.x)*0.5,
+                            y=(head.y+tail.y)*0.5,z=(head.z+tail.z)*0.5} or tail
                     local parent=nil
                     if bone.parentName then
                         for _,candidate in ipairs(getBones()) do
@@ -3997,8 +4121,12 @@ function onTouchDown(key, x, y)
                             state.boneEditorDrag={boneIndex=selection.boneIndex,
                                 boneId=selection.boneId,boneName=selection.boneName,
                                 mode=selection.kind=='head' and 'head' or
+                                    rotatingSegment and 'rotate_segment' or
                                     selection.kind=='segment' and 'segment' or 'tail',parent=parent,
                                 head={x=bone.x,y=bone.y,z=bone.z},
+                                tailLength=bone.tailOffset and math.sqrt(
+                                    (bone.tailOffset.x or 0)^2+(bone.tailOffset.y or 0)^2+
+                                    (bone.tailOffset.z or 0)^2) or 0,
                                 globalMatrix=bone.globalMatrix,point=dragPoint,
                                 startWorldHit={x=wx,y=wy,z=wz},
                                 plane={point=dragPoint,normal={x=nx,y=ny,z=nz}},snapshot=snapshot,
@@ -4079,7 +4207,15 @@ function onTouchMove(key, x, y)
                 end
             end
             local lx,ly,lz
-            if boneDrag.mode=='head' or boneDrag.mode=='segment' then
+            if boneDrag.mode=='rotate_segment' then
+                lx,ly,lz=worldDeltaToLocal(wx-boneDrag.head.x,wy-boneDrag.head.y,
+                    wz-boneDrag.head.z,boneDrag.globalMatrix)
+                local directionLength=lx and math.sqrt(lx*lx+ly*ly+lz*lz) or 0
+                if directionLength>1e-6 and boneDrag.tailLength>1e-6 then
+                    local scale=boneDrag.tailLength/directionLength
+                    lx,ly,lz=lx*scale,ly*scale,lz*scale
+                else lx=nil end
+            elseif boneDrag.mode=='head' or boneDrag.mode=='segment' then
                 local parent=boneDrag.parent
                 if boneDrag.mode=='segment' and not constrained then
                     wx=boneDrag.head.x+(wx-boneDrag.startWorldHit.x)
@@ -4101,6 +4237,9 @@ function onTouchMove(key, x, y)
                             state.boneEditorPreserveOtherJoints)
                     elseif boneDrag.mode=='segment' then
                         return state.meshD:translateSkeletalBoneSegment(boneDrag.boneIndex,lx,ly,lz,
+                            state.boneEditorPreserveOtherJoints)
+                    elseif boneDrag.mode=='rotate_segment' then
+                        return state.meshD:setSkeletalBoneTail(boneDrag.boneIndex,lx,ly,lz,true,
                             state.boneEditorPreserveOtherJoints)
                     end
                     return state.meshD:setSkeletalBoneTail(boneDrag.boneIndex,lx,ly,lz,true,
@@ -4174,6 +4313,7 @@ function onTouchUp(key, x, y)
                 applyWorkspaceVisibility()
                 setStatus(tLang.L(boneDrag.mode=='head' and 'swl_bone_editor_head_moved' or
                     boneDrag.mode=='segment' and 'swl_bone_editor_segment_moved' or
+                    boneDrag.mode=='rotate_segment' and 'swl_bone_editor_segment_rotated' or
                     'swl_bone_editor_tail_moved'),false)
             else discardRollbackSnapshot(boneDrag.snapshot) end
             state.boneEditorDrag=nil

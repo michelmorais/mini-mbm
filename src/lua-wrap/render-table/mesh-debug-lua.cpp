@@ -2455,6 +2455,20 @@ namespace mbm
         return 0;
     }
 
+    int onSetSkeletalBoneConnectedToParentDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        const bool connected=lua_toboolean(lua,3)!=0;
+        const bool preserveOtherJoints=lua_gettop(lua)<4||lua_toboolean(lua,4)!=0;
+        char errorOut[255]="";
+        if(!meshDebug->mesh.setSkeletalBoneConnectedToParent(static_cast<uint32_t>(index-1),
+                connected,preserveOtherJoints,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        return 0;
+    }
+
     int onInitializeSkeletalSkeletonDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3053,6 +3067,7 @@ namespace mbm
                                           {"setSkeletalBoneTail", onSetSkeletalBoneTailDebugLua},
                                           {"setSkeletalBoneHead", onSetSkeletalBoneHeadDebugLua},
                                           {"translateSkeletalBoneSegment", onTranslateSkeletalBoneSegmentDebugLua},
+                                          {"setSkeletalBoneConnectedToParent", onSetSkeletalBoneConnectedToParentDebugLua},
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
                                           {"addSkeletalBoneChain", onAddSkeletalBoneChainDebugLua},

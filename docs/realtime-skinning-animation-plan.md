@@ -801,6 +801,11 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.25 | 2026-08-15 | Bone Editor exposes atomic connection/disconnection between a head and its current parent tail, preserving the edited global tail and optionally all other joints while keeping hierarchy changes explicitly separate. |
+| 8.24 | 2026-08-15 | Fixed Bone Editor direction-arrow drift/trails by updating a persistent LINE_MESH in place instead of destroying and recreating it throughout a rotation gesture. |
+| 8.23 | 2026-08-15 | Selected Bone Editor segments draw a short yellow always-on-top arrow from head toward tail, updated during manipulation to make endpoint rotation spatially visible at the joint. |
+| 8.22 | 2026-08-15 | Selected segments expose live direction/length/inclination/azimuth feedback during endpoint rotation, while explicitly documenting that two endpoints cannot define roll and do not by themselves rewrite canonical bind rotation. |
+| 8.21 | 2026-08-15 | Bone Editor adds explicit segment Move/Rotate interaction. Rotate fixes the head and bone-local length while changing tail direction, with connected-joint propagation, optional descendant compensation, rollback, and global-axis constraints. |
 | 8.20 | 2026-08-14 | Tail-chain authoring inherits the selected non-root segment length across every generated segment; only root extension falls back to the explicit Bone length control. |
 | 8.19 | 2026-08-14 | Bone Editor can atomically extend a selected tail by 1–256 connected directional segments and constrain joint/segment mouse displacement to any global X/Y/Z combination; an empty axis selection retains free camera-plane motion. |
 | 8.18 | 2026-08-14 | Added direct rigid segment translation in Bone Editor. The authored head/tail pair moves together, connected child heads follow, and the explicit preservation policy either compensates remaining joints or permits normal subtree propagation. |

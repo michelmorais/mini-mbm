@@ -319,6 +319,22 @@ namespace
                    std::fabs(after.globalBindMatrix.m[3][0]-6.5f)<=MATRIX_TOLERANCE &&
                    std::fabs(after.tailOffset.x-0.5f)<=MATRIX_TOLERANCE,
                "tail extension count must atomically create a connected directional chain");
+        VEC3 connectionTailBefore,connectionTailAfter;
+        expect(extensionMesh.setSkeletalBoneConnectedToParent(1,false,true,
+                   reparentError,sizeof(reparentError)) &&
+                   extensionMesh.setSkeletalBoneHead(1,VEC3(3,0,0),true,
+                       reparentError,sizeof(reparentError)) &&
+                   extensionMesh.getSkeletonBindBone(1,before) && !before.connectedToParent &&
+                   vec3TransformCoord(&connectionTailBefore,&before.tailOffset,&before.globalBindMatrix) &&
+                   extensionMesh.setSkeletalBoneConnectedToParent(1,true,true,
+                       reparentError,sizeof(reparentError)) &&
+                   extensionMesh.getSkeletonBindBone(1,after) && after.connectedToParent &&
+                   std::fabs(after.localTranslation.x-2.0f)<=MATRIX_TOLERANCE &&
+                   vec3TransformCoord(&connectionTailAfter,&after.tailOffset,&after.globalBindMatrix) &&
+                   std::fabs(connectionTailAfter.x-connectionTailBefore.x)<=MATRIX_TOLERANCE &&
+                   std::fabs(connectionTailAfter.y-connectionTailBefore.y)<=MATRIX_TOLERANCE &&
+                   std::fabs(connectionTailAfter.z-connectionTailBefore.z)<=MATRIX_TOLERANCE,
+               "explicit parent-tail connection must preserve the child global tail");
         MESH_MBM_DEBUG staticMesh;
         expect(staticMesh.loadV11("src/test-lib/Crate.msh") &&
                    staticMesh.initializeSkeletalSkeleton("root",VEC3(0,0,0),0.1f,1.0f,true,

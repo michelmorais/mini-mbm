@@ -282,6 +282,24 @@ ordinary hierarchical propagation, allowing the edited joint to carry the descen
 Dragging the body of a selected segment translates its head and tail together, retaining its length
 and orientation. A connected child head follows the displaced tail; the same preservation checkbox
 decides whether the rest of the hierarchy stays globally fixed or follows that movement.
+The explicit **Move/Rotate** segment tool removes interaction ambiguity. In **Rotate**, dragging the
+segment keeps its head and bone-local length fixed and changes only the tail direction; connected
+heads follow that tail, and Preserve other joints retains its existing compensation meaning. Global
+X/Y/Z constraints also apply to the rotated endpoint before conversion back to bone-local space.
+For the selected explicit segment, the panel reports its normalized local direction, current length,
+inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
+Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine
+twist around that axis, and this endpoint tool does not silently rewrite the canonical bind quaternion.
+The selected segment also draws a short yellow always-on-top arrow from its head toward its tail.
+The arrow follows the endpoint continuously during rotation, providing spatial direction feedback
+directly at the joint instead of relying only on numeric angles. One persistent line object is
+updated in place during the gesture, preventing stale arrow geometry from accumulating between
+render frames.
+For a selected non-root bone, **Connect head to parent tail** establishes the explicit shared-joint
+constraint against its current parent. The head snaps to that tail while the selected segment's
+global tail is preserved; Preserve other joints controls compensation of the remaining hierarchy.
+**Disconnect from parent tail** only clears the constraint and moves no geometry. These actions do
+not change parenthood: choosing another parent remains a distinct structural operation.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 

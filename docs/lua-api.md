@@ -1365,6 +1365,16 @@ follow the moved tail. `preserveOtherJoints` defaults to true and compensates ev
 the manipulated segment/shared endpoint; false lets the descendant hierarchy follow normally.
 
 ```lua
+meshD:setSkeletalBoneConnectedToParent(oneBasedBoneIndex, connected,
+    preserveOtherJoints)
+```
+
+Explicitly connects or disconnects the bone head relative to its current parent. Disconnecting only
+clears the constraint and moves nothing. Connecting requires an explicit parent tail, moves the head
+to that tail, preserves the edited segment's global tail, and defaults to compensating every other
+joint globally. This operation does not change hierarchy; reparenting remains a separate contract.
+
+```lua
 local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length,
     hasExplicitTail, connectedToParent)
 ```
