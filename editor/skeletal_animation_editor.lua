@@ -57,6 +57,7 @@ local state = {
     animationTimelineDrag = nil,
     animationTimelineClip = nil,
     animationReport = nil,
+    animationPlayback = {playing=false,paused=false,speed=1},
     leftPanelRight = 440,
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
     rotationGizmo = {rings={},origin=nil,radius=nil,drag=nil},
@@ -1008,6 +1009,8 @@ local function setWorkspace(workspace)
         state.authoringOverride=nil
         state.authoringActiveClip=nil
         state.animationTimelineDrag=nil
+        state.animationPlayback.playing=false
+        state.animationPlayback.paused=false
     end
     state.workspace=workspace
     state.aabbDragging=false
@@ -3716,6 +3719,7 @@ local function showSkeletalTimeline(clip)
     tImGui.AddLine({x=playheadX,y=minimum.y},{x=playheadX,y=maximum.y},
         {r=1,g=0.25,b=0.15,a=1},2)
     if tImGui.IsItemHovered(0) and tImGui.IsMouseClicked(0,false) then
+        if state.animationPlayback.playing then state.animationPlayback.paused=true end
         local mouse=tImGui.GetMousePos()
         local row=math.floor((mouse.y-(minimum.y+rulerHeight))/rowHeight)+1
         local nearestIndex,nearestDistance=nil,math.huge
@@ -3766,8 +3770,49 @@ local function showSkeletalTimelineWindow()
         {x=math.max(420,screenWidth),y=math.max(180,screenHeight)})
     local opened=tImGui.Begin(tLang.L('swl_animation_timeline')..'##swlTimelineWindow',false,
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
-    if opened then showSkeletalTimeline(state.animationTimelineClip) end
+    if opened then
+        local playback=state.animationPlayback
+        if tImGui.Button(tLang.L('swl_play_restart')..'##swlTimelinePlay') then
+            playback.playing=true; playback.paused=false; state.authoringTime=0
+            clearAuthoringOverride()
+            refreshAuthoringPose(state.animationTimelineClip)
+        end
+        tImGui.SameLine()
+        tImGui.BeginDisabled(not playback.playing)
+        if tImGui.Button(tLang.L(playback.paused and 'swl_resume' or 'swl_pause')..
+                '##swlTimelinePause') then playback.paused=not playback.paused end
+        tImGui.EndDisabled()
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('swl_stop')..'##swlTimelineStop') then
+            playback.playing=false; playback.paused=false; state.authoringTime=0
+            clearAuthoringOverride()
+            refreshAuthoringPose(state.animationTimelineClip)
+        end
+        tImGui.SameLine()
+        tImGui.PushItemWidth(110)
+        local speedChanged,speed=tImGui.DragFloat(tLang.L('swl_animation_playback_speed')..
+            '##swlTimelineSpeed',playback.speed,0.05,0.05,4,'%.2fx')
+        tImGui.PopItemWidth()
+        if speedChanged then playback.speed=math.max(0.05,math.min(4,speed)) end
+        showSkeletalTimeline(state.animationTimelineClip)
+    end
     tImGui.End()
+end
+
+local function updateAuthoringPlayback(delta)
+    local playback=state.animationPlayback
+    local clip=state.animationTimelineClip
+    if state.workspace~='animation' or not clip or not playback.playing or playback.paused then return end
+    local duration=math.max(clip.duration or 0,0)
+    if duration<=0 then playback.playing=false; playback.paused=false; return end
+    local time=(state.authoringTime or 0)+math.max(0,delta or 0)*playback.speed
+    if time>=duration then
+        if clip.loop then time=time%duration
+        else time=duration; playback.playing=false; playback.paused=false end
+    end
+    state.authoringTime=time
+    invalidateAuthoringPose()
+    refreshAuthoringPose(clip)
 end
 
 local function showSkeletalAnimationInspection()
@@ -3804,6 +3849,8 @@ local function showSkeletalAnimationInspection()
             state.animationTimelineTrackIndex=nil
             state.animationTimelineKeyIndex=nil
             state.animationTimelineDrag=nil
+            state.animationPlayback.playing=false
+            state.animationPlayback.paused=false
             clearAuthoringOverride()
         end
         local clip=clips[state.animationClipSelected]
@@ -3821,6 +3868,7 @@ local function showSkeletalAnimationInspection()
             state.authoringTime,0,math.max(clip.duration or 0,0),'%.3f s')
         tImGui.PopItemWidth()
         if timeChanged then
+            if state.animationPlayback.playing then state.animationPlayback.paused=true end
             state.authoringTime=time
             clearAuthoringOverride()
         end
@@ -4801,6 +4849,7 @@ end
 
 function onLoop(delta)
     updateCameraKeyboard(delta)
+    updateAuthoringPlayback(delta)
     showMenu()
     showPanel()
     showCameraPanel()
@@ -4878,6 +4927,7 @@ function onTouchDown(key, x, y)
         end
         local ring=hitTestRotationRing(x,y)
         if ring and state.authoringPose and state.authoringPose.bones[state.boneIndex] then
+            if state.animationPlayback.playing then state.animationPlayback.paused=true end
             local posed=state.authoringPose.bones[state.boneIndex]
             local t,q,s=posed.localTranslation,posed.localRotation,posed.localScale
             state.rotationGizmo.drag={axisName=ring.name,axis=ring.axis,
@@ -4891,6 +4941,7 @@ function onTouchDown(key, x, y)
         end
         local axisName=hitTestTranslationAxis(x,y)
         if axisName and state.authoringPose and state.authoringPose.bones[state.boneIndex] then
+            if state.animationPlayback.playing then state.animationPlayback.paused=true end
             local axes={x={x=1,y=0,z=0},y={x=0,y=1,z=0},z={x=0,y=0,z=1}}
             local axis=axes[axisName]
             local parameter=rayAxisParameter(x,y,state.translationGizmo.origin,axis)

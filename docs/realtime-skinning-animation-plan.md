@@ -803,6 +803,7 @@ remain required before choosing palette sizes or fallbacks.
 |---|---|---|
 | 8.33 | 2026-08-15 | Rotate mode now draws a fixed-head orbit guide at the preserved visual segment length, while joint-radius edits require a strictly positive mesh-relative value and reject zero atomically. |
 | 8.32 | 2026-08-15 | Segment rotation now preserves displayed global length through non-uniform bind bases, and joint-radius authoring uses proportional DragFloat interaction. |
+| 8.43 | 2026-08-15 | Timeline authoring playback advances the shared in-memory pose/playhead with play/restart, pause/resume, stop, bounded speed, loop/end behavior, and edit-triggered pause without key mutation. |
 | 8.42 | 2026-08-15 | Timeline collision feedback adds an eight-pixel marker capture zone and last-pass enlarged red invalid rendering while retaining canonical numeric collision validation. |
 | 8.41 | 2026-08-15 | Timeline keys gain horizontal transactional dragging with in-memory time preview, clip-bound clamping, explicit same-track collision rejection, payload preservation, backend reorder, and one rollback entry on release. |
 | 8.40 | 2026-08-15 | Timeline becomes movable/resizable after initial placement, while the detached clip/track/key report is cached until asset mutation to eliminate idle per-frame Lua allocation and delayed GC/CPU growth. |

@@ -335,6 +335,11 @@ animation mutation invalidates it through the shared bind/report refresh boundar
 rebuilding and garbage-collecting the complete nested Lua report every frame while Animation is idle.
 The timeline window receives its panel-relative bottom position and remaining width only on first
 appearance; afterward it is freely movable and resizable by the user.
+Timeline authoring playback advances `authoringTime` through the same in-memory pose evaluator used
+by seek and gizmos; it does not start a separate runtime player. Play/Restart begins at zero,
+Pause/Resume preserves time, Stop returns to zero, speed is clamped to `0.05x..4x`, and clip loop is
+honored. Non-looping playback stops at duration. Timeline seeking or beginning a transform gesture
+pauses playback before editing, and playback itself never creates or changes keys.
 For the selected explicit segment, the panel reports its normalized local direction, current length,
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine
