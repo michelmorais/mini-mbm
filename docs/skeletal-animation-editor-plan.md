@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.30 | 2026-08-15 | Removed destructive per-mouse-event Animation skeleton rebuilding. The authoring viewport now keeps joint objects and parent-child line segments persistent and updates transforms/dynamic buffers in place together with the sampled palette; full rebuild remains reserved for structural changes. |
 | 7.29 | 2026-08-15 | Fixed the Animation Move/Rotate controls to use the editor binding's numeric three-argument RadioButton contract; the unsupported boolean overload previously raised a Lua error and left the ImGui window unbalanced. |
 | 7.28 | 2026-08-15 | Animation pose authoring adds explicit Move/Rotate tools and persistent local XYZ rotation rings. Ring drag writes only an in-memory normalized quaternion override, updates mesh and evaluated skeleton together, and requires an explicit R-channel key commit or discard. |
 | 7.27 | 2026-08-15 | Made Move/Rotate visually distinct with a yellow camera-plane orbit guide centered on the fixed head and sized to the preserved visual length. Joint-radius authoring now clamps and validates a strictly positive mesh-relative minimum; zero rejects without mutation. |

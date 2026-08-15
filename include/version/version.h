@@ -267,6 +267,7 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.24.2 Animation pose dragging now updates persistent joints and dynamic parent-child lines in place instead of destroying and recreating the complete skeleton per pointer event.
     7.24.1 Fixed Animation Move/Rotate controls to use mini-mbm ImGui's numeric RadioButton contract instead of the unsupported boolean overload that aborted the editor window.
     7.24.0 Animation pose authoring adds persistent local XYZ rotation rings, normalized quaternion preview overrides, and explicit R-channel commit/discard without bind mutation or mouse-up key creation.
     7.23.6 Animation authoring XYZ lines now use persistent pivot-local geometry and update renderable positions in place, preventing the same origin-sort Z drift and drag trails fixed in Bone Editor.
@@ -341,7 +342,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.24.1" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.24.2" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

@@ -803,6 +803,7 @@ remain required before choosing palette sizes or fallbacks.
 |---|---|---|
 | 8.33 | 2026-08-15 | Rotate mode now draws a fixed-head orbit guide at the preserved visual segment length, while joint-radius edits require a strictly positive mesh-relative value and reject zero atomically. |
 | 8.32 | 2026-08-15 | Segment rotation now preserves displayed global length through non-uniform bind bases, and joint-radius authoring uses proportional DragFloat interaction. |
+| 8.35 | 2026-08-15 | Animation authoring preview removes destructive per-pointer-event skeleton rebuilding: persistent joint objects and dynamic parent-child lines now update in place with the evaluated pose and palette. |
 | 8.34 | 2026-08-15 | Animation authoring adds persistent local XYZ quaternion rotation rings over the shared in-memory pose contract, with explicit R-channel commit/discard and no bind mutation or mouse-up key creation. |
 | 8.31 | 2026-08-15 | Bone Editor adds atomic nonnegative joint-radius editing for one bone or its descendant subtree, updating visual/picking metadata without conflating radius with skin weights. |
 | 8.30 | 2026-08-15 | Corrected axis-gizmo movement sign and hardened selection against center/geometry capture and camera-parallel instability, with explicit active-axis feedback during drag. |

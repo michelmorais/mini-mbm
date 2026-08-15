@@ -309,6 +309,10 @@ X/Y/Z rings at the evaluated joint; dragging a ring applies a normalized quatern
 shared in-memory pose, so the deformed mesh and evaluated skeleton update together without changing
 the bind pose or clip. Mouse release remains temporary. The user must explicitly create/update the
 rotation key (channel R), or discard the temporary pose.
+During interactive Move/Rotate preview, Animation uses persistent joint shapes and parent-child line
+segments. Pose refresh updates their positions and dynamic line buffers in place; it does not destroy
+and recreate the complete skeleton for every mouse event. A structural selection/load change still
+performs the normal complete rebuild.
 For the selected explicit segment, the panel reports its normalized local direction, current length,
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine

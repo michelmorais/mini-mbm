@@ -1148,9 +1148,18 @@ rebuildSkeletonVisuals=function()
             local dx,dy,dz=bone.x-parent.x,bone.y-parent.y,bone.z-parent.z
             local parentRadius=math.max(parent.radius or 0,extent*0.006,0.001)
             if dx*dx+dy*dy+dz*dz>0.000001 then
-                local link=createBoneShape(parent.x,parent.y,parent.z,
-                    orientedCylinderVerts(dx,dy,dz,radius*0.5,parentRadius*0.5,8),
-                    'swl_bone_link_',1,0,1,0.75)
+                local link
+                if state.workspace=='animation' then
+                    link=line:new('3d',parent.x,parent.y,parent.z)
+                    link:add({0,0,0,dx,dy,dz})
+                    link:setColor(1,0,1,0.9)
+                    link.visible=shouldShowSkeleton()
+                    link.alwaysOnTop=state.skeletonAlwaysOnTop
+                else
+                    link=createBoneShape(parent.x,parent.y,parent.z,
+                        orientedCylinderVerts(dx,dy,dz,radius*0.5,parentRadius*0.5,8),
+                        'swl_bone_link_',1,0,1,0.75)
+                end
                 -- A visual bone segment belongs to its child transform: parent joint -> child
                 -- joint. Keying by the child's stable ID lets tree selection highlight the exact
                 -- incoming segment even after rename or future hierarchy reordering.
@@ -1164,6 +1173,29 @@ rebuildSkeletonVisuals=function()
     rebuildTargetBoneHighlight()
     rebuildTranslationGizmo()
     rebuildRotationGizmo()
+end
+
+local function updateAnimationSkeletonVisuals()
+    if state.workspace~='animation' then return false end
+    local bones=getVisualBones()
+    local byName={}
+    for _,bone in ipairs(bones) do byName[bone.name]=bone end
+    for _,bone in ipairs(bones) do
+        local sphere=state.skeletonGizmo.spheres[bone.name]
+        if not sphere then return false end
+        sphere:setPos(bone.x,bone.y,visualZ(bone.z))
+        if bone.parentName then
+            local parent=byName[bone.parentName]
+            local link=state.skeletonGizmo.bones[bone.boneId]
+            if not parent or not link then return false end
+            link:set({0,0,0,bone.x-parent.x,bone.y-parent.y,bone.z-parent.z},1)
+            link:setPos(parent.x,parent.y,parent.z)
+        end
+    end
+    rebuildTranslationGizmo()
+    rebuildRotationGizmo()
+    updateSkeletonVisibility()
+    return true
 end
 
 
@@ -1213,7 +1245,7 @@ local function refreshAuthoringPose(clip)
     end
     state.authoringPose=pose
     state.authoringPoseKey=key
-    rebuildSkeletonVisuals()
+    if not updateAnimationSkeletonVisuals() then rebuildSkeletonVisuals() end
     applyWorkspaceVisibility()
     return true
 end
