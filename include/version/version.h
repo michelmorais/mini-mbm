@@ -267,6 +267,8 @@
     6.96.0 Added child-bearing bone removal for non-animated assets, promoting children while preserving global bind and explicitly blocking animated parent-space changes pending track conversion.
     6.95.0 Added explicit referenced-leaf removal with weight transfer/merge, palette compaction, separately confirmed track discard, atomic 41-43 validation, and rollback.
     6.94.0 Added strict transactional canonical leaf-bone removal with child/weight/track impact reporting, no implicit remapping, complete dependency validation, confirmation, and rollback.
+    7.23.6 Animation authoring XYZ lines now use persistent pivot-local geometry and update renderable positions in place, preventing the same origin-sort Z drift and drag trails fixed in Bone Editor.
+    7.23.5 Bone Editor XYZ lines now use pivot-local geometry and renderable world positions, preventing incorrect origin-based always-on-top sorting and apparent Z drift.
     7.23.4 Rotate tool intent maps joint clicks to their owning segment while preserving overlapping-joint pick cycling; Move retains direct joint editing.
     7.23.3 Rotate mode marks its fixed head with a camera-facing cross and radial line offset above the always-on-top skeleton, and anchors the XYZ gizmo at that pivot.
     7.23.2 Rotate mode draws a fixed-head orbit guide at the preserved visual length; joint-radius authoring now requires a strictly positive mesh-relative value and rejects zero atomically.
@@ -337,7 +339,7 @@
     6.80.0 Organized the Skeletal Animation Editor into five mutually exclusive worktrees with shared mesh/skeleton visibility and worktree-scoped viewport overlays and controls.
     6.79.0 Added read-only side-by-side pose-stress comparison to the Skeletal Animation Editor. Separate runtime LBS and rigid-DQS instances mirror clip playback, pause/resume, seek, and bind restoration, synchronize time every frame, report rejection separately, and automatically reframe the camera.
 */
-#define MBM_VERSION "7.23.4" // MBM_VERSION must be in format X.Y or X.Y.Z
+#define MBM_VERSION "7.23.6" // MBM_VERSION must be in format X.Y or X.Y.Z
 #endif
 
 #endif

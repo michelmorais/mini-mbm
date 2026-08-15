@@ -586,12 +586,14 @@ local function visualZ(z)
     return z==0 and 0.0001 or z
 end
 
-local function destroySkeletonVisuals()
+local function destroySkeletonVisuals(preserveTranslationGizmo)
     for _,object in pairs(state.skeletonGizmo.spheres) do destroyObject(object) end
     for _,object in pairs(state.skeletonGizmo.bones) do destroyObject(object) end
     state.skeletonGizmo={spheres={},bones={}}
-    for _,object in pairs(state.translationGizmo.axes) do destroyObject(object) end
-    state.translationGizmo={axes={},boneIndex=nil,poseKey=nil,drag=nil}
+    if not preserveTranslationGizmo then
+        for _,object in pairs(state.translationGizmo.axes) do destroyObject(object) end
+        state.translationGizmo={axes={},boneIndex=nil,poseKey=nil,drag=nil}
+    end
     destroyObject(state.analysisBoneHighlightSphere)
     state.analysisBoneHighlightSphere=nil
     destroyObject(state.proximityBoneHighlightSphere)
@@ -680,13 +682,17 @@ local function rebuildBoneEditorAxisGizmo()
     local definitions={x={1,0,0,1,0.15,0.15},y={0,1,0,0.15,1,0.2},z={0,0,1,0.2,0.45,1}}
     local activeAxis=state.boneEditorDrag and state.boneEditorDrag.axisOverride or nil
     for name,definition in pairs(definitions) do
-        local points={origin.x,origin.y,origin.z,origin.x+definition[1]*length,
-            origin.y+definition[2]*length,origin.z+definition[3]*length}
+        -- Keep the line geometry local to its renderable. Supplying world-space
+        -- vertices while leaving the object transform at zero made every
+        -- always-on-top axis sort as if it lived at the scene origin.
+        local points={0,0,0,definition[1]*length,definition[2]*length,
+            definition[3]*length}
         local object=gizmo.axes[name]
         if object then object:set(points,1) else
             object=line:new('3d',0,0,0); object:add(points)
             object.alwaysOnTop=true; gizmo.axes[name]=object
         end
+        object:setPos(origin.x,origin.y,origin.z)
         object:setColor(definition[4],definition[5],definition[6],
             activeAxis and (activeAxis==name and 1 or 0.25) or 1)
         object.visible=shouldShowSkeleton()
@@ -757,16 +763,15 @@ end
 local function rebuildTranslationGizmo()
     local gizmo=state.translationGizmo
     if state.workspace~='animation' or not state.authoringPose then
-        for _,object in pairs(gizmo.axes) do destroyObject(object) end
-        state.translationGizmo={axes={},boneIndex=nil,poseKey=nil,drag=nil}
+        for _,object in pairs(gizmo.axes) do object.visible=false end
+        gizmo.boneIndex=nil; gizmo.poseKey=nil; gizmo.origin=nil; gizmo.length=nil
+        gizmo.drag=nil
         return
     end
-    if gizmo.boneIndex==state.boneIndex and gizmo.poseKey==state.authoringPoseKey and
-            next(gizmo.axes)~=nil then return end
-    for _,object in pairs(gizmo.axes) do destroyObject(object) end
     local bone=getVisualBones()[state.boneIndex]
     if not bone then
-        state.translationGizmo={axes={},boneIndex=nil,poseKey=nil,drag=nil}
+        for _,object in pairs(gizmo.axes) do object.visible=false end
+        gizmo.boneIndex=nil; gizmo.poseKey=nil; gizmo.origin=nil; gizmo.length=nil
         return
     end
     local bounds=state.meshBounds
@@ -778,19 +783,23 @@ local function rebuildTranslationGizmo()
         y={x=0,y=1,z=0,color={0.15,1,0.2,1}},
         z={x=0,y=0,z=1,color={0.2,0.45,1,1}},
     }
-    local objects={}
     for name,axis in pairs(axes) do
-        local object=line:new('3d',0,0,0)
-        object:add({bone.x,bone.y,bone.z,bone.x+axis.x*length,
-            bone.y+axis.y*length,bone.z+axis.z*length})
+        local object=gizmo.axes[name]
+        local points={0,0,0,axis.x*length,axis.y*length,axis.z*length}
+        if object then object:set(points,1) else
+            object=line:new('3d',0,0,0)
+            object:add(points)
+            object.alwaysOnTop=true
+            gizmo.axes[name]=object
+        end
+        object:setPos(bone.x,bone.y,bone.z)
         object:setColor(table.unpack(axis.color))
-        object.alwaysOnTop=true
         object.visible=true
-        objects[name]=object
     end
-    state.translationGizmo={axes=objects,boneIndex=state.boneIndex,
-        poseKey=state.authoringPoseKey,drag=gizmo.drag,origin={x=bone.x,y=bone.y,z=bone.z},
-        length=length}
+    gizmo.boneIndex=state.boneIndex
+    gizmo.poseKey=state.authoringPoseKey
+    gizmo.origin={x=bone.x,y=bone.y,z=bone.z}
+    gizmo.length=length
 end
 
 local function nextSkeletonNickname(prefix)
@@ -1044,7 +1053,7 @@ end
 
 rebuildSkeletonVisuals=function()
     local translationDrag=state.translationGizmo.drag
-    destroySkeletonVisuals()
+    destroySkeletonVisuals(true)
     state.translationGizmo.drag=translationDrag
     local bones=getVisualBones()
     local byName={}
