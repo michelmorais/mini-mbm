@@ -323,8 +323,13 @@ the screen boundary, leaving the panel unobstructed. It draws a time ruler, one
 scrollable row per canonical track, wide bone/channel labels, key markers, and the current authoring playhead. Clicking empty ruler/row space seeks
 the shared in-memory pose. Clicking a key selects its track and bone and seeks exactly to its stored
 time. Only vertically visible track rows submit labels, lines, and key draw commands, avoiding
-per-frame work for off-screen tracks. Key dragging is deliberately deferred until its collision and
-rollback policy is implemented.
+per-frame work for off-screen tracks. A selected key can be dragged horizontally: the marker and
+playhead preview the clamped time in memory, collision with another key in the same track is shown
+in red and rejected, and mouse release performs one backend-validated update plus one rollback entry.
+For usable pointer feedback, entering an eight-pixel zone around another marker snaps the preview to
+that key's exact time and activates collision state; the dragged marker is drawn last so its larger
+red indicator cannot be hidden by the destination marker.
+The key's T/R/S/easing payload is preserved while canonical ordering is recomputed by the backend.
 The detached canonical clip/track/key report is cached while the asset is unchanged. Skeleton or
 animation mutation invalidates it through the shared bind/report refresh boundary. This avoids
 rebuilding and garbage-collecting the complete nested Lua report every frame while Animation is idle.

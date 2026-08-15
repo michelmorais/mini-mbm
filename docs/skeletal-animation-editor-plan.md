@@ -489,6 +489,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.37 | 2026-08-15 | Made timeline collisions perceptible: an eight-pixel capture zone snaps the dragged preview to another same-track key's exact time, and the larger invalid red marker renders after all ordinary markers so it cannot be occluded. Canonical `1e-6` time validation remains authoritative. |
+| 7.36 | 2026-08-15 | Added horizontal timeline key dragging. Drag previews only marker/playhead time, clamps to clip bounds, marks same-track collisions red, and commits one backend-validated reorder plus rollback entry on release while preserving the complete key payload. |
 | 7.35 | 2026-08-15 | Made the timeline freely movable/resizable after its initial panel-relative placement. Cached the detached animation report until a shared asset-report invalidation, removing per-frame reconstruction/allocation of every clip, track, and key that caused delayed CPU/GC growth while Animation sat idle. |
 | 7.34 | 2026-08-15 | Timeline horizontal placement now begins at the live right edge of the resizable left worktree window and occupies only the remaining screen width, rather than covering the panel beneath it. |
 | 7.33 | 2026-08-15 | Moved the timeline from the narrow worktree panel into a fixed full-width bottom window, widened bone/channel labels, and culled off-screen track/key draw submission using the child scroll range to remove the newly introduced per-frame CPU cost. |

@@ -54,6 +54,7 @@ local state = {
     animationAutoKey = false,
     animationTimelineTrackIndex = nil,
     animationTimelineKeyIndex = nil,
+    animationTimelineDrag = nil,
     animationTimelineClip = nil,
     animationReport = nil,
     leftPanelRight = 440,
@@ -1006,6 +1007,7 @@ local function setWorkspace(workspace)
         state.authoringPoseKey=nil
         state.authoringOverride=nil
         state.authoringActiveClip=nil
+        state.animationTimelineDrag=nil
     end
     state.workspace=workspace
     state.aabbDragging=false
@@ -3589,6 +3591,34 @@ local function skeletalKeyFloat(label,id,value)
     return changed and result or value
 end
 
+local function commitTimelineKeyDrag(drag)
+    if not drag or not drag.moved or drag.invalid then return false end
+    local key=drag.key
+    local p,q,s=key.translation or {},key.rotation or {},key.scale or {}
+    local bezier=key.bezier or {}
+    local snapshot=stageRollbackSnapshot()
+    local updated=snapshot and select(1,safeCall(function()
+        return state.meshD:updateSkeletalKey(state.animationClipSelected,drag.trackIndex,
+            drag.keyIndex,drag.previewTime,p.x or 0,p.y or 0,p.z or 0,
+            q.x or 0,q.y or 0,q.z or 0,q.w or 1,s.x or 1,s.y or 1,s.z or 1,
+            key.easing or 0,bezier.x1 or 0,bezier.y1 or 0,bezier.x2 or 1,bezier.y2 or 1)
+    end)) or false
+    if not updated then
+        if snapshot then discardRollbackSnapshot(snapshot) end
+        setStatus(tLang.L('swl_animation_timeline_key_move_failed'),true)
+        return false
+    end
+    commitRollbackSnapshot(snapshot)
+    state.modified=true
+    state.animationKeyEdits={}
+    state.animationTimelineTrackIndex=nil
+    state.animationTimelineKeyIndex=nil
+    state.authoringTime=drag.previewTime
+    clearAuthoringOverride()
+    setStatus(tLang.L('swl_animation_timeline_key_moved'),false)
+    return true
+end
+
 local function showSkeletalTimeline(clip)
     local tracks=clip.tracks or {}
     local duration=math.max(clip.duration or 0,0.0001)
@@ -3605,6 +3635,32 @@ local function showSkeletalTimeline(clip)
     local maximum=tImGui.GetItemRectMax()
     local x0,x1=minimum.x+labelWidth,maximum.x-6
     local timelineWidth=math.max(1,x1-x0)
+    local activeDrag=state.animationTimelineDrag
+    if activeDrag and tImGui.IsMouseDown(0) then
+        local mouse=tImGui.GetMousePos()
+        activeDrag.previewTime=math.max(0,
+            math.min(duration,(mouse.x-x0)/timelineWidth*duration))
+        activeDrag.moved=math.abs(mouse.x-activeDrag.startX)>2
+        activeDrag.invalid=false
+        local track=tracks[activeDrag.trackIndex]
+        for keyIndex,key in ipairs(track and track.keys or {}) do
+            if keyIndex~=activeDrag.keyIndex then
+                local otherTime=key.time or 0
+                local otherX=x0+timelineWidth*math.max(0,math.min(1,otherTime/duration))
+                if math.abs(mouse.x-otherX)<=8 or
+                        math.abs(otherTime-activeDrag.previewTime)<=1.0e-6 then
+                    activeDrag.previewTime=otherTime
+                    activeDrag.invalid=true
+                    break
+                end
+            end
+        end
+        if activeDrag.moved then
+            state.authoringTime=activeDrag.previewTime
+            clearAuthoringOverride()
+            refreshAuthoringPose(clip)
+        end
+    end
     tImGui.AddRectFilled(minimum,maximum,{r=0.055,g=0.065,b=0.085,a=1},3,0)
     tImGui.AddLine({x=x0,y=minimum.y},{x=x0,y=maximum.y},
         {r=0.35,g=0.38,b=0.45,a=1},1)
@@ -3617,6 +3673,7 @@ local function showSkeletalTimeline(clip)
             string.format('%.2f',duration*fraction))
     end
     local markerPositions={}
+    local draggedMarker=nil
     local scrollY=tImGui.GetScrollY()
     local firstVisible=math.max(1,math.floor(math.max(0,scrollY-rulerHeight)/rowHeight)+1)
     local lastVisible=math.min(#tracks,
@@ -3634,13 +3691,26 @@ local function showSkeletalTimeline(clip)
         tImGui.AddLine({x=x0,y=y},{x=x1,y=y},{r=0.22,g=0.24,b=0.3,a=1},1)
         markerPositions[trackIndex]={}
         for keyIndex,key in ipairs(track.keys or {}) do
-            local kx=x0+timelineWidth*math.max(0,math.min(1,(key.time or 0)/duration))
+            local dragged=activeDrag and activeDrag.trackIndex==trackIndex and
+                activeDrag.keyIndex==keyIndex
+            local displayTime=dragged and activeDrag.previewTime or (key.time or 0)
+            local kx=x0+timelineWidth*math.max(0,math.min(1,displayTime/duration))
             local selected=state.animationTimelineTrackIndex==trackIndex and
                 state.animationTimelineKeyIndex==keyIndex
-            tImGui.AddCircleFilled({x=kx,y=y},selected and 6 or 4,
-                selected and {r=1,g=0.75,b=0.1,a=1} or {r=0.75,g=0.35,b=0.9,a=1},12)
+            if dragged then
+                draggedMarker={x=kx,y=y,invalid=activeDrag.invalid}
+            else
+                tImGui.AddCircleFilled({x=kx,y=y},selected and 6 or 4,
+                    selected and {r=1,g=0.75,b=0.1,a=1} or
+                    {r=0.75,g=0.35,b=0.9,a=1},12)
+            end
             markerPositions[trackIndex][keyIndex]={x=kx,y=y,key=key,track=track}
         end
+    end
+    if draggedMarker then
+        tImGui.AddCircleFilled({x=draggedMarker.x,y=draggedMarker.y},7,
+            draggedMarker.invalid and {r=1,g=0.08,b=0.08,a=1} or
+            {r=1,g=0.75,b=0.1,a=1},14)
     end
     local playheadX=x0+timelineWidth*math.max(0,math.min(1,(state.authoringTime or 0)/duration))
     tImGui.AddLine({x=playheadX,y=minimum.y},{x=playheadX,y=maximum.y},
@@ -3659,12 +3729,26 @@ local function showSkeletalTimeline(clip)
             state.animationTimelineKeyIndex=nearestIndex
             if marker.track.boneIndex then state.boneIndex=marker.track.boneIndex end
             state.authoringTime=marker.key.time or 0
+            state.animationTimelineDrag={trackIndex=row,keyIndex=nearestIndex,
+                key=marker.key,originalTime=marker.key.time or 0,
+                previewTime=marker.key.time or 0,startX=mouse.x,moved=false,invalid=false}
         elseif mouse.x>=x0 then
             state.animationTimelineTrackIndex=nil; state.animationTimelineKeyIndex=nil
             state.authoringTime=math.max(0,math.min(duration,(mouse.x-x0)/timelineWidth*duration))
         end
         clearAuthoringOverride()
         refreshAuthoringPose(clip)
+    end
+    if activeDrag and tImGui.IsMouseReleased(0) then
+        if activeDrag.moved and activeDrag.invalid then
+            state.authoringTime=activeDrag.originalTime
+            clearAuthoringOverride()
+            refreshAuthoringPose(clip)
+            setStatus(tLang.L('swl_animation_timeline_key_collision'),true)
+        elseif activeDrag.moved then
+            commitTimelineKeyDrag(activeDrag)
+        end
+        state.animationTimelineDrag=nil
     end
     tImGui.EndChild()
 end
@@ -3719,6 +3803,7 @@ local function showSkeletalAnimationInspection()
             state.authoringTime=0
             state.animationTimelineTrackIndex=nil
             state.animationTimelineKeyIndex=nil
+            state.animationTimelineDrag=nil
             clearAuthoringOverride()
         end
         local clip=clips[state.animationClipSelected]
