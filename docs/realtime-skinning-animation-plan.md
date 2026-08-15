@@ -801,6 +801,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.33 | 2026-08-15 | Rotate mode now draws a fixed-head orbit guide at the preserved visual segment length, while joint-radius edits require a strictly positive mesh-relative value and reject zero atomically. |
+| 8.32 | 2026-08-15 | Segment rotation now preserves displayed global length through non-uniform bind bases, and joint-radius authoring uses proportional DragFloat interaction. |
+| 8.31 | 2026-08-15 | Bone Editor adds atomic nonnegative joint-radius editing for one bone or its descendant subtree, updating visual/picking metadata without conflating radius with skin weights. |
 | 8.30 | 2026-08-15 | Corrected axis-gizmo movement sign and hardened selection against center/geometry capture and camera-parallel instability, with explicit active-axis feedback during drag. |
 | 8.29 | 2026-08-15 | Bone Editor adds always-on-top global XYZ manipulation handles and a nonnegative incremental snap step; handle selection temporarily constrains one gesture while zero step preserves continuous motion. |
 | 8.28 | 2026-08-15 | Bone Editor gestures support exact Esc/right-click cancellation through the complete staged asset snapshot, restoring selection and all editor consumers without creating a history entry. |

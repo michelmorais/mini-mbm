@@ -70,6 +70,10 @@ local state = {
     boneEditorRemoveDiscardTracks = false,
     boneEditorRemoveConfirmed = false,
     boneEditorRemovePreviewIndex = nil,
+    boneEditorRadiusBoneId = nil,
+    boneEditorRadius = 0,
+    boneEditorRadiusSubtree = false,
+    boneEditorRotationGuide = nil,
     workspace = 'weights',
     meshVisible = true,
     skeletonVisible = true,
@@ -667,7 +671,7 @@ local function rebuildBoneEditorAxisGizmo()
     local head,tail=getBoneEditorEndpoints(bone,1)
     local kind=state.boneEditorSelection.kind
     local origin=kind=='head' and head or (kind=='tail' or kind=='joint') and tail or
-        (kind=='segment' and state.boneEditorSegmentTool==2) and tail or
+        (kind=='segment' and state.boneEditorSegmentTool==2) and head or
         {x=(head.x+tail.x)*0.5,y=(head.y+tail.y)*0.5,z=(head.z+tail.z)*0.5}
     local bounds=state.meshBounds
     local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
@@ -689,6 +693,65 @@ local function rebuildBoneEditorAxisGizmo()
     end
     gizmo.origin=origin
     gizmo.length=length
+end
+
+local function rebuildBoneEditorRotationGuide()
+    local guide=state.boneEditorRotationGuide
+    local selection=state.boneEditorSelection
+    if state.workspace~='bone_editor' or state.boneEditorSegmentTool~=2 or
+            not selection or selection.kind~='segment' then
+        if guide then guide.visible=false end
+        return
+    end
+    local bone=getBones()[selection.boneIndex]
+    if not bone or not bone.hasExplicitTail then
+        if guide then guide.visible=false end
+        return
+    end
+    local head,tail=getBoneEditorEndpoints(bone,1)
+    local radius=math.sqrt((tail.x-head.x)^2+(tail.y-head.y)^2+(tail.z-head.z)^2)
+    if radius<=1e-6 then if guide then guide.visible=false end return end
+    local px,py,pz=cameraPosition()
+    local nx,ny,nz=state.cam.fx-px,state.cam.fy-py,state.cam.fz-pz
+    local normalLength=math.sqrt(nx*nx+ny*ny+nz*nz)
+    if normalLength<=1e-6 then return end
+    nx,ny,nz=nx/normalLength,ny/normalLength,nz/normalLength
+    local rx,ry,rz=math.abs(ny)<0.9 and 0 or 1,math.abs(ny)<0.9 and 1 or 0,0
+    local ux,uy,uz=ny*rz-nz*ry,nz*rx-nx*rz,nx*ry-ny*rx
+    local uLength=math.sqrt(ux*ux+uy*uy+uz*uz)
+    ux,uy,uz=ux/uLength,uy/uLength,uz/uLength
+    local vx,vy,vz=ny*uz-nz*uy,nz*ux-nx*uz,nx*uy-ny*ux
+    local points={}
+    local segments=48
+    for item=0,segments-1 do
+        for _,angle in ipairs({item/segments*math.pi*2,(item+1)/segments*math.pi*2}) do
+            points[#points+1]=head.x+(ux*math.cos(angle)+vx*math.sin(angle))*radius
+            points[#points+1]=head.y+(uy*math.cos(angle)+vy*math.sin(angle))*radius
+            points[#points+1]=head.z+(uz*math.cos(angle)+vz*math.sin(angle))*radius
+        end
+    end
+    -- The skeleton is also rendered always-on-top. Pull these markers slightly
+    -- toward the camera and extend the cross beyond the joint sphere so the
+    -- opaque joint/cylinder cannot hide the rotation pivot and radius.
+    local overlayOffset=math.max(radius*0.025,0.0005)
+    local centerSize=math.max(radius*0.15,0.002)
+    local centerX,centerY,centerZ=head.x-nx*overlayOffset,head.y-ny*overlayOffset,
+        head.z-nz*overlayOffset
+    local tailX,tailY,tailZ=tail.x-nx*overlayOffset,tail.y-ny*overlayOffset,
+        tail.z-nz*overlayOffset
+    for _,point in ipairs({
+            centerX-ux*centerSize,centerY-uy*centerSize,centerZ-uz*centerSize,
+            centerX+ux*centerSize,centerY+uy*centerSize,centerZ+uz*centerSize,
+            centerX-vx*centerSize,centerY-vy*centerSize,centerZ-vz*centerSize,
+            centerX+vx*centerSize,centerY+vy*centerSize,centerZ+vz*centerSize,
+            centerX,centerY,centerZ,tailX,tailY,tailZ}) do
+        points[#points+1]=point
+    end
+    if guide then guide:set(points,1) else
+        guide=line:new('3d',0,0,0); guide:add(points); guide:setColor(1,0.85,0.05,1)
+        guide.alwaysOnTop=true; state.boneEditorRotationGuide=guide
+    end
+    guide.visible=shouldShowSkeleton()
 end
 
 local function rebuildTranslationGizmo()
@@ -769,6 +832,7 @@ local function applyWorkspaceVisibility()
     local analysisVisible=weightWorkspace and state.analysisMarkersVisible
     rebuildBoneEditorOrientationIndicator()
     rebuildBoneEditorAxisGizmo()
+    rebuildBoneEditorRotationGuide()
 
     if state.preview then
         state.preview.visible=state.meshVisible
@@ -3755,6 +3819,7 @@ local function showBoneEditor()
     if snapChanged then state.boneEditorSnapStep=math.max(0,snapStep) end
     tImGui.TextWrapped(tLang.L('swl_bone_editor_snap_step_help'))
     tImGui.Text(tLang.L('swl_bone_editor_segment_tool'))
+    local previousSegmentTool=state.boneEditorSegmentTool
     state.boneEditorSegmentTool=tImGui.RadioButton(
         tLang.L('swl_bone_editor_segment_move')..'##swlBoneSegmentMove',
         state.boneEditorSegmentTool,1)
@@ -3762,6 +3827,7 @@ local function showBoneEditor()
     state.boneEditorSegmentTool=tImGui.RadioButton(
         tLang.L('swl_bone_editor_segment_rotate')..'##swlBoneSegmentRotate',
         state.boneEditorSegmentTool,2)
+    if previousSegmentTool~=state.boneEditorSegmentTool then applyWorkspaceVisibility() end
     tImGui.TextWrapped(tLang.L('swl_bone_editor_segment_tool_help'))
     tImGui.Separator()
     tImGui.PushItemWidth(190)
@@ -3890,7 +3956,10 @@ local function showBoneEditor()
                     nx,ny,nz))
                 tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_angles_fmt'),
                     inclination,azimuth))
-                tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_length_fmt'),length))
+                local headPoint,tailPoint=getBoneEditorEndpoints(selectedBone,1)
+                local worldLength=math.sqrt((tailPoint.x-headPoint.x)^2+
+                    (tailPoint.y-headPoint.y)^2+(tailPoint.z-headPoint.z)^2)
+                tImGui.Text(string.format(tLang.L('swl_bone_editor_segment_length_fmt'),worldLength))
                 tImGui.TextWrapped(tLang.L('swl_bone_editor_segment_roll_note'))
             end
         end
@@ -3923,6 +3992,50 @@ local function showBoneEditor()
             tImGui.EndDisabled()
             if wantConnected and (not parentBone or not parentBone.hasExplicitTail) then
                 tImGui.TextWrapped(tLang.L('swl_bone_editor_parent_without_tail'))
+            end
+        end
+        if selectedBone then
+            if state.boneEditorRadiusBoneId~=selectedBone.boneId then
+                state.boneEditorRadiusBoneId=selectedBone.boneId
+                state.boneEditorRadius=selectedBone.radius or 0
+                state.boneEditorRadiusSubtree=false
+            end
+            if tImGui.TreeNode(tLang.L('swl_bone_editor_joint_radius')..
+                    '##swlBoneEditorRadius') then
+                tImGui.PushItemWidth(110)
+                local extent=state.meshBounds and math.max(
+                    state.meshBounds.maxX-state.meshBounds.minX,
+                    state.meshBounds.maxY-state.meshBounds.minY,
+                    state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+                local minimumRadius=math.max(extent*0.0001,0.000001)
+                state.boneEditorRadius=math.max(minimumRadius,state.boneEditorRadius or 0)
+                local changed,radius=tImGui.DragFloat(tLang.L('swl_bone_editor_radius')..
+                    '##swlBoneEditorRadiusValue',state.boneEditorRadius,
+                    math.max(extent*0.001,0.0001),minimumRadius,2000000,'%.6g')
+                tImGui.PopItemWidth()
+                if changed then state.boneEditorRadius=math.max(minimumRadius,radius) end
+                state.boneEditorRadiusSubtree=tImGui.Checkbox(
+                    tLang.L('swl_bone_editor_radius_subtree')..'##swlBoneEditorRadiusSubtree',
+                    state.boneEditorRadiusSubtree)
+                tImGui.TextWrapped(tLang.L('swl_bone_editor_radius_help'))
+                if tImGui.Button(tLang.L('swl_bone_editor_apply_radius')..
+                        '##swlBoneEditorRadiusApply') then
+                    local snapshot=stageRollbackSnapshot()
+                    local ok=snapshot and select(1,safeCall(function()
+                        return state.meshD:setSkeletalBoneRadius(
+                            state.boneEditorSelection.boneIndex,state.boneEditorRadius,
+                            state.boneEditorRadiusSubtree)
+                    end)) or false
+                    if ok then
+                        commitRollbackSnapshot(snapshot)
+                        state.modified=true
+                        refreshBindReport()
+                        rebuildSkeletonVisuals()
+                        applyWorkspaceVisibility()
+                        setStatus(tLang.L('swl_bone_editor_radius_applied'),false)
+                    elseif snapshot then discardRollbackSnapshot(snapshot) end
+                end
+                tImGui.TreePop()
             end
         end
         if selectedBone then
@@ -4366,9 +4479,8 @@ function onTouchDown(key, x, y)
                                     selection.kind=='segment' and 'segment' or 'tail',parent=parent,
                                 head={x=bone.x,y=bone.y,z=bone.z},
                                 tail={x=tail.x,y=tail.y,z=tail.z},
-                                tailLength=bone.tailOffset and math.sqrt(
-                                    (bone.tailOffset.x or 0)^2+(bone.tailOffset.y or 0)^2+
-                                    (bone.tailOffset.z or 0)^2) or 0,
+                                worldTailLength=math.sqrt((tail.x-bone.x)^2+
+                                    (tail.y-bone.y)^2+(tail.z-bone.z)^2),
                                 globalMatrix=bone.globalMatrix,point=dragPoint,
                                 startWorldHit=axisOverride and {x=dragPoint.x,y=dragPoint.y,
                                     z=dragPoint.z} or {x=wx,y=wy,z=wz},
@@ -4485,8 +4597,18 @@ function onTouchMove(key, x, y)
                 lx,ly,lz=worldDeltaToLocal(wx-boneDrag.head.x,wy-boneDrag.head.y,
                     wz-boneDrag.head.z,boneDrag.globalMatrix)
                 local directionLength=lx and math.sqrt(lx*lx+ly*ly+lz*lz) or 0
-                if directionLength>1e-6 and boneDrag.tailLength>1e-6 then
-                    local scale=boneDrag.tailLength/directionLength
+                local matrix=boneDrag.globalMatrix or {}
+                local worldX=lx and ((matrix[1] or 1)*lx+(matrix[5] or 0)*ly+
+                    (matrix[9] or 0)*lz) or 0
+                local worldY=lx and ((matrix[2] or 0)*lx+(matrix[6] or 1)*ly+
+                    (matrix[10] or 0)*lz) or 0
+                local worldZ=lx and ((matrix[3] or 0)*lx+(matrix[7] or 0)*ly+
+                    (matrix[11] or 1)*lz) or 0
+                local worldDirectionLength=math.sqrt(worldX*worldX+worldY*worldY+
+                    worldZ*worldZ)
+                if directionLength>1e-6 and worldDirectionLength>1e-6 and
+                        boneDrag.worldTailLength>1e-6 then
+                    local scale=boneDrag.worldTailLength/worldDirectionLength
                     lx,ly,lz=lx*scale,ly*scale,lz*scale
                 else lx=nil end
             elseif boneDrag.mode=='head' or boneDrag.mode=='segment' then

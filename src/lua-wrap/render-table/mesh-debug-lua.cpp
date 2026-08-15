@@ -2469,6 +2469,20 @@ namespace mbm
         return 0;
     }
 
+    int onSetSkeletalBoneRadiusDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug=getMeshDebugFromRawTable(lua,1,1);
+        const lua_Integer index=luaL_checkinteger(lua,2);
+        if(index<=0) return luaL_error(lua,"canonical bone index must be one-based");
+        const float radius=static_cast<float>(luaL_checknumber(lua,3));
+        const bool includeDescendants=lua_gettop(lua)>=4&&lua_toboolean(lua,4)!=0;
+        char errorOut[255]="";
+        if(!meshDebug->mesh.setSkeletalBoneRadius(static_cast<uint32_t>(index-1),radius,
+                includeDescendants,errorOut,static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua,errorOut);
+        return 0;
+    }
+
     int onInitializeSkeletalSkeletonDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3068,6 +3082,7 @@ namespace mbm
                                           {"setSkeletalBoneHead", onSetSkeletalBoneHeadDebugLua},
                                           {"translateSkeletalBoneSegment", onTranslateSkeletalBoneSegmentDebugLua},
                                           {"setSkeletalBoneConnectedToParent", onSetSkeletalBoneConnectedToParentDebugLua},
+                                          {"setSkeletalBoneRadius", onSetSkeletalBoneRadiusDebugLua},
                                           {"addSkeletalBone", onAddSkeletalBoneDebugLua},
                                           {"initializeSkeletalSkeleton", onInitializeSkeletalSkeletonDebugLua},
                                           {"addSkeletalBoneChain", onAddSkeletalBoneChainDebugLua},

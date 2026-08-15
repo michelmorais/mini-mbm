@@ -335,6 +335,18 @@ namespace
                    std::fabs(connectionTailAfter.y-connectionTailBefore.y)<=MATRIX_TOLERANCE &&
                    std::fabs(connectionTailAfter.z-connectionTailBefore.z)<=MATRIX_TOLERANCE,
                "explicit parent-tail connection must preserve the child global tail");
+        expect(extensionMesh.setSkeletalBoneRadius(1,0.25f,true,
+                   reparentError,sizeof(reparentError)) &&
+                   extensionMesh.getSkeletonBindBone(0,before) &&
+                   std::fabs(before.radius-0.1f)<=MATRIX_TOLERANCE &&
+                   extensionMesh.getSkeletonBindBone(10,after) &&
+                   std::fabs(after.radius-0.25f)<=MATRIX_TOLERANCE,
+               "joint radius subtree edit must exclude ancestors and include all descendants");
+        expect(!extensionMesh.setSkeletalBoneRadius(1,0.0f,false,
+                   reparentError,sizeof(reparentError)) &&
+                   extensionMesh.getSkeletonBindBone(1,after) &&
+                   std::fabs(after.radius-0.25f)<=MATRIX_TOLERANCE,
+               "joint radius edit must reject zero without mutation");
         MESH_MBM_DEBUG staticMesh;
         expect(staticMesh.loadV11("src/test-lib/Crate.msh") &&
                    staticMesh.initializeSkeletalSkeleton("root",VEC3(0,0,0),0.1f,1.0f,true,

@@ -389,6 +389,10 @@ namespace mbm
         API_IMPL bool setSkeletalBoneConnectedToParent(const uint32_t index, const bool connected,
                                                         const bool preserveOtherJoints,
                                                         char *errorOut, const int errorOutLen);
+        // Updates positive authoring/picking radius for one bone or its complete descendant subtree.
+        API_IMPL bool setSkeletalBoneRadius(const uint32_t index, const float radius,
+                                            const bool includeDescendants,
+                                            char *errorOut, const int errorOutLen);
         // Adds a parent-first canonical transform with a new opaque stable ID. parentIndex is -1
         // for root; hasExplicitTail distinguishes a selectable bone segment from a joint only.
         API_IMPL bool addSkeletalBone(const int32_t parentIndex, const char *name,

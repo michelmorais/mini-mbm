@@ -5651,6 +5651,46 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::setSkeletalBoneRadius(const uint32_t index, const float radius,
+                                                const bool includeDescendants,
+                                                char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if(errorOut&&errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if(impl->canonicalSkeleton.skeletonId==0) return fail("mesh has no canonical skeleton");
+        if(index>=impl->canonicalSkeleton.sourceBones.size())
+            return fail("canonical bone index is out of range");
+        if(!std::isfinite(radius)||radius<=skeletal::SINGULAR_TOLERANCE)
+            return fail("canonical bone radius must be finite and positive");
+        skeletal::CANONICAL_SKELETON candidate=impl->canonicalSkeleton;
+        std::unordered_set<uint64_t> affected;
+        affected.insert(candidate.sourceBones[index].boneId);
+        if(includeDescendants)
+        {
+            bool changed=true;
+            while(changed)
+            {
+                changed=false;
+                for(const skeletal::CANONICAL_BONE &bone:candidate.sourceBones)
+                    if(affected.find(bone.boneId)==affected.end()&&
+                        affected.find(bone.parentBoneId)!=affected.end())
+                    {
+                        affected.insert(bone.boneId);
+                        changed=true;
+                    }
+            }
+        }
+        for(skeletal::CANONICAL_BONE &bone:candidate.sourceBones)
+            if(affected.find(bone.boneId)!=affected.end()) bone.radius=radius;
+        if(!skeletal::compileCanonicalSkeleton(candidate.sourceBones,candidate.compiled))
+            return fail("radius edit would make the canonical skeleton invalid");
+        impl->canonicalSkeleton=std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::addSkeletalBoneChain(const int32_t parentIndex, const char *namePrefix,
                                                const uint32_t count, const VEC3 &stepTranslation,
                                                const float radius, const float length,

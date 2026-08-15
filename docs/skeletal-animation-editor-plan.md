@@ -489,6 +489,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.27 | 2026-08-15 | Made Move/Rotate visually distinct with a yellow camera-plane orbit guide centered on the fixed head and sized to the preserved visual length. Joint-radius authoring now clamps and validates a strictly positive mesh-relative minimum; zero rejects without mutation. |
+| 7.26 | 2026-08-15 | Fixed segment rotation under scaled bind bases by preserving displayed global head-tail distance rather than raw local tail magnitude; the live label now reports visual length. Joint radius input is now a scale-proportional DragFloat. |
+| 7.25 | 2026-08-15 | Added atomic joint-radius editing for the selected bone or complete descendant subtree. The control refreshes joint rendering/picking, preserves ancestors and other branches, supports rollback, and explicitly does not imply envelope generation or weight mutation. |
 | 7.24 | 2026-08-15 | Fixed axis-gizmo direction and accidental capture. The closest ray/axis parameter sign now follows cursor/world direction; bone geometry has picking priority, only the outer handle is active, near-view-parallel axes are rejected, tolerance is narrower, and the active axis is visually isolated. |
 | 7.23 | 2026-08-15 | Added selected-point global X/Y/Z handles and real incremental snapping. Axis-handle picking uses closest ray/axis motion and constrains only that gesture; the nonnegative Snap step quantizes displacement symmetrically around the gesture start, with zero retaining continuous movement. |
 | 7.22 | 2026-08-15 | Added exact gesture cancellation for head, tail, segment move, and segment rotation. Esc/right-click reloads the pre-mouse-down complete asset snapshot, restores modified state and stable selection, rebuilds editor consumers, discards the temporary file, and creates no rollback-history entry. |

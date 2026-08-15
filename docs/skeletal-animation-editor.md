@@ -288,9 +288,16 @@ Dragging the body of a selected segment translates its head and tail together, r
 and orientation. A connected child head follows the displaced tail; the same preservation checkbox
 decides whether the rest of the hierarchy stays globally fixed or follows that movement.
 The explicit **Move/Rotate** segment tool removes interaction ambiguity. In **Rotate**, dragging the
-segment keeps its head and bone-local length fixed and changes only the tail direction; connected
-heads follow that tail, and Preserve other joints retains its existing compensation meaning. Global
-X/Y/Z constraints also apply to the rotated endpoint before conversion back to bone-local space.
+segment keeps its head and displayed global length fixed and changes only the tail direction;
+connected heads follow that tail, and Preserve other joints retains its existing compensation
+meaning. Global X/Y/Z constraints also apply to the rotated endpoint before conversion back to
+bone-local space. The required local tail magnitude is derived through the complete bind linear
+basis, so non-uniform ancestor scale cannot visually stretch or shrink the rotating segment.
+When Rotate is selected, a yellow camera-facing orbit guide is drawn around the fixed head with the
+current visual segment length as its radius. A cross marks the fixed head, a radial line connects it
+to the tail, and the XYZ gizmo is anchored at that head. The center and radial markers are offset a
+small amount toward the camera so the always-on-top skeleton does not occlude them. Moving translates
+both endpoints; rotating keeps the head at the guide center and constrains the tail to that circle.
 For the selected explicit segment, the panel reports its normalized local direction, current length,
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine
@@ -316,6 +323,12 @@ global-preserving child promotion, and track-discard confirmation where applicab
 cannot be removed. While the removal section is open, the selected weight-transfer target is
 highlighted in green across its joint, tail, and segment; the bone being removed retains the blue
 selection color. Success selects the surviving parent and creates one rollback entry.
+
+**Joint radius** edits the selected bone's positive visual/picking radius, optionally applying one value to
+its complete descendant subtree. The nonnegative change is atomic, refreshes viewport geometry and
+selection tolerance immediately, and creates one rollback entry. Radius remains authoring metadata:
+it does not create envelopes or modify canonical vertex weights. The radius field uses a
+scale-proportional `DragFloat` interaction for quick visual adjustment.
 This makes a bone visible even on a static mesh that began without any skeleton. Connected extension
 and mouse manipulation of joints/segments are intentionally the next slices.
 

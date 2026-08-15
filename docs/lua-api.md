@@ -1375,6 +1375,15 @@ to that tail, preserves the edited segment's global tail, and defaults to compen
 joint globally. This operation does not change hierarchy; reparenting remains a separate contract.
 
 ```lua
+meshD:setSkeletalBoneRadius(oneBasedBoneIndex, radius, includeDescendants)
+```
+
+Atomically sets a finite positive authoring/picking radius on the selected bone. When
+`includeDescendants` is true, every member of its descendant subtree receives the same value while
+ancestors and other branches remain unchanged. Radius is visual/editor metadata and does not alter
+canonical vertex weights.
+
+```lua
 local newBoneIndex = meshD:addSkeletalBone(parentIndex, name, tx, ty, tz, radius, length,
     hasExplicitTail, connectedToParent)
 ```
