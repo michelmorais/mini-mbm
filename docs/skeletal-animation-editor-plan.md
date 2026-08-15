@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.35 | 2026-08-15 | Made the timeline freely movable/resizable after its initial panel-relative placement. Cached the detached animation report until a shared asset-report invalidation, removing per-frame reconstruction/allocation of every clip, track, and key that caused delayed CPU/GC growth while Animation sat idle. |
 | 7.34 | 2026-08-15 | Timeline horizontal placement now begins at the live right edge of the resizable left worktree window and occupies only the remaining screen width, rather than covering the panel beneath it. |
 | 7.33 | 2026-08-15 | Moved the timeline from the narrow worktree panel into a fixed full-width bottom window, widened bone/channel labels, and culled off-screen track/key draw submission using the child scroll range to remove the newly introduced per-frame CPU cost. |
 | 7.32 | 2026-08-15 | Began the graphical timeline with a scrollable canonical-track canvas, time ruler, channel-labelled rows, selectable key markers, and synchronized playhead seeking. Key selection resolves the authored bone and exact key time; marker dragging remains deferred to its transactional collision policy. |

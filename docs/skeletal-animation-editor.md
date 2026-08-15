@@ -325,6 +325,11 @@ the shared in-memory pose. Clicking a key selects its track and bone and seeks e
 time. Only vertically visible track rows submit labels, lines, and key draw commands, avoiding
 per-frame work for off-screen tracks. Key dragging is deliberately deferred until its collision and
 rollback policy is implemented.
+The detached canonical clip/track/key report is cached while the asset is unchanged. Skeleton or
+animation mutation invalidates it through the shared bind/report refresh boundary. This avoids
+rebuilding and garbage-collecting the complete nested Lua report every frame while Animation is idle.
+The timeline window receives its panel-relative bottom position and remaining width only on first
+appearance; afterward it is freely movable and resizable by the user.
 For the selected explicit segment, the panel reports its normalized local direction, current length,
 inclination from local `+Y`, and azimuth in the local `XZ` plane. These values update during drag.
 Roll is deliberately reported as undefined: head and tail determine an axis but cannot determine

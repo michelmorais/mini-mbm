@@ -803,6 +803,7 @@ remain required before choosing palette sizes or fallbacks.
 |---|---|---|
 | 8.33 | 2026-08-15 | Rotate mode now draws a fixed-head orbit guide at the preserved visual segment length, while joint-radius edits require a strictly positive mesh-relative value and reject zero atomically. |
 | 8.32 | 2026-08-15 | Segment rotation now preserves displayed global length through non-uniform bind bases, and joint-radius authoring uses proportional DragFloat interaction. |
+| 8.40 | 2026-08-15 | Timeline becomes movable/resizable after initial placement, while the detached clip/track/key report is cached until asset mutation to eliminate idle per-frame Lua allocation and delayed GC/CPU growth. |
 | 8.39 | 2026-08-15 | Timeline placement follows the live right edge of the resizable worktree panel and occupies only the remaining bottom width. |
 | 8.38 | 2026-08-15 | Timeline layout moves to a full-width bottom window with wider labels and visible-row draw culling, separating horizontal authoring from the worktree panel and eliminating off-screen per-frame draw work. |
 | 8.37 | 2026-08-15 | Animation begins its graphical timeline with scrollable canonical track rows, time ruler, selectable key markers, and a playhead synchronized with the shared authoring pose; transactional key dragging remains a subsequent slice. |

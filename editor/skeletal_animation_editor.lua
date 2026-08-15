@@ -55,6 +55,7 @@ local state = {
     animationTimelineTrackIndex = nil,
     animationTimelineKeyIndex = nil,
     animationTimelineClip = nil,
+    animationReport = nil,
     leftPanelRight = 440,
     translationGizmo = {axes={},boneIndex=nil,poseKey=nil,drag=nil},
     rotationGizmo = {rings={},origin=nil,radius=nil,drag=nil},
@@ -468,6 +469,7 @@ end
 
 local function refreshBindReport(includeDependencyImpact)
     state.bindReport = nil
+    state.animationReport = nil
     if not state.meshD then return end
     local ok, report = safeCall(function()
         return state.meshD:getSkeletonBindReport(includeDependencyImpact~=false)
@@ -2013,6 +2015,7 @@ local function commitRollbackSnapshot(snapshot)
     clearRollback()
     state.rollbackPath = snapshot.path
     state.rollbackModified = snapshot.modified
+    state.animationReport = nil
 end
 
 local function discardRollbackSnapshot(snapshot)
@@ -3672,9 +3675,11 @@ local function showSkeletalTimelineWindow()
     local windowHeight=280
     local left=math.max(0,math.min(state.leftPanelRight or 440,screenWidth-220))
     tImGui.SetNextWindowPos({x=left,y=math.max(0,screenHeight-windowHeight)},
-        tImGui.Flags('ImGuiCond_Always'))
+        tImGui.Flags('ImGuiCond_Once'))
     tImGui.SetNextWindowSize({x=math.max(220,screenWidth-left),y=windowHeight},
-        tImGui.Flags('ImGuiCond_Always'))
+        tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSizeConstraints({x=420,y=180},
+        {x=math.max(420,screenWidth),y=math.max(180,screenHeight)})
     local opened=tImGui.Begin(tLang.L('swl_animation_timeline')..'##swlTimelineWindow',false,
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
     if opened then showSkeletalTimeline(state.animationTimelineClip) end
@@ -3683,8 +3688,12 @@ end
 
 local function showSkeletalAnimationInspection()
     tImGui.TextWrapped(tLang.L('swl_animation_inspection_help'))
-    local ok,clips=safeCall(function() return state.meshD:getSkeletalAnimationReport() end)
-    if not ok or type(clips)~='table' then clips={} end
+    local clips=state.animationReport
+    if type(clips)~='table' then
+        local ok,report=safeCall(function() return state.meshD:getSkeletalAnimationReport() end)
+        clips=ok and type(report)=='table' and report or {}
+        state.animationReport=clips
+    end
     if #clips==0 then
         state.animationTimelineClip=nil
         tImGui.TextDisabled(tLang.L('swl_animation_no_clips'))
