@@ -205,6 +205,7 @@ local state = {
         abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
         abruptRepairMaxChange=0.2,
         safetyOverlayVisible=true,safetyFaceShape=nil,safetySeamMarkers=nil,safetyReport=nil,
+        strokeSafetyOverlayVisible=true,strokeSafetyFaceShape=nil,strokeSafetyReport=nil,
         distributionStats=nil,weakStats=nil,abruptStats=nil,stroke=nil},
     topologyAdjacency = nil,
     coincidentSeams = nil,
@@ -235,6 +236,8 @@ end
 
 local rebuildSkeletonVisuals
 local rebuildPaintHeatmap
+local poseSafeRepairScale
+local rebuildPaintStrokeSafetyOverlay
 local buildTopologyAdjacency
 local buildCoincidentSeams
 local queryPaintVertices
@@ -284,6 +287,7 @@ local function clearPaintVisuals()
     destroyObject(state.paint.brushFootprintMarkers)
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
+    destroyObject(state.paint.strokeSafetyFaceShape)
     state.paint.heatmapLines={}
     state.paint.cursor=nil
     state.paint.brushFootprintShape=nil
@@ -291,6 +295,8 @@ local function clearPaintVisuals()
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
+    state.paint.strokeSafetyFaceShape=nil
+    state.paint.strokeSafetyReport=nil
     state.paint.cursorHit=nil
     state.paint.cursorLastX=nil
     state.paint.cursorLastY=nil
@@ -1090,6 +1096,10 @@ local function applyWorkspaceVisibility()
     if state.paint.safetySeamMarkers then
         state.paint.safetySeamMarkers.visible=paintWorkspace and
             state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
+    end
+    if state.paint.strokeSafetyFaceShape then
+        state.paint.strokeSafetyFaceShape.visible=paintWorkspace and
+            state.paint.visualizationMode==1 and state.paint.strokeSafetyOverlayVisible
     end
     if state.abruptLines then
         state.abruptLines.visible=weightWorkspace and state.abruptMarkersVisible
@@ -3131,6 +3141,7 @@ local function commitPaintStroke()
         return false
     end
     local edits={}
+    local candidateMaps,editable={},{ }
     local adjacency=stroke.operationMode==3 and buildTopologyAdjacency() or nil
     local weightCache={}
     local function weightsFor(index)
@@ -3207,6 +3218,12 @@ local function commitPaintStroke()
             if influence.name==stroke.boneName then afterTarget=influence.weight break end
         end
         if influences and math.abs(afterTarget-(before[stroke.boneName] or 0))>1e-7 then
+            local candidate={}
+            for _,influence in ipairs(influences) do
+                candidate[influence.name]=influence.weight
+            end
+            candidateMaps[index]=candidate
+            editable[index]=true
             local row={index}
             for slot=1,4 do
                 local influence=influences[slot]
@@ -3224,6 +3241,19 @@ local function commitPaintStroke()
         setStatus(tLang.L(noChangeKey),false)
         return false
     end
+    local unsafeTriangles={}
+    local strokeSafetyReport=nil
+    local okDiagnostic,_,unsafeFaceSamples,diagnosticTriangles,checkedFaces,poseSamples,
+        minimumAreaRatio,maximumOrientationDegrees=safeCall(function()
+            return poseSafeRepairScale(weightCache,candidateMaps,editable,true)
+        end)
+    if okDiagnostic and poseSamples>0 then
+        unsafeTriangles=diagnosticTriangles or {}
+        strokeSafetyReport={changedVertices=#edits,checkedFaces=checkedFaces,
+            poseSamples=poseSamples,unsafeFaces=#unsafeTriangles,
+            unsafeFaceSamples=unsafeFaceSamples,minimumAreaRatio=minimumAreaRatio,
+            maximumOrientationDegrees=maximumOrientationDegrees}
+    end
     local ok,committed=safeCall(function()
         return state.meshD:setSkeletalVertexWeightsBatch(edits)
     end)
@@ -3239,6 +3269,7 @@ local function commitPaintStroke()
     invalidateAnalysis()
     state.paint.heatmapDirty=true
     rebuildPaintHeatmap()
+    rebuildPaintStrokeSafetyOverlay(unsafeTriangles,strokeSafetyReport)
     applyWorkspaceVisibility()
     local statusKey=stroke.operationMode==3 and 'swl_paint_smooth_applied_fmt' or
         stroke.operationMode==2 and 'swl_paint_subtract_applied_fmt' or
@@ -3480,20 +3511,24 @@ local function constrainedRepairWeights(original,candidate,allowedNames,maxChang
     return bestMap,bestDistance
 end
 
-local function poseSafeRepairScale(original,candidates,editable)
-    if not state.meshD or not state.preview or not next(candidates) then return 1,0,{} end
+poseSafeRepairScale = function(original,candidates,editable,diagnosticOnly)
+    if not state.meshD or not state.preview or not next(candidates) then
+        return 1,0,{},0,0,1,0
+    end
     local duration=state.preview:getSkeletalAnimationDuration(state.skeletalPreview.selected) or 0
-    if duration<=0 then return 1,0,{} end
+    if duration<=0 then return 1,0,{},0,0,1,0 end
     local cache=state.paint.geometry or buildPaintGeometryCache()
-    if not cache then return 1,0,{} end
-    local incident={}
-    for _,triangle in ipairs(cache.triangles) do
-        if editable[triangle.a.globalIndex] or editable[triangle.b.globalIndex] or
-                editable[triangle.c.globalIndex] then
-            incident[#incident+1]=triangle
+    if not cache then return 1,0,{},0,0,1,0 end
+    local incident,incidentLookup={},{}
+    for index in pairs(editable) do
+        for _,triangle in ipairs(cache.incidentTriangles[index] or {}) do
+            if not incidentLookup[triangle] then
+                incidentLookup[triangle]=true
+                incident[#incident+1]=triangle
+            end
         end
     end
-    if #incident==0 then return 1,0,{} end
+    if #incident==0 then return 1,0,{},0,0,1,0 end
     local boneIndex={}
     for index,bone in ipairs(getBones()) do boneIndex[bone.name]=index-1 end
     local samples={0,duration*0.25,duration*0.5,duration*0.75,duration}
@@ -3503,7 +3538,7 @@ local function poseSafeRepairScale(original,candidates,editable)
             return state.meshD:evaluateSkeletalAuthoringPose(
                 state.skeletalPreview.selected,time,'lbs')
         end)
-        if not ok or not pose or not pose.palette then return 1,0,{} end
+        if not ok or not pose or not pose.palette then return 1,0,{},0,0,1,0 end
         poses[#poses+1]=pose.palette
     end
     local function blendedMap(index,scale)
@@ -3545,6 +3580,8 @@ local function poseSafeRepairScale(original,candidates,editable)
     local function safeAt(scale,countFailures,collectTriangles)
         local failures=0
         local failedTriangles,failedLookup={},{}
+        local minimumAreaRatio=math.huge
+        local maximumOrientationDegrees=0
         for _,palette in ipairs(poses) do
             local beforeCache,afterCache={},{ }
             for _,triangle in ipairs(incident) do
@@ -3564,6 +3601,15 @@ local function poseSafeRepairScale(original,candidates,editable)
                 local newLength=math.sqrt(newArea.x^2+newArea.y^2+newArea.z^2)
                 if oldLength>1e-10 then
                     local orientation=oldArea.x*newArea.x+oldArea.y*newArea.y+oldArea.z*newArea.z
+                    local areaRatio=newLength/oldLength
+                    minimumAreaRatio=math.min(minimumAreaRatio,areaRatio)
+                    if newLength>1e-10 then
+                        local cosine=math.max(-1,math.min(1,orientation/(oldLength*newLength)))
+                        maximumOrientationDegrees=math.max(maximumOrientationDegrees,
+                            math.acos(cosine)*180/math.pi)
+                    else
+                        maximumOrientationDegrees=180
+                    end
                     if newLength<oldLength*0.25 or orientation<=oldLength*newLength*0.05 then
                         failures=failures+1
                         if collectTriangles and not failedLookup[triangle] then
@@ -3575,16 +3621,53 @@ local function poseSafeRepairScale(original,candidates,editable)
                 end
             end
         end
-        return failures==0,failures,failedTriangles
+        if minimumAreaRatio==math.huge then minimumAreaRatio=1 end
+        return failures==0,failures,failedTriangles,minimumAreaRatio,
+            maximumOrientationDegrees
     end
-    local fullSafe,fullFailures,failedTriangles=safeAt(1,true,true)
-    if fullSafe then return 1,0,{} end
+    local fullSafe,fullFailures,failedTriangles,minimumAreaRatio,maximumOrientationDegrees=
+        safeAt(1,true,true)
+    if diagnosticOnly then
+        return 1,fullFailures,failedTriangles,#incident,#poses,minimumAreaRatio,
+            maximumOrientationDegrees
+    end
+    if fullSafe then
+        return 1,0,{},#incident,#poses,minimumAreaRatio,maximumOrientationDegrees
+    end
     local low,high=0,1
     for _=1,12 do
         local middle=(low+high)*0.5
         if safeAt(middle,false) then low=middle else high=middle end
     end
-    return low,fullFailures,failedTriangles
+    return low,fullFailures,failedTriangles,#incident,#poses,minimumAreaRatio,
+        maximumOrientationDegrees
+end
+
+rebuildPaintStrokeSafetyOverlay = function(unsafeTriangles,report)
+    destroyObject(state.paint.strokeSafetyFaceShape)
+    state.paint.strokeSafetyFaceShape=nil
+    state.paint.strokeSafetyReport=report
+    local vertices={}
+    for _,triangle in ipairs(unsafeTriangles or {}) do
+        for _,entry in ipairs({triangle.a,triangle.b,triangle.c,
+                triangle.a,triangle.c,triangle.b}) do
+            appendPoint(vertices,entry.point.x,entry.point.y,entry.point.z)
+        end
+    end
+    if #vertices>0 then
+        local overlay=shape:new('3d',0,0,0)
+        local nickname='paint_stroke_safety_faces_'..state.paint.heatmapGeneration
+        if overlay:create(vertices,nil,nickname) then
+            overlay:setColor(1,0.05,0.02,0.42)
+            overlay:setPos(0,0,0)
+            overlay.alwaysOnTop=true
+            overlay.alwaysOnTopPriority=0
+            state.paint.strokeSafetyFaceShape=overlay
+        else
+            destroyObject(overlay)
+        end
+    end
+    applyWorkspaceVisibility()
 end
 
 local function rebuildPaintSafetyOverlay(unsafeTriangles,seamVertices,report)
@@ -5481,6 +5564,23 @@ local function showPaintWeights()
     end
     tImGui.Separator()
     showSectionTitle('swl_paint_viewport_feedback')
+    local strokeSafetyReport=state.paint.strokeSafetyReport
+    tImGui.BeginDisabled(strokeSafetyReport==nil)
+    local strokeSafetyVisible=tImGui.Checkbox(tLang.L('swl_paint_stroke_safety_overlay'),
+        state.paint.strokeSafetyOverlayVisible)
+    if strokeSafetyVisible~=state.paint.strokeSafetyOverlayVisible then
+        state.paint.strokeSafetyOverlayVisible=strokeSafetyVisible
+        applyWorkspaceVisibility()
+    end
+    tImGui.EndDisabled()
+    if strokeSafetyReport then
+        tImGui.TextWrapped(tLang.L('swl_paint_stroke_safety_legend'))
+        tImGui.Text(string.format(tLang.L('swl_paint_stroke_safety_report_fmt'),
+            strokeSafetyReport.changedVertices,strokeSafetyReport.checkedFaces,
+            strokeSafetyReport.poseSamples,strokeSafetyReport.unsafeFaces,
+            strokeSafetyReport.unsafeFaceSamples,strokeSafetyReport.minimumAreaRatio,
+            strokeSafetyReport.maximumOrientationDegrees))
+    end
     tImGui.TextDisabled(tLang.L('swl_heatmap_legend'))
     local geometry=state.paint.geometry
     if geometry then

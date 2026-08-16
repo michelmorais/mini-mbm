@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, runtime preview, and local animation authoring implemented; Paint Weights visual foundation started; composition deferred**
+Status: **Bind, Bone Editor, canonical weight repair, runtime preview, local animation, and Paint Weights authoring implemented; composition deferred**
 Last updated: **2026-08-16**
 
 ## 1. Purpose
@@ -16,8 +16,7 @@ remains in the [Real-Time Skinning Animation Plan](realtime-skinning-animation-p
 
 The editor is organized into six mutually exclusive worktrees: **Bone Editor**, **Bind Pose Contract**,
 **Runtime Skeletal Preview**, **Skin Weight Lab**, **Create / Edit Animations**, and
-**Paint Weights**. Create / Edit Animations is active; Paint Weights has started with its atomic
-canonical-weight backend but does not yet expose brush interaction.
+**Paint Weights**. Create / Edit Animations and direct brush-based weight authoring are active.
 Multi-clip composition remains separately deferred. Their product
 boundaries, the audited relationship to Mesh Debug's Bones node, and the migration sequence are defined in the
 [Skeletal Animation Editor Plan](skeletal-animation-editor-plan.md).
@@ -144,6 +143,17 @@ refresh and perform no idle query. The disk and radius circle use always-on-top 
 whole flat brush remains visible over curved surfaces. Skeleton joints and segments use priority 1
 and therefore remain visible above the brush. The disk winding follows the camera-facing hit normal
 even when the surface is viewed from below.
+
+After each successful Paint/Add, Erase/Subtract, or Smooth stroke, Paint Weights performs a
+non-mutating pose-safety diagnostic over only the triangles incident to changed vertices. It
+compares the pre-stroke and candidate weights at the start, quarter, midpoint, three-quarter, and
+end of the selected clip using the canonical LBS palette. The report shows changed vertices,
+checked faces and poses, unsafe unique faces and face/pose samples, minimum posed-area ratio, and
+maximum orientation change. A face is unsafe under the same conservative criteria used by abrupt
+repair: area below 25 percent of its pre-stroke value or orientation reaching roughly 87 deg.
+**Show Last Stroke Safety Overlay** displays unsafe faces in translucent red. This first slice is
+diagnostic only: it never rejects, scales, or rewrites the committed stroke. If no usable clip is
+selected, painting remains available and no stale diagnostic is retained.
 
 The shared atomic type-42 batch boundary used by every Paint/Add, Erase/Subtract, Smooth, Clean,
 and repair commit has executable save/reload acceptance. A deterministic fixture edits separate

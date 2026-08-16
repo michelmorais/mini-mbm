@@ -1,7 +1,7 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.12**
-Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
+Document version: **9.13**
+Status: **Canonical import, GLES runtime LBS/DQS, editor preview, local animation, and Paint Weights authoring implemented; modern backends, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
 ## 1. Purpose
@@ -814,6 +814,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.13 | 2026-08-16 | Added non-mutating last-stroke pose diagnostics for Paint/Add, Erase/Subtract, and Smooth. Only incident faces are compared before/after across five selected-clip LBS poses; the UI reports area/orientation risk and can overlay unsafe faces in red without limiting the stroke. |
 | 9.12 | 2026-08-16 | Added integer always-on-top layers to the renderer and Lua API. The complete curved-surface brush uses priority 0; skeleton joints and segments use priority 1, eliminating their former depth competition. |
 | 9.11 | 2026-08-16 | Replaced the topology-face brush patch with a camera-facing radial disk whose falloff is independent of mesh triangulation; restored ordinary depth so the skeleton remains visible above it, while exact geodesic candidates stay available through diagnostic vertex markers. |
 | 9.10 | 2026-08-16 | Made the brush influence patch a true always-on-top tool overlay and removed its hit-normal geometry offset, eliminating z-buffer fighting and curved-surface detachment against the coincident heatmap mesh. |
