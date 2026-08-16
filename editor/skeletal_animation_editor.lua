@@ -196,6 +196,8 @@ local state = {
     boundaryLines = nil,
     paint = {boneIndex=1,boneId=nil,radius=0.1,geometry=nil,heatmapLines={},cursor=nil,
         cursorHit=nil,heatmapDirty=true,showSkeleton=true,heatmapGeneration=0,
+        showBrushGradient=true,showBrushFootprint=false,brushFootprintGeneration=0,
+        brushFootprintShape=nil,brushFootprintMarkers=nil,
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         connectedSurfaceOnly=true,
@@ -235,6 +237,7 @@ local rebuildSkeletonVisuals
 local rebuildPaintHeatmap
 local buildTopologyAdjacency
 local buildCoincidentSeams
+local queryPaintVertices
 local readInfluenceMap
 
 local function safeCall(fn)
@@ -277,10 +280,14 @@ end
 local function clearPaintVisuals()
     for _,object in ipairs(state.paint.heatmapLines) do destroyObject(object) end
     destroyObject(state.paint.cursor)
+    destroyObject(state.paint.brushFootprintShape)
+    destroyObject(state.paint.brushFootprintMarkers)
     destroyObject(state.paint.safetyFaceShape)
     destroyObject(state.paint.safetySeamMarkers)
     state.paint.heatmapLines={}
     state.paint.cursor=nil
+    state.paint.brushFootprintShape=nil
+    state.paint.brushFootprintMarkers=nil
     state.paint.safetyFaceShape=nil
     state.paint.safetySeamMarkers=nil
     state.paint.safetyReport=nil
@@ -1067,6 +1074,14 @@ local function applyWorkspaceVisibility()
         marker.visible=paintWorkspace and state.meshVisible
     end
     if state.paint.cursor then state.paint.cursor.visible=paintWorkspace and state.meshVisible end
+    if state.paint.brushFootprintShape then
+        state.paint.brushFootprintShape.visible=paintWorkspace and state.meshVisible and
+            state.paint.visualizationMode==1 and state.paint.showBrushGradient
+    end
+    if state.paint.brushFootprintMarkers then
+        state.paint.brushFootprintMarkers.visible=paintWorkspace and state.meshVisible and
+            state.paint.visualizationMode==1 and state.paint.showBrushFootprint
+    end
     if state.paint.safetyFaceShape then
         state.paint.safetyFaceShape.visible=paintWorkspace and
             state.paint.visualizationMode==4 and state.paint.safetyOverlayVisible
@@ -1829,6 +1844,7 @@ local heatmapColors = {
 }
 
 local paintHeatmapShaderName='skeletal_paint_weight_heatmap.ps'
+local paintBrushFootprintShaderName='skeletal_paint_brush_footprint.ps'
 
 local function ensurePaintHeatmapShader()
     if mbm.existShader(paintHeatmapShaderName) then return true end
@@ -1855,6 +1871,23 @@ local function ensurePaintHeatmapShader()
         void main()
         {
             gl_FragColor=vec4(heatColor(vTexCoord.x),1.0);
+        }
+    ]],var={},min={},max={}})
+end
+
+local function ensurePaintBrushFootprintShader()
+    if mbm.existShader(paintBrushFootprintShaderName) then return true end
+    return mbm.addShader({name=paintBrushFootprintShaderName,code=[[
+        precision mediump float;
+        varying vec2 vTexCoord;
+
+        void main()
+        {
+            float influence=clamp(vTexCoord.x,0.0,1.0);
+            if(influence<=0.001) discard;
+            vec3 color=vTexCoord.y<0.25 ? vec3(0.10,1.00,0.25) :
+                (vTexCoord.y<0.75 ? vec3(1.00,0.12,0.05) : vec3(0.00,0.85,1.00));
+            gl_FragColor=vec4(color,sqrt(influence)*0.65);
         }
     ]],var={},min={},max={}})
 end
@@ -1903,7 +1936,7 @@ local function buildPaintGeometryCache()
     if not state.meshD then return nil end
     local okMode,mode=safeCall(function() return state.meshD:getModeDraw() end)
     if not okMode or mode~='TRIANGLES' then return nil end
-    local cache={vertices={},triangles={}}
+    local cache={vertices={},triangles={},incidentTriangles={}}
     local function addTriangle(a,b,c,subset)
         local triangle={a=a,b=b,c=c,subset=subset}
         local ap,bp,cp=a.point,b.point,c.point
@@ -1913,6 +1946,12 @@ local function buildPaintGeometryCache()
         triangle.cx=(ap.x+bp.x+cp.x)/3; triangle.cy=(ap.y+bp.y+cp.y)/3
         triangle.cz=(ap.z+bp.z+cp.z)/3
         cache.triangles[#cache.triangles+1]=triangle
+        for _,vertex in ipairs({a,b,c}) do
+            cache.incidentTriangles[vertex.globalIndex]=
+                cache.incidentTriangles[vertex.globalIndex] or {}
+            cache.incidentTriangles[vertex.globalIndex][#cache.incidentTriangles[vertex.globalIndex]+1]=
+                triangle
+        end
     end
     local okS,subsets=safeCall(function() return state.meshD:getTotalSubset(1) end)
     if not okS then return nil end
@@ -2063,7 +2102,11 @@ end
 
 local function rebuildPaintCursor(hit)
     destroyObject(state.paint.cursor)
+    destroyObject(state.paint.brushFootprintShape)
+    destroyObject(state.paint.brushFootprintMarkers)
     state.paint.cursor=nil
+    state.paint.brushFootprintShape=nil
+    state.paint.brushFootprintMarkers=nil
     state.paint.cursorHit=hit
     if not hit or state.workspace~='paint' then return end
     local n=hit.normal
@@ -2090,6 +2133,61 @@ local function rebuildPaintCursor(hit)
     cursor:add(coords); cursor:setColor(1,1,1,1); cursor:setPos(0,0,0)
     cursor.alwaysOnTop=true
     state.paint.cursor=cursor
+    if state.paint.showBrushGradient or state.paint.showBrushFootprint then
+        local candidates=queryPaintVertices(hit.point,state.paint.radius,hit.triangle)
+        local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+            state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+        if state.paint.showBrushGradient then
+            local values,triangles,triangleLookup={},{},{}
+            for _,candidate in ipairs(candidates) do
+                local falloff=math.max(0,math.min(1,1-candidate.distance/
+                    math.max(state.paint.radius,1e-9)))
+                if state.paint.falloffMode==2 then falloff=falloff*falloff*(3-2*falloff) end
+                values[candidate.vertex.globalIndex]=state.paint.strength*falloff
+                for _,triangle in ipairs(state.paint.geometry.incidentTriangles[
+                        candidate.vertex.globalIndex] or {}) do
+                    if not triangleLookup[triangle] then
+                        triangleLookup[triangle]=true; triangles[#triangles+1]=triangle
+                    end
+                end
+            end
+            local faceVertices,uvs={},{}
+            local operation=(state.paint.operationMode-1)*0.5
+            local offset=math.max(extent*1e-5,1e-7)
+            for _,triangle in ipairs(triangles) do
+                for _,entry in ipairs({triangle.a,triangle.b,triangle.c}) do
+                    appendPoint(faceVertices,entry.point.x+hit.normal.x*offset,
+                        entry.point.y+hit.normal.y*offset,entry.point.z+hit.normal.z*offset)
+                    uvs[#uvs+1]=values[entry.globalIndex] or 0
+                    uvs[#uvs+1]=operation
+                end
+            end
+            if #faceVertices>0 and ensurePaintBrushFootprintShader() then
+                state.paint.brushFootprintGeneration=state.paint.brushFootprintGeneration+1
+                local overlay=shape:new('3d',0,0,0)
+                local nickname='paint_brush_footprint_'..state.paint.brushFootprintGeneration
+                local created=overlay:create(faceVertices,uvs,nickname)
+                local okShader,shader=pcall(function() return overlay:getShader() end)
+                if created and okShader and shader and
+                        shader:load(paintBrushFootprintShaderName,nil) then
+                    overlay:setPos(0,0,0); overlay.alwaysOnTop=false
+                    overlay.visible=state.meshVisible
+                    state.paint.brushFootprintShape=overlay
+                else
+                    destroyObject(overlay)
+                end
+            end
+        end
+        if state.paint.showBrushFootprint then
+            local vertices={}
+            for _,candidate in ipairs(candidates) do vertices[#vertices+1]=candidate.vertex end
+            state.paint.brushFootprintMarkers=buildVertexMarkers(vertices,1,1,1,extent)
+            if state.paint.brushFootprintMarkers then
+                state.paint.brushFootprintMarkers.alwaysOnTop=true
+                state.paint.brushFootprintMarkers.visible=state.meshVisible
+            end
+        end
+    end
 end
 
 local function updatePaintCursorHover()
@@ -2827,7 +2925,7 @@ local function normalizedInfluences(weightMap)
     return result
 end
 
-local function queryPaintVertices(point,radius,seedTriangle)
+queryPaintVertices=function(point,radius,seedTriangle)
     local cache=state.paint.geometry
     if not cache or not cache.vertexBvh then return {} end
     if state.paint.connectedSurfaceOnly and seedTriangle then
@@ -5301,12 +5399,16 @@ local function showPaintWeights()
         tImGui.TextWrapped(tLang.L(state.paint.operationMode==3 and 'swl_paint_smooth_help' or
             state.paint.operationMode==2 and 'swl_paint_subtract_help' or 'swl_paint_add_help'))
         tImGui.Text(tLang.L('swl_paint_operation'))
+        local previousOperation=state.paint.operationMode
         state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_add'),
             state.paint.operationMode,1)
         state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_subtract'),
             state.paint.operationMode,2)
         state.paint.operationMode=tImGui.RadioButton(tLang.L('swl_paint_operation_smooth'),
             state.paint.operationMode,3)
+        if state.paint.operationMode~=previousOperation then
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
         tImGui.PushItemWidth(240)
         local radiusChanged,radius=tImGui.SliderFloat(tLang.L('swl_paint_brush_radius'),
             state.paint.radius,math.max(extent*0.002,0.0001),math.max(extent*0.5,0.001),'%.4g')
@@ -5319,13 +5421,29 @@ local function showPaintWeights()
             state.paint.connectedSurfaceOnly)
         if connectedOnly~=state.paint.connectedSurfaceOnly then
             state.paint.connectedSurfaceOnly=connectedOnly
+            rebuildPaintCursor(state.paint.cursorHit)
         end
         tImGui.TextWrapped(tLang.L('swl_paint_connected_surface_help'))
+        local showGradient=tImGui.Checkbox(tLang.L('swl_paint_show_brush_gradient'),
+            state.paint.showBrushGradient)
+        if showGradient~=state.paint.showBrushGradient then
+            state.paint.showBrushGradient=showGradient
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
+        local showFootprint=tImGui.Checkbox(tLang.L('swl_paint_show_brush_vertices'),
+            state.paint.showBrushFootprint)
+        if showFootprint~=state.paint.showBrushFootprint then
+            state.paint.showBrushFootprint=showFootprint
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
         tImGui.PushItemWidth(240)
         local strengthChanged,strength=tImGui.SliderFloat(tLang.L('swl_paint_brush_strength'),
             state.paint.strength,0.01,1,'%.2f')
         tImGui.PopItemWidth()
-        if strengthChanged then state.paint.strength=strength end
+        if strengthChanged then
+            state.paint.strength=strength
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
         if state.paint.operationMode==3 then
             tImGui.PushItemWidth(240)
             local iterationsChanged,smoothIterations=tImGui.SliderInt(
@@ -5338,7 +5456,10 @@ local function showPaintWeights()
         local falloffChanged,falloffMode=tImGui.Combo(tLang.L('swl_falloff'),
             state.paint.falloffMode,falloffNames,-1)
         tImGui.PopItemWidth()
-        if falloffChanged then state.paint.falloffMode=falloffMode end
+        if falloffChanged then
+            state.paint.falloffMode=falloffMode
+            rebuildPaintCursor(state.paint.cursorHit)
+        end
     end
     tImGui.Separator()
     showSectionTitle('swl_paint_viewport_feedback')

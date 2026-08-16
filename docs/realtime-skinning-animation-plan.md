@@ -1,6 +1,6 @@
 # Real-Time Skinning Animation — LBS, DQS, and Future Velocity Skinning Plan
 
-Document version: **9.07**
+Document version: **9.09**
 Status: **Canonical import, GLES runtime LBS/DQS, editor preview, and local animation authoring implemented; modern backends, Paint Weights, composition, and Velocity Skinning pending**
 Last updated: **2026-08-16**
 
@@ -814,6 +814,8 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 9.09 | 2026-08-16 | Replaced default white-cross brush feedback with a surface-following translucent face preview. Interpolated alpha reflects actual strength times falloff; green/red/cyan distinguish Add/Subtract/Smooth. White affected-vertex crosses remain an optional default-off diagnostic. |
+| 9.08 | 2026-08-16 | Added default-on Show Affected Vertices. White crosses preview the actual spatial/geodesic candidate set used by the next stamp, sample dense results to 500 markers, and rebuild only through the existing changed-pointer 30 Hz cursor path. |
 | 9.07 | 2026-08-16 | Added default-on Connected Surface Only for every brush operation. Each stamp uses a radius-bounded shortest path over triangle edges from the hit face, crosses validated compatible UV/material seams, and cannot jump through empty space to nearby or opposite surfaces. |
 | 9.06 | 2026-08-16 | Moved shared Show Mesh into Paint Weights as its first viewport option, immediately before Show Skeleton, removed the duplicate overlay-local control, and preserved independent safety-overlay visibility. |
 | 9.05 | 2026-08-16 | Added contextual Show Base Mesh beside the cached safety overlay. It mirrors shared mesh visibility while leaving protected faces and seam markers independently visible for isolated inspection. |

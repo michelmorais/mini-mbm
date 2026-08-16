@@ -134,6 +134,14 @@ does not jump through empty space to the opposite side of a thin body part or an
 Compatible coincident UV/material seam copies join the traversal through the same validated seam
 groups used by repair. Disabling the option restores the original spatial-sphere behavior.
 
+**Show Brush Influence** previews the actual next-stamp footprint as translucent filled faces over
+the surface. Per-vertex alpha is derived from the same `strength * falloff` value used by the brush,
+interpolating from a stronger center to a transparent boundary. Green represents Paint/Add, red
+represents Erase/Subtract, and cyan represents Smooth. It uses the same spatial or connected-surface
+query as painting rather than projecting a flat disk. **Show Affected Vertices (Diagnostic)** retains
+the former white crosses as a default-off technical view; dense results sample at most 500 markers.
+Both previews update only through the changed-pointer 30 Hz cursor refresh and perform no idle query.
+
 The shared atomic type-42 batch boundary used by every Paint/Add, Erase/Subtract, Smooth, Clean,
 and repair commit has executable save/reload acceptance. A deterministic fixture edits separate
 four-influence and two-influence vertices, writes the mesh, reloads it, and verifies every occupied

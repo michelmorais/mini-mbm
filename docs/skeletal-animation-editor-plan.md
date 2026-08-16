@@ -1,6 +1,6 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **8.02**
+Document version: **8.04**
 Status: **Five active skeletal workflows implemented; Paint Weights visual foundation started; composition deferred**
 Last updated: **2026-08-16**
 
@@ -559,6 +559,8 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.04 | 2026-08-16 | Replaced default white-cross brush feedback with a surface-following translucent face preview. Interpolated alpha reflects actual strength times falloff; green/red/cyan distinguish Add/Subtract/Smooth. White affected-vertex crosses remain an optional default-off diagnostic. |
+| 8.03 | 2026-08-16 | Added default-on Show Affected Vertices. White crosses preview the actual spatial/geodesic candidate set used by the next stamp, sample dense results to 500 markers, and rebuild only through the existing changed-pointer 30 Hz cursor path. |
 | 8.02 | 2026-08-16 | Added default-on Connected Surface Only for every brush operation. Each stamp uses a radius-bounded shortest path over triangle edges from the hit face, crosses validated compatible UV/material seams, and cannot jump through empty space to nearby or opposite surfaces. |
 | 8.01 | 2026-08-16 | Moved shared Show Mesh into Paint Weights as its first viewport option, immediately before Show Skeleton, removed the duplicate overlay-local control, and preserved independent safety-overlay visibility. |
 | 8.00 | 2026-08-16 | Added contextual Show Base Mesh beside the cached safety overlay. It mirrors shared mesh visibility while leaving protected faces and seam markers independently visible for isolated inspection. |
