@@ -1,6 +1,6 @@
 # Skeletal Animation Editor
 
-Status: **Bind, Bone Editor, canonical weight repair, runtime preview, and local animation authoring implemented; Paint Weights backend foundation started; composition deferred**
+Status: **Bind, Bone Editor, canonical weight repair, runtime preview, and local animation authoring implemented; Paint Weights visual foundation started; composition deferred**
 Last updated: **2026-08-16**
 
 ## 1. Purpose
@@ -28,6 +28,13 @@ Erase/Subtract are solid, useful operations such as normalization, cleanup, limi
 rigid fill, and invalid-coverage diagnostics may migrate into Paint Weights under **Weight Tools**
 and **Repair / Diagnostics**. The Lab is removed only after explicit parity, performance, Undo,
 and save/reload acceptance; its GUI-specific state must never leak into Paint Weights.
+
+The first Paint Weights viewport slice is read-only. The user can select a target bone from the
+panel or by clicking its joint/segment, inspect that bone's complete stored-weight heatmap, adjust
+the brush radius in mesh-local units, and move a surface-oriented cursor over the closest visible
+triangle. Frame-zero vertices and triangles are cached per loaded/restored mesh; a local-space BVH
+narrows ray intersection work. The heatmap rebuilds only when its target or canonical weights become
+dirty. This slice does not start a stroke, mutate type-42 data, or create Undo history.
 
 ## 2. Opening the editor
 

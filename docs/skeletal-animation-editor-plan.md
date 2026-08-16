@@ -1,7 +1,7 @@
 # Skeletal Animation Editor — Product and Migration Plan
 
-Document version: **7.72**
-Status: **Five active skeletal workflows implemented; Paint Weights backend foundation started; composition deferred**
+Document version: **7.73**
+Status: **Five active skeletal workflows implemented; Paint Weights visual foundation started; composition deferred**
 Last updated: **2026-08-16**
 
 ## 1. Purpose
@@ -503,6 +503,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.73 | 2026-08-16 | Added the non-destructive Paint Weights visual foundation: isolated state, panel/viewport bone selection, complete selected-bone heatmap, cached frame-zero triangles, BVH-accelerated local raycast, and a surface-oriented configurable-radius cursor. Painting and weight mutation remain intentionally absent from this slice. |
 | 7.72 | 2026-08-16 | Reframed Paint Weights as the primary visual authoring workflow and eventual successor to the standalone Skin Weight Lab experience. The Lab remains during incremental delivery; its useful batch and diagnostic operations migrate later under Weight Tools / Repair and Diagnostics after brush stability and parity. Began the non-visual foundation with atomic canonical weight batch mutation. |
 | 7.71 | 2026-08-16 | Closed the session with a documentation drift audit. Current-state sections now identify Bone Editor, local animation authoring, timeline, viewport TRS, clipboards, and bounded Undo/Redo as delivered; only Paint Weights remains a reserved worktree, while multi-clip composition remains explicitly deferred. |
 | 7.70 | 2026-08-16 | Marked multi-clip composition/blending as explicit deferred work while development moves to Paint Weights. Priority, weight/fade, Absolute/Additive, masks, persistence boundaries, and composed-pose math remain pending and are not implied by the delivered clip/pose clipboards. |

@@ -194,6 +194,8 @@ local state = {
     abruptDiagnostics = nil,
     abruptLines = nil,
     boundaryLines = nil,
+    paint = {boneIndex=1,boneId=nil,radius=0.1,geometry=nil,heatmapLines={},cursor=nil,
+        cursorHit=nil,heatmapDirty=true},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -216,10 +218,12 @@ end
 
 local function shouldShowSkeleton()
     return state.workspace=='bind' or state.workspace=='bone_editor' or state.workspace=='animation' or
+        state.workspace=='paint' or
         (isWeightLabWorkspace() and state.skeletonVisible)
 end
 
 local rebuildSkeletonVisuals
+local rebuildPaintHeatmap
 
 local function safeCall(fn)
     local result = table.pack(pcall(fn))
@@ -256,6 +260,14 @@ end
 
 local function destroyObject(object)
     if object then pcall(function() object:destroy() end) end
+end
+
+local function clearPaintVisuals()
+    for _,object in ipairs(state.paint.heatmapLines) do destroyObject(object) end
+    destroyObject(state.paint.cursor)
+    state.paint.heatmapLines={}
+    state.paint.cursor=nil
+    state.paint.cursorHit=nil
 end
 
 local function appendPoint(coords, x, y, z)
@@ -993,6 +1005,7 @@ end
 
 local function applyWorkspaceVisibility()
     local weightWorkspace=isWeightLabWorkspace()
+    local paintWorkspace=state.workspace=='paint'
     local runtimeWorkspace=state.workspace=='runtime'
     local analysisVisible=weightWorkspace and state.analysisMarkersVisible
     rebuildBoneEditorOrientationIndicator()
@@ -1022,6 +1035,8 @@ local function applyWorkspaceVisibility()
     if state.selectionLines then state.selectionLines.visible=analysisVisible end
     if state.transitionLines then state.transitionLines.visible=analysisVisible end
     for _,marker in ipairs(state.heatmapLines) do marker.visible=analysisVisible end
+    for _,marker in ipairs(state.paint.heatmapLines) do marker.visible=paintWorkspace end
+    if state.paint.cursor then state.paint.cursor.visible=paintWorkspace end
     if state.abruptLines then
         state.abruptLines.visible=weightWorkspace and state.abruptMarkersVisible
     end
@@ -1040,7 +1055,8 @@ local function applyWorkspaceVisibility()
         state.targetBoneHighlightSphere.visible=shouldShowSkeleton() and weightWorkspace and
             state.targetBoneHighlight
     end
-    local selectedBindBone=(state.workspace=='bind' or state.workspace=='animation') and
+    local selectedBindBone=(state.workspace=='bind' or state.workspace=='animation' or
+        state.workspace=='paint') and
         getBones()[state.boneIndex] or (state.workspace=='bone_editor' and
         state.boneEditorSelectedIndex and getBones()[state.boneEditorSelectedIndex] or nil)
     local removalPreviewBone=state.workspace=='bone_editor' and
@@ -1105,6 +1121,7 @@ local function setWorkspace(workspace)
     state.aabbDragPlane=nil
     state.aabbDragOffset=nil
     if rebuildSkeletonVisuals then rebuildSkeletonVisuals() end
+    if workspace=='paint' and state.paint.heatmapDirty then rebuildPaintHeatmap() end
     applyWorkspaceVisibility()
     if state.meshBounds then
         local bounds={}
@@ -1664,6 +1681,28 @@ local function hitTestAuthoringBone(sx,sy)
     return bestIndex
 end
 
+local function hitTestPaintBone(sx,sy)
+    if state.workspace~='paint' then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local bones=getVisualBones()
+    local byName={}
+    for _,bone in ipairs(bones) do byName[bone.name]=bone end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(extent*0.012,0.001)
+    local bestIndex,bestDistance=nil,math.huge
+    for index,bone in ipairs(bones) do
+        local distance=raySphereDistance(ox,oy,oz,dx,dy,dz,bone.x,bone.y,bone.z,radius)
+        local parent=bone.parentName and byName[bone.parentName] or nil
+        local segmentDistance=parent and raySegmentDistance(ox,oy,oz,dx,dy,dz,parent,bone,radius) or nil
+        if segmentDistance and (not distance or segmentDistance<distance) then distance=segmentDistance end
+        if distance and distance<bestDistance then bestIndex,bestDistance=index,distance end
+    end
+    return bestIndex
+end
+
 local function collectVertices()
     local vertices = {}
     local okS, subsets = safeCall(function() return state.meshD:getTotalSubset(1) end)
@@ -1786,6 +1825,214 @@ local function rebuildAnalysisMarkers(core,shell,extent)
             state.heatmapLines[#state.heatmapLines+1]=marker
         end
     end
+end
+
+local function buildPaintGeometryCache()
+    if not state.meshD then return nil end
+    local okMode,mode=safeCall(function() return state.meshD:getModeDraw() end)
+    if not okMode or mode~='TRIANGLES' then return nil end
+    local cache={vertices={},triangles={}}
+    local function addTriangle(a,b,c,subset)
+        local triangle={a=a,b=b,c=c,subset=subset}
+        local ap,bp,cp=a.point,b.point,c.point
+        triangle.minX=math.min(ap.x,bp.x,cp.x); triangle.maxX=math.max(ap.x,bp.x,cp.x)
+        triangle.minY=math.min(ap.y,bp.y,cp.y); triangle.maxY=math.max(ap.y,bp.y,cp.y)
+        triangle.minZ=math.min(ap.z,bp.z,cp.z); triangle.maxZ=math.max(ap.z,bp.z,cp.z)
+        triangle.cx=(ap.x+bp.x+cp.x)/3; triangle.cy=(ap.y+bp.y+cp.y)/3
+        triangle.cz=(ap.z+bp.z+cp.z)/3
+        cache.triangles[#cache.triangles+1]=triangle
+    end
+    local okS,subsets=safeCall(function() return state.meshD:getTotalSubset(1) end)
+    if not okS then return nil end
+    local offset=0
+    for subset=1,subsets do
+        local okV,total=safeCall(function() return state.meshD:getTotalVertex(1,subset) end)
+        total=okV and total or 0
+        local subsetVertices={}
+        for vertex=1,total do
+            local okP,p=safeCall(function() return state.meshD:getVertex(1,subset,vertex) end)
+            if okP and p then
+                local entry={globalIndex=offset+vertex,subset=subset,point=p}
+                subsetVertices[vertex]=entry
+                cache.vertices[offset+vertex]=entry
+            end
+        end
+        local okI,indices=safeCall(function() return state.meshD:getIndex(1,subset) end)
+        if okI and indices and #indices>=3 then
+            for index=1,#indices-2,3 do
+                local a,b,c=subsetVertices[indices[index]],subsetVertices[indices[index+1]],
+                    subsetVertices[indices[index+2]]
+                if a and b and c then addTriangle(a,b,c,subset) end
+            end
+        else
+            for vertex=1,total-2,3 do
+                local a,b,c=subsetVertices[vertex],subsetVertices[vertex+1],subsetVertices[vertex+2]
+                if a and b and c then addTriangle(a,b,c,subset) end
+            end
+        end
+        offset=offset+total
+    end
+    local function buildBvh(triangles)
+        if #triangles==0 then return nil end
+        local node={minX=math.huge,minY=math.huge,minZ=math.huge,
+            maxX=-math.huge,maxY=-math.huge,maxZ=-math.huge}
+        for _,triangle in ipairs(triangles) do
+            node.minX=math.min(node.minX,triangle.minX); node.maxX=math.max(node.maxX,triangle.maxX)
+            node.minY=math.min(node.minY,triangle.minY); node.maxY=math.max(node.maxY,triangle.maxY)
+            node.minZ=math.min(node.minZ,triangle.minZ); node.maxZ=math.max(node.maxZ,triangle.maxZ)
+        end
+        if #triangles<=12 then node.triangles=triangles return node end
+        local dx,dy,dz=node.maxX-node.minX,node.maxY-node.minY,node.maxZ-node.minZ
+        local axis=dx>=dy and dx>=dz and 'cx' or (dy>=dz and 'cy' or 'cz')
+        table.sort(triangles,function(a,b) return a[axis]<b[axis] end)
+        local middle=math.floor(#triangles/2)
+        local left,right={},{}
+        for index,triangle in ipairs(triangles) do
+            if index<=middle then left[#left+1]=triangle else right[#right+1]=triangle end
+        end
+        node.left=buildBvh(left); node.right=buildBvh(right)
+        return node
+    end
+    cache.bvh=buildBvh(cache.triangles)
+    state.paint.geometry=cache
+    return cache
+end
+
+local function rayTriangleHit(ox,oy,oz,dx,dy,dz,triangle)
+    local a,b,c=triangle.a.point,triangle.b.point,triangle.c.point
+    local e1x,e1y,e1z=b.x-a.x,b.y-a.y,b.z-a.z
+    local e2x,e2y,e2z=c.x-a.x,c.y-a.y,c.z-a.z
+    local px,py,pz=dy*e2z-dz*e2y,dz*e2x-dx*e2z,dx*e2y-dy*e2x
+    local determinant=e1x*px+e1y*py+e1z*pz
+    if math.abs(determinant)<1e-9 then return nil end
+    local inverse=1/determinant
+    local tx,ty,tz=ox-a.x,oy-a.y,oz-a.z
+    local u=(tx*px+ty*py+tz*pz)*inverse
+    if u<0 or u>1 then return nil end
+    local qx,qy,qz=ty*e1z-tz*e1y,tz*e1x-tx*e1z,tx*e1y-ty*e1x
+    local v=(dx*qx+dy*qy+dz*qz)*inverse
+    if v<0 or u+v>1 then return nil end
+    local distance=(e2x*qx+e2y*qy+e2z*qz)*inverse
+    if distance<=1e-7 then return nil end
+    local nx=e1y*e2z-e1z*e2y
+    local ny=e1z*e2x-e1x*e2z
+    local nz=e1x*e2y-e1y*e2x
+    local length=math.sqrt(nx*nx+ny*ny+nz*nz)
+    if length<1e-12 then return nil end
+    nx,ny,nz=nx/length,ny/length,nz/length
+    if nx*dx+ny*dy+nz*dz>0 then nx,ny,nz=-nx,-ny,-nz end
+    return {distance=distance,point={x=ox+dx*distance,y=oy+dy*distance,z=oz+dz*distance},
+        normal={x=nx,y=ny,z=nz},triangle=triangle,u=u,v=v,w=1-u-v}
+end
+
+local function pickPaintSurface(sx,sy)
+    if state.workspace~='paint' then return nil end
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local function hitsBounds(node,maxDistance)
+        local near,far=0,maxDistance or math.huge
+        for _,axis in ipairs({{'x',ox,dx},{'y',oy,dy},{'z',oz,dz}}) do
+            local name,origin,direction=axis[1],axis[2],axis[3]
+            local minimum=node['min'..name:upper()]
+            local maximum=node['max'..name:upper()]
+            if math.abs(direction)<1e-12 then
+                if origin<minimum or origin>maximum then return false end
+            else
+                local a,b=(minimum-origin)/direction,(maximum-origin)/direction
+                if a>b then a,b=b,a end
+                near,far=math.max(near,a),math.min(far,b)
+                if near>far then return false end
+            end
+        end
+        return true
+    end
+    local nearest=nil
+    local function visit(node)
+        if not node or not hitsBounds(node,nearest and nearest.distance or math.huge) then return end
+        if node.triangles then
+            for _,triangle in ipairs(node.triangles) do
+                local hit=rayTriangleHit(ox,oy,oz,dx,dy,dz,triangle)
+                if hit and (not nearest or hit.distance<nearest.distance) then nearest=hit end
+            end
+        else
+            visit(node.left); visit(node.right)
+        end
+    end
+    visit(cache.bvh)
+    return nearest
+end
+
+local function rebuildPaintCursor(hit)
+    destroyObject(state.paint.cursor)
+    state.paint.cursor=nil
+    state.paint.cursorHit=hit
+    if not hit or state.workspace~='paint' then return end
+    local n=hit.normal
+    local rx,ry,rz=math.abs(n.y)<0.9 and 0 or 1,math.abs(n.y)<0.9 and 1 or 0,0
+    local tx,ty,tz=ry*n.z-rz*n.y,rz*n.x-rx*n.z,rx*n.y-ry*n.x
+    local tangentLength=math.sqrt(tx*tx+ty*ty+tz*tz)
+    if tangentLength<1e-9 then return end
+    tx,ty,tz=tx/tangentLength,ty/tangentLength,tz/tangentLength
+    local bx,by,bz=n.y*tz-n.z*ty,n.z*tx-n.x*tz,n.x*ty-n.y*tx
+    local radius=state.paint.radius
+    local coords,segments={},32
+    for segment=0,segments-1 do
+        local a0=segment*math.pi*2/segments
+        local a1=(segment+1)*math.pi*2/segments
+        local function point(angle)
+            local cosine,sine=math.cos(angle)*radius,math.sin(angle)*radius
+            return hit.point.x+tx*cosine+bx*sine+n.x*radius*0.002,
+                hit.point.y+ty*cosine+by*sine+n.y*radius*0.002,
+                hit.point.z+tz*cosine+bz*sine+n.z*radius*0.002
+        end
+        appendPoint(coords,point(a0)); appendPoint(coords,point(a1))
+    end
+    local cursor=line:new('3d',0,0,0)
+    cursor:add(coords); cursor:setColor(1,1,1,1); cursor:setPos(0,0,0)
+    cursor.alwaysOnTop=true
+    state.paint.cursor=cursor
+end
+
+rebuildPaintHeatmap = function()
+    for _,object in ipairs(state.paint.heatmapLines) do destroyObject(object) end
+    state.paint.heatmapLines={}
+    state.paint.heatmapDirty=false
+    if not state.meshD then return end
+    local bones=getBones()
+    local bone=bones[state.paint.boneIndex]
+    if not bone then return end
+    state.paint.boneId=bone.boneId
+    state.boneIndex=state.paint.boneIndex
+    local cache=state.paint.geometry or buildPaintGeometryCache()
+    if not cache then return end
+    local buckets={{},{},{},{},{},{}}
+    for _,vertex in pairs(cache.vertices) do
+        local weight=vertexWeightForBone(vertex.globalIndex,bone.name)
+        local index=math.min(6,math.floor(weight*6)+1)
+        buckets[index][#buckets[index]+1]=vertex
+    end
+    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+    local size=math.max(extent*0.004,0.0005)
+    for index,vertices in ipairs(buckets) do
+        if #vertices>0 then
+            local coords={}
+            for _,vertex in ipairs(vertices) do
+                local p=vertex.point
+                appendPoint(coords,p.x-size,p.y,p.z); appendPoint(coords,p.x+size,p.y,p.z)
+                appendPoint(coords,p.x,p.y-size,p.z); appendPoint(coords,p.x,p.y+size,p.z)
+            end
+            local color=heatmapColors[index]
+            local marker=line:new('3d',0,0,0)
+            marker:add(coords); marker:setColor(color[1],color[2],color[3],1); marker:setPos(0,0,0)
+            marker.alwaysOnTop=false
+            marker.visible=state.workspace=='paint'
+            state.paint.heatmapLines[#state.paint.heatmapLines+1]=marker
+        end
+    end
+    applyWorkspaceVisibility()
 end
 
 local function analyzeSelection()
@@ -2100,6 +2347,7 @@ local function loadMesh(path)
     end
     clearRollback()
     clearSelectionVisuals()
+    clearPaintVisuals()
     destroySkeletonVisuals()
     state.fileName, state.meshD = path, meshD
     state.info = meshDebug:getInfo(path)
@@ -2146,6 +2394,10 @@ local function loadMesh(path)
     state.allowedBonesHighlight=false
     state.hoveredAllowedBone=nil
     state.topologyAdjacency=nil
+    state.paint.geometry=nil
+    state.paint.boneIndex=1
+    state.paint.boneId=nil
+    state.paint.heatmapDirty=true
     for _,bone in ipairs(getBones()) do state.allowedBones[bone.name]=true end
     state.meshBounds = bounds
     state.aabb = bounds
@@ -2153,9 +2405,12 @@ local function loadMesh(path)
         bounds.maxZ-bounds.minZ) or 1
     state.aabbDragSensitivity=math.max(extent*0.0025,0.0001)
     state.proximityRadius=math.max(extent*0.1,0.001)
+    state.paint.radius=math.max(extent*0.05,0.001)
     state.proximityNearestOnly=false
     rebuildPreview()
     rebuildSkeletonVisuals()
+    buildPaintGeometryCache()
+    if state.workspace=='paint' then rebuildPaintHeatmap() end
     rebuildSelectionBox()
     applyWorkspaceVisibility()
     frameCamera(bounds)
@@ -2193,6 +2448,7 @@ local function commitRollbackSnapshot(snapshot,descriptionKey)
     clearHistoryStack(state.redoStack)
     state.animationReport = nil
     state.animationTimelineSelection = {}
+    state.paint.heatmapDirty=true
     if state.runtimePreviewFromMemory then state.runtimePreviewMemoryDirty=true end
 end
 
@@ -2655,6 +2911,9 @@ local function restoreHistoryEntry(entry)
         return false
     end
     state.meshD = restored
+    clearPaintVisuals()
+    state.paint.geometry=nil
+    state.paint.heatmapDirty=true
     state.animationReport=nil
     state.animationTimelineClip=nil
     state.animationTimelineSelection={}
@@ -2678,6 +2937,8 @@ local function restoreHistoryEntry(entry)
     for _,bone in ipairs(bones) do state.allowedBones[bone.name]=true end
     invalidateAnalysis()
     rebuildPreview(entry.path)
+    buildPaintGeometryCache()
+    if state.workspace=='paint' then rebuildPaintHeatmap() end
     rebuildSkeletonVisuals()
     rebuildSelectionBox()
     rebuildProximityCapsule()
@@ -3827,6 +4088,57 @@ local function showWeightLabSkeletonControls()
         for _,object in pairs(state.skeletonGizmo.bones) do
             object.alwaysOnTop=skeletonAlwaysOnTop
         end
+    end
+end
+
+local function showPaintWeights()
+    local bones=getBones()
+    if #bones==0 then
+        tImGui.TextWrapped(tLang.L('swl_paint_requires_skeleton'))
+        return
+    end
+    local okWeights,hasWeights=safeCall(function() return state.meshD:hasSkeletalVertexWeights() end)
+    if not okWeights or not hasWeights then
+        tImGui.TextWrapped(tLang.L('swl_paint_requires_weights'))
+        return
+    end
+    tImGui.TextWrapped(tLang.L('swl_paint_visual_foundation_help'))
+    local names={}
+    for _,bone in ipairs(bones) do names[#names+1]=bone.name end
+    state.paint.boneIndex=math.max(1,math.min(state.paint.boneIndex,#bones))
+    tImGui.PushItemWidth(240)
+    local changed,boneIndex=tImGui.Combo(tLang.L('swl_paint_target_bone'),
+        state.paint.boneIndex,names,-1)
+    tImGui.PopItemWidth()
+    if changed then
+        state.paint.boneIndex=boneIndex
+        state.paint.heatmapDirty=true
+        rebuildPaintHeatmap()
+        rebuildSkeletonVisuals()
+        applyWorkspaceVisibility()
+    end
+    local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
+        state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
+    tImGui.PushItemWidth(240)
+    local radiusChanged,radius=tImGui.SliderFloat(tLang.L('swl_paint_brush_radius'),
+        state.paint.radius,math.max(extent*0.002,0.0001),math.max(extent*0.5,0.001),'%.4g')
+    tImGui.PopItemWidth()
+    if radiusChanged then
+        state.paint.radius=radius
+        rebuildPaintCursor(state.paint.cursorHit)
+    end
+    tImGui.TextDisabled(tLang.L('swl_heatmap_legend'))
+    local geometry=state.paint.geometry
+    if geometry then
+        tImGui.Text(string.format(tLang.L('swl_paint_geometry_fmt'),
+            #geometry.vertices,#geometry.triangles))
+    end
+    if state.paint.cursorHit then
+        local p=state.paint.cursorHit.point
+        tImGui.Text(string.format(tLang.L('swl_paint_hit_fmt'),p.x,p.y,p.z,
+            state.paint.cursorHit.triangle.subset))
+    else
+        tImGui.TextDisabled(tLang.L('swl_paint_no_hit'))
     end
 end
 
@@ -5630,7 +5942,7 @@ local function showPanel()
             end
             if openWorkspaceNode('paint',tLang.L('swl_paint_weights_workspace'),
                     '##swlPaintWeightsWorkspace') then
-                tImGui.TextWrapped(tLang.L('swl_paint_weights_workspace_reserved'))
+                showPaintWeights()
                 tImGui.TreePop()
             end
             if openWorkspaceNode('weights',tLang.L('swl_weight_lab_workspace'),
@@ -5873,6 +6185,17 @@ function onTouchDown(key, x, y)
         return
     end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
+        if state.workspace=='paint' then
+            local selectedBone=hitTestPaintBone(x,y)
+            if selectedBone then
+                state.paint.boneIndex=selectedBone
+                state.paint.heatmapDirty=true
+                rebuildPaintHeatmap()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                return
+            end
+        end
         if state.workspace=='bone_editor' then
             local selection=applyBoneEditorToolIntent(hitTestBoneEditor(x,y))
             local axisOverride=not selection and hitTestBoneEditorAxis(x,y) or nil
@@ -6013,6 +6336,10 @@ function onTouchDown(key, x, y)
 end
 
 function onTouchMove(key, x, y)
+    if state.workspace=='paint' then
+        if tImGui.GetWantCaptureMouse() then rebuildPaintCursor(nil)
+        else rebuildPaintCursor(pickPaintSurface(x,y)) end
+    end
     local drag=state.translationGizmo.drag
     local rotationDrag=state.rotationGizmo.drag
     local scaleDrag=state.scaleGizmo.drag
