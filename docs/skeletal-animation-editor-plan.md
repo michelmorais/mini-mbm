@@ -489,6 +489,9 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.50 | 2026-08-16 | Added a discoverable full-width horizontal-pan slider whenever the timeline is zoomed. It controls the same bounded visible range as middle-button drag, stays synchronized with zoom/framing, preserves range duration, and disappears when the complete clip is visible. |
+| 7.49 | 2026-08-16 | Resolved the timeline navigation conflict on rigs with many tracks: horizontal zoom now requires Ctrl plus the mouse wheel, while the unmodified wheel remains dedicated to vertical track scrolling; middle-button pan is unchanged. |
+| 7.48 | 2026-08-16 | Added the timeline horizontal-navigation foundation: clip-specific visible range, cursor-anchored wheel zoom, middle-button pan, full-clip framing, visible-range feedback, adaptive range labels, and one shared time/screen transform for ruler, keys, playhead, picking, drag, selection, and interval preview. |
 | 7.47 | 2026-08-16 | Normalized unsupported typographic glyphs in editor-visible strings to ASCII-safe equivalents. Time ranges now use ` - `, angles use `deg`, truncated bone labels use `...`, and the shared language catalog no longer exposes risky dash, multiplication, or arrow glyphs. |
 | 7.46 | 2026-08-16 | Completed transactional time-range removal. Explicit confirmation is tied to the currently previewed interval; mutation deletes keys in `[start,end)`, shifts later keys left, shrinks duration, returns the deletion count, blocks empty tracks, validates once, and creates one rollback entry. |
 | 7.45 | 2026-08-16 | Began safe time removal with a non-mutating playhead-relative interval preview. The timeline shades the effective range and reports keys to delete plus canonical tracks that would become empty, establishing blockers before transactional removal is exposed. |

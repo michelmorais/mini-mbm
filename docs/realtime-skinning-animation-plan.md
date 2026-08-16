@@ -801,6 +801,9 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.55 | 2026-08-16 | Zoomed timelines expose a synchronized full-width horizontal-pan slider that preserves visible duration, shares the bounded range with middle-button pan, and hides when the full clip is framed. |
+| 8.54 | 2026-08-16 | Timeline zoom now requires Ctrl plus wheel so ordinary wheel input remains available for vertical track scrolling on large rigs; horizontal middle-button pan remains unchanged. |
+| 8.53 | 2026-08-16 | Timeline gains a clip-specific visible range with cursor-anchored wheel zoom, middle-button horizontal pan, fit-clip framing, range feedback, and unified time/screen mapping across all rendered and interactive timeline elements. |
 | 8.52 | 2026-08-16 | Editor-visible typographic glyphs unsupported by the current ImGui font atlas were replaced by ASCII-safe range, angle, truncation, multiplication, arrow, and separator text. |
 | 8.51 | 2026-08-16 | Timeline completes confirmed atomic time removal: keys in the previewed semi-open interval are deleted, later content shifts left, clip duration shrinks, empty-track results are blocked, and confirmation expires when interval identity changes. |
 | 8.50 | 2026-08-16 | Timeline begins safe time removal with a shaded non-mutating interval and an impact report for deleted keys and tracks that would become empty; mutation remains blocked pending explicit confirmation semantics. |

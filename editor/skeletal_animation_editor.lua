@@ -64,6 +64,10 @@ local state = {
     animationTimelineRemovalConfirmed = false,
     animationTimelineRemovalConfirmedStart = nil,
     animationTimelineRemovalConfirmedDuration = nil,
+    animationTimelineViewStart = 0,
+    animationTimelineViewEnd = nil,
+    animationTimelineViewClipId = nil,
+    animationTimelinePan = nil,
     animationReport = nil,
     animationPlayback = {playing=false,paused=false,speed=1},
     leftPanelRight = 440,
@@ -3701,8 +3705,59 @@ local function showSkeletalTimeline(clip)
     local maximum=tImGui.GetItemRectMax()
     local x0,x1=minimum.x+labelWidth,maximum.x-6
     local timelineWidth=math.max(1,x1-x0)
+    if state.animationTimelineViewClipId~=clip.clipId then
+        state.animationTimelineViewClipId=clip.clipId
+        state.animationTimelineViewStart=0
+        state.animationTimelineViewEnd=duration
+        state.animationTimelinePan=nil
+    end
+    local viewStart=math.max(0,math.min(duration,state.animationTimelineViewStart or 0))
+    local viewEnd=math.max(viewStart+0.0001,
+        math.min(duration,state.animationTimelineViewEnd or duration))
+    if viewEnd>duration then viewEnd=duration end
+    if viewEnd-viewStart<0.0001 then
+        viewStart=math.max(0,math.min(viewStart,duration-0.0001))
+        viewEnd=math.min(duration,viewStart+0.0001)
+    end
+    local viewDuration=math.max(0.0001,viewEnd-viewStart)
+    local function timeToX(time)
+        return x0+timelineWidth*((time or 0)-viewStart)/viewDuration
+    end
+    local function xToTime(x)
+        return viewStart+(x-x0)/timelineWidth*viewDuration
+    end
     local activeDrag=state.animationTimelineDrag
     local selectionBox=state.animationTimelineBox
+    local hovered=tImGui.IsItemHovered(0)
+    if hovered and state.controlDown then
+        local wheel=tImGui.GetZoom()
+        if math.abs(wheel)>0.0001 then
+            local mouse=tImGui.GetMousePos()
+            local anchor=math.max(viewStart,math.min(viewEnd,xToTime(mouse.x)))
+            local minimumView=math.min(duration,0.001)
+            local newDuration=math.max(minimumView,
+                math.min(duration,viewDuration*math.exp(-wheel*0.2)))
+            local fraction=(anchor-viewStart)/viewDuration
+            viewStart=anchor-newDuration*fraction
+            viewStart=math.max(0,math.min(duration-newDuration,viewStart))
+            viewEnd=viewStart+newDuration
+        end
+    end
+    if hovered and tImGui.IsMouseClicked(2,false) then
+        state.animationTimelinePan={start=viewStart,duration=viewDuration}
+    end
+    if state.animationTimelinePan and tImGui.IsMouseDown(2) then
+        local delta=tImGui.GetMouseDragDelta(2,0)
+        local pan=state.animationTimelinePan
+        viewStart=pan.start-(delta.x or 0)/timelineWidth*pan.duration
+        viewStart=math.max(0,math.min(duration-pan.duration,viewStart))
+        viewEnd=viewStart+pan.duration
+    elseif state.animationTimelinePan then
+        state.animationTimelinePan=nil
+    end
+    state.animationTimelineViewStart=viewStart
+    state.animationTimelineViewEnd=viewEnd
+    viewDuration=math.max(0.0001,viewEnd-viewStart)
     if selectionBox and tImGui.IsMouseDown(0) then
         local mouse=tImGui.GetMousePos()
         selectionBox.currentX=math.max(minimum.x,math.min(maximum.x,mouse.x))
@@ -3712,7 +3767,7 @@ local function showSkeletalTimeline(clip)
     end
     if activeDrag and tImGui.IsMouseDown(0) then
         local mouse=tImGui.GetMousePos()
-        local requestedTime=(mouse.x-x0)/timelineWidth*duration
+        local requestedTime=xToTime(mouse.x)
         activeDrag.delta=math.max(-activeDrag.minimumTime,
             math.min(duration-activeDrag.maximumTime,requestedTime-activeDrag.anchorTime))
         activeDrag.previewTime=activeDrag.anchorTime+activeDrag.delta
@@ -3724,8 +3779,8 @@ local function showSkeletalTimeline(clip)
                 if not activeDrag.memberIds[timelineSelectionId(member.trackIndex,keyIndex)] then
                     local otherTime=key.time or 0
                     local movedTime=member.originalTime+activeDrag.delta
-                    local movedX=x0+timelineWidth*movedTime/duration
-                    local otherX=x0+timelineWidth*otherTime/duration
+                    local movedX=timeToX(movedTime)
+                    local otherX=timeToX(otherTime)
                     if math.abs(movedX-otherX)<=8 or
                             math.abs(otherTime-movedTime)<=1.0e-6 then
                         activeDrag.delta=otherTime-member.originalTime
@@ -3752,7 +3807,7 @@ local function showSkeletalTimeline(clip)
         tImGui.AddLine({x=tx,y=minimum.y},{x=tx,y=minimum.y+rulerHeight},
             {r=0.4,g=0.42,b=0.48,a=1},1)
         tImGui.AddText({x=tx+2,y=minimum.y+3},{r=0.75,g=0.78,b=0.85,a=1},
-            string.format('%.2f',duration*fraction))
+            string.format('%.3f',viewStart+viewDuration*fraction))
     end
     local markerPositions={}
     local draggedMarkers={}
@@ -3777,23 +3832,25 @@ local function showSkeletalTimeline(clip)
                 timelineSelectionId(trackIndex,keyIndex)] or nil
             local dragged=member~=nil
             local displayTime=dragged and (member.originalTime+activeDrag.delta) or (key.time or 0)
-            local kx=x0+timelineWidth*math.max(0,math.min(1,displayTime/duration))
+            local kx=timeToX(displayTime)
             local selected=state.animationTimelineSelection[
                 timelineSelectionId(trackIndex,keyIndex)]==true
-            if dragged then
+            if dragged and kx>=x0 and kx<=x1 then
                 draggedMarkers[#draggedMarkers+1]={x=kx,y=y,invalid=activeDrag.invalid}
-            else
+            elseif kx>=x0 and kx<=x1 then
                 tImGui.AddCircleFilled({x=kx,y=y},selected and 6 or 4,
                     selected and {r=1,g=0.75,b=0.1,a=1} or
                     {r=0.75,g=0.35,b=0.9,a=1},12)
             end
-            markerPositions[trackIndex][keyIndex]={x=kx,y=y,key=key,track=track}
+            if kx>=x0 and kx<=x1 then
+                markerPositions[trackIndex][keyIndex]={x=kx,y=y,key=key,track=track}
+            end
         end
     end
     if state.animationTimelineRemovalPreview then
         local impact=timelineRemovalImpact(clip)
-        local rangeX0=x0+timelineWidth*impact.startTime/duration
-        local rangeX1=x0+timelineWidth*impact.endTime/duration
+        local rangeX0=math.max(x0,math.min(x1,timeToX(impact.startTime)))
+        local rangeX1=math.max(x0,math.min(x1,timeToX(impact.endTime)))
         if rangeX1>rangeX0 then
             tImGui.AddRectFilled({x=rangeX0,y=minimum.y},{x=rangeX1,y=maximum.y},
                 {r=1,g=0.25,b=0.12,a=0.16},0,0)
@@ -3818,15 +3875,17 @@ local function showSkeletalTimeline(clip)
         tImGui.AddRect({x=bx0,y=by0},{x=bx1,y=by1},
             {r=0.25,g=0.7,b=1,a=1},0,0,1.5)
     end
-    local playheadX=x0+timelineWidth*math.max(0,math.min(1,(state.authoringTime or 0)/duration))
-    tImGui.AddLine({x=playheadX,y=minimum.y},{x=playheadX,y=maximum.y},
-        {r=1,g=0.25,b=0.15,a=1},2)
+    local playheadX=timeToX(state.authoringTime or 0)
+    if playheadX>=x0 and playheadX<=x1 then
+        tImGui.AddLine({x=playheadX,y=minimum.y},{x=playheadX,y=maximum.y},
+            {r=1,g=0.25,b=0.15,a=1},2)
+    end
     if tImGui.IsItemHovered(0) and tImGui.IsMouseClicked(0,false) then
         if state.animationPlayback.playing then state.animationPlayback.paused=true end
         local mouse=tImGui.GetMousePos()
         local row=math.floor((mouse.y-(minimum.y+rulerHeight))/rowHeight)+1
         local nearestIndex,nearestDistance=nil,math.huge
-        for keyIndex,marker in ipairs(markerPositions[row] or {}) do
+        for keyIndex,marker in pairs(markerPositions[row] or {}) do
             local distance=math.sqrt((mouse.x-marker.x)^2+(mouse.y-marker.y)^2)
             if distance<nearestDistance then nearestIndex,nearestDistance=keyIndex,distance end
         end
@@ -3903,8 +3962,7 @@ local function showSkeletalTimeline(clip)
             state.animationTimelineSelection=selectionBox.additive and
                 state.animationTimelineSelection or {}
             state.animationTimelineTrackIndex=nil; state.animationTimelineKeyIndex=nil
-            state.authoringTime=math.max(0,math.min(duration,
-                (selectionBox.startX-x0)/timelineWidth*duration))
+            state.authoringTime=math.max(0,math.min(duration,xToTime(selectionBox.startX)))
             clearAuthoringOverride()
             refreshAuthoringPose(clip)
         end
@@ -3930,6 +3988,17 @@ local function showSkeletalTimelineWindow()
         local playback=state.animationPlayback
         local selectedCount=timelineSelectionCount()
         tImGui.Text(string.format(tLang.L('swl_animation_timeline_selection_fmt'),selectedCount))
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('swl_animation_timeline_fit_clip')..
+                '##swlTimelineFitClip') then
+            state.animationTimelineViewStart=0
+            state.animationTimelineViewEnd=state.animationTimelineClip.duration
+            state.animationTimelinePan=nil
+        end
+        tImGui.SameLine()
+        tImGui.TextDisabled(string.format(tLang.L('swl_animation_timeline_visible_range_fmt'),
+            state.animationTimelineViewStart or 0,
+            state.animationTimelineViewEnd or state.animationTimelineClip.duration or 0))
         if selectedCount>0 then
             tImGui.SameLine()
             if tImGui.Button(tLang.L('swl_animation_timeline_clear_selection')..
@@ -4074,6 +4143,23 @@ local function showSkeletalTimelineWindow()
             end
             tImGui.EndDisabled()
         end
+        local clipDuration=math.max(state.animationTimelineClip.duration or 0,0)
+        local visibleStart=math.max(0,state.animationTimelineViewStart or 0)
+        local visibleEnd=math.min(clipDuration,state.animationTimelineViewEnd or clipDuration)
+        local visibleDuration=math.max(0,visibleEnd-visibleStart)
+        if clipDuration>0 and visibleDuration<clipDuration-1e-6 then
+            tImGui.Text(tLang.L('swl_animation_timeline_horizontal_pan'))
+            tImGui.PushItemWidth(-1)
+            local panChanged,panStart=tImGui.SliderFloat('##swlTimelineHorizontalPan',
+                visibleStart,0,math.max(0,clipDuration-visibleDuration),'%.3f s')
+            tImGui.PopItemWidth()
+            if panChanged then
+                state.animationTimelineViewStart=panStart
+                state.animationTimelineViewEnd=panStart+visibleDuration
+                state.animationTimelinePan=nil
+            end
+        end
+        tImGui.TextDisabled(tLang.L('swl_animation_timeline_navigation_help'))
         tImGui.TextDisabled(tLang.L('swl_animation_timeline_box_help'))
         if tImGui.Button(tLang.L('swl_play_restart')..'##swlTimelinePlay') then
             playback.playing=true; playback.paused=false; state.authoringTime=0

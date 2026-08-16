@@ -361,6 +361,14 @@ and creates one rollback entry. Confirmation is invalidated whenever the playhea
 The detached canonical clip/track/key report is cached while the asset is unchanged. Skeleton or
 animation mutation invalidates it through the shared bind/report refresh boundary. This avoids
 rebuilding and garbage-collecting the complete nested Lua report every frame while Animation is idle.
+The timeline maintains a clip-specific visible time range. Ctrl plus the mouse wheel zooms around
+the time under the cursor, the unmodified wheel remains vertical track scrolling, middle-button
+drag pans horizontally, and **Fit clip** restores the complete
+duration. The ruler, playhead, markers, picking, dragging, box selection, and removal preview all
+share this visible-range transform; off-screen keys are not submitted as edge-clamped markers.
+When zoom makes the visible range smaller than the clip, a full-width **Horizontal pan** slider is
+shown and moves the same range used by middle-button drag. It disappears automatically at full-clip
+framing.
 The timeline window receives its panel-relative bottom position and remaining width only on first
 appearance; afterward it is freely movable and resizable by the user.
 Timeline authoring playback advances `authoringTime` through the same in-memory pose evaluator used
