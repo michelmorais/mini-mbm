@@ -56,6 +56,7 @@ local state = {
     animationTimelineKeyIndex = nil,
     animationTimelineDrag = nil,
     animationTimelineSelection = {},
+    animationKeyClipboard = nil,
     animationTimelineBox = nil,
     animationTimelineClip = nil,
     animationTimelineEmptyDuration = 0.1,
@@ -2117,6 +2118,7 @@ local function loadMesh(path)
     state.animationTrackEdits={}
     state.animationNewKeyTimes={}
     state.animationKeyEdits={}
+    state.animationKeyClipboard=nil
     state.boneEditorPosition={x=0,y=0,z=0}
     state.boneEditorLength=1
     state.boneEditorSelectedIndex=nil
@@ -3868,6 +3870,93 @@ local function collectTimelineSelection(clip)
     return references,minimumTime,maximumTime
 end
 
+local function copyTimelineSelection()
+    local clip=state.animationTimelineClip
+    if state.workspace~='animation' or not clip then return false end
+    local items={}
+    local minimumTime,maximumTime=math.huge,-math.huge
+    for trackIndex,track in ipairs(clip.tracks or {}) do
+        for keyIndex,key in ipairs(track.keys or {}) do
+            if state.animationTimelineSelection[timelineSelectionId(trackIndex,keyIndex)] then
+                local time=key.time or 0
+                items[#items+1]={boneId=track.boneId,time=time}
+                minimumTime=math.min(minimumTime,time)
+                maximumTime=math.max(maximumTime,time)
+            end
+        end
+    end
+    if #items==0 then return false end
+    state.animationKeyClipboard={clipId=clip.clipId,items=items,
+        minimumTime=minimumTime,maximumTime=maximumTime}
+    local message=string.format(tLang.L('swl_animation_timeline_keys_copied_fmt'),#items)
+    setStatus(message,false)
+    tUtil.bRightSide=true
+    tUtil.sMessageOverlay=false
+    tUtil.showMessage(message,4.0)
+    return true
+end
+
+local function resolveTimelineClipboardReferences(clip,clipboard)
+    if not clip or not clipboard or clip.clipId~=clipboard.clipId then return nil end
+    local references={}
+    for _,item in ipairs(clipboard.items or {}) do
+        local foundTrack,foundKey=nil,nil
+        for trackIndex,track in ipairs(clip.tracks or {}) do
+            if track.boneId==item.boneId then
+                for keyIndex,key in ipairs(track.keys or {}) do
+                    if math.abs((key.time or 0)-item.time)<=1e-6 then
+                        foundTrack,foundKey=trackIndex,keyIndex
+                        break
+                    end
+                end
+                break
+            end
+        end
+        if not foundTrack then return nil end
+        references[#references+1]=foundTrack
+        references[#references+1]=foundKey
+    end
+    return references
+end
+
+local function pasteTimelineClipboardAtPlayhead()
+    local clip=state.animationTimelineClip
+    local clipboard=state.animationKeyClipboard
+    if state.workspace~='animation' or not clip or not clipboard then return false end
+    if clip.clipId~=clipboard.clipId then
+        setStatus(tLang.L('swl_animation_timeline_clipboard_other_clip'),true)
+        return false
+    end
+    local references=resolveTimelineClipboardReferences(clip,clipboard)
+    if not references then
+        setStatus(tLang.L('swl_animation_timeline_clipboard_stale'),true)
+        return false
+    end
+    local delta=(state.authoringTime or 0)-clipboard.minimumTime
+    local destinationEnd=clipboard.maximumTime+delta
+    if math.abs(delta)<=1e-6 or destinationEnd>(clip.duration or 0)+1e-6 then
+        setStatus(tLang.L('swl_animation_timeline_clipboard_out_of_range'),true)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot()
+    local pasted=snapshot and select(1,safeCall(function()
+        return state.meshD:duplicateSkeletalKeys(state.animationClipSelected,references,delta)
+    end)) or false
+    if not pasted then
+        if snapshot then discardRollbackSnapshot(snapshot) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_paste_keys')
+    state.modified=true
+    state.animationTimelineSelection={}
+    state.animationTimelineTrackIndex=nil
+    state.animationTimelineKeyIndex=nil
+    clearAuthoringOverride()
+    local count=#(clipboard.items or {})
+    setStatus(string.format(tLang.L('swl_animation_timeline_keys_pasted_fmt'),count),false)
+    return true
+end
+
 local function timelineRemovalImpact(clip)
     local startTime=math.max(0,math.min(clip.duration or 0,state.authoringTime or 0))
     local endTime=math.min(clip.duration or 0,
@@ -4295,6 +4384,30 @@ local function showSkeletalTimelineWindow()
         tImGui.TextDisabled(string.format(tLang.L('swl_animation_timeline_visible_range_fmt'),
             state.animationTimelineViewStart or 0,
             state.animationTimelineViewEnd or state.animationTimelineClip.duration or 0))
+        if selectedCount>0 then
+            if tImGui.Button(tLang.L('swl_animation_timeline_copy_selection')..
+                    '##swlTimelineCopy') then
+                copyTimelineSelection()
+            end
+        else
+            tImGui.BeginDisabled(true)
+            tImGui.Button(tLang.L('swl_animation_timeline_copy_selection')..
+                '##swlTimelineCopy')
+            tImGui.EndDisabled()
+        end
+        tImGui.SameLine()
+        local clipboard=state.animationKeyClipboard
+        tImGui.BeginDisabled(clipboard==nil)
+        if tImGui.Button(tLang.L('swl_animation_timeline_paste_at_playhead')..
+                '##swlTimelinePaste') then
+            pasteTimelineClipboardAtPlayhead()
+        end
+        tImGui.EndDisabled()
+        if clipboard then
+            tImGui.SameLine()
+            tImGui.TextDisabled(string.format(tLang.L(
+                'swl_animation_timeline_clipboard_fmt'),#(clipboard.items or {})))
+        end
         if selectedCount>0 then
             tImGui.SameLine()
             if tImGui.Button(tLang.L('swl_animation_timeline_clear_selection')..
@@ -6032,6 +6145,12 @@ function onKeyDown(key)
         state.controlDown = true
     elseif key == mbm.getKeyCode('shift') then
         state.shiftDown = true
+    elseif state.controlDown and key == mbm.getKeyCode('C') and
+            state.workspace=='animation' and not tImGui.IsAnyItemActive() then
+        copyTimelineSelection()
+    elseif state.controlDown and key == mbm.getKeyCode('V') and
+            state.workspace=='animation' and not tImGui.IsAnyItemActive() then
+        pasteTimelineClipboardAtPlayhead()
     elseif state.controlDown and key == mbm.getKeyCode('Z') then
         if state.shiftDown then redoHistory() else undoHistory() end
     elseif state.controlDown and key == mbm.getKeyCode('Y') then
