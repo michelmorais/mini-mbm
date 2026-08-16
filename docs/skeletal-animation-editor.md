@@ -595,6 +595,16 @@ edit. Preserve the source mesh and save experiments under new names.
 
 ## 8. Validation fixtures
 
+### ImGui text compatibility
+
+The current ImGui font atlas supports the Portuguese letters and accents used by the editor, but
+does not guarantee typographic punctuation or symbol glyphs. Every runtime-visible label, tooltip,
+status message, formatted range, and dynamically truncated name must therefore use ASCII-safe
+symbols: `-` instead of typographic dashes, `...` instead of the ellipsis glyph, `deg` instead of
+the degree glyph, `x` instead of the multiplication glyph, and `->` instead of a Unicode arrow.
+Unsupported symbols commonly render as `?`. This restriction does not apply to comments or
+documentation that ImGui never renders.
+
 The initial workflow was validated with the following assets. Availability is stated explicitly so
 a historical validation artifact is not mistaken for a currently versioned fixture:
 
