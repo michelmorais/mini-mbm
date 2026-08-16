@@ -369,6 +369,9 @@ share this visible-range transform; off-screen keys are not submitted as edge-cl
 When zoom makes the visible range smaller than the clip, a full-width **Horizontal pan** slider is
 shown and moves the same range used by middle-button drag. It disappears automatically at full-clip
 framing.
+When keys are selected, **Fit selection** frames their minimum/maximum times with ten-percent padding
+on each side. A selection confined to one time column receives a small centered range instead of a
+zero-width view. Both framing actions preserve the canonical clip and selection.
 The timeline window receives its panel-relative bottom position and remaining width only on first
 appearance; afterward it is freely movable and resizable by the user.
 Timeline authoring playback advances `authoringTime` through the same in-memory pose evaluator used

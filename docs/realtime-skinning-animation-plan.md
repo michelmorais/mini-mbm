@@ -801,6 +801,7 @@ remain required before choosing palette sizes or fallbacks.
 
 | Version | Date | Change |
 |---|---|---|
+| 8.56 | 2026-08-16 | Timeline adds non-mutating Fit selection framing with padded multi-time bounds, a centered minimum range for one-time selections, clip-bound clamping, and synchronized pan reset. |
 | 8.55 | 2026-08-16 | Zoomed timelines expose a synchronized full-width horizontal-pan slider that preserves visible duration, shares the bounded range with middle-button pan, and hides when the full clip is framed. |
 | 8.54 | 2026-08-16 | Timeline zoom now requires Ctrl plus wheel so ordinary wheel input remains available for vertical track scrolling on large rigs; horizontal middle-button pan remains unchanged. |
 | 8.53 | 2026-08-16 | Timeline gains a clip-specific visible range with cursor-anchored wheel zoom, middle-button horizontal pan, fit-clip framing, range feedback, and unified time/screen mapping across all rendered and interactive timeline elements. |

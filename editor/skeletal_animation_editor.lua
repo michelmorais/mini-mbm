@@ -3995,6 +3995,28 @@ local function showSkeletalTimelineWindow()
             state.animationTimelineViewEnd=state.animationTimelineClip.duration
             state.animationTimelinePan=nil
         end
+        if selectedCount>0 then
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('swl_animation_timeline_fit_selection')..
+                    '##swlTimelineFitSelection') then
+                local _,minimumTime,maximumTime=
+                    collectTimelineSelection(state.animationTimelineClip)
+                local duration=math.max(state.animationTimelineClip.duration or 0,0.0001)
+                local span=math.max(0,maximumTime-minimumTime)
+                local viewDuration
+                if span<=1e-6 then
+                    viewDuration=math.min(duration,math.max(0.001,duration*0.05))
+                else
+                    viewDuration=math.min(duration,math.max(0.001,span*1.2))
+                end
+                local center=(minimumTime+maximumTime)*0.5
+                local viewStart=math.max(0,
+                    math.min(duration-viewDuration,center-viewDuration*0.5))
+                state.animationTimelineViewStart=viewStart
+                state.animationTimelineViewEnd=viewStart+viewDuration
+                state.animationTimelinePan=nil
+            end
+        end
         tImGui.SameLine()
         tImGui.TextDisabled(string.format(tLang.L('swl_animation_timeline_visible_range_fmt'),
             state.animationTimelineViewStart or 0,

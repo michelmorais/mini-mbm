@@ -489,6 +489,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.51 | 2026-08-16 | Added Fit selection to frame selected key-time bounds with ten-percent padding per side. A single-time selection receives a small centered range, bounds clamp to the clip, pan state resets, and the operation remains purely navigational. |
 | 7.50 | 2026-08-16 | Added a discoverable full-width horizontal-pan slider whenever the timeline is zoomed. It controls the same bounded visible range as middle-button drag, stays synchronized with zoom/framing, preserves range duration, and disappears when the complete clip is visible. |
 | 7.49 | 2026-08-16 | Resolved the timeline navigation conflict on rigs with many tracks: horizontal zoom now requires Ctrl plus the mouse wheel, while the unmodified wheel remains dedicated to vertical track scrolling; middle-button pan is unchanged. |
 | 7.48 | 2026-08-16 | Added the timeline horizontal-navigation foundation: clip-specific visible range, cursor-anchored wheel zoom, middle-button pan, full-clip framing, visible-range feedback, adaptive range labels, and one shared time/screen transform for ruler, keys, playhead, picking, drag, selection, and interval preview. |
