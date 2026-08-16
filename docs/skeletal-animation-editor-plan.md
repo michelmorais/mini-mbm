@@ -478,7 +478,10 @@ Exit: there is one canonical implementation for each skeleton, weight, and anima
    weight-vector difference across triangle edges with bounded half-L1 distance, maps each vertex's
    maximum incident difference, and reports threshold-classified edges and unique vertices. Moving
    the threshold reclassifies cached edge distances without rebuilding heatmap geometry. Automatic
-   smoothing of detected transitions remains the next separate repair slice.
+   smoothing of detected transitions is now available contextually: only classified vertices are
+   edited, external neighbors stay fixed during configurable stable Jacobi passes, complete vectors
+   normalize/limit deterministically, and one atomic batch plus Undo entry reports edge counts
+   before and after.
 
 Exit: direct painting is continuous, deterministic, normalized, bounded by the runtime influence
 contract, undoable per stroke, and persistent across save/reload.
@@ -554,6 +557,7 @@ verification plan tied to both synthetic fixtures and the alien rat.
 
 | Version | Date | Change |
 |---|---|---|
+| 7.93 | 2026-08-16 | Added contextual Smooth Detected Transitions repair. Threshold-classified vertices receive configurable full-vector Jacobi smoothing against triangle neighbors with fixed external boundaries, deterministic normalization/four-influence limiting, one atomic batch/Undo entry, and before/after abrupt-edge reporting. |
 | 7.92 | 2026-08-16 | Moved Show Skeleton to the first Paint Weights control. Clarified that the Abrupt Weight Transitions threshold classifies cached statistics only and intentionally does not recolor the raw difference heatmap. |
 | 7.91 | 2026-08-16 | Made Target Bone contextual to Selected Bone Heatmap. Whole-weight diagnostics now hide the irrelevant selector and disable viewport bone picking, while retaining skeleton visibility and normal left-drag camera orbit. |
 | 7.90 | 2026-08-16 | Added read-only Abrupt Weight Transitions diagnostics. Complete normalized weight vectors are compared across triangle edges with half-L1 distance; the heatmap shows each vertex's maximum difference, while a threshold classifies cached edges and affected vertices without geometry rebuilds. |

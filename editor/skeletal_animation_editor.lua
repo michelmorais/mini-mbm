@@ -199,7 +199,8 @@ local state = {
         cursorLastX=nil,cursorLastY=nil,cursorLastUpdate=0,cursorPendingX=nil,cursorPendingY=nil,
         heatmapIndexed=false,strength=0.25,falloffMode=2,operationMode=1,
         smoothIterations=3,cleanThreshold=0.01,visualizationMode=1,
-        abruptThreshold=0.35,distributionStats=nil,weakStats=nil,abruptStats=nil,stroke=nil},
+        abruptThreshold=0.35,abruptRepairStrength=0.5,abruptRepairIterations=3,
+        distributionStats=nil,weakStats=nil,abruptStats=nil,stroke=nil},
     topologyAdjacency = nil,
     meshBounds = nil,
     aabbDragging = false,
@@ -3141,6 +3142,100 @@ local function influenceDistance(a,b)
     return math.min(1,total*0.5)
 end
 
+local function repairPaintAbruptTransitions()
+    local stats=state.paint.abruptStats
+    if not stats or not stats.records then return false end
+    local editable={}
+    for _,record in ipairs(stats.records) do
+        if record.distance>=state.paint.abruptThreshold then
+            editable[record.a]=true; editable[record.b]=true
+        end
+    end
+    local indices={}
+    for index in pairs(editable) do indices[#indices+1]=index end
+    table.sort(indices)
+    if #indices==0 then
+        setStatus(tLang.L('swl_paint_abrupt_repair_no_change'),false)
+        return false
+    end
+    local adjacency=buildTopologyAdjacency()
+    local current,original={},{ }
+    for _,index in ipairs(indices) do
+        local weights=readInfluenceMap(index,false)
+        current[index]=weights; original[index]=weights
+        for neighbor in pairs(adjacency[index] or {}) do
+            if not current[neighbor] then current[neighbor]=readInfluenceMap(neighbor,false) end
+        end
+    end
+    local strength=math.max(0,math.min(1,state.paint.abruptRepairStrength))
+    for _=1,math.max(1,state.paint.abruptRepairIterations) do
+        local nextWeights={}
+        for _,index in ipairs(indices) do
+            local average,count={},0
+            for neighbor in pairs(adjacency[index] or {}) do
+                count=count+1
+                for name,weight in pairs(current[neighbor] or {}) do
+                    average[name]=(average[name] or 0)+weight
+                end
+            end
+            local mixed={}
+            for name,weight in pairs(current[index] or {}) do
+                mixed[name]=weight*(1-strength)
+            end
+            if count>0 then
+                for name,weight in pairs(average) do
+                    mixed[name]=(mixed[name] or 0)+weight/count*strength
+                end
+            end
+            local normalized=normalizedInfluences(mixed)
+            local weightMap={}
+            for _,influence in ipairs(normalized) do weightMap[influence.name]=influence.weight end
+            nextWeights[index]=weightMap
+        end
+        for index,weights in pairs(nextWeights) do current[index]=weights end
+    end
+    local edits={}
+    for _,index in ipairs(indices) do
+        if influenceDistance(original[index] or {},current[index] or {})>1e-7 then
+            local influences=normalizedInfluences(current[index] or {})
+            if #influences>0 then
+                local row={index}
+                for slot=1,4 do
+                    local influence=influences[slot]
+                    row[slot*2]=influence and influence.name or nil
+                    row[slot*2+1]=influence and influence.weight or 0
+                end
+                edits[#edits+1]=row
+            end
+        end
+    end
+    if #edits==0 then
+        setStatus(tLang.L('swl_paint_abrupt_repair_no_change'),false)
+        return false
+    end
+    local snapshot=stageRollbackSnapshot('swl_history_repair_abrupt_weights')
+    if not snapshot then setStatus(tLang.L('swl_snapshot_failed'),true); return false end
+    local ok,committed=safeCall(function()
+        return state.meshD:setSkeletalVertexWeightsBatch(edits)
+    end)
+    if not ok or not committed then
+        discardRollbackSnapshot(snapshot)
+        if ok then setStatus(tLang.L('swl_paint_abrupt_repair_failed'),true) end
+        return false
+    end
+    local beforeEdges=stats.edges
+    commitRollbackSnapshot(snapshot,'swl_history_repair_abrupt_weights')
+    state.modified=true
+    invalidateAnalysis()
+    state.paint.heatmapDirty=true
+    rebuildPaintHeatmap()
+    applyWorkspaceVisibility()
+    local afterEdges=state.paint.abruptStats and state.paint.abruptStats.edges or 0
+    setStatus(string.format(tLang.L('swl_paint_abrupt_repaired_fmt'),#edits,beforeEdges,
+        afterEdges),false)
+    return true
+end
+
 local function diagnoseAbruptTransitions()
     if not state.analysis or state.analysisDirty then return end
     local okMode,mode=safeCall(function() return state.meshD:getModeDraw() end)
@@ -4683,6 +4778,23 @@ local function showPaintWeights()
                 stats.vertices,stats.total))
             tImGui.Text(string.format(tLang.L('swl_paint_abrupt_max_fmt'),stats.maximum,
                 state.paint.abruptThreshold))
+        end
+        tImGui.Separator()
+        showSectionTitle('swl_paint_weight_tools')
+        tImGui.TextWrapped(tLang.L('swl_paint_abrupt_repair_help'))
+        tImGui.PushItemWidth(240)
+        local strengthChanged,repairStrength=tImGui.SliderFloat(
+            tLang.L('swl_paint_abrupt_repair_strength'),state.paint.abruptRepairStrength,
+            0.01,1,'%.2f')
+        tImGui.PopItemWidth()
+        if strengthChanged then state.paint.abruptRepairStrength=repairStrength end
+        tImGui.PushItemWidth(240)
+        local iterationsChanged,repairIterations=tImGui.SliderInt(
+            tLang.L('swl_paint_abrupt_repair_iterations'),state.paint.abruptRepairIterations,1,10)
+        tImGui.PopItemWidth()
+        if iterationsChanged then state.paint.abruptRepairIterations=repairIterations end
+        if tImGui.Button(tLang.L('swl_paint_abrupt_repair_apply')) then
+            repairPaintAbruptTransitions()
         end
     end
     if state.paint.visualizationMode==1 then

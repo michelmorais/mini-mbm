@@ -69,6 +69,13 @@ geometry or rereading weights. The GUI therefore labels it as a classification t
 statistics only; it intentionally does not recolor the raw heatmap. Automatic repair remains a
 later, separately validated action.
 
+Abrupt Weight Transitions now exposes the contextual **Smooth Detected Transitions** repair. Only
+vertices belonging to threshold-classified edges are editable. Configurable strength and 1-10
+iterations blend their complete weight vectors toward triangle-neighbor averages; external
+neighbors remain fixed boundaries during stable Jacobi passes. Every pass deterministically
+normalizes and limits influences. The final candidate commits through one canonical batch and one
+Undo entry, then the diagnostic rebuild reports abrupt-edge counts before and after.
+
 Paint Weights now includes its first authoring slice. The user can select a target bone from the
 panel or by clicking its joint/segment, inspect that bone's smoothly interpolated stored-weight
 heatmap, hide or show the skeleton independently, adjust radius, strength, and linear/smooth
